@@ -4,12 +4,27 @@
 >
 > **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5A LOCK FINAL
 >
+> **Baseline Metadata (强制对齐 — 与 GitHub `master` 一致):**
+>
+> ```yaml
+> architecture_version: V0.2.4          # 当前 LOCK FINAL
+> runtime_semantics: CLOSED            # implementation_ambiguity: NONE
+> review_passes: 22                    # 22 轮 review
+> latest_errata: 14                    # Errata-1 ~ Errata-14
+> runtime_domains_closed: 9            # 含 Clock (9 大 Runtime 域)
+> health_invariants: 7                 # H1-H7 (Errata-14 锁定)
+> canonical_vocabulary: LOCKED         # 见 §2.6
+> never_reopen: V0.2.5                 # 不再开 V0.2.5
+> baseline_sot: docs/architecture/ARCHITECTURE_V0.2.md
+> ```
+>
 > **关联文档:**
-> - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线
+> - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (192KB / 4021 行 / 22 轮 review)
 > - [`docs/phase-0.5/README.md`](../phase-0.5/README.md) — Phase 0.5A Operator Semantics (LOCK FINAL)
 > - [`docs/phase-0.5/ERRATA.md`](../phase-0.5/ERRATA.md) — Phase 0.5A 20 项修复归档
 > - [`docs/phase-0.6/README.md`](../phase-0.6/README.md) — Executable Acceptance Specification
 > - [`docs/phase-0.5b/README.md`](README.md) — Phase 0.5B 阶段介绍
+> - [`docs/phase-0.5b/I18N_SPEC.md`](I18N_SPEC.md) — i18n Contract (Locale / Canonical Terms / Enum Labels)
 
 ---
 
@@ -31,19 +46,29 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 
 ---
 
-## 1. 6 大工作域 (Work Domains)
+## 1. 6 大工作域 (Work Domains) — 计数口径统一
 
-| # | 工作域 | 角色 | UI 表面数 | 状态 |
-|---|---|---|---|---|
-| 01 | **Broadcast 播控** | Operator / Director | 9 Core + 0 (Phase 0.5A) | 🟢 LOCK FINAL |
-| 02 | **Media 媒体资产** | Director / Engineer | 6 (M-11~16) | 🔴 待定义 |
-| 03 | **Profiles 配置** | Engineer | 7 (P-21~27) | 🔴 待定义 |
-| 04 | **Engineering 工程** | Engineer | 7 (E-31~37) | 🟡 2 已 LOCK + 5 待定义 |
-| 05 | **Operations 运维** | Operator / Engineer | 5 (O-41~45) | 🟡 1 已 LOCK + 4 待定义 |
-| 06 | **Administration 平台管理** | Admin | 5 (A-51~55) | 🔴 待定义 |
-| +1 | **State Reference 状态参考** | 全员 | 1 (10-states) | 🟢 LOCK FINAL (Validation) |
+| # | 工作域 | 角色 | UI 表面数 | 来源 | 状态 |
+|---|---|---|---|---|---|
+| 01 | **Broadcast 播控** | Operator / Director | 9 Core | 0.5A LOCK | 🟢 LOCK FINAL |
+| 02 | **Media 媒体资产** | Director / Engineer | 6 新 (M-11~16) | 0.5B 新增 | 🔴 待定义 |
+| 03 | **Profiles 配置** | Engineer | 7 新 (P-21~27) | 0.5B 新增 | 🔴 待定义 |
+| 04 | **Engineering 工程** | Engineer | 2 升级 (E-31) + 6 新 (E-32~37) | 0.5A #08 + 0.5B 新增 | 🟡 部分 LOCK + 6 待定义 |
+| 05 | **Operations 运维** | Operator / Engineer | 1 升级 (O-41) + 4 新 (O-42~45) | 0.5A #09 + 0.5B 新增 | 🟡 部分 LOCK + 4 待定义 |
+| 06 | **Administration 平台管理** | Admin | 5 新 (A-51~55) | 0.5B 新增 | 🔴 待定义 |
+| +1 | **State Reference 状态参考** | 全员 | 1 (10-states) | 0.5A LOCK (Validation) | 🟢 LOCK FINAL |
 
-**总数:** ~40 个 UI 工作面（其中 10 LOCK FINAL，~30 待 Phase 0.5B 定义）
+**口径说明 (避免歧义):**
+- **0.5A 锁定的 UI 表面**: 9 Core (01-09) + 1 Validation (10-states) = **10**
+- **0.5B 新增 UI 表面**: M(6) + P(7) + E(6) + O(4) + A(5) = **28**
+- **从 0.5A 升级到 0.5B 工作域的 UI 表面**: E-31 (Graph Designer 升级到 Engineering) + O-41 (Health Tree 升级到 Operations) = **2 升级** (升级 = 重新归类, 不是新增)
+- **0.5B 完成后的总 UI 表面**: 10 (0.5A) + 28 (0.5B 新) = **38** (含 1 Validation)
+- **不要再写 "30 / ~25 / ~35" 等模糊数字**
+
+**Surface 编号约定 (锁定):**
+- 0.5A 沿用 `01-09` 编号 (不变)
+- 0.5B 新增使用 `M-11`/`P-21`/`E-31`/`O-41`/`A-51` 域前缀 + 序号
+- 序号在每个域内连续, 跨域不连续 (避免重排 0.5A)
 
 ---
 
@@ -185,11 +210,18 @@ Media Library (M-11)  ← 入口
 ### 信息架构
 
 **Header:** 缩略图 + 资产名 + 状态徽章 + 关键指标条 (Duration/Resolution/FPS/Codec/Container/File Size/Hash/Created) + 主操作
-**Tab 区:**
-- **M-12a Versions**: 列表 (Version名/类型/编码/分辨率/大小/时间/状态) + `[+ Create Version]`
-- **M-12b QC**: qc_profile + 检测项 (Black/Freeze/Audio/Loudness/AV Sync) 阈值与实测 + `[Re-run QC]` / `[Change QC Profile]`
-- **M-12c Rights**: 列表 (地域/平台/起始/截止/状态) + `[Block]` `[Extend]` `[Override]` `[Audit]`
-- **M-12d History**: 时间线 (谁/何时/改了什么) + 可回滚
+
+**Tab 区 (5 个 — 锁定):**
+
+| Tab | 编号 | 内容 |
+|---|---|---|
+| **Overview 总览** | M-12a | 默认 Tab · 摘要 + 缩略图 + 关键元数据 + Used By (引用清单) + 最近变更 |
+| **Versions 版本** | M-12b | 列表 (Version名/类型/编码/分辨率/大小/时间/状态) + `[+ Create Version]` |
+| **QC 质量** | M-12c | qc_profile + 检测项 (Black/Freeze/Audio/Loudness/AV Sync) 阈值与实测 + `[Re-run QC]` / `[Change QC Profile]` |
+| **Rights 版权** | M-12d | 列表 (地域/平台/起始/截止/状态) + `[Block]` `[Extend]` `[Override]` `[Audit]` |
+| **History 历史** | M-12e | 时间线 (谁/何时/改了什么) + 可回滚 |
+
+**Tab 顺序锁定:** Overview → Versions → QC → Rights → History (Overview 默认显示)
 
 ### 状态模型
 - Normal: 资产 READY, 5 tab 完整
@@ -330,44 +362,123 @@ Profiles
 
 **列表字段:** Profile Name · Codec · Resolution · FPS · Bitrate Mode · Bitrate · GOP · Container · Use Count (引用次数) · Last Modified
 
-**详情 (5 区):**
+**详情 (9 区 — 广播级完整字段):**
 
-#### Video
+#### Basic
+- Profile Name (必填, 唯一)
+- Description
+- Category (Broadcast / Web / Archive / Proxy / Mobile)
+- Tags
+
+#### Video — Codec
 - Codec (H.264 / H.265 / VP9 / AV1)
 - Profile (Baseline / Main / High)
 - Level (3.0 / 3.1 / 4.0 / 4.1 / 5.0 / 5.1 / 5.2)
-- Resolution (1920×1080 / 1280×720 / 3840×2160)
-- FPS (25 / 30 / 50 / 60)
-- Pixel Format (yuv420p / yuv422p / yuv444p)
+- Pixel Format (yuv420p / yuv422p / yuv444p / yuv420p10le)
+
+#### Video — Format
+- Resolution (1920×1080 / 1280×720 / 3840×2160 / 自定义)
+- FPS (25 / 30 / 50 / 60 / 自定义)
+- Time Base (1/90000 default)
+- **Pixel Aspect Ratio (SAR)** (1:1 / 4:3 / 16:9)
+- **Field Order** (Progressive / Top Field First / Bottom Field First)
+- **Color Space** (BT.601 / BT.709 / BT.2020)
+- **Color Range** (TV / PC / JPEG Full)
+- **Color Transfer** (BT.709 / SMPTE 2084 / HLG)
+- **Color Primaries** (BT.709 / BT.2020)
+- **Color Metadata** (HDR10 / HLG / SDR / None)
+
+#### Video — Bitrate
 - Bitrate Mode (CBR / VBR / Capped VBR)
 - Bitrate (Mbps)
-- GOP (12 / 25 / 50 / 100 / 250)
+- **VBV Maxrate** (Mbps, for CBR)
+- **VBV Buffer** (kbit, for CBR)
+- **HRD** (High Profile only, for broadcast compliance)
+- Min Bitrate (Mbps, for VBR)
+- Max Bitrate (Mbps, for VBR/Capped VBR)
+- Quality / CRF (for VBR)
+
+#### Video — GOP
+- GOP Size (12 / 25 / 50 / 100 / 250)
+- **Closed GOP / Open GOP** (广播必 Closed)
+- **Keyframe / IDR Policy** (every N frames / on event)
+- **Reference Frames** (1-16)
 - B-Frames (0 / 2 / 4)
 - Lookahead (0 / 10 / 20)
+- Scene Cut Detection (on/off)
+
+#### Video — Encoding
+- **Hardware Encoder** (Runtime Discovery — 见下)
 - Threads (1 / 2 / 4 / 8 / auto)
-- Hardware Encoder (NVENC / QSV / VideoToolbox / x264 / x265 / libvpx)
+- Preset (ultrafast / superfast / veryfast / faster / fast / medium / slow)
+- Tune (film / animation / grain / stillimage / zerolatency)
+- Latency Mode (Normal / Low Latency / Ultra-Low)
 
 #### Audio
 - Codec (AAC / Opus / MP3 / Vorbis)
-- Sample Rate (44.1k / 48k)
-- Channels (1 / 2 / 6 / 8)
+- Sample Rate (44.1k / 48k / 96k)
+- **Channel Layout** (Mono / Stereo / 2.1 / 5.0 / 5.1 / 7.1.4)
+- **Bit Depth** (16 / 24 / 32)
 - Bitrate (kbps)
+- Loudness Reference (LUFS, optional, 联动 P-23)
+- AV Sync Offset (ms, optional)
 
 #### Container
 - MPEG-TS / fMP4 / MP4 / MOV / MKV
+- Segment Duration (for TS/fMP4)
+- Index Mode (for fMP4)
 
 #### Advanced
-- Preset (ultrafast / superfast / veryfast / faster / fast / medium / slow)
-- Tune (film / animation / grain / stillimage / zerolatency)
-- Latency Mode (Normal / Low Latency)
-- Metadata (复制 / 重写 / 移除)
-- Timecode (preserve / drop / re-stamp)
+- Metadata Policy (Copy / Rewrite / Drop)
+- Timecode Policy (Preserve / Drop / Re-stamp)
+- Side Data (SEI / HDR mastering display / Content light level)
 
-#### Validation
-- ✓ Compatible
-- ✓ Resource OK
-- ✓ Codec supported (服务器端)
-- ✓ Test Encode OK (sample test)
+#### Validation (4 检查)
+- ✓ Compatible (字段相互一致)
+- ✓ Resource OK (服务器端能力足够)
+- ✓ Codec supported (Runtime Discovery 检查)
+- ✓ Test Encode OK (sample test 跑 5s)
+
+#### Revision
+- Version (auto-increment)
+- Change Notes
+- Created By / At
+- Status (DRAFT / ACTIVE / DEPRECATED)
+
+#### Hardware Encoder (Runtime Discovery — 关键边界)
+
+**V0.2 锁定:** GPU / Encoder / BMD 能力来自 Hardware Capability Discovery (E-35)。UI 不能假定硬件存在。
+
+UI 表现形式:
+
+```
+Hardware Encoder
+[ AUTO ▼ ]
+
+Available (Runtime Discovered):
+✓ libx264      (CPU)
+✓ libx265      (CPU)
+✓ libvpx-vp9   (CPU)
+✗ NVENC        (GPU unavailable)
+✗ QSV          (unavailable)
+✗ VideoToolbox (N/A · Linux)
+✗ BMD H.264    (no BMD encoder port)
+```
+
+UI 行为:
+- 选项**只列出** E-35 Runtime Discovery 报告的可用 encoder
+- 不可用项**显式标注** (✗) + 原因 (GPU unavailable / N/A on Linux)
+- Profile 保存时**强制** Preflight 验证所选 encoder 实际可用
+- Encoder 不可用 → Validation FAIL (Critical) → Profile 不能 ACTIVE
+
+**编码决策链 (X1 Compiler):**
+```
+Codec → Encoder → Capability → Resource Estimate
+  ↓        ↓          ↓              ↓
+ 选      动态查     查 E-35        查 E-36
+ Codec  哪个 Encoder 是否支持     资源是否够
+       最合适
+```
 
 **操作:** `[+ Create Profile]` · `[Clone]` (L1) · `[Test Encode]` (L1, 跑 5s 测试) · `[Edit]` (L2) · `[Delete]` (L3)
 
@@ -394,22 +505,43 @@ Profiles
 
 **列表字段:** Profile Name · Protocol · Host:Port · Stream Key · Status · Use Count · Last Modified
 
-**详情 (6 区):**
+**详情 — 严格按 V0.2 支持范围分层:**
 
-#### Protocol & Destination
-- Protocol (HLS / RTMP / WebRTC / SRT / UDP MPEG-TS / File / DASH)
+#### V0.2 Supported (UI 可配置 — Backend 已实现)
+
+| Protocol | Host / Port | Key | Transport |
+|---|---|---|---|
+| **HLS** (SRS) | SRS endpoint | Stream path | HTTP/HTTPS |
+| **RTMP** (SRS) | SRS endpoint | Stream key | TCP |
+| **WebRTC** (SRS) | SRS WHIP endpoint | Stream path | UDP/QUIC |
+| **SRT** | Host:Port | Stream ID | UDP |
+| **UDP MPEG-TS** | Host:Port | Multicast group | UDP |
+| **File** (Archive) | Local / S3 / NFS | Path template | — |
+
+#### Reserved / V0.4+ (UI 显示但标 "Reserved" — Backend 未实现)
+
+| Protocol | 状态 | V0.2 表现 |
+|---|---|---|
+| SDI Master Output | V0.4 Target | Architecture Contract RESERVED · V0.2 DISABLED |
+| DASH | Future | 灰显 + "DASH output is reserved for V0.4+, not configurable in V0.2" |
+| DRM (Widevine / FairPlay / PlayReady) | Future | 灰显 + 提示 |
+
+**V0.2 约束 (重要):** UI 不能让 V0.2 用户误以为 DASH/DRM/SDI 已经可配置。Reserved 协议必须显式标 "[Reserved · V0.2 Disabled]"。
+
+#### Protocol & Destination (V0.2 supported 内的详细字段)
+- Protocol (HLS / RTMP / WebRTC / SRT / UDP / File) — **V0.2 限定 6 种**
 - Host / IP
 - Port
 - Stream Key / Path
-- Transport (TCP / UDP / QUIC)
-- SRS Gateway / CDN Endpoint
+- Transport (TCP / UDP / QUIC — 按 protocol 自动限定)
+- SRS Gateway Endpoint (HLS/RTMP/WebRTC 必填)
 
-#### HLS Specific
+#### HLS Specific (V0.2 supported)
 - Segment Duration (1s / 2s / 4s / 6s)
 - Playlist Window (3 / 5 / 10 segments)
 - Codec (H.264 / H.265)
 - Latency Mode (LL-HLS / Normal HLS)
-- DRM (none / Widevine / FairPlay / PlayReady)
+- **DRM 字段: V0.2 灰显, 标 "Reserved"**
 
 #### RTMP Specific
 - URL (rtmp://host:port/app/stream)
@@ -418,7 +550,7 @@ Profiles
 
 #### WebRTC Specific
 - ICE Servers (STUN / TURN)
-- Signaling URL
+- Signaling URL (SRS WHIP API)
 - DTLS / SRTP enabled
 - Bitrate cap
 
@@ -426,12 +558,97 @@ Profiles
 - Latency Target (50 / 100 / 200 / 500ms)
 - Reconnect Policy
 - Failover Destination (URL)
-- CDN (Cloudflare / Akamai / Aliyun)
+- CDN Endpoint (可选)
 
 #### Player Capability
 - Player Hint (Safari / Chrome / Android / iOS)
 - Required Codecs
 - Auto Transcode on demand
+
+#### V0.2 Architecture 约束 (重要, 影响 UI):
+- **SDI Master Output** (V0.4 Target) 在 0.5A #09 Health Tree 已显式标 "DISABLED (V0.4 Target)" — P-22 UI 必须继承此约束
+- **DASH/DRM** 等 Reserved 协议, UI 不能诱导用户配置, 否则 Phase 4 实现时返工
+
+---
+
+## 4.1 Output 三元组语义 (Output Profile / Variant / Destination) — 锁定
+
+> **V0.2 §3.7.1 Program-scope Master 锁定: Output 不是 1 个对象, 是 3 个独立对象的链。**
+>
+> UI 必须明确区分这 3 个概念, 否则与 V0.2 架构脱节。
+
+### 概念定义 (锁定)
+
+| 概念 | 含义 | 典型实例 | 决定权 |
+|---|---|---|---|
+| **Output Profile (P-22)** | **如何交付** — 编码 / 协议 / 可靠性策略 / Latency 目标 | "SRS HLS 1080p25 CBR 5Mbps LL-HLS" | Engineer |
+| **Output Variant** | **Program-scope Master 的某个具体派生版本** — 与 Channel 1:1 绑定 | "CH01 News HD 主 HLS 1080p" | Channel 配置时引用 |
+| **Output Destination** | **实际发送位置** — Endpoint / URL / Stream Key | "https://srs.internal/live/ch01.m3u8" | Deployment |
+
+### 三者关系 (V0.2 锁定)
+
+```
+Output Profile (P-22)
+    定义 HOW (如何编码、协议、可靠性)
+        ↓
+    1 个 Profile 可以被 多个 Variant 引用
+        ↓
+Output Variant
+    引用 Profile + 绑定 Channel (1:1)
+    + 持有 Destination 列表
+        ↓
+    1 个 Variant 可以发到 多个 Destination (主备)
+        ↓
+Output Destination
+    具体 endpoint (host:port/path)
+    + 当前健康状态
+```
+
+### V0.2 关键约束
+
+- **Output Variant 是 Channel 的子对象**, 不是 Channel 的子字段, 也不在 Channel 表里
+- **Output Variant 通过 `channel_routes` 关联 Channel** (V0.2 §3.4 锁定)
+- **Output Destination 是 Output Variant 的子对象** (运行时配置)
+- **修改 Output Profile 不直接影响 Output Variant 的 Destination** (Destination 独立管理)
+- **SDI Master Output Variant 状态固定为 DISABLED** (V0.4 Target)
+
+### UI 实现选择 (P-22 内部结构 — 锁定)
+
+P-22 Output Profile 页面**不**包含 Variant / Destination 配置 (避免巨型表单)。结构是:
+
+```
+P-22 Output Profiles
+├── 列表 (Profile 定义)
+└── 详情 (Profile Definition)
+    ├── Basic
+    ├── Protocol & Destination (V0.2 supported 字段)
+    ├── HLS / RTMP / WebRTC / SRT / UDP / File 特定字段
+    ├── Latency / Reliability
+    └── Player Capability
+
+P-22 内部 子页 (新增)
+├── Variants 列表 (引用此 Profile 的所有 Variant)
+│   └── 跳到 Output Variant 详情 (E-31 Graph Designer Channel 配置)
+└── Destinations 列表 (历史 / 模板, V0.4 启用, V0.2 显示 "Reserved")
+
+Output Variant 管理 — 实际在:
+└─ E-31 Graph Designer → Channel 配置 → Output 节点
+   或
+└─ Channel 详情页 → Output Variants Tab (M-12 类子页)
+```
+
+### 与 V0.2 §3.4 / §3.7.1 / §3.13 关联
+
+- §3.4: Switch Mode 决策 (PACKET/FRAME/MASTER) — 影响 Output Variant 选择
+- §3.7.1: Program-scope Master 三个独立 graph (Video/Audio/Metadata) — 每个可独立配 Output Variant
+- §3.13: AVSync Manager — 监控每个 Output Variant 的 Offset/Drift
+
+### 必须避免的 UI 反模式
+
+- ❌ Output Profile 页面直接绑定 Endpoint URL (混淆 Profile 和 Destination)
+- ❌ Output Profile 列表里直接显示 "running / disconnected" (运行态在 Output Variant)
+- ❌ V0.2 UI 让用户配置 DASH/DRM (Backend 未实现, Reserved)
+- ❌ Output Variant 跨 Channel 共享 (V0.2 1:1 绑定)
 
 **操作:** `[+ Create Profile]` · `[Test Connection]` (L1) · `[View in Output]` (跳 Output 页面) · `[Edit]` (L2) · `[Delete]` (L3, 检查 Use Count)
 
@@ -687,13 +904,19 @@ Engineering
 - ✓ Asset exists
 - ✓ Latency within budget
 
-#### Resource
-- ✓ CPU available
-- ⚠ GPU (选配, 提示)
-- ✓ RAM available
-- ✓ NIC bandwidth
-- ✓ PCIe bandwidth
-- ✓ BMD 设备 available
+#### Resource (9-Dim Resource Vector — V0.2 §3.11 锁定)
+- ✓ CPU_THREADS
+- ⚠ GPU_SESSIONS (选配)
+- ✓ VRAM_MB
+- ✓ RAM_MB
+- ✓ NIC_INGRESS_MBPS
+- ✓ NIC_EGRESS_MBPS
+- ✓ DISK_WRITE_MBPS
+- ✓ PCIE_RX_MB_S
+- ✓ PCIE_TX_MB_S
+- ✓ BMD_INPUT_TOKENS
+- ✓ BMD_OUTPUT_TOKENS
+- ✓ DEVICE_EXCLUSIVITY_OK
 
 #### Runtime Readiness
 - ✓ SRS Adapter ready
@@ -733,12 +956,29 @@ Engineering
 
 **详情:**
 
-#### Status 状态机
+#### Status 状态机 (Business Status + Execution Phase — 必须分离)
+
+**V0.2 Schema 锁定:**
+- `change_sets.status` (Business Status) — 业务层面的状态
+- `change_set_events.phase` (Execution Phase) — 事务执行阶段
+- **两者不能混淆**, 前端 enum 不能多出 `ChangeSetStatus.ABORTED`
+
 ```
+Business Status (change_sets.status):
 DRAFT → VALIDATED → APPLIED → (ROLLED_BACK)
               ↓
-          ABORTED
+          (no ABORTED — 这是 Phase, 不是 Status)
+
+Execution Phase (change_set_events.phase):
+PREPARING → APPLYING → COMMITTED
+         ↘ ABORTED  ← Phase 终止, 不影响 Business Status
 ```
+
+**关键区别:**
+- Business Status: 用户 / 系统视角的"这次配置变更是什么状态"
+- Execution Phase: 事务执行视角的"Apply 操作处于哪个阶段"
+- ABORTED 是 Phase 终止, **不**代表 Business Status 失败
+- ABORTED 后 Business Status 回 DRAFT (可重试) 或保持 VALIDATED (待重 Apply)
 
 #### Targets
 - Channel · Graph Revision · Encoding Profile · Output Profile · Graphic Template · Audio Profile
@@ -796,26 +1036,45 @@ DRAFT → VALIDATED → APPLIED → (ROLLED_BACK)
 
 ### 信息架构
 
-**按 Host 分组:**
+**按 Host 分组 (样例使用 [Sample Host] / [Runtime Discovered], 不写实机器快照):**
 
-#### Host: 10.30.15.10
-- **CPU:** 32 threads
-- **RAM:** 30 GB
-- **GPU:** None
+> **重要:** Architecture ≠ Runtime Hardware Snapshot (V0.2 §3.11 锁定)。
+> UI 样例必须用 `[Sample Host]` 占位或 `[Runtime Discovered]`, **不能**把 `10.30.15.10` / `32 核` / `30 GB` 等真实机器参数硬编码到 wireframe。
+
+#### Host: [Sample Host] (Runtime Discovered)
+- **CPU:** [Runtime Discovered] threads
+- **RAM:** [Runtime Discovered] GB
+- **GPU:** [Runtime Discovered] (None / NVIDIA / AMD)
 - **BMD:**
-  - DeckLink Mini Monitor 4K (serial xxx)
-    - Port 1 IN / Port 2 IN / Port 3 OUT
+  - [Runtime Discovered] e.g. DeckLink Duo 2
+    - Port 1 IN / Port 2 IN (per Duo 2 spec)
     - Driver / Firmware
     - Current Lock
     - Temperature
     - Health
 - **NIC:**
-  - eth0 (10GbE)
-  - eth1 (1GbE management)
+  - [Runtime Discovered] e.g. eth0 (10GbE)
+  - [Runtime Discovered] e.g. eth1 (1GbE management)
 - **NVMe:**
-  - /dev/nvme0n1 (1TB · 38% used)
+  - [Runtime Discovered] e.g. /dev/nvme0n1 (1TB · 38% used)
 - **Clock:**
-  - PTP0 · ptp0 (eth0) · LOCKED · BROADCAST_GRADE
+  - [Runtime Discovered] e.g. PTP0 · ptp0 (eth0) · LOCKED · BROADCAST_GRADE
+
+**V0.2 Hardware Snapshot (current_host_snapshot, §3.11):**
+- 真实机器 `10.30.15.10` / 32 核 / 30 GB / 3 张 BMD 是 **deployment reference**
+- UI **绝不** 硬编码这些值到 wireframe 样例
+- UI **通过** E-35 Runtime Discovery API 动态拉取并显示
+- 任何硬件增配 / 替换 **不修改** V0.2 架构和 0.5B Surface Spec
+
+**点击 BMD 设备详情:**
+- Model
+- Serial
+- Driver / Firmware
+- Input Ports / Output Ports (per device spec)
+- Supported Modes / Formats
+- Current Lock
+- Temperature
+- Health
 
 **操作:** `[Refresh]` · `[Lock Device]` (L2) · `[Unlock]` (L1)
 
@@ -838,15 +1097,21 @@ DRAFT → VALIDATED → APPLIED → (ROLLED_BACK)
 
 ### 信息架构
 
-**实时面板:**
-- CPU ████████░░ 78%
-- RAM ██████░░░░ 62%
-- NIC IN ████░░░░░░ 41%
-- NIC OUT ██████░░░░ 66%
-- Disk Write ███████░░░ 72%
-- PCIe RX ██████░░░░ 61%
-- BMD Input 3/3
-- BMD Output 2/3
+**实时面板 (9-Dim Resource Vector — V0.2 §3.11):**
+- CPU_THREADS        ████████░░ 78%
+- GPU_SESSIONS       [—  · GPU unavailable] (动态)
+- VRAM_MB            [Runtime Discovered]
+- RAM_MB             ██████░░░░ 62%
+- NIC_INGRESS_MBPS   ████░░░░░░ 41%
+- NIC_EGRESS_MBPS    ██████░░░░ 66%
+- DISK_WRITE_MBPS    ███████░░░ 72%
+- PCIE_RX_MB_S       ██████░░░░ 61%
+- PCIE_TX_MB_S       [Runtime Discovered]
+- BMD_INPUT_TOKENS   [Runtime Discovered] / [total] e.g. 3/3
+- BMD_OUTPUT_TOKENS  [Runtime Discovered] / [total] e.g. 2/3
+- DEVICE_EXCLUSIVITY OK / CONFLICT
+
+> **重要:** 所有数字必须 Runtime Discovered 动态显示, **不**硬编码到 wireframe 样例。
 
 **当前分配 (按 Channel):**
 - CH01: Decode + Encode + Composition + Recording
@@ -879,7 +1144,12 @@ DRAFT → VALIDATED → APPLIED → (ROLLED_BACK)
 **Current Reference:** PTP · ptp0 (eth0) · LOCKED · BROADCAST_GRADE
 **Metrics:** Offset / Drift / Path Delay
 **Fallback Chain:** PTP (active) → TIMECODE → SYSTEM → MONOTONIC
-**历史事件:** CLOCK_DEGRADED / CLOCK_LOST / FALLBACK_TRIGGERED
+**历史事件 (Canonical Vocabulary — V0.2 锁定):**
+- `CLOCK_DEGRADED` — 漂移 / 精度降级 (BROADCAST_GRADE → GOOD/FAIR/POOR)
+- `CLOCK_FAILED` — 失锁 / 不可用 (LOCKED → LOST)
+- `CLOCK_FALLBACK_TRIGGERED` — Fallback Chain 切换事件
+
+> **注意:** `CLOCK_LOST` 不在 Canonical Vocabulary 中, 统一为 `CLOCK_FAILED`。
 
 ---
 
@@ -921,8 +1191,51 @@ Operations
 **3 层 Tab:**
 
 #### Alert Rules
-- 字段: Rule Name · Trigger Condition (e.g. SRT packet loss > 0.5% for 5s) · Severity · Escalation · Auto Action
+- 字段: Rule Name · Trigger Condition (e.g. SRT packet loss > 0.5% for 5s) · Severity · Escalation · **Auto Action (从 §8.9 继承, 不可覆盖)**
 - 操作: `[+ Create Rule]` · `[Test]` · `[Edit]` · `[Delete]`
+
+**Auto Action 关键约束 (V0.2 §8.9 锁定 — UI 不可覆盖):**
+
+> V0.2 §8.9 Failure Domain Matrix 是 **Recovery Policy SoT**。
+> Alert Rule 不能让 Admin 任意设置"切主备"。
+
+正确流程 (UI 必须按此实现):
+
+```
+Alert Rule 触发
+    ↓
+Diagnostic Classification
+    ↓
+OperationalFailureDomain (SOURCE / PIPELINE / MASTER / OUTPUT / RECORDING / CLOCK / RESOURCE)
+    ↓
+§8.9 Recovery Policy
+    ↓
+Allowed Action (由 §8.9 决定, 不可由 Alert Rule 改写)
+```
+
+UI 表现:
+
+```
+Auto Action
+[ Inherited from §8.9 Failure Domain Policy ▼ ]
+
+Current Domain: SOURCE
+Allowed Actions (read-only):
+  ✓ FAILOVER
+  ✓ NOTIFY
+  ✗ RESTART_ADAPTER  (不允许, 由 §8.9 决定)
+  ✗ DISABLE_OUTPUT   (不允许)
+```
+
+**禁止 UI 反模式:**
+- ❌ Alert Rule 任意设置 "切主备" 复选框
+- ❌ Admin 覆盖 §8.9 决策
+- ❌ Alert Rule 包含 `ACTION: FAILOVER` 字符串 (应是 Diagnostic → §8.9 链路)
+
+**DiagnosticFailureClass 单独处理 (不进 7 OperationalFailureDomain):**
+- PLAYER: NOTIFY only, fail_safe=true
+- UNKNOWN: SAFE_DEGRADE, alert=true
+- **这两类不触发 Failover**, UI 必须显式标 "[Player-side / Diagnostic only, no failover]"
 
 #### Active Alerts
 - 列表: Alert ID · Severity · Source · Description · First Seen · Last Seen · Status
@@ -1268,56 +1581,160 @@ Phase 4
 
 ---
 
-# 11. 架构对象映射总表 (V0.2 → UI 表面)
+# 11. 架构对象映射总表 (V0.2 → UI 表面) — 完整 Exposure Matrix
 
-| 架构对象 (V0.2) | UI 表面 |
+> **V0.2 架构对象** 必须明确分类到 **4 个 Exposure Level**:
+>
+> | Level | 含义 | UI 形式 |
+> |---|---|---|
+> | **DIRECT** | 用户直接 CRUD 的对象 | 独立 UI 表面 / 详情页 |
+> | **INDIRECT** | UI 间接显示/引用, 但不能直接编辑 | 选择器 / Inspector / 引用视图 |
+> | **SYSTEM_INTERNAL** | 系统内部状态, UI 显示 read-only, 不让用户改 | 监控面板 / Status 字段 |
+> | **NON_UI** | 完全不暴露到 UI (DB / API 内部使用) | 仅 DB / API |
+
+> **重要:** 之前规范"1:1 映射"过强, 实际不是所有对象都需要独立 UI 表面。
+> 现在按 4-Level 分类, 避免 Phase 4 实施返工。
+
+## 11.1 02 Media 工作域 对象映射
+
+| 架构对象 | Exposure | UI 表面 | 备注 |
+|---|---|---|---|
+| `media_assets` | **DIRECT** | M-11, M-12, M-13 | CRUD |
+| `asset_versions` | **DIRECT** | M-12b (Versions Tab), M-16 | CRUD + 列表 |
+| `asset_rights` | **DIRECT** | M-12d (Rights Tab) | 引用 P-26 |
+| `media_jobs` | **DIRECT** | M-14, M-15 | CRUD + 监控 |
+| `media_job_attempts` | **DIRECT** | M-15 (子表) | 重试历史 |
+| `uploads` | **SYSTEM_INTERNAL** | M-13 (进度显示) | UI 监控, 不直接编辑 |
+| `upload_chunks` | **NON_UI** | — | DB 内部 |
+| `upload_jobs` | **SYSTEM_INTERNAL** | M-13 (进度) | — |
+
+## 11.2 03 Profiles 工作域 对象映射
+
+| 架构对象 | Exposure | UI 表面 | 备注 |
+|---|---|---|---|
+| `encoding_profiles` | **DIRECT** | P-21 | CRUD |
+| `output_profiles` | **DIRECT** | P-22 | CRUD · 与 Output Variant 分离 |
+| `audio_profiles` | **DIRECT** | P-23 | CRUD |
+| `graphic_profiles` | **DIRECT** | P-24 | CRUD · 含 composition_templates |
+| `qc_profiles` | **DIRECT** | P-25 | CRUD |
+| `rights_profiles` | **DIRECT** | P-26 | CRUD |
+| `edge_policy_profiles` | **DIRECT** | P-27 | CRUD |
+| `composition_templates` | **DIRECT** | P-24 | 与 graphic_profiles 合并表 |
+| `composition_layers` | **DIRECT** | P-24 (子表) | Layer 列表 |
+| `playlists` | **DIRECT** | 0.5A #04 (Timeline) | — |
+
+## 11.3 04 Engineering 工作域 对象映射
+
+| 架构对象 | Exposure | UI 表面 | 备注 |
+|---|---|---|---|
+| `graph_specs` | **DIRECT** | E-31 (Graph Designer) | 用户画图 |
+| `graph_revisions` | **DIRECT** | E-33 (Change Sets) | 版本管理 |
+| `graph_runtimes` | **SYSTEM_INTERNAL** | E-31 (COMPILED Tab) | 编译产物, read-only |
+| `graph_runtime_nodes` | **SYSTEM_INTERNAL** | E-31 (COMPILED Tab) | 节点实例 |
+| `graph_runtime_edges` | **SYSTEM_INTERNAL** | E-31 (Edge Inspector) | 边实例 |
+| `signal_contracts` | **DIRECT** | E-34 (Capability Registry) | 列表 / 对比 |
+| `node_contracts` | **DIRECT** | E-34 (子表) | — |
+| `preflight_runs` | **DIRECT** | E-32 (Preflight Center) | 历史 + 报告 |
+| `config_revisions` | **DIRECT** | E-33 (Change Sets) | — |
+| `change_sets` | **DIRECT** | E-33 (Change Sets) | Business Status |
+| `change_set_items` | **DIRECT** | E-33 (详情) | — |
+| `change_set_events` | **DIRECT** | E-33 (Execution Phase) | 与 Business Status 分离 |
+| `device_registry` | **DIRECT** | E-35 (Device Registry) | 列表 + 详情 |
+| `device_locks` | **DIRECT** | E-35 (Lock 状态) | — |
+| `device_health_history` | **DIRECT** | E-35 (历史) | — |
+| `media_devices` | **DIRECT** | E-35 (按 Host 分组) | — |
+| `hardware_capability` | **DIRECT** | E-35, E-36 | 9-Dim Resource Vector |
+| `clock_fallback_chain` | **DIRECT** | E-37 (Clock) | — |
+| `latency_budgets` | **INDIRECT** | P-27 (引用) | 配置在 Edge Policy Profile |
+| `clock_domain_mappings` | **INDIRECT** | 0.5A #02 (Sources 时钟列) | — |
+
+## 11.4 05 Operations 工作域 对象映射
+
+| 架构对象 | Exposure | UI 表面 | 备注 |
+|---|---|---|---|
+| `health_trees` | **DIRECT** | 0.5A #09 (Health Tree) | 树形 |
+| `current_health_trees` | **SYSTEM_INTERNAL** | 0.5A #09 (Engineering View) | 实时快照 |
+| `health_tree_nodes` | **SYSTEM_INTERNAL** | 0.5A #09 (节点状态) | — |
+| `channel_health_aggregation` | **SYSTEM_INTERNAL** | 0.5A #09 (Aggregation View) | SQL 7 规则 |
+| `channel_health_view` | **DIRECT** | 0.5A #01, #09 | Channel Status 唯一入口 |
+| `incidents` | **DIRECT** | O-42, O-43 | CRUD (主要系统建, 人工 Ack) |
+| `alert_rules` | **DIRECT** | O-42 (Alert Rules Tab) | CRUD · Auto Action 来自 §8.9 |
+| `alert_events` | **DIRECT** | O-42 (Active Alerts) | 列表 |
+| `failover_benchmarks` | **DIRECT** | O-45 | 历史 + 对比 target |
+| `latency_probes` | **DIRECT** | O-45, 0.5A #06 | 7 Core + 2 Client + 1 CDN |
+| `signal_pool` | **NON_UI** | — | Prometheus 内部时序 |
+| `signal_current_state` | **SYSTEM_INTERNAL** | 0.5A #01, #09 | read-only |
+| `avsync_measurements` | **DIRECT** | 0.5A #05 (Audio 安全区), O-45 | — |
+
+## 11.5 06 Administration 工作域 对象映射
+
+| 架构对象 | Exposure | UI 表面 | 备注 |
+|---|---|---|---|
+| `users` | **DIRECT** | A-51 | CRUD |
+| `roles` | **DIRECT** | A-52 | 4 内置 (V0.2 锁定) |
+| `permissions` | **DIRECT** | A-53 (Permission Matrix) | 角色 × 操作 |
+| `user_roles` | **DIRECT** | A-51, A-52 (多对多关联) | — |
+| `audit_logs` | **DIRECT** | A-54 | append-only · hash chain |
+| `api_keys` | **DIRECT** | A-51 (子表) | — |
+| `sessions` | **SYSTEM_INTERNAL** | A-51 (子表, 当前活跃) | — |
+| `oauth_tokens` | **SYSTEM_INTERNAL** | A-51 (子表) | — |
+| `system_settings` | **DIRECT** | A-55 | 10 区 |
+
+## 11.6 01 Broadcast / Channel 工作域 对象映射
+
+| 架构对象 | Exposure | UI 表面 | 备注 |
+|---|---|---|---|
+| `channels` | **DIRECT** | 0.5A #01, #03, #06 | CRUD |
+| `media_sessions` | **DIRECT** | 0.5A #01, 10-states | — |
+| `media_session_attempts` | **SYSTEM_INTERNAL** | 0.5A #01 (status 细节) | — |
+| `media_session_runtime` | **SYSTEM_INTERNAL** | 0.5A #01, 10-states | read-only · 三轴状态 |
+| `channel_routes` | **DIRECT** | 0.5A #03, E-31 (Channel Config) | 引用 Output Variant |
+| `output_variants` | **DIRECT** | E-31 (Channel Output 节点) | 与 P-22 分离 |
+| `output_destinations` | **DIRECT** | E-31 (Channel Output 子页) | — |
+| `switch_modes` | **INDIRECT** | 0.5A #03 (选择器) | 3 模式 enum |
+| `hot_standby_levels` | **INDIRECT** | 0.5A #03 (Channel Config) | 3 级 enum · Policy/Target |
+| `recordings` | **DIRECT** | 0.5A #07 | — |
+| `recording_segments` | **DIRECT** | 0.5A #07 (Chunk 列表) | — |
+
+## 11.7 NON_UI 对象 (不暴露 UI)
+
+| 架构对象 | 用途 |
 |---|---|
-| `media_assets` | M-11, M-12, M-13 |
-| `asset_versions` | M-12a, M-16 |
-| `asset_rights` | M-12c, P-26 |
-| `media_jobs` | M-14, M-15 |
-| `media_job_attempts` | M-15 |
-| `uploads` | M-13 |
-| `encoding_profiles` | P-21, M-14 (选择器) |
-| `output_profiles` | P-22, 0.5A #06 (选择器) |
-| `audio_profiles` | P-23, 0.5A #05 (选择器) |
-| `graphic_profiles` | P-24, 0.5A #04 (选择器) |
-| `qc_profiles` | P-25, M-12b, 0.5A #09 (引用) |
-| `rights_profiles` | P-26, M-12c |
-| `edge_policy_profiles` | P-27, 0.5A #08 (Edge Inspector 引用) |
-| `playlists` | 0.5A #04 (Timeline) |
-| `composition_templates` | P-24, 0.5A #04 |
-| `composition_layers` | 0.5A #04, P-24 |
-| `signal_contracts` | E-34 |
-| `node_contracts` | E-34 |
-| `preflight_runs` | E-32 |
-| `config_revisions` | E-33 |
-| `change_sets` | E-33 |
-| `change_set_items` | E-33 |
-| `channels` | 0.5A #01, 0.5A #03, 0.5A #06 |
-| `media_session_runtime` | 0.5A #01 (Status), 10-states |
-| `incidents` | O-42, O-43 |
-| `alert_rules` | O-42 |
-| `alert_events` | O-42 |
-| `failover_benchmarks` | O-45 |
-| `latency_probes` | O-45, 0.5A #06 |
-| `signal_pool` | (Prometheus 内部, 暂不暴露 UI) |
-| `signal_current_state` | 0.5A #01, 0.5A #09 |
-| `health_tree_nodes` | 0.5A #09 |
-| `channel_health_aggregation` | 0.5A #09 |
-| `channel_health_view` | 0.5A #01, 0.5A #09 |
-| `users` | A-51 |
-| `roles` | A-52 |
-| `permissions` | A-53 |
-| `user_roles` | A-51, A-52 |
-| `audit_logs` | A-54 |
-| `api_keys` | A-51 (子表) |
-| `sessions` | A-51 (子表) |
-| `oauth_tokens` | A-51 (子表) |
-| `system_settings` | A-55 |
-| `device_registry` | E-35 |
-| `hardware_capability` | E-35, E-36 |
-| `clock_fallback_chain` | E-37, 0.5A #02 |
+| `upload_chunks` | DB 内部, 用于断点续传 |
+| `signal_pool` | Prometheus 时序数据 |
+| `internal_audit_meta` | 内部元数据 |
+| `migration_history` | DB migration 记录 |
+| `feature_flags` | 内部 feature flag |
+
+## 11.8 计数
+
+| Exposure Level | 对象数 | UI 表面影响 |
+|---|---|---|
+| DIRECT | ~32 | 独立 UI 表面或详情 Tab |
+| INDIRECT | ~5 | 引用 / 选择器 |
+| SYSTEM_INTERNAL | ~10 | 监控面板 / read-only |
+| NON_UI | ~5+ | 不暴露 |
+
+**总计 V0.2 架构对象:** ~52 个, 分布在 11.1-11.7 章节
+
+**0.5A + 0.5B 实施原则:**
+- DIRECT 对象**必须**有 UI 入口 (可能是页面/Tab/选择器)
+- INDIRECT 对象**必须**有引用入口 (选择器/Inspector)
+- SYSTEM_INTERNAL 对象**不**让用户编辑, 但监控面板**应该**显示
+- NON_UI 对象**完全**不暴露
+
+## 11.9 与 V0.2 §3.11 关联
+
+V0.2 §3.11 Resource Vector 锁定的 9-Dim:
+
+```
+CPU_THREADS / GPU_SESSIONS / VRAM_MB / RAM_MB /
+NIC_INGRESS_MBPS / NIC_EGRESS_MBPS / DISK_WRITE_MBPS /
+PCIE_RX_MB_S / PCIE_TX_MB_S
++ BMD_INPUT_TOKENS / BMD_OUTPUT_TOKENS / DEVICE_EXCLUSIVITY
+```
+
+E-35 / E-36 必须完整呈现这 9 维 + Device Tokens, 不能简化。
 
 ---
 
@@ -1342,12 +1759,22 @@ Phase 0.5A 锁定的 9 Core + 1 Validation 全部在 0.5B 中**保持原状**:
 
 # 13. 经验教训 (0.5A → 0.5B 演进)
 
-1. **架构对象必须 1:1 映射到 UI 表面** — 否则 Phase 1 / 4 实施时会不断回头问"放哪里"
-2. **Profile 必须与 Runtime 分离** — Encoding Profile ≠ Output Profile ≠ Channel; UI 也要分
-3. **危险操作必须 L1/L2/L3 分级** — 不能所有操作都同等对待
-4. **审计是 Admin 的第一公民** — 不是"以后再加"
-5. **资源容量必须有 Plan 视图** — 不仅"现在用了多少", 还要"如果新增 X 会怎样"
-6. **6 状态样例 (Normal/Loading/Empty/Error/Warning/Critical) 必须每页都有** — 缺一视为不完整
+1. **架构对象必须按 4-Level Exposure 分类** (DIRECT/INDIRECT/SYSTEM_INTERNAL/NON_UI) — 不是 1:1 映射, 也不是全无映射
+2. **Output Profile / Output Variant / Output Destination 三个概念必须分离** — V0.2 §3.7.1 锁定, UI 必区分
+3. **Profile 必须与 Runtime 分离** — Encoding Profile ≠ Output Profile ≠ Channel; UI 也要分
+4. **P-21 字段必须达到广播级** (SAR / Field Order / Color Space / HRD / Closed GOP / Reference Frames / Audio Layout / Bit Depth) — 缺这些 Capability Contract 失效
+5. **Hardware Encoder 必须是 Runtime Discovery 驱动** — UI 不能假定硬件存在, 选项来自 E-35 动态发现
+6. **P-22 必须区分 V0.2 Supported vs Reserved/Future** — DASH/DRM/SDI Master 等 Reserved 不能诱导用户配置
+7. **资源必须显示完整 9-Dim Resource Vector** — 不能简化为"CPU/RAM/NIC" 三项
+8. **Wireframe 样例必须用 [Sample Host] / [Runtime Discovered]** — 不能硬编码 10.30.15.10 / 32 核 / 30 GB 等实机器参数
+9. **E-37 Clock 事件 vocabulary 统一** — 用 CLOCK_DEGRADED / CLOCK_FAILED, 不写 CLOCK_LOST
+10. **E-33 ChangeSet Business Status 与 Execution Phase 必须分离** — ABORTED 是 Phase, 不是 Status
+11. **Alert Rule Auto Action 必须从 §8.9 Failure Domain Policy 继承** — UI 不可让 Admin 任意设置"切主备"
+12. **危险操作必须 L1/L2/L3 分级** — 不能所有操作都同等对待
+13. **6 状态样例 (Normal/Loading/Empty/Error/Warning/Critical) 必须每页都有** — 缺一视为不完整
+14. **审计是 Admin 的第一公民** — 不是"以后再加"
+15. **资源容量必须有 Plan 视图** — 不仅"现在用了多少", 还要"如果新增 X 会怎样"
+16. **i18n 必须有正式 Contract** — 见 [`I18N_SPEC.md`](I18N_SPEC.md), 不能再用 "HEALTHY 健康" 这种 hard-coded 字符串
 
 ---
 

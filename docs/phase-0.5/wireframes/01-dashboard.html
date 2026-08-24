@@ -127,9 +127,12 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="row"><span>Lifecycle</span><span class="val">RUNNING</span></div>
     <div class="row"><span>Readiness</span><span class="val">READY_TO_TAKE</span></div>
     <div class="row"><span>Health</span><span class="val">HEALTHY</span></div>
-    <div class="row"><span>Compiled</span><span class="val">FRAME</span></div>
-    <div class="row"><span>Effective</span><span class="val">FRAME</span></div>
-    <div class="row"><span>Hot-Standby</span><span class="val">HOT</span></div>
+    <div class="row"><span>Compiled Mode</span><span class="val">PACKET_SWITCH</span></div>
+    <div class="row"><span>Effective Mode</span><span class="val" style="color:var(--yellow)">FRAME_SWITCH</span></div>
+    <div class="row" style="background:#1f2a3a;margin:0 -8px;padding:4px 8px"><span style="font-weight:700;color:var(--fgdim)">Mode Δ Reason</span><span class="val" style="color:var(--fgdim);font-size:10px">Runtime Alignment degraded → §3.4 Decision Tree 自动降级到 FRAME_SWITCH</span></div>
+    <div class="row"><span>Hot-Standby</span><span class="val" style="color:var(--green)">HOT</span></div>
+    <div class="row"><span>Target (Policy)</span><span class="val">100 ms</span></div>
+    <div class="row"><span>Measured p95</span><span class="val" style="color:var(--green)">87 ms (failover_benchmarks)</span></div>
     <div class="row"><span>Uptime</span><span class="val">02:14:37</span></div>
   </div>
 </div>
