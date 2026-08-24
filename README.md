@@ -68,8 +68,37 @@ docs/
 ├── phase-0.6/                          ← Executable Acceptance Specification 计划
 │   └── README.md
 ├── assets/                             ← 图 / Diagram（待补）
-└── SYSTEM_AND_PROJECT_PLAN.md          ← 初始系统 + 项目计划
+├── SYSTEM_AND_PROJECT_PLAN.md          ← 初始系统 + 项目计划
+└── V0.1_RETROSPECTIVE.md               ← V0.1 起步回顾（已冻结）
 ```
+
+### 📜 演进历史 / Evolution History
+
+VBMF 是从 **V0.1 Web 视频编码器** 演进而来的，**V0.1 的所有基础设施资产（服务器 / 驱动 / FFmpeg / 安全加固）完整继承到 V0.2**。
+
+| 版本 | 状态 | 关键产物 |
+|---|---|---|
+| **V0.1** Web 视频编码器 | 🟡 已冻结 | 服务器初始化 + FFmpeg git-2026-08-23 + 9 codec lib + 3 张 BMD DeckLink + Docker Compose 骨架 |
+| **V0.2** VBMF | ✅ LOCK FINAL | 12 Engines + 5 横向系统 + 6 横切能力 + 22 轮 review + 57 决策 |
+| **Phase 0.5** Operator UX | ✅ 完成 | 9 Low-Fi 页面（中英双语） + 4 关键操作链 + 4 角色矩阵 |
+| **Phase 0.6** Reference + FI | 📋 计划中 | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Specification |
+| **Phase 1** Media Agent (Rust) | 📋 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
+| **Phase 4** Web Console | 📋 | 9 页面 + 4 链验证 + VBMF Web UI |
+
+**V0.1 → V0.2 为什么必须升级（架构级问题不能局部修）：**
+
+| V0.1 问题 | 严重度 | V0.2 修复 |
+|---|---|---|
+| 无主备切换（单点故障） | 🔴 致命 | Switch Mode 3（PACKET/FRAME/MASTER）+ Hot-Standby 3 |
+| 无健康监控（故障后只能 SSH 查 log） | 🔴 致命 | Health Tree + 7 Health Invariants + 3 轴状态 |
+| SDI 当 COMPRESSED 域（错误抽象） | 🔴 正确性 | 4 Layer × 7 Type；SDI = RAW_VIDEO / RAW_AUDIO |
+| 无 Capability Contract（切换时无对齐） | 🟠 高 | §3.4 switch_mode_decision_tree + X6 |
+| 无 Change Set / 回滚 | 🟠 高 | §1.21 Atomic Apply + X3 |
+| 无 Program Master（切换后画面跳变） | 🟠 高 | §3.7 三独立 graph |
+| 无 Failure Domain | 🟠 高 | §8.9（7 Operational + 2 Diagnostic） |
+| 无 Clock / Latency Probe / Incident Timeline / AVSync Manager | 🟡 中 | 全部新增 |
+
+📖 **完整 V0.1 回顾 + 6 个关键决策 + 7 条经验教训：** [`docs/V0.1_RETROSPECTIVE.md`](docs/V0.1_RETROSPECTIVE.md)
 
 ### 🚀 快速开始
 
@@ -152,6 +181,24 @@ start docs/phase-0.5/wireframes/01-dashboard.html
 - **URL**: https://github.com/pwl1987/VBMF
 - **License**: Apache 2.0
 - **Visibility**: Public
+
+### Evolution
+
+| Version | Status | Key Deliverables |
+|---|---|---|
+| V0.1 Web Video Encoder | 🟡 Archived | Server init + FFmpeg full codec + BMD driver + Docker Compose skeleton |
+| V0.2 VBMF | ✅ LOCK FINAL | 12 Engines + 22 review rounds + 57 decisions + 7 Health Invariants |
+| Phase 0.5 Operator UX | ✅ Complete | 9 wireframes (bilingual) + 4 chains + 4-role matrix |
+| Phase 0.6 Reference + FI | 📋 Next | A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
+| Phase 1 Media Agent (Rust) | 📋 | JSON-RPC + FFmpeg Command Builder + 24h stability |
+
+**V0.1 → V0.2 critical fixes (architectural, not patchable):**
+- 🔴 No failover (single point) → Switch Mode 3 + Hot-Standby 3
+- 🔴 No health monitoring → Health Tree + 7 Invariants + 3-axis state
+- 🔴 SDI wrongly treated as COMPRESSED → 4 Layer × 7 Type; SDI = RAW
+- 🟠 Missing Capability Contract / Change Set / Program Master / Failure Domain → all added
+
+📖 Full V0.1 retrospective: [`docs/V0.1_RETROSPECTIVE.md`](docs/V0.1_RETROSPECTIVE.md)
 
 ### Current phase
 
