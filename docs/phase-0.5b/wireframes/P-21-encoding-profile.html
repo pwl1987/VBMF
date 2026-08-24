@@ -144,8 +144,43 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="tri">
     <div class="layer"><span class="k">◉ DESIRED</span><span class="v">v3 HEVC Main10</span></div>
     <div class="layer"><span class="k">⚙ COMPILED</span><span class="v green">libx265 · worker-02</span></div>
-    <div class="layer"><span class="k">▶ EFFECTIVE</span><span class="v green">5.1x realtime</span></div>
+    <div class="layer"><span class="k">▶ EFFECTIVE</span><span class="v green">Revision v3 ACTIVE</span></div>
     <div class="delta"><b>Δ: COMPILED == EFFECTIVE ✓</b><br>Reason: 无降级 · 健康运行</div>
+  </div>
+</div>
+
+<!-- Runtime Performance Panel (Phase 0.5B.2 P0-4 锁定: Configuration State ≠ Runtime Telemetry) -->
+<div class="panel" style="background:#1a2a3a;border:1px solid var(--accent);margin-bottom:12px">
+  <h3 style="margin:0 0 8px 0"><span class="cn" style="color:var(--accent)">Runtime Performance</span> / RUNTIME TELEMETRY (与 3-Layer 分离, Phase 0.5B.2 P0-4 锁定)</h3>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:11px">
+    <div class="resource-row">
+      <div class="name" style="font-size:11px">Speed</div>
+      <div class="v" style="font-size:18px;color:var(--blue);font-family:Menlo,Consolas,monospace;font-weight:600">5.1x</div>
+      <div style="color:var(--fgdim);font-size:10px">realtime</div>
+    </div>
+    <div class="resource-row">
+      <div class="name" style="font-size:11px">FPS</div>
+      <div class="v" style="font-size:18px;color:var(--blue);font-family:Menlo,Consolas,monospace;font-weight:600">127.4</div>
+      <div style="color:var(--fgdim);font-size:10px">frames/sec</div>
+    </div>
+    <div class="resource-row">
+      <div class="name" style="font-size:11px">CPU</div>
+      <div class="v" style="font-size:18px;color:var(--green);font-family:Menlo,Consolas,monospace;font-weight:600">71%</div>
+      <div style="color:var(--fgdim);font-size:10px">14.5 / 32 threads</div>
+    </div>
+    <div class="resource-row">
+      <div class="name" style="font-size:11px">RAM</div>
+      <div class="v" style="font-size:18px;color:var(--green);font-family:Menlo,Consolas,monospace;font-weight:600">1.2 GB</div>
+      <div style="color:var(--fgdim);font-size:10px">/ 30 GB</div>
+    </div>
+    <div class="resource-row">
+      <div class="name" style="font-size:11px">Disk Write</div>
+      <div class="v" style="font-size:18px;color:var(--green);font-family:Menlo,Consolas,monospace;font-weight:600">84 MB/s</div>
+      <div style="color:var(--fgdim);font-size:10px">/ 410 MB/s</div>
+    </div>
+  </div>
+  <div style="margin-top:8px;color:var(--fgdim);font-size:10px">
+    ℹ Telemetry 来源: E-36 Resource / Capacity · Last update 14:25:21 · Freshness: FRESH (age 2s) · Phase 0.5B.2 P0-2 freshness
   </div>
 </div>
 
@@ -434,16 +469,28 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <div class="name">BMD_INPUT_TOKENS</div>
         <div class="stats">
           <div class="stat"><div class="k">Required</div><div class="v">0</div></div>
-          <div class="stat"><div class="k">Available</div><div class="v">3</div></div>
-          <div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v green">3 ports</div></div>
+        </div>
+        <div style="margin-top:4px;font-size:10px;color:var(--fgdim);font-family:Menlo,Consolas,monospace">
+          Breakdown (Runtime Discovered):
+          <div style="color:var(--green)">● DeckLink Duo 2 / IN-1 (free)</div>
+          <div style="color:var(--green)">● DeckLink Duo 2 / IN-2 (free)</div>
+          <div style="color:var(--green)">● DeckLink SDI / IN-1 (free)</div>
+          <div style="color:var(--gray)">○ DeckLink Mini Monitor 4K / no input</div>
         </div>
       </div>
       <div class="resource-row">
         <div class="name">BMD_OUTPUT_TOKENS</div>
         <div class="stats">
           <div class="stat"><div class="k">Required</div><div class="v">0</div></div>
-          <div class="stat"><div class="k">Available</div><div class="v">3</div></div>
-          <div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v green">4 ports</div></div>
+        </div>
+        <div style="margin-top:4px;font-size:10px;color:var(--fgdim);font-family:Menlo,Consolas,monospace">
+          Breakdown (Runtime Discovered):
+          <div style="color:var(--green)">● DeckLink Duo 2 / OUT-1 (free)</div>
+          <div style="color:var(--green)">● DeckLink Duo 2 / OUT-2 (free)</div>
+          <div style="color:var(--green)">● DeckLink SDI / OUT-1 (free)</div>
+          <div style="color:var(--green)">● DeckLink Mini Monitor 4K / OUT-1 (free)</div>
         </div>
       </div>
       <div class="resource-row">

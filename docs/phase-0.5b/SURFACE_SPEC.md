@@ -2929,5 +2929,262 @@ Phase 1 Media Core (Rust)
 
 ---
 
-**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Closure-1
+---
+
+# 28. Phase 0.5B.2 — Product UX/Semantic Closure (最后一轮)
+
+> **Phase 0.5B.0 (13 P0 语义边界) + Closure-1 (10 产品化收口) + B.1 (5 P0 wireframes) 已完成。**
+>
+> **Phase 0.5B.2 (本节) = 最后一轮 Product UX/Semantic Closure, 处理 8 P0 + 8 横切能力 + 5 P1。**
+>
+> 完成后:
+> **Phase 0.5 = UX BASELINE LOCK FINAL** (正式宣布, 不再迭代 UI/UX)
+> ↓
+> 直接进入 **Phase 0.6 Executable Acceptance Specification**
+
+## 28.1 8 P0 项目 (本轮必须收口)
+
+### P0-1 · Signal Contract / timebase 输入来源闭合 (架构层)
+
+**问题:** Switch Decision 需要 time-base compatibility 输入, 但 SignalContract Schema 缺字段, 容易让工程师实现分裂。
+
+**修复 (文档层, 不改核心架构):**
+
+```yaml
+SignalContract (V0.2):
+  media:
+    # 已有
+    video_resolution, video_fps, video_pixel_format,
+    video_field_order, video_color_space, video_color_range
+    audio_sample_rate, audio_channels, audio_layout
+    codec_video, codec_audio, container
+    # 新增明确
+    video_timebase: 1/90000      # 视频时间基
+    audio_timebase: 1/48000      # 音频时间基
+    frame_duration: ms            # 帧时长
+
+  clock:
+    domain: PTP | TIMECODE | SYSTEM | MONOTONIC
+    reference_class: BROADCAST_GRADE | GOOD | FAIR | POOR
+    # 来源: Clock Reference (E-37), 不是 SignalContract 自带
+
+RuntimeAlignment (V0.2):
+  clock_lock: LOCKED | DEGRADED | FAILED | LOST
+  drift: ms/min
+  timestamp_continuity: OK | GAP | DUPLICATE
+```
+
+**关键边界:** 静态能力 (SignalContract) ≠ 运行态时钟对齐 (RuntimeAlignment)。
+
+### P0-2 · Health Snapshot freshness / stale 语义 (架构层)
+
+**问题:** `current_health_trees` 是"最新 snapshot", 不是"最新且新鲜"。Agent 断联后, DB 仍显示 HEALTHY, **24/7 危险**。
+
+**修复 (新增 health_freshness 概念):**
+
+```yaml
+health_freshness:
+  snapshot_ts: 时间戳
+  observed_at: 时间戳
+  max_age_ms: 30000             # 30s 是默认, 频道可配
+  stale_after_ms: 60000         # 60s 是 stale 阈值
+  freshness_state:
+    FRESH:     正常显示 HealthState
+    STALE:     Channel → 至少 UNKNOWN (不能继续显示 HEALTHY)
+    UNKNOWN:   直接 UNKNOWN
+```
+
+**聚合规则新增:**
+- STALE → channel_health_aggregation = UNKNOWN
+- UNKNOWN 优先于其他规则
+- UI 必须显式标 "STALE · Last observed Xs ago"
+
+### P0-3 · NIC resource per-device (token + per-interface)
+
+**问题:** 当前 NIC 资源只看总带宽, 不知 eth0/eth1 单口, 容易 1Gbps 网口被超额分配。
+
+**修复 (Resource Vector 扩展):**
+
+```yaml
+Resource_Vector (扩展):
+  NIC_INGRESS_MBPS: 总和
+  NIC_EGRESS_MBPS:  总和
+  NIC_TOKENS:
+    - id: eth0
+      speed_mbps: 10000
+      role: data
+    - id: eth1
+      speed_mbps: 1000
+      role: management
+
+NIC_AFFINITY:
+  required: [eth0]      # Job 必须绑特定 NIC
+  preferred: [eth0]
+  avoid: [eth1]
+```
+
+**Preflight 必须 per-NIC 检查**, 不能只看总和。
+
+### P0-4 · P-21 wireframe DESIRED/COMPILED/EFFECTIVE 语义修正 (UI 层)
+
+**问题:** P-21 EFFECTIVE 列显示 "5.1x realtime" — 这是 Runtime Telemetry, 不是 Configuration State。三层混了。
+
+**修复:**
+- EFFECTIVE 列**只**显示 Configuration 实际生效状态 (如 `Revision v3 ACTIVE`)
+- 旁边另开 Runtime Performance 面板:
+  ```
+  Runtime Performance
+  5.1x realtime
+  127.4 FPS
+  CPU 71%
+  RAM 1.2 GB
+  ETA 03:08
+  ```
+- 3-Layer (DESIRED/COMPILED/EFFECTIVE) 与 Runtime Telemetry 严格分离
+
+### P0-5 · M-12 Asset Version vs Output Variant 命名分离 (UI 层)
+
+**问题:** M-12 同时存在 "Asset Version" (Master/Proxy/Mobile) 和 "Output Variant" (CH01 HLS Domestic), 两种 "Variant" 极易混淆。
+
+**修复 (命名锁定):**
+- Asset Version (M-12 Tab Versions): Master / Proxy / Mobile / Archive / Custom
+- Output Variant (M-12 Tab Overview + CD-01 Tab 6): V-CH01-HLS-Domestic / V-CH03-HLS-Overseas
+- Button 全部改名:
+  - "Create Version" → **"Create Asset Version"**
+  - "Create Variant" (在 Versions Tab) → **"Create Output Variant"** (跳到 CD-01 配置)
+
+### P0-6 · P-22 RTP / Latency / Edge Policy 三件套 (UI + 文档)
+
+**问题 1: RTP 缺失** — Architecture 有 RTPAdapter, P-22 协议列表没列, Capability 不对齐。
+
+**修复:** P-22 Available Protocols 加 **RTP** (RTP over UDP, 与 UDP MPEG-TS 区分)。
+
+**问题 2: Latency Target 3 个概念混了** — Delivery / Channel E2E / Failover 三个 latency 不是同一个数字。
+
+**修复:** P-22 Latency 区拆为 3 行:
+```
+Delivery Latency Target
+  2.0 s    (协议本身, e.g. LL-HLS 2s segment)
+
+Channel E2E Latency Target
+  ≤ 200 ms    (整链路端到端预算)
+
+Failover Latency Target
+  Policy: HOT
+  Target: 100 ms    (hot_standby_levels.target_failover_time)
+```
+
+**问题 3: Failover / Retry 放错地方** — 这些是 Edge Policy (P-27) 的事, 不是 Output Profile 的事。
+
+**修复:** P-22 只保留 "Edge Policy" 引用字段, 不再独立配置 Retry/Reconnect/Failover:
+```
+Edge Policy Profile: LIVE_EDGE_DEFAULT (ref → P-27)
+```
+
+### P0-7 · M-14 Test Encode → Mini Acceptance Test (UI 层)
+
+**问题:** 当前 Test Encode 只测性能 (FPS/Speed/CPU/RAM/Estimated), 不验证输出是否正确。
+
+**修复:** 改名 + 扩展字段:
+```
+Test Encode / Mini Acceptance Test
+─────────────────────────
+Video
+  Resolution:    1920×1080 ✓
+  Pixel Format:  yuv420p10le ✓
+  Color:         BT.709 ✓
+  FPS:           25.00 ✓
+  PTS Continuity: OK ✓
+
+Audio
+  Codec:         AAC ✓
+  Sample Rate:   48kHz ✓
+  Channels:      2 ✓
+  Layout:        Stereo ✓
+
+A/V Sync
+  Offset:        +12 ms ✓
+  Drift:         +2.1 ms/min ✓
+
+Mux Validity
+  Container:     MP4 ✓
+  Index:         OK ✓
+  Duration:      00:00:05 ✓
+
+Runtime (参考)
+  FPS:           127.4
+  Speed:         5.1x
+  CPU:           71%
+  RAM:           1.2 GB
+  ETA:           03:08
+```
+
+### P0-8 · 全局 Design System + State Taxonomy (新文档)
+
+**问题:** 五张 wireframe 各自定义 CSS / State, Phase 4 实施会各做各的。
+
+**修复:** 创建 [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) 锁定:
+- 4 State Models Taxonomy (UI Surface / Lifecycle / Readiness / Health / Node Role / ECHS)
+- Color Tokens
+- Components (Button / Badge / Status / Tabs / Table / Wizard / MetricCard / ResourceGauge / HealthNode / RuntimeState / DangerActions / Timeline / Diff)
+- 6 状态样例 unified
+- Keyboard shortcuts (Command Palette / G D / G M / T / F / R / Esc / Space / Ctrl+S)
+
+## 28.2 8 横切能力 (Phase 4 实施指南, 本轮锁定)
+
+| # | 能力 | 含义 | 实施 |
+|---|---|---|---|
+| 1 | **Impact Preview** | 任何修改前显示: Affected / Resource / Runtime Risk / Rollback | 0.5B.1 M-14 + P-21 已部分实现 |
+| 2 | **Dependency Graph** | Profile / Asset / Output / Channel 的"谁用我/我影响谁" | 0.5B.1 M-12/P-21/P-22 Used By 已部分实现 |
+| 3 | **Explain Why** | 统一 6 类解释: Why selected / Why not usable / Why degraded / Why this worker / Why FRAME not PACKET / Why output failed | 0.5B.1 P-21/P-22 已部分实现 |
+| 4 | **Runtime Freshness** | Health / Discovery / Capability 都有 "Last observed / Age / Fresh · Stale" | 0.5B.2 P0-2 新增 |
+| 5 | **Configuration Diff** | 所有 Revision 之间 before / after / impact | P-21 Section 10 + M-14 提交前 |
+| 6 | **Compatibility Advisor** | Profile ↔ Source ↔ Worker ↔ Output ↔ Player | 0.5B.1 P-21 已部分实现, 本轮强化 |
+| 7 | **Design System** | 5 张 wireframe 统一组件 | 0.5B.2 P0-8 新文档 |
+| 8 | **Command Palette + Keyboard** | Ctrl+K / G D / G M / T / F / R 等 | 0.5B.2 P0-8 锁定语义, Phase 4 实施 |
+
+## 28.3 5 P1 强化 (本轮一起做)
+
+| # | P1 | 含义 | 实施位置 |
+|---|---|---|---|
+| 1 | **M-11 Saved Views** | 媒体库常用查询: 今日新闻 / 待 QC / QC Failed / Rights 7d 到期 / 可直接播出 | M-11 顶部新增 Saved Views 区 |
+| 2 | **Profile Diff** | M-14 New Job Step 1 → Step 2 时显示 v3 vs v4 差异 | M-14 Wizard Step 2 |
+| 3 | **M-14 Use in Playout Safety Gate** | 6 检查: QC PASS / Rights VALID / Version READY / Duration OK / Loudness OK / Format compatible | M-14 Output Result 区 |
+| 4 | **M-12 Rights Override L3** | Override 改 L3 + 必须填 Who/Why/Scope/Expiry | M-12 Rights Tab |
+| 5 | **Delete Safety** | Profile Delete 不只检查 Use Count, 必须检查 Used By (Channels / Variants / Active Sessions / Pending ChangeSets) | P-21/P-22 Delete 按钮 |
+
+## 28.4 Phase 0.5 = UX BASELINE LOCK FINAL 判定
+
+完成本轮后:
+
+| 维度 | 当前 | LOCK FINAL 阈值 | 状态 |
+|---|---|---|---|
+| V0.2 Architecture | 98 | ≥ 95 | 🟢 |
+| Phase 0.5A Operator Semantics | 95 | ≥ 92 | 🟢 |
+| Phase 0.5B Surface Spec | 94 | ≥ 90 | 🟢 |
+| Phase 0.5B.1 P0 Wireframes (5 张) | 91 | ≥ 88 | 🟢 |
+| **Phase 0.5 综合 (本轮收口后)** | **93** | **≥ 90** | **🟢 LOCK FINAL** |
+
+**Phase 0.5 = UX BASELINE LOCK FINAL** 正式宣布后:
+- ❌ 不再开新页面
+- ❌ 不再做 UI/UX 大改
+- ✅ Phase 0.6 Executable Acceptance Spec
+- ✅ Phase 1 Media Core (Rust)
+- ✅ Phase 4 Web Console (按本规范实施)
+
+## 28.5 实施文件清单 (本轮)
+
+新增 / 修改:
+- `docs/phase-0.5b/SURFACE_SPEC.md` (本节 §28)
+- `docs/phase-0.5b/DESIGN_SYSTEM.md` (新增, P0-8)
+- `docs/phase-0.5b/wireframes/M-11-media-library.html` (P1 Saved Views)
+- `docs/phase-0.5b/wireframes/M-12-asset-detail.html` (P0-5 Asset Version 命名 + P1 Rights Override L3)
+- `docs/phase-0.5b/wireframes/M-14-transcode-center.html` (P0-7 Mini Acceptance Test + P1 Profile Diff + Use in Playout Safety)
+- `docs/phase-0.5b/wireframes/P-21-encoding-profile.html` (P0-4 EFFECTIVE 语义 + BMD port-by-port + P1 Compatibility Advisor)
+- `docs/phase-0.5b/wireframes/P-22-output-profile.html` (P0-6 RTP + Latency 拆 + Edge Policy 边界)
+- `README.md` (顶层, 反映 6 domains / 30+ surfaces / UX BASELINE LOCK FINAL)
+
+---
+
+**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure
 

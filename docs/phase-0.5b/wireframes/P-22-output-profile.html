@@ -145,6 +145,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="protocol av"><span class="dot green"></span>WebRTC (SRS WHIP)</div>
     <div class="protocol av"><span class="dot green"></span>SRT</div>
     <div class="protocol av"><span class="dot green"></span>UDP MPEG-TS</div>
+    <div class="protocol av"><span class="dot green"></span>RTP (RTP over UDP, RFC 3550)</div>
     <div class="protocol av"><span class="dot green"></span>File (Local / S3 / NFS)</div>
   </div>
 
@@ -253,12 +254,29 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       </div>
     </div>
 
-    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Latency / Reliability</h4>
+    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Latency (3 个独立 Target — 不混)</h4>
     <div class="form-grid">
-      <div class="form-row"><label>Latency Target (Policy)</label><input type="text" value="2000 ms (LL-HLS)"></div>
-      <div class="form-row"><label>Reconnect Policy</label><select><option>Immediate</option><option selected>1s backoff</option><option>5s backoff</option></select></div>
-      <div class="form-row"><label>Failover Destination</label><input type="text" value="CDN-B (auto)"></div>
-      <div class="form-row"><label>CDN Endpoint</label><input type="text" value="https://cdn-b.internal/live"></div>
+      <div class="form-row"><label>Delivery Latency Target<br><span style="font-size:9px;color:var(--fgdim)">(协议本身, e.g. LL-HLS 2s segment)</span></label><input type="text" value="2000 ms (LL-HLS 2s)"></div>
+      <div class="form-row"><label>Channel E2E Latency Target<br><span style="font-size:9px;color:var(--fgdim)">(整链路端到端预算, per_channel_latency_target)</span></label><input type="text" value="≤ 200 ms"></div>
+      <div class="form-row"><label>Failover Latency Target<br><span style="font-size:9px;color:var(--fgdim)">(hot_standby_levels.target_failover_time)</span></label><input type="text" value="100 ms (Policy: HOT)"></div>
+    </div>
+
+    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Edge Policy (引用 P-27, 不在此处独立配置)</h4>
+    <div class="form-grid">
+      <div class="form-row full">
+        <label>Edge Policy Profile (ref → P-27)</label>
+        <select>
+          <option selected>LIVE_EDGE_DEFAULT (Retry: 3x backoff / Reconnect: 1s / Failover: CDN-B)</option>
+          <option>ARCHIVE_EDGE (Retry: 1x / No Reconnect / No Failover)</option>
+          <option>LOW_LATENCY_EDGE (Retry: 5x aggressive / Reconnect: immediate)</option>
+          <option>+ Create New Edge Policy →</option>
+        </select>
+        <div style="font-size:10px;color:var(--fgdim);margin-top:4px">
+          Reconnect / Retry / Failover / Backoff / Alternate Destination 由 P-27 Edge Policy Profile 统一管理.
+          Output Profile 仅负责 HOW (Delivery); Edge Policy 负责 Failure Handling.
+        </div>
+      </div>
+      <div class="form-row"><label>CDN Endpoint (Primary)</label><input type="text" value="https://cdn-a.internal/live"></div>
     </div>
 
     <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Player Capability</h4>
@@ -278,7 +296,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <button class="btn">▶ Test Connection 测试连接 (L1)</button>
       <button class="btn">View in Output 运行态 0.5A #06 →</button>
       <button class="btn">View Variants (3) →</button>
-      <button class="btn l3">Delete Profile (L3 · 需检查 Use Count)</button>
+      <button class="btn l3">Delete Profile (L3 · 检查 Used By 全维度)</button>
     </div>
   </div>
 
@@ -338,9 +356,31 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div style="color:var(--fgdim);font-size:10px;margin-top:2px">across 2 channels</div>
     </div>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Graphs</div>
+      <div style="color:var(--accent);font-weight:600;font-size:12px">Graph-21 · Graph-25</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">2 compiled</div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Active Sessions</div>
+      <div style="color:var(--red);font-weight:600;font-size:12px">2 sessions</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">last 24h</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
       <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Destinations</div>
       <div style="color:var(--accent);font-weight:600;font-size:12px">6 Destinations</div>
       <div style="color:var(--fgdim);font-size:10px;margin-top:2px">CDN-A/B/C + NFS-01/02</div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Pending ChangeSets</div>
+      <div style="color:var(--yellow);font-weight:600;font-size:12px">1 ChangeSet</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">scheduled 14:30</div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Active Jobs</div>
+      <div style="color:var(--yellow);font-weight:600;font-size:12px">3 Transcode Jobs</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">+ 1 Recording</div>
     </div>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
       <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Active Clients</div>
@@ -352,6 +392,11 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <button class="btn">View Dependency Graph (V0.4+) →</button>
     <button class="btn">Impact Preview (修改前) →</button>
     <button class="btn">Open Change Set →</button>
+  </div>
+  <div style="margin-top:12px;padding:8px;background:var(--bg3);border:1px solid var(--yellow);border-radius:3px;font-size:11px;color:var(--yellow)">
+    ⚠ DELETE SAFETY (Phase 0.5B.2 P1 强化): 检查 Used By 8 维度, 任何一项 &gt; 0 → DELETE BLOCKED.
+    维度: Channels / Variants / Graphs / Active Sessions / Destinations / Pending ChangeSets / Active Jobs / Active Clients.
+    显示完整 Use Count 不够, 必须看到 "Profile used by 2 channels + 1 active session + 1 pending ChangeSet" 才允许下一步.
   </div>
 </div>
 

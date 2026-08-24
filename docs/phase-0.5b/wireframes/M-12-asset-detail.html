@@ -129,7 +129,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="actions">
       <button class="btn primary" data-i18n="media.asset.action.preview">[▶ 预览 Preview]</button>
       <button class="btn" data-i18n="media.asset.action.transcode">[转码 Transcode]</button>
-      <button class="btn" data-i18n="media.asset.action.create_variant">[创建变体 Create Variant]</button>
+      <button class="btn" data-i18n="media.asset.action.create_output_variant">[创建输出变体 Create Output Variant] (L1)</button>
       <button class="btn" data-i18n="media.asset.action.qc">[质量检测 QC]</button>
       <button class="btn" data-i18n="media.asset.action.replace">[替换 Replace]</button>
       <button class="btn l2" data-i18n="media.asset.action.archive">[归档 Archive] (L2)</button>
@@ -280,8 +280,8 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Tab ② Versions 版本 (3 versions)</summary>
   <div class="panel" style="margin-top:8px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h3 style="margin:0"><span class="cn" style="color:var(--fg)">版本列表</span> / VERSIONS (3) · [+ Create Version]</h3>
-      <button class="btn primary">+ 创建版本 Create Version (L1)</button>
+      <h3 style="margin:0"><span class="cn" style="color:var(--fg)">资产版本 / ASSET VERSIONS (3) · [+ Create Asset Version]</h3>
+      <button class="btn primary">+ 创建资产版本 Create Asset Version (L1)</button>
     </div>
     <table>
       <thead>
@@ -369,7 +369,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div>
         <button class="btn">Block (L2)</button>
         <button class="btn">Extend (L1)</button>
-        <button class="btn">Override (L2)</button>
+        <button class="btn l3">Override (L3 · 需 Who/Why/Scope/Expiry + Audit Reference)</button>
         <button class="btn">Audit</button>
       </div>
     </div>
@@ -382,6 +382,61 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <tr><td>Global</td><td>Archive</td><td>2026-08-24</td><td>Unlimited</td><td><span class="badge green">● Valid</span></td><td>[Edit] [Audit]</td></tr>
       </tbody>
     </table>
+  </div>
+</details>
+
+<!-- Rights Override L3 (Phase 0.5B.2 P1 强化) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Rights Override L3 模态预览 (Phase 0.5B.2 P1 强化 · Who/Why/Scope/Expiry + Audit Reference 必填)</summary>
+  <div class="panel" style="margin-top:8px;border-color:var(--red)">
+    <h3 style="margin:0 0 12px 0;color:var(--red)"><span class="cn">版权覆盖 / L3 DANGEROUS ACTION</span> / RIGHTS OVERRIDE (L3)</h3>
+    <div style="color:var(--fgdim);font-size:11px;margin-bottom:12px">
+      Override Rights 是高风险操作, 需填写完整 5 项审计字段 + 二次确认.
+      所有 Override 写入 Rights Audit Trail, 不可删除 (只能追加 Annotation).
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div class="form-row"><label style="color:var(--red)">Who (操作人) *</label>
+          <input type="text" value="Director Zhang" readonly>
+        </div>
+        <div class="form-row"><label style="color:var(--red)">Why (原因) *</label>
+          <select>
+            <option>Live breaking news - emergency broadcast clearance</option>
+            <option>Sports rights negotiation in progress</option>
+            <option>Archive preservation - rights expired but needed for FOIA</option>
+            <option>Internal training / review</option>
+            <option>Other (需手填详细说明)</option>
+          </select>
+        </div>
+        <div class="form-row"><label style="color:var(--red)">Scope (覆盖范围) *</label>
+          <input type="text" value="Territory: China · Platform: HLS · Window: 14:00-18:00 today">
+        </div>
+      </div>
+      <div>
+        <div class="form-row"><label style="color:var(--red)">Expiry (覆盖到期) *</label>
+          <input type="text" value="2026-08-25 18:00:00 (4 hours from now)">
+        </div>
+        <div class="form-row"><label style="color:var(--red)">Audit Reference (审计引用) *</label>
+          <input type="text" value="INC-2026-0825-001 · email:legal@...">
+        </div>
+        <div class="form-row">
+          <label style="color:var(--red)">
+            <input type="checkbox"> 我确认本次 Override 写入 Rights Audit Trail, 责任由操作人承担
+          </label>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:8px;background:var(--bg3);border:1px solid var(--red);border-radius:3px;font-size:11px;color:var(--red)">
+      ⚠ L3 确认: 需要输入 "OVERRIDE" 才能提交 · Reason / Scope / Expiry 任意一项为空 = 拒绝提交
+    </div>
+    <div style="margin-top:12px;display:flex;gap:6px">
+      <button class="btn">Cancel 取消</button>
+      <button class="btn primary" style="background:var(--red);color:#fff">🔒 Confirm Override (L3) 确认覆盖</button>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:var(--fgdim)">
+      Phase 0.5B.2 P1: Rights Override 不再是普通 CRUD, 必须 L3 + 5 项审计字段.
+      View Audit Trail → 显示全部历史 Override + 操作人 IP/时间/原因.
+    </div>
   </div>
 </details>
 

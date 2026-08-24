@@ -6,7 +6,7 @@
 >
 > **Phase 0.5A UI Semantics ✅ LOCK FINAL · 9 Core + 1 Validation Pages + 4 操作链 + 20 项 UI 语义修复**
 >
-> **Phase 0.5B Product UI Surface (当前) · V0.2 架构对象 → UI 表面完整映射**
+> **Phase 0.5B Product UI Surface ✅ UX BASELINE LOCK FINAL · 6 工作域 × 30+ UI 表面 + 5 P0 wireframes + 8 横切能力 + 28 项语义收口**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![V0.2 Lock](https://img.shields.io/badge/V0.2-架构_LOCK_FINAL-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
@@ -40,7 +40,7 @@
 | **架构** | ✅ V0.2 LOCK FINAL | 22 轮 review，57 决策，完整可唯一实现 |
 | **Runtime Semantics** | ✅ CLOSED | 9 大 Runtime 域 + 3 Schema + 2 Semantic Cleanup + 7 Health Invariants |
 | **Operator Workflow** | ✅ Phase 0.5A LOCK FINAL | 9 Core Pages + 1 Validation Page（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 |
-| **Product UI Surface** | 🟡 Phase 0.5B 进行中 | V0.2 架构对象 → UI 表面映射 (6 大工作域 × ~30 页) |
+| **Product UI Surface** | ✅ Phase 0.5B UX BASELINE LOCK FINAL | 6 工作域 × 30+ UI 表面 + 5 P0 wireframes + 28 项语义收口 |
 | **Reference Implementation** | 📋 Phase 0.6 | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Specification |
 | **Media Agent (Rust)** | 📋 Phase 1 | JSON-RPC + Session Manager + FFmpeg Command Builder + 24h 稳定性 |
 | **Web Console** | 📋 Phase 4 | 9 Core Pages + 4 链验证 |
@@ -71,9 +71,12 @@ docs/
 │   ├── ERRATA.md                       ← Phase 0.5A 变更归档（12 + 8 = 20 项 UI 语义修复）
 │   ├── wireframes/                     (9 Core Pages + 1 Validation Page · 中英双语 · Dark Mode 24/7)
 │   └── chains/                         (4 链：On-Air / Failure / Playout / Engineering)
-├── phase-0.5b/                         ← Phase 0.5B (进行中) · Product UI Surface Closure
+├── phase-0.5b/                         ← Phase 0.5B (UX BASELINE LOCK FINAL) · Product UI Surface Closure
 │   ├── README.md
-│   └── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (6 大工作域 × ~30 页)
+│   ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (6 大工作域 × 30+ UI 表面)
+│   ├── DESIGN_SYSTEM.md                ← V0.1 Design System (Color / Component / 4 State Models / Keyboard)
+│   ├── I18N_SPEC.md                    ← V0.1 i18n Contract (zh-CN + en-US / Canonical Vocabulary / enum 翻译表)
+│   └── wireframes/                     (5 P0 wireframes: M-11 / M-12 / M-14 / P-21 / P-22)
 ├── phase-0.6/                          ← Executable Acceptance Specification 计划
 │   └── README.md
 ├── assets/                             ← 图 / Diagram（待补）
@@ -90,7 +93,7 @@ VBMF 是从 **V0.1 Web 视频编码器** 演进而来的，**V0.1 的所有基�
 | **V0.1** Web 视频编码器 | 🟡 已冻结 | 服务器初始化 + FFmpeg git-2026-08-23 + 9 codec lib + 3 张 BMD DeckLink + Docker Compose 骨架 |
 | **V0.2** VBMF | ✅ LOCK FINAL | 12 Engines + 5 横向系统 + 6 横切能力 + 22 轮 review + 57 决策 |
 | **Phase 0.5.1** UI Semantics Closure | ✅ **LOCK FINAL** | 9 Core Pages + 1 Validation Page（中英双语） + 4 关键操作链 + 20 项 UI 语义修复（[ERRATA](docs/phase-0.5/ERRATA.md)） |
-| **Phase 0.5B** Product UI Surface | 🟡 进行中 | V0.2 架构对象 → UI 表面映射 (6 大工作域 × ~30 页) — [SURFACE_SPEC](docs/phase-0.5b/SURFACE_SPEC.md) |
+| **Phase 0.5B** Product UI Surface | ✅ **UX BASELINE LOCK FINAL** | 6 工作域 × 30+ UI 表面 + 5 P0 wireframes + 28 项语义收口 — [SURFACE_SPEC](docs/phase-0.5b/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5b/DESIGN_SYSTEM.md) + [I18N_SPEC](docs/phase-0.5b/I18N_SPEC.md) |
 | **Phase 0.6** Reference + FI | 📋 计划中 | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Specification |
 | **Phase 1** Media Agent (Rust) | 📋 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
 | **Phase 4** Web Console | 📋 | 9 页面 + 4 链验证 + VBMF Web UI |
@@ -216,7 +219,7 @@ start docs/phase-0.5/wireframes/01-dashboard.html
 |---|---|
 | Phase 0 (Architecture Freeze) | ✅ V0.2 LOCK FINAL |
 | Phase 0.5.1 (Operator UX Closure) | ✅ **LOCK FINAL** (9 Core + 1 Validation + 4 chains + 20 UI semantic fixes) |
-| Phase 0.5B (Product UI Surface) | 🟡 In Progress ([SURFACE_SPEC](docs/phase-0.5b/SURFACE_SPEC.md) · 6 domains × ~30 pages) |
+| Phase 0.5B (Product UI Surface) | ✅ **UX BASELINE LOCK FINAL** ([SURFACE_SPEC](docs/phase-0.5b/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5b/DESIGN_SYSTEM.md) + 5 P0 wireframes) |
 | Phase 0.6 (Reference + FI) | 📋 Next |
 | Phase 1 (Media Agent Rust) | 📋 After 0.6 |
 | Phase 2-4 (Backend / Console) | 📋 |

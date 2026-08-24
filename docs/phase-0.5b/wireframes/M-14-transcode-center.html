@@ -253,7 +253,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="step done"><span class="num">STEP 1</span> 选择输入 Select Input</div>
     <div class="step active"><span class="num">STEP 2</span> 选择 Profile</div>
     <div class="step"><span class="num">STEP 3</span> 预览输出 Preview</div>
-    <div class="step"><span class="num">STEP 4</span> 测试编码 Test Encode 5s</div>
+    <div class="step"><span class="num">STEP 4</span> Mini Acceptance Test (5s)</div>
     <div class="step"><span class="num">STEP 5</span> 提交 Submit</div>
   </div>
 
@@ -287,6 +287,37 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
           <div class="k">Resource</div><div class="v">CPU ~14 threads / RAM ~1.2 GB</div>
           <div class="k">Validation</div><div class="v green">✓ PASS</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Profile Diff (Phase 0.5B.2 P1 强化: 修改 Profile 时显示变更) -->
+    <div class="panel" style="margin-top:16px;background:var(--bg2);border:1px solid var(--yellow)">
+      <h3 style="margin:0 0 8px 0;color:var(--yellow)"><span class="cn">编码参数变化</span> / PROFILE DIFF (Phase 0.5B.2 P1 · 修改 Profile 时显示)</h3>
+      <div style="font-size:11px;color:var(--fgdim);margin-bottom:8px">
+        与上一步 (Step 1 选择的默认 Profile v3) 对比 · 提交 Job 前可见所有变化 + 资源影响预估
+      </div>
+      <table style="font-size:11px">
+        <thead><tr><th style="width:30%">参数 Parameter</th><th style="width:35%">原值 Previous (v3)</th><th style="width:35%">新值 Current</th></tr></thead>
+        <tbody>
+          <tr><td>Codec</td><td>HEVC (libx265)</td><td>HEVC (libx265) <span style="color:var(--fgdim)">(无变化)</span></td></tr>
+          <tr><td>Resolution</td><td>1920×1080 / 25</td><td>1920×1080 / 25 <span style="color:var(--fgdim)">(无变化)</span></td></tr>
+          <tr style="background:#3a2a1a"><td>Bitrate</td><td>5.0 Mbps CBR</td><td><b style="color:var(--yellow)">6.0 Mbps CBR ▲ +20%</b></td></tr>
+          <tr style="background:#3a2a1a"><td>Preset</td><td>medium</td><td><b style="color:var(--yellow)">slow ▲ (慢速提质量)</b></td></tr>
+          <tr style="background:#3a2a1a"><td>Audio</td><td>AAC 2ch 48k 192k</td><td><b style="color:var(--yellow)">AAC 2ch 48k 256k ▲ +33%</b></td></tr>
+          <tr><td>Profile</td><td>Main10</td><td>Main10 <span style="color:var(--fgdim)">(无变化)</span></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px">
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">预估影响 / ESTIMATED IMPACT</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:11px">
+          <div><div style="color:var(--fgdim)">CPU</div><div style="color:var(--yellow);font-weight:600">+18%</div></div>
+          <div><div style="color:var(--fgdim)">ETA</div><div style="color:var(--yellow);font-weight:600">+31% (4m06s → 5m23s)</div></div>
+          <div><div style="color:var(--fgdim)">Size</div><div style="color:var(--yellow);font-weight:600">+20% (188 MB → 226 MB)</div></div>
+          <div><div style="color:var(--fgdim)">Quality</div><div style="color:var(--green);font-weight:600">↑ Better</div></div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--fgdim)">
+        工程师在 Step 1→2 切换 Profile 时立即看到变化, 避免提交 Job 后才发现资源不够.
       </div>
     </div>
 
@@ -333,25 +364,51 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 
 <!-- Step 4 Test Encode (示例) -->
 <details style="margin-bottom:12px">
-  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Step 4 Test Encode 5s (示例 — 含 资源实测)</summary>
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Step 4 Mini Acceptance Test (5s — 不仅是性能, 验证输出正确) (Phase 0.5B.2 P0-7 锁定)</summary>
   <div class="wizard-content" style="margin-top:8px">
-    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--fg)">第 4 步</span> / STEP 4: Test Encode 5 seconds (跑 5s 实际样片)</h3>
+    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--fg)">第 4 步</span> / STEP 4: Mini Acceptance Test (5s 实际样片, 不只测性能, 验证输出正确)</h3>
     <div style="margin-bottom:12px">
-      <button class="btn primary">▶ Run Test 跑测试 (L1)</button>
-      <span style="margin-left:12px;color:var(--fgdim);font-size:11px">实际跑 5s, 显示真实资源占用</span>
+      <button class="btn primary">▶ Run Mini Acceptance Test (L1)</button>
+      <span style="margin-left:12px;color:var(--fgdim);font-size:11px">实际跑 5s, 验证 13 项输出正确性 + 4 项 Runtime</span>
     </div>
     <div class="test-result">
-      <div class="pass">✓ Test Encode COMPLETED · 5.2s real-time</div>
-      <div class="preview-grid" style="margin-top:8px">
-        <div class="preview-card"><div class="label">Actual FPS</div><div class="val">127.4</div></div>
-        <div class="preview-card"><div class="label">Actual Speed</div><div class="val">5.1x realtime</div></div>
-        <div class="preview-card"><div class="label">CPU (host-01)</div><div class="val">71%</div></div>
-        <div class="preview-card"><div class="label">Memory Peak</div><div class="val">1.2 GB</div></div>
-        <div class="preview-card"><div class="label">Estimated Full</div><div class="val">03:08</div></div>
-        <div class="preview-card"><div class="label">Estimated Size</div><div class="val">188 MB</div></div>
-        <div class="preview-card"><div class="label">Quality Check</div><div class="val green">● PASS</div></div>
-        <div class="preview-card"><div class="label">Test File</div><div class="val" style="font-size:10px">/tmp/test_news01_5s.mp4</div></div>
+      <div class="pass">✓ Mini Acceptance Test COMPLETED · 5.2s real-time · ALL CHECKS PASS</div>
+
+      <h4 style="margin:12px 0 6px 0;color:var(--fg);font-size:12px">▸ Video 视频 (4 项)</h4>
+      <div class="preview-grid">
+        <div class="preview-card"><div class="label">Resolution</div><div class="val green">1920×1080 ✓</div></div>
+        <div class="preview-card"><div class="label">Pixel Format</div><div class="val green">yuv420p10le ✓</div></div>
+        <div class="preview-card"><div class="label">Color</div><div class="val green">BT.709 ✓</div></div>
+        <div class="preview-card"><div class="label">FPS</div><div class="val green">25.00 ✓</div></div>
       </div>
+
+      <h4 style="margin:8px 0 6px 0;color:var(--fg);font-size:12px">▸ Audio 音频 (3 项)</h4>
+      <div class="preview-grid">
+        <div class="preview-card"><div class="label">Codec</div><div class="val green">AAC ✓</div></div>
+        <div class="preview-card"><div class="label">Sample Rate</div><div class="val green">48 kHz ✓</div></div>
+        <div class="preview-card"><div class="label">Channels / Layout</div><div class="val green">2 / Stereo ✓</div></div>
+      </div>
+
+      <h4 style="margin:8px 0 6px 0;color:var(--fg);font-size:12px">▸ A/V Sync + Mux (4 项)</h4>
+      <div class="preview-grid">
+        <div class="preview-card"><div class="label">PTS Continuity</div><div class="val green">OK (no gap) ✓</div></div>
+        <div class="preview-card"><div class="label">A/V Sync Offset</div><div class="val green">+12 ms ✓</div></div>
+        <div class="preview-card"><div class="label">Drift</div><div class="val green">+2.1 ms/min ✓</div></div>
+        <div class="preview-card"><div class="label">Mux Validity</div><div class="val green">Container OK / Index OK / Duration 00:00:05 ✓</div></div>
+      </div>
+
+      <h4 style="margin:8px 0 6px 0;color:var(--fg);font-size:12px">▸ Runtime Telemetry (参考, 不影响 PASS/FAIL)</h4>
+      <div class="preview-grid">
+        <div class="preview-card"><div class="label">FPS</div><div class="val">127.4</div></div>
+        <div class="preview-card"><div class="label">Speed</div><div class="val">5.1x realtime</div></div>
+        <div class="preview-card"><div class="label">CPU / RAM</div><div class="val">71% / 1.2 GB</div></div>
+        <div class="preview-card"><div class="label">ETA / Size</div><div class="val">03:08 / 188 MB</div></div>
+      </div>
+
+      <div style="margin-top:8px;font-size:10px;color:var(--fgdim)">
+        Test File: /tmp/test_news01_5s.mp4 · Phase 0.5B.2 P0-7 (Test Encode → Mini Acceptance Test, 不仅测性能)
+      </div>
+
       <div style="margin-top:12px">
         <button class="btn">↻ Re-test 重新测试</button>
         <button class="btn">⏭ Skip Test 跳过</button>
@@ -408,8 +465,24 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <button class="btn primary">Open Asset 打开资产 →</button>
       <button class="btn">Open Version 打开版本</button>
       <button class="btn">Preview 预览</button>
-      <button class="btn">Use in Playout 用于播出</button>
-      <button class="btn">Create Variant 创建变体</button>
+      <button class="btn primary">Use in Playout 用于播出 (L2 · Safety Gate)</button>
+      <button class="btn">Create Output Variant 创建输出变体 →</button>
+    </div>
+
+    <!-- Use in Playout Safety Gate (Phase 0.5B.2 P1 强化) -->
+    <div class="test-result" style="margin-top:8px;border-color:var(--green)">
+      <h4 style="margin:0 0 8px 0;color:var(--green);font-size:12px">✓ Ready for Playout (6/6 Safety Checks PASS)</h4>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px">
+        <div style="color:var(--green)">✓ QC PASS (Black / Freeze / Loudness / AV Sync)</div>
+        <div style="color:var(--green)">✓ Rights VALID (CN / HLS / until 2027-01-01)</div>
+        <div style="color:var(--green)">✓ Version READY (v3 Master complete)</div>
+        <div style="color:var(--green)">✓ Duration OK (00:30:25 within 5s-7200s)</div>
+        <div style="color:var(--green)">✓ Loudness -23.4 LUFS (within -23 ± 2)</div>
+        <div style="color:var(--green)">✓ Format compatible (HEVC → Channel CH01 HLS)</div>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--fgdim)">
+        Phase 0.5B.2: Use in Playout 自动 6 项 Safety Gate. 若任一 FAIL, 按钮变 L3 阻塞 + 原因.
+      </div>
     </div>
   </div>
 </details>
