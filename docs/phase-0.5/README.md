@@ -1,10 +1,21 @@
 # Phase 0.5 — 操作员工作流与 Low-Fi 线框
 
-> **状态**：✅ **LOCK FINAL**（含 **Phase 0.5.1** UI Semantics Closure — 12 项 + 8 项收口）
-> **范围**：1 份操作员工作流 + **9 Core Operational Pages + 1 Validation State Page**（共 10 HTML artifact，中英双语） + 4 关键操作链 + ERRATA 归档
-> **目的**：操作员级验证 — UI / 角色 / 危险操作 / 状态机的 Single Source of Truth
+> **状态**: 拆分为 **Phase 0.5A (LOCK FINAL)** + **Phase 0.5B (Product UI Surface, 当前)**
+>
+> **0.5A**: 1 份操作员工作流 + **9 Core Operational Pages + 1 Validation Page** + 4 关键操作链 + ERRATA 归档
+>
+> **0.5B**: V0.2 架构所有对象 → UI 表面的完整映射规范 ([`../phase-0.5b/SURFACE_SPEC.md`](../phase-0.5b/SURFACE_SPEC.md))
 
-## 页面架构（Phase 0.5.1 Final 锁定）
+## 0.5A vs 0.5B 划分
+
+| 阶段 | 范围 | 状态 |
+|---|---|---|
+| **0.5A** | Operator 播控 UI 语义 = 9 Core + 1 Validation + 4 Chains | 🟢 **LOCK FINAL** |
+| **0.5B** | V0.2 架构所有对象 (Media/Transcode/Profile/Engineering/Admin) → UI 表面定义 | 🟡 **进行中** (Spec 完成, 实施 0.5B.1) |
+
+**Phase 0.5 全部 Freeze 的条件**: 0.5B 把 Media / Transcode / Profiles / Engineering / Admin 这些"架构已有、UI 未落地"的工作域全部定义清楚（通过 Surface Spec 实现）。
+
+## 页面架构（0.5A 锁定）
 
 ```
 9 Core Operational Pages  (正式产品工作域)
@@ -12,9 +23,9 @@
 = 10 HTML artifacts
 ```
 
-## Phase 0.5.1 — UI Semantics Closure
+## Phase 0.5A — UI Semantics Closure
 
-Phase 0.5 完成后从"24/7 广播机房操作员能否安全、快速、无歧义地使用"角度复审，发现 **18 个 UI/UX 语义缺口**（其中 1 项违反 V0.2 锁定），落地为 **12 + 8 = 20 项修复**：
+Phase 0.5A 完成后从"24/7 广播机房操作员能否安全、快速、无歧义地使用"角度复审，发现 **18 个 UI/UX 语义缺口**（其中 1 项违反 V0.2 锁定），落地为 **12 + 8 = 20 项修复**：
 
 - **第一轮 (12 项)**：5 项 P0 必须修 + 5 项 P1 强烈建议 + 2 项 P2 锦上添花
 - **第二轮 (8 项)**：4 项 P0 语义错误 + 3 项 P1 文档/口径 + 1 项 Health Tree 9 Subsystem 对齐
@@ -25,9 +36,10 @@ Phase 0.5 完成后从"24/7 广播机房操作员能否安全、快速、无歧�
 
 | 文件 | 用途 |
 |---|---|
-| [`INDEX.md`](INDEX.md) | Phase 0.5 总览 + 验收 |
+| [`INDEX.md`](INDEX.md) | Phase 0.5A 总览 + 验收 |
 | [`OPERATOR_WORKFLOW.md`](OPERATOR_WORKFLOW.md) | 角色矩阵 + 三轴状态机 + 危险操作 3 层 |
-| [`ERRATA.md`](ERRATA.md) | Phase 0.5.1 变更归档（12 + 8 项 UI 语义修复） |
+| [`ERRATA.md`](ERRATA.md) | Phase 0.5A 变更归档（12 + 8 项 UI 语义修复） |
+| [`../phase-0.5b/SURFACE_SPEC.md`](../phase-0.5b/SURFACE_SPEC.md) | **Phase 0.5B Surface Spec** (V0.2 → UI 完整映射) |
 
 ## 9 Core Operational Pages + 1 Validation Page（中英双语）
 

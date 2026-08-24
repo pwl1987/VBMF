@@ -3,9 +3,13 @@
 > V0.2 Architecture Baseline LOCK FINAL（22 轮 review）之后的第一阶段。
 > 本阶段不修改架构，只做"操作员级"验证。
 >
-> **Phase 0.5.1** — Stateful Operator UX Closure（12 项 UI 语义修复）已完成，详见 [`ERRATA.md`](ERRATA.md)
+> **阶段划分:**
+> - **0.5A** (LOCK FINAL) — Operator 播控 UI 语义 (9 Core + 1 Validation)
+> - **0.5B** (当前) — V0.2 架构所有对象 → UI 表面 (见 [`../phase-0.5b/SURFACE_SPEC.md`](../phase-0.5b/SURFACE_SPEC.md))
 >
-> **Phase 0.5.1 Final** — 8 项收口（4 P0 + 3 P1 + 1 文档统一），Phase 0.5 → **LOCK FINAL**
+> **Phase 0.5.1** — Stateful Operator UX Closure（12 + 8 = 20 项 UI 语义修复）已完成，详见 [`ERRATA.md`](ERRATA.md)
+>
+> **Phase 0.5.1 Final** — 8 项收口（4 P0 + 3 P1 + 1 文档统一），0.5A → **LOCK FINAL**
 
 ## 范围（按 V0.2 §10 / §11 锁定）
 
