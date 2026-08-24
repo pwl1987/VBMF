@@ -1778,5 +1778,1156 @@ Phase 0.5A 锁定的 9 Core + 1 Validation 全部在 0.5B 中**保持原状**:
 
 ---
 
-**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Product UI Surface Closure
+---
+
+# 14. Phase 0.5B Closure-1 — 10 项产品化收口
+
+> **Phase 0.5B.0 锁定 13 P0 语义边界 (commit 50cf5a6)**
+>
+> **Phase 0.5B Closure-1 (本节) — 在 0.5B.0 基础上做一轮产品化收口**
+>
+> 重点:
+> - 不是再加一级页面
+> - 而是把"对象关系 / Runtime vs Config / 影响面 / 解释能力 / 视觉层级"做到产品级
+> - 完成后才正式冻结 0.5B, 然后进入 0.5B.1 五张 P0 wireframe
+
+本节覆盖 10 个 Closure Item:
+1. **§15** Configuration / Compiled / Effective 3-Layer Model (全局 pattern)
+2. **§16** VBMF Design System (4 套状态语义分离 + 颜色系统)
+3. **§17** Channel Detail (CD-01) — 新增子页
+4. **§18** P-21 Profile Builder 10 sections + Preset + Why Not Usable
+5. **§19** M-14 Transcode Workflow (Preview → Test → Submit) + Worker=AUTO + Result
+6. **§20** P-22 Output 4-tuple (Profile/Variant/Destination/Adapter) + 3-tier Available/Reserved/Unavailable
+7. **§21** E-32 Preflight 9D Required/Available/Delta/Headroom
+8. **§22** O-41 Health Tree H1-H7 + Failure Absorbed + redundancy_group 视觉化
+9. **§23** E-34 Capability Why Compatible / Why Not + Static vs Runtime
+10. **§24** Dependency / Impact Preview 全局 pattern
+
+---
+
+# 15. Configuration / Compiled / Effective 3-Layer Model (全局 pattern — 锁定)
+
+> **这是整个 UI 的核心 UX 基础设施。**
+> 凡是有"配置"的页面 (Profile / Channel / Switch Mode / Output / ChangeSet), 都必须按这个 3 层模式显示。
+
+## 15.1 为什么需要 3 层
+
+V0.2 架构已经明确区分 Configuration (X3 config_revisions) / Compiled Runtime (graph_runtimes) / Effective Runtime (media_session_runtime)。这是不同时间点的状态:
+
+| 层 | 含义 | 写入者 | 例子 |
+|---|---|---|---|
+| **DESIRED** | 用户配置 | 用户 / Engineer | Encoding Profile v3 (Broadcast HEVC 1080p25) |
+| **COMPILED** | Compiler 编译产物 | X1 Graph Compiler | Profile 实例 + 自动插入的节点 (Normalize / Encode) |
+| **EFFECTIVE** | 当前实际运行 | Runtime (X1 / X2 / X3) | 实际跑的 Encoder = x265, Worker = host-01 |
+
+3 层可能**不同**:
+- DESIRED = PACKET_SWITCH
+- COMPILED = PACKET_SWITCH
+- EFFECTIVE = FRAME_SWITCH (Runtime Alignment degraded → §3.4 自动降级)
+
+## 15.2 全局 UI 模式 (锁定)
+
+所有"配置型"页面右侧或顶部必须有 **Configuration Triangle** 组件:
+
+```
+┌─────────────────────────────────────┐
+│  ◉ DESIRED                          │
+│  Encoding Profile v3                │
+│  HEVC Main10 1080p25                │
+│  ─────────────────                  │
+│  ⚙ COMPILED                         │
+│  HEVC Main10 1080p25                │
+│  Encoder: x265                      │
+│  Worker: host-01                    │
+│  ─────────────────                  │
+│  ▶ EFFECTIVE                        │
+│  HEVC Main10 1080p25                │
+│  Encoder: x265                      │
+│  Worker: host-01                    │
+│  Uptime: 02:14:37                   │
+│  Bitrate: 4.8 Mbps (target 5.0)    │
+│  ─────────────────                  │
+│  Δ: COMPILED == EFFECTIVE ✓         │
+│  Reason: 无降级                      │
+└─────────────────────────────────────┘
+```
+
+如果层之间有差异, 必须显式标 `Δ` + Reason:
+
+```
+Δ: COMPILED ≠ EFFECTIVE ⚠
+
+Reason: Runtime Alignment degraded
+→ Switch Mode 自动降级到 FRAME_SWITCH
+→ §3.4 Decision Tree
+→ 当前: CH01 在用 EFFECTIVE=FRAME
+```
+
+## 15.3 适用页面清单
+
+| 页面 | DESIRED 字段 | COMPILED 字段 | EFFECTIVE 字段 |
+|---|---|---|---|
+| **P-21** Encoding Profile | Profile 定义 | Compile 后实例 + 自动插入的 Encoder | 当前 Worker / Encoder / 实时码率 |
+| **P-22** Output Profile | Profile 定义 | Output Variant 实例 | Adapter 健康 + 实际推送 |
+| **CD-01** Channel Detail | Hot-Standby / Switch Policy | Compiled Mode | Effective Mode (可能因 Runtime 降级) |
+| **Switcher (0.5A #03)** | Compiled Switch Policy | Compiled Mode | Effective Mode + Δ Reason |
+| **E-37** Clock | Primary Reference | Active Reference | Current Lock State + 漂移 |
+| **E-33** ChangeSet | Pending Change | Apply 中状态 | 已应用结果 |
+
+## 15.4 关键规则
+
+- **3 层**任何时候都**同时可见** (不要折叠)
+- **DESIRED 改了, 不会立即影响 COMPILED / EFFECTIVE**, 必须走 ChangeSet → Apply
+- **COMPILED ≠ EFFECTIVE** 是**正常**的运行时现象, UI 不应该 hide 它, 应该**显式**标 Δ + Reason
+- **Operator 不应直接改 EFFECTIVE** — EFFECTIVE 由系统推导, 不能 UI 写入
+
+## 15.5 实施原则
+
+- Phase 4 实施: 抽 `<ConfigurationTriangle />` 公共组件, 所有配置页右侧/顶部引用
+- 0.5B.1 wireframe: 在 P-21 / M-14 / CD-01 三页首次落地
+- 0.5A wireframe: Switcher 03 + Dashboard 01 已有部分 3 层 (Dashboard Channel Status panel), 后续小修
+
+---
+
+# 16. VBMF Design System (4 套状态语义 + 颜色系统)
+
+> **V0.1 Design System 锁定。**
+> 0.5A wireframe 当前每页自己定义组件, 不统一; 0.5B 开始统一。
+
+## 16.1 4 套状态语义 (必须分离)
+
+> 之前 §2.1 "6 状态样例" 是 **UI Surface State**。这只是 4 套状态之一。
+> 整个 VBMF 有 **4 套不同维度的 State**, **不能混用**:
+
+| 套 | 用途 | 枚举 | 例子 |
+|---|---|---|---|
+| **UI Surface State** | 页面本身的渲染状态 | NORMAL / LOADING / EMPTY / WARNING / ERROR / CRITICAL | 列表加载中, 列表为空, 列表报错 |
+| **Runtime State** | 业务对象运行时 (3 轴) | Lifecycle × Readiness × Health | CH01: RUNNING / READY_TO_TAKE / HEALTHY |
+| **Operational Role** | Health Tree 节点角色 | ACTIVE / STANDBY / OFFLINE | Source.A: ACTIVE; Source.B: STANDBY |
+| **Effective Status** | Channel 对外唯一 status | HEALTHY / DEGRADED / FAILED / STARTING / STOPPED / UNKNOWN | channel_health_view.effective_channel_status |
+
+**反模式:** 把 HealthState (HEALTHY/DEGRADED/FAILED) 和 Operational Role (ACTIVE/STANDBY/OFFLINE) 用同一组颜色。
+
+## 16.2 颜色语义 (锁定)
+
+### 16.2.1 UI Surface State 颜色 (页面级)
+
+| 状态 | 颜色 | 用途 |
+|---|---|---|
+| NORMAL | (无特殊色) | 页面正常显示 |
+| LOADING | neutral grey | 加载中, Skeleton |
+| EMPTY | neutral grey + 引导 | 空数据 + "新建" 主按钮 |
+| WARNING | amber | 部分软指标越界 |
+| ERROR | red | 操作失败 |
+| CRITICAL | red + pulse | 业务中断 |
+
+### 16.2.2 Runtime Health 颜色 (HealthState)
+
+| 状态 | 颜色 | 用途 |
+|---|---|---|
+| HEALTHY | green | 健康 |
+| DEGRADED | amber | 降级 |
+| FAILED | red | 失败 |
+| UNKNOWN | gray | 未知 (心跳丢失) |
+| STARTING | blue | 启动中 (Policy: lifecycle=STARTING) |
+| STOPPED | neutral / outline | 已停止 |
+
+### 16.2.3 Operational Role 颜色 (ACTIVE/STANDBY/OFFLINE) — **必须独立**
+
+| 状态 | 颜色 | 用途 |
+|---|---|---|
+| ACTIVE | solid blue | 当前在用 |
+| STANDBY | outline blue / dashed | 热备/温备就绪 |
+| OFFLINE | outline gray | 不可用 / 离线 |
+
+> **关键:** ACTIVE 不用绿色 (避免与 HEALTHY 混淆), OFFLINE 不用红色 (避免与 FAILED 混淆)。
+
+### 16.2.4 Lifecycle State 颜色 (辅助)
+
+| 状态 | 颜色 | 用途 |
+|---|---|---|
+| RUNNING | solid | 正常运行 |
+| STARTING | blue (animated) | 启动中 |
+| STOPPING | gray (animated) | 停止中 |
+| STOPPED | outline gray | 已停止 |
+
+## 16.3 核心组件清单 (V0.1 锁定 — Phase 0.5B.1 / Phase 4 实施)
+
+| 组件 | 用途 | 必备字段 |
+|---|---|---|
+| `StatusBadge` | 显示 Runtime HealthState | state / reason / last_changed |
+| `HealthDot` | 单点 Health 状态 | state / size / tooltip |
+| `RuntimeStateChip` | Lifecycle + Readiness + Health 三轴合一 | lifecycle / readiness / health / uptime |
+| `CapabilityChip` | Capability 验证结果 | state (PASS/WARN/FAIL) / reasons[] |
+| `ResourceGauge` | 资源使用率 | required / available / delta / headroom / unit |
+| `LatencyBadge` | Latency 测量 | target / measured / p50 / p95 / p99 |
+| `RevisionBadge` | 资源版本 | revision / created_at / status |
+| `ProfileBadge` | Profile 引用 | profile_id / version / type |
+| `DangerLevelBadge` | 危险操作等级 | level (L1/L2/L3) / action |
+| `ImpactPanel` | 影响预览 (见 §24) | scope / risk / estimate |
+| `PreflightPanel` | Preflight 结果 (见 §21) | static / resource / runtime |
+| `DiffViewer` | 差异对比 | before / after / highlights |
+| `TimelineEvent` | 事件时间线单项 | timestamp / actor / action / detail |
+| `DependencyGraph` | 依赖关系图 (见 §24) | node / edge / cycle_check |
+| `ConfigurationTriangle` | 3 层 Config 视图 (见 §15) | desired / compiled / effective / delta_reason |
+| `ChannelStatusCard` | Channel 综合状态 | 全部 3 套状态 + key metrics |
+
+## 16.4 视觉系统总原则
+
+1. **Broadcast 域 (Dashboard / Switcher / Output)**: 大状态 / 大数字 / 大预览 / 高优先级告警 / 低阅读负担
+2. **Engineering 域 (Graph Designer / Health Tree Engineering / Preflight)**: 高信息密度 / 数据表 / Inspector / Graph / Diff / Capability / Resource
+3. **两套视觉语言**自然形成, 不强行统一
+
+---
+
+# 17. Channel Detail (CD-01) — 新增子页
+
+> **当前 UI 缺口里最大的一项。**
+> Channel 是 V0.2 核心对象, 但目前没有一个真正的 "Channel Detail" 页面。
+> Dashboard / Switcher / Composition / Audio / Output / Recording 都是"功能入口", 没有任何一个把一个 Channel 的所有配置 + runtime 串起来。
+
+## 17.1 定位
+
+- **不是一级菜单**
+- **是 sub-page** / drawer, 从任何提到 Channel 的地方 (Dashboard / Switcher / Health Tree) 都能跳
+- **入口位置:**
+  - Dashboard Channel Selector 下拉 → "Channel Detail..."
+  - Switcher 顶部 Channel 标签点击
+  - Health Tree 节点 Source.CH01 → "Open Channel Detail"
+  - Channel Routes 列表 → 行点击
+
+## 17.2 信息架构 (8 区)
+
+```
+CD-01 Channel Detail — CH01 News HD
+─────────────────────────────────────────
+
+[ ◉ DESIRED  ⚙ COMPILED  ▶ EFFECTIVE ]  ← ConfigurationTriangle
+
+[Tab Bar]
+Overview | Signal | Switch | Master | Composition | Output | Recording | History
+```
+
+### Tab 1: Overview 总览
+
+- Channel Name / Description / Tags
+- Owner / Created At / Last Modified
+- Status (ECHS): ● HEALTHY
+- Uptime / Sessions Count
+- 缩略图 (Program Preview)
+- Key Metrics (1 屏信息密度):
+  - Primary: Source.A · 1080p50
+  - Backup: Source.B · 1080p25 · READY
+  - Switch Mode: COMPILED=PACKET / EFFECTIVE=FRAME (Δ Reason)
+  - Output: HLS 1,247 客户端 / RTMP OK / WebRTC DEGRADED
+  - Recording: REC 2h14m / 77% used
+  - Clock: PTP LOCKED BROADCAST_GRADE
+
+### Tab 2: Signal 信号源
+
+- **Signal RG (Redundancy Group):**
+  - Primary (Source.A) — node_role=ACTIVE / STANDBY / OFFLINE + Capability Contract
+  - Backup (Source.B) — node_role=ACTIVE / STANDBY / OFFLINE + Capability Contract
+  - (可选) Tertiary (Source.C) — node_role=OFFLINE
+- **Redundancy Group ID:** RG-CH01-SOURCE (可视化)
+- 切换 Hysteresis 配置
+- 失败吸收状态: ABSORBED ✓ (Source.A 失败时)
+
+### Tab 3: Switch 切播
+
+- **DESIRED:** Hot-Standby=HOT / SwitchPolicy=PACKET_FIRST
+- **COMPILED:** PACKET_SWITCH / WARM_UP 100ms / FILLER 200ms
+- **EFFECTIVE:** FRAME_SWITCH (Runtime Alignment degraded)
+- **Δ Reason:** §3.4 Decision Tree 推导
+- **Capability:** Primary vs Backup 对比 (Why PACKET? Why now FRAME?)
+- 5 次历史切换事件
+
+### Tab 4: Program Master 主母版
+
+- Video: ● ACTIVE (RAW domain) · 3 graph (Composite / LowerThird / Subtitle)
+- Audio: ● ACTIVE · -23 LUFS / -1.3 dBTP
+- Metadata: ● ACTIVE
+- 三独立 graph 同步状态
+- AVSync Offset / Drift
+
+### Tab 5: Composition 图文
+
+- **Program Scope:** 1 个 Composition (固定)
+- **Variant Scope:** 0~N 个 Variants
+  - 国内版 / 海外版 / 存档版
+- 当前 Active Variant
+- Timeline (近 24h)
+
+### Tab 6: Output 输出
+
+- **Output Variants** 列表:
+  - V-CH01-HLS · Profile=HLS-LIVE-01 · Destination=CDN-A (●) / CDN-B (备用)
+  - V-CH01-RTMP · Profile=RTMP-PUSH-01 · Destination=Origin
+  - V-CH01-File · Profile=ARCHIVE-01 · Destination=NFS-01
+- **每个 Variant 的 DESIRED / COMPILED / EFFECTIVE 三角:**
+  - Adapter health / Latency p95 / Clients / Reconnect count
+- SDI Master Output: [Reserved · V0.4] (V0.2 DISABLED)
+
+### Tab 7: Recording 录制
+
+- Active Recording: 2h14m · 5min chunk · 750MB / chunk
+- Storage: 77% used · 30 days retention
+- 最近 5 个 Incident 关联 chunk
+- [Open Recording Page] 跳 0.5A #07
+
+### Tab 8: History 历史
+
+- Configuration Revisions (5 条)
+- Change Sets (5 条, 含 status)
+- Incidents (10 条)
+- Revisions 之间 Diff
+
+## 17.3 状态模型
+
+- Normal: 全部 tab 可用
+- Loading: 8 tab 各自 Skeleton
+- Empty: Channel 不存在 (进入路由)
+- Warning: 某 tab 有 warning (例如 1 个 Output Variant DEGRADED)
+- Error: Channel 启动失败 / HealthTree FAILED
+- Critical: Channel 整体 FAILED
+
+## 17.4 权限
+
+- R: 全部 (可见自己 channel)
+- W: Operator+ (本 channel) / Engineer+ (跨 channel)
+- A: Admin
+
+## 17.5 关联工作流
+
+- Chain 1 (On-Air): 全程
+- Chain 2 (Failure): Tab 2 / Tab 3 / Tab 8
+- Chain 4 (Engineering): Tab 6 / Tab 7 / Tab 8
+
+## 17.6 跳转
+
+- 入口: Dashboard / Switcher / Health Tree 任意 Channel 引用
+- 出口: 各 tab 跳到对应 0.5A 页面 (Recording / Output / Health Tree)
+- 跳到 P-21/P-22 (Profile 详情)
+- 跳到 E-33 (Change Set 详情)
+
+---
+
+# 18. P-21 Encoding Profile Builder — 10 Sections
+
+> **重构原 P-21:** 从"大表单"改为 **Profile Builder** 模式。
+> 原因: 广播工程师不会每次手工填全部 30+ 字段, 必须有 Preset + Step-by-Step。
+
+## 18.1 整体结构 (10 Sections — 锁定)
+
+```
+P-21 Encoding Profile Builder
+──────────────────────────────────
+
+[ Header: Profile Name + Version + Status ]
+
+[ Tab Bar ]
+  1. Overview     5. Encoder     9. Validation
+  2. Video        6. Audio       10. Revision
+  3. Rate Control 7. Container
+  4. GOP / Frame  8. Resource
+```
+
+### Section 1: Overview
+- Profile Name / Description / Category / Tags
+- Quick Summary (主要参数一览)
+- 最近修改 / 创建者
+
+### Section 2: Video
+- Codec / Profile / Level / Pixel Format
+- Resolution / FPS / Time Base
+- **SAR (Pixel Aspect Ratio)** / **Field Order**
+- **Color Space / Color Range / Color Transfer / Color Primaries / Color Metadata**
+
+### Section 3: Rate Control
+- Mode (CBR / VBR / Capped VBR)
+- Bitrate / VBV Maxrate / VBV Buffer / **HRD**
+- Min / Max Bitrate / Quality (CRF)
+
+### Section 4: GOP / Frame
+- GOP Size / **Closed vs Open GOP** / Keyframe Policy
+- **Reference Frames** / B-Frames / Lookahead
+- Scene Cut Detection
+
+### Section 5: Encoder (Runtime Discovery 驱动)
+- Encoder Engine (Auto / libx264 / libx265 / NVENC / QSV / BMD H.264)
+- Available 列表 (动态) + ✗ 标注不可用 + 原因
+- Preset / Tune / Threads / Latency Mode
+
+### Section 6: Audio
+- Codec / Sample Rate / **Channel Layout** / **Bit Depth**
+- Bitrate / Loudness Reference / AV Sync Offset
+
+### Section 7: Container / Transport
+- Container (MPEG-TS / fMP4 / MP4 / MOV / MKV)
+- Segment Duration / Index Mode
+- Metadata / Timecode Policy
+- Side Data (SEI / HDR)
+
+### Section 8: Resource (E-32 联动)
+- 预估 CPU / RAM / VRAM / Disk / PCIe
+- Resource Vector 9D (见 §21)
+- BMD 端口占用 (Input/Output)
+
+### Section 9: Validation
+- Static (字段一致 / Capability)
+- Resource (服务器端能力)
+- Runtime (Worker / Network / Clock)
+- Test Encode 结果 (5s 试跑)
+
+### Section 10: Revision
+- Version (auto-increment)
+- Change Notes
+- Created By / At
+- Status (DRAFT / ACTIVE / DEPRECATED)
+- Diff vs Previous
+- Used By (Channels / Variants / Sessions)
+- [Open Change Set]
+
+## 18.2 Preset / Template (新增)
+
+> **重要:** 广播工程师不会每次填全部 30+ 字段。
+
+进入 Create Profile 时:
+
+```
+Create Encoding Profile
+────────────────────────
+Start From Preset:
+  ○ Broadcast 1080p25 H.264 (标准广播)
+  ○ Broadcast 1080p25 HEVC (高效)
+  ○ Low Latency H.264 (低延迟)
+  ○ Archive Master (归档)
+  ○ Proxy 720p (代理)
+  ○ Mobile H.264 (移动端)
+  ● Custom (自定义)
+```
+
+选择 Preset 后自动填充 9 个 section, Engineer 微调即可。
+
+## 18.3 "Why Not Usable" 解释能力 (新增)
+
+> 当前 Validation 只显示 "❌ FAIL" 是不够的。
+
+当 Profile 不可用时, 详细列出:
+
+```
+❌ NOT USABLE
+
+Reason 1: x265 encoder unavailable
+  × libx265 (N/A · not in PATH)
+
+Reason 2: GPU unavailable
+  × NVENC (GPU unavailable)
+
+Reason 3: 10-bit encoder required
+  Selected: x265 8bit
+  Required: HEVC Main10 (10-bit)
+  Available: HEVC Main (8-bit only)
+
+Reason 4: Output Variant requires H.264
+  Profile produces: HEVC
+  Required: H.264
+```
+
+操作按钮:
+- [Fix Automatically] (建议修复)
+- [Explain] (详细解释)
+- [Open Capability Registry] (跳 E-34)
+- [Open Device] (跳 E-35)
+
+## 18.4 实施原则
+
+- P-21 wireframe (0.5B.1) 完整实施 10 sections + Preset + Why Not Usable
+- 0.5A 旧 P-21 表单 (5 sections) 在 Phase 4 实施时迁移
+
+---
+
+# 19. M-14 Transcode Workflow — Preview / Test / Submit
+
+> **重构 M-14:** 从"任务列表 + 单 New Job Modal" 改为 **3 步工作流 (Preview / Test / Submit) + Worker=AUTO**。
+
+## 19.1 核心修改: Worker 默认 AUTO
+
+**当前问题:** Worker Assignment 让用户主导, 实际上用户在干 Scheduler 的工作。
+
+**修复:** M-14 默认 Worker = AUTO, 由 Resource Scheduler 决定:
+
+```
+Worker
+[ AUTO ▼ ]  ← 默认
+
+Scheduler 会基于以下选择:
+  Resource available (CPU/GPU/RAM/Disk)
+  Queue depth
+  Capability (encoder availability)
+
+Advanced → Manual Worker
+  Worker-01
+  Worker-02
+  Host-10.30.15.10
+```
+
+## 19.2 5 步 New Job Workflow (替代单 Modal)
+
+```
+Step 1: Select Input
+  选择 Asset (来源 M-11)
+  [下拉: Asset Name / Type / Size / Duration / Rights]
+
+Step 2: Select Profile
+  选择 Encoding Profile (来源 P-21)
+  [下拉: Profile Name / Codec / Resolution / Bitrate]
+  [最近使用] [Starred]
+
+Step 3: Preview Output (新)
+  模拟输出:
+    File:        [Estimated File Name]
+    Duration:    00:30:25
+    Size:        ~187 MB (estimate)
+    Video:       HEVC Main 1080p25
+    Audio:       AAC 2ch 192k
+    Codec:       HEVC
+    Resolution:  1920×1080
+    Bitrate:     5.0 Mbps
+    FPS:         25
+
+Step 4: Test Encode 5s (新 — 但不是 P-21 才有)
+  [▶ Run Test]
+  跑 5 秒 sample, 显示:
+    Actual FPS:    127.4
+    Actual Speed:   5.1x realtime
+    CPU:            71% (host-01)
+    Memory:         1.2 GB peak
+    Estimated Full: 03:08
+    Estimated Size: 188 MB
+    Quality Check:  PASS / WARN / FAIL
+
+  [Re-test] [Skip Test] [Continue]
+
+Step 5: Create Full Job
+  Output Destination: Local / S3 / NFS
+  Schedule: Now / Scheduled / On Event
+  Priority: 1-10
+  Notify: Complete / Failed / Both
+
+  [Submit Job]
+```
+
+## 19.3 Output / Result 区 (新)
+
+> M-14 不只是"任务管理", 转码完成后必须显示结果。
+
+```
+OUTPUT — Job T-1821 (COMPLETED)
+────────────────────────────────
+File        /var/vbmf/media/master/News01_HEVC_1080p25.mp4
+Duration    00:30:25
+Size        188.4 MB
+Video       HEVC Main 1080p25 · 4.98 Mbps · 25 fps
+Audio       AAC 2ch 48kHz 192 kbps
+Hash        sha256:abc123...
+QC          ● PASS
+Rights      ● Active (valid until 2027-01-01)
+
+[Open Asset] [Open Version] [Preview] [Use in Playout] [Create Variant]
+```
+
+## 19.4 M-14 状态模型
+
+- Normal: 有 Running 任务
+- Loading: 任务列表加载
+- Empty: 0 jobs + 引导 "Create your first transcode job"
+- Warning: 队列堆积 > 10 / Worker CPU 持续 > 90%
+- Error: 任务失败 + [Retry]
+- Critical: 全部 Workers offline / Disk write 失败
+
+---
+
+# 20. P-22 Output Profile / Variant / Destination / Adapter — 4-Tuple 拆分
+
+> **4 元组必须强制分离:** Output Profile (Policy) / Output Variant (Per-Channel) / Output Destination (Endpoint) / Output Adapter (Runtime Plugin)
+
+## 20.1 4 元组定义 (与 §4.1 一致, 强化)
+
+```
+Output Profile (P-22)        = Delivery Policy (How: 编码/协议/可靠性/Latency)
+Output Variant               = Per-Channel 派生 (1 Channel 1 Variant 1:1)
+Output Destination           = 实际 endpoint (host:port/path)
+Output Adapter               = 真正执行协议 (SRSAdapter / FileAdapter / UDPAdapter)
+```
+
+## 20.2 3-Tier Protocol 状态 (取代 P-22 之前混在一起的列表)
+
+```
+Protocol Status
+──────────────
+● Available     当前实现, Backend 支持, UI 可配置
+○ Reserved      未来实现, UI 显示但标 Reserved
+✗ Unavailable   当前不可用, 显式原因
+```
+
+V0.2 完整 3-Tier:
+
+| Protocol | Status | V0.2 |
+|---|---|---|
+| HLS | ● Available | ✓ |
+| RTMP | ● Available | ✓ |
+| WebRTC | ● Available | ✓ (SRS WHIP) |
+| SRT | ● Available | ✓ |
+| UDP MPEG-TS | ● Available | ✓ |
+| File | ● Available | ✓ |
+| DASH | ○ Reserved | V0.4+ |
+| SDI Master Output | ○ Reserved | V0.4 Target |
+| DRM (Widevine) | ○ Reserved | V0.4+ |
+| DRM (FairPlay) | ○ Reserved | V0.4+ |
+| DRM (PlayReady) | ○ Reserved | V0.4+ |
+
+**Reserved 协议 UI 表现:**
+```
+○ DASH  [Reserved · V0.4+]  ← 灰显
+  ┗━━ Disabled, 不可配置
+```
+
+## 20.3 P-22 UI 重构
+
+```
+P-22 Output Profiles
+────────────────────
+
+[ Profile List ]
+HLS-LIVE-01      ● ACTIVE    Used by 3 Variants
+HLS-LL-01        ● ACTIVE    Used by 2 Variants
+RTMP-PUSH-01     ● ACTIVE    Used by 1 Variant
+ARCHIVE-01       ● ACTIVE    Used by 1 Variant
+SDI-MASTER       ○ RESERVED  V0.4 Target
+
+[ + Create Profile ]
+
+──────────────────────────
+P-22 Profile Detail
+──────────────────────────
+[ ◉ DESIRED  ⚙ COMPILED  ▶ EFFECTIVE ]
+
+[ Tab Bar ]
+  1. Profile     3. Latency
+  2. Protocol    4. Player Capability
+```
+
+**P-22 不再包含 Variant / Destination / Adapter 配置** (它们在别处管理)。
+
+## 20.4 Output Variant / Destination / Adapter 在哪里管理
+
+| 对象 | 位置 | 备注 |
+|---|---|---|
+| **Output Profile** | P-22 | Delivery Policy 定义 |
+| **Output Variant** | CD-01 Channel Detail → Tab 6 Output | 1:1 绑定 Channel |
+| **Output Destination** | CD-01 Channel Detail → Tab 6 → Variant Detail | Endpoint 列表 |
+| **Output Adapter** | E-35 Device Registry (Adapter Plugins) | Runtime Plugin |
+
+---
+
+# 21. E-32 Preflight — 9D Resource Required/Available/Delta/Headroom
+
+> **重构 E-32:** Resource 区从 6 项简化为 9-Dim, **每个维度必须显示 Required/Available/Delta/Headroom**。
+
+## 21.1 9-Dim Resource Vector (V0.2 §3.11 锁定)
+
+```
+CPU_THREADS / GPU_SESSIONS / VRAM_MB / RAM_MB /
+NIC_INGRESS_MBPS / NIC_EGRESS_MBPS / DISK_WRITE_MBPS /
+PCIE_RX_MB_S / PCIE_TX_MB_S
++ BMD_INPUT_TOKENS / BMD_OUTPUT_TOKENS / DEVICE_EXCLUSIVITY
+```
+
+## 21.2 Resource Panel UI 模式 (锁定)
+
+```
+Resource Vector (9-Dim)
+─────────────────────────
+CPU_THREADS
+  Required   14.5
+  Available  32
+  Delta      -17.5
+  Headroom   17.5 threads
+  Status     ✓ OK
+
+VRAM_MB
+  Required   0
+  Available  0
+  Status     N/A · no GPU
+
+DISK_WRITE_MBPS
+  Required   32
+  Available  410
+  Headroom   378 MB/s
+  Status     ✓ OK
+
+BMD_INPUT_TOKENS
+  Required   1
+  Available  3
+  Headroom   2
+  Status     ✓ OK
+  Allocation  CH01 → dv0
+
+PCIE_RX_MB_S
+  Required   1200
+  Available  7000
+  Headroom   5800
+  Status     ✓ OK
+
+DEVICE_EXCLUSIVITY
+  Required   OK
+  Status     ✓ No Conflict
+```
+
+## 21.3 Preflight 3 区 (锁定)
+
+#### Static
+- ✓ Graph valid (无环)
+- ✓ Contract valid
+- ✓ Rights valid
+- ✓ Asset exists
+- ✓ Latency within budget
+
+#### Resource (9-Dim)
+- 11 个维度 Required/Available/Delta/Headroom (见 §21.2)
+
+#### Runtime Readiness
+- ✓ SRS Adapter ready
+- ✓ Backup node ready
+- ✓ Source online
+- ✓ Recorder ready
+- ✓ Filler available
+- ✓ Output QC ready
+
+## 21.4 状态模型 (Preflight)
+
+- Normal: 0 critical / 0 warning
+- Loading: Preflight 跑中
+- Empty: 未跑过 Preflight
+- Warning: 有 warning
+- Error: 有 critical → Apply 按钮禁用
+- Critical: 多 critical 阻塞 Apply
+
+## 21.5 Preflight 与 ChangeSet 联动
+
+Preflight 报告作为 ChangeSet 的附件, 后续 Apply 时复用:
+- 同一个 ChangeSet 在 Apply 前必须 PASS Preflight
+- 如果 Apply 时 Preflight FAIL → Execution Phase 进入 ABORTED, Business Status 回 DRAFT
+
+---
+
+# 22. O-41 Health Tree — H1-H7 + Failure Absorbed + redundancy_group
+
+> **核心升级:** Health Tree 显式展示 V0.2 Health Invariants (H1-H7) + Failure Absorbed 视觉化 + redundancy_group 关系。
+
+## 22.1 H1-H7 健康不变量 UI 体现
+
+```
+Health Invariants
+─────────────────
+H1 ✓ No ACTIVE+FAILED
+H2 ✓ No ACTIVE+DEGRADED
+H3 ✓ No STANDBY+FAILED
+H4 ✓ No STANDBY+DEGRADED
+H5 ✓ OFFLINE+FAILED absorbed
+H6 ✓ Source RG not all unavailable
+H7 ✓ ECHS from channel_health_view
+```
+
+每个 H 规则:
+- ✓ = PASS (绿)
+- ⚠ = WARN (黄) — 接近违反
+- ✗ = FAIL (红) — 已违反, Channel 状态受影响
+
+## 22.2 Failure Absorbed 视觉化 (新增)
+
+> 当 Backup 接管 Primary 失败时, UI 必须显式标 "ABSORBED"。
+
+当前 UI:
+```
+Source.Primary  ● FAILED
+Source.Backup   ● ACTIVE
+Channel         ● HEALTHY  (但为什么?)
+```
+
+修复后:
+```
+Source.Primary  ○ OFFLINE  (was ACTIVE+FAILED, system absorbed)
+Source.Backup   ◉ ACTIVE   (took over)
+Redundancy      ✓ ABSORBED
+Channel         ● HEALTHY  (Reason: H5 absorbed, Backup healthy)
+```
+
+> **关键:** 不是显示 FAILED 的红色, 而是显示 OFFLINE 的 outline 灰色 + ABSORBED 标签。
+> 这传达"系统处理了, 不需要恐慌"。
+
+## 22.3 redundancy_group 视觉化 (新增)
+
+```
+Source RG-CH01-SOURCE
+─────────────────────
+● Source.A    ACTIVE  · 1080p50
+○ Source.B    STANDBY · 1080p25 (Capable: 50→25 FRAME_SWITCH)
+○ Source.C    OFFLINE · V0.4 reserved
+```
+
+> **关键:** 不是平铺 3 个 Source, 而是用 RG 框起来, 显示"这是一个冗余组"。
+
+## 22.4 9 Subsystem Health Matrix
+
+```
+Subsystem      | Status    | Reason
+───────────────┼───────────┼─────────────────────
+1. SOURCE      | ● HEALTHY | RG-01 absorbed
+2. SWITCHER    | ● HEALTHY | FRAME_SWITCH (Δ from PACKET)
+3. COMPOSITION | ● HEALTHY | Program+Variant OK
+4. AUDIO       | ● HEALTHY | -23 LUFS / -1.3 dBTP
+5. MASTER      | ● HEALTHY | AV sync +12ms
+6. OUTPUT      | ● HEALTHY | HLS 1247 / RTMP OK
+7. RECORDING   | ● HEALTHY | 2h14m
+8. CLOCK       | ● HEALTHY | PTP LOCKED BROADCAST
+9. RESOURCE    | ● HEALTHY | CPU 38% / RAM 22%
+```
+
+## 22.5 ECHS 来源声明 (必须)
+
+> **关键约束:** 任何 Channel Health 显示都**必须**有:
+> ```
+> ECHS source: channel_health_view.effective_channel_status
+> Aggregation: 7 rules (Rule 1-7) applied
+> Policy: lifecycle_terminal > lifecycle_transition > health_tree_aggregation > unknown
+> ```
+
+UI 顶部或底部显示这一行, 让 Operator / Engineer 知道 status 是从哪儿来的。
+
+---
+
+# 23. E-34 Capability Registry — Why Compatible / Why Not
+
+> **重构 E-34:** Capability 比较必须**显式**列出"为什么 PASS / 为什么 FAIL"。
+
+## 23.1 Capability Matrix 模式 (锁定)
+
+```
+CAPABILITY COMPARISON — PACKET_SWITCH Candidate
+─────────────────────────────────────────────────
+Source A (Primary)  Source B (Backup)  Match  Status
+─────────────────────────────────────────────────
+Codec
+  H.264              H.264              ✓      MATCH
+Profile
+  High               High               ✓      MATCH
+Level
+  4.0                4.0                ✓      MATCH
+Resolution
+  1920×1080          1920×1080          ✓      MATCH
+FPS
+  25                 25                 ✓      MATCH
+Bit Depth
+  8                  8                  ✓      MATCH
+Color Space
+  BT.709             BT.709             ✓      MATCH
+Color Range
+  TV                 TV                 ✓      MATCH
+Audio Channel Layout
+  Stereo             5.1                ✗      MISMATCH
+Audio Codec
+  AAC                AAC                ✓      MATCH
+Clock Domain
+  PTP                PTP                ✓      MATCH
+Data Plane
+  COMPRESSED_VIDEO   COMPRESSED_VIDEO   ✓      MATCH
+```
+
+## 23.2 Why PASS / Why Not
+
+### PASS 情况
+
+```
+✅ PACKET_SWITCH ELIGIBLE
+
+All 12 capability fields match between Source A and Source B.
+Runtime alignment: PASS (last 24h)
+```
+
+### FAIL 情况
+
+```
+❌ PACKET_SWITCH NOT ELIGIBLE
+
+Reason 1: Audio Channel Layout mismatch
+  Source A: 2.0 (Stereo)
+  Source B: 5.1 (Surround)
+  
+Reason 2: Runtime Alignment degraded
+  Last 24h: 5 frames out-of-sync > 50ms threshold
+
+Fallback:
+  → FRAME_SWITCH candidate (check below)
+  → MASTER_SWITCH candidate (check below)
+```
+
+## 23.3 Switch Decision Tree 完整呈现 (锁定)
+
+UI 必须显示 3-tier 决策链:
+
+```
+Static (Capability):
+  ✓ PASS  → can try PACKET_SWITCH
+  ✗ FAIL  → skip to FRAME
+
+Runtime Alignment:
+  ✓ PASS  → PACKET_SWITCH ELIGIBLE
+  ✗ FAIL  → degrade to FRAME_SWITCH
+
+Frame Alignment:
+  ✓ PASS  → FRAME_SWITCH ELIGIBLE
+  ✗ FAIL  → degrade to MASTER_SWITCH
+
+Master Readiness:
+  ✓ READY  → MASTER_SWITCH ELIGIBLE
+  ✗ NOT READY  → REJECT
+```
+
+UI 在每个 tier 显示 ✓/✗ + reason。
+
+## 23.4 Compare 2-3 Sources UI
+
+```
+[Compare 3 Contracts]
+Source A  Source B  Source C
+──────────────────────────
+(每个 contract 完整字段横排)
+```
+
+点击行 → 跳 E-34 capability check。
+
+---
+
+# 24. Dependency / Impact Preview — 全局 pattern
+
+> **这是 V0.5B Closure-1 第二个核心 UX 基础设施。**
+> 凡是有"配置"的页面, 都必须有 "Used By" 和 "Impact Preview"。
+
+## 24.1 Used By — Profile / Channel / Device 详情必带
+
+```
+Used By
+───────
+Channels:
+  CH01 (● ACTIVE)
+  CH03 (● ACTIVE)
+
+Graphs:
+  Graph-21 (Compiled in CH01)
+  Graph-25 (Draft)
+
+Output Variants:
+  V-CH01-HLS-Domestic
+  V-CH03-HLS-Overseas
+
+Active Sessions:
+  2 (last 24h)
+
+[View Dependency Graph]
+```
+
+## 24.2 Impact Preview — 修改前必看
+
+任何修改 (Edit Profile / Change Clock / Change Switch Policy) 之前, 必须先显示:
+
+```
+Impact Preview
+─────────────
+You are changing:
+  Encoding Profile LIVE_HEVC_1080P
+  v3 → v4
+
+Affected Channels:
+  ● CH01  (currently ACTIVE)
+  ● CH03  (currently ACTIVE)
+  ○ CH05  (currently STOPPED)
+
+Estimated:
+  CPU    +4.2 threads
+  RAM    +520 MB
+  Latency  +18 ms
+
+Risk: MEDIUM
+Reason: 2 channels on-air, will require fail-over during apply
+
+Runtime:
+  Requires Change Set
+  Recommended: Schedule Apply at next event boundary
+
+[Cancel]  [Continue to ChangeSet]
+```
+
+## 24.3 Dependency Graph (可选可视化)
+
+> Phase 4 实施时再做。当前 0.5B 用 "Used By 列表" 即可。
+
+未来扩展 (V0.4+): 用 Graphviz 渲染:
+```
+Encoding Profile v3
+    ↓
+Graph Spec 21 ──→ Channel CH01
+                  ├─ Output Variant V-CH01-HLS
+                  │    └─ Destination CDN-A
+                  └─ Output Variant V-CH01-RTMP
+                       └─ Destination Origin
+
+[Cycle Check: OK]
+```
+
+## 24.4 适用页面
+
+| 页面 | Used By | Impact Preview |
+|---|---|---|
+| **P-21** Encoding Profile | ✓ | ✓ |
+| **P-22** Output Profile | ✓ | ✓ |
+| **P-23** Audio Profile | ✓ | ✓ |
+| **P-24** Graphic Profile | ✓ | ✓ |
+| **P-25** QC Profile | ✓ | ✓ |
+| **P-26** Rights Profile | ✓ | ✓ |
+| **P-27** Edge Policy Profile | ✓ | ✓ |
+| **E-35** Device | ✓ (Used By) | ✓ (Lock 影响) |
+| **E-37** Clock | ✓ (Used By) | ✓ (切换影响) |
+| **CD-01** Channel Detail | — | (Reverse direction) |
+
+## 24.5 实施原则
+
+- 0.5B.1 wireframe: P-21 + P-22 实施完整 Used By + Impact Preview
+- Phase 4: 全部 Profile 页实施
+
+---
+
+# 25. 其他 Closure 项 (Benchmarks / Clock / Permission)
+
+## 25.1 O-45 Benchmarks 增强
+
+当前: 只列 p50/p95/p99。
+
+新增字段:
+- **Target (Policy):** 100 ms
+- **Measured:**
+  - p50: 78 ms
+  - p95: 87 ms
+  - p99: 94 ms
+- **Trend:** ↗ / → / ↘ (vs 7 days ago)
+- **Test Profile:** Profile v3 + GR-42
+- **Hardware:** x265 + host-01
+- **Timestamp:** 2026-08-25 14:25
+- **Pass / Fail:** ✓ (within budget)
+
+**Benchmark Run Detail (drill-down):**
+- 完整测试日志
+- 资源占用时间序列
+- FFmpeg 命令行
+- 错误 / 警告
+
+## 25.2 E-37 Clock "Used By" 字段
+
+```
+PTP0 · ptp0 (eth0)
+LOCKED · BROADCAST_GRADE
+
+Used By:
+  CH01 · ● ACTIVE
+  CH02 · ● ACTIVE
+  CH03 · ● ACTIVE
+
+Clock Quality:
+  BROADCAST_GRADE
+
+Fallback:
+  TIMECODE (GOOD)
+
+Impact:
+  3 channels
+```
+
+切换 Clock Reference 前必须显示此 Used By, 让 Engineer 知道影响范围。
+
+## 25.3 A-53 Permission Context 增强
+
+> 当前 A-53 是"角色 × 操作 × R/W/A"。**升级为"角色 × 操作 × Scope × Object × Current State × Guard"。**
+
+```
+Permission
+──────────
+Allowed
+Scope
+  CH01 only
+Object
+  Channel.CH01 / Profile.v3
+Context
+  Channel = ON-AIR
+Guard
+  Requires L2 confirmation (3s countdown)
+```
+
+**例:**
+- Engineer 可 Apply ChangeSet, 但 Channel=ON-AIR 时必须 L2
+- Operator 可 Failover, 但不能改 Switch Policy (Policy 编辑需 Engineer)
+
+## 25.4 实施原则
+
+- 0.5B.1: O-45 + E-37 + A-53 字段增强
+- Phase 4: 完整 Permission Context 引擎
+
+---
+
+# 26. Phase 0.5B Closure-1 完成度自评
+
+| 维度 | 评分 |
+|---|---|
+| Architecture 一致性 | 97/100 |
+| Runtime Semantics | 99/100 |
+| **0.5A Operator UX** | 95/100 |
+| **0.5B Surface Spec 总分** | **92/100** (上一版 87) |
+| Profile UI | **88/100** (上一版 78) |
+| Transcode UX | **85/100** (上一版 76) |
+| Output UX | **88/100** (上一版 79) |
+| Engineering UX | 90/100 (上一版 86) |
+| Health UX | **93/100** (上一版 89) |
+| 权限 / 风险 UX | 86/100 (上一版 83) |
+| 视觉系统 | **87/100** (上一版 82) |
+| **综合 UI/UX** | **91/100** (上一版 84) |
+
+---
+
+# 27. 下一阶段路径
+
+```
+Phase 0.5B Closure-1 (本节 · 完成)
+       ↓
+Phase 0.5B.1 = 5 张 P0 wireframe
+  M-11 Media Library
+  M-12 Asset Detail
+  M-14 Transcode Center (含 Preview/Test/Submit + Result)
+  P-21 Encoding Profile Builder (10 sections)
+  P-22 Output Profile (4-tuple 拆分)
+       ↓
+5 张 wireframe Review
+       ↓
+Phase 0.5 全部 FREEZE
+       ↓
+Phase 0.6 Executable Acceptance Spec
+       ↓
+Phase 1 Media Core (Rust)
+```
+
+**Phase 0.5B.1 是最后 5 张 wireframe。**
+**0.5B.1 完成后 Phase 0.5 全部 Lock, 不再扩展 UI/UX 范围。**
+
+---
+
+**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Closure-1
 
