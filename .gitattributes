@@ -1,0 +1,43 @@
+# Force LF for all text files (cross-platform consistency)
+* text=auto eol=lf
+
+# Markdown
+*.md text eol=lf
+
+# YAML / JSON
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Source code
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.rs text eol=lf
+*.py text eol=lf
+*.go text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+# HTML / CSS
+*.html text eol=lf
+*.css text eol=lf
+*.svg text eol=lf
+
+# LICENSE / config
+LICENSE text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binary (do not modify)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.mp4 binary
+*.zip binary

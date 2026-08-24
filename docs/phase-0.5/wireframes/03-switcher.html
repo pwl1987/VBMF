@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>03 Switcher — VBMF Phase 0.5 Low-Fi</title>
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
+.panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.mode{font-size:32px;font-weight:700;color:var(--accent);margin:8px 0}
+.metric{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+.metric:last-child{border-bottom:none}
+.events{font-family:Menlo,Consolas,monospace;font-size:11px}
+.event{padding:4px 8px;border-left:2px solid var(--green);margin-bottom:4px;background:var(--bg3)}
+.event.warn{border-left-color:var(--yellow)}
+.event.err{border-left-color:var(--red)}
+.btn{padding:8px 20px;font-size:13px;font-weight:600;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:4px;cursor:pointer;margin-right:8px}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.btn:hover{background:var(--accent);color:#fff}
+.btn.danger:hover{background:#ff6b6b}
+a{color:var(--accent);text-decoration:none}
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h2 style="font-size:14px">Switcher — Program Master Switch</h2>
+  <div><a href="02-sources.html">← Sources</a> | <a href="04-composition.html">Composition →</a></div>
+</header>
+
+<div class="row">
+  <div class="panel">
+    <h3>Compiled Mode <span style="color:var(--fgdim);font-size:10px">(channel_routes.switch_mode)</span></h3>
+    <div class="mode">PACKET_SWITCH</div>
+    <div class="metric"><span>Hot-Standby Level</span><span><b>HOT</b> (target_failover=100ms)</span></div>
+    <div class="metric"><span>Capability Contract</span><span style="color:var(--green)">✓ PASS</span></div>
+    <div class="metric"><span>Runtime Alignment</span><span style="color:var(--green)">✓ PASS</span></div>
+  </div>
+  <div class="panel">
+    <h3>Effective Runtime Mode <span style="color:var(--fgdim);font-size:10px">(media_session_runtime.effective_switch_mode)</span></h3>
+    <div class="mode" style="color:var(--green)">PACKET_SWITCH</div>
+    <div class="metric"><span>Last Switch</span><span>2026-08-24 14:28:03</span></div>
+    <div class="metric"><span>Last Switch Reason</span><span>Manual TAKE (operator)</span></div>
+    <div class="metric"><span>Switch Count (24h)</span><span>7</span></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="panel">
+    <h3>Recent Switch Events</h3>
+    <div class="events">
+      <div class="event">14:28:03 · PACKET · A→B · manual · 87ms</div>
+      <div class="event warn">14:15:21 · FRAME · A→A · alignment drift +12ms</div>
+      <div class="event">13:42:09 · PACKET · B→A · manual · 92ms</div>
+      <div class="event err">12:08:47 · MASTER · B→A · auto failover (Source.B frozen 5s)</div>
+      <div class="event">11:30:00 · PACKET · A→B · manual · 78ms</div>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>Manual Control</h3>
+    <div style="margin-bottom:12px">
+      <button class="btn">⬆ TAKE PVW→PGM</button>
+      <button class="btn">⇄ SWAP PVW/PGM</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <button class="btn">⏸ Hold</button>
+      <button class="btn">▶ Resume</button>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
+      <button class="btn danger">⚠ EMERGENCY — Cut to Filler</button>
+    </div>
+    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">L3 危险操作：需输入 YES 确认 + 5s 倒计时</p>
+  </div>
+</div>
+
+<footer>
+  Switch Mode SoT: §3.4 switch_mode_decision_tree · Hot-Standby SoT: §3.5 hot_standby_levels
+</footer>
+</body>
+</html>

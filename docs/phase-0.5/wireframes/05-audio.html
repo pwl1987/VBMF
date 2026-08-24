@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>05 Audio — VBMF Phase 0.5 Low-Fi</title>
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
+.panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.channel{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.channel .name{width:80px;color:var(--fgdim)}
+.channel .fader{flex:1;height:6px;background:linear-gradient(to right,var(--green) 0%,var(--green) 65%,var(--yellow) 75%,var(--red) 90%);border-radius:3px;position:relative}
+.channel .fader .knob{position:absolute;top:-4px;width:14px;height:14px;background:var(--fg);border-radius:50%;cursor:pointer}
+.channel .db{width:60px;text-align:right;font-family:Menlo,Consolas,monospace}
+.loudness{background:var(--bg3);border-radius:4px;padding:12px;margin-top:8px}
+.loudness .num{font-size:32px;font-weight:700;color:var(--green);font-family:Menlo,Consolas,monospace}
+.loudness .label{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.meter{height:80px;background:#000;border-radius:4px;position:relative;overflow:hidden;margin-top:8px}
+.meter .bar{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,var(--green) 0%,var(--green) 60%,var(--yellow) 80%,var(--red) 100%);opacity:0.6}
+a{color:var(--accent);text-decoration:none}
+.btn{padding:4px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.row:last-child{border-bottom:none}
+.row .val{font-weight:600;font-family:Menlo,Consolas,monospace}
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h2 style="font-size:14px">Audio — Mixer / Loudness / Delay</h2>
+  <div><a href="04-composition.html">← Composition</a> | <a href="06-output.html">Output →</a></div>
+</header>
+
+<div class="grid">
+  <div class="panel">
+    <h3>Mixer — 8 Channel</h3>
+    <div class="channel"><div class="name">CH1 Source.A L</div><div class="fader"><div class="knob" style="left:65%"></div></div><div class="db">-3.5 dB</div></div>
+    <div class="channel"><div class="name">CH2 Source.A R</div><div class="fader"><div class="knob" style="left:65%"></div></div><div class="db">-3.5 dB</div></div>
+    <div class="channel"><div class="name">CH3 Source.B L</div><div class="fader"><div class="knob" style="left:50%"></div></div><div class="db">-6.0 dB</div></div>
+    <div class="channel"><div class="name">CH4 Source.B R</div><div class="fader"><div class="knob" style="left:50%"></div></div><div class="db">-6.0 dB</div></div>
+    <div class="channel"><div class="name">CH5 Music Bed</div><div class="fader"><div class="knob" style="left:30%"></div></div><div class="db">-12.0 dB</div></div>
+    <div class="channel"><div class="name">CH6 Voice</div><div class="fader"><div class="knob" style="left:70%"></div></div><div class="db">-2.5 dB</div></div>
+    <div class="channel"><div class="name">CH7 SFX</div><div class="fader"><div class="knob" style="left:0%"></div></div><div class="db">-∞ dB</div></div>
+    <div class="channel"><div class="name">CH8 Aux</div><div class="fader"><div class="knob" style="left:0%"></div></div><div class="db">-∞ dB</div></div>
+  </div>
+  <div class="panel">
+    <h3>Loudness (EBU R128) — 实时</h3>
+    <div class="loudness">
+      <div class="label">Momentary (M)</div>
+      <div class="num" style="color:var(--yellow)">-18.2 LUFS</div>
+    </div>
+    <div class="loudness">
+      <div class="label">Short-term (S)</div>
+      <div class="num" style="color:var(--green)">-22.8 LUFS</div>
+    </div>
+    <div class="loudness">
+      <div class="label">Integrated (I)</div>
+      <div class="num" style="color:var(--green)">-23.0 LUFS</div>
+    </div>
+    <div class="loudness">
+      <div class="label">True Peak</div>
+      <div class="num" style="color:var(--green)">-1.5 dBTP</div>
+    </div>
+    <div class="meter" style="margin-top:12px">
+      <div class="bar" style="height:62%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:12px">
+  <h3>Audio Master Join + AV Sync</h3>
+  <div class="row"><span>Audio Master</span><span class="val" style="color:var(--green)">HEALTHY</span></div>
+  <div class="row"><span>AV Sync Offset (|Δ|)</span><span class="val" style="color:var(--green)">+12ms (within ±80ms green)</span></div>
+  <div class="row"><span>AV Sync Drift</span><span class="val">+0.3ms/min (within 1ms/min)</span></div>
+  <div class="row"><span>Sample Rate</span><span class="val">48 kHz</span></div>
+  <div class="row"><span>Bit Depth</span><span class="val">24 bit</span></div>
+  <div class="row"><span>Channels</span><span class="val">8 ch (5.1 + Stereo)</span></div>
+  <div style="margin-top:8px"><button class="btn">Calibrate</button><button class="btn">Reset</button><button class="btn">Mute All</button></div>
+</div>
+
+<footer>
+  V0.2 §3.8 AVSync Manager (Measurement + Offset/Drift Correction) · §3.7 Audio Master Join
+</footer>
+</body>
+</html>

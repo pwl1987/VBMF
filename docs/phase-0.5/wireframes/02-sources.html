@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>02 Sources — VBMF Phase 0.5 Low-Fi</title>
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px}
+th{background:var(--bg3);color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover{background:var(--bg3)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.green{background:var(--green)}.yellow{background:var(--yellow)}.red{background:var(--red)}.gray{background:var(--gray)}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
+.btn{padding:3px 8px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
+.btn:hover{background:var(--accent);color:#fff}
+a{color:var(--accent);text-decoration:none}
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h2 style="font-size:14px">Sources — Signal Source Management</h2>
+  <div><a href="01-dashboard.html">← Dashboard</a> | <a href="03-switcher.html">Switcher →</a></div>
+</header>
+<table>
+  <thead>
+    <tr>
+      <th>Source</th><th>Type</th><th>Status</th><th>Clock</th><th>Resolution</th><th>Bitrate</th><th>SDI Port</th><th>Locked</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><b>Source.A</b></td><td><span class="badge">SDI</span></td><td><i class="dot green"></i>HEALTHY</td><td>PTP</td><td>1920×1080 / 25</td><td>—</td><td>/dev/blackmagic/dv0</td><td>✓</td><td><button class="btn">Lock</button><button class="btn">Unlock</button><button class="btn">Delete</button></td></tr>
+    <tr><td><b>Source.B</b></td><td><span class="badge">SDI</span></td><td><i class="dot green"></i>HEALTHY</td><td>PTP</td><td>1920×1080 / 25</td><td>—</td><td>/dev/blackmagic/dv1</td><td>✓</td><td><button class="btn">Lock</button><button class="btn">Unlock</button><button class="btn">Delete</button></td></tr>
+    <tr><td><b>Source.SDI.Monitor</b></td><td><span class="badge">SDI</span></td><td><i class="dot gray"></i>DISABLED</td><td>—</td><td>—</td><td>—</td><td>/dev/blackmagic/io0</td><td>—</td><td><button class="btn">Enable</button></td></tr>
+    <tr><td><b>Source.SRT.live</b></td><td><span class="badge">SRT</span></td><td><i class="dot green"></i>HEALTHY</td><td>TIMECODE</td><td>1920×1080 / 25</td><td>4.2 Mbps</td><td>—</td><td>—</td><td><button class="btn">Edit</button><button class="btn">Delete</button></td></tr>
+    <tr><td><b>Source.RTMP.upstream</b></td><td><span class="badge">RTMP</span></td><td><i class="dot yellow"></i>DEGRADED</td><td>MONOTONIC</td><td>1280×720 / 30</td><td>1.8 Mbps</td><td>—</td><td>—</td><td><button class="btn">Edit</button><button class="btn">Delete</button></td></tr>
+    <tr><td><b>Source.HLS.public</b></td><td><span class="badge">HLS</span></td><td><i class="dot red"></i>FAILED</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><button class="btn">Retry</button><button class="btn">Delete</button></td></tr>
+    <tr><td><b>Source.WebRTC.test</b></td><td><span class="badge">WebRTC</span></td><td><i class="dot gray"></i>UNCONFIGURED</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><button class="btn">Configure</button></td></tr>
+    <tr><td><b>Source.FILE.archive</b></td><td><span class="badge">FILE</span></td><td><i class="dot green"></i>HEALTHY</td><td>SYSTEM</td><td>1920×1080 / 25</td><td>5.0 Mbps</td><td>—</td><td>—</td><td><button class="btn">Edit</button><button class="btn">Delete</button></td></tr>
+    <tr><td><b>Source.INTERNAL.test</b></td><td><span class="badge">INTERNAL</span></td><td><i class="dot green"></i>HEALTHY</td><td>SYSTEM</td><td>1920×1080 / 25</td><td>—</td><td>—</td><td>—</td><td><button class="btn">Edit</button><button class="btn">Delete</button></td></tr>
+  </tbody>
+</table>
+<footer>
+  11 Source Adapter types (V0.2 §2.4) — 3 SDI (BMD) + 7 Network + 1 FILE/INTERNAL
+</footer>
+</body>
+</html>

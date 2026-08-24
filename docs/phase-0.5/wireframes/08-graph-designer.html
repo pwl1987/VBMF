@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>08 Graph Designer — VBMF Phase 0.5 Low-Fi</title>
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px;height:100vh;display:flex;flex-direction:column}
+header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.main{flex:1;display:grid;grid-template-columns:200px 1fr 280px;gap:12px;min-height:0}
+.sidebar, .canvas, .inspector{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-y:auto}
+.sidebar h3,.inspector h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.node-palette .item{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 8px;margin-bottom:4px;cursor:grab;font-size:11px}
+.node-palette .item:hover{border-color:var(--accent)}
+.canvas{position:relative;background:var(--bg);background-image:radial-gradient(circle,var(--border) 1px,transparent 1px);background-size:20px 20px}
+.gnode{position:absolute;background:var(--bg3);border:1px solid var(--accent);border-radius:4px;padding:8px 10px;font-size:11px;min-width:100px;text-align:center;cursor:move}
+.gnode .type{color:var(--fgdim);font-size:9px;text-transform:uppercase;letter-spacing:1px}
+.gnode.source{border-color:var(--green)}
+.gnode.process{border-color:var(--yellow)}
+.gnode.output{border-color:var(--accent)}
+.gedge{position:absolute;height:2px;background:var(--accent);transform-origin:0 50%}
+.inspector .row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px}
+.inspector .row .val{color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+a{color:var(--accent);text-decoration:none}
+.btn{padding:3px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
+.btn:hover{background:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h2 style="font-size:14px">Signal Graph Designer (X1 + X2)</h2>
+  <div>
+    <a href="07-recording.html">← Recording</a> | <a href="09-health-tree.html">Health Tree →</a>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <h3>Node Palette</h3>
+    <div class="node-palette">
+      <div class="item" style="border-left:3px solid var(--green)">📥 Source (11 types)</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔄 Decode / Encode</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔄 Normalize (3 sub)</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔄 Switcher (3 modes)</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🎨 Composition</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🎵 Audio Mixer / Loudness</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">⏱ AV Sync / Master Join</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔍 QC</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">📼 Recording</div>
+      <div class="item" style="border-left:3px solid var(--accent)">📤 Output (SRS/SDI/File)</div>
+      <div class="item" style="border-left:3px solid var(--accent)">⏰ Clock Domain</div>
+    </div>
+    <h3 style="margin-top:16px">Edge Policy</h3>
+    <div class="item">Data Plane Label</div>
+    <div class="item">Clock Domain Ref</div>
+    <div class="item">Latency Target</div>
+    <div class="item">Capability Contract</div>
+  </div>
+
+  <div class="canvas">
+    <div class="gnode source" style="left:20px;top:60px">
+      <div class="type">SOURCE · SDI</div>
+      <div>Source.A</div>
+    </div>
+    <div class="gnode source" style="left:20px;top:180px">
+      <div class="type">SOURCE · SDI</div>
+      <div>Source.B</div>
+    </div>
+    <div class="gnode process" style="left:200px;top:120px">
+      <div class="type">SWITCHER · PACKET</div>
+      <div>Switcher</div>
+    </div>
+    <div class="gnode process" style="left:380px;top:120px">
+      <div class="type">COMPOSITION</div>
+      <div>Program Comp</div>
+    </div>
+    <div class="gnode process" style="left:560px;top:60px">
+      <div class="type">AUDIO MIXER</div>
+      <div>Audio Mix</div>
+    </div>
+    <div class="gnode process" style="left:560px;top:180px">
+      <div class="type">VIDEO MASTER JOIN</div>
+      <div>Video Join</div>
+    </div>
+    <div class="gnode process" style="left:560px;top:300px">
+      <div class="type">AUDIO MASTER JOIN</div>
+      <div>Audio Join</div>
+    </div>
+    <div class="gnode process" style="left:740px;top:180px">
+      <div class="type">PROGRAM MASTER</div>
+      <div>Program Master</div>
+    </div>
+    <div class="gnode output" style="left:920px;top:60px">
+      <div class="type">ENCODE · H.264</div>
+      <div>Variant A</div>
+    </div>
+    <div class="gnode output" style="left:920px;top:180px">
+      <div class="type">ENCODE · H.265</div>
+      <div>Variant B</div>
+    </div>
+    <div class="gnode output" style="left:920px;top:300px">
+      <div class="type">RECORDING</div>
+      <div>Local NVMe</div>
+    </div>
+
+    <!-- Edges (simplified) -->
+    <div class="gedge" style="left:120px;top:78px;width:80px;transform:rotate(30deg)"></div>
+    <div class="gedge" style="left:120px;top:198px;width:80px;transform:rotate(-30deg)"></div>
+    <div class="gedge" style="left:300px;top:138px;width:80px;transform:rotate(0)"></div>
+    <div class="gedge" style="left:480px;top:138px;width:80px;transform:rotate(-45deg)"></div>
+    <div class="gedge" style="left:480px;top:138px;width:80px;transform:rotate(45deg)"></div>
+  </div>
+
+  <div class="inspector">
+    <h3>Inspector — Switcher</h3>
+    <div class="row"><span>Type</span><span class="val">PACKET_SWITCH</span></div>
+    <div class="row"><span>Hot-Standby</span><span class="val">HOT (100ms)</span></div>
+    <div class="row"><span>Source A</span><span class="val">SDI / dv0</span></div>
+    <div class="row"><span>Source B</span><span class="val">SDI / dv1</span></div>
+    <div class="row"><span>Capability</span><span class="val">✓ PASS</span></div>
+    <div class="row"><span>Alignment</span><span class="val">✓ PASS</span></div>
+    <div class="row"><span>Data Plane</span><span class="val">RAW_VIDEO</span></div>
+    <div class="row"><span>Clock</span><span class="val">PTP (priority 1)</span></div>
+
+    <h3 style="margin-top:16px">Compile Preview (X1)</h3>
+    <div class="row" style="color:var(--green)"><span>✓ Graph valid</span></div>
+    <div class="row" style="color:var(--green)"><span>✓ Resource ok</span></div>
+    <div class="row" style="color:var(--green)"><span>✓ Clock alignable</span></div>
+    <div class="row" style="color:var(--green)"><span>✓ Latency est. 1.8s</span></div>
+    <div class="row" style="color:var(--yellow)"><span>⚠ 1 auto-insert: Encode</span></div>
+
+    <h3 style="margin-top:16px">Preflight (X2)</h3>
+    <div class="row" style="color:var(--green)"><span>✓ 0 critical</span></div>
+    <div class="row" style="color:var(--yellow)"><span>⚠ 1 warning: redundant path</span></div>
+
+    <div style="margin-top:12px">
+      <button class="btn">💾 Save Draft</button>
+      <button class="btn">🧪 Dry Run</button>
+      <button class="btn primary">Apply Change Set</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  V0.2 §3.10 Graph Compiler (X1) · Preflight (X2) · Configuration Versioning (X3) · Composition = RAW 域
+</footer>
+</body>
+</html>

@@ -1,0 +1,94 @@
+# VBMF Docs
+
+> VBMF (IP Broadcast Media Fabric) 全部文档入口。
+> V0.2 Architecture Baseline LOCK FINAL（22 轮 review）。
+
+## 目录
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) | **V0.2 架构基线**（22 轮 review LOCK FINAL，192KB） | ✅ |
+| [`architecture/README.md`](architecture/README.md) | V0.2 架构快速参考 + 入口 | ✅ |
+| [`SYSTEM_AND_PROJECT_PLAN.md`](SYSTEM_AND_PROJECT_PLAN.md) | 初始系统 + 项目计划（V0.1 阶段） | ✅ |
+| [`phase-0.5/`](phase-0.5/) | Operator Workflow + 9 Low-Fi 页面 + 4 关键操作链 | ✅ |
+| [`phase-0.6/`](phase-0.6/) | Executable Acceptance Specification（待启动） | 📋 |
+| [`assets/`](assets/) | 图 / Diagram | 📋 |
+
+## 阅读顺序（推荐）
+
+1. **[../README.md](../README.md)** — 项目门面
+2. **[architecture/ARCHITECTURE_V0.2.md](architecture/ARCHITECTURE_V0.2.md)** — V0.2 架构基线（1-2 小时通读）
+3. **[phase-0.5/INDEX.md](phase-0.5/INDEX.md)** — Operator Workflow（30 分钟）
+4. **[phase-0.5/wireframes/](phase-0.5/wireframes/)** — 9 Low-Fi 页面（任何浏览器打开）
+5. **[phase-0.5/chains/](phase-0.5/chains/)** — 4 关键操作链
+6. 等待 Phase 0.6
+
+## V0.2 关键状态
+
+```yaml
+v0_2_runtime_semantics:
+  status: CLOSED
+  implementation_authority: THIS_DOCUMENT
+  consistency_check: PASS
+  implementation_ambiguity: NONE
+
+  architecture:
+    engines: 12
+    cross_systems: 5
+    cross_capabilities: 6
+    principles: 22
+    decisions: 57
+    review_passes: 22
+    patches: [V0.2.3 patch 1, V0.2.4 patch 2, Cleanup-1/2/3, Errata-1/2/3/4/5/6/7/8/9/10/11/12/13/14]
+
+  runtime:                  # 9 大 Runtime 域（V0.2.4 Errata-14 凑齐）
+    lifecycle:              CLOSED
+    readiness:              CLOSED
+    health:                 CLOSED
+    switch_mode:            CLOSED
+    standby_semantics:      CLOSED
+    failure_domains:        CLOSED
+    health_tree:            CLOSED
+    channel_status:         CLOSED
+    clock:                  CLOSED
+
+  schema:                   # 3 Schema + 2 Semantic Cleanup
+    health_tree_role:       CLOSED
+    aggregation_sql:        CLOSED
+    effective_channel_status: CLOSED
+    descriptive_resource_class: CLOSED
+    channel_status_source:  CLOSED
+
+  health_invariants:        # 7 条（C.26 Errata-14 锁）
+    - H1: ACTIVE+FAILED → FAILED
+    - H2: ACTIVE+DEGRADED → DEGRADED
+    - H3: STANDBY+FAILED → DEGRADED
+    - H4: STANDBY+DEGRADED → DEGRADED
+    - H5: OFFLINE+FAILED → 系统已吸收
+    - H6: Source RG 全部候选不可用 → FAILED
+    - H7: effective_channel_status MUST be read from channel_health_view
+
+  architecture_changes_after_this: FORBIDDEN
+  next_phase: [Phase 0.5, Phase 0.6]
+  v0_2_5: FORBIDDEN
+```
+
+## 文档结构对应 V0.2 章节
+
+| V0.2 章节 | 内容 | 关联 |
+|---|---|---|
+| §1 22 原则 | 核心原则 | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) |
+| §2 12 Engines | Engines 总览 | 同上 |
+| §3.x 核心算法 | Switch / Hot-Standby / Program Master / Health Tree | 同上 |
+| §4 决策 | 57 决策 | 同上 |
+| §5 Schema | PostgreSQL Schema | 同上 |
+| §6 部署 | 部署拓扑 | 同上 |
+| §7 Latency Probes | 10 探针 | 同上 |
+| §8 故障恢复 | Failure Domain Matrix | 同上 |
+| §8.11 三轴状态机 | 状态机 | 同上 |
+| §9 部署 | Host + Docker 边界 | 同上 |
+| §10 UX | 9 页面 + 4 链 | [`phase-0.5/`](phase-0.5/) |
+| §11 路线图 | Phase 0/0.5/0.6/1/... | [`../ROADMAP.md`](../ROADMAP.md) |
+| 附录 A 术语表 | Canonical Vocabulary | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) |
+| 附录 C 审查记录 | C.1 - C.26 | 同上 |
+| 附录 D 终态 | LOCK FINAL 状态 | 同上 |
