@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>M-14 Transcode Center 转码中心 — VBMF Phase 0.5B.1</title>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
+  --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
+.breadcrumb{font-size:11px;color:var(--fgdim);margin-bottom:8px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.btn{padding:5px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:4px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.l2{background:var(--yellow);color:#000;border-color:var(--yellow)}
+.btn.l3{background:var(--red);color:#fff;border-color:var(--red)}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}.dot.blue{background:var(--blue)}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
+.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+.badge.gray{background:var(--bg3);color:var(--fgdim)}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stats .stat{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px}
+.stats .stat .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.stats .stat .val{font-size:20px;font-weight:700;font-family:Menlo,Consolas,monospace;margin-top:4px}
+.stats .stat .val.running{color:var(--blue)}
+.stats .stat .val.queued{color:var(--yellow)}
+.stats .stat .val.completed{color:var(--green)}
+.stats .stat .val.failed{color:var(--red)}
+
+table{width:100%;border-collapse:collapse;background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px}
+th{background:var(--bg2);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+tr:last-child td{border-bottom:none}
+tr.selected td{background:#1f2a3a}
+.progress{height:6px;background:#000;border-radius:3px;overflow:hidden;margin-top:4px}
+.progress .bar{height:100%;background:var(--blue)}
+.progress .bar.failed{background:var(--red)}
+.progress .bar.done{background:var(--green)}
+
+.newjob-btn{font-size:14px;padding:8px 20px;background:var(--accent);color:#fff;border:0;border-radius:4px;cursor:pointer;font-weight:600;letter-spacing:0.5px;font-family:inherit}
+
+/* New Job Wizard */
+.wizard{background:var(--bg2);border:2px solid var(--accent);border-radius:6px;padding:16px;margin-bottom:12px}
+.wizard-steps{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.wizard-steps .step{flex:1;padding:10px 8px;text-align:center;font-size:12px;color:var(--fgdim);border-bottom:2px solid transparent}
+.wizard-steps .step.active{color:var(--accent);font-weight:600;border-bottom-color:var(--accent);background:#1a2a3a}
+.wizard-steps .step.done{color:var(--green);border-bottom-color:var(--green)}
+.wizard-steps .step .num{display:block;font-size:9px;letter-spacing:1px;margin-bottom:2px}
+.wizard-content{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:16px;min-height:240px}
+.wizard-nav{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:12px}
+.kv .k{color:var(--fgdim)}
+.kv .v{font-family:Menlo,Consolas,monospace}
+.kv .v.green{color:var(--green)}.kv .v.yellow{color:var(--yellow)}.kv .v.blue{color:var(--blue)}
+
+.preview-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.preview-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:11px}
+.preview-card .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.preview-card .val{font-family:Menlo,Consolas,monospace;font-weight:600;font-size:13px}
+
+.test-result{background:var(--bg2);border:1px solid var(--green);border-radius:4px;padding:12px;margin-top:12px}
+.test-result .pass{color:var(--green);font-weight:600}
+
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h2>转码中心 / Transcode Center — 5 步工作流 (M-14)</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="M-11-media-library.html" style="margin-left:12px;color:var(--accent);text-decoration:none">← 媒体库 M-11</a>
+    <a href="M-12-asset-detail.html" style="margin-left:12px;color:var(--accent);text-decoration:none">资产详情 M-12 →</a>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <a href="01-dashboard.html">VBMF Console</a> / 02 Media 媒体资产 / <b>Transcode Center</b>
+</div>
+
+<!-- Stats (4 metrics) -->
+<div class="stats">
+  <div class="stat">
+    <div class="label">Running 运行中</div>
+    <div class="val running">2</div>
+  </div>
+  <div class="stat">
+    <div class="label">Queued 排队</div>
+    <div class="val queued">5</div>
+  </div>
+  <div class="stat">
+    <div class="label">Completed 今日完成</div>
+    <div class="val completed">23</div>
+  </div>
+  <div class="stat">
+    <div class="label">Failed 失败</div>
+    <div class="val failed">1</div>
+  </div>
+</div>
+
+<!-- Main: Job List (left) + Selected Job Detail (right) -->
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <h3 style="margin:0"><span class="cn">任务队列</span> / TRANSCODE JOBS</h3>
+    <button class="newjob-btn">+ 新建转码任务 / New Job (L1)</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px">
+    <!-- Left: Job List -->
+    <table>
+      <thead>
+        <tr>
+          <th>Job ID</th>
+          <th>Asset</th>
+          <th>Profile</th>
+          <th>Status</th>
+          <th>Progress</th>
+          <th>Worker</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="selected">
+          <td><b>T-1821</b></td>
+          <td>News01</td>
+          <td>HEVC 1080p25 Master</td>
+          <td><i class="dot blue"></i><span class="badge blue">RUNNING</span></td>
+          <td>
+            <div>82%</div>
+            <div class="progress"><div class="bar" style="width:82%"></div></div>
+          </td>
+          <td>worker-02</td>
+          <td><button class="btn">Pause</button><button class="btn l2">Cancel</button></td>
+        </tr>
+        <tr>
+          <td>T-1822</td>
+          <td>Promo07</td>
+          <td>HEVC 1080p25 Master</td>
+          <td><i class="dot yellow"></i><span class="badge yellow">QUEUED</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td><button class="btn">Promote</button><button class="btn l2">Cancel</button></td>
+        </tr>
+        <tr>
+          <td>T-1823</td>
+          <td>Long01</td>
+          <td>Archive HEVC</td>
+          <td><i class="dot red"></i><span class="badge red">FAILED</span></td>
+          <td>—</td>
+          <td>worker-01</td>
+          <td><button class="btn">Retry</button><button class="btn">Log</button></td>
+        </tr>
+        <tr>
+          <td>T-1820</td>
+          <td>News01</td>
+          <td>H.264 720p Proxy</td>
+          <td><i class="dot blue"></i><span class="badge blue">RUNNING</span></td>
+          <td>
+            <div>45%</div>
+            <div class="progress"><div class="bar" style="width:45%"></div></div>
+          </td>
+          <td>worker-01</td>
+          <td><button class="btn">Pause</button><button class="btn l2">Cancel</button></td>
+        </tr>
+        <tr>
+          <td>T-1819</td>
+          <td>Sports_HL</td>
+          <td>H.264 720p Proxy</td>
+          <td><i class="dot green"></i><span class="badge green">COMPLETED</span></td>
+          <td>
+            <div>100%</div>
+            <div class="progress"><div class="bar done" style="width:100%"></div></div>
+          </td>
+          <td>worker-02</td>
+          <td><button class="btn">Open Asset</button><button class="btn">Log</button></td>
+        </tr>
+        <tr>
+          <td>T-1818</td>
+          <td>LowerThird</td>
+          <td>PNG Graphic</td>
+          <td><i class="dot green"></i><span class="badge green">COMPLETED</span></td>
+          <td>100%</td>
+          <td>worker-01</td>
+          <td><button class="btn">Open Asset</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Right: Selected Job Detail (T-1821) -->
+    <div>
+      <h3 style="margin:0 0 8px 0"><span class="cn">任务详情</span> / JOB T-1821 · RUNNING 82%</h3>
+      <div class="kv">
+        <div class="k">Input</div><div class="v">News01.mp4 (News_2026_08_24_001)</div>
+        <div class="k">Profile</div><div class="v">HEVC Main10 1080p25 (P-21 v3)</div>
+        <div class="k">Container</div><div class="v">MP4</div>
+        <div class="k">Worker</div><div class="v">worker-02 (AUTO scheduled)</div>
+        <div class="k">Progress</div><div class="v">██████████████░░ 82%</div>
+        <div class="k">FPS</div><div class="v blue">127.4</div>
+        <div class="k">Speed</div><div class="v blue">5.1x realtime</div>
+        <div class="k">ETA</div><div class="v">00:01:24</div>
+        <div class="k">CPU</div><div class="v">71%</div>
+        <div class="k">RAM</div><div class="v">1.2 GB</div>
+        <div class="k">Disk Write</div><div class="v">84 MB/s</div>
+        <div class="k">Started</div><div class="v">2026-08-25 06:48:00</div>
+        <div class="k">Attempts</div><div class="v">1 / 3</div>
+        <div class="k">Priority</div><div class="v">5 (Normal)</div>
+      </div>
+      <h3 style="margin:12px 0 6px 0"><span class="cn">实时日志</span> / LIVE LOG (tail -f)</h3>
+      <pre style="background:#000;border:1px solid var(--border);border-radius:3px;padding:8px;font-size:10px;font-family:Menlo,Consolas,monospace;color:var(--green);max-height:120px;overflow-y:auto;margin:0">
+[06:48:00.123] ffmpeg -i input.mp4 -c:v libx265 -preset medium ...
+[06:48:01.456] Stream #0:0 video: 1920x1080 h264 -> libx265 hevc
+[06:48:02.789] frame=  340 fps=127 q=28.0 size=    2304kB time=00:00:11.36
+[06:48:03.123] frame=  510 fps=128 q=28.0 size=    3456kB time=00:00:17.04
+[06:48:04.456] frame=  680 fps=127 q=28.0 size=    4608kB time=00:00:22.72
+[06:48:05.789] frame=  850 fps=127 q=28.0 size=    5760kB time=00:00:28.40</pre>
+      <div style="margin-top:8px">
+        <button class="btn">⏸ Pause 暂停</button>
+        <button class="btn l2">✕ Cancel 取消</button>
+        <button class="btn">⏵ Retry 重试</button>
+        <button class="btn">Open Asset 打开资产</button>
+        <button class="btn">View Log 查看完整日志</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========================== -->
+<!-- New Job Wizard (5 步)        -->
+<!-- =========================== -->
+<div class="wizard">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <h3 style="margin:0;color:var(--accent)">+ 新建转码任务 / NEW TRANSCODE JOB — 5 步工作流</h3>
+    <button class="btn">✕ Cancel 关闭</button>
+  </div>
+
+  <div class="wizard-steps">
+    <div class="step done"><span class="num">STEP 1</span> 选择输入 Select Input</div>
+    <div class="step active"><span class="num">STEP 2</span> 选择 Profile</div>
+    <div class="step"><span class="num">STEP 3</span> 预览输出 Preview</div>
+    <div class="step"><span class="num">STEP 4</span> 测试编码 Test Encode 5s</div>
+    <div class="step"><span class="num">STEP 5</span> 提交 Submit</div>
+  </div>
+
+  <div class="wizard-content">
+
+    <!-- Step 2: Select Profile (示例当前步骤) -->
+    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--fg)">第 2 步</span> / STEP 2: Select Encoding Profile</h3>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="color:var(--fgdim);font-size:11px;margin-bottom:6px">选择 Profile (来源 P-21) · Select Encoding Profile</div>
+        <select style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace">
+          <option>HEVC Main10 1080p25 Master (v3) — ★ 最近使用</option>
+          <option>H.264 High 1080p25 Broadcast (v2) — ★ Starred</option>
+          <option>HEVC Main 1080p25 Low Latency (v1)</option>
+          <option>H.264 720p Proxy (v4) — ★ Starred</option>
+          <option>Archive HEVC 4:2:2 (v1)</option>
+        </select>
+        <div style="margin-top:8px;font-size:11px;color:var(--fgdim)">
+          Preset Template (下一步可选) · P0 推荐使用 Preset
+        </div>
+      </div>
+      <div>
+        <div style="color:var(--fgdim);font-size:11px;margin-bottom:6px">Profile 预览 · Profile Preview</div>
+        <div class="kv">
+          <div class="k">Name</div><div class="v">HEVC Main10 1080p25 Master</div>
+          <div class="k">Codec</div><div class="v">HEVC (libx265)</div>
+          <div class="k">Resolution</div><div class="v">1920×1080 / 25</div>
+          <div class="k">Bitrate</div><div class="v">5.0 Mbps CBR</div>
+          <div class="k">Audio</div><div class="v">AAC 2ch 48k 192k</div>
+          <div class="k">Resource</div><div class="v">CPU ~14 threads / RAM ~1.2 GB</div>
+          <div class="k">Validation</div><div class="v green">✓ PASS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Worker AUTO (关键 UX) -->
+    <div style="margin-top:16px;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:4px">
+      <div style="color:var(--fgdim);font-size:11px;margin-bottom:6px">Worker 分配 · Worker Assignment</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <select style="flex:0 0 200px;padding:6px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace">
+          <option selected>● AUTO (Scheduler)</option>
+          <option>○ Manual</option>
+        </select>
+        <div style="flex:1;font-size:11px;color:var(--fgdim)">
+          <b>Scheduler 决策依据:</b> Resource available (CPU/GPU/RAM/Disk) · Queue depth · Encoder Capability
+        </div>
+        <a style="color:var(--accent);text-decoration:none;font-size:11px">Advanced →</a>
+      </div>
+    </div>
+
+    <div class="wizard-nav">
+      <button class="btn">← Back 上一步</button>
+      <div style="color:var(--fgdim);font-size:11px">Step 2 / 5</div>
+      <button class="btn primary">Next: Preview → 下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- Step 3 Preview (示例) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Step 3 Preview Output (示例 — 非当前)</summary>
+  <div class="wizard-content" style="margin-top:8px">
+    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--fg)">第 3 步</span> / STEP 3: Preview Output (模拟估算)</h3>
+    <div class="preview-grid">
+      <div class="preview-card"><div class="label">File</div><div class="val">News01_v3.mp4</div></div>
+      <div class="preview-card"><div class="label">Duration</div><div class="val">00:30:25</div></div>
+      <div class="preview-card"><div class="label">Size (estimated)</div><div class="val">~187 MB</div></div>
+      <div class="preview-card"><div class="label">Container</div><div class="val">MP4</div></div>
+      <div class="preview-card"><div class="label">Video</div><div class="val">HEVC Main10 1080p25</div></div>
+      <div class="preview-card"><div class="label">Audio</div><div class="val">AAC 2ch 48k 192k</div></div>
+      <div class="preview-card"><div class="label">Codec</div><div class="val">HEVC</div></div>
+      <div class="preview-card"><div class="label">Bitrate</div><div class="val">5.0 Mbps</div></div>
+    </div>
+  </div>
+</details>
+
+<!-- Step 4 Test Encode (示例) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Step 4 Test Encode 5s (示例 — 含 资源实测)</summary>
+  <div class="wizard-content" style="margin-top:8px">
+    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--fg)">第 4 步</span> / STEP 4: Test Encode 5 seconds (跑 5s 实际样片)</h3>
+    <div style="margin-bottom:12px">
+      <button class="btn primary">▶ Run Test 跑测试 (L1)</button>
+      <span style="margin-left:12px;color:var(--fgdim);font-size:11px">实际跑 5s, 显示真实资源占用</span>
+    </div>
+    <div class="test-result">
+      <div class="pass">✓ Test Encode COMPLETED · 5.2s real-time</div>
+      <div class="preview-grid" style="margin-top:8px">
+        <div class="preview-card"><div class="label">Actual FPS</div><div class="val">127.4</div></div>
+        <div class="preview-card"><div class="label">Actual Speed</div><div class="val">5.1x realtime</div></div>
+        <div class="preview-card"><div class="label">CPU (host-01)</div><div class="val">71%</div></div>
+        <div class="preview-card"><div class="label">Memory Peak</div><div class="val">1.2 GB</div></div>
+        <div class="preview-card"><div class="label">Estimated Full</div><div class="val">03:08</div></div>
+        <div class="preview-card"><div class="label">Estimated Size</div><div class="val">188 MB</div></div>
+        <div class="preview-card"><div class="label">Quality Check</div><div class="val green">● PASS</div></div>
+        <div class="preview-card"><div class="label">Test File</div><div class="val" style="font-size:10px">/tmp/test_news01_5s.mp4</div></div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn">↻ Re-test 重新测试</button>
+        <button class="btn">⏭ Skip Test 跳过</button>
+        <button class="btn primary">Continue → 下一步</button>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- Step 5 Submit (示例) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Step 5 Submit (示例 — 含 Impact Preview)</summary>
+  <div class="wizard-content" style="margin-top:8px">
+    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--fg)">第 5 步</span> / STEP 5: Submit Job (含 Impact Preview)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+      <div>
+        <div class="kv">
+          <div class="k">Output Destination</div><div class="v">Local · /var/vbmf/media/master/</div>
+          <div class="k">Schedule</div><div class="v">● Now (立即)</div>
+          <div class="k">Priority</div><div class="v">5 (Normal)</div>
+          <div class="k">Notify On</div><div class="v">● Complete ● Failed</div>
+        </div>
+      </div>
+      <div style="background:#1a2a3a;border:1px solid var(--accent);border-radius:4px;padding:10px">
+        <div style="color:var(--accent);font-size:11px;font-weight:600;margin-bottom:6px">⚠ Impact Preview 影响预估</div>
+        <div class="kv">
+          <div class="k">Affected</div><div class="v" style="color:var(--fg)">无 (新建资产版本)</div>
+          <div class="k">Resources</div><div class="v">CPU 14 threads / RAM 1.2 GB</div>
+          <div class="k">Risk</div><div class="v green">LOW</div>
+          <div class="k">ETA</div><div class="v">03:08</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn primary" style="font-size:14px;padding:10px 24px">▶ Submit Job 提交任务 (L1)</button>
+  </div>
+</details>
+
+<!-- Output / Result (转码完成后的展示) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Output / Result 转码完成后展示 (示例 T-1819 COMPLETED)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3 style="margin:0 0 12px 0"><span class="cn" style="color:var(--green)">OUTPUT — Job T-1819 (COMPLETED)</span></h3>
+    <div class="preview-grid">
+      <div class="preview-card"><div class="label">File</div><div class="val" style="font-size:10px">/var/vbmf/media/proxy/Sports_HL_v2.mp4</div></div>
+      <div class="preview-card"><div class="label">Duration</div><div class="val">00:02:30</div></div>
+      <div class="preview-card"><div class="label">Size</div><div class="val">28.4 MB</div></div>
+      <div class="preview-card"><div class="label">Video</div><div class="val">H.264 High 720p25</div></div>
+      <div class="preview-card"><div class="label">Audio</div><div class="val">AAC 2ch 48k 192k</div></div>
+      <div class="preview-card"><div class="label">Hash</div><div class="val" style="font-size:9px">sha256:abc...789</div></div>
+      <div class="preview-card"><div class="label">QC</div><div class="val green">● PASS</div></div>
+      <div class="preview-card"><div class="label">Rights</div><div class="val green">● Active (valid until 2027-01-01)</div></div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn primary">Open Asset 打开资产 →</button>
+      <button class="btn">Open Version 打开版本</button>
+      <button class="btn">Preview 预览</button>
+      <button class="btn">Use in Playout 用于播出</button>
+      <button class="btn">Create Variant 创建变体</button>
+    </div>
+  </div>
+</details>
+
+<!-- 6 状态样例 (V0.1 Design System) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ 6 状态样例 (M-14)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>有 Running 任务, 健康</td><td>队列 + Wizard + 详情均正常</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>任务列表加载</td><td>5 行 Skeleton + 进度条 Skeleton</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 jobs (首次)</td><td>引导 "Create your first transcode job"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>队列堆积 &gt; 10 / Worker CPU &gt; 90% / ETA 超预期</td><td>黄色 Banner 顶部</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>任务 FAILED</td><td>红色行 + [Retry] + Log 入口</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>全部 Workers offline / Disk write 失败</td><td>顶部红条 + 所有任务转 FAILED</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<footer>
+  VBMF Phase 0.5B.1 · M-14 Transcode Center · 5 步工作流 (Input → Profile → Preview → Test → Submit)
+  <br>中英双语 · Worker 默认 AUTO · Output/Result 区 · i18n key 驱动
+</footer>
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>P-22 Output Profile 输出 Profile — VBMF Phase 0.5B.1</title>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
+  --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
+.breadcrumb{font-size:11px;color:var(--fgdim);margin-bottom:8px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.btn{padding:5px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:4px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.l2{background:var(--yellow);color:#000;border-color:var(--yellow)}
+.btn.l3{background:var(--red);color:#fff;border-color:var(--red)}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}.dot.blue{background:var(--blue)}
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
+.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+.badge.gray{background:var(--bg3);color:var(--fgdim)}
+.badge.outline{background:transparent;border:1px solid var(--border);color:var(--fgdim)}
+
+/* 4-Tuple relationship diagram */
+.relationship{background:var(--bg2);border:1px solid var(--accent);border-radius:6px;padding:16px;margin-bottom:12px}
+.relationship h3{margin:0 0 12px 0;color:var(--accent);font-size:13px}
+.relationship-flow{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:start}
+.relationship-flow .box{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:11px}
+.relationship-flow .box .label{color:var(--accent);font-weight:600;font-size:11px;margin-bottom:4px}
+.relationship-flow .box .example{font-family:Menlo,Consolas,monospace;font-size:10px;color:var(--fgdim);background:var(--bg2);padding:4px;border-radius:2px;margin-top:4px}
+.relationship-flow .box .arrow{color:var(--fgdim);font-size:10px;margin-top:4px}
+.relationship-flow .box .scope{color:var(--fg);font-size:10px;margin-top:2px}
+.relationship-flow .box .defines{font-size:10px;color:var(--green);margin-top:2px}
+.relationship-flow .box .binds{font-size:10px;color:var(--blue);margin-top:2px}
+.relationship-flow .box .targets{font-size:10px;color:var(--orange);margin-top:2px}
+.relationship-flow .box .executes{font-size:10px;color:var(--yellow);margin-top:2px}
+
+/* Profile list */
+.profiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.profile-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer}
+.profile-card.selected{border-color:var(--accent);background:#1a2a3a}
+.profile-card h4{margin:0 0 6px 0;font-size:13px}
+.profile-card .meta{color:var(--fgdim);font-size:11px;margin-bottom:6px}
+
+/* Protocol 3-Tier */
+.protocol-3tier{margin-bottom:12px}
+.tier-h{display:flex;align-items:center;gap:6px;margin:8px 0 4px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.tier-h .dot{width:8px;height:8px}
+.tier-h.green{color:var(--green)}
+.tier-h.gray{color:var(--gray)}
+.tier-h.red{color:var(--red)}
+.protocol-list{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.protocol{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px 10px;font-size:11px;font-family:Menlo,Consolas,monospace}
+.protocol.av{color:var(--green)}
+.protocol.av .dot{background:var(--green)}
+.protocol.rs{color:var(--fgdim);opacity:0.7}
+.protocol.rs .dot{background:var(--gray)}
+.protocol.un{color:var(--red);opacity:0.5;text-decoration:line-through}
+.protocol.un .dot{background:var(--red)}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:12px}
+.form-row.full{grid-column:1/-1}
+.form-row label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.form-row input,.form-row select,.form-row textarea{background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:6px 8px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:12px}
+
+/* Variants using this Profile */
+.variants-list{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px;margin-top:12px}
+.variants-list h4{margin:0 0 8px 0;font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px}
+
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h2>输出 Profile / Output Profile — 4-Tuple + 3-Tier Protocol (P-22)</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="03-profiles.html" style="margin-left:12px;color:var(--accent);text-decoration:none">← Profiles 03</a>
+    <a href="P-21-encoding-profile.html" style="margin-left:12px;color:var(--accent);text-decoration:none">Encoding P-21 →</a>
+    <a href="06-output.html" style="margin-left:12px;color:var(--accent);text-decoration:none">Output 运行态 0.5A #06 →</a>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <a href="01-dashboard.html">VBMF Console</a> / 03 Profiles / <b>Output Profiles</b>
+</div>
+
+<!-- 4-Tuple Relationship Diagram (核心) -->
+<div class="relationship">
+  <h3>⚙ 4-Tuple: Profile / Variant / Destination / Adapter — 强制分离 (Phase 0.5B Closure-1 §20 锁定)</h3>
+  <div class="relationship-flow">
+    <div class="box">
+      <div class="label">P-22 Output Profile</div>
+      <div class="defines">定义 HOW (Delivery Policy)</div>
+      <div class="example">HLS-LIVE-01<br>5 Mbps CBR<br>LL-HLS 2s</div>
+      <div class="arrow">↓ 1 Profile → N Variants</div>
+    </div>
+    <div class="box">
+      <div class="label">Output Variant</div>
+      <div class="binds">绑定 Channel (1:1)</div>
+      <div class="example">V-CH01-HLS-Domestic<br>+ V-CH01-HLS-Overseas</div>
+      <div class="arrow">↓ 1 Variant → N Destinations</div>
+    </div>
+    <div class="box">
+      <div class="label">Output Destination</div>
+      <div class="targets">实际 endpoint</div>
+      <div class="example">CDN-A · CDN-B · NFS-01<br>(主备 + 归档)</div>
+      <div class="arrow">↓ 1 Destination → 1 Adapter</div>
+    </div>
+    <div class="box">
+      <div class="label">Output Adapter</div>
+      <div class="executes">执行协议 Plugin</div>
+      <div class="example">SRSAdapter · FileAdapter<br>UDPAdapter · SRTAdapter</div>
+    </div>
+  </div>
+  <div style="margin-top:10px;font-size:11px;color:var(--fgdim)">
+    ⚠ V0.2 约束: Output Profile ≠ Variant ≠ Destination ≠ Adapter. P-22 页面**只**配置 Profile; Variant/Destination 在 CD-01 Channel Detail; Adapter 在 E-35 Device Registry.
+  </div>
+</div>
+
+<!-- Protocol 3-Tier Status (核心) -->
+<div class="protocol-3tier">
+  <h3 class="cn" style="color:var(--fgdim);font-size:12px;margin:8px 0;text-transform:uppercase;letter-spacing:1px">协议 3-Tier 状态 (Phase 0.5B Closure-1 §20 锁定)</h3>
+
+  <div class="tier-h green"><span class="dot green"></span>● Available — V0.2 可用 (UI 可配置)</div>
+  <div class="protocol-list">
+    <div class="protocol av"><span class="dot green"></span>HLS</div>
+    <div class="protocol av"><span class="dot green"></span>RTMP</div>
+    <div class="protocol av"><span class="dot green"></span>WebRTC (SRS WHIP)</div>
+    <div class="protocol av"><span class="dot green"></span>SRT</div>
+    <div class="protocol av"><span class="dot green"></span>UDP MPEG-TS</div>
+    <div class="protocol av"><span class="dot green"></span>File (Local / S3 / NFS)</div>
+  </div>
+
+  <div class="tier-h gray"><span class="dot gray"></span>○ Reserved — 未来实现 (V0.4+) (UI 显示但标 Reserved, 不可配置)</div>
+  <div class="protocol-list">
+    <div class="protocol rs"><span class="dot gray"></span>DASH <span style="color:var(--fgdim)">[Reserved · V0.4+]</span></div>
+    <div class="protocol rs"><span class="dot gray"></span>SDI Master Output <span style="color:var(--fgdim)">[Reserved · V0.4 Target]</span></div>
+    <div class="protocol rs"><span class="dot gray"></span>DRM (Widevine) <span style="color:var(--fgdim)">[Reserved]</span></div>
+    <div class="protocol rs"><span class="dot gray"></span>DRM (FairPlay) <span style="color:var(--fgdim)">[Reserved]</span></div>
+    <div class="protocol rs"><span class="dot gray"></span>DRM (PlayReady) <span style="color:var(--fgdim)">[Reserved]</span></div>
+  </div>
+
+  <div class="tier-h red"><span class="dot red"></span>✗ Unavailable — 当前不可用 (显式原因, 不可选)</div>
+  <div class="protocol-list">
+    <div class="protocol un"><span class="dot red"></span>NDI <span style="color:var(--fgdim)">(N/A · V0.2+ future adapter)</span></div>
+    <div class="protocol un"><span class="dot red"></span>RIST <span style="color:var(--fgdim)">(N/A · future)</span></div>
+    <div class="protocol un"><span class="dot red"></span>Zixi <span style="color:var(--fgdim)">(N/A · future)</span></div>
+    <div class="protocol un"><span class="dot red"></span>SMPTE 2110 <span style="color:var(--fgdim)">(N/A · future)</span></div>
+  </div>
+</div>
+
+<!-- Profile List + Detail -->
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px">
+
+  <!-- Left: Profile List -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 style="margin:0"><span class="cn">Profile 列表</span> / PROFILES</h3>
+      <button class="btn primary" style="font-size:11px;padding:3px 8px">+ 新建</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr;gap:6px">
+      <div class="profile-card selected">
+        <h4>HLS-LIVE-01 <span class="badge green">● ACTIVE</span></h4>
+        <div class="meta">HLS · 5 Mbps CBR · LL-HLS 2s</div>
+        <div style="font-size:10px;color:var(--fgdim)">3 Variants · 6 Destinations</div>
+      </div>
+      <div class="profile-card">
+        <h4>HLS-LL-01 <span class="badge green">● ACTIVE</span></h4>
+        <div class="meta">HLS · 3 Mbps · Low Latency 1s</div>
+        <div style="font-size:10px;color:var(--fgdim)">2 Variants · 4 Destinations</div>
+      </div>
+      <div class="profile-card">
+        <h4>RTMP-PUSH-01 <span class="badge green">● ACTIVE</span></h4>
+        <div class="meta">RTMP · 4 Mbps CBR · Push to Origin</div>
+        <div style="font-size:10px;color:var(--fgdim)">1 Variant · 1 Destination</div>
+      </div>
+      <div class="profile-card">
+        <h4>ARCHIVE-01 <span class="badge green">● ACTIVE</span></h4>
+        <div class="meta">File · MP4 · NFS Archive</div>
+        <div style="font-size:10px;color:var(--fgdim)">2 Variants · 2 Destinations</div>
+      </div>
+      <div class="profile-card" style="opacity:0.5">
+        <h4>SDI-MASTER <span class="badge outline">○ RESERVED</span></h4>
+        <div class="meta">SDI · [V0.4 Target] · Architecture RESERVED</div>
+        <div style="font-size:10px;color:var(--fgdim)">V0.2 DISABLED</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Profile Detail (HLS-LIVE-01 selected) -->
+  <div class="panel">
+    <h3 style="margin:0 0 12px 0"><span class="cn">Profile 详情</span> / PROFILE DETAIL — HLS-LIVE-01</h3>
+
+    <!-- 3-Layer (DESIRED / COMPILED / EFFECTIVE) -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--accent);font-weight:600;letter-spacing:1px;margin-bottom:6px">⚙ 3-LAYER STATE</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px">
+        <div>
+          <div style="color:var(--fgdim);font-size:10px;letter-spacing:1px">◉ DESIRED</div>
+          <div style="font-family:Menlo,Consolas,monospace;font-weight:600">HLS · 5 Mbps · LL-HLS 2s</div>
+        </div>
+        <div>
+          <div style="color:var(--fgdim);font-size:10px;letter-spacing:1px">⚙ COMPILED</div>
+          <div style="font-family:Menlo,Consolas,monospace;font-weight:600;color:var(--green)">SRSAdapter · HLS segmenter</div>
+        </div>
+        <div>
+          <div style="color:var(--fgdim);font-size:10px;letter-spacing:1px">▶ EFFECTIVE</div>
+          <div style="font-family:Menlo,Consolas,monospace;font-weight:600;color:var(--green)">HEALTHY · 1,247 clients</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3-Tab: Profile / Protocol / Latency -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px">
+      <div style="padding:8px 12px;background:var(--bg3);color:var(--accent);font-weight:600;border-bottom:2px solid var(--accent);font-size:12px">① Profile</div>
+      <div style="padding:8px 12px;color:var(--fgdim);font-size:12px;cursor:pointer">② Protocol</div>
+      <div style="padding:8px 12px;color:var(--fgdim);font-size:12px;cursor:pointer">③ Latency</div>
+      <div style="padding:8px 12px;color:var(--fgdim);font-size:12px;cursor:pointer">④ Player</div>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <h4 style="color:var(--fgdim);font-size:11px;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px">Basic</h4>
+        <div class="form-row"><label>Profile Name</label><input type="text" value="HLS-LIVE-01"></div>
+        <div class="form-row"><label>Description</label><input type="text" value="Live HLS distribution, low-latency 2s"></div>
+        <div class="form-row"><label>Category</label><select><option selected>Broadcast</option><option>Web</option><option>Archive</option><option>Proxy</option><option>Mobile</option></select></div>
+      </div>
+      <div>
+        <h4 style="color:var(--fgdim);font-size:11px;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px">HLS Specific</h4>
+        <div class="form-row"><label>Protocol</label><select><option selected>HLS (Available)</option></select><div class="field-hint">仅 Available 可选</div></div>
+        <div class="form-row"><label>Segment Duration</label><select><option>1s</option><option selected>2s</option><option>4s</option><option>6s</option></select></div>
+        <div class="form-row"><label>Playlist Window</label><select><option>3</option><option selected>5</option><option>10</option></select></div>
+        <div class="form-row"><label>Codec</label><select><option selected>H.264</option><option>H.265</option></select></div>
+        <div class="form-row"><label>Latency Mode</label><select><option>Normal HLS</option><option selected>LL-HLS (Low Latency)</option></select></div>
+        <div class="form-row"><label>DRM</label><select><option selected>None</option></select><div class="field-hint">DRM [Reserved] V0.4+, 不可配置</div></div>
+      </div>
+    </div>
+
+    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Latency / Reliability</h4>
+    <div class="form-grid">
+      <div class="form-row"><label>Latency Target (Policy)</label><input type="text" value="2000 ms (LL-HLS)"></div>
+      <div class="form-row"><label>Reconnect Policy</label><select><option>Immediate</option><option selected>1s backoff</option><option>5s backoff</option></select></div>
+      <div class="form-row"><label>Failover Destination</label><input type="text" value="CDN-B (auto)"></div>
+      <div class="form-row"><label>CDN Endpoint</label><input type="text" value="https://cdn-b.internal/live"></div>
+    </div>
+
+    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Player Capability</h4>
+    <div class="form-row full">
+      <label>Player Hint</label>
+      <select multiple style="height:60px">
+        <option selected>Safari (iOS/macOS)</option>
+        <option selected>Chrome (Desktop/Android)</option>
+        <option selected>Firefox</option>
+        <option selected>Edge</option>
+        <option>Samsung Internet</option>
+      </select>
+    </div>
+
+    <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn primary">💾 Save 保存 (L2 · ChangeSet)</button>
+      <button class="btn">▶ Test Connection 测试连接 (L1)</button>
+      <button class="btn">View in Output 运行态 0.5A #06 →</button>
+      <button class="btn">View Variants (3) →</button>
+      <button class="btn l3">Delete Profile (L3 · 需检查 Use Count)</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Variants Using This Profile (Phase 0.5B Closure-1 §20) -->
+<div class="panel">
+  <h3 style="margin:0 0 8px 0"><span class="cn">引用此 Profile 的 Variants</span> / VARIANTS USING THIS PROFILE (3) — P-22 不直接配 Variant, 仅引用关系</h3>
+  <div style="color:var(--fgdim);font-size:11px;margin-bottom:8px">
+    Variant 配置在 <a style="color:var(--accent)" href="CD-01-channel-detail.html">CD-01 Channel Detail → Tab 6 Output</a> · P-22 仅显示引用关系 + Use Count
+  </div>
+  <table>
+    <thead>
+      <tr><th>Variant</th><th>Channel</th><th>Profile Reference</th><th>Destinations</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>V-CH01-HLS-Domestic</b></td>
+        <td>CH01</td>
+        <td>HLS-LIVE-01 (this)</td>
+        <td>CDN-A (●) + CDN-B (备用)</td>
+        <td><span class="badge green">● ACTIVE</span></td>
+        <td><button class="btn">Open in CD-01 →</button></td>
+      </tr>
+      <tr>
+        <td><b>V-CH01-HLS-Overseas</b></td>
+        <td>CH01</td>
+        <td>HLS-LIVE-01 (this)</td>
+        <td>CDN-C (○ Reserved)</td>
+        <td><span class="badge yellow">⚠ DEGRADED</span></td>
+        <td><button class="btn">Open in CD-01 →</button></td>
+      </tr>
+      <tr>
+        <td><b>V-CH03-HLS-Domestic</b></td>
+        <td>CH03</td>
+        <td>HLS-LIVE-01 (this)</td>
+        <td>CDN-A (●)</td>
+        <td><span class="badge green">● ACTIVE</span></td>
+        <td><button class="btn">Open in CD-01 →</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Used By (Dependency Preview) -->
+<div class="panel">
+  <h3 style="margin:0 0 8px 0"><span class="cn">Used By</span> / DEPENDENCY PREVIEW (Phase 0.5B Closure-1 §24)</h3>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Channels</div>
+      <div style="color:var(--accent);font-weight:600;font-size:12px">CH01 · CH03</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">2 ACTIVE</div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Output Variants</div>
+      <div style="color:var(--accent);font-weight:600;font-size:12px">3 Variants</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">across 2 channels</div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Destinations</div>
+      <div style="color:var(--accent);font-weight:600;font-size:12px">6 Destinations</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">CDN-A/B/C + NFS-01/02</div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Active Clients</div>
+      <div style="color:var(--accent);font-weight:600;font-size:12px">1,247 HLS</div>
+      <div style="color:var(--fgdim);font-size:10px;margin-top:2px">+ 312 RTMP</div>
+    </div>
+  </div>
+  <div style="margin-top:12px">
+    <button class="btn">View Dependency Graph (V0.4+) →</button>
+    <button class="btn">Impact Preview (修改前) →</button>
+    <button class="btn">Open Change Set →</button>
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ 6 状态样例 (P-22)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>Profile ACTIVE + Test Connection PASS</td><td>完整 + Validation 绿色</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>首次 / 刷新</td><td>Skeletons</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 profiles (新系统)</td><td>引导 "Create from Preset"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>Latency Target 与 Protocol 不匹配 (HLS Normal 1-3s, Target 100ms 不可能)</td><td>黄色 Banner</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>Test Connection FAIL (host 不可达 / auth 失败)</td><td>红色 Banner + Retry</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>Profile 引用数 &gt; 0 但 Adapter 不可用</td><td>顶部红条 + 强制回滚</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<footer>
+  VBMF Phase 0.5B.1 · P-22 Output Profile · 4-Tuple (Profile / Variant / Destination / Adapter) + 3-Tier (Available / Reserved / Unavailable)
+  <br>中英双语 · i18n key 驱动 · Phase 0.5B Closure-1 §20 锁定
+</footer>
+</body>
+</html>

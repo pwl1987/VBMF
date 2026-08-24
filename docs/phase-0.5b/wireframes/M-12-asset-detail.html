@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>M-12 Asset Detail 资产详情 — VBMF Phase 0.5B.1</title>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
+  --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
+.breadcrumb{font-size:11px;color:var(--fgdim);margin-bottom:8px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden;margin-bottom:0}
+.tab{padding:10px 20px;cursor:pointer;color:var(--fgdim);font-size:12px;border-right:1px solid var(--border);background:var(--bg2)}
+.tab.active{background:var(--bg3);color:var(--fg);font-weight:600;border-bottom:2px solid var(--accent)}
+.tab:hover{background:var(--bg3)}
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600}
+.badge.green{background:#1a3a1a;color:var(--green);border:1px solid #2a5a2a}
+.badge.blue{background:#1a2a3a;color:var(--blue);border:1px solid #2a4a5a}
+.badge.gray{background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
+.btn{padding:5px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:4px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.l2{background:var(--yellow);color:#000;border-color:var(--yellow)}
+.btn.l3{background:var(--red);color:#fff;border-color:var(--red)}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 6px 6px;padding:16px;margin-bottom:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}.dot.blue{background:var(--blue)}
+
+.hero{display:grid;grid-template-columns:280px 1fr;gap:16px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px}
+.hero .preview{background:#000;border:1px solid var(--border);border-radius:4px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--fgdim);position:relative}
+.hero .preview .badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:3px;font-size:11px}
+.hero .preview .duration{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.7);padding:2px 6px;border-radius:3px;font-size:11px;font-family:Menlo,Consolas,monospace}
+.hero .info h2{font-size:18px;margin-bottom:4px}
+.hero .info .meta{color:var(--fgdim);font-size:12px;margin-bottom:12px}
+.hero .info .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.hero .info .metric{background:var(--bg3);padding:6px 10px;border-radius:3px;font-size:11px}
+.hero .info .metric .k{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.hero .info .metric .v{font-family:Menlo,Consolas,monospace;font-weight:600;margin-top:2px}
+.hero .info .actions{display:flex;gap:6px;flex-wrap:wrap}
+
+.section{margin-bottom:16px}
+.section-title{color:var(--fg);font-size:13px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+
+table{width:100%;border-collapse:collapse;background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px}
+th{background:var(--bg2);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+tr:last-child td{border-bottom:none}
+.kv{display:grid;grid-template-columns:180px 1fr;gap:8px;font-size:12px}
+.kv .k{color:var(--fgdim)}
+.kv .v{font-family:Menlo,Consolas,monospace}
+
+.usedby{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.usedby .item{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px}
+.usedby .item .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.usedby .item .name{color:var(--accent);font-weight:600;margin-bottom:2px}
+.usedby .item .state{font-size:10px}
+
+.timeline{position:relative;padding-left:24px}
+.timeline::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--border)}
+.timeline .event{position:relative;padding:8px 0;font-size:12px}
+.timeline .event::before{content:"";position:absolute;left:-19px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.timeline .event .time{color:var(--fgdim);font-family:Menlo,Consolas,monospace;font-size:11px;margin-right:8px}
+
+.qc-row{display:grid;grid-template-columns:120px 80px 100px 1fr 60px;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;align-items:center}
+.qc-row:last-child{border-bottom:none}
+.qc-row .name{font-weight:600}
+.qc-row .threshold{color:var(--fgdim);font-family:Menlo,Consolas,monospace;font-size:11px}
+.qc-row .measured{font-family:Menlo,Consolas,monospace;font-weight:600}
+.qc-row .detail{color:var(--fgdim);font-size:11px}
+.qc-row .status{font-family:Menlo,Consolas,monospace;font-weight:600;text-align:right}
+
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h2>资产详情 / Asset Detail — 5 Tabs 锁定 (M-12)</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="M-11-media-library.html" style="margin-left:12px;color:var(--accent);text-decoration:none">← 媒体库 M-11</a>
+    <a href="M-14-transcode-center.html" style="margin-left:12px;color:var(--accent);text-decoration:none">转码 M-14 →</a>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <a href="01-dashboard.html">VBMF Console</a> / <a href="M-11-media-library.html">02 Media</a> / Media Library / <b>News_2026_08_24_001</b>
+</div>
+
+<!-- Hero Card -->
+<div class="hero">
+  <div class="preview">
+    <span class="badge">▶ Source</span>
+    <span class="duration">00:30:25</span>
+    [视频预览 Video Preview]
+  </div>
+  <div class="info">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <h2 style="margin:0">News_2026_08_24_001</h2>
+      <span class="badge green">● READY</span>
+      <span style="color:var(--fgdim);font-size:11px">#a-2026-08-24-001</span>
+    </div>
+    <div class="meta">
+      2026-08-24 新闻联播素材 · Director Zhang · 上传 2026-08-24 18:42 · 3 versions (Master + Proxy + HLS)
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="k">Duration 时长</div><div class="v">00:30:25</div></div>
+      <div class="metric"><div class="k">Resolution 分辨率</div><div class="v">1920×1080 / 25</div></div>
+      <div class="metric"><div class="k">Codec 编码</div><div class="v">H.264 High@4.0</div></div>
+      <div class="metric"><div class="k">File Size 大小</div><div class="v">750 MB</div></div>
+      <div class="metric"><div class="k">Container 容器</div><div class="v">MPEG-TS</div></div>
+      <div class="metric"><div class="k">FPS 帧率</div><div class="v">25</div></div>
+      <div class="metric"><div class="k">Bitrate 码率</div><div class="v">5.0 Mbps</div></div>
+      <div class="metric"><div class="k">Audio 音频</div><div class="v">AAC 2ch 48k 192k</div></div>
+      <div class="metric"><div class="k">Loudness 响度</div><div class="v">-23.4 LUFS</div></div>
+      <div class="metric"><div class="k">Color Space 色域</div><div class="v">BT.709</div></div>
+      <div class="metric"><div class="k">Hash</div><div class="v" style="font-size:9px">sha256:abc...123</div></div>
+      <div class="metric"><div class="k">Timecode</div><div class="v">00:00:00:00</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" data-i18n="media.asset.action.preview">[▶ 预览 Preview]</button>
+      <button class="btn" data-i18n="media.asset.action.transcode">[转码 Transcode]</button>
+      <button class="btn" data-i18n="media.asset.action.create_variant">[创建变体 Create Variant]</button>
+      <button class="btn" data-i18n="media.asset.action.qc">[质量检测 QC]</button>
+      <button class="btn" data-i18n="media.asset.action.replace">[替换 Replace]</button>
+      <button class="btn l2" data-i18n="media.asset.action.archive">[归档 Archive] (L2)</button>
+      <button class="btn l3" data-i18n="media.asset.action.delete">[删除 Delete] (L3 · 需输入 "DELETE")</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs: 5 锁定 -->
+<div class="tabs">
+  <div class="tab active">① Overview 总览</div>
+  <div class="tab">② Versions 版本</div>
+  <div class="tab">③ QC 质量</div>
+  <div class="tab">④ Rights 版权</div>
+  <div class="tab">⑤ History 历史</div>
+</div>
+
+<div class="panel">
+
+<!-- Tab 1: Overview (default) -->
+<div class="section">
+  <div class="section-title">
+    <span>资产标识 / Asset Identity</span>
+  </div>
+  <div class="kv">
+    <div class="k">Asset ID</div><div class="v">a-2026-08-24-001</div>
+    <div class="k">Name 名称</div><div class="v">News_2026_08_24_001</div>
+    <div class="k">Description 描述</div><div class="v">2026-08-24 新闻联播 · News broadcast Aug 24 2026</div>
+    <div class="k">Type 类型</div><div class="v">Video</div>
+    <div class="k">Source 来源</div><div class="v">Upload (本地文件) · 2026-08-24 18:42</div>
+    <div class="k">Owner 拥有者</div><div class="v">Director Zhang</div>
+    <div class="k">Tags 标签</div><div class="v">news / daily / 2026 / 1080p / h264</div>
+    <div class="k">Created 创建</div><div class="v">2026-08-24 18:42:15</div>
+    <div class="k">Last Modified 最近修改</div><div class="v">2026-08-24 19:30:42</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    <span>当前 Master / Current Master</span>
+    <span style="font-size:11px;color:var(--fgdim)">v3 · HEVC Main10 1080p25 · 4.98 Mbps</span>
+  </div>
+  <div class="kv">
+    <div class="k">File Path</div><div class="v">/var/vbmf/media/master/News_2026_08_24_001_v3.mp4</div>
+    <div class="k">Hash</div><div class="v">sha256:abc123def456...</div>
+    <div class="k">Created</div><div class="v">2026-08-24 19:30:42 by worker-02 (Job T-1821)</div>
+    <div class="k">QC</div><div class="v"><span class="badge green">● PASS</span> (last run 2026-08-24 19:32)</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    <span>当前 Proxy / Current Proxy</span>
+    <span style="font-size:11px;color:var(--fgdim)">v2 · H.264 720p · 1.5 Mbps</span>
+  </div>
+  <div class="kv">
+    <div class="k">File Path</div><div class="v">/var/vbmf/media/proxy/News_2026_08_24_001_v2.mp4</div>
+    <div class="k">QC</div><div class="v"><span class="badge green">● PASS</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    <span>当前 Output Variants / Active Output Variants</span>
+    <span style="font-size:11px;color:var(--fgdim)">2 active · 1 disabled</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Variant</th><th>Channel</th><th>Profile</th><th>Destination</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>V-CH01-HLS-Domestic</td><td>CH01</td><td>HLS-LIVE-01</td><td>CDN-A · ● Healthy</td><td><span class="badge green">ACTIVE</span></td></tr>
+      <tr><td>V-CH03-HLS-Overseas</td><td>CH03</td><td>HLS-LIVE-01</td><td>CDN-B · ● Healthy</td><td><span class="badge green">ACTIVE</span></td></tr>
+      <tr><td>V-CH01-Archive</td><td>—</td><td>ARCHIVE-01</td><td>NFS-01</td><td><span class="badge gray">DISABLED</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    <span>Used By / 引用清单 (Phase 0.5B Closure-1 §24 — Dependency Preview)</span>
+    <span style="font-size:11px;color:var(--fgdim)">3 Channels · 5 Graphs · 3 Active Sessions</span>
+  </div>
+  <div class="usedby">
+    <div class="item">
+      <div class="label">Channels</div>
+      <div class="name">CH01 News HD</div>
+      <div class="state">● ACTIVE · 2h14m</div>
+    </div>
+    <div class="item">
+      <div class="label">Channels</div>
+      <div class="name">CH03 Music SD</div>
+      <div class="state">● ACTIVE · 8h42m</div>
+    </div>
+    <div class="item">
+      <div class="label">Graphs</div>
+      <div class="name">Graph-21 · CH01</div>
+      <div class="state">Compiled rev 17</div>
+    </div>
+    <div class="item">
+      <div class="label">Graphs</div>
+      <div class="name">Graph-25 · CH03</div>
+      <div class="state">Compiled rev 17</div>
+    </div>
+    <div class="item">
+      <div class="label">Variants</div>
+      <div class="name">V-CH01-HLS</div>
+      <div class="state">1,247 clients</div>
+    </div>
+    <div class="item">
+      <div class="label">Active Sessions</div>
+      <div class="name">2 sessions</div>
+      <div class="state">last 24h</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    <span>Rights / QC 摘要 / Summary</span>
+  </div>
+  <div class="kv">
+    <div class="k">Rights Status</div><div class="v"><span class="badge green">● Valid</span> (until 2027-01-01) · CN / HLS</div>
+    <div class="k">QC Status</div><div class="v"><span class="badge green">● PASS</span> · Profile: Broadcast Default · Last run 2026-08-24 19:32</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">
+    <span>最近变更 / Recent Changes</span>
+    <span style="font-size:11px;color:var(--fgdim)">[View Full History → Tab ⑤]</span>
+  </div>
+  <table>
+    <thead><tr><th>时间 Time</th><th>操作人 Actor</th><th>动作 Action</th><th>详情 Detail</th></tr></thead>
+    <tbody>
+      <tr><td>2026-08-24 19:30:42</td><td>worker-02</td><td><span class="badge blue">TRANSCODE</span></td><td>v3 HEVC Master created (Job T-1821)</td></tr>
+      <tr><td>2026-08-24 19:15:21</td><td>Director Zhang</td><td><span class="badge">EDIT</span></td><td>Updated rights: CN / HLS / until 2027-01-01</td></tr>
+      <tr><td>2026-08-24 18:50:08</td><td>Director Zhang</td><td><span class="badge">QC</span></td><td>Re-ran QC profile Broadcast Default · PASS</td></tr>
+      <tr><td>2026-08-24 18:42:15</td><td>Director Zhang</td><td><span class="badge green">UPLOAD</span></td><td>Uploaded original file (750 MB)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+
+<!-- Tab 2 预览: Versions -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Tab ② Versions 版本 (3 versions)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 style="margin:0"><span class="cn" style="color:var(--fg)">版本列表</span> / VERSIONS (3) · [+ Create Version]</h3>
+      <button class="btn primary">+ 创建版本 Create Version (L1)</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Version</th><th>Type</th><th>Codec</th><th>Resolution</th><th>Size</th><th>Hash</th><th>QC</th><th>Created</th><th>Used By</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>v3</b> <span class="badge green">DEFAULT</span></td>
+          <td>Master</td>
+          <td>HEVC Main10</td>
+          <td>1920×1080 / 25</td>
+          <td>188 MB</td>
+          <td style="font-size:9px">abc123...</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td>2026-08-24 19:30</td>
+          <td>CH01, CH03, V-CH01-HLS</td>
+          <td><button class="btn">Download</button><button class="btn">Preview</button><button class="btn">Make Default</button></td>
+        </tr>
+        <tr>
+          <td>v2</td>
+          <td>Proxy</td>
+          <td>H.264</td>
+          <td>1280×720 / 25</td>
+          <td>62 MB</td>
+          <td style="font-size:9px">def456...</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td>2026-08-24 19:15</td>
+          <td>Preview / Studio</td>
+          <td><button class="btn">Download</button><button class="btn">Preview</button><button class="btn">Make Default</button></td>
+        </tr>
+        <tr>
+          <td>v1</td>
+          <td>Mobile</td>
+          <td>H.264</td>
+          <td>720×480 / 25</td>
+          <td>31 MB</td>
+          <td style="font-size:9px">ghi789...</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td>2026-08-24 19:00</td>
+          <td>— (unused)</td>
+          <td><button class="btn">Download</button><button class="btn">Preview</button><button class="btn">Make Default</button><button class="btn l2">Archive</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Tab 3 预览: QC -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Tab ③ QC 质量检测 (last run 2026-08-24 19:32 · PASS)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 style="margin:0"><span class="cn" style="color:var(--fg)">QC Profile</span> / QC: Broadcast Default</h3>
+      <div>
+        <button class="btn">Re-run QC (L1)</button>
+        <button class="btn">Change QC Profile (L1)</button>
+      </div>
+    </div>
+    <div class="qc-row" style="background:var(--bg2);font-weight:600">
+      <div>检测项 Check</div>
+      <div>阈值 Threshold</div>
+      <div>实测 Measured</div>
+      <div>详情 Detail</div>
+      <div style="text-align:right">状态</div>
+    </div>
+    <div class="qc-row"><div class="name">Black 静帧</div><div class="threshold">&lt; 3s</div><div class="measured">0s</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">Freeze 冻结</div><div class="threshold">&lt; 5s</div><div class="measured">0s</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">Audio Silence</div><div class="threshold">&lt; 2s</div><div class="measured">0s</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">Loudness 响度</div><div class="threshold">-23 ± 2 LUFS</div><div class="measured">-23.4 LUFS</div><div class="detail">EBU R128 Mode</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">True Peak</div><div class="threshold">&lt; -1 dBTP</div><div class="measured">-1.3 dBTP</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">AV Sync</div><div class="threshold">&lt; 40 ms</div><div class="measured">+12 ms</div><div class="detail">Drift +2.1 ms/min</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">L/R Balance</div><div class="threshold">± 1 dB</div><div class="measured">+0.2 dB</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">Phase 相位</div><div class="threshold">Mono compatible</div><div class="measured">OK</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">FPS Deviation</div><div class="threshold">± 1%</div><div class="measured">+0.1%</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+    <div class="qc-row"><div class="name">PTS Continuity</div><div class="threshold">No gap</div><div class="measured">OK</div><div class="detail">—</div><div class="status" style="color:var(--green)">● PASS</div></div>
+  </div>
+</details>
+
+<!-- Tab 4 预览: Rights -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Tab ④ Rights 版权 (3 active · 1 expiring)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 style="margin:0"><span class="cn" style="color:var(--fg)">版权规则</span> / RIGHTS · 3 active · 1 expiring</h3>
+      <div>
+        <button class="btn">Block (L2)</button>
+        <button class="btn">Extend (L1)</button>
+        <button class="btn">Override (L2)</button>
+        <button class="btn">Audit</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Territory 地域</th><th>Platform 平台</th><th>Start</th><th>End</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr><td>China</td><td>HLS</td><td>2026-08-24</td><td>2027-01-01</td><td><span class="badge green">● Valid</span></td><td>[Edit] [Audit]</td></tr>
+        <tr><td>China</td><td>RTMP</td><td>2026-08-24</td><td>2026-12-31</td><td><span class="badge yellow">⚠ Expiring (137d)</span></td><td>[Extend] [Audit]</td></tr>
+        <tr><td>Overseas</td><td>HLS</td><td>2026-08-24</td><td>2027-01-01</td><td><span class="badge green">● Valid</span></td><td>[Edit] [Audit]</td></tr>
+        <tr><td>Global</td><td>Archive</td><td>2026-08-24</td><td>Unlimited</td><td><span class="badge green">● Valid</span></td><td>[Edit] [Audit]</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Tab 5 预览: History -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Tab ⑤ History 历史 (8 events · 时间线)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="timeline">
+      <div class="event"><span class="time">2026-08-24 19:30:42</span> <b>worker-02</b> <span class="badge blue">TRANSCODE</span> v3 HEVC Master created (Job T-1821 · 5m21s)</div>
+      <div class="event"><span class="time">2026-08-24 19:15:21</span> <b>Director Zhang</b> <span class="badge">EDIT</span> Updated rights: CN / HLS / until 2027-01-01</div>
+      <div class="event"><span class="time">2026-08-24 19:00:08</span> <b>worker-02</b> <span class="badge blue">TRANSCODE</span> v1 Mobile created (Job T-1820)</div>
+      <div class="event"><span class="time">2026-08-24 18:55:42</span> <b>worker-01</b> <span class="badge blue">TRANSCODE</span> v2 Proxy created (Job T-1819 · 3m08s)</div>
+      <div class="event"><span class="time">2026-08-24 18:50:08</span> <b>Director Zhang</b> <span class="badge">QC</span> Re-ran QC profile Broadcast Default · PASS</div>
+      <div class="event"><span class="time">2026-08-24 18:45:00</span> <b>worker-01</b> <span class="badge">PROBE</span> ffprobe · detected 1920×1080 H.264 AAC</div>
+      <div class="event"><span class="time">2026-08-24 18:42:15</span> <b>Director Zhang</b> <span class="badge green">UPLOAD</span> Uploaded original file (750 MB) · sha256:abc...</div>
+      <div class="event"><span class="time">2026-08-24 18:42:15</span> <b>System</b> <span class="badge">CREATE</span> Asset a-2026-08-24-001 created</div>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn">Filter Filter</button>
+      <button class="btn">Export JSON</button>
+    </div>
+  </div>
+</details>
+
+<!-- 6 状态样例 (V0.1 Design System) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ 6 状态样例 / 6 STATE SAMPLES (V0.1 Design System §16)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>资产 READY, 5 tab 完整</td><td>完整 Hero + 5 Tab 内容</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>首次打开</td><td>Hero Skeleton + 5 Tab 各自 Skeleton</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>— (Asset Detail 不应为空, 路由不存在)</td><td>404 错误页</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>QC 有非阻塞项 / Rights Expiring</td><td>黄色 Banner 顶部 + Tab 角标</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>QC FAIL / Probe FAIL / 编码失败</td><td>红色 Banner + Tab 角标</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>Rights Expired + 仍在 Schedule 中</td><td>顶部红条 + 不可用警告</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<footer>
+  VBMF Phase 0.5B.1 · M-12 Asset Detail · 5 Tabs 锁定 (Overview/Versions/QC/Rights/History)
+  <br>中英双语 / Bilingual · i18n key 驱动 · Phase 0.5B Closure-1 §17 Channel Detail 关联 (CD-01)
+</footer>
+</body>
+</html>

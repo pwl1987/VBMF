@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>M-11 Media Library 媒体库 — VBMF Phase 0.5B.1</title>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
+  --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
+.breadcrumb{font-size:11px;color:var(--fgdim);margin-bottom:8px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.toolbar{display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:12px;flex-wrap:wrap}
+.btn{padding:5px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:4px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.l2{background:var(--yellow);color:#000;border-color:var(--yellow)}
+.btn.l3{background:var(--red);color:#fff;border-color:var(--red)}
+.search{flex:1;min-width:200px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:5px 10px;border-radius:4px;font-family:inherit}
+.main{display:grid;grid-template-columns:220px 1fr;gap:12px;margin-bottom:12px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.filter-group{margin-bottom:16px}
+.filter-group .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.filter-item{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:12px}
+.filter-item:hover{background:var(--bg3)}
+.filter-item.active{background:var(--bg3);color:var(--accent);font-weight:600}
+.filter-item .count{color:var(--fgdim);font-size:11px;font-weight:400}
+table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px}
+th{background:var(--bg3);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover{background:var(--bg3);cursor:pointer}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}.dot.blue{background:var(--blue)}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
+.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+.badge.gray{background:var(--bg3);color:var(--fgdim)}
+.thumb{width:48px;height:27px;background:#000;border:1px solid var(--border);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--fgdim)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--fgdim)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state .hint{margin-top:8px;font-size:11px}
+.batch-bar{position:sticky;bottom:0;background:var(--bg2);border:1px solid var(--accent);border-radius:6px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.batch-bar .count{color:var(--accent);font-weight:600}
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h2>媒体库 / Media Library — 资产入口 (M-11)</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="01-dashboard.html" style="margin-left:12px;color:var(--accent);text-decoration:none">← 主控台 Dashboard</a>
+    <a href="M-12-asset-detail.html" style="margin-left:12px;color:var(--accent);text-decoration:none">资产详情 M-12 →</a>
+    <a href="M-14-transcode-center.html" style="margin-left:12px;color:var(--accent);text-decoration:none">转码中心 M-14 →</a>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <a href="01-dashboard.html">VBMF Console</a> / 02 Media 媒体资产 / <b>Media Library</b>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="btn primary" data-i18n="media.library.action.upload">[+ 上传 Upload] (L1)</button>
+  <button class="btn" data-i18n="media.library.action.import">[导入 Import] (L1)</button>
+  <button class="btn" data-i18n="media.library.action.scan">[扫描 Scan] (L1)</button>
+  <span style="border-left:1px solid var(--border);height:20px"></span>
+  <input type="text" class="search" placeholder="搜索 / Search: 名称 / 标签 / Hash / Rights" data-i18n-placeholder="media.library.search.placeholder">
+  <span style="border-left:1px solid var(--border);height:20px"></span>
+  <button class="btn" data-i18n="media.library.view.grid">▦ 网格 Grid</button>
+  <button class="btn" data-i18n="media.library.view.list">☰ 列表 List</button>
+</div>
+
+<!-- Main: Filters + List -->
+<div class="main">
+
+  <!-- Left: Filters -->
+  <div class="panel">
+    <h3><span class="cn">筛选</span> / FILTERS</h3>
+
+    <div class="filter-group">
+      <div class="label">类型 / Type</div>
+      <div class="filter-item active">全部 All <span class="count">128</span></div>
+      <div class="filter-item">视频 Video <span class="count">76</span></div>
+      <div class="filter-item">音频 Audio <span class="count">22</span></div>
+      <div class="filter-item">图片 Image <span class="count">18</span></div>
+      <div class="filter-item">字幕 Subtitle <span class="count">8</span></div>
+      <div class="filter-item">Project <span class="count">3</span></div>
+      <div class="filter-item">Recording <span class="count">1</span></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="label">状态 / Status</div>
+      <div class="filter-item"><i class="dot gray"></i>UPLOADING 上传中 <span class="count">2</span></div>
+      <div class="filter-item"><i class="dot blue"></i>INGESTING 导入中 <span class="count">1</span></div>
+      <div class="filter-item"><i class="dot yellow"></i>PROBING 探测中 <span class="count">3</span></div>
+      <div class="filter-item"><i class="dot green"></i>READY 就绪 <span class="count">98</span></div>
+      <div class="filter-item"><i class="dot blue"></i>TRANSCODING 转码中 <span class="count">4</span></div>
+      <div class="filter-item"><i class="dot red"></i>QC_FAILED 质量失败 <span class="count">12</span></div>
+      <div class="filter-item"><i class="dot green"></i>QC_PASSED 质量通过 <span class="count">6</span></div>
+      <div class="filter-item"><i class="dot red"></i>RIGHTS_BLOCKED 版权阻止 <span class="count">3</span></div>
+      <div class="filter-item"><i class="dot gray"></i>ARCHIVED 已归档 <span class="count">8</span></div>
+      <div class="filter-item"><i class="dot red"></i>FAILED 失败 <span class="count">2</span></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="label">QC / Quality</div>
+      <div class="filter-item">● PASS <span class="count">104</span></div>
+      <div class="filter-item">⚠ WARN <span class="count">14</span></div>
+      <div class="filter-item">✗ FAIL <span class="count">8</span></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="label">版权 / Rights</div>
+      <div class="filter-item">● Valid <span class="count">112</span></div>
+      <div class="filter-item">⚠ Expiring <span class="count">8</span></div>
+      <div class="filter-item">✗ Expired <span class="count">5</span></div>
+      <div class="filter-item">⊘ Blocked <span class="count">3</span></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="label">拥有者 / Owner</div>
+      <div class="filter-item active">全部 All <span class="count">128</span></div>
+      <div class="filter-item">我的 Mine <span class="count">42</span></div>
+      <div class="filter-item">Director Zhang <span class="count">31</span></div>
+      <div class="filter-item">Director Li <span class="count">28</span></div>
+      <div class="filter-item">Recording Import <span class="count">27</span></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="label">上传时间 / Uploaded</div>
+      <div class="filter-item">今日 Today</div>
+      <div class="filter-item">最近 7 天 Last 7d</div>
+      <div class="filter-item">最近 30 天 Last 30d</div>
+      <div class="filter-item">自定义 Custom</div>
+    </div>
+  </div>
+
+  <!-- Right: Asset List -->
+  <div class="panel" style="padding:0">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px"><input type="checkbox"></th>
+          <th style="width:60px">缩略图 Thumb</th>
+          <th>名称 Name</th>
+          <th>类型 Type</th>
+          <th>时长 Duration</th>
+          <th>分辨率 Resolution</th>
+          <th>编码 Codec</th>
+          <th>FPS</th>
+          <th>音频 Audio</th>
+          <th>响度 LUFS</th>
+          <th>QC</th>
+          <th>版权 Rights</th>
+          <th>版本 Versions</th>
+          <th>状态 Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>News_2026_08_24_001</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>00:30:25</td>
+          <td>1920×1080</td>
+          <td>H.264</td>
+          <td>25</td>
+          <td>2ch / 48k / AAC</td>
+          <td>-23.4</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td><span class="badge green">● Valid</span></td>
+          <td>3 (M+P+HLS)</td>
+          <td><i class="dot green"></i><span class="badge green">READY</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" checked></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>Promo_Breaking_News_07</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>00:00:15</td>
+          <td>1920×1080</td>
+          <td>HEVC</td>
+          <td>25</td>
+          <td>2ch / 48k / AAC</td>
+          <td>-22.1</td>
+          <td><span class="badge yellow">⚠ WARN</span></td>
+          <td><span class="badge yellow">⚠ Expiring</span></td>
+          <td>2 (M+P)</td>
+          <td><i class="dot green"></i><span class="badge green">READY</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>Long_Documentary_01</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>01:23:45</td>
+          <td>1920×1080</td>
+          <td>H.264</td>
+          <td>25</td>
+          <td>2ch / 48k / AAC</td>
+          <td>-24.0</td>
+          <td><span class="badge red">✗ FAIL</span></td>
+          <td><span class="badge green">● Valid</span></td>
+          <td>1 (M)</td>
+          <td><i class="dot red"></i><span class="badge red">QC_FAILED</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>Sports_Highlight_R32</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>00:02:30</td>
+          <td>3840×2160</td>
+          <td>HEVC</td>
+          <td>50</td>
+          <td>5.1 / 48k / AAC</td>
+          <td>-23.0</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td><span class="badge green">● Valid</span></td>
+          <td>4 (M+P+HLS+Mobile)</td>
+          <td><i class="dot blue"></i><span class="badge blue">TRANSCODING</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>News_Theme_Song_2026</b></td>
+          <td><span class="badge">Audio</span></td>
+          <td>00:03:42</td>
+          <td>—</td>
+          <td>AAC</td>
+          <td>—</td>
+          <td>2ch / 48k / AAC</td>
+          <td>-14.0</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td><span class="badge red">✗ Expired</span></td>
+          <td>1 (M)</td>
+          <td><i class="dot red"></i><span class="badge red">RIGHTS_BLOCKED</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" checked></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>LowerThird_Election</b></td>
+          <td><span class="badge">Graphic</span></td>
+          <td>—</td>
+          <td>1920×1080</td>
+          <td>PNG</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td><span class="badge green">● Valid</span></td>
+          <td>2 (M+Variant)</td>
+          <td><i class="dot green"></i><span class="badge green">READY</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>News_Subtitle_2026_08_24</b></td>
+          <td><span class="badge">Subtitle</span></td>
+          <td>00:30:25</td>
+          <td>—</td>
+          <td>SRT</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td><span class="badge green">● Valid</span></td>
+          <td>1 (M)</td>
+          <td><i class="dot green"></i><span class="badge green">READY</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>Archive_2024_Olympics</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>12:30:00</td>
+          <td>1920×1080</td>
+          <td>H.264</td>
+          <td>25</td>
+          <td>2ch / 48k / AAC</td>
+          <td>-23.0</td>
+          <td><span class="badge green">● PASS</span></td>
+          <td><span class="badge green">● Valid</span></td>
+          <td>1 (Archive)</td>
+          <td><i class="dot gray"></i><span class="badge gray">ARCHIVED</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>Upload_in_progress_42</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>0</td>
+          <td><i class="dot gray"></i><span class="badge">UPLOADING 64%</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox"></td>
+          <td><div class="thumb">▶</div></td>
+          <td><b>Failed_import_77</b></td>
+          <td><span class="badge">Video</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>0</td>
+          <td><i class="dot red"></i><span class="badge red">FAILED</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- Batch Action Bar (only when items selected) -->
+<div class="batch-bar">
+  <div>
+    已选 <span class="count">2</span> 个资产 / 2 assets selected
+  </div>
+  <div>
+    <button class="btn" data-i18n="media.library.batch.transcode">[转码 Transcode] (L1)</button>
+    <button class="btn" data-i18n="media.library.batch.create_variant">[创建变体 Create Variant] (L1)</button>
+    <button class="btn l2" data-i18n="media.library.batch.archive">[归档 Archive] (L2)</button>
+    <button class="btn l3" data-i18n="media.library.batch.delete">[删除 Delete] (L3 · 需输入 "DELETE")</button>
+    <button class="btn" data-i18n="common.cancel">[取消 Cancel]</button>
+  </div>
+</div>
+
+<!-- Status: 6 state samples reference (Phase 0.5B Design System) -->
+<div class="panel" style="margin-bottom:12px">
+  <h3><span class="cn">6 状态样例</span> / 6 STATE SAMPLES (V0.1 Design System §16)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>状态 / State</th>
+        <th>触发 / Trigger</th>
+        <th>UI 表现 / UI Behavior</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><b>● NORMAL</b></td><td>READY 资产 &gt; 0</td><td>正常列表 + 筛选可用</td></tr>
+      <tr><td><b>◌ LOADING</b></td><td>首次 / 刷新</td><td>10 行 Skeleton + spinner</td></tr>
+      <tr><td><b>○ EMPTY</b></td><td>0 assets (新系统)</td><td>中央 "无媒体资产" + [+ Upload Asset] 主按钮 + "从录制导入" 副按钮</td></tr>
+      <tr><td><b>⚠ WARNING</b></td><td>有 QC_FAILED 或 RIGHTS_BLOCKED</td><td>黄色 Banner: "12 assets have QC issues, 3 have rights issues"</td></tr>
+      <tr><td><b>✗ ERROR</b></td><td>Probe 失败 / Hash 不匹配</td><td>红色行标记 + [Retry Probe] 按钮</td></tr>
+      <tr><td><b>✗✗ CRITICAL</b></td><td>Storage &gt; 90% (Warning)</td><td>顶部红条: "Storage critical (92%) · 1 day until full"</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- EMPTY state example (collapsed) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ 查看 EMPTY 状态示例 / View Empty state example</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="empty-state">
+      <div class="icon">📁</div>
+      <div style="font-size:14px;color:var(--fg)">无媒体资产 / No media assets</div>
+      <div class="hint">开始上传你的第一个媒体资产 · Start by uploading your first media asset</div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:center">
+        <button class="btn primary" data-i18n="media.library.empty.action.upload">[+ 上传资产 Upload Asset]</button>
+        <button class="btn" data-i18n="media.library.empty.action.import_from_recording">[从录制导入 Import from Recording]</button>
+        <button class="btn" data-i18n="media.library.empty.action.import_url">[从 URL 导入 Import from URL]</button>
+      </div>
+    </div>
+  </div>
+</details>
+
+<footer>
+  VBMF Phase 0.5B.1 · M-11 Media Library (02 Media 媒体资产入口) · 中英双语 / Bilingual · i18n key 驱动 (见 I18N_SPEC)
+  <br>跳转: M-12 Asset Detail (点击行) / M-14 Transcode Center / M-13 Upload Ingest
+</footer>
+</body>
+</html>

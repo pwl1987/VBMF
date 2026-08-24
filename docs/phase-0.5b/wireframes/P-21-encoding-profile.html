@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>P-21 Encoding Profile Builder 编码 Profile — VBMF Phase 0.5B.1</title>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
+  --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
+.breadcrumb{font-size:11px;color:var(--fgdim);margin-bottom:8px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.btn{padding:5px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:4px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.l2{background:var(--yellow);color:#000;border-color:var(--yellow)}
+.btn.l3{background:var(--red);color:#fff;border-color:var(--red)}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
+.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+
+/* Hero + 3-Layer */
+.hero{display:grid;grid-template-columns:1fr 240px;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:12px}
+.hero h2{font-size:16px;margin-bottom:6px}
+.hero .meta{color:var(--fgdim);font-size:11px;margin-bottom:8px}
+.tri{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:11px}
+.tri .layer{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border)}
+.tri .layer:last-child{border-bottom:none}
+.tri .layer .k{color:var(--fgdim);font-weight:600;font-size:10px;letter-spacing:1px}
+.tri .layer .v{font-family:Menlo,Consolas,monospace;font-weight:600}
+.tri .layer .v.green{color:var(--green)}
+.tri .layer .v.yellow{color:var(--yellow)}
+.tri .layer .v.blue{color:var(--blue)}
+.tri .delta{margin-top:6px;padding:6px;background:#1a2a3a;border-radius:3px;font-size:10px}
+.tri .delta.warn{background:#3a3a1a}
+
+/* Tabs */
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden;flex-wrap:wrap}
+.tab{padding:10px 14px;cursor:pointer;color:var(--fgdim);font-size:12px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.tab.active{background:var(--bg3);color:var(--fg);font-weight:600;border-bottom:2px solid var(--accent);margin-bottom:-1px}
+.tab:hover{background:var(--bg3)}
+.tab-num{color:var(--accent);font-weight:700;margin-right:4px}
+.tab .tab-status{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-left:4px;vertical-align:middle}
+.tab .tab-status.yellow{background:var(--yellow)}
+.tab .tab-status.red{background:var(--red)}
+
+/* Section content */
+.section-content{background:var(--bg2);border:1px solid var(--border);border-top:0;border-radius:0 0 6px 6px;padding:16px;margin-bottom:12px}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:12px}
+.form-row label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.form-row input,.form-row select,.form-row textarea{background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:6px 8px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:12px}
+.form-row.full{grid-column:1/-1}
+
+.section-h{color:var(--accent);font-size:13px;font-weight:600;margin:0 0 10px 0;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.field-hint{color:var(--fgdim);font-size:10px;font-style:italic;margin-top:2px}
+
+table{width:100%;border-collapse:collapse;background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px}
+th{background:var(--bg2);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+tr:last-child td{border-bottom:none}
+
+/* Resource 9D */
+.resource-9d{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.resource-row{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px}
+.resource-row .name{color:var(--fg);font-family:Menlo,Consolas,monospace;font-weight:600;margin-bottom:4px}
+.resource-row .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:4px}
+.resource-row .stat{font-size:10px}
+.resource-row .stat .k{color:var(--fgdim);font-size:9px;text-transform:uppercase;letter-spacing:1px}
+.resource-row .stat .v{font-family:Menlo,Consolas,monospace;font-weight:600}
+.resource-row .stat .v.green{color:var(--green)}
+.resource-row .stat .v.yellow{color:var(--yellow)}
+.resource-row .stat .v.gray{color:var(--gray)}
+
+/* Validation */
+.validation{background:#1a2a3a;border:2px solid var(--green);border-radius:6px;padding:12px;margin-bottom:8px}
+.validation.fail{border-color:var(--red);background:#3a1a1a}
+.validation h4{margin:0 0 6px 0;color:var(--green);font-size:13px}
+.validation.fail h4{color:var(--red)}
+.validation .check{display:grid;grid-template-columns:140px 1fr 60px;gap:8px;padding:4px 0;font-size:12px;align-items:center}
+.validation .check .k{color:var(--fgdim)}
+.validation .check .v{font-family:Menlo,Consolas,monospace}
+.validation .check .status{text-align:right;font-weight:600}
+
+.reason-list{background:var(--bg2);border:1px solid var(--red);border-radius:4px;padding:10px;margin-top:8px;font-size:12px}
+.reason-list .reason{padding:4px 0;border-bottom:1px dashed var(--border)}
+.reason-list .reason:last-child{border-bottom:none}
+.reason-list .reason .r-title{color:var(--red);font-weight:600;margin-bottom:2px}
+.reason-list .reason .r-detail{color:var(--fgdim);font-size:11px;margin-left:16px}
+
+.usedby{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.usedby .item{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px}
+.usedby .item .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.usedby .item .name{color:var(--accent);font-weight:600;font-size:12px}
+.usedby .item .state{font-size:10px;color:var(--fgdim);margin-top:2px}
+
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h2>编码 Profile Builder / Encoding Profile — 10 Sections (P-21)</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="03-profiles.html" style="margin-left:12px;color:var(--accent);text-decoration:none">← Profiles 03</a>
+    <a href="P-22-output-profile.html" style="margin-left:12px;color:var(--accent);text-decoration:none">Output Profile P-22 →</a>
+    <a href="M-14-transcode-center.html" style="margin-left:12px;color:var(--accent);text-decoration:none">Transcode M-14 →</a>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <a href="01-dashboard.html">VBMF Console</a> / 03 Profiles / <b>Encoding Profile Builder</b>
+</div>
+
+<!-- Hero: Profile Identity + 3-Layer (DESIRED / COMPILED / EFFECTIVE) -->
+<div class="hero">
+  <div>
+    <h2>HEVC Main10 1080p25 Master <span class="badge green">● ACTIVE</span></h2>
+    <div class="meta">
+      v3 · Category: Broadcast · Created: 2026-08-24 by Director Zhang · Last Modified: 2026-08-24 19:30
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+      <span class="badge">★ Starred</span>
+      <span class="badge">Broadcast</span>
+      <span class="badge">Master</span>
+      <span class="badge">HEVC Main10</span>
+    </div>
+  </div>
+  <div class="tri">
+    <div class="layer"><span class="k">◉ DESIRED</span><span class="v">v3 HEVC Main10</span></div>
+    <div class="layer"><span class="k">⚙ COMPILED</span><span class="v green">libx265 · worker-02</span></div>
+    <div class="layer"><span class="k">▶ EFFECTIVE</span><span class="v green">5.1x realtime</span></div>
+    <div class="delta"><b>Δ: COMPILED == EFFECTIVE ✓</b><br>Reason: 无降级 · 健康运行</div>
+  </div>
+</div>
+
+<!-- 10 Tabs -->
+<div class="tabs">
+  <div class="tab"><span class="tab-num">1</span>Overview</div>
+  <div class="tab"><span class="tab-num">2</span>Video<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">3</span>Rate Control<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">4</span>GOP / Frame<span class="tab-status green"></span></div>
+  <div class="tab active"><span class="tab-num">5</span>Encoder<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">6</span>Audio<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">7</span>Container<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">8</span>Resource<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">9</span>Validation<span class="tab-status green"></span></div>
+  <div class="tab"><span class="tab-num">10</span>Revision</div>
+</div>
+
+<!-- Section 5 active: Encoder (Runtime Discovery) -->
+<div class="section-content">
+  <h3 class="section-h">5. Encoder 编码器 (Runtime Discovery 驱动)</h3>
+
+  <div class="form-grid">
+    <div>
+      <div class="form-row">
+        <label>Encoder Engine 编码器</label>
+        <select>
+          <option selected>● AUTO (Runtime best match)</option>
+          <option>○ libx264 (CPU · H.264)</option>
+          <option>○ libx265 (CPU · HEVC)</option>
+          <option>○ libvpx-vp9 (CPU · VP9)</option>
+          <option>○ NVENC (Hardware · unavailable)</option>
+          <option>○ QSV (Hardware · unavailable)</option>
+          <option>○ VideoToolbox (N/A · Linux)</option>
+          <option>○ BMD H.264 (no BMD encoder port)</option>
+        </select>
+        <div class="field-hint">Encoder 选项**只列** Runtime Discovered 可用项</div>
+      </div>
+
+      <div class="form-row">
+        <label>Preset</label>
+        <select><option>ultrafast</option><option>superfast</option><option>veryfast</option><option selected>medium</option><option>slow</option></select>
+      </div>
+
+      <div class="form-row">
+        <label>Tune</label>
+        <select><option selected>none</option><option>film</option><option>animation</option><option>grain</option><option>stillimage</option><option>zerolatency</option></select>
+      </div>
+
+      <div class="form-row">
+        <label>Threads 线程</label>
+        <input type="text" value="auto">
+        <div class="field-hint">CPU 核数自动 / 手动指定</div>
+      </div>
+
+      <div class="form-row">
+        <label>Latency Mode</label>
+        <select><option>Normal</option><option selected>Low Latency</option><option>Ultra-Low</option></select>
+      </div>
+    </div>
+
+    <div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px">
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Available Encoders (Runtime Discovered)</div>
+        <div style="font-size:12px;line-height:1.8">
+          <div><span class="badge green">✓ libx264</span> <span style="color:var(--fgdim)">(CPU · H.264)</span></div>
+          <div><span class="badge green">✓ libx265</span> <span style="color:var(--fgdim)">(CPU · HEVC · selected by AUTO)</span></div>
+          <div><span class="badge green">✓ libvpx-vp9</span> <span style="color:var(--fgdim)">(CPU · VP9)</span></div>
+          <div><span class="badge red">✗ NVENC</span> <span style="color:var(--fgdim)">(GPU unavailable · host-01)</span></div>
+          <div><span class="badge red">✗ QSV</span> <span style="color:var(--fgdim)">(unavailable · no Intel GPU)</span></div>
+          <div><span class="badge red">✗ VideoToolbox</span> <span style="color:var(--fgdim)">(N/A · Linux)</span></div>
+          <div><span class="badge red">✗ BMD H.264</span> <span style="color:var(--fgdim)">(no BMD encoder port available)</span></div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--fgdim)">
+          Hardware Capability Discovery 来源: E-35 Device Registry
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Validation (locked pass example) -->
+<div class="validation">
+  <h4>✓ Validation PASS · Profile 可用 / Profile Usable</h4>
+  <div class="check"><span class="k">Static 静态</span><span class="v">字段一致 / Capability OK</span><span class="status" style="color:var(--green)">PASS</span></div>
+  <div class="check"><span class="k">Resource 资源</span><span class="v">CPU 14 threads / RAM 1.2 GB / VRAM 0 · host-01 充足</span><span class="status" style="color:var(--green)">PASS</span></div>
+  <div class="check"><span class="k">Runtime Readiness</span><span class="v">Encoder ✓ Worker ✓ Network ✓</span><span class="status" style="color:var(--green)">PASS</span></div>
+  <div class="check"><span class="k">Test Encode</span><span class="v">Last run 2026-08-24 19:30: 5.1x realtime · Quality OK</span><span class="status" style="color:var(--green)">PASS</span></div>
+  <div style="margin-top:8px;display:flex;gap:6px">
+    <button class="btn primary">▶ Re-test 重新测试 (L1)</button>
+    <button class="btn">Open Capability Registry (E-34) →</button>
+    <button class="btn">Open Device (E-35) →</button>
+  </div>
+</div>
+
+<!-- Other Sections (collapsed previews) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 2 Video (Codec / Format / Color / SAR / Field Order)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">2. Video 视频</h3>
+    <div class="form-grid">
+      <div>
+        <h4 style="color:var(--fgdim);font-size:11px;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px">Codec</h4>
+        <div class="form-row"><label>Codec</label><select><option>H.264</option><option selected>HEVC (H.265)</option><option>VP9</option><option>AV1</option></select></div>
+        <div class="form-row"><label>Profile</label><select><option>Main</option><option selected>Main10</option><option>Range Extensions</option></select></div>
+        <div class="form-row"><label>Level</label><select><option>4.0</option><option>4.1</option><option selected>5.0</option><option>5.1</option></select></div>
+        <div class="form-row"><label>Pixel Format</label><select><option>yuv420p</option><option>yuv422p</option><option selected>yuv420p10le</option></select></div>
+      </div>
+      <div>
+        <h4 style="color:var(--fgdim);font-size:11px;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px">Format</h4>
+        <div class="form-row"><label>Resolution</label><input type="text" value="1920×1080"></div>
+        <div class="form-row"><label>FPS</label><input type="text" value="25"></div>
+        <div class="form-row"><label>Time Base</label><input type="text" value="1/90000"></div>
+        <div class="form-row"><label>SAR (Pixel Aspect Ratio)</label><select><option selected>1:1</option><option>4:3</option><option>16:9</option></select></div>
+        <div class="form-row"><label>Field Order</label><select><option selected>Progressive</option><option>Top Field First</option><option>Bottom Field First</option></select></div>
+      </div>
+      <div>
+        <h4 style="color:var(--fgdim);font-size:11px;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px">Color</h4>
+        <div class="form-row"><label>Color Space</label><select><option selected>BT.709</option><option>BT.2020</option><option>BT.601</option></select></div>
+        <div class="form-row"><label>Color Range</label><select><option selected>TV</option><option>PC</option><option>JPEG Full</option></select></div>
+        <div class="form-row"><label>Color Transfer</label><select><option selected>BT.709</option><option>SMPTE 2084 (PQ)</option><option>HLG</option></select></div>
+        <div class="form-row"><label>Color Primaries</label><select><option selected>BT.709</option><option>BT.2020</option></select></div>
+        <div class="form-row"><label>Color Metadata</label><select><option>None</option><option selected>HDR10</option><option>HLG</option></select></div>
+      </div>
+    </div>
+  </div>
+</details>
+
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 3 Rate Control (Mode / Bitrate / VBV / HRD)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">3. Rate Control 码率控制</h3>
+    <div class="form-grid">
+      <div class="form-row"><label>Mode</label><select><option selected>CBR</option><option>VBR</option><option>Capped VBR</option></select></div>
+      <div class="form-row"><label>Bitrate (Mbps)</label><input type="text" value="5.0"></div>
+      <div class="form-row"><label>VBV Maxrate (Mbps)</label><input type="text" value="5.5"></div>
+      <div class="form-row"><label>VBV Buffer (kbit)</label><input type="text" value="10000"></div>
+      <div class="form-row"><label>HRD (High Profile)</label><select><option>Off</option><option selected>On (Broadcast Compliance)</option></select></div>
+      <div class="form-row"><label>Min Bitrate (Mbps)</label><input type="text" value="—" placeholder="VBR only"></div>
+      <div class="form-row"><label>Max Bitrate (Mbps)</label><input type="text" value="—" placeholder="VBR only"></div>
+      <div class="form-row"><label>Quality (CRF)</label><input type="text" value="—" placeholder="VBR only"></div>
+    </div>
+  </div>
+</details>
+
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 4 GOP / Frame (Closed GOP / Keyframe / Reference Frames)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">4. GOP / Frame 关键帧</h3>
+    <div class="form-grid">
+      <div class="form-row"><label>GOP Size</label><input type="text" value="50"></div>
+      <div class="form-row"><label>GOP Type</label><select><option selected>● Closed GOP (Broadcast)</option><option>○ Open GOP</option></select></div>
+      <div class="form-row"><label>Keyframe / IDR Policy</label><select><option selected>Every N Frames (50)</option><option>On Event</option></select></div>
+      <div class="form-row"><label>Reference Frames</label><input type="text" value="4"></div>
+      <div class="form-row"><label>B-Frames</label><input type="text" value="2"></div>
+      <div class="form-row"><label>Lookahead</label><input type="text" value="20"></div>
+      <div class="form-row"><label>Scene Cut Detection</label><select><option>Off</option><option selected>On</option></select></div>
+    </div>
+  </div>
+</details>
+
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 6 Audio (Codec / Channel Layout / Bit Depth)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">6. Audio 音频</h3>
+    <div class="form-grid">
+      <div class="form-row"><label>Codec</label><select><option selected>AAC</option><option>Opus</option><option>MP3</option><option>Vorbis</option></select></div>
+      <div class="form-row"><label>Sample Rate</label><select><option>44.1k</option><option selected>48k</option><option>96k</option></select></div>
+      <div class="form-row"><label>Channel Layout</label><select><option>Mono</option><option selected>Stereo</option><option>2.1</option><option>5.0</option><option>5.1</option><option>7.1.4</option></select></div>
+      <div class="form-row"><label>Bit Depth</label><select><option>16</option><option selected>24</option><option>32</option></select></div>
+      <div class="form-row"><label>Bitrate (kbps)</label><input type="text" value="192"></div>
+      <div class="form-row"><label>Loudness Reference (LUFS)</label><input type="text" value="-23"></div>
+      <div class="form-row"><label>AV Sync Offset (ms)</label><input type="text" value="0"></div>
+    </div>
+  </div>
+</details>
+
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 7 Container / Transport</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">7. Container / Transport 容器</h3>
+    <div class="form-grid">
+      <div class="form-row"><label>Container</label><select><option>MPEG-TS</option><option selected>MP4</option><option>fMP4</option><option>MOV</option><option>MKV</option></select></div>
+      <div class="form-row"><label>Segment Duration (s, for fMP4)</label><input type="text" value="—" placeholder="N/A for MP4"></div>
+      <div class="form-row"><label>Metadata Policy</label><select><option selected>Copy</option><option>Rewrite</option><option>Drop</option></select></div>
+      <div class="form-row"><label>Timecode Policy</label><select><option selected>Preserve</option><option>Drop</option><option>Re-stamp</option></select></div>
+      <div class="form-row"><label>Side Data (SEI / HDR)</label><select><option>None</option><option selected>HDR Mastering Display + Content Light Level</option></select></div>
+    </div>
+  </div>
+</details>
+
+<!-- Section 8: Resource 9D -->
+<details style="margin-bottom:12px" open>
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 8 Resource (9-Dim Resource Vector + Required/Available/Delta/Headroom)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">8. Resource 资源预估 (9-Dim · Required / Available / Delta / Headroom)</h3>
+    <div class="resource-9d">
+      <div class="resource-row">
+        <div class="name">CPU_THREADS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">14.5</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">32</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-17.5</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">17.5</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">GPU_SESSIONS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">0</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v gray">0</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v">—</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v">—</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v gray">N/A · no GPU</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">VRAM_MB</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">0</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v gray">0</div></div>
+          <div class="stat"><div class="k">Status</div><div class="v gray">N/A</div></div>
+        </div>
+      </div>
+      <div class="resource-row">
+        <div class="name">RAM_MB</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">1200</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">30000</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-28800</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">28800</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">NIC_INGRESS_MBPS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">8</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">10000</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-9992</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">9992</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">NIC_EGRESS_MBPS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">5</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">10000</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-9995</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">9995</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">DISK_WRITE_MBPS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">32</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">410</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-378</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">378</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">PCIE_RX_MB_S</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">1200</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">7000</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-5800</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">5800</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">PCIE_TX_MB_S</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">800</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">7000</div></div>
+          <div class="stat"><div class="k">Delta</div><div class="v green">-6200</div></div>
+          <div class="stat"><div class="k">Headroom</div><div class="v green">6200</div></div>
+        </div>
+        <div class="stats" style="margin-top:4px"><div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div></div>
+      </div>
+      <div class="resource-row">
+        <div class="name">BMD_INPUT_TOKENS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">0</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">3</div></div>
+          <div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div>
+        </div>
+      </div>
+      <div class="resource-row">
+        <div class="name">BMD_OUTPUT_TOKENS</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">0</div></div>
+          <div class="stat"><div class="k">Available</div><div class="v">3</div></div>
+          <div class="stat"><div class="k">Status</div><div class="v green">✓ OK</div></div>
+        </div>
+      </div>
+      <div class="resource-row">
+        <div class="name">DEVICE_EXCLUSIVITY</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Required</div><div class="v">OK</div></div>
+          <div class="stat"><div class="k">Status</div><div class="v green">✓ No Conflict</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- Section 9: Validation (FAIL example with Why Not Usable) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 9 Validation (FAIL example with "Why Not Usable")</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">9. Validation 验证 (示例 FAIL + Why Not Usable)</h3>
+    <div class="validation fail">
+      <h4>✗ NOT USABLE — Profile cannot be applied</h4>
+      <div class="check"><span class="k">Static 静态</span><span class="v">字段一致 ✓ Capability FAIL</span><span class="status" style="color:var(--red)">FAIL</span></div>
+      <div class="check"><span class="k">Resource 资源</span><span class="v">CPU 充足 · GPU 不足</span><span class="status" style="color:var(--red)">FAIL</span></div>
+      <div class="check"><span class="k">Runtime Readiness</span><span class="v">Encoder ✗ Worker OK Network OK</span><span class="status" style="color:var(--red)">FAIL</span></div>
+      <div class="check"><span class="k">Test Encode</span><span class="v">N/A (encoder unavailable)</span><span class="status" style="color:var(--gray)">—</span></div>
+
+      <div class="reason-list">
+        <div class="reason">
+          <div class="r-title">Reason 1: x265 encoder unavailable</div>
+          <div class="r-detail">× libx265 (N/A · not compiled in this build)</div>
+        </div>
+        <div class="reason">
+          <div class="r-title">Reason 2: GPU unavailable for 10-bit encoding</div>
+          <div class="r-detail">× NVENC (no NVIDIA GPU detected on host-01)</div>
+        </div>
+        <div class="reason">
+          <div class="r-title">Reason 3: 10-bit encoder required, only 8-bit available</div>
+          <div class="r-detail">Selected: x265 8-bit</div>
+          <div class="r-detail">Required: HEVC Main10 (10-bit)</div>
+          <div class="r-detail">Available: HEVC Main (8-bit only)</div>
+        </div>
+        <div class="reason">
+          <div class="r-title">Reason 4: Output Variant requires H.264 but profile produces HEVC</div>
+          <div class="r-detail">Profile produces: HEVC</div>
+          <div class="r-detail">Required by: V-CH01-RTMP (Output Variant)</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:6px">
+        <button class="btn primary">🔧 Fix Automatically 自动修复</button>
+        <button class="btn">📖 Explain 详细解释</button>
+        <button class="btn">Open Capability Registry (E-34) →</button>
+        <button class="btn">Open Device (E-35) →</button>
+        <button class="btn">Switch to Preset →</button>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- Section 10: Revision -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 10 Revision (Used By / Change History)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">10. Revision 版本 (Used By / Change Set)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <div class="kv">
+          <div class="k">Version</div><div class="v">v3 (auto-increment)</div>
+          <div class="k">Status</div><div class="v green">ACTIVE</div>
+          <div class="k">Created By</div><div class="v">Director Zhang</div>
+          <div class="k">Created At</div><div class="v">2026-08-24 19:30</div>
+          <div class="k">Change Notes</div><div class="v">Upgraded to HEVC Main10 for HDR support</div>
+        </div>
+      </div>
+      <div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px">
+          <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Used By (Dependency Preview)</div>
+          <div class="usedby">
+            <div class="item">
+              <div class="label">Channels</div>
+              <div class="name">CH01 · CH03</div>
+              <div class="state">2 ACTIVE</div>
+            </div>
+            <div class="item">
+              <div class="label">Graphs</div>
+              <div class="name">Graph-21 · Graph-25</div>
+              <div class="state">2 compiled</div>
+            </div>
+            <div class="item">
+              <div class="label">Variants</div>
+              <div class="name">V-CH01-HLS · V-CH03-HLS</div>
+              <div class="state">2 active</div>
+            </div>
+            <div class="item">
+              <div class="label">Active Sessions</div>
+              <div class="name">2 sessions</div>
+              <div class="state">last 24h</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn">View Dependency Graph →</button>
+      <button class="btn">Diff vs Previous v2</button>
+      <button class="btn">Open Change Set →</button>
+      <button class="btn l2">Mark DEPRECATED (L2)</button>
+    </div>
+  </div>
+</details>
+
+<!-- Preset Selection (Create Profile flow) -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Preset / Template 预设模板 (Create Profile 流程)</summary>
+  <div class="section-content" style="margin-top:8px">
+    <h3 class="section-h">Create Encoding Profile — Start From Preset</h3>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      <div style="background:var(--bg2);border:2px solid var(--accent);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">● Broadcast 1080p25 H.264</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">H.264 High@4.1 · 5 Mbps CBR · Closed GOP</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Broadcast 1080p25 HEVC</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">HEVC Main10 · 4 Mbps CBR · HDR10</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Low Latency H.264</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">H.264 Baseline · 2 Mbps · LL-HLS</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Archive Master</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">HEVC 4:2:2 10bit · 50 Mbps</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Proxy 720p</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">H.264 · 1.5 Mbps · Preview</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Mobile</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">H.264 480p · 800 kbps</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Web H.264 1080p</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">H.264 High · 6 Mbps · Web</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer">
+        <div style="font-weight:600">○ Custom 自定义</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">从空白开始 · Start from blank</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;color:var(--fgdim);font-size:11px">
+      Preset 流程: 选择 Preset → 自动填充 10 sections → Engineer 微调 → Validation → 保存为新版本
+    </div>
+  </div>
+</details>
+
+<!-- 6 状态样例 -->
+<details style="margin-bottom:12px">
+  <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ 6 状态样例 (P-21)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>Profile ACTIVE + Validation PASS</td><td>10 tab 全绿 + Validation 绿色边框</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>首次 / 刷新</td><td>10 tab 各自 Skeleton</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 profiles (新系统)</td><td>引导 "Create from Preset"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>Resource OK 但 Compatibility 警告</td><td>黄色 Banner + tab 角标黄</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>Validation FAIL (字段不一致)</td><td>Validation 红框 + Why Not Usable 列表 + 修复操作</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>Encoder 不可用 (N/A) → Profile DEPRECATED</td><td>Validation 红框 + "Profile 不可用" 顶部红条</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<footer>
+  VBMF Phase 0.5B.1 · P-21 Encoding Profile Builder · 10 sections + Preset + Why Not Usable
+  <br>中英双语 · i18n key 驱动 · Phase 0.5B Closure-1 §18 锁定
+</footer>
+</body>
+</html>
