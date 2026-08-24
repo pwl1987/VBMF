@@ -4,13 +4,17 @@
 > 本阶段不修改架构，只做"操作员级"验证。
 >
 > **Phase 0.5.1** — Stateful Operator UX Closure（12 项 UI 语义修复）已完成，详见 [`ERRATA.md`](ERRATA.md)
+>
+> **Phase 0.5.1 Final** — 8 项收口（4 P0 + 3 P1 + 1 文档统一），Phase 0.5 → **LOCK FINAL**
 
 ## 范围（按 V0.2 §10 / §11 锁定）
 
-1. **操作员工作流文档** — 1 份
-2. **9 Low-Fi Wireframe** — HTML（**中英双语**；Dark Mode First；24/7 广播机房）
-3. **4 关键操作链原型** — 文档级可走通的流程规范
-4. **Phase 0.5.1 新增** — 1 状态总览页 (`10-states.html`) + 12 项 UI 语义修复 (见 `ERRATA.md`)
+1. **9 Core Operational Pages** — 正式产品工作域
+2. **+ 1 Validation / State Reference Page** (`10-states.html`) — Phase 0.5 验收辅助
+3. = **10 HTML artifacts** 总计
+4. **中英双语**；Dark Mode First；24/7 广播机房
+5. **4 关键操作链** — 文档级可走通的流程规范
+6. **Phase 0.5.1 修复** — 12 + 8 项 UI 语义收口 (见 `ERRATA.md`)
 
 ## 目录
 
@@ -19,26 +23,27 @@ phase-0.5/
 ├── README.md                       # 本目录说明（中英标签）
 ├── INDEX.md                        # 本文件
 ├── OPERATOR_WORKFLOW.md            # 操作员工作流（角色 / 流程 / 危险操作分层 / 状态机）
-├── ERRATA.md                       # Phase 0.5.1 变更归档（12 项 UI 语义修复）
-├── wireframes/                     # 10 Low-Fi HTML 线框（中英双语，Dark Mode）
-│   ├── 01-dashboard.html           # 主控台 (P0-2 + P2-1)
-│   ├── 02-sources.html             # 源管理 (P1-6 Clock Reference)
-│   ├── 03-switcher.html            # 切播器 / Take (P0-3 5 状态机 + L2)
-│   ├── 04-composition.html         # 图文 + 24h Timeline (P0-4)
-│   ├── 05-audio.html               # 音频混音 (P1-3 广播安全区)
-│   ├── 06-output.html              # 输出 (P1-4 3 视图 + Latency Probe)
-│   ├── 07-recording.html           # 录制 / Replay (P1-5 Incident→Replay)
-│   ├── 08-graph-designer.html      # Signal Graph Designer (P0-1 Scenario + 3 Tab)
-│   ├── 09-health-tree.html         # Health Tree (P0-5 + P1-2 3 视图)
-│   └── 10-states.html              # 10 状态总览 (P2-2 新增)
-└── chains/                         # 4 关键操作链
-    ├── chain-1-on-air.md           # 链 1：播出（Operator）
-    ├── chain-2-failure.md          # 链 2：故障（Operator + System）
-    ├── chain-3-playout.md          # 链 3：节目单（Director）
-    └── chain-4-engineering.md      # 链 4：工程（Engineer）
+├── ERRATA.md                       # Phase 0.5.1 变更归档（12 + 8 项 UI 语义修复）
+├── wireframes/                     # 10 HTML 线框（中英双语，Dark Mode）
+│   ├── 01-09: 9 Core Operational Pages  (正式产品工作域)
+│   │   ├── 01-dashboard.html        # 主控台 (P0-2 + P2-1)
+│   │   ├── 02-sources.html          # 源管理 (P1-6 Clock Reference)
+│   │   ├── 03-switcher.html         # 切播器 / Take (P0-3 5 状态机 + L2)
+│   │   ├── 04-composition.html      # 图文 + 24h Timeline (P0-4)
+│   │   ├── 05-audio.html            # 音频混音 (P1-3 广播安全区)
+│   │   ├── 06-output.html           # 输出 (P1-4 3 视图 + Latency Probe)
+│   │   ├── 07-recording.html        # 录制 / Replay (P1-5 Incident→Replay)
+│   │   ├── 08-graph-designer.html   # Signal Graph Designer (P0-1 Scenario + 3 Tab)
+│   │   └── 09-health-tree.html      # Health Tree (P0-5 + P1-2 3 视图)
+│   └── 10-states.html               # 1 Validation Page (State Reference · 不在 9 Core 计数)
+└── chains/                          # 4 关键操作链
+    ├── chain-1-on-air.md            # 链 1：播出（Operator）
+    ├── chain-2-failure.md           # 链 2：故障（Operator + System）
+    ├── chain-3-playout.md           # 链 3：节目单（Director）
+    └── chain-4-engineering.md       # 链 4：工程（Engineer）
 ```
 
-## 10 页面清单（V0.2 §10 · Phase 0.5.1 含 1 状态总览页）
+## 9 Core Operational Pages + 1 Validation Page 清单
 
 | # | 页面 | 主要角色 | 关键 Engines | Phase 0.5.1 修复 |
 |---|---|---|---|---|
@@ -50,8 +55,8 @@ phase-0.5/
 | 6 | Output 输出 | Operator | Output (SRS Adapter) | P1-4（3 视图 + Latency Probe） |
 | 7 | Recording 录制 | Operator | Recording (5 min chunk) | P1-5（Incident → Replay 工作流） |
 | 8 | Graph Designer 图设计 | Engineer | X1 Graph Compiler / X2 Preflight | P0-1（Scenario + 3 Tab + Edge Inspector） |
-| 9 | Health Tree 健康树 | 全员 | X5 Health Tree / §3.9 Aggregation | P0-5（CSS 修复）+ P1-2（3 视图） |
-| 10 | **10 States 状态总览** | 全员 | 三轴 Runtime State | P2-2（新增 — 10 状态样例） |
+| 9 | Health Tree 健康树 | 全员 | X5 Health Tree / §3.9 Aggregation | P0-5（CSS 修复）+ P1-2（3 视图 + 9 Subsystem 对齐） |
+| 10 | **10 States Validation** | 全员 | 三轴 Runtime State | P2-2（10 状态样例 · 验收辅助 · **不在 9 Core 计数**） |
 
 ## 4 关键操作链（V0.2 §10.11）
 
@@ -75,8 +80,8 @@ phase-0.5/
 - [x] 9 wireframe 都有 HTML 文件可打开（中英双语，Dark Mode 24/7）
 - [x] 4 操作链都从主控台出发，能走到目标终点
 - [x] 所有危险操作（Take / Apply / Failover）都有二次确认
-- [x] Health Tree 9 页面能展示 7 Health Invariants
-- [x] OPERATOR_WORKFLOW.md 包含：角色矩阵、状态机、危险操作分层、4 链 + 9 页面映射
+- [x] Health Tree (9 Core Page) 能展示 7 Health Invariants
+- [x] OPERATOR_WORKFLOW.md 包含：角色矩阵、状态机、危险操作分层、4 链 + 9 Core Page 映射 + 1 Validation Page
 
 ## 下一步
 

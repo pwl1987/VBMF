@@ -30,7 +30,24 @@
 （= EffectiveChannelStatus：HEALTHY / DEGRADED / FAILED / STARTING / STOPPED / UNKNOWN）
 **禁止** UI 直接读 `media_session_runtime.health` 当作 Channel Status（V0.2.4 Errata-13 锁定）。
 
-## 3. 9 页面与操作流程
+## 3. 9 核心页面 + 1 验收辅助页
+
+> **9 Core Operational Pages** = 正式产品工作域
+> **+ 1 Validation / State Reference Page** (`10-states.html`) = Phase 0.5 验收辅助页
+> = **10 HTML artifacts** 总计
+
+| # | 页面 | 角色 | 工作域 |
+|---|---|---|---|
+| 1 | Dashboard | Operator | 9 核心 / Core |
+| 2 | Sources | Engineer | 9 核心 / Core |
+| 3 | Switcher | Operator | 9 核心 / Core |
+| 4 | Composition | Director | 9 核心 / Core |
+| 5 | Audio | Operator | 9 核心 / Core |
+| 6 | Output | Operator | 9 核心 / Core |
+| 7 | Recording | Operator | 9 核心 / Core |
+| 8 | Graph Designer | Engineer | 9 核心 / Core |
+| 9 | Health Tree | 全员 | 9 核心 / Core |
+| 10 | **10 States 总览** | 全员 | **1 验收辅助 / Validation (不在 9 Core 计数)** |
 
 ### 3.1 Dashboard（主控台）
 
@@ -184,7 +201,7 @@ CH01 (Channel: HEALTHY)
 | PVW/PGM 预览/节目 | §3.7 Program Master（Video Join） |
 | TAKE 切播 | §3.4 Switch Mode Decision Tree |
 | Health 颜色 | §5 channel_health_view（C.26 Errata-14 7 规则） |
-| 9 页面 | §10 UX 架构（7+2） |
+| 9 核心页面 + 1 验收辅助页 (10-states) | §10 UX 架构（7+2+1 Validation） |
 | Change Set 变更集 | §1.21 + §5 config_revisions / change_sets |
 | Incident 事件 | §5 incidents（X4 Incident Timeline） |
 | Recording 录制 | §3 Recording Engine + §5 chunked recording |
@@ -193,7 +210,8 @@ CH01 (Channel: HEALTHY)
 
 - [x] 角色矩阵：Operator / Director / Engineer / Admin
 - [x] 三轴状态机：Lifecycle / Readiness / Health
-- [x] 9 页面：dashboard / sources / switcher / composition / audio / output / recording / graph-designer / health-tree
+- [x] 9 Core Operational Pages：dashboard / sources / switcher / composition / audio / output / recording / graph-designer / health-tree
+- [x] 1 Validation Page：10-states (State Reference · 不在 9 Core 计数)
 - [x] 危险操作 3 层：L1 / L2 / L3
 - [x] 4 操作链：On-Air / Failure / Playout / Engineering
 - [x] 与 V0.2 架构一一对应

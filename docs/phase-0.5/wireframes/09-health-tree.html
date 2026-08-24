@@ -111,49 +111,91 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div style="color:var(--fgdim);font-size:11px;margin-top:4px">EffectiveChannelStatus · Lifecycle=RUNNING · Readiness=READY_TO_TAKE · Health=HEALTHY · Effective Mode=FRAME</div>
     </div>
 
-    <h3><span class="cn">子系统态势</span> / SUBSYSTEMS</h3>
+    <h3><span class="cn">子系统态势</span> / 9 SUBSYSTEMS (V0.2 §3.9 Aggregation SoT)</h3>
     <div class="svc-row">
-      <div class="name"><b>源 Source</b> Primary=A(50p) Backup=B(25p)
+      <div class="name"><b>1. 源 SOURCE</b> Primary=A(50p) Backup=B(25p)
         <div class="reason">RG-001 · Primary 在用 HEALTHY · Backup 已就绪</div>
       </div>
       <span class="state healthy">HEALTHY</span>
     </div>
     <div class="svc-row">
-      <div class="name"><b>切播器 Switcher</b>
-        <div class="reason">Compiled=FRAME · Effective=FRAME · A→B 87ms</div>
+      <div class="name"><b>2. 切播器 SWITCHER</b>
+        <div class="reason">Compiled=FRAME · Effective=FRAME · A→B Measured p95 87ms</div>
       </div>
       <span class="state healthy">HEALTHY</span>
     </div>
     <div class="svc-row">
-      <div class="name"><b>节目主母版 Program Master</b>
-        <div class="reason">Video/Audio/Metadata 三独立 graph 同步</div>
+      <div class="name"><b>3. 图文 COMPOSITION</b> (Program + Variant)
+        <div class="reason">RAW 域双层独立 · Logo/Bug/Subtitle 正常</div>
       </div>
       <span class="state healthy">HEALTHY</span>
     </div>
     <div class="svc-row">
-      <div class="name"><b>输出 SRS</b> HLS=1,247 客户端 / RTMP=OK / WebRTC=⚠
-        <div class="reason">WebRTC drift +15ms（轻微漂移，未触发告警）</div>
+      <div class="name"><b>4. 音频 AUDIO MIXER</b> 8 通道
+        <div class="reason">-23.4 LUFS / -1.3 dBTP / AV sync +12ms / Drift +2.1ms/min</div>
       </div>
-      <span class="state degraded">DEGRADED</span>
+      <span class="state healthy">HEALTHY</span>
     </div>
     <div class="svc-row">
-      <div class="name"><b>录制 Recording</b> 2h14m 持续
+      <div class="name"><b>5. 节目主母版 PROGRAM MASTER</b>
+        <div class="reason">Video/Audio/Metadata 三独立 graph 同步 · RAW 域</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>6. 输出 OUTPUT (SRS)</b> HLS=1,247 / RTMP=OK / WebRTC=0ms
+        <div class="reason">3 个 Variant 全部健康 · Latency Probe 在 p95 预算内</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>7. 录制 RECORDING</b> 2h14m 持续
         <div class="reason">本地 NVMe 77% 已用 · 30 天自动清理</div>
       </div>
       <span class="state healthy">HEALTHY</span>
     </div>
     <div class="svc-row">
-      <div class="name"><b>时钟 Clock</b> PTP 锁定
-        <div class="reason">Fallback: TIMECODE → SYSTEM</div>
+      <div class="name"><b>8. 时钟 CLOCK</b> PTP 锁定
+        <div class="reason">Fallback chain: PTP (active) → TIMECODE → SYSTEM</div>
       </div>
       <span class="state healthy">HEALTHY</span>
     </div>
     <div class="svc-row">
-      <div class="name"><b>SDI 主输出</b> (V0.4 目标)
-        <div class="reason">Architecture Contract RESERVED · V0.2 DISABLED</div>
+      <div class="name"><b>9. 资源 RESOURCE</b>
+        <div class="reason">CPU 38% / RAM 22% / 1× BMD 输出端口空闲 / PCIe 充足</div>
       </div>
-      <span class="state disabled">DISABLED</span>
+      <span class="state healthy">HEALTHY</span>
     </div>
+
+    <details style="margin-top:12px">
+      <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ 查看 DEGRADED 示例 (CH01 = DEGRADED) — 9 Subsystem 聚合语义</summary>
+      <div class="channel-status-card" style="border-color:var(--yellow);background:#3a3a1a;margin-top:8px">
+        <div class="name">CH01 — News HD 新闻频道</div>
+        <div class="big" style="color:var(--yellow)">● DEGRADED 降级</div>
+        <div style="color:var(--fgdim);font-size:11px;margin-top:4px">EffectiveChannelStatus · Lifecycle=RUNNING · Readiness=READY_TO_TAKE · Health=DEGRADED · Effective Mode=FRAME</div>
+      </div>
+      <div class="svc-row">
+        <div class="name"><b>6. 输出 OUTPUT (SRS)</b> HLS=1,210 / RTMP=OK / <b>WebRTC=⚠</b>
+          <div class="reason">WebRTC drift +15ms (轻微漂移, 触发 §3.9 Rule 2 ACTIVE+DEGRADED)</div>
+        </div>
+        <span class="state degraded">DEGRADED</span>
+      </div>
+      <p style="color:var(--fgdim);font-size:10px;margin-top:6px">
+        <b>聚合 / Aggregation:</b> Rule 2 ACTIVE+DEGRADED → channel_health_aggregation=DEGRADED →
+        <code>channel_health_view.effective_channel_status=DEGRADED</code>。<br>
+        <b>Operator Action:</b> WebRTC 仅是 DEGRADED (尚未 FAILED), 观察 30 分钟, 漂移 &gt; 50ms 触发 ALERT; <code>failover_benchmarks</code> 不记录 (p95 未越界)。
+      </p>
+    </details>
+
+    <details style="margin-top:8px">
+      <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ SDI 主输出 (V0.4 目标) — Architecture Contract RESERVED</summary>
+      <div class="svc-row">
+        <div class="name"><b>10. SDI 主输出 (V0.4 目标, 不在 9 Subsystem 计数)</b>
+          <div class="reason">Architecture Contract: RESERVED · V0.2 Implementation: DISABLED · Target: V0.4</div>
+        </div>
+        <span class="state disabled">DISABLED</span>
+      </div>
+    </details>
 
     <h3 style="margin-top:16px"><span class="cn">快速操作</span> / QUICK ACTIONS</h3>
     <button class="btn">📜 查看故障</button>

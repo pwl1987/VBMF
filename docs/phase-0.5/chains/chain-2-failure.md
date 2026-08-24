@@ -24,7 +24,7 @@
   ↓
 [Auto Failover → Source.B STANDBY → ACTIVE]
   ↓
-[Filler 兜底（If 切换 > 1s）]
+[Filler 兜底（按 §8.9 Safety Policy）]
   ↓
 [Operator 收到 INCIDENT 通知]
   ↓
@@ -44,7 +44,7 @@
 | 5 | effective_channel_status | 自动 | Policy: FAILED | channel_health_view.effective=FAILED |
 | 6 | Switch Decision Tree | 自动 | §3.4 step 1-4 | FRAME_SWITCH |
 | 7 | Source.B 接管 | 自动 | Backup STANDBY→ACTIVE, Primary→OFFLINE | node_role 翻转 |
-| 8 | Filler 兜底 | 自动 | 切换 > 1s → Filler | 减少观众感知 |
+| 8 | Filler 兜底 | 自动 | 按 §8.9 Safety Policy (不写固定阈值) | 减少观众感知 |
 | 9 | ALERT 到 Operator | 自动 | Push + Dashboard 红条 | Operator 知道 |
 | 10 | Incident 建档 | 自动 | X4 Incident Timeline | incidents 表 #1248 |
 | 11 | 录像继续 | 自动 | Recording Engine 不中断 | Chunk 完整 |

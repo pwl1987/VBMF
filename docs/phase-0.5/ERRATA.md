@@ -272,9 +272,217 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 | P0 必须修 | 5 项 | ✅ 完成 |
 | P1 强烈建议 | 5 项（P1-1 跳号） | ✅ 完成 |
 | P2 锦上添花 | 2 项 | ✅ 完成 |
-| **合计** | **12 项修复** | ✅ **Phase 0.5.1 CLOSED** |
+| **合计** | **12 项修复** | ✅ **Phase 0.5.1 First Round CLOSED** |
 
 > **注：** 原始清单 18 个 issues 来自 4 月初 Phase 0.5 完成后第一次 UI Semantics Review；其中 5 项与已有 5 个 wireframes 改动合并（如 P1-1 合并到 P0-1 Graph Designer 的 [COMPILED] tab），最终落地为 12 项独立修改。
+
+---
+
+# Phase 0.5.1 Final Closure — 8 项收口
+
+> 第二轮复审（22 轮 review 完成后深度复审）发现 4 P0 硬语义错误 + 3 P1 文档/口径 + 1 健康树对账。
+> 修完后 Phase 0.5 → **LOCK FINAL**，不再做 UI 语义设计变更。
+
+## P0 必须修（4 项）
+
+### FC-P0-1 · Graph Designer Edge e-001 · FRAME_SWITCH 输出 Data Plane 错误
+
+**问题：** `Switcher → 视频主节点` Edge Inspector 显示 `Data Plane = COMPRESSED_VIDEO` + `Codec = H.264 High@L4.0`，但 V0.2 §3.4 / §3.7.1 锁定 FRAME_SWITCH 在 RAW 域工作（input/output = RAW_*）。这给工程师错误暗示。
+
+**修复：**
+- Data Plane: `COMPRESSED_VIDEO` → **`RAW_VIDEO`**
+- Codec: `H.264 High@L4.0` → **`N/A (RAW 域, 编码在 Master Join 之后)`**
+- Res: `1920×1080 / 25` → `1920×1080 / 25 (RAW frame)`
+- 目标节点明确加 `(AUTO)` 标识：`视频主节点 (AUTO)`
+
+**文件：** `docs/phase-0.5/wireframes/08-graph-designer.html`
+
+---
+
+### FC-P0-2 · Health Tree Operator View · CH01 HEALTHY + SRS DEGRADED 矛盾
+
+**问题：** Operator View 顶部 CH01 = HEALTHY，但下面 "Output SRS = DEGRADED (WebRTC drift +15ms)"。按 §3.9 Rule 2 ACTIVE+DEGRADED → channel DEGRADED，**两者不能同时成立**。
+
+**修复：**
+1. **正常态修复**：Output SRS 改为 HEALTHY（移除 "WebRTC drift +15ms"）
+2. **新增 DEGRADED 示例**（折叠在 details）：
+   - CH01 = DEGRADED（黄色边框）
+   - Output SRS = DEGRADED
+   - 明确 Aggregation Rule 2 触发
+3. **SDI 主输出 (V0.4)** 移到独立折叠区，标注 "不在 9 Subsystem 计数"
+
+**文件：** `docs/phase-0.5/wireframes/09-health-tree.html`
+
+---
+
+### FC-P0-3 · 10-states FAILOVER · "SWITCHING" 非 Canonical Enum
+
+**问题：** FAILOVER state card 写 `Effective = SWITCHING...`，但 V0.2 Canonical Vocabulary 锁死 `SwitchMode = PACKET/FRAME/MASTER`、`EffectiveChannelStatus = HEALTHY/DEGRADED/FAILED/STARTING/STOPPED/UNKNOWN`、`Lifecycle = STOPPED/STARTING/RUNNING/STOPPING`。**"SWITCHING" 不属于任何 Canonical Enum**。
+
+**修复：**
+- 删除 `Effective = SWITCHING...`
+- 拆为两个 Canonical 字段：
+  - `effective_switch_mode = FRAME_SWITCH`
+  - `switch_execution_state = EXECUTING`
+- Scenario 注明 "SWITCHING 不是 Canonical Enum (V0.2 已锁死)"
+
+**文件：** `docs/phase-0.5/wireframes/10-states.html`
+
+---
+
+### FC-P0-4 · 10-states STOPPING · Channel Health View = STOPPED 违反 Policy
+
+**问题：** STOPPING state card 写 `Channel Health View → ● STOPPED (过渡)`，但 V0.2 Errata-11/12 锁死 `effective_channel_status_policy: lifecycle_terminal > lifecycle_transition > health_tree_aggregation > unknown`，**STARTING/STOPPING 都映射为 STARTING**。
+
+**修复：**
+- Channel Health View: `STOPPED` → **`STARTING (Policy: STARTING/STOPPING → STARTING)`**
+- Scenario 注明 "ECHS=STARTING 是 presentation policy 锁定, 不是 lifecycle 状态"
+- 删除 "持续 2-5s" 固定范围
+
+**文件：** `docs/phase-0.5/wireframes/10-states.html`
+
+---
+
+## P1 强烈建议（3 项）
+
+### FC-P1-1 · Dashboard · 87ms 不能叫 Target
+
+**问题：** Dashboard NEXT pane 写 "目标切换 ~87ms"，Operator Intent Layer 写 "FRAME_SWITCH (87ms 预算)"。但 V0.2 锁死：
+- `target_failover_time_ms` = Policy / Target
+- `failover_benchmarks` = Measured p50/p95/p99
+
+**修复：**
+- "目标切换 ~87ms" → "Target 100ms · Last measured p95 87ms (failover_benchmarks)"
+- "87ms 预算" → "Target 100ms, last p95 87ms"
+
+**文件：** `docs/phase-0.5/wireframes/01-dashboard.html`
+
+---
+
+### FC-P1-2 · 10-states · 删除固定实测范围
+
+**问题：** FAILOVER state card 写 "持续 87ms ~ 2s"，NOT_READY state card 写 "接管慢 1-2s"。V0.2 反复锁死 **禁止固定实测范围**。
+
+**修复：**
+- FAILOVER: "持续 87ms ~ 2s" → "实测由 failover_benchmarks 记录（不是固定范围）"
+- NOT_READY: "接管慢 1-2s" → "由 failover_benchmarks 测量, 不是固定值"
+- STOPPING: "持续 2-5s" → "实测由 benchmark 测量, 不写固定范围"
+
+**文件：** `docs/phase-0.5/wireframes/10-states.html`
+
+---
+
+### FC-P1-3 · 文档统一 · 9 Core Pages + 1 Validation Page = 10 artifacts
+
+**问题：** `OPERATOR_WORKFLOW.md` / `INDEX.md` / `README.md` / `10-states.html` 在 "9 页 vs 10 页" 上有口径漂移。
+
+**修复：** 锁定表述模型：
+```
+9 Core Operational Pages (01-09) = 正式产品工作域
++ 1 Validation / State Reference Page (10-states) = Phase 0.5 验收辅助
+= 10 HTML artifacts
+```
+
+**修改文件：**
+- `docs/phase-0.5/OPERATOR_WORKFLOW.md` — §3 标题 + 验收清单
+- `docs/phase-0.5/INDEX.md` — 范围段 + 目录 + 页面清单表
+- `docs/phase-0.5/README.md` — 范围段 + 页面清单表
+- `docs/phase-0.5/wireframes/10-states.html` — title + header + footer 三处加 "1 Validation Page" 标识
+- `README.md` (顶层) — 核心能力表 / 演进历史 / 文档结构 / 中英 Summary / Current phase / badge 全部更新
+
+---
+
+## 非架构对账（1 项）
+
+### FC-DOC-1 · Health Tree Operator View 9 Subsystem 对齐
+
+**问题：** ERRATA 规范明确 9 Subsystem（SOURCE / SWITCHER / COMPOSITION / AUDIO / MASTER / OUTPUT / RECORDING / CLOCK / RESOURCE），但实际 Operator View 只显示 7 个（缺 COMPOSITION / AUDIO / RESOURCE）。
+
+**修复：** 采用方案 A（推荐）—— 实际补齐 9 Subsystem：
+1. SOURCE
+2. SWITCHER
+3. COMPOSITION
+4. AUDIO MIXER
+5. PROGRAM MASTER
+6. OUTPUT (SRS)
+7. RECORDING
+8. CLOCK
+9. RESOURCE
+
++ 隐藏折叠：DEGRADED 示例 + SDI 主输出 (V0.4 目标)
+
+**文件：** `docs/phase-0.5/wireframes/09-health-tree.html`
+
+---
+
+## 关联 Chain 文档（1 项）
+
+### FC-CHAIN-1 · chain-2-failure.md · Filler 固定阈值改为 Policy
+
+**问题：** Chain 2 流程图写 "Filler 兜底（If 切换 > 1s）"，步骤表写 "切换 > 1s → Filler"。**固定 1s 阈值**不应作为架构规范。
+
+**修复：**
+- 流程图："If 切换 > 1s" → "按 §8.9 Safety Policy"
+- 步骤表："切换 > 1s → Filler" → "按 §8.9 Safety Policy (不写固定阈值)"
+
+**文件：** `docs/phase-0.5/chains/chain-2-failure.md`
+
+---
+
+## Final Closure 总览
+
+| 优先级 | 数量 | 状态 |
+|---|---|---|
+| FC-P0 必须修 | 4 项 | ✅ 完成 |
+| FC-P1 强烈建议 | 3 项 | ✅ 完成 |
+| FC-DOC 文档对账 | 1 项 | ✅ 完成 |
+| FC-CHAIN 链路修正 | 1 项 | ✅ 完成 |
+| **合计** | **8 项收口** | ✅ **Phase 0.5.1 Final CLOSED** |
+
+---
+
+## Final Closure 修改文件清单
+
+```
+docs/phase-0.5/wireframes/01-dashboard.html          (M)  FC-P1-1
+docs/phase-0.5/wireframes/08-graph-designer.html     (M)  FC-P0-1
+docs/phase-0.5/wireframes/09-health-tree.html        (M)  FC-P0-2 + FC-DOC-1
+docs/phase-0.5/wireframes/10-states.html             (M)  FC-P0-3 + FC-P0-4 + FC-P1-2 + FC-P1-3
+docs/phase-0.5/OPERATOR_WORKFLOW.md                  (M)  FC-P1-3
+docs/phase-0.5/INDEX.md                              (M)  FC-P1-3
+docs/phase-0.5/README.md                             (M)  FC-P1-3
+docs/phase-0.5/ERRATA.md                             (M)  本段
+docs/phase-0.5/chains/chain-2-failure.md             (M)  FC-CHAIN-1
+README.md                                            (M)  FC-P1-3
+```
+
+---
+
+## Phase 0.5 LOCK FINAL 判定
+
+| 维度 | 状态 |
+|---|---|
+| 信息架构 | 🟢 PASS |
+| 9 Core Workflow | 🟢 PASS |
+| Chain 1 (On-Air) | 🟢 PASS |
+| Chain 2 (Failure) | 🟢 PASS (FC-CHAIN-1 修后) |
+| Chain 3 (Playout) | 🟢 PASS |
+| Chain 4 (Engineering) | 🟢 PASS (FC-P0-1 修后) |
+| TAKE State Machine | 🟢 PASS |
+| Operator Intent | 🟢 PASS |
+| Timeline / Playout | 🟢 PASS |
+| Incident → Replay | 🟢 PASS |
+| Clock Reference | 🟢 PASS |
+| Graph Compiler UX | 🟢 PASS (FC-P0-1 修后) |
+| Health Tree | 🟢 PASS (FC-P0-2 + FC-DOC-1 修后) |
+| State Catalogue | 🟢 PASS (FC-P0-3 + FC-P0-4 修后) |
+| 文档一致性 | 🟢 PASS (FC-P1-3 修后) |
+| **Phase 0.5 Freeze** | 🟢 **LOCK FINAL** |
+
+**Operator UX Semantics = CLOSED**
+**UI Architecture = IMPLEMENTATION AUTHORITY**
+**下一阶段直接 Phase 0.6 — Executable Acceptance Specification**
+**不再继续讨论 "还要不要加页面 / 加功能"**
 
 ---
 
@@ -298,14 +506,19 @@ docs/phase-0.5/ERRATA.md                           (A)  本文档
 
 ## 6. Phase 0.5.1 → Phase 0.6 衔接
 
+> **Phase 0.5 → LOCK FINAL**（Final Closure 8 项已收口）
+> **Operator UX Semantics → CLOSED**
+> **UI Architecture → IMPLEMENTATION AUTHORITY**
+
 Phase 0.5.1 完成后，UI 已具备：
-- ✅ 三轴 Runtime 状态（10 状态样例）
+- ✅ 9 Core Operational Pages + 1 Validation State Page = **10 HTML artifacts**
+- ✅ 三轴 Runtime 状态（10 状态样例 · 全部使用 Canonical Enum）
 - ✅ 5 状态 TAKE 状态机 + L2 确认
 - ✅ Incident → Replay 工作流
 - ✅ Clock Reference 完整呈现
 - ✅ Operator Intent Layer
 - ✅ Graph Designer [DESIGN / COMPILED / VALIDATION] 三 Tab
-- ✅ 9 页面 + 1 状态总览页 = **10 页面**
+- ✅ Health Tree 9 Subsystem + 3 视图 + 7 Health Invariants
 - ✅ 4 操作链全部能在 UI 上找到对应入口
 
 下一阶段 **Phase 0.6 — Executable Acceptance Specification**：
@@ -328,4 +541,4 @@ Phase 0.5.1 完成后，UI 已具备：
 
 ---
 
-**VBMF Contributors** · Phase 0.5.1 UI Semantics Closure · 12 项修复完成
+**VBMF Contributors** · Phase 0.5 LOCK FINAL · Phase 0.5.1 20 项 UI 语义修复（12 + 8 Final Closure）
