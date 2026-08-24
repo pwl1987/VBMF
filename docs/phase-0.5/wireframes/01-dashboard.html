@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>01 Dashboard — VBMF Phase 0.5 Low-Fi</title>
+<title>01 Dashboard 主控台 — VBMF Phase 0.5 Low-Fi</title>
 <style>
 :root{
   --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
@@ -10,24 +10,29 @@
   --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
 header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
 header .left{display:flex;gap:12px;align-items:center}
 header select,header .time{background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:4px 8px;border-radius:4px}
+.lang{font-size:11px;color:var(--fgdim)}
+.lang b{color:var(--accent)}
 .main{display:grid;grid-template-columns:1fr 1fr 240px;gap:12px}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;min-height:280px}
 .panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-.video{background:#000;border:1px solid var(--border);border-radius:4px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:24px;position:relative}
+.panel h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
+.video{background:#000;border:1px solid var(--border);border-radius:4px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:20px;position:relative}
 .video .label{position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:3px;font-size:11px}
+.video .label.right{left:auto;right:8px}
 .status .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
 .status .row:last-child{border-bottom:none}
 .status .val{font-weight:600}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .green{background:var(--green)}.yellow{background:var(--yellow)}.red{background:var(--red)}.gray{background:var(--gray)}
 .controls{margin-top:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;display:flex;justify-content:space-between;align-items:center}
-.take{background:var(--red);color:#fff;border:none;padding:10px 24px;font-size:14px;font-weight:700;border-radius:4px;cursor:pointer;letter-spacing:2px}
+.take{background:var(--red);color:#fff;border:none;padding:10px 24px;font-size:13px;font-weight:700;border-radius:4px;cursor:pointer;letter-spacing:1px}
 .take:hover{background:#ff6b6b}
 .queued{color:var(--fgdim);font-size:12px}
+.queued b{color:var(--fg)}
 footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
 a{color:var(--accent);text-decoration:none}
 </style>
@@ -35,58 +40,59 @@ a{color:var(--accent);text-decoration:none}
 <body>
 <header>
   <div class="left">
-    <span>Channel: <select><option>CH01 — News HD</option><option>CH02 — Sports 4K</option><option>CH03 — Music SD</option></select></span>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <span>频道 / Channel: <select><option>CH01 — News HD 新闻</option><option>CH02 — Sports 4K 体育</option><option>CH03 — Music SD 音乐</option></select></span>
     <span class="time">14:32:15 CST</span>
   </div>
   <div class="right">
-    <span style="color:var(--fgdim)">Profile: <b>op</b> · Role: Operator</span>
+    <span style="color:var(--fgdim)">用户 / Profile: <b>op</b> · 角色 / Role: 操作员 / Operator</span>
   </div>
 </header>
 
 <div class="main">
   <div class="panel">
-    <h3>PVW — Preview</h3>
+    <h3><span class="cn">PVW 预览</span> / PREVIEW</h3>
     <div class="video">
-      <span class="label">Source.B / 1080p25 / H.264</span>
-      ▶ Source B (Preview)
+      <span class="label">Source.B · 1080p25 · H.264</span>
+      ▶ Source B (Preview 预览)
     </div>
   </div>
   <div class="panel">
-    <h3>PGM — Program · ON AIR</h3>
+    <h3><span class="cn">PGM 节目·直播</span> / PROGRAM · ON AIR</h3>
     <div class="video" style="border-color:var(--red)">
-      <span class="label" style="background:var(--red)">● LIVE</span>
-      <span class="label" style="left:auto;right:8px">Source.A / 1080p25 / H.264</span>
-      ▶ Source A (On Air)
+      <span class="label" style="background:var(--red)">● LIVE 直播</span>
+      <span class="label right">Source.A · 1080p25 · H.264</span>
+      ▶ Source A (On Air 播出中)
     </div>
   </div>
   <div class="panel status">
-    <h3>Channel Status</h3>
-    <div class="row"><span>Effective</span><span class="val" style="color:var(--green)"><i class="dot green"></i>HEALTHY</span></div>
-    <div class="row"><span>Lifecycle</span><span class="val">RUNNING</span></div>
-    <div class="row"><span>Readiness</span><span class="val">READY_TO_TAKE</span></div>
-    <div class="row"><span>Health</span><span class="val">HEALTHY</span></div>
-    <div class="row"><span>Switch Mode</span><span class="val">PACKET</span></div>
-    <div class="row"><span>Hot-Standby</span><span class="val">HOT</span></div>
-    <div class="row"><span>Uptime</span><span class="val">02:14:37</span></div>
-    <div class="row"><span>Latency p95</span><span class="val">2.1s</span></div>
+    <h3><span class="cn">通道状态</span> / CHANNEL STATUS</h3>
+    <div class="row"><span>Effective 有效</span><span class="val" style="color:var(--green)"><i class="dot green"></i>HEALTHY 健康</span></div>
+    <div class="row"><span>Lifecycle 生命周期</span><span class="val">RUNNING 运行中</span></div>
+    <div class="row"><span>Readiness 就绪</span><span class="val">READY_TO_TAKE 可接管</span></div>
+    <div class="row"><span>Health 健康</span><span class="val">HEALTHY 健康</span></div>
+    <div class="row"><span>Switch Mode 切播</span><span class="val">PACKET</span></div>
+    <div class="row"><span>Hot-Standby 热备</span><span class="val">HOT (100ms)</span></div>
+    <div class="row"><span>Uptime 运行时长</span><span class="val">02:14:37</span></div>
+    <div class="row"><span>Latency p95 延迟</span><span class="val">2.1s</span></div>
   </div>
 </div>
 
 <div class="controls">
   <div>
-    <button class="take">⬆ TAKE</button>
-    <span class="queued" style="margin-left:16px">Cut to: <b>Source.B (Backup)</b> · queued 14:35:00</span>
+    <button class="take">⬆ TAKE 切播</button>
+    <span class="queued" style="margin-left:16px">切到 / Cut to: <b>Source.B (Backup 备份)</b> · 已排 / queued 14:35:00</span>
   </div>
   <div>
-    <a href="02-sources.html">→ Sources</a>
-    <a href="03-switcher.html" style="margin-left:12px">→ Switcher</a>
-    <a href="06-output.html" style="margin-left:12px">→ Output</a>
-    <a href="09-health-tree.html" style="margin-left:12px">→ Health Tree</a>
+    <a href="02-sources.html">→ 源管理 Sources</a>
+    <a href="03-switcher.html" style="margin-left:12px">→ 切播器 Switcher</a>
+    <a href="06-output.html" style="margin-left:12px">→ 输出 Output</a>
+    <a href="09-health-tree.html" style="margin-left:12px">→ 健康树 Health Tree</a>
   </div>
 </div>
 
 <footer>
-  VBMF Phase 0.5 · Wireframe 01/09 · V0.2 Architecture Baseline LOCK FINAL
+  VBMF Phase 0.5 · 线框 01/09 · V0.2 架构基线 LOCK FINAL · 中英双语 / Bilingual UI
 </footer>
 </body>
 </html>

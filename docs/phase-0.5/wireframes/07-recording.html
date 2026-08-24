@@ -2,15 +2,17 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>07 Recording — VBMF Phase 0.5 Low-Fi</title>
+<title>07 Recording 录制 — VBMF Phase 0.5 Low-Fi</title>
 <style>
 :root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
 .panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.panel h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
 .metric{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
 .metric:last-child{border-bottom:none}
 .metric .val{font-weight:600;font-family:Menlo,Consolas,monospace}
@@ -18,76 +20,80 @@ header,nav{display:flex;justify-content:space-between;align-items:center;padding
 .diskbar .used{height:100%;background:linear-gradient(to right,var(--green) 0%,var(--green) 60%,var(--yellow) 80%,var(--red) 100%)}
 .chunk{font-family:Menlo,Consolas,monospace;font-size:11px;padding:4px 8px;border-left:2px solid var(--green);margin-bottom:4px;background:var(--bg3)}
 .chunk.now{border-left-color:var(--accent);background:var(--bg3)}
+a{color:var(--accent);text-decoration:none}
 .btn{padding:3px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
 .btn:hover{background:var(--accent);color:#fff}
 .btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
-a{color:var(--accent);text-decoration:none}
 footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">Recording — Chunked (5 min) + Event 回溯</h2>
-  <div><a href="06-output.html">← Output</a> | <a href="08-graph-designer.html">Graph Designer →</a></div>
+  <h2 style="font-size:14px">录制 / Recording — Chunked 分段 (5 min) + Event 事件回溯</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="06-output.html" style="margin-left:12px">← 输出 Output</a>
+    <a href="08-graph-designer.html" style="margin-left:12px">图设计 Graph Designer →</a>
+  </div>
 </header>
 
 <div class="row">
   <div class="panel">
-    <h3>Active Recordings</h3>
-    <div class="metric"><span>CH01 News HD</span><span class="val" style="color:var(--green)">● REC (02:14:37)</span></div>
-    <div class="metric"><span>CH02 Sports 4K</span><span class="val" style="color:var(--gray)">○ Idle</span></div>
-    <div class="metric"><span>CH03 Music SD</span><span class="val" style="color:var(--green)">● REC (08:42:11)</span></div>
+    <h3><span class="cn">正在录制</span> / ACTIVE RECORDINGS</h3>
+    <div class="metric"><span>CH01 News HD 新闻</span><span class="val" style="color:var(--green)">● REC 录制中 (02:14:37)</span></div>
+    <div class="metric"><span>CH02 Sports 4K 体育</span><span class="val" style="color:var(--gray)">○ Idle 空闲</span></div>
+    <div class="metric"><span>CH03 Music SD 音乐</span><span class="val" style="color:var(--green)">● REC 录制中 (08:42:11)</span></div>
   </div>
   <div class="panel">
-    <h3>Storage</h3>
-    <div class="metric"><span>Total</span><span class="val">5.46 TB</span></div>
-    <div class="metric"><span>Used</span><span class="val" style="color:var(--yellow)">4.21 TB (77%)</span></div>
-    <div class="metric"><span>Free</span><span class="val">1.25 TB</span></div>
-    <div class="metric"><span>Retention</span><span class="val">30 days (auto-purge)</span></div>
+    <h3><span class="cn">存储</span> / STORAGE</h3>
+    <div class="metric"><span>总容量 / Total</span><span class="val">5.46 TB</span></div>
+    <div class="metric"><span>已用 / Used</span><span class="val" style="color:var(--yellow)">4.21 TB (77%)</span></div>
+    <div class="metric"><span>可用 / Free</span><span class="val">1.25 TB</span></div>
+    <div class="metric"><span>保留 / Retention</span><span class="val">30 days 30天 (auto-purge 自动清理)</span></div>
     <div class="diskbar"><div class="used" style="width:77%"></div></div>
-    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">⚠ 77% used · 预计 8 天后满</p>
+    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">⚠ 77% used · 预计 8 天后满 / 8 days until full</p>
   </div>
 </div>
 
 <div class="panel">
-  <h3>Recent Chunks — CH01 News HD</h3>
-  <div class="chunk now">14:30:00 → 14:35:00 · in-progress · 5min · ~750 MB</div>
-  <div class="chunk">14:25:00 → 14:30:00 · 5min · 750 MB · <a href="#incident-1248">⚠ Incident #1248</a></div>
+  <h3><span class="cn">最近分段</span> / RECENT CHUNKS — CH01 News HD 新闻</h3>
+  <div class="chunk now">14:30:00 → 14:35:00 · 进行中 in-progress · 5min · ~750 MB</div>
+  <div class="chunk">14:25:00 → 14:30:00 · 5min · 750 MB · <a href="#incident-1248">⚠ 事件 Incident #1248</a></div>
   <div class="chunk">14:20:00 → 14:25:00 · 5min · 750 MB</div>
-  <div class="chunk">14:15:00 → 14:20:00 · 5min · 750 MB · <a href="#incident-1247">⚠ Incident #1247</a></div>
+  <div class="chunk">14:15:00 → 14:20:00 · 5min · 750 MB · <a href="#incident-1247">⚠ 事件 Incident #1247</a></div>
   <div class="chunk">14:10:00 → 14:15:00 · 5min · 750 MB</div>
   <div class="chunk">14:05:00 → 14:10:00 · 5min · 750 MB</div>
   <div style="margin-top:8px;text-align:right">
-    <button class="btn">⏮ Previous Hour</button>
-    <button class="btn">⏭ Next Hour</button>
-    <button class="btn">🔍 Search by Tag/Time</button>
+    <button class="btn">⏮ 上小时 Previous Hour</button>
+    <button class="btn">⏭ 下小时 Next Hour</button>
+    <button class="btn">🔍 按时间/标签搜索</button>
   </div>
 </div>
 
 <div class="row" style="margin-top:12px">
   <div class="panel">
-    <h3>Recent Incidents (X4 Timeline)</h3>
-    <div class="chunk">14:25:21 · Source.B frozen 5s · Auto Failover · <b>#1248</b></div>
-    <div class="chunk">14:15:21 · AV sync drift +12ms · Compensated · <b>#1247</b></div>
-    <div class="chunk">13:42:09 · HLS slice failed · Restart Adapter · <b>#1246</b></div>
-    <div class="chunk" style="border-left-color:var(--yellow)">12:08:47 · Manual TAKE · Operator logged · <b>#1245</b></div>
+    <h3><span class="cn">最近事件</span> / RECENT INCIDENTS (X4 Timeline)</h3>
+    <div class="chunk">14:25:21 · Source.B 冻结 5s · 自动接管 Auto Failover · <b>#1248</b></div>
+    <div class="chunk">14:15:21 · AV 同步漂移 +12ms · 已补偿 Compensated · <b>#1247</b></div>
+    <div class="chunk">13:42:09 · HLS 切片失败 · 重启 Adapter · <b>#1246</b></div>
+    <div class="chunk" style="border-left-color:var(--yellow)">12:08:47 · 手动 TAKE · 操作员已记录 · <b>#1245</b></div>
   </div>
   <div class="panel">
-    <h3>Actions</h3>
+    <h3><span class="cn">操作</span> / ACTIONS</h3>
     <div style="margin-bottom:8px">
-      <button class="btn">⏯ Pause Recording (CH01)</button>
-      <button class="btn">⏯ Pause Recording (CH03)</button>
+      <button class="btn">⏯ 暂停录制 (CH01)</button>
+      <button class="btn">⏯ 暂停录制 (CH03)</button>
     </div>
     <div>
-      <button class="btn danger">⚠ Stop & Archive</button>
-      <button class="btn">📤 Export Chunk Range</button>
+      <button class="btn danger">⚠ 停止并归档</button>
+      <button class="btn">📤 导出分段</button>
     </div>
-    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">Recording Engine: 5 min chunk · NVMe 本地 · 自动分段 · 事件回溯关联</p>
+    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">录制引擎 / Recording Engine: 5 min chunk · NVMe 本地 · 自动分段 · 事件回溯关联</p>
   </div>
 </div>
 
 <footer>
-  V0.2 §3 Recording Engine · X4 Incident Timeline · 事件回溯直接关联 Chunk
+  V0.2 §3 Recording Engine · X4 Incident Timeline 事件时间线 · 事件回溯直接关联 Chunk
 </footer>
 </body>
 </html>

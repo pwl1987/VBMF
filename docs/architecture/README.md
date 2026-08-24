@@ -1,56 +1,56 @@
-# V0.2 Architecture — Quick Reference
+# V0.2 架构 — 快速参考
 
 > 完整内容见 [`ARCHITECTURE_V0.2.md`](ARCHITECTURE_V0.2.md)（192KB / 4021 lines）。
 > 本文件是**快速参考卡**，用于日常查找关键定义。
 
-## 🚦 Status
+## 🚦 状态
 
 ```yaml
-V0.2 Architecture Baseline:  LOCK FINAL
-V0.2 Runtime Semantics:      CLOSED
-implementation_ambiguity:    NONE
-review_passes:               22
-architecture_changes_after:  FORBIDDEN
-v0_2_5:                      FORBIDDEN
+V0.2 架构基线:            LOCK FINAL
+V0.2 Runtime Semantics:   CLOSED
+implementation_ambiguity: NONE
+review_passes:            22
+architecture_changes_after: FORBIDDEN
+v0_2_5:                   FORBIDDEN
 ```
 
 ## 🏗️ 12 Engines + 5 横向 + 6 横切
 
 | 编号 | 名称 | 说明 |
 |---|---|---|
-| 1 | **Source** | 11 个 Source Adapter（SDI/SRT/RTMP/HLS/...） |
-| 2 | **Switcher** | 3 Switch Mode（PACKET/FRAME/MASTER） |
-| 3 | **Playout** | 节目单 / 时间线 / 插播 |
-| 4 | **Composition** | 图文包装（RAW 域，Program + Variant 两级） |
-| 5 | **Audio** | 混音 / 响度 / 延迟 |
-| 6 | **Output** | 多路分发（SRS Adapter） |
-| 7 | **Recording** | 收录 / 分段（5 min/段） |
-| 8 | **Replay** | 延时 / 回放 |
-| 9-12 | (V0.2 Locked 4 子项) | — |
+| 1 | **Source 源** | 11 个 Source Adapter（SDI/SRT/RTMP/HLS/...） |
+| 2 | **Switcher 切播** | 3 Switch Mode（PACKET/FRAME/MASTER） |
+| 3 | **Playout 播控** | 节目单 / 时间线 / 插播 |
+| 4 | **Composition 图文** | 图文包装（RAW 域，Program + Variant 两级） |
+| 5 | **Audio 音频** | 混音 / 响度 / 延迟 |
+| 6 | **Output 输出** | 多路分发（SRS Adapter） |
+| 7 | **Recording 录制** | 收录 / 分段（5 min/段） |
+| 8 | **Replay 回放** | 延时 / 回放 |
+| 9-12 | (V0.2 锁定 4 子项) | — |
 | 横切 | **X1-X6** | Compiler / Preflight / Versioning / Incident / Health Tree / Capability |
 
 ## 📊 Data Plane 4 Layer × 7 Type
 
-| Layer | Types |
+| Layer 层 | Types 类型 |
 |---|---|
-| **ELEMENTARY** | COMPRESSED_VIDEO, COMPRESSED_AUDIO, RAW_VIDEO, RAW_AUDIO |
-| **CONTAINER** | MULTIPLEXED (TS/MP4/...) |
-| **METADATA** | METADATA (SCTE-35/KLV/Timecode/...) |
-| **CONTROL** | EVENT (QC Alert/Switch Event/...) |
+| **ELEMENTARY 元素** | COMPRESSED_VIDEO, COMPRESSED_AUDIO, RAW_VIDEO, RAW_AUDIO |
+| **CONTAINER 容器** | MULTIPLEXED (TS/MP4/...) |
+| **METADATA 元数据** | METADATA (SCTE-35/KLV/Timecode/...) |
+| **CONTROL 控制** | EVENT (QC Alert/Switch Event/...) |
 
 > ⚠️ **DECODED 是过程，不是 Data Plane 类型。**
 
-## 🔀 Switch Mode 3
+## 🔀 Switch Mode 切播模式 3 种
 
 | Mode | 实现 | 决策 SoT |
 |---|---|---|
-| **PACKET_SWITCH** | 压缩流层直接换 | §3.4 (同一 Mandatory Capability Contract) |
+| **PACKET_SWITCH** | 压缩流层直接换 | §3.4（同一 Mandatory Capability Contract） |
 | **FRAME_SWITCH** | 主备都 decode → RAW 层切 → 重新 encode | §3.4 |
 | **MASTER_SWITCH** | 主备都 normalize → 统一 Master → 在 Master 切 | §3.4 |
 
 > SwitchDecisionResult = PACKET_SWITCH / FRAME_SWITCH / MASTER_SWITCH / **REJECT**（REJECT ≠ SwitchMode）
 
-## 🌡️ Hot-Standby Level 3 (Policy/Target)
+## 🌡️ Hot-Standby Level 3（Policy/Target）
 
 | Level | target_failover_time_ms | use_case |
 |---|---|---|
@@ -65,7 +65,7 @@ v0_2_5:                      FORBIDDEN
 
 7 Health Invariants（V0.2.4 Errata-14 C.26 锁定）：
 
-| ID | Condition | Channel Result |
+| ID | Condition 条件 | Channel Result 通道结果 |
 |---|---|---|
 | **H1** | no ACTIVE+FAILED | (no fire) |
 | **H2** | no ACTIVE+DEGRADED | (no fire) |
@@ -78,9 +78,9 @@ v0_2_5:                      FORBIDDEN
 ## 📊 三轴状态机（§8.11）
 
 ```
-Lifecycle:    STOPPED  →  STARTING  →  RUNNING  →  STOPPING
-Readiness:    NOT_READY  ↔  READY_TO_TAKE
-Health:       HEALTHY / DEGRADED / FAILED / UNKNOWN
+Lifecycle 生命周期:    STOPPED  →  STARTING  →  RUNNING  →  STOPPING
+Readiness 就绪:        NOT_READY  ↔  READY_TO_TAKE
+Health 健康:           HEALTHY / DEGRADED / FAILED / UNKNOWN
 ```
 
 > Channel 对外 status = `channel_health_view.effective_channel_status`（**禁止** UI 直接读 `media_session_runtime.health` 当 Channel Status）
@@ -96,23 +96,23 @@ Health:       HEALTHY / DEGRADED / FAILED / UNKNOWN
 | 5 | lifecycle = RUNNING + aggregation = HEALTHY | HEALTHY |
 | 6 | (else) | UNKNOWN |
 
-## 💥 Failure Domain 9
+## 💥 Failure Domain 故障域 9 类
 
-| Domain | 7 Operational | 2 Diagnostic |
+| 类别 | 7 Operational 运行 | 2 Diagnostic 诊断 |
 |---|---|---|
-| SOURCE | ✓ | |
-| PIPELINE | ✓ | |
-| MASTER | ✓ | |
-| OUTPUT | ✓ | |
-| RECORDING | ✓ | |
-| CLOCK | ✓ | |
-| RESOURCE | ✓ | |
-| PLAYER | | ✓（NOTIFY only） |
-| UNKNOWN | | ✓（SAFE_DEGRADE） |
+| SOURCE 源 | ✓ | |
+| PIPELINE 管道 | ✓ | |
+| MASTER 主母版 | ✓ | |
+| OUTPUT 输出 | ✓ | |
+| RECORDING 录制 | ✓ | |
+| CLOCK 时钟 | ✓ | |
+| RESOURCE 资源 | ✓ | |
+| PLAYER 播放端 | | ✓（NOTIFY only） |
+| UNKNOWN 未知 | | ✓（SAFE_DEGRADE） |
 
 > PLAYER / UNKNOWN **不**触发 Failover；只 NOTIFY / SAFE_DEGRADE。
 
-## 🚨 Switch Mode Decision Tree（§3.4 摘要）
+## 🚨 Switch Mode Decision Tree 切播决策树（§3.4 摘要）
 
 ```
 1. PACKET_SWITCH eligibility
@@ -123,7 +123,7 @@ Health:       HEALTHY / DEGRADED / FAILED / UNKNOWN
 4. REJECT (insufficient)
 ```
 
-## 🔐 Canonical Vocabulary（TS / Rust / JSON Schema / PG enum 共享）
+## 🔐 Canonical Vocabulary 规范词汇（TS / Rust / JSON Schema / PG enum 共享）
 
 ```yaml
 DataPlaneLayer:        ELEMENTARY | CONTAINER | METADATA | CONTROL
@@ -150,7 +150,7 @@ Subsystem:             SOURCE | SWITCHER | COMPOSITION | AUDIO | MASTER | OUTPUT
 #   = replaced by OperationalFailureDomain + DiagnosticFailureClass
 ```
 
-## ❌ Forbidden（V0.2 已锁）
+## ❌ 禁止项（V0.2 已锁）
 
 - ❌ 新增 Engine（12 是最终）
 - ❌ V0.2 Source Adapter 之外的新协议（RIST/Zixi/NDI 等 V0.3）

@@ -2,15 +2,17 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>08 Graph Designer — VBMF Phase 0.5 Low-Fi</title>
+<title>08 Graph Designer 图设计 — VBMF Phase 0.5 Low-Fi</title>
 <style>
 :root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px;height:100vh;display:flex;flex-direction:column}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;height:100vh;display:flex;flex-direction:column}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
 .main{flex:1;display:grid;grid-template-columns:200px 1fr 280px;gap:12px;min-height:0}
 .sidebar, .canvas, .inspector{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-y:auto}
 .sidebar h3,.inspector h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.sidebar h3 .cn,.inspector h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
 .node-palette .item{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 8px;margin-bottom:4px;cursor:grab;font-size:11px}
 .node-palette .item:hover{border-color:var(--accent)}
 .canvas{position:relative;background:var(--bg);background-image:radial-gradient(circle,var(--border) 1px,transparent 1px);background-size:20px 20px}
@@ -31,33 +33,35 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">Signal Graph Designer (X1 + X2)</h2>
+  <h2 style="font-size:14px">图设计 / Signal Graph Designer (X1 + X2)</h2>
   <div>
-    <a href="07-recording.html">← Recording</a> | <a href="09-health-tree.html">Health Tree →</a>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="07-recording.html" style="margin-left:12px">← 录制 Recording</a>
+    <a href="09-health-tree.html" style="margin-left:12px">健康树 Health Tree →</a>
   </div>
 </header>
 
 <div class="main">
   <div class="sidebar">
-    <h3>Node Palette</h3>
+    <h3><span class="cn">节点库</span> / NODE PALETTE</h3>
     <div class="node-palette">
-      <div class="item" style="border-left:3px solid var(--green)">📥 Source (11 types)</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">🔄 Decode / Encode</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">🔄 Normalize (3 sub)</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">🔄 Switcher (3 modes)</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">🎨 Composition</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">🎵 Audio Mixer / Loudness</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">⏱ AV Sync / Master Join</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">🔍 QC</div>
-      <div class="item" style="border-left:3px solid var(--yellow)">📼 Recording</div>
-      <div class="item" style="border-left:3px solid var(--accent)">📤 Output (SRS/SDI/File)</div>
-      <div class="item" style="border-left:3px solid var(--accent)">⏰ Clock Domain</div>
+      <div class="item" style="border-left:3px solid var(--green)">📥 源 Source (11 种类型 types)</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔄 解码 / 编码 Decode / Encode</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔄 标准化 Normalize (3 子能力)</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔄 切播器 Switcher (3 模式)</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🎨 图文 Composition</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🎵 混音 / 响度 Audio Mixer / Loudness</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">⏱ 视音同步 / 主节点 AV Sync / Master Join</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">🔍 质量检测 QC</div>
+      <div class="item" style="border-left:3px solid var(--yellow)">📼 录制 Recording</div>
+      <div class="item" style="border-left:3px solid var(--accent)">📤 输出 Output (SRS/SDI/File)</div>
+      <div class="item" style="border-left:3px solid var(--accent)">⏰ 时钟域 Clock Domain</div>
     </div>
-    <h3 style="margin-top:16px">Edge Policy</h3>
-    <div class="item">Data Plane Label</div>
-    <div class="item">Clock Domain Ref</div>
-    <div class="item">Latency Target</div>
-    <div class="item">Capability Contract</div>
+    <h3 style="margin-top:16px"><span class="cn">边策略</span> / EDGE POLICY</h3>
+    <div class="item">Data Plane 数据面标签</div>
+    <div class="item">Clock Domain 时钟域</div>
+    <div class="item">Latency Target 延迟目标</div>
+    <div class="item">Capability Contract 能力合约</div>
   </div>
 
   <div class="canvas">
@@ -71,27 +75,27 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     </div>
     <div class="gnode process" style="left:200px;top:120px">
       <div class="type">SWITCHER · PACKET</div>
-      <div>Switcher</div>
+      <div>切播器 Switcher</div>
     </div>
     <div class="gnode process" style="left:380px;top:120px">
       <div class="type">COMPOSITION</div>
-      <div>Program Comp</div>
+      <div>节目图文</div>
     </div>
     <div class="gnode process" style="left:560px;top:60px">
       <div class="type">AUDIO MIXER</div>
-      <div>Audio Mix</div>
+      <div>音频混音</div>
     </div>
     <div class="gnode process" style="left:560px;top:180px">
       <div class="type">VIDEO MASTER JOIN</div>
-      <div>Video Join</div>
+      <div>视频主节点</div>
     </div>
     <div class="gnode process" style="left:560px;top:300px">
       <div class="type">AUDIO MASTER JOIN</div>
-      <div>Audio Join</div>
+      <div>音频主节点</div>
     </div>
     <div class="gnode process" style="left:740px;top:180px">
       <div class="type">PROGRAM MASTER</div>
-      <div>Program Master</div>
+      <div>节目主母版</div>
     </div>
     <div class="gnode output" style="left:920px;top:60px">
       <div class="type">ENCODE · H.264</div>
@@ -103,10 +107,9 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     </div>
     <div class="gnode output" style="left:920px;top:300px">
       <div class="type">RECORDING</div>
-      <div>Local NVMe</div>
+      <div>本地 NVMe</div>
     </div>
 
-    <!-- Edges (simplified) -->
     <div class="gedge" style="left:120px;top:78px;width:80px;transform:rotate(30deg)"></div>
     <div class="gedge" style="left:120px;top:198px;width:80px;transform:rotate(-30deg)"></div>
     <div class="gedge" style="left:300px;top:138px;width:80px;transform:rotate(0)"></div>
@@ -115,37 +118,37 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 
   <div class="inspector">
-    <h3>Inspector — Switcher</h3>
-    <div class="row"><span>Type</span><span class="val">PACKET_SWITCH</span></div>
-    <div class="row"><span>Hot-Standby</span><span class="val">HOT (100ms)</span></div>
-    <div class="row"><span>Source A</span><span class="val">SDI / dv0</span></div>
-    <div class="row"><span>Source B</span><span class="val">SDI / dv1</span></div>
-    <div class="row"><span>Capability</span><span class="val">✓ PASS</span></div>
-    <div class="row"><span>Alignment</span><span class="val">✓ PASS</span></div>
-    <div class="row"><span>Data Plane</span><span class="val">RAW_VIDEO</span></div>
-    <div class="row"><span>Clock</span><span class="val">PTP (priority 1)</span></div>
+    <h3><span class="cn">属性</span> / INSPECTOR — Switcher 切播器</h3>
+    <div class="row"><span>类型 / Type</span><span class="val">PACKET_SWITCH</span></div>
+    <div class="row"><span>热备 / Hot-Standby</span><span class="val">HOT (100ms)</span></div>
+    <div class="row"><span>源 A / Source A</span><span class="val">SDI / dv0</span></div>
+    <div class="row"><span>源 B / Source B</span><span class="val">SDI / dv1</span></div>
+    <div class="row"><span>能力 / Capability</span><span class="val">✓ PASS 通过</span></div>
+    <div class="row"><span>对齐 / Alignment</span><span class="val">✓ PASS 通过</span></div>
+    <div class="row"><span>数据面 / Data Plane</span><span class="val">RAW_VIDEO</span></div>
+    <div class="row"><span>时钟 / Clock</span><span class="val">PTP (priority 1)</span></div>
 
-    <h3 style="margin-top:16px">Compile Preview (X1)</h3>
-    <div class="row" style="color:var(--green)"><span>✓ Graph valid</span></div>
-    <div class="row" style="color:var(--green)"><span>✓ Resource ok</span></div>
-    <div class="row" style="color:var(--green)"><span>✓ Clock alignable</span></div>
-    <div class="row" style="color:var(--green)"><span>✓ Latency est. 1.8s</span></div>
-    <div class="row" style="color:var(--yellow)"><span>⚠ 1 auto-insert: Encode</span></div>
+    <h3 style="margin-top:16px"><span class="cn">编译预览</span> / COMPILE PREVIEW (X1)</h3>
+    <div class="row" style="color:var(--green)"><span>✓ 图合法 Graph valid</span></div>
+    <div class="row" style="color:var(--green)"><span>✓ 资源 OK Resource ok</span></div>
+    <div class="row" style="color:var(--green)"><span>✓ 时钟可对齐 Clock alignable</span></div>
+    <div class="row" style="color:var(--green)"><span>✓ 延迟估算 1.8s Latency est.</span></div>
+    <div class="row" style="color:var(--yellow)"><span>⚠ 1 自动插入: Encode auto-insert</span></div>
 
-    <h3 style="margin-top:16px">Preflight (X2)</h3>
-    <div class="row" style="color:var(--green)"><span>✓ 0 critical</span></div>
-    <div class="row" style="color:var(--yellow)"><span>⚠ 1 warning: redundant path</span></div>
+    <h3 style="margin-top:16px"><span class="cn">预检</span> / PREFLIGHT (X2)</h3>
+    <div class="row" style="color:var(--green)"><span>✓ 0 critical 严重</span></div>
+    <div class="row" style="color:var(--yellow)"><span>⚠ 1 warning 警告: redundant path 冗余路径</span></div>
 
     <div style="margin-top:12px">
-      <button class="btn">💾 Save Draft</button>
-      <button class="btn">🧪 Dry Run</button>
-      <button class="btn primary">Apply Change Set</button>
+      <button class="btn">💾 保存草稿 Save Draft</button>
+      <button class="btn">🧪 试运行 Dry Run</button>
+      <button class="btn primary">应用变更集 Apply Change Set</button>
     </div>
   </div>
 </div>
 
 <footer>
-  V0.2 §3.10 Graph Compiler (X1) · Preflight (X2) · Configuration Versioning (X3) · Composition = RAW 域
+  V0.2 §3.10 Graph Compiler (X1) 图编译器 · Preflight (X2) 预检 · Configuration Versioning (X3) 变更集版本化 · Composition = RAW 域
 </footer>
 </body>
 </html>

@@ -2,12 +2,13 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>06 Output — VBMF Phase 0.5 Low-Fi</title>
+<title>06 Output 输出 — VBMF Phase 0.5 Low-Fi</title>
 <style>
-:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
 table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px}
 th{background:var(--bg3);color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
@@ -25,90 +26,101 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">Output — Distribution (SRS Gateway Adapter)</h2>
-  <div><a href="05-audio.html">← Audio</a> | <a href="07-recording.html">Recording →</a></div>
+  <h2 style="font-size:14px">输出 / Output — Distribution 分发 (SRS Gateway Adapter)</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="05-audio.html" style="margin-left:12px">← 音频 Audio</a>
+    <a href="07-recording.html" style="margin-left:12px">录制 Recording →</a>
+  </div>
 </header>
 <table>
   <thead>
     <tr>
-      <th>Output</th><th>Protocol</th><th>URL</th><th>Status</th><th>Bitrate</th><th>Clients</th><th>Last Update</th><th>Actions</th>
+      <th>输出 / Output</th>
+      <th>协议 / Protocol</th>
+      <th>URL</th>
+      <th>状态 / Status</th>
+      <th>比特率 / Bitrate</th>
+      <th>客户端 / Clients</th>
+      <th>最近更新 / Last Update</th>
+      <th>操作 / Actions</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><b>CH01-HLS-Main</b></td>
+      <td><b>CH01-HLS-Main 主线路</b></td>
       <td>HLS</td>
       <td><span class="url">https://cdn.example.com/ch01/main.m3u8</span></td>
-      <td><i class="dot green"></i>HEALTHY</td>
+      <td><i class="dot green"></i>HEALTHY 健康</td>
       <td>5.0 Mbps</td>
       <td>1,247</td>
       <td>2s ago</td>
-      <td><button class="btn">Stats</button><button class="btn danger">Restart</button></td>
+      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
     </tr>
     <tr>
-      <td><b>CH01-HLS-Backup</b></td>
+      <td><b>CH01-HLS-Backup 备用</b></td>
       <td>HLS</td>
       <td><span class="url">https://cdn2.example.com/ch01/main.m3u8</span></td>
-      <td><i class="dot green"></i>HEALTHY</td>
+      <td><i class="dot green"></i>HEALTHY 健康</td>
       <td>5.0 Mbps</td>
       <td>312</td>
       <td>3s ago</td>
-      <td><button class="btn">Stats</button><button class="btn danger">Restart</button></td>
+      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
     </tr>
     <tr>
       <td><b>CH01-RTMP-Facebook</b></td>
       <td>RTMP</td>
       <td><span class="url">rtmp://ingest.facebook.com/...</span></td>
-      <td><i class="dot green"></i>HEALTHY</td>
+      <td><i class="dot green"></i>HEALTHY 健康</td>
       <td>4.0 Mbps</td>
       <td>—</td>
       <td>1s ago</td>
-      <td><button class="btn">Stats</button><button class="btn danger">Restart</button></td>
+      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
     </tr>
     <tr>
-      <td><b>CH01-WebRTC-LowLatency</b></td>
+      <td><b>CH01-WebRTC-LowLatency 低延迟</b></td>
       <td>WebRTC</td>
       <td><span class="url">wss://rtc.example.com/ch01</span></td>
-      <td><i class="dot yellow"></i>DEGRADED</td>
+      <td><i class="dot yellow"></i>DEGRADED 降级</td>
       <td>3.5 Mbps</td>
       <td>14</td>
       <td>5s ago</td>
-      <td><button class="btn">Stats</button><button class="btn danger">Restart</button></td>
+      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
     </tr>
     <tr>
-      <td><b>CH01-SRT-Distribution</b></td>
+      <td><b>CH01-SRT-Distribution 分发</b></td>
       <td>SRT</td>
       <td><span class="url">srt://dist.example.com:9000?mode=caller</span></td>
-      <td><i class="dot green"></i>HEALTHY</td>
+      <td><i class="dot green"></i>HEALTHY 健康</td>
       <td>5.0 Mbps</td>
       <td>2</td>
       <td>2s ago</td>
-      <td><button class="btn">Stats</button><button class="btn danger">Restart</button></td>
+      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
     </tr>
     <tr>
-      <td><b>CH01-File-Archive</b></td>
+      <td><b>CH01-File-Archive 归档</b></td>
       <td>FILE</td>
       <td><span class="url">/srv/archive/ch01/{date}/{time}.mp4</span></td>
-      <td><i class="dot green"></i>HEALTHY</td>
+      <td><i class="dot green"></i>HEALTHY 健康</td>
       <td>5.0 Mbps</td>
       <td>—</td>
-      <td>continuous</td>
-      <td><button class="btn">Browse</button><button class="btn danger">Stop</button></td>
+      <td>continuous 持续</td>
+      <td><button class="btn">浏览 Browse</button><button class="btn danger">停止 Stop</button></td>
     </tr>
     <tr>
-      <td><b>CH01-SDI-Master</b></td>
+      <td><b>CH01-SDI-Master 主输出</b></td>
       <td>SDI</td>
       <td><span class="url">/dev/blackmagic/io0</span></td>
-      <td><i class="dot gray"></i>DISABLED (V0.4 Target)</td>
+      <td><i class="dot gray"></i>DISABLED 已停用 (V0.4 Target)</td>
       <td>—</td>
       <td>—</td>
       <td>—</td>
-      <td><button class="btn" disabled>Enable (L3)</button></td>
+      <td><button class="btn" disabled>启用 Enable (L3)</button></td>
     </tr>
   </tbody>
 </table>
 <footer>
-  V0.2 §3 Output Engine + SRSAdapter (decoupled) · §3.7 Encode = delivery boundary
+  V0.2 §3 Output Engine 输出引擎 + SRSAdapter 解耦 (decoupled) · §3.7 Encode = delivery boundary 编码=投递边界
 </footer>
 </body>
 </html>

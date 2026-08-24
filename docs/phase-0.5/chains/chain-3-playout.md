@@ -1,4 +1,4 @@
-# 链 3：Playout（Director 节目单排播）
+# 链 3：Playout 节目单排播（Director 节目总监）
 
 > V0.2 §10.11 链 3 锁定
 > 角色：Director（节目总监）
@@ -16,10 +16,10 @@
 [拖入 Asset: "广告片 30s"]
   ↓
 [Preflight (X2): loudness / rights / duration / codec]
-  ├─ loudness: -23 LUFS ✓
-  ├─ rights: valid until 2027-01-01 ✓
-  ├─ duration: 30.0s ✓
-  └─ codec: H.264 1080p25 ✓
+  ├─ loudness 响度: -23 LUFS ✓
+  ├─ rights 版权: valid until 2027-01-01 ✓
+  ├─ duration 时长: 30.0s ✓
+  └─ codec 编码: H.264 1080p25 ✓
   ↓
 [Save Draft → change_set DRAFT]
   ↓
@@ -57,16 +57,16 @@
 
 ```yaml
 preflight_playout:
-  - loudness_check:   { target: -23 LUFS, tolerance: ±2 }
-  - rights_check:     { valid_until >: now + 7 days }
-  - duration_check:   { min: 5s, max: 7200s }
-  - codec_check:      { video: H.264/H.265, audio: AAC/Opus }
-  - resolution_check: { min: 720p, max: 4K }
-  - color_space_check: { allowed: [BT.709, BT.2020] }
-  - audio_channels:   { allowed: [2, 6, 8] }
+  - loudness_check 响度:   { target: -23 LUFS, tolerance: ±2 }
+  - rights_check 版权:     { valid_until >: now + 7 days }
+  - duration_check 时长:   { min: 5s, max: 7200s }
+  - codec_check 编码:      { video: H.264/H.265, audio: AAC/Opus }
+  - resolution_check 分辨率: { min: 720p, max: 4K }
+  - color_space_check 色域: { allowed: [BT.709, BT.2020] }
+  - audio_channels 声道:   { allowed: [2, 6, 8] }
 ```
 
-## X3 Configuration Versioning
+## X3 Configuration Versioning 变更集
 
 ```yaml
 change_set:
@@ -85,10 +85,10 @@ change_set:
 ## 状态机
 
 ```
-DRAFT → VALIDATED → APPLIED → (RUBBLED_BACK)
+DRAFT → VALIDATED → APPLIED → (ROLLED_BACK)
                 ↘ ABORTED
 
-phase (事务阶段):
+phase 事务阶段:
 PREPARING → APPLYING → COMMITTED
          ↘ ABORTED
 ```
@@ -107,11 +107,11 @@ PREPARING → APPLYING → COMMITTED
 
 ## Phase 0.6 验收用例
 
-- **Playout-01**: 排播 "广告 30s" → 自动到点 → 自动切回（30s ±0.5s）
-- **Playout-02**: Loudness 不达标 (-19 LUFS) → Preflight 拒绝 → Director 必须修正
-- **Playout-03**: Rights 已过期 → Preflight 拒绝 → 不能 Apply
-- **Playout-04**: 排播 1h 节目，到点前 10s Dashboard 出现"即将切换"提醒
-- **Playout-05**: 排播 Apply 后立即 Rollback → 排播表恢复 REV-001
+- **Playout-01**：排播 "广告 30s" → 自动到点 → 自动切回（30s ±0.5s）
+- **Playout-02**：Loudness 响度不达标 (-19 LUFS) → Preflight 拒绝 → Director 必须修正
+- **Playout-03**：Rights 版权已过期 → Preflight 拒绝 → 不能 Apply
+- **Playout-04**：排播 1h 节目，到点前 10s Dashboard 出现"即将切换"提醒
+- **Playout-05**：排播 Apply 后立即 Rollback → 排播表恢复 REV-001
 
 ## 关联 Wireframe
 
@@ -123,6 +123,6 @@ PREPARING → APPLYING → COMMITTED
 ## 关键禁忌
 
 - ❌ **不能直接编辑 APPLIED 的 change_set**（必须新建 Change Set）
-- ❌ **Rights 过期 Asset 不能 Apply**（Preflight 拒绝）
+- ❌ **Rights 版权过期 Asset 不能 Apply**（Preflight 拒绝）
 - ❌ **Schedule Apply 时间不能 < now + 5min**（避免误切）
 - ❌ **Composition 切 Variant 不能影响 Program Master**（V0.2 §3.7.1 双层独立）

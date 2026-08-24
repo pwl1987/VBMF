@@ -1,22 +1,22 @@
-# VBMF — IP Broadcast Media Fabric
+# VBMF — IP 广播媒体信号处理平台
 
-> **V0.2 Architecture Baseline LOCK FINAL · 22 轮 review · 12 Engines + 5 横向系统 + 6 横切能力 + 22 原则 + 57 决策**
+> **V0.2 架构基线 LOCK FINAL · 22 轮 review · 12 Engines + 5 横向系统 + 6 横切能力 + 22 原则 + 57 决策**
 >
 > **V0.2 Runtime Semantics CLOSED · implementation_ambiguity: NONE · 不再开 V0.2.5**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![V0.2 Lock](https://img.shields.io/badge/V0.2-Architecture_LOCK_FINAL-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
+[![V0.2 Lock](https://img.shields.io/badge/V0.2-架构_LOCK_FINAL-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
 [![Runtime Semantics](https://img.shields.io/badge/Runtime_Semantics-CLOSED-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
 [![Phase 0.5](https://img.shields.io/badge/Phase-0.5-yellow.svg)](docs/phase-0.5/INDEX.md)
 [![Review Passes](https://img.shields.io/badge/review_passes-22-blueviolet.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
 
-[English](#english) · [中文](#中文)
+[English Summary](#english-summary) · [中文详情](#项目详情)
 
 ---
 
-## 中文
+## 项目详情
 
-VBMF（**IP Broadcast Media Fabric**）是一个面向 24/7 广播机房的生产级 IP 媒体信号处理平台。
+**VBMF（IP Broadcast Media Fabric）** 是一个面向 **24/7 广播机房** 的生产级 IP 媒体信号处理平台。
 
 把 **SDI 摄录 → 编码 → RTMP / HLS / WebRTC 分发**，加上 **VOD 转码** 和 **Web 控制台**，全部用 **12 个核心 Engines + 5 横向系统 + 6 横切能力** 干净组合起来。
 
@@ -35,9 +35,9 @@ VBMF（**IP Broadcast Media Fabric**）是一个面向 24/7 广播机房的生�
 |---|---|---|
 | **架构** | ✅ V0.2 LOCK FINAL | 22 轮 review，57 决策，完整可唯一实现 |
 | **Runtime Semantics** | ✅ CLOSED | 9 大 Runtime 域 + 3 Schema + 2 Semantic Cleanup + 7 Health Invariants |
-| **Operator Workflow** | ✅ Phase 0.5 | 9 Low-Fi 页面 + 4 关键操作链 |
+| **Operator Workflow** | ✅ Phase 0.5 | 9 Low-Fi 页面（中英双语） + 4 关键操作链 |
 | **Reference Implementation** | 📋 Phase 0.6 | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Specification |
-| **Media Agent (Rust)** | 📋 Phase 1 | JSON-RPC + Session Manager + FFmpeg Command Builder + 24h stability |
+| **Media Agent (Rust)** | 📋 Phase 1 | JSON-RPC + Session Manager + FFmpeg Command Builder + 24h 稳定性 |
 | **Web Console** | 📋 Phase 4 | 9 页面 + 4 链验证 |
 
 ### 🏗️ 12 Engines + 5 横向系统 + 6 横切能力
@@ -57,27 +57,31 @@ VBMF（**IP Broadcast Media Fabric**）是一个面向 24/7 广播机房的生�
 ```
 docs/
 ├── architecture/
-│   └── ARCHITECTURE_V0.2.md     ← 22 轮 review LOCK FINAL 架构基线 (192KB)
-├── phase-0.5/                  ← Operator Workflow + 9 Low-Fi 页面 + 4 关键操作链
+│   ├── README.md                       ← V0.2 快速参考
+│   └── ARCHITECTURE_V0.2.md            ← 22 轮 review LOCK FINAL 架构基线 (192KB)
+├── phase-0.5/                          ← Operator Workflow + 9 Low-Fi 页面 + 4 关键操作链
+│   ├── README.md
 │   ├── INDEX.md
 │   ├── OPERATOR_WORKFLOW.md
-│   ├── wireframes/              (9 HTML, Dark Mode 24/7)
-│   └── chains/                  (4 链：On-Air / Failure / Playout / Engineering)
-├── phase-0.6/                  ← Executable Acceptance Specification（待补）
-├── assets/                      ← 图 / Diagram（待补）
-└── SYSTEM_AND_PROJECT_PLAN.md  ← 初始系统 + 项目计划
+│   ├── wireframes/                     (9 HTML · 中英双语 · Dark Mode 24/7)
+│   └── chains/                         (4 链：On-Air / Failure / Playout / Engineering)
+├── phase-0.6/                          ← Executable Acceptance Specification 计划
+│   └── README.md
+├── assets/                             ← 图 / Diagram（待补）
+└── SYSTEM_AND_PROJECT_PLAN.md          ← 初始系统 + 项目计划
 ```
 
 ### 🚀 快速开始
 
-> ⚠️ V0.2 还是 **架构冻结 + Phase 0.5 完成** 阶段，**代码实现要从 Phase 1 开始**。
+> ⚠️ V0.2 仍处于 **架构冻结 + Phase 0.5 完成** 阶段，**代码实现从 Phase 1 启动**。
 
 #### 阅读顺序（推荐）
 
 1. **[架构基线](docs/architecture/ARCHITECTURE_V0.2.md)**（~1-2 小时通读）
-2. **[Phase 0.5 Operator Workflow](docs/phase-0.5/INDEX.md)**（~30 分钟浏览 9 页面 + 4 链）
-3. **[初始项目计划](docs/SYSTEM_AND_PROJECT_PLAN.md)**（理解服务器 / 编译环境基线）
-4. 等待 Phase 0.6 / Phase 1 实施
+2. **[架构快速参考](docs/architecture/README.md)**（关键定义速查）
+3. **[Phase 0.5 操作员工作流](docs/phase-0.5/INDEX.md)**（~30 分钟浏览 9 页面 + 4 链）
+4. **[初始项目计划](docs/SYSTEM_AND_PROJECT_PLAN.md)**（理解服务器 / 编译环境基线）
+5. 等待 Phase 0.6 / Phase 1
 
 #### 部署参考（V0.2 §3.11 current_host_snapshot，非 Architecture Fact）
 
@@ -95,13 +99,13 @@ docs/
 
 ```bash
 # 克隆
-git clone https://github.com/<your-org>/VBMF.git
+git clone https://github.com/pwl1987/VBMF.git
 cd VBMF
 
 # 浏览架构
 cat docs/architecture/ARCHITECTURE_V0.2.md | less
 
-# 打开 Phase 0.5 线框（任意浏览器）
+# 打开 Phase 0.5 线框（任意浏览器，中英双语）
 start docs/phase-0.5/wireframes/01-dashboard.html
 ```
 
@@ -125,92 +129,42 @@ start docs/phase-0.5/wireframes/01-dashboard.html
 
 ---
 
-## English
+## English Summary
 
-**VBMF (IP Broadcast Media Fabric)** is a production-grade IP media signal processing platform designed for 24/7 broadcast rooms.
+**VBMF (IP Broadcast Media Fabric)** is a production-grade IP media signal processing platform for 24/7 broadcast rooms.
 
-It cleanly composes **SDI ingest → Encode → RTMP / HLS / WebRTC distribution**, plus **VOD transcoding** and **Web console**, from **12 core Engines + 5 cross-cutting systems + 6 horizontal capabilities**.
+- **V0.2 Architecture**: LOCK FINAL (22 review rounds, 57 decisions)
+- **Stack**: 12 Engines + 5 cross-cutting systems + 6 horizontal capabilities
+- **3 Switch Modes**: PACKET / FRAME / MASTER
+- **3 Hot-Standby Levels**: COLD / WARM / HOT
+- **Health Tree**: Channel → Subsystem → Node with 7 Health Invariants
+- **License**: Apache 2.0
 
-> Hot-standby switching supports **3 Switch Modes** (PACKET / FRAME / MASTER) + **3 Hot-Standby Levels** (COLD / WARM / HOT);
-> Health monitoring uses **Health Tree + 7 Health Invariants** unfolded across Channel → Subsystem → Node.
+### Quick start
 
-### 🎯 Who is this for
+1. Read [`docs/architecture/README.md`](docs/architecture/README.md) — V0.2 quick reference
+2. Read [`docs/architecture/ARCHITECTURE_V0.2.md`](docs/architecture/ARCHITECTURE_V0.2.md) — Full architecture (192KB)
+3. Browse [`docs/phase-0.5/wireframes/`](docs/phase-0.5/wireframes/) — 9 Low-Fi wireframes (bilingual)
+4. Read [`docs/phase-0.5/chains/`](docs/phase-0.5/chains/) — 4 critical operation chains
 
-- **Broadcast / streaming engineers** building their own SDI ingest + IP distribution platform
-- **OTT / live teams** needing PACKET / FRAME / MASTER tier failover
-- **Architects / platform teams** looking for "how to cleanly compose 12 independent Engines" best practices
+### Repository
 
-### 📊 Current status
+- **URL**: https://github.com/pwl1987/VBMF
+- **License**: Apache 2.0
+- **Visibility**: Public
 
-| Dimension | Status | Note |
-|---|---|---|
-| **Architecture** | ✅ V0.2 LOCK FINAL | 22 review rounds, 57 decisions, fully implementable |
-| **Runtime Semantics** | ✅ CLOSED | 9 Runtime domains + 3 Schema + 2 Semantic Cleanup + 7 Health Invariants |
-| **Operator Workflow** | ✅ Phase 0.5 | 9 Low-Fi pages + 4 critical operation chains |
-| **Reference Implementation** | 📋 Phase 0.6 | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
-| **Media Agent (Rust)** | 📋 Phase 1 | JSON-RPC + Session Manager + FFmpeg Command Builder + 24h stability |
-| **Web Console** | 📋 Phase 4 | 9 pages + 4 chain validation |
+### Current phase
 
-### 📚 Documentation
+| Phase | Status |
+|---|---|
+| Phase 0 (Architecture Freeze) | ✅ V0.2 LOCK FINAL |
+| Phase 0.5 (Operator Workflow) | ✅ Complete (9 wireframes + 4 chains) |
+| Phase 0.6 (Reference + FI) | 📋 Next |
+| Phase 1 (Media Agent Rust) | 📋 After 0.6 |
+| Phase 2-4 (Backend / Console) | 📋 |
 
-```
-docs/
-├── architecture/ARCHITECTURE_V0.2.md  ← 22 review rounds LOCK FINAL (192KB)
-├── phase-0.5/                         ← Operator Workflow + 9 Low-Fi + 4 chains
-├── phase-0.6/                         ← Executable Acceptance Spec (TBD)
-└── SYSTEM_AND_PROJECT_PLAN.md         ← Initial server + project plan
-```
+For full details, see [`ROADMAP.md`](ROADMAP.md).
 
-### 🚀 Quick start
+---
 
-> ⚠️ V0.2 is **architecture frozen + Phase 0.5 complete**. **Code implementation starts at Phase 1.**
-
-#### Reading order (recommended)
-
-1. **[Architecture baseline](docs/architecture/ARCHITECTURE_V0.2.md)** (~1-2 hours)
-2. **[Phase 0.5 Operator Workflow](docs/phase-0.5/INDEX.md)** (~30 min, 9 pages + 4 chains)
-3. **[Initial project plan](docs/SYSTEM_AND_PROJECT_PLAN.md)** (server / build env baseline)
-4. Wait for Phase 0.6 / Phase 1
-
-#### Reference deployment (V0.2 §3.11, NOT Architecture Fact)
-
-| Resource | Quantity | Note |
-|---|---|---|
-| CPU | 32 cores | Runtime Discovery |
-| RAM | 30 GB | Runtime Discovery |
-| Disk | 546 GB | Runtime Discovery |
-| BMD DeckLink | 3 (2× SDI legacy + 1× Mini Monitor 4K) | Runtime Discovery |
-| OS | Ubuntu 26.04 | Runtime Discovery |
-
-> Any hardware add/replace **does not require V0.2 architecture changes**.
-
-### 🛠️ Development
-
-```bash
-git clone https://github.com/<your-org>/VBMF.git
-cd VBMF
-
-# Browse architecture
-cat docs/architecture/ARCHITECTURE_V0.2.md | less
-
-# Open Phase 0.5 wireframes (any browser)
-open docs/phase-0.5/wireframes/01-dashboard.html
-```
-
-### 🤝 Contributing
-
-PRs welcome. Please first read:
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [Architecture freeze notice](docs/architecture/ARCHITECTURE_V0.2.md#final-state)
-- **V0.2 is LOCK FINAL**: any architecture-level change requires V0.3 process; Phase 0.5/0.6 are Acceptance Validation, not architecture changes
-
-### 📜 License
-
-[Apache 2.0](LICENSE) — commercial-friendly, requires attribution.
-
-### 🙏 Acknowledgments
-
-- **Architecture contribution**: 22 review rounds of findings + fixes
-- **SRS** ([ossrs/srs](https://github.com/ossrs/srs)) — Stream Gateway Adapter
-- **FFmpeg** — Media Pipeline Engine
-- **BMD Desktop Video SDK** — SDI ingest
+**VBMF Contributors** · V0.2 LOCK FINAL · Apache 2.0

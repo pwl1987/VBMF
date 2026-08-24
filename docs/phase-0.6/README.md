@@ -1,4 +1,4 @@
-# Phase 0.6 — Executable Acceptance Specification
+# Phase 0.6 — Executable Acceptance Specification 可执行验收规范
 
 > **状态**：📋 计划中
 > **范围**：Reference A1/A2/B + 5 Fault Injection + 7 Health Invariants tests
@@ -93,19 +93,19 @@ Audio Mixer / Loudness / Delay ─────┘
 - [ ] Audio 三独立 graph 同步
 - [ ] 多路 Output Variant 同步
 
-### 5 Fault Injection
+### 5 Fault Injection 故障注入
 
 | # | 故障 | Failure Domain | 期望恢复 | 期望 Channel Health |
 |---|---|---|---|---|
-| **FI-01** | SDI 冻结 5s | SOURCE | FRAME_SWITCH + Filler | DEGRADED → HEALTHY (after failover) |
-| **FI-02** | 音频静音 8s | PIPELINE | RESTART audio node | DEGRADED → HEALTHY |
-| **FI-03** | Primary FFmpeg 进程崩溃 | PIPELINE | RESTART + RESUME | DEGRADED → HEALTHY |
-| **FI-04** | Clock Drift +5ms/min | CLOCK | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
-| **FI-05** | HLS 切片失败 | OUTPUT | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
+| **FI-01** | SDI 冻结 5s | SOURCE 源 | FRAME_SWITCH + Filler | DEGRADED → HEALTHY (after failover) |
+| **FI-02** | 音频静音 8s | PIPELINE 管道 | RESTART audio node | DEGRADED → HEALTHY |
+| **FI-03** | Primary FFmpeg 进程崩溃 | PIPELINE 管道 | RESTART + RESUME | DEGRADED → HEALTHY |
+| **FI-04** | Clock Drift +5ms/min | CLOCK 时钟 | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
+| **FI-05** | HLS 切片失败 | OUTPUT 输出 | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
 
 **关键禁忌**：
 
-- ❌ PLAYER 缓存异常绝不能切源
+- ❌ PLAYER 播放端缓存异常绝不能切源
 - ❌ AV sync 异常必须先 Failure Domain Classification
 - ❌ Master Join 失败 ≠ 切源
 - ❌ 同一切换不能在 100ms 内重试
@@ -124,18 +124,18 @@ Audio Mixer / Loudness / Delay ─────┘
 | **HA-06** | ACTIVE=HEALTHY, STANDBY=FAILED | **DEGRADED** (Rule 5: STANDBY+(DEGRADED\|FAILED)) |
 | **HA-07** | ACTIVE=HEALTHY, OFFLINE+FAILED | **HEALTHY** (H5: 系统已吸收) |
 
-### Failure Domain Matrix 验证
+### Failure Domain Matrix 故障域验证
 
 ```yaml
-SOURCE:      { action: FAILOVER,            target: §3.4 }
-PIPELINE:    { action: RESTART_NODE,        target: offending node }
-MASTER:      { action: FILLER_OR_EMERGENCY, target: emergency asset }
-OUTPUT:      { action: RESTART_ADAPTER,     target: alternate destination }
-RECORDING:   { action: BACKUP_DISK,         target: alternate disk }
-CLOCK:       { action: FALLBACK_CLOCK,      target: clock_domain_mappings }
-RESOURCE:    { action: DEGRADE_BG_JOBS,     target: lower-priority workers }
-PLAYER:      { action: NOTIFY,              fail_safe: true }    # DiagnosticFailureClass
-UNKNOWN:     { action: SAFE_DEGRADE,        alert: true }        # DiagnosticFailureClass
+SOURCE 源:      { action: FAILOVER,            target: §3.4 }
+PIPELINE 管道:    { action: RESTART_NODE,        target: offending node }
+MASTER 主母版:    { action: FILLER_OR_EMERGENCY, target: emergency asset }
+OUTPUT 输出:      { action: RESTART_ADAPTER,     target: alternate destination }
+RECORDING 录制:   { action: BACKUP_DISK,         target: alternate disk }
+CLOCK 时钟:       { action: FALLBACK_CLOCK,      target: clock_domain_mappings }
+RESOURCE 资源:    { action: DEGRADE_BG_JOBS,     target: lower-priority workers }
+PLAYER 播放端:     { action: NOTIFY,              fail_safe: true }    # DiagnosticFailureClass
+UNKNOWN 未知:     { action: SAFE_DEGRADE,        alert: true }        # DiagnosticFailureClass
 ```
 
 ## 部署环境

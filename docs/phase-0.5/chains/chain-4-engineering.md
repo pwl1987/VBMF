@@ -1,4 +1,4 @@
-# 链 4：Engineering（Engineer 系统工程）
+# 链 4：Engineering 工程（Engineer 系统工程师）
 
 > V0.2 §10.11 链 4 锁定
 > 角色：Engineer（系统工程师）
@@ -19,9 +19,9 @@
   ↓
 [Compile (X1): Validator / Insert Missing / Clock Align / Latency / Resource / Emit Runtime]
   ↓
-[Compile Report: 0 critical / 1 warning]
+[Compile Report 编译报告: 0 critical / 1 warning]
   ↓
-[Resource Plan: cpu=18, gpu=0, ram=12GB, nic=8Gbps]
+[Resource Plan 资源计划: cpu=18, gpu=0, ram=12GB, nic=8Gbps]
   ↓
 [Preflight (X2): Graph 类]
   ├─ Resource Vector 9-dim ✓
@@ -31,7 +31,7 @@
   ↓
 [Apply with Change Set (X3)]
   ↓
-[Logical Atomic / Transactional Cutover]
+[Logical Atomic / Transactional Cutover 业务层原子切换]
   ↓
 [Runtime 上线: media_sessions 启动]
   ↓
@@ -58,7 +58,7 @@
 | 6 | Compile (X1) | 自动 | Validator / Insert Missing / Clock Align / Latency / Resource | graph_revisions VALIDATED |
 | 7 | Resource Plan | 自动 | 9-dim Vector + Device Token | resource_plan_json |
 | 8 | Preflight (X2) | 自动 | Resource / Clock / Data Plane | preflight_report |
-| 9 | Dry Run | 08-graph-designer | 模拟运行 | dry_run_output |
+| 9 | Dry Run 试运行 | 08-graph-designer | 模拟运行 | dry_run_output |
 | 10 | Apply Change Set (X3) | 手动 | DRAFT → VALIDATED → APPLIED | config_revisions + change_sets |
 | 11 | Logical Atomic Cutover | 自动 | snapshot + prepare + commit | media_sessions 启动 |
 | 12 | Runtime 上线 | 自动 | media_session_runtime 三轴 | lifecycle=RUNNING |
@@ -89,8 +89,8 @@ graph_compile_report:
     ingress_mbps: 850
     egress_mbps: 850
     disk_write_mbps: 50
-    pcie_rx_mb_s: 320    # scheduling estimate
-    pcie_tx_mb_s: 320    # scheduling estimate
+    pcie_rx_mb_s: 320    # scheduling estimate 调度估算
+    pcie_tx_mb_s: 320    # scheduling estimate 调度估算
   warnings:
     - "redundant path: Source.A and Source.B both reach Switcher"
 ```
@@ -99,25 +99,25 @@ graph_compile_report:
 
 ```yaml
 preflight:
-  graph:     # 静态 Graph 检查
-    - cycle_check
-    - data_plane_compatibility
-    - clock_domain_resolvable
-    - resource_vector_within_capacity
-    - device_token_available
-  playout:   # Playout 节目单检查
-    - loudness
-    - rights
-    - duration
-    - codec
-  channel:   # Channel 通道检查
+  graph 图设计:    # 静态 Graph 检查
+    - cycle_check 环检测
+    - data_plane_compatibility 数据面兼容
+    - clock_domain_resolvable 时钟域可解
+    - resource_vector_within_capacity 资源向量在容量内
+    - device_token_available 设备 token 可用
+  playout 节目单:  # Playout 节目单检查
+    - loudness 响度
+    - rights 版权
+    - duration 时长
+    - codec 编码
+  channel 通道:    # Channel 通道检查
     - capability_contract_pass
     - runtime_alignment_pass
     - hot_standby_level_consistent
     - health_tree_invariants_pass
 ```
 
-## X3 Configuration Versioning
+## X3 Configuration Versioning 变更集
 
 ```yaml
 change_set:
@@ -135,18 +135,18 @@ change_set:
   dry_run_output_id: DRY-2026-0824-009
 ```
 
-## Logical Atomic / Transactional Cutover
+## Logical Atomic / Transactional Cutover 业务层原子切换
 
 ```
-snapshot(rev-007)
+snapshot 快照(rev-007)
   ↓
-prepare(rev-008)
+prepare 准备(rev-008)
   ├─ compile_runtime
   ├─ allocate_resources
   └─ preflight_check
   ↓
-  ├─ success → commit (rev-008 active)
-  └─ failure → rollback (rev-007 restored)
+  ├─ success → commit 提交 (rev-008 active)
+  └─ failure → rollback 回滚 (rev-007 restored)
 ```
 
 **🔴 V0.2 关键边界**：禁止 DB 事务层面"原子切换"——这是业务层原子，不是数据库原子。
@@ -155,27 +155,27 @@ prepare(rev-008)
 
 | 步骤 | 引擎 / 能力 |
 |---|---|
-| Graph Designer | §3.10 Graph Compiler (X1) |
+| Graph Designer 图设计 | §3.10 Graph Compiler (X1) |
 | 节点库 | §3 全部 12 Engines |
 | 边声明 | §1.16 Data Plane Label / §1.18 Clock Domain |
-| Compile | X1 Graph Compiler |
-| Preflight | X2 Preflight |
-| Apply | X3 Configuration Versioning |
-| Atomic Cutover | X3 (snapshot+prepare+commit) |
-| Runtime | §3 全部 Engines 上线 |
-| Health Tree | X5 Health Tree |
-| QC | §3 QC Engine |
-| Incident | X4 Incident Timeline |
+| Compile 编译 | X1 Graph Compiler |
+| Preflight 预检 | X2 Preflight |
+| Apply 应用 | X3 Configuration Versioning |
+| Atomic Cutover 业务层原子 | X3 (snapshot+prepare+commit) |
+| Runtime 运行时 | §3 全部 Engines 上线 |
+| Health Tree 健康树 | X5 Health Tree |
+| QC 质量检测 | §3 QC Engine |
+| Incident 事件 | X4 Incident Timeline |
 
 ## Phase 0.6 验收用例
 
-- **Eng-01**: 修改 Graph（加新 Output）→ Compile OK → Preflight 0 critical → Apply 成功
-- **Eng-02**: Graph 含环 → Compile 拒绝 → 不能 Apply
-- **Eng-03**: Resource 不足 → Preflight 拒绝 → 提示扩资源或减 Session
-- **Eng-04**: Clock Domain 不可解析 → Preflight 拒绝
-- **Eng-05**: Apply 后立即 Rollback → Graph 恢复到 REV-007（< 5s）
-- **Eng-06**: Runtime 启动后 7 Health Invariants 全部 PASS
-- **Eng-07**: QC 检测到异常 → 自动 Incident 建档 → Engineer 收到通知
+- **Eng-01**：修改 Graph（加新 Output）→ Compile OK → Preflight 0 critical → Apply 成功
+- **Eng-02**：Graph 含环 → Compile 拒绝 → 不能 Apply
+- **Eng-03**：Resource 不足 → Preflight 拒绝 → 提示扩资源或减 Session
+- **Eng-04**：Clock Domain 不可解析 → Preflight 拒绝
+- **Eng-05**：Apply 后立即 Rollback → Graph 恢复到 REV-007（< 5s）
+- **Eng-06**：Runtime 启动后 7 Health Invariants 全部 PASS
+- **Eng-07**：QC 检测到异常 → 自动 Incident 建档 → Engineer 收到通知
 
 ## 关联 Wireframe
 
@@ -192,4 +192,4 @@ prepare(rev-008)
 - ❌ **禁止 Logical Atomic Cutover 与普通 Apply 混用**（前者有 snapshot+rollback，后者无）
 - ❌ **禁止 Runtime 修改的 `media_session_runtime.effective_switch_mode` 反写 `channel_routes.switch_mode`**（V0.2 §3.4 关键边界）
 - ❌ **禁止把 `current_host_snapshot` 内容写进 Architecture**（V0.2 §3.11 关键边界）
-- ❌ **禁止把 `pcie_*_mb_s` 当成实测值**（仅 scheduling estimate）
+- ❌ **禁止把 `pcie_*_mb_s` 当成实测值**（仅 scheduling estimate 调度估算）

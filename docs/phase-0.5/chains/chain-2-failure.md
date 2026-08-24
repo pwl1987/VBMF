@@ -1,4 +1,4 @@
-# 链 2：Failure（Operator + System 故障处理）
+# 链 2：Failure 故障（Operator 操作员 + System 系统自动处理）
 
 > V0.2 §10.11 链 2 锁定
 > 角色：Operator + System（自动）
@@ -51,38 +51,38 @@
 | 12 | Operator 确认 | 手动 | Acknowledge | incident.acked_at |
 | 13 | 录像回溯 | 手动 | Operator 点击 Incident → Chunk | 14:25-14:30 chunk |
 
-## Failure Domain 决定恢复动作（§8.9）
+## Failure Domain 故障域决定恢复动作（§8.9）
 
 ```yaml
 failure_domain_matrix:
-  SOURCE:      { action: FAILOVER,            target: §3.4 decision tree }
-  PIPELINE:    { action: RESTART_NODE,        target: offending node }
-  MASTER:      { action: FILLER_OR_EMERGENCY, target: emergency asset }
-  OUTPUT:      { action: RESTART_ADAPTER,     target: alternate destination }
-  RECORDING:   { action: BACKUP_DISK,         target: alternate disk }
-  CLOCK:       { action: FALLBACK_CLOCK,      target: clock_domain_mappings }
-  RESOURCE:    { action: DEGRADE_BG_JOBS,     target: lower-priority workers }
+  SOURCE 源:        { action: FAILOVER,            target: §3.4 decision tree }
+  PIPELINE 管道:     { action: RESTART_NODE,        target: offending node }
+  MASTER 主母版:     { action: FILLER_OR_EMERGENCY, target: emergency asset }
+  OUTPUT 输出:       { action: RESTART_ADAPTER,     target: alternate destination }
+  RECORDING 录制:    { action: BACKUP_DISK,         target: alternate disk }
+  CLOCK 时钟:        { action: FALLBACK_CLOCK,      target: clock_domain_mappings }
+  RESOURCE 资源:     { action: DEGRADE_BG_JOBS,     target: lower-priority workers }
   # DiagnosticFailureClass (不进 7 OperationalFailureDomain)
-  PLAYER:      { action: NOTIFY,              fail_safe: true }
-  UNKNOWN:     { action: SAFE_DEGRADE,        alert: true }
+  PLAYER 播放端:      { action: NOTIFY,              fail_safe: true }
+  UNKNOWN 未知:       { action: SAFE_DEGRADE,        alert: true }
 ```
 
-## Health Invariants 检查
+## Health Invariants 健康检查
 
 - **H1** (no ACTIVE+FAILED): FAIL → 触发 ALERT
 - **H5** (OFFLINE+FAILED 系统已吸收): Primary → OFFLINE+FAILED，Channel 状态由 Backup ACTIVE+HEALTHY 决定
 - **H6** (Source RG all unavailable): 不应触发（因为 Backup 仍可用）
 - **HA-03** 验收: Primary+Backup 都 FAILED → Channel FAILED
 
-## Phase 0.6 5 Fault Injection 验收用例
+## Phase 0.6 5 Fault Injection 故障注入验收用例
 
 | # | 故障 | Failure Domain | 期望恢复 | 期望 Channel |
 |---|---|---|---|---|
-| FI-01 | SDI 冻结 5s | SOURCE | FRAME_SWITCH + Filler | DEGRADED → HEALTHY (after failover) |
-| FI-02 | 音频静音 8s | PIPELINE | RESTART audio node | DEGRADED → HEALTHY |
-| FI-03 | Primary FFmpeg 进程崩溃 | PIPELINE | RESTART + RESUME | DEGRADED → HEALTHY |
-| FI-04 | Clock Drift +5ms/min | CLOCK | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
-| FI-05 | HLS 切片失败 | OUTPUT | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
+| FI-01 | SDI 冻结 5s | SOURCE 源 | FRAME_SWITCH + Filler | DEGRADED → HEALTHY (after failover) |
+| FI-02 | 音频静音 8s | PIPELINE 管道 | RESTART audio node | DEGRADED → HEALTHY |
+| FI-03 | Primary FFmpeg 进程崩溃 | PIPELINE 管道 | RESTART + RESUME | DEGRADED → HEALTHY |
+| FI-04 | Clock Drift +5ms/min | CLOCK 时钟 | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
+| FI-05 | HLS 切片失败 | OUTPUT 输出 | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
 
 ## 关键引擎 / 横切能力映射
 
@@ -91,7 +91,7 @@ failure_domain_matrix:
 | 故障检测 | §3.9 Health Tree + §3.13 AVSync Manager |
 | Switch 决策 | §3.4 Decision Tree + §8.9 Failure Domain Matrix |
 | 接管 | §3.4 Switch Mode + X6 Capability Registry |
-| Filler | §3 Playout (timeline) |
+| Filler 兜底 | §3 Playout (timeline) |
 | ALERT | X4 Incident Timeline |
 | 录像 | §3 Recording + X4 关联 |
 | 通知 | §3.10 X4 + Webhook |
@@ -106,7 +106,7 @@ failure_domain_matrix:
 
 ## 关键禁忌
 
-- ❌ **PLAYER 缓存异常绝不能切源**（DiagnosticFailureClass.PLAYER → NOTIFY only）
+- ❌ **PLAYER 播放端缓存异常绝不能切源**（DiagnosticFailureClass.PLAYER → NOTIFY only）
 - ❌ **AV sync 异常必须先 Failure Domain Classification**（§8.9），不能直接切 backup
 - ❌ **Master Join 失败 ≠ 切源**（可能是 PIPELINE / OUTPUT 问题）
 - ❌ **同一切换不能在 100ms 内重试**（避免 flapping）

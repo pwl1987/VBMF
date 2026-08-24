@@ -2,17 +2,19 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>03 Switcher — VBMF Phase 0.5 Low-Fi</title>
+<title>03 Switcher 切播器 — VBMF Phase 0.5 Low-Fi</title>
 <style>
 :root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
 .panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.panel h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
 .mode{font-size:32px;font-weight:700;color:var(--accent);margin:8px 0}
-.metric{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+.metric{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
 .metric:last-child{border-bottom:none}
 .events{font-family:Menlo,Consolas,monospace;font-size:11px}
 .event{padding:4px 8px;border-left:2px solid var(--green);margin-bottom:4px;background:var(--bg3)}
@@ -28,57 +30,61 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">Switcher — Program Master Switch</h2>
-  <div><a href="02-sources.html">← Sources</a> | <a href="04-composition.html">Composition →</a></div>
+  <h2 style="font-size:14px">切播器 / Switcher — Program Master Switch</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="02-sources.html" style="margin-left:12px">← 源管理 Sources</a>
+    <a href="04-composition.html" style="margin-left:12px">图文 Composition →</a>
+  </div>
 </header>
 
 <div class="row">
   <div class="panel">
-    <h3>Compiled Mode <span style="color:var(--fgdim);font-size:10px">(channel_routes.switch_mode)</span></h3>
+    <h3><span class="cn">编译模式</span> / COMPILED MODE <span style="color:var(--fgdim);font-size:10px">(channel_routes.switch_mode)</span></h3>
     <div class="mode">PACKET_SWITCH</div>
-    <div class="metric"><span>Hot-Standby Level</span><span><b>HOT</b> (target_failover=100ms)</span></div>
-    <div class="metric"><span>Capability Contract</span><span style="color:var(--green)">✓ PASS</span></div>
-    <div class="metric"><span>Runtime Alignment</span><span style="color:var(--green)">✓ PASS</span></div>
+    <div class="metric"><span>Hot-Standby Level 热备级别</span><span><b>HOT</b> (target_failover=100ms)</span></div>
+    <div class="metric"><span>Capability Contract 能力合约</span><span style="color:var(--green)">✓ PASS 通过</span></div>
+    <div class="metric"><span>Runtime Alignment 运行态对齐</span><span style="color:var(--green)">✓ PASS 通过</span></div>
   </div>
   <div class="panel">
-    <h3>Effective Runtime Mode <span style="color:var(--fgdim);font-size:10px">(media_session_runtime.effective_switch_mode)</span></h3>
+    <h3><span class="cn">运行时模式</span> / EFFECTIVE RUNTIME MODE <span style="color:var(--fgdim);font-size:10px">(media_session_runtime.effective_switch_mode)</span></h3>
     <div class="mode" style="color:var(--green)">PACKET_SWITCH</div>
-    <div class="metric"><span>Last Switch</span><span>2026-08-24 14:28:03</span></div>
-    <div class="metric"><span>Last Switch Reason</span><span>Manual TAKE (operator)</span></div>
-    <div class="metric"><span>Switch Count (24h)</span><span>7</span></div>
+    <div class="metric"><span>最近切换 / Last Switch</span><span>2026-08-24 14:28:03</span></div>
+    <div class="metric"><span>切换原因 / Reason</span><span>手动 TAKE (operator 操作员)</span></div>
+    <div class="metric"><span>24h 切换次数</span><span>7</span></div>
   </div>
 </div>
 
 <div class="row">
   <div class="panel">
-    <h3>Recent Switch Events</h3>
+    <h3><span class="cn">最近切换事件</span> / RECENT SWITCH EVENTS</h3>
     <div class="events">
-      <div class="event">14:28:03 · PACKET · A→B · manual · 87ms</div>
+      <div class="event">14:28:03 · PACKET · A→B · 手动 manual · 87ms</div>
       <div class="event warn">14:15:21 · FRAME · A→A · alignment drift +12ms</div>
-      <div class="event">13:42:09 · PACKET · B→A · manual · 92ms</div>
-      <div class="event err">12:08:47 · MASTER · B→A · auto failover (Source.B frozen 5s)</div>
-      <div class="event">11:30:00 · PACKET · A→B · manual · 78ms</div>
+      <div class="event">13:42:09 · PACKET · B→A · 手动 manual · 92ms</div>
+      <div class="event err">12:08:47 · MASTER · B→A · auto failover 自动接管 (Source.B frozen 5s 冻结 5s)</div>
+      <div class="event">11:30:00 · PACKET · A→B · 手动 manual · 78ms</div>
     </div>
   </div>
   <div class="panel">
-    <h3>Manual Control</h3>
+    <h3><span class="cn">手动控制</span> / MANUAL CONTROL</h3>
     <div style="margin-bottom:12px">
-      <button class="btn">⬆ TAKE PVW→PGM</button>
-      <button class="btn">⇄ SWAP PVW/PGM</button>
+      <button class="btn">⬆ TAKE 切播 PVW→PGM</button>
+      <button class="btn">⇄ SWAP 交换 PVW/PGM</button>
     </div>
     <div style="margin-bottom:12px">
-      <button class="btn">⏸ Hold</button>
-      <button class="btn">▶ Resume</button>
+      <button class="btn">⏸ Hold 保持</button>
+      <button class="btn">▶ Resume 恢复</button>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
-      <button class="btn danger">⚠ EMERGENCY — Cut to Filler</button>
+      <button class="btn danger">⚠ EMERGENCY 应急 — 切到 Filler 垫片</button>
     </div>
-    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">L3 危险操作：需输入 YES 确认 + 5s 倒计时</p>
+    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">L3 危险操作：需输入 YES 确认 + 5s 倒计时 / L3 dangerous op: requires YES confirmation + 5s countdown</p>
   </div>
 </div>
 
 <footer>
-  Switch Mode SoT: §3.4 switch_mode_decision_tree · Hot-Standby SoT: §3.5 hot_standby_levels
+  Switch Mode SoT / 切播决策唯一来源: §3.4 switch_mode_decision_tree · Hot-Standby SoT: §3.5 hot_standby_levels
 </footer>
 </body>
 </html>

@@ -1,25 +1,25 @@
-# VBMF Docs
+# VBMF 文档
 
 > VBMF (IP Broadcast Media Fabric) 全部文档入口。
-> V0.2 Architecture Baseline LOCK FINAL（22 轮 review）。
+> V0.2 架构基线 LOCK FINAL（22 轮 review）。
 
 ## 目录
 
 | 路径 | 内容 | 状态 |
 |---|---|---|
 | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) | **V0.2 架构基线**（22 轮 review LOCK FINAL，192KB） | ✅ |
-| [`architecture/README.md`](architecture/README.md) | V0.2 架构快速参考 + 入口 | ✅ |
+| [`architecture/README.md`](architecture/README.md) | V0.2 架构快速参考 + 关键定义速查 | ✅ |
 | [`SYSTEM_AND_PROJECT_PLAN.md`](SYSTEM_AND_PROJECT_PLAN.md) | 初始系统 + 项目计划（V0.1 阶段） | ✅ |
-| [`phase-0.5/`](phase-0.5/) | Operator Workflow + 9 Low-Fi 页面 + 4 关键操作链 | ✅ |
-| [`phase-0.6/`](phase-0.6/) | Executable Acceptance Specification（待启动） | 📋 |
+| [`phase-0.5/`](phase-0.5/) | 操作员工作流 + 9 Low-Fi 页面 + 4 关键操作链 | ✅ |
+| [`phase-0.6/`](phase-0.6/) | Executable Acceptance Specification 计划 | 📋 |
 | [`assets/`](assets/) | 图 / Diagram | 📋 |
 
 ## 阅读顺序（推荐）
 
-1. **[../README.md](../README.md)** — 项目门面
+1. **[../../README.md](../../README.md)** — 项目门面
 2. **[architecture/ARCHITECTURE_V0.2.md](architecture/ARCHITECTURE_V0.2.md)** — V0.2 架构基线（1-2 小时通读）
-3. **[phase-0.5/INDEX.md](phase-0.5/INDEX.md)** — Operator Workflow（30 分钟）
-4. **[phase-0.5/wireframes/](phase-0.5/wireframes/)** — 9 Low-Fi 页面（任何浏览器打开）
+3. **[phase-0.5/INDEX.md](phase-0.5/INDEX.md)** — 操作员工作流（30 分钟）
+4. **[phase-0.5/wireframes/](phase-0.5/wireframes/)** — 9 Low-Fi 页面（中英双语，任意浏览器打开）
 5. **[phase-0.5/chains/](phase-0.5/chains/)** — 4 关键操作链
 6. 等待 Phase 0.6
 
@@ -88,7 +88,7 @@ v0_2_runtime_semantics:
 | §8.11 三轴状态机 | 状态机 | 同上 |
 | §9 部署 | Host + Docker 边界 | 同上 |
 | §10 UX | 9 页面 + 4 链 | [`phase-0.5/`](phase-0.5/) |
-| §11 路线图 | Phase 0/0.5/0.6/1/... | [`../ROADMAP.md`](../ROADMAP.md) |
+| §11 路线图 | Phase 0/0.5/0.6/1/... | [`../../ROADMAP.md`](../../ROADMAP.md) |
 | 附录 A 术语表 | Canonical Vocabulary | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) |
 | 附录 C 审查记录 | C.1 - C.26 | 同上 |
 | 附录 D 终态 | LOCK FINAL 状态 | 同上 |
