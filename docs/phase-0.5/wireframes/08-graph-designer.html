@@ -2,15 +2,21 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>08 Graph Designer 图设计 — VBMF Phase 0.5 Low-Fi</title>
+<title>08 Graph Designer 图设计 — VBMF Phase 0.5.1</title>
 <style>
-:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;height:100vh;display:flex;flex-direction:column}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
 .lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
-.main{flex:1;display:grid;grid-template-columns:200px 1fr 280px;gap:12px;min-height:0}
-.sidebar, .canvas, .inspector{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-y:auto}
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden}
+.tab{padding:8px 16px;cursor:pointer;color:var(--fgdim);font-size:12px;border-right:1px solid var(--border)}
+.tab.active{background:var(--bg3);color:var(--fg);font-weight:600}
+.tab:hover{background:var(--bg3)}
+.scenario{padding:8px 12px;background:var(--bg3);border:1px solid var(--accent);border-radius:4px;margin:8px 16px 0;font-size:12px;color:var(--accent)}
+.scenario b{color:var(--fg)}
+.main{flex:1;display:grid;grid-template-columns:200px 1fr 280px;gap:12px;min-height:0;margin-top:8px}
+.sidebar, .canvas, .inspector{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 6px 6px;padding:12px;overflow-y:auto}
 .sidebar h3,.inspector h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
 .sidebar h3 .cn,.inspector h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
 .node-palette .item{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 8px;margin-bottom:4px;cursor:grab;font-size:11px}
@@ -21,13 +27,19 @@ header,nav{display:flex;justify-content:space-between;align-items:center;padding
 .gnode.source{border-color:var(--green)}
 .gnode.process{border-color:var(--yellow)}
 .gnode.output{border-color:var(--accent)}
-.gedge{position:absolute;height:2px;background:var(--accent);transform-origin:0 50%}
+.gnode.auto{border-style:dashed;background:repeating-linear-gradient(45deg,var(--bg3),var(--bg3) 4px,var(--bg2) 4px,var(--bg2) 8px)}
+.gnode.auto::after{content:"⚙";position:absolute;top:-8px;right:-8px;background:var(--yellow);color:#000;width:16px;height:16px;border-radius:50%;font-size:10px;line-height:16px}
+.gedge{position:absolute;height:2px;background:var(--accent);transform-origin:0 50%;z-index:1}
+.gedge.selected{background:var(--yellow);height:3px;z-index:2}
 .inspector .row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px}
 .inspector .row .val{color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+.inspector .auto-badge{display:inline-block;background:var(--yellow);color:#000;padding:1px 4px;border-radius:2px;font-size:9px;margin-left:4px}
+.inspector .warn{color:var(--yellow);font-size:10px;margin-top:4px;font-style:italic}
 a{color:var(--accent);text-decoration:none}
 .btn{padding:3px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
 .btn:hover{background:var(--accent);color:#fff}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
 </style>
 </head>
@@ -40,6 +52,16 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <a href="09-health-tree.html" style="margin-left:12px">健康树 Health Tree →</a>
   </div>
 </header>
+
+<div class="tabs">
+  <div class="tab active">📐 [ DESIGN 设计 ]</div>
+  <div class="tab">⚙ [ COMPILED 编译后 ]</div>
+  <div class="btn" style="margin-left:auto;margin-right:8px;padding:4px 10px;background:var(--bg3);color:var(--fg)">+ 场景 Scenario</div>
+</div>
+
+<div class="scenario">
+  <b>当前场景 / Current Scenario:</b> 异构源主备 (SDI-A 1080p50 + SDI-B 1080p25) → 真实 SDI 主备走 FRAME_SWITCH（V0.2 §3.4 / §3.7.1 锁定）
+</div>
 
 <div class="main">
   <div class="sidebar">
@@ -58,86 +80,114 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div class="item" style="border-left:3px solid var(--accent)">⏰ 时钟域 Clock Domain</div>
     </div>
     <h3 style="margin-top:16px"><span class="cn">边策略</span> / EDGE POLICY</h3>
-    <div class="item">Data Plane 数据面标签</div>
+    <div class="item">Data Plane 数据面</div>
     <div class="item">Clock Domain 时钟域</div>
-    <div class="item">Latency Target 延迟目标</div>
+    <div class="item">Latency Budget 延迟预算</div>
+    <div class="item">Backpressure 背压策略</div>
     <div class="item">Capability Contract 能力合约</div>
   </div>
 
   <div class="canvas">
+    <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#58a6ff"/>
+        </marker>
+        <marker id="arrow-warn" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#d29922"/>
+        </marker>
+      </defs>
+      <!-- Edges: SDI-A path -->
+      <line x1="140" y1="80" x2="220" y2="120" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Normalize A -->
+      <line x1="320" y1="135" x2="400" y2="135" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Encode A -->
+      <line x1="500" y1="135" x2="580" y2="135" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Switcher in/out (both encoded) -->
+      <line x1="680" y1="135" x2="760" y2="120" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- SDI-B path -->
+      <line x1="140" y1="200" x2="220" y2="155" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Normalize B -->
+      <line x1="320" y1="170" x2="400" y2="170" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Encode B -->
+      <line x1="500" y1="170" x2="580" y2="160" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Master Join (auto inserted, dashed) -->
+      <line x1="860" y1="115" x2="920" y2="80" stroke="#d29922" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrow-warn)"/>
+    </svg>
+
+    <!-- User-drawn nodes -->
     <div class="gnode source" style="left:20px;top:60px">
       <div class="type">SOURCE · SDI</div>
       <div>Source.A</div>
+      <div style="font-size:9px;color:var(--fgdim)">dv0 · 1080p50</div>
     </div>
     <div class="gnode source" style="left:20px;top:180px">
       <div class="type">SOURCE · SDI</div>
       <div>Source.B</div>
+      <div style="font-size:9px;color:var(--fgdim)">dv1 · 1080p25</div>
     </div>
-    <div class="gnode process" style="left:200px;top:120px">
-      <div class="type">SWITCHER · PACKET</div>
-      <div>切播器 Switcher</div>
+    <div class="gnode process" style="left:220px;top:100px">
+      <div class="type">NORMALIZE</div>
+      <div>标准化 A</div>
     </div>
-    <div class="gnode process" style="left:380px;top:120px">
-      <div class="type">COMPOSITION</div>
-      <div>节目图文</div>
+    <div class="gnode process" style="left:220px;top:155px">
+      <div class="type">NORMALIZE</div>
+      <div>标准化 B</div>
     </div>
-    <div class="gnode process" style="left:560px;top:60px">
-      <div class="type">AUDIO MIXER</div>
-      <div>音频混音</div>
+    <div class="gnode process" style="left:400px;top:100px">
+      <div class="type">ENCODE</div>
+      <div>编码 A</div>
+      <div style="font-size:9px;color:var(--fgdim)">H.264 5Mbps</div>
     </div>
-    <div class="gnode process" style="left:560px;top:180px">
-      <div class="type">VIDEO MASTER JOIN</div>
+    <div class="gnode process" style="left:400px;top:155px">
+      <div class="type">ENCODE</div>
+      <div>编码 B</div>
+      <div style="font-size:9px;color:var(--fgdim)">H.264 5Mbps</div>
+    </div>
+    <div class="gnode process" style="left:580px;top:120px" style="border-color:var(--yellow);background:var(--bg3)">
+      <div class="type">SWITCHER · FRAME</div>
+      <div>切播器</div>
+      <div style="font-size:9px;color:var(--fgdim)">PACKET 不可用</div>
+    </div>
+    <div class="gnode auto" style="left:760px;top:80px">
+      <div class="type">AUTO INSERTED</div>
       <div>视频主节点</div>
-    </div>
-    <div class="gnode process" style="left:560px;top:300px">
-      <div class="type">AUDIO MASTER JOIN</div>
-      <div>音频主节点</div>
-    </div>
-    <div class="gnode process" style="left:740px;top:180px">
-      <div class="type">PROGRAM MASTER</div>
-      <div>节目主母版</div>
-    </div>
-    <div class="gnode output" style="left:920px;top:60px">
-      <div class="type">ENCODE · H.264</div>
-      <div>Variant A</div>
-    </div>
-    <div class="gnode output" style="left:920px;top:180px">
-      <div class="type">ENCODE · H.265</div>
-      <div>Variant B</div>
-    </div>
-    <div class="gnode output" style="left:920px;top:300px">
-      <div class="type">RECORDING</div>
-      <div>本地 NVMe</div>
+      <div style="font-size:9px;color:var(--fgdim)">[AUTO]</div>
     </div>
 
-    <div class="gedge" style="left:120px;top:78px;width:80px;transform:rotate(30deg)"></div>
-    <div class="gedge" style="left:120px;top:198px;width:80px;transform:rotate(-30deg)"></div>
-    <div class="gedge" style="left:300px;top:138px;width:80px;transform:rotate(0)"></div>
-    <div class="gedge" style="left:480px;top:138px;width:80px;transform:rotate(-45deg)"></div>
-    <div class="gedge" style="left:480px;top:138px;width:80px;transform:rotate(45deg)"></div>
+    <!-- Selected Edge label -->
+    <div style="position:absolute;left:680px;top:90px;background:var(--yellow);color:#000;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700">EDGE e-001 已选</div>
   </div>
 
   <div class="inspector">
-    <h3><span class="cn">属性</span> / INSPECTOR — Switcher 切播器</h3>
-    <div class="row"><span>类型 / Type</span><span class="val">PACKET_SWITCH</span></div>
-    <div class="row"><span>热备 / Hot-Standby</span><span class="val">HOT (100ms)</span></div>
-    <div class="row"><span>源 A / Source A</span><span class="val">SDI / dv0</span></div>
-    <div class="row"><span>源 B / Source B</span><span class="val">SDI / dv1</span></div>
-    <div class="row"><span>能力 / Capability</span><span class="val">✓ PASS 通过</span></div>
-    <div class="row"><span>对齐 / Alignment</span><span class="val">✓ PASS 通过</span></div>
-    <div class="row"><span>数据面 / Data Plane</span><span class="val">RAW_VIDEO</span></div>
-    <div class="row"><span>时钟 / Clock</span><span class="val">PTP (priority 1)</span></div>
+    <h3><span class="cn">属性</span> / INSPECTOR — Edge 边 e-001</h3>
+    <div class="row"><span>源节点 / From</span><span class="val">切播器</span></div>
+    <div class="row"><span>目标 / To</span><span class="val">视频主节点</span></div>
+    <div class="row" style="background:var(--bg3);margin:0 -8px;padding:4px 8px"><span style="font-weight:700">数据面 / Data Plane</span><span class="val" style="color:var(--accent)">COMPRESSED_VIDEO</span></div>
+    <div class="row"><span>编码 / Codec</span><span class="val">H.264 High@L4.0</span></div>
+    <div class="row"><span>分辨率 / Res</span><span class="val">1920×1080 / 25</span></div>
+    <div class="row" style="background:var(--bg3);margin:0 -8px;padding:4px 8px"><span style="font-weight:700">时钟域 / Clock</span><span class="val" style="color:var(--accent)">PTP → MEDIA</span></div>
+    <div class="row"><span>Reference / 参考</span><span class="val">ptp0</span></div>
+    <div class="row"><span>Quality / 质量</span><span class="val" style="color:var(--green)">LOCKED ✓</span></div>
+    <div class="row" style="background:var(--bg3);margin:0 -8px;padding:4px 8px"><span style="font-weight:700">延迟预算 / Latency</span><span class="val" style="color:var(--accent)">50 ms (target)</span></div>
+    <div class="row"><span>实测 / Measured</span><span class="val" style="color:var(--green)">38 ms (p95)</span></div>
+    <div class="row"><span>背压 / Backpressure</span><span class="val">NEVER_SILENT</span></div>
+    <div class="row"><span>队列 / Queue max</span><span class="val">4 frames</span></div>
+    <div class="row" style="background:var(--bg3);margin:0 -8px;padding:4px 8px"><span style="font-weight:700">能力合约 / Capability</span><span class="val" style="color:var(--green)">✓ PASS</span></div>
+    <div class="row"><span>运行态对齐 / Alignment</span><span class="val" style="color:var(--green)">✓ PASS</span></div>
+    <div class="row" style="background:var(--bg3);margin:0 -8px;padding:4px 8px"><span style="font-weight:700">编译动作 / Compile</span><span class="val">NONE <span class="auto-badge">[AUTO] 视频主节点</span></span></div>
+    <div class="warn">⚠ AUTO INSERTED: 视频主节点 (AUTO) · 原因: Switcher 输出必须先归一化到 Master Join</div>
 
     <h3 style="margin-top:16px"><span class="cn">编译预览</span> / COMPILE PREVIEW (X1)</h3>
     <div class="row" style="color:var(--green)"><span>✓ 图合法 Graph valid</span></div>
     <div class="row" style="color:var(--green)"><span>✓ 资源 OK Resource ok</span></div>
     <div class="row" style="color:var(--green)"><span>✓ 时钟可对齐 Clock alignable</span></div>
     <div class="row" style="color:var(--green)"><span>✓ 延迟估算 1.8s Latency est.</span></div>
-    <div class="row" style="color:var(--yellow)"><span>⚠ 1 自动插入: Encode auto-insert</span></div>
+    <div class="row" style="color:var(--yellow)"><span>⚠ 1 自动插入: 视频主节点 auto-insert</span></div>
 
     <h3 style="margin-top:16px"><span class="cn">预检</span> / PREFLIGHT (X2)</h3>
     <div class="row" style="color:var(--green)"><span>✓ 0 critical 严重</span></div>
-    <div class="row" style="color:var(--yellow)"><span>⚠ 1 warning 警告: redundant path 冗余路径</span></div>
+    <div class="row" style="color:var(--yellow)"><span>⚠ 1 warning 警告: SDI-A/B 不同帧率 (50 vs 25) → FRAME_SWITCH</span></div>
 
     <div style="margin-top:12px">
       <button class="btn">💾 保存草稿 Save Draft</button>
@@ -148,7 +198,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </div>
 
 <footer>
-  V0.2 §3.10 Graph Compiler (X1) 图编译器 · Preflight (X2) 预检 · Configuration Versioning (X3) 变更集版本化 · Composition = RAW 域
+  V0.2 §3.4 switch_mode_decision_tree · §3.7.1 Composition 作用域分层 · SDI 主备真实走 FRAME/MASTER (V0.2 §3.4 锁定)
 </footer>
 </body>
 </html>

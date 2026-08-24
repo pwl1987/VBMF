@@ -1,8 +1,18 @@
 # Phase 0.5 — 操作员工作流与 Low-Fi 线框
 
-> **状态**：✅ 完成（V0.2 LOCK FINAL 之后）
-> **范围**：1 份操作员工作流 + 9 Low-Fi 页面（中英双语） + 4 关键操作链
+> **状态**：✅ 完成（含 **Phase 0.5.1** UI Semantics Closure — 12 项修复）
+> **范围**：1 份操作员工作流 + 10 Low-Fi 页面（中英双语） + 4 关键操作链 + ERRATA 归档
 > **目的**：操作员级验证 — UI / 角色 / 危险操作 / 状态机的 Single Source of Truth
+
+## Phase 0.5.1 — UI Semantics Closure
+
+Phase 0.5 完成后从"24/7 广播机房操作员能否安全、快速、无歧义地使用"角度复审，发现 **18 个 UI/UX 语义缺口**（其中 1 项违反 V0.2 锁定），落地为 **12 项修复**：
+
+- **5 项 P0 必须修**（含 1 项违反 V0.2 的 SDI+PACKET_SWITCH 示例冲突）
+- **5 项 P1 强烈建议**（Audio 广播安全区 / Output 3 视图 / Recording Incident→Replay / Sources Clock / Health Tree 3 视图）
+- **2 项 P2 锦上添花**（Operator Intent Layer / 10 状态总览页）
+
+完整归档见 [`ERRATA.md`](ERRATA.md)。
 
 ## 入口
 
@@ -10,22 +20,24 @@
 |---|---|
 | [`INDEX.md`](INDEX.md) | Phase 0.5 总览 + 验收 |
 | [`OPERATOR_WORKFLOW.md`](OPERATOR_WORKFLOW.md) | 角色矩阵 + 三轴状态机 + 危险操作 3 层 |
+| [`ERRATA.md`](ERRATA.md) | Phase 0.5.1 变更归档（12 项 UI 语义修复） |
 
-## 9 Low-Fi Wireframes（中英双语）
+## 10 Low-Fi Wireframes（中英双语）
 
 Dark Mode First（24/7 广播机房）。任何浏览器直接打开：
 
-| # | 页面 | 主要角色 | 文件 |
-|---|---|---|---|
-| 1 | Dashboard 主控台 | Operator 操作员 | [`wireframes/01-dashboard.html`](wireframes/01-dashboard.html) |
-| 2 | Sources 源管理 | Engineer 工程师 | [`wireframes/02-sources.html`](wireframes/02-sources.html) |
-| 3 | Switcher 切播器 | Operator 操作员 | [`wireframes/03-switcher.html`](wireframes/03-switcher.html) |
-| 4 | Composition 图文包装 | Director 节目总监 | [`wireframes/04-composition.html`](wireframes/04-composition.html) |
-| 5 | Audio 音频 | Operator 操作员 | [`wireframes/05-audio.html`](wireframes/05-audio.html) |
-| 6 | Output 输出 | Operator 操作员 | [`wireframes/06-output.html`](wireframes/06-output.html) |
-| 7 | Recording 录制 | Operator 操作员 | [`wireframes/07-recording.html`](wireframes/07-recording.html) |
-| 8 | Graph Designer 图设计（NEW） | Engineer 工程师 | [`wireframes/08-graph-designer.html`](wireframes/08-graph-designer.html) |
-| 9 | Health Tree 健康树（NEW） | 全员 | [`wireframes/09-health-tree.html`](wireframes/09-health-tree.html) |
+| # | 页面 | 主要角色 | 文件 | Phase 0.5.1 |
+|---|---|---|---|---|
+| 1 | Dashboard 主控台 | Operator 操作员 | [`wireframes/01-dashboard.html`](wireframes/01-dashboard.html) | P0-2 + P2-1 |
+| 2 | Sources 源管理 | Engineer 工程师 | [`wireframes/02-sources.html`](wireframes/02-sources.html) | P1-6 Clock Reference |
+| 3 | Switcher 切播器 | Operator 操作员 | [`wireframes/03-switcher.html`](wireframes/03-switcher.html) | P0-3 5 状态机 + L2 |
+| 4 | Composition 图文包装 | Director 节目总监 | [`wireframes/04-composition.html`](wireframes/04-composition.html) | P0-4 Timeline+Composition |
+| 5 | Audio 音频 | Operator 操作员 | [`wireframes/05-audio.html`](wireframes/05-audio.html) | P1-3 广播安全区 |
+| 6 | Output 输出 | Operator 操作员 | [`wireframes/06-output.html`](wireframes/06-output.html) | P1-4 3 视图 |
+| 7 | Recording 录制 | Operator 操作员 | [`wireframes/07-recording.html`](wireframes/07-recording.html) | P1-5 Incident→Replay |
+| 8 | Graph Designer 图设计 | Engineer 工程师 | [`wireframes/08-graph-designer.html`](wireframes/08-graph-designer.html) | P0-1 Scenario + 3 Tab |
+| 9 | Health Tree 健康树 | 全员 | [`wireframes/09-health-tree.html`](wireframes/09-health-tree.html) | P0-5 + P1-2 |
+| 10 | **10 States 状态总览** | 全员 | [`wireframes/10-states.html`](wireframes/10-states.html) | P2-2 新增 |
 
 ## 4 关键操作链
 

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>10 States 状态总览 — VBMF Phase 0.5.1</title>
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--orange:#db6d28}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
+.lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
+.intro{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--fgdim)}
+.intro b{color:var(--fg)}
+.legend{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px 12px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:14px;font-size:11px}
+.legend .item{display:flex;align-items:center;gap:6px}
+.legend .axis{color:var(--accent);font-weight:600;font-family:Menlo,Consolas,monospace}
+.legend .val{font-family:Menlo,Consolas,monospace}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.state{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;position:relative;overflow:hidden}
+.state::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+.state.normal::before{background:var(--green)}
+.state.starting::before{background:var(--accent)}
+.state.notready::before{background:var(--yellow)}
+.state.degraded::before{background:var(--yellow)}
+.state.failed::before{background:var(--red)}
+.state.failover::before{background:var(--orange)}
+.state.recovery::before{background:var(--orange)}
+.state.stopping::before{background:var(--gray)}
+.state.stopped::before{background:var(--gray)}
+.state.unknown::before{background:var(--gray)}
+.state-num{position:absolute;top:8px;right:12px;color:var(--fgdim);font-size:10px;letter-spacing:1px;font-weight:700}
+.state-title{font-size:14px;font-weight:700;margin-bottom:2px}
+.state-title .cn{color:var(--fg)}
+.state-title .en{color:var(--fgdim);font-size:11px;font-weight:400;margin-left:6px}
+.state-desc{color:var(--fgdim);font-size:11px;margin-bottom:8px}
+.state-axis{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:11px;margin-bottom:8px}
+.state-axis .k{color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+.state-axis .v{font-family:Menlo,Consolas,monospace;font-weight:600}
+.state-axis .v.green{color:var(--green)}
+.state-axis .v.yellow{color:var(--yellow)}
+.state-axis .v.red{color:var(--red)}
+.state-axis .v.accent{color:var(--accent)}
+.state-axis .v.gray{color:var(--gray)}
+.state-axis .v.orange{color:var(--orange)}
+.state-echs{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px 8px;font-size:11px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.state-echs .label{color:var(--fgdim)}
+.state-echs .val{font-weight:600;font-family:Menlo,Consolas,monospace}
+.state-echs .val.green{color:var(--green)}
+.state-echs .val.yellow{color:var(--yellow)}
+.state-echs .val.red{color:var(--red)}
+.state-echs .val.gray{color:var(--gray)}
+.state-echs .val.orange{color:var(--orange)}
+.state-echs .val.accent{color:var(--accent)}
+.state-scenario{font-size:11px;color:var(--fgdim);border-top:1px dashed var(--border);padding-top:6px;margin-top:6px}
+.state-scenario b{color:var(--fg)}
+a{color:var(--accent);text-decoration:none}
+footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header>
+  <h2>10 状态总览 / 10 States Overview — Lifecycle × Readiness × Health 三轴</h2>
+  <div>
+    <span class="lang">🌐 <b>中</b> / EN</span>
+    <a href="01-dashboard.html" style="margin-left:12px">← 主控台 Dashboard</a>
+    <a href="09-health-tree.html" style="margin-left:12px">健康树 Health Tree →</a>
+  </div>
+</header>
+
+<div class="intro">
+  <b>三轴运行时状态 / Three-Axis Runtime State (V0.2 §3):</b>
+  每个 Channel / Session 同时具有 <b>Lifecycle</b> + <b>Readiness</b> + <b>Health</b> 三轴状态。
+  Effective Channel Status (对外唯一入口 / <code>channel_health_view.effective_channel_status</code>) 由这三轴 + Aggregation Policy 推导。
+  本页列出全部 10 个典型状态，作为 Phase 0.5.1 P2-2「Stateful Operator UX」验收参考。
+</div>
+
+<div class="legend">
+  <div class="item"><span class="axis">Lifecycle</span> <span class="val">STOPPED · STARTING · RUNNING · STOPPING</span></div>
+  <div class="item"><span class="axis">Readiness</span> <span class="val">NOT_READY · READY_TO_TAKE</span></div>
+  <div class="item"><span class="axis">Health</span> <span class="val">HEALTHY · DEGRADED · FAILED · UNKNOWN</span></div>
+  <div class="item"><span class="axis">→ ECHS</span> <span class="val">HEALTHY · DEGRADED · FAILED · STARTING · STOPPED · UNKNOWN</span></div>
+</div>
+
+<div class="grid">
+
+  <!-- 1. NORMAL -->
+  <div class="state normal">
+    <div class="state-num">01</div>
+    <div class="state-title"><span class="cn">正常</span> <span class="en">/ NORMAL</span></div>
+    <div class="state-desc">主备都健康 · 正常运行中 · 所有 Channel HEALTHY</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v green">RUNNING</span>
+      <span class="k">Readiness</span><span class="v green">READY_TO_TAKE</span>
+      <span class="k">Health</span><span class="v green">HEALTHY</span>
+      <span class="k">Compiled</span><span class="v">PACKET</span>
+      <span class="k">Effective</span><span class="v">PACKET</span>
+      <span class="k">Hot-Standby</span><span class="v">HOT</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val green">● HEALTHY</span></div>
+    <div class="state-scenario"><b>典型场景:</b> 双 SDI 1080p25 + PTP LOCKED · 主备 Capability 对齐 · 平时稳态</div>
+  </div>
+
+  <!-- 2. STARTING -->
+  <div class="state starting">
+    <div class="state-num">02</div>
+    <div class="state-title"><span class="cn">启动中</span> <span class="en">/ STARTING</span></div>
+    <div class="state-desc">Session 启动中 · 资源分配 + Preflight + Capability Check 进行中</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v accent">STARTING</span>
+      <span class="k">Readiness</span><span class="v yellow">NOT_READY</span>
+      <span class="k">Health</span><span class="v gray">UNKNOWN</span>
+      <span class="k">阶段 / Phase</span><span class="v">Preflight → 加载 → Init</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val accent">● STARTING</span></div>
+    <div class="state-scenario"><b>典型场景:</b> Operator 点 START → Preflight 跑 → FFmpeg 初始化 → 等第一次 PTS 对齐 · 持续 2-8s · <b>无观众输出</b></div>
+  </div>
+
+  <!-- 3. NOT_READY (Backup pre-heat) -->
+  <div class="state notready">
+    <div class="state-num">03</div>
+    <div class="state-title"><span class="cn">备机未就绪</span> <span class="en">/ BACKUP NOT READY</span></div>
+    <div class="state-desc">主播出正常 · 备机正在预热 (WARM 阶段) · 暂时不能接管</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v green">RUNNING</span>
+      <span class="k">Readiness</span><span class="v yellow">NOT_READY</span>
+      <span class="k">Health</span><span class="v green">HEALTHY</span>
+      <span class="k">Backup</span><span class="v yellow">WARM 预热中 (84%)</span>
+      <span class="k">Switch Risk</span><span class="v yellow">ELEVATED 接管慢 1-2s</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val green">● HEALTHY</span></div>
+    <div class="state-scenario"><b>典型场景:</b> 开机 5-15 分钟内 / Backup 重启中 · Operator 看到黄色提醒 · 不阻断播出</div>
+  </div>
+
+  <!-- 4. DEGRADED -->
+  <div class="state degraded">
+    <div class="state-num">04</div>
+    <div class="state-title"><span class="cn">降级</span> <span class="en">/ DEGRADED</span></div>
+    <div class="state-desc">Channel 仍能播 · 但部分子系统降级 · 观众可能感知 (音视频漂移 / 编码质量下降)</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v green">RUNNING</span>
+      <span class="k">Readiness</span><span class="v green">READY_TO_TAKE</span>
+      <span class="k">Health</span><span class="v yellow">DEGRADED</span>
+      <span class="k">Failure</span><span class="v yellow">AV 漂移 +12ms / Clock DEGRADED</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val yellow">● DEGRADED</span></div>
+    <div class="state-scenario"><b>典型场景:</b> PTP lost → TIMECODE fallback · 或 AV 漂移超阈值 · 触发 CLOCK_DEGRADED 事件 · Channel 仍 HEALTHY 当本地不感知</div>
+  </div>
+
+  <!-- 5. FAILED -->
+  <div class="state failed">
+    <div class="state-num">05</div>
+    <div class="state-title"><span class="cn">失败</span> <span class="en">/ FAILED</span></div>
+    <div class="state-desc">主备 Source 都 FAILED · Channel 输出中断 · 等待 Operator / 自动恢复</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v green">RUNNING</span>
+      <span class="k">Readiness</span><span class="v red">NOT_READY</span>
+      <span class="k">Health</span><span class="v red">FAILED</span>
+      <span class="k">All Sources</span><span class="v red">OFFLINE+FAILED</span>
+      <span class="k">Recovery</span><span class="v">Filler 兜底播放</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val red">● FAILED</span></div>
+    <div class="state-scenario"><b>典型场景:</b> 主备 SDI 全部掉线 / 编码器全挂 · Aggregation Rule 3 触发 (Source RG 全部不可用) · Filler 兜底 · Operator 必须立即介入</div>
+  </div>
+
+  <!-- 6. FAILOVER (mid-switch) -->
+  <div class="state failover">
+    <div class="state-num">06</div>
+    <div class="state-title"><span class="cn">切换中</span> <span class="en">/ FAILOVER (mid-switch)</span></div>
+    <div class="state-desc">Auto Failover 进行中 · 从 Primary 切到 Backup · 持续 87ms ~ 2s</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v green">RUNNING</span>
+      <span class="k">Readiness</span><span class="v green">READY_TO_TAKE</span>
+      <span class="k">Health</span><span class="v green">HEALTHY</span>
+      <span class="k">Compiled</span><span class="v">FRAME / MASTER</span>
+      <span class="k">Effective</span><span class="v orange">SWITCHING...</span>
+      <span class="k">Filler</span><span class="v orange">ACTIVE (1.2s 兜底)</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val accent">● DEGRADED (临时)</span></div>
+    <div class="state-scenario"><b>典型场景:</b> Source.A 冻结 → §3.4 决策 FRAME_SWITCH → 执行中 · 87ms 黑场 + Filler 兜底 · Chain 2 step 6-8</div>
+  </div>
+
+  <!-- 7. RECOVERY -->
+  <div class="state recovery">
+    <div class="state-num">07</div>
+    <div class="state-title"><span class="cn">恢复中</span> <span class="en">/ RECOVERY (post-failover)</span></div>
+    <div class="state-desc">Failover 完成 · 新主播出稳定 · 但旧 Primary 仍 NOT_READY · Channel DEGRADED</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v green">RUNNING</span>
+      <span class="k">Readiness</span><span class="v yellow">NOT_READY</span>
+      <span class="k">Health</span><span class="v yellow">DEGRADED</span>
+      <span class="k">Active</span><span class="v">Source.B (新)</span>
+      <span class="k">Old Primary</span><span class="v yellow">OFFLINE 待重检</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val yellow">● DEGRADED</span></div>
+    <div class="state-scenario"><b>典型场景:</b> Failover 完成 30s 内 · 旧 Primary OFFLINE 待 Engineering 重启 · 单点风险 · Operator 应避免新 TAKE</div>
+  </div>
+
+  <!-- 8. STOPPING -->
+  <div class="state stopping">
+    <div class="state-num">08</div>
+    <div class="state-title"><span class="cn">停止中</span> <span class="en">/ STOPPING</span></div>
+    <div class="state-desc">正在 STOP · 关闭 FFmpeg / 释放资源 · 不可逆中</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v gray">STOPPING</span>
+      <span class="k">Readiness</span><span class="v yellow">NOT_READY</span>
+      <span class="k">Health</span><span class="v gray">UNKNOWN</span>
+      <span class="k">Phase</span><span class="v">Drain → Close FFmpeg</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val gray">● STOPPED (过渡)</span></div>
+    <div class="state-scenario"><b>典型场景:</b> Operator 点 STOP · X1 Compiler Drain → FFmpeg 优雅关闭 → 释放 BMD 端口 · 持续 2-5s · 不可逆 (cancel 必须先 STOP → START 重启)</div>
+  </div>
+
+  <!-- 9. STOPPED -->
+  <div class="state stopped">
+    <div class="state-num">09</div>
+    <div class="state-title"><span class="cn">已停止</span> <span class="en">/ STOPPED</span></div>
+    <div class="state-desc">Session 已停止 · 资源全部释放 · 可以 START 重启</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v gray">STOPPED</span>
+      <span class="k">Readiness</span><span class="v gray">NOT_READY</span>
+      <span class="k">Health</span><span class="v gray">UNKNOWN</span>
+      <span class="k">Resources</span><span class="v">全部释放</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val gray">● STOPPED</span></div>
+    <div class="state-scenario"><b>典型场景:</b> 节目结束 · Operator STOP · 24h 录制停 · Channel 显示 STOPPED · 等待下次 START</div>
+  </div>
+
+  <!-- 10. UNKNOWN -->
+  <div class="state unknown">
+    <div class="state-num">10</div>
+    <div class="state-title"><span class="cn">未知</span> <span class="en">/ UNKNOWN</span></div>
+    <div class="state-desc">系统无法判断状态 · 通常是监控/通信中断 · 必须告警</div>
+    <div class="state-axis">
+      <span class="k">Lifecycle</span><span class="v gray">UNKNOWN</span>
+      <span class="k">Readiness</span><span class="v gray">UNKNOWN</span>
+      <span class="k">Health</span><span class="v gray">UNKNOWN</span>
+      <span class="k">监控心跳</span><span class="v red">超时 &gt; 30s</span>
+    </div>
+    <div class="state-echs"><span class="label">Channel Health View →</span><span class="val gray">● UNKNOWN</span></div>
+    <div class="state-scenario"><b>典型场景:</b> Media Agent / Sensor 心跳丢失 · 网络分区 · Channel Health View 直接 UNKNOWN · 触发 ALERT · <b>不等同于 FAILED</b> (UNKNOWN 不得被吸收为 HEALTHY/DEGRADED)</div>
+  </div>
+
+</div>
+
+<footer>
+  VBMF Phase 0.5.1 · 10 States 总览页 10/10 · V0.2 §3 三轴 Runtime 状态 · ECHS (Effective Channel Health Status) = channel_health_view 唯一入口
+</footer>
+</body>
+</html>

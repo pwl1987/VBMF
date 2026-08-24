@@ -2,27 +2,43 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>05 Audio 音频 — VBMF Phase 0.5 Low-Fi</title>
+<title>05 Audio 音频 — VBMF Phase 0.5.1</title>
 <style>
-:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
 .lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
-.panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-.panel h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
+.grid{display:grid;grid-template-columns:1fr 320px;gap:12px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
 .channel{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
 .channel .name{width:140px;color:var(--fgdim)}
 .channel .fader{flex:1;height:6px;background:linear-gradient(to right,var(--green) 0%,var(--green) 65%,var(--yellow) 75%,var(--red) 90%);border-radius:3px;position:relative}
 .channel .fader .knob{position:absolute;top:-4px;width:14px;height:14px;background:var(--fg);border-radius:50%;cursor:pointer}
 .channel .db{width:60px;text-align:right;font-family:Menlo,Consolas,monospace}
-.loudness{background:var(--bg3);border-radius:4px;padding:12px;margin-top:8px}
-.loudness .num{font-size:32px;font-weight:700;color:var(--green);font-family:Menlo,Consolas,monospace}
-.loudness .label{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px}
 .meter{height:80px;background:#000;border-radius:4px;position:relative;overflow:hidden;margin-top:8px}
 .meter .bar{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,var(--green) 0%,var(--green) 60%,var(--yellow) 80%,var(--red) 100%);opacity:0.6}
+
+/* Safety zone */
+.safety{padding:16px;background:var(--bg3);border:2px solid var(--green);border-radius:8px}
+.safety .row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;font-family:Menlo,Consolas,monospace}
+.safety .row .label{color:var(--fgdim)}
+.safety .row .val{font-weight:700;font-size:14px}
+.safety .row .target{color:var(--fgdim);font-size:10px}
+.safety.partial{border-color:var(--yellow)}
+.safety.fail{border-color:var(--red)}
+
+.safety-check{display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.safety-check .chk{padding:4px 8px;border-radius:3px;font-size:10px;font-weight:700}
+.safety-check .ok{background:var(--green);color:#000}
+.safety-check .warn{background:var(--yellow);color:#000}
+.safety-check .err{background:var(--red);color:#fff}
+
+.loudness{background:var(--bg3);border-radius:4px;padding:12px;margin-top:8px}
+.loudness .num{font-size:32px;font-weight:700;color:var(--green);font-family:Menlo,Consolas,monospace}
+.loudness .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
 a{color:var(--accent);text-decoration:none}
 .btn{padding:4px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
 .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
@@ -33,7 +49,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">音频 / Audio — Mixer / Loudness / Delay</h2>
+  <h2 style="font-size:14px">音频 / Audio — Mixer + Loudness + Delay + Broadcast Safety Zone</h2>
   <div>
     <span class="lang">🌐 <b>中</b> / EN</span>
     <a href="04-composition.html" style="margin-left:12px">← 图文 Composition</a>
@@ -42,54 +58,102 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </header>
 
 <div class="grid">
-  <div class="panel">
-    <h3><span class="cn">混音器 8 通道</span> / MIXER — 8 CHANNEL</h3>
-    <div class="channel"><div class="name">CH1 Source.A 左 L</div><div class="fader"><div class="knob" style="left:65%"></div></div><div class="db">-3.5 dB</div></div>
-    <div class="channel"><div class="name">CH2 Source.A 右 R</div><div class="fader"><div class="knob" style="left:65%"></div></div><div class="db">-3.5 dB</div></div>
-    <div class="channel"><div class="name">CH3 Source.B 左 L</div><div class="fader"><div class="knob" style="left:50%"></div></div><div class="db">-6.0 dB</div></div>
-    <div class="channel"><div class="name">CH4 Source.B 右 R</div><div class="fader"><div class="knob" style="left:50%"></div></div><div class="db">-6.0 dB</div></div>
-    <div class="channel"><div class="name">CH5 背景乐 Music Bed</div><div class="fader"><div class="knob" style="left:30%"></div></div><div class="db">-12.0 dB</div></div>
-    <div class="channel"><div class="name">CH6 人声 Voice</div><div class="fader"><div class="knob" style="left:70%"></div></div><div class="db">-2.5 dB</div></div>
-    <div class="channel"><div class="name">CH7 音效 SFX</div><div class="fader"><div class="knob" style="left:0%"></div></div><div class="db">-∞ dB</div></div>
-    <div class="channel"><div class="name">CH8 辅助 Aux</div><div class="fader"><div class="knob" style="left:0%"></div></div><div class="db">-∞ dB</div></div>
-  </div>
-  <div class="panel">
-    <h3><span class="cn">响度 EBU R128 实时</span> / LOUDNESS — REALTIME</h3>
-    <div class="loudness">
-      <div class="label">瞬时 Momentary (M)</div>
-      <div class="num" style="color:var(--yellow)">-18.2 LUFS</div>
+  <div>
+    <div class="panel">
+      <h3><span class="cn">混音器 8 通道</span> / MIXER — 8 CHANNEL</h3>
+      <div class="channel"><div class="name">CH1 Source.A 左 L</div><div class="fader"><div class="knob" style="left:65%"></div></div><div class="db">-3.5 dB</div></div>
+      <div class="channel"><div class="name">CH2 Source.A 右 R</div><div class="fader"><div class="knob" style="left:65%"></div></div><div class="db">-3.5 dB</div></div>
+      <div class="channel"><div class="name">CH3 Source.B 左 L</div><div class="fader"><div class="knob" style="left:50%"></div></div><div class="db">-6.0 dB</div></div>
+      <div class="channel"><div class="name">CH4 Source.B 右 R</div><div class="fader"><div class="knob" style="left:50%"></div></div><div class="db">-6.0 dB</div></div>
+      <div class="channel"><div class="name">CH5 背景乐 Music Bed</div><div class="fader"><div class="knob" style="left:30%"></div></div><div class="db">-12.0 dB</div></div>
+      <div class="channel"><div class="name">CH6 人声 Voice</div><div class="fader"><div class="knob" style="left:70%"></div></div><div class="db">-2.5 dB</div></div>
+      <div class="channel"><div class="name">CH7 音效 SFX</div><div class="fader"><div class="knob" style="left:0%"></div></div><div class="db">-∞ dB</div></div>
+      <div class="channel"><div class="name">CH8 辅助 Aux</div><div class="fader"><div class="knob" style="left:0%"></div></div><div class="db">-∞ dB</div></div>
     </div>
-    <div class="loudness">
-      <div class="label">短时 Short-term (S)</div>
-      <div class="num" style="color:var(--green)">-22.8 LUFS</div>
-    </div>
-    <div class="loudness">
-      <div class="label">综合 Integrated (I)</div>
-      <div class="num" style="color:var(--green)">-23.0 LUFS</div>
-    </div>
-    <div class="loudness">
-      <div class="label">真峰值 True Peak</div>
-      <div class="num" style="color:var(--green)">-1.5 dBTP</div>
-    </div>
-    <div class="meter" style="margin-top:12px">
-      <div class="bar" style="height:62%"></div>
-    </div>
-  </div>
-</div>
 
-<div class="panel" style="margin-top:12px">
-  <h3><span class="cn">音频主节点 + 视音同步</span> / AUDIO MASTER JOIN + AV SYNC</h3>
-  <div class="row"><span>音频主节点 Audio Master</span><span class="val" style="color:var(--green)">HEALTHY 健康</span></div>
-  <div class="row"><span>视音同步偏移 / AV Sync Offset (|Δ|)</span><span class="val" style="color:var(--green)">+12ms (在 ±80ms 绿区内)</span></div>
-  <div class="row"><span>视音同步漂移 / AV Sync Drift</span><span class="val">+0.3ms/min (在 1ms/min 内)</span></div>
-  <div class="row"><span>采样率 / Sample Rate</span><span class="val">48 kHz</span></div>
-  <div class="row"><span>位深 / Bit Depth</span><span class="val">24 bit</span></div>
-  <div class="row"><span>声道 / Channels</span><span class="val">8 ch (5.1 + Stereo 立体声)</span></div>
-  <div style="margin-top:8px"><button class="btn">校准 Calibrate</button><button class="btn">重置 Reset</button><button class="btn">全部静音 Mute All</button></div>
+    <div class="panel">
+      <h3><span class="cn">响度 (EBU R128) 实时</span> / LOUDNESS — REALTIME</h3>
+      <div class="loudness">
+        <div class="label">瞬时 Momentary (M)</div>
+        <div class="num" style="color:var(--yellow)">-18.2 LUFS</div>
+      </div>
+      <div class="loudness">
+        <div class="label">短时 Short-term (S)</div>
+        <div class="num" style="color:var(--green)">-22.8 LUFS</div>
+      </div>
+      <div class="loudness">
+        <div class="label">综合 Integrated (I)</div>
+        <div class="num" style="color:var(--green)">-23.0 LUFS</div>
+      </div>
+      <div class="loudness">
+        <div class="label">真峰值 True Peak</div>
+        <div class="num" style="color:var(--green)">-1.5 dBTP</div>
+      </div>
+      <div class="meter" style="margin-top:12px">
+        <div class="bar" style="height:62%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <!-- BROADCAST SAFETY ZONE -->
+    <div class="panel">
+      <h3><span class="cn">广播级音频安全区</span> / BROADCAST SAFETY ZONE</h3>
+      <div class="safety">
+        <div class="row">
+          <span class="label">LUFS-I 综合 <span class="target">/ target -23.0</span></span>
+          <span class="val" style="color:var(--green)">-23.4</span>
+        </div>
+        <div class="row">
+          <span class="label">LUFS-S 短时 <span class="target">/ target -23 ±2</span></span>
+          <span class="val" style="color:var(--green)">-22.8</span>
+        </div>
+        <div class="row">
+          <span class="label">True Peak 真峰值 <span class="target">/ max -1 dBTP</span></span>
+          <span class="val" style="color:var(--green)">-1.3 dBTP</span>
+        </div>
+        <div class="row">
+          <span class="label">L/R Balance 左右平衡 <span class="target">/ ±0.5 dB</span></span>
+          <span class="val" style="color:var(--green)">+0.1 dB</span>
+        </div>
+        <div class="row">
+          <span class="label">Phase 相位 <span class="target">/ mono OK</span></span>
+          <span class="val" style="color:var(--green)">+1.0</span>
+        </div>
+        <div class="row">
+          <span class="label">Mute 静音 <span class="target">/ detect</span></span>
+          <span class="val" style="color:var(--green)">NONE</span>
+        </div>
+        <div class="safety-check">
+          <div class="chk ok">● Loudness OK</div>
+          <div class="chk ok">● Peak OK</div>
+          <div class="chk ok">● Phase OK</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3><span class="cn">视音同步 / AV SYNC</span></h3>
+      <div class="row"><span>AV Offset 偏移 <span style="color:var(--fgdim);font-size:10px">/ ±80ms 绿区</span></span><span class="val" style="color:var(--green)">+12 ms</span></div>
+      <div class="row"><span>Drift 漂移 <span style="color:var(--fgdim);font-size:10px">/ ±1ms/min 绿区</span></span><span class="val" style="color:var(--green)">+0.3 ms/min</span></div>
+      <div class="row"><span>Sample Rate 采样率</span><span class="val">48 kHz</span></div>
+      <div class="row"><span>Bit Depth 位深</span><span class="val">24 bit</span></div>
+      <div class="row"><span>Channels 声道</span><span class="val">8 ch (5.1 + Stereo)</span></div>
+      <div style="margin-top:8px"><button class="btn">校准 Calibrate</button><button class="btn">重置 Reset</button><button class="btn">全部静音 Mute All</button></div>
+    </div>
+
+    <div class="panel">
+      <h3><span class="cn">音频主节点 + 链路</span> / AUDIO MASTER JOIN + CHAIN</h3>
+      <div class="row"><span>音频主节点 Audio Master</span><span class="val" style="color:var(--green)">HEALTHY</span></div>
+      <div class="row"><span>Channel 数</span><span class="val">2 (Stereo)</span></div>
+      <div class="row"><span>Source Lock</span><span class="val">PTP 锁定</span></div>
+      <div class="row"><span>Output Latency</span><span class="val">23 ms (p50)</span></div>
+    </div>
+  </div>
 </div>
 
 <footer>
-  V0.2 §3.8 AVSync Manager (Measurement 测量 + Offset/Drift Correction 偏移/漂移修正) · §3.7 Audio Master Join
+  V0.2 §3.8 AVSync Manager (Measurement + Offset/Drift Correction) · §3.7 Audio Master Join · EBU R128 · 广播级安全区
 </footer>
 </body>
 </html>

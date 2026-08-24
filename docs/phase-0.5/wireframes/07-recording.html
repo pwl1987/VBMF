@@ -2,34 +2,66 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>07 Recording 录制 — VBMF Phase 0.5 Low-Fi</title>
+<title>07 Recording 录制 — VBMF Phase 0.5.1</title>
 <style>
-:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
-header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin:0 0 12px}
+header h2{font-size:14px}
 .lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
-.panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-.panel h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
-.metric{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.metric{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
 .metric:last-child{border-bottom:none}
 .metric .val{font-weight:600;font-family:Menlo,Consolas,monospace}
-.diskbar{height:24px;background:#000;border-radius:4px;overflow:hidden;margin-top:8px;border:1px solid var(--border)}
+.diskbar{height:20px;background:#000;border-radius:4px;overflow:hidden;margin-top:6px;border:1px solid var(--border)}
 .diskbar .used{height:100%;background:linear-gradient(to right,var(--green) 0%,var(--green) 60%,var(--yellow) 80%,var(--red) 100%)}
-.chunk{font-family:Menlo,Consolas,monospace;font-size:11px;padding:4px 8px;border-left:2px solid var(--green);margin-bottom:4px;background:var(--bg3)}
-.chunk.now{border-left-color:var(--accent);background:var(--bg3)}
+.chunk{font-family:Menlo,Consolas,monospace;font-size:11px;padding:5px 8px;border-left:2px solid var(--green);margin-bottom:3px;background:var(--bg3);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.chunk:hover{background:#252c36}
+.chunk.now{border-left-color:var(--accent)}
+.chunk.incident{border-left-color:var(--red);background:#3a1f1f}
+.chunk.selected{border-left-color:var(--accent);background:#1f2a3a;border-left-width:4px}
 a{color:var(--accent);text-decoration:none}
-.btn{padding:3px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
+.btn{padding:4px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px;font-family:inherit}
 .btn:hover{background:var(--accent);color:#fff}
 .btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Incident → Replay workflow */
+.workflow{display:flex;align-items:center;gap:6px;background:var(--bg3);border-radius:4px;padding:8px;margin-bottom:8px}
+.workflow .step{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center;font-size:11px}
+.workflow .step .step-num{color:var(--accent);font-weight:700;font-size:10px;letter-spacing:1px}
+.workflow .step .step-name{color:var(--fg);font-weight:600;margin-top:2px}
+.workflow .step .step-sub{color:var(--fgdim);font-size:10px;margin-top:2px}
+.workflow .arrow{color:var(--accent);font-size:14px;flex-shrink:0}
+
+/* Replay panel */
+.replay-stream{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px}
+.replay-stream label{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px}
+.replay-stream input[type=radio]{accent-color:var(--accent)}
+.replay-stream label.checked{border-color:var(--accent);background:#1f2a3a}
+.replay-window{background:#000;border:1px solid var(--border);border-radius:4px;height:36px;position:relative;margin:8px 0;overflow:hidden}
+.replay-window .timeline{position:absolute;left:0;right:0;top:0;bottom:0;display:flex}
+.replay-window .sec{flex:1;border-right:1px solid #222;font-size:9px;color:#666;text-align:center;padding-top:2px}
+.replay-window .sec:last-child{border-right:none}
+.replay-window .incident-mark{position:absolute;top:0;bottom:0;width:2px;background:var(--red);box-shadow:0 0 6px var(--red)}
+.replay-window .window{position:absolute;top:0;bottom:0;background:rgba(88,166,255,0.2);border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+.replay-window .label{position:absolute;top:-2px;font-size:9px;color:var(--accent);font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.green{background:var(--green)}.yellow{background:var(--yellow)}.red{background:var(--red)}.gray{background:var(--gray)}
+.incident-detail{background:var(--bg3);border:1px solid var(--red);border-radius:4px;padding:10px;margin-bottom:8px;font-size:11px}
+.incident-detail b{color:var(--red)}
+.incident-detail .field{display:flex;justify-content:space-between;padding:2px 0}
 footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">录制 / Recording — Chunked 分段 (5 min) + Event 事件回溯</h2>
+  <h2>录制 / Recording — Chunked 分段 (5 min) + Incident→Replay 事件回溯工作流</h2>
   <div>
     <span class="lang">🌐 <b>中</b> / EN</span>
     <a href="06-output.html" style="margin-left:12px">← 输出 Output</a>
@@ -37,12 +69,43 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 </header>
 
+<!-- Incident → Replay Workflow (P1-5) -->
+<div class="panel" style="margin-bottom:12px">
+  <h3><span class="cn">事件回放工作流</span> / INCIDENT → REPLAY WORKFLOW (X4 Timeline × Recording Engine)</h3>
+  <div class="workflow">
+    <div class="step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-name">事故发生 / Incident</div>
+      <div class="step-sub">Health Tree + QC → 自动建档</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-name">自动定位 / Auto-Locate</div>
+      <div class="step-sub">按 timestamp 找到 Chunk</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-name">选流 / Select Stream</div>
+      <div class="step-sub">Program / Source / Audio / Master</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="step">
+      <div class="step-num">STEP 4</div>
+      <div class="step-name">回放 / Replay</div>
+      <div class="step-sub">-30s ~ 事故 ~ +60s 窗口</div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Recordings + Storage -->
 <div class="row">
   <div class="panel">
     <h3><span class="cn">正在录制</span> / ACTIVE RECORDINGS</h3>
-    <div class="metric"><span>CH01 News HD 新闻</span><span class="val" style="color:var(--green)">● REC 录制中 (02:14:37)</span></div>
-    <div class="metric"><span>CH02 Sports 4K 体育</span><span class="val" style="color:var(--gray)">○ Idle 空闲</span></div>
-    <div class="metric"><span>CH03 Music SD 音乐</span><span class="val" style="color:var(--green)">● REC 录制中 (08:42:11)</span></div>
+    <div class="metric"><span>CH01 News HD 新闻</span><span class="val" style="color:var(--green)"><i class="dot green"></i>REC 录制中 (02:14:37)</span></div>
+    <div class="metric"><span>CH02 Sports 4K 体育</span><span class="val" style="color:var(--gray)"><i class="dot gray"></i>Idle 空闲</span></div>
+    <div class="metric"><span>CH03 Music SD 音乐</span><span class="val" style="color:var(--green)"><i class="dot green"></i>REC 录制中 (08:42:11)</span></div>
   </div>
   <div class="panel">
     <h3><span class="cn">存储</span> / STORAGE</h3>
@@ -51,18 +114,91 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="metric"><span>可用 / Free</span><span class="val">1.25 TB</span></div>
     <div class="metric"><span>保留 / Retention</span><span class="val">30 days 30天 (auto-purge 自动清理)</span></div>
     <div class="diskbar"><div class="used" style="width:77%"></div></div>
-    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">⚠ 77% used · 预计 8 天后满 / 8 days until full</p>
+    <p style="color:var(--fgdim);font-size:11px;margin-top:6px">⚠ 77% used · 预计 8 天后满 / 8 days until full</p>
   </div>
 </div>
 
-<div class="panel">
-  <h3><span class="cn">最近分段</span> / RECENT CHUNKS — CH01 News HD 新闻</h3>
-  <div class="chunk now">14:30:00 → 14:35:00 · 进行中 in-progress · 5min · ~750 MB</div>
-  <div class="chunk">14:25:00 → 14:30:00 · 5min · 750 MB · <a href="#incident-1248">⚠ 事件 Incident #1248</a></div>
-  <div class="chunk">14:20:00 → 14:25:00 · 5min · 750 MB</div>
-  <div class="chunk">14:15:00 → 14:20:00 · 5min · 750 MB · <a href="#incident-1247">⚠ 事件 Incident #1247</a></div>
-  <div class="chunk">14:10:00 → 14:15:00 · 5min · 750 MB</div>
-  <div class="chunk">14:05:00 → 14:10:00 · 5min · 750 MB</div>
+<!-- Selected Incident + Replay Workspace -->
+<div class="panel" style="margin-bottom:12px">
+  <h3><span class="cn">回放工作区</span> / REPLAY WORKSPACE — 选中事件 #1248</h3>
+
+  <div class="incident-detail">
+    <div class="field"><span>事件 ID / Incident</span><span><b>#1248</b> · <span style="color:var(--yellow)">● ACKNOWLEDGED 已确认</span></span></div>
+    <div class="field"><span>类型 / Type</span><span>Source.B 视频冻结 5s (FREEZE) · SOURCE 故障域</span></div>
+    <div class="field"><span>发生时间 / Occurred At</span><span>2026-08-25 14:25:21.412 CST</span></div>
+    <div class="field"><span>检测 → 处置 / Detect → Resolve</span><span>14:25:26 (5s 检测阈值) → 14:25:27 FRAME_SWITCH 完成</span></div>
+    <div class="field"><span>恢复动作 / Recovery Action</span><span>§8.9 SOURCE → FAILOVER → Source.A 接管</span></div>
+    <div class="field"><span>影响 / Impact</span><span>观众感知 87ms 黑场 (Filler 兜底 1.2s)</span></div>
+    <div class="field"><span>确认人 / Acked By</span><span>op@pwl1987 · 14:26:03 (42s 后)</span></div>
+  </div>
+
+  <h3 style="margin-top:10px"><span class="cn">选择回放流</span> / SELECT REPLAY STREAM</h3>
+  <div class="replay-stream">
+    <label class="checked"><input type="radio" name="rs" checked> <b>Program</b> 主播出</label>
+    <label><input type="radio" name="rs"> <b>Source.A</b> 主机位</label>
+    <label><input type="radio" name="rs"> <b>Source.B</b> 备机位</label>
+    <label><input type="radio" name="rs"> <b>Audio</b> 主音轨</label>
+    <label><input type="radio" name="rs"> <b>Master</b> 主母版</label>
+  </div>
+
+  <h3 style="margin-top:8px"><span class="cn">录像窗口</span> / REPLAY WINDOW</h3>
+  <div class="replay-window">
+    <div class="timeline">
+      <div class="sec">-30s</div><div class="sec">-25s</div><div class="sec">-20s</div><div class="sec">-15s</div><div class="sec">-10s</div><div class="sec">-5s</div>
+      <div class="sec">00s</div><div class="sec">+5s</div><div class="sec">+10s</div><div class="sec">+15s</div><div class="sec">+20s</div><div class="sec">+25s</div><div class="sec">+30s</div><div class="sec">+35s</div><div class="sec">+40s</div><div class="sec">+45s</div><div class="sec">+50s</div><div class="sec">+55s</div><div class="sec">+60s</div>
+    </div>
+    <div class="window" style="left:0%;width:75%">
+      <span class="label" style="left:2px">14:24:51</span>
+      <span class="label" style="right:2px">14:25:51</span>
+    </div>
+    <div class="incident-mark" style="left:25%"></div>
+  </div>
+  <p style="color:var(--fgdim);font-size:11px;margin-top:4px">
+    ⚠ 红色竖线 = 故障发生时刻 (14:25:21.412) · 蓝色窗口 = 默认 -30s ~ +60s 回放范围 · 含整个 5min Chunk 14:25:00-14:30:00
+  </p>
+
+  <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <button class="btn primary">▶ 播放 Replay (1.5x)</button>
+      <button class="btn">⏸ 暂停 Pause</button>
+      <button class="btn">⏮ 跳到事故时刻 Jump to Incident</button>
+      <button class="btn">⏪ -5s</button>
+      <button class="btn">⏩ +5s</button>
+    </div>
+    <div>
+      <button class="btn">💾 导出此窗口 Export Clip</button>
+      <button class="btn">🔗 复制录像链接 Copy URL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chunk List (where you can pick a different incident or chunk) -->
+<div class="panel" style="margin-bottom:12px">
+  <h3><span class="cn">最近分段</span> / RECENT CHUNKS — CH01 News HD 新闻 (点击跳到 / Click to jump)</h3>
+  <div class="chunk now">
+    <span>14:30:00 → 14:35:00 · 进行中 in-progress · 5min · ~750 MB</span>
+    <span style="color:var(--fgdim)">NOW 当前</span>
+  </div>
+  <div class="chunk incident selected">
+    <span>14:25:00 → 14:30:00 · 5min · 750 MB · 🔴 事件 #1248 (Source.B 冻结)</span>
+    <span style="color:var(--accent)">已选中 SELECTED</span>
+  </div>
+  <div class="chunk">
+    <span>14:20:00 → 14:25:00 · 5min · 750 MB</span>
+    <span style="color:var(--fgdim)">健康</span>
+  </div>
+  <div class="chunk incident">
+    <span>14:15:00 → 14:20:00 · 5min · 750 MB · 🟡 事件 #1247 (AV 漂移 +12ms)</span>
+    <span style="color:var(--fgdim)">点击 → 自动定位</span>
+  </div>
+  <div class="chunk">
+    <span>14:10:00 → 14:15:00 · 5min · 750 MB</span>
+    <span style="color:var(--fgdim)">健康</span>
+  </div>
+  <div class="chunk">
+    <span>14:05:00 → 14:10:00 · 5min · 750 MB</span>
+    <span style="color:var(--fgdim)">健康</span>
+  </div>
   <div style="margin-top:8px;text-align:right">
     <button class="btn">⏮ 上小时 Previous Hour</button>
     <button class="btn">⏭ 下小时 Next Hour</button>
@@ -70,13 +206,26 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 </div>
 
-<div class="row" style="margin-top:12px">
+<!-- Recent Incidents (linked to chunks) + Actions -->
+<div class="row">
   <div class="panel">
-    <h3><span class="cn">最近事件</span> / RECENT INCIDENTS (X4 Timeline)</h3>
-    <div class="chunk">14:25:21 · Source.B 冻结 5s · 自动接管 Auto Failover · <b>#1248</b></div>
-    <div class="chunk">14:15:21 · AV 同步漂移 +12ms · 已补偿 Compensated · <b>#1247</b></div>
-    <div class="chunk">13:42:09 · HLS 切片失败 · 重启 Adapter · <b>#1246</b></div>
-    <div class="chunk" style="border-left-color:var(--yellow)">12:08:47 · 手动 TAKE · 操作员已记录 · <b>#1245</b></div>
+    <h3><span class="cn">最近事件</span> / RECENT INCIDENTS (X4 Timeline · 点击跳到 Replay Workspace)</h3>
+    <div class="chunk incident">
+      <span>14:25:21 · Source.B 冻结 5s · 自动接管 · <b>#1248</b></span>
+      <a href="#replay">→ 跳到 Replay</a>
+    </div>
+    <div class="chunk">
+      <span>14:15:21 · AV 同步漂移 +12ms · 已补偿 · <b>#1247</b></span>
+      <a href="#replay">→ 跳到 Replay</a>
+    </div>
+    <div class="chunk">
+      <span>13:42:09 · HLS 切片失败 · 重启 Adapter · <b>#1246</b></span>
+      <a href="#replay">→ 跳到 Replay</a>
+    </div>
+    <div class="chunk" style="border-left-color:var(--yellow)">
+      <span>12:08:47 · 手动 TAKE · 操作员已记录 · <b>#1245</b></span>
+      <a href="#replay">→ 跳到 Replay</a>
+    </div>
   </div>
   <div class="panel">
     <h3><span class="cn">操作</span> / ACTIONS</h3>
@@ -88,12 +237,12 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <button class="btn danger">⚠ 停止并归档</button>
       <button class="btn">📤 导出分段</button>
     </div>
-    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">录制引擎 / Recording Engine: 5 min chunk · NVMe 本地 · 自动分段 · 事件回溯关联</p>
+    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">录制引擎 / Recording Engine: 5 min chunk · NVMe 本地 · 自动分段 · 事件回溯直接关联 Chunk (X4 Timeline 双向链接)</p>
   </div>
 </div>
 
 <footer>
-  V0.2 §3 Recording Engine · X4 Incident Timeline 事件时间线 · 事件回溯直接关联 Chunk
+  V0.2 §3 Recording Engine · X4 Incident Timeline 事件时间线 · Phase 0.5.1 P1-5: Incident→Replay 自动定位工作流
 </footer>
 </body>
 </html>

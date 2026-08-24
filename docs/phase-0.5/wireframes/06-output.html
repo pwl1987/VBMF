@@ -2,16 +2,23 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>06 Output 输出 — VBMF Phase 0.5 Low-Fi</title>
+<title>06 Output 输出 — VBMF Phase 0.5.1</title>
 <style>
 :root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
 .lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
-table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
-th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px}
-th{background:var(--bg3);color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden;margin-bottom:0}
+.tab{padding:10px 18px;cursor:pointer;color:var(--fgdim);font-size:13px;border-right:1px solid var(--border);font-weight:600}
+.tab.active{background:var(--bg3);color:var(--fg)}
+.tab:hover:not(.active){background:var(--bg2);color:var(--fg)}
+.view{display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:16px;background:var(--bg2);min-height:560px}
+.view.active{display:block}
+
+table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
+th{background:var(--bg3);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600}
 tr:last-child td{border-bottom:none}
 tr:hover{background:var(--bg3)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
@@ -20,6 +27,19 @@ tr:hover{background:var(--bg3)}
 .btn{padding:3px 8px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
 .btn:hover{background:var(--accent);color:#fff}
 .btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+
+.detail{padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:8px}
+.detail h4{color:var(--fg);font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.detail h4 .badge{padding:2px 6px;border-radius:3px;font-size:9px;font-weight:600;background:var(--accent);color:#000}
+.detail .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px}
+.detail .field{padding:6px;background:var(--bg2);border-radius:3px}
+.detail .field .k{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.detail .field .v{font-family:Menlo,Consolas,monospace;font-weight:600;margin-top:2px}
+.detail .field .v.green{color:var(--green)}
+.detail .field .v.yellow{color:var(--yellow)}
+.detail .field .v.red{color:var(--red)}
+.detail .bar{height:8px;background:#000;border-radius:2px;overflow:hidden;margin-top:4px}
+.detail .bar .fill{height:100%;background:var(--green)}
 a{color:var(--accent);text-decoration:none}
 footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
 </style>
@@ -33,94 +53,260 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <a href="07-recording.html" style="margin-left:12px">录制 Recording →</a>
   </div>
 </header>
-<table>
-  <thead>
-    <tr>
-      <th>输出 / Output</th>
-      <th>协议 / Protocol</th>
-      <th>URL</th>
-      <th>状态 / Status</th>
-      <th>比特率 / Bitrate</th>
-      <th>客户端 / Clients</th>
-      <th>最近更新 / Last Update</th>
-      <th>操作 / Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><b>CH01-HLS-Main 主线路</b></td>
-      <td>HLS</td>
-      <td><span class="url">https://cdn.example.com/ch01/main.m3u8</span></td>
-      <td><i class="dot green"></i>HEALTHY 健康</td>
-      <td>5.0 Mbps</td>
-      <td>1,247</td>
-      <td>2s ago</td>
-      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
-    </tr>
-    <tr>
-      <td><b>CH01-HLS-Backup 备用</b></td>
-      <td>HLS</td>
-      <td><span class="url">https://cdn2.example.com/ch01/main.m3u8</span></td>
-      <td><i class="dot green"></i>HEALTHY 健康</td>
-      <td>5.0 Mbps</td>
-      <td>312</td>
-      <td>3s ago</td>
-      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
-    </tr>
-    <tr>
-      <td><b>CH01-RTMP-Facebook</b></td>
-      <td>RTMP</td>
-      <td><span class="url">rtmp://ingest.facebook.com/...</span></td>
-      <td><i class="dot green"></i>HEALTHY 健康</td>
-      <td>4.0 Mbps</td>
-      <td>—</td>
-      <td>1s ago</td>
-      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
-    </tr>
-    <tr>
-      <td><b>CH01-WebRTC-LowLatency 低延迟</b></td>
-      <td>WebRTC</td>
-      <td><span class="url">wss://rtc.example.com/ch01</span></td>
-      <td><i class="dot yellow"></i>DEGRADED 降级</td>
-      <td>3.5 Mbps</td>
-      <td>14</td>
-      <td>5s ago</td>
-      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
-    </tr>
-    <tr>
-      <td><b>CH01-SRT-Distribution 分发</b></td>
-      <td>SRT</td>
-      <td><span class="url">srt://dist.example.com:9000?mode=caller</span></td>
-      <td><i class="dot green"></i>HEALTHY 健康</td>
-      <td>5.0 Mbps</td>
-      <td>2</td>
-      <td>2s ago</td>
-      <td><button class="btn">统计 Stats</button><button class="btn danger">重启 Restart</button></td>
-    </tr>
-    <tr>
-      <td><b>CH01-File-Archive 归档</b></td>
-      <td>FILE</td>
-      <td><span class="url">/srv/archive/ch01/{date}/{time}.mp4</span></td>
-      <td><i class="dot green"></i>HEALTHY 健康</td>
-      <td>5.0 Mbps</td>
-      <td>—</td>
-      <td>continuous 持续</td>
-      <td><button class="btn">浏览 Browse</button><button class="btn danger">停止 Stop</button></td>
-    </tr>
-    <tr>
-      <td><b>CH01-SDI-Master 主输出</b></td>
-      <td>SDI</td>
-      <td><span class="url">/dev/blackmagic/io0</span></td>
-      <td><i class="dot gray"></i>DISABLED 已停用 (V0.4 Target)</td>
-      <td>—</td>
-      <td>—</td>
-      <td>—</td>
-      <td><button class="btn" disabled>启用 Enable (L3)</button></td>
-    </tr>
-  </tbody>
-</table>
+
+<div class="tabs">
+  <div class="tab active" data-view="list">📋 [ OUTPUT LIST 输出列表 ]</div>
+  <div class="tab" data-view="hls">📺 [ HLS DETAIL HLS 详情 ]</div>
+  <div class="tab" data-view="webrtc">🌐 [ WEBRTC DETAIL WebRTC 详情 ]</div>
+</div>
+
+<!-- LIST VIEW -->
+<div class="view active" id="list">
+  <table>
+    <thead>
+      <tr>
+        <th>输出 / Output</th>
+        <th>协议 / Protocol</th>
+        <th>URL</th>
+        <th>状态 / Status</th>
+        <th>比特率 / Bitrate</th>
+        <th>客户端 / Clients</th>
+        <th>最近更新 / Last Update</th>
+        <th>操作 / Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>CH01-HLS-Main 主线路</b></td>
+        <td>HLS</td>
+        <td><span class="url">https://cdn.example.com/ch01/main.m3u8</span></td>
+        <td><i class="dot green"></i>HEALTHY</td>
+        <td>5.0 Mbps</td>
+        <td>1,247</td>
+        <td>2s ago</td>
+        <td><button class="btn">详情 Detail</button><button class="btn danger">重启 Restart</button></td>
+      </tr>
+      <tr>
+        <td><b>CH01-HLS-Backup 备用</b></td>
+        <td>HLS</td>
+        <td><span class="url">https://cdn2.example.com/ch01/main.m3u8</span></td>
+        <td><i class="dot green"></i>HEALTHY</td>
+        <td>5.0 Mbps</td>
+        <td>312</td>
+        <td>3s ago</td>
+        <td><button class="btn">详情 Detail</button><button class="btn danger">重启 Restart</button></td>
+      </tr>
+      <tr>
+        <td><b>CH01-RTMP-Facebook</b></td>
+        <td>RTMP</td>
+        <td><span class="url">rtmp://ingest.facebook.com/...</span></td>
+        <td><i class="dot green"></i>HEALTHY</td>
+        <td>4.0 Mbps</td>
+        <td>—</td>
+        <td>1s ago</td>
+        <td><button class="btn">详情 Detail</button><button class="btn danger">重启 Restart</button></td>
+      </tr>
+      <tr>
+        <td><b>CH01-WebRTC-LowLatency 低延迟</b></td>
+        <td>WebRTC</td>
+        <td><span class="url">wss://rtc.example.com/ch01</span></td>
+        <td><i class="dot yellow"></i>DEGRADED</td>
+        <td>3.5 Mbps</td>
+        <td>14</td>
+        <td>5s ago</td>
+        <td><button class="btn">详情 Detail</button><button class="btn danger">重启 Restart</button></td>
+      </tr>
+      <tr>
+        <td><b>CH01-SRT-Distribution 分发</b></td>
+        <td>SRT</td>
+        <td><span class="url">srt://dist.example.com:9000?mode=caller</span></td>
+        <td><i class="dot green"></i>HEALTHY</td>
+        <td>5.0 Mbps</td>
+        <td>2</td>
+        <td>2s ago</td>
+        <td><button class="btn">详情 Detail</button><button class="btn danger">重启 Restart</button></td>
+      </tr>
+      <tr>
+        <td><b>CH01-File-Archive 归档</b></td>
+        <td>FILE</td>
+        <td><span class="url">/srv/archive/ch01/{date}/{time}.mp4</span></td>
+        <td><i class="dot green"></i>HEALTHY</td>
+        <td>5.0 Mbps</td>
+        <td>—</td>
+        <td>continuous</td>
+        <td><button class="btn">详情 Detail</button><button class="btn danger">停止 Stop</button></td>
+      </tr>
+      <tr>
+        <td><b>CH01-SDI-Master 主输出</b></td>
+        <td>SDI</td>
+        <td><span class="url">/dev/blackmagic/io0</span></td>
+        <td><i class="dot gray"></i>DISABLED (V0.4 Target)</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td><button class="btn" disabled>启用 Enable (L3)</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- HLS DETAIL -->
+<div class="view" id="hls">
+  <div class="detail">
+    <h4>CH01-HLS-Main 主线路 <span class="badge">HLS</span> <span style="color:var(--green)">● HEALTHY</span></h4>
+    <div class="grid">
+      <div class="field">
+        <div class="k">URL</div>
+        <div class="v" style="font-size:10px;color:var(--accent)">https://cdn.example.com/ch01/main.m3u8</div>
+      </div>
+      <div class="field">
+        <div class="k">Encoder 编码器</div>
+        <div class="v">H.264 High@L4.0</div>
+        <div style="font-size:10px;color:var(--fgdim)">1080p50 / 5.0 Mbps</div>
+      </div>
+      <div class="field">
+        <div class="k">Variant Profile</div>
+        <div class="v">master-1080p</div>
+        <div style="font-size:10px;color:var(--fgdim)">GOP 2s / IDR every 50</div>
+      </div>
+
+      <div class="field">
+        <div class="k">Bitrate 比特率</div>
+        <div class="v green">5.0 Mbps</div>
+        <div class="bar"><div class="fill" style="width:62%"></div></div>
+      </div>
+      <div class="field">
+        <div class="k">Segment Duration</div>
+        <div class="v">2.0 s</div>
+      </div>
+      <div class="field">
+        <div class="k">Playlist Age 播放列表延迟</div>
+        <div class="v green">1.4 s</div>
+        <div style="font-size:10px;color:var(--fgdim)">target &lt; 3.0s</div>
+      </div>
+
+      <div class="field">
+        <div class="k">PTS Continuity</div>
+        <div class="v green">✓ CONTINUOUS</div>
+        <div style="font-size:10px;color:var(--fgdim)">last gap &lt; 1ms</div>
+      </div>
+      <div class="field">
+        <div class="k">Audio Sync 音视频同步</div>
+        <div class="v green">+12 ms</div>
+        <div style="font-size:10px;color:var(--fgdim)">target ±80ms</div>
+      </div>
+      <div class="field">
+        <div class="k">CDN Reconnect</div>
+        <div class="v">2 / hour</div>
+      </div>
+
+      <div class="field">
+        <div class="k">Clients 客户端</div>
+        <div class="v">1,247</div>
+        <div style="font-size:10px;color:var(--fgdim)">HLS .m3u8 请求数</div>
+      </div>
+      <div class="field">
+        <div class="k">Last Successful Publish</div>
+        <div class="v green">14:32:13</div>
+        <div style="font-size:10px;color:var(--fgdim)">2s ago</div>
+      </div>
+      <div class="field">
+        <div class="k">Last Error 最近错误</div>
+        <div class="v">—</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:11px;color:var(--fgdim);margin-top:20px;margin-bottom:8px">Latency Probe / 延迟探针（§3.6）</h3>
+  <div class="detail">
+    <div class="grid">
+      <div class="field"><div class="k">Capture → Switch</div><div class="v">8 ms</div></div>
+      <div class="field"><div class="k">Switch → Encode</div><div class="v">12 ms</div></div>
+      <div class="field"><div class="k">Encode → SRS</div><div class="v">35 ms</div></div>
+      <div class="field"><div class="k">SRS → CDN</div><div class="v">88 ms</div></div>
+      <div class="field"><div class="k">CDN → Player</div><div class="v">1,950 ms</div></div>
+      <div class="field"><div class="k">E2E p95 端到端</div><div class="v yellow">2,093 ms</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- WEBRTC DETAIL -->
+<div class="view" id="webrtc">
+  <div class="detail">
+    <h4>CH01-WebRTC-LowLatency 低延迟 <span class="badge">WebRTC</span> <span style="color:var(--yellow)">● DEGRADED</span></h4>
+    <div class="grid">
+      <div class="field">
+        <div class="k">URL</div>
+        <div class="v" style="font-size:10px;color:var(--accent)">wss://rtc.example.com/ch01</div>
+      </div>
+      <div class="field">
+        <div class="k">Encoder 编码器</div>
+        <div class="v">H.264 Baseline@L3.1</div>
+        <div style="font-size:10px;color:var(--fgdim)">720p30 / 3.5 Mbps</div>
+      </div>
+      <div class="field">
+        <div class="k">State</div>
+        <div class="v yellow">DEGRADED</div>
+        <div style="font-size:10px;color:var(--fgdim)">drift +15ms</div>
+      </div>
+
+      <div class="field">
+        <div class="k">RTT 往返</div>
+        <div class="v">42 ms</div>
+      </div>
+      <div class="field">
+        <div class="k">Packet Loss 丢包率</div>
+        <div class="v yellow">0.8%</div>
+        <div style="font-size:10px;color:var(--fgdim)">target &lt; 0.5%</div>
+      </div>
+      <div class="field">
+        <div class="k">Jitter 抖动</div>
+        <div class="v">8 ms</div>
+      </div>
+
+      <div class="field">
+        <div class="k">Clients 客户端</div>
+        <div class="v">14</div>
+      </div>
+      <div class="field">
+        <div class="k">ICE State</div>
+        <div class="v green">CONNECTED</div>
+      </div>
+      <div class="field">
+        <div class="k">DTLS 握手</div>
+        <div class="v green">SECURED</div>
+      </div>
+
+      <div class="field">
+        <div class="k">Recovery 自动恢复</div>
+        <div class="v">NONE (手动)</div>
+        <div style="font-size:10px;color:var(--fgdim)">drift 超 50ms 触发 ALERT</div>
+      </div>
+      <div class="field">
+        <div class="k">Operator 操作</div>
+        <div class="v">观察 30 分钟</div>
+      </div>
+      <div class="field">
+        <div class="k">Last Restart</div>
+        <div class="v">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.view).classList.add('active');
+  });
+});
+</script>
+
 <footer>
-  V0.2 §3 Output Engine 输出引擎 + SRSAdapter 解耦 (decoupled) · §3.7 Encode = delivery boundary 编码=投递边界
+  V0.2 §3 Output Engine + §3.6 Latency Probes (7 Core + 2 Client E2E + 1 Optional CDN) · §3.7.1 Encode = delivery boundary
 </footer>
 </body>
 </html>

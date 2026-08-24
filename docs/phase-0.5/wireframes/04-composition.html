@@ -2,36 +2,75 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>04 Composition 图文包装 — VBMF Phase 0.5 Low-Fi</title>
+<title>04 Composition / Timeline — VBMF Phase 0.5.1</title>
 <style>
-:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922}
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
-header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
 .lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
-.flow{display:flex;gap:8px;align-items:stretch;margin:16px 0;overflow-x:auto}
-.stage{flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center}
-.stage.active{border-color:var(--accent);background:var(--bg3)}
-.stage .name{font-weight:600;margin-bottom:4px}
-.stage .plane{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
-.stage .note{color:var(--yellow);font-size:10px;margin-top:6px;font-style:italic}
-.arrow{color:var(--fgdim);align-self:center;font-size:18px}
-.layer{margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
-.layer h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-.layer h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
-.layer .items{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.item{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:11px}
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden;margin-bottom:0}
+.tab{padding:10px 18px;cursor:pointer;color:var(--fgdim);font-size:13px;border-right:1px solid var(--border);font-weight:600}
+.tab.active{background:var(--bg3);color:var(--fg)}
+.tab:hover:not(.active){background:var(--bg2);color:var(--fg)}
+.tab .badge{display:inline-block;background:var(--accent);color:#000;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px}
+.split{display:grid;grid-template-columns:420px 1fr;gap:0;border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;min-height:560px}
+.left{background:var(--bg2);border-right:1px solid var(--border);padding:14px;overflow-y:auto}
+.right{background:var(--bg);padding:14px;overflow-y:auto}
+h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.flow{display:flex;gap:6px;align-items:stretch;margin-bottom:14px;overflow-x:auto}
+.stage{flex:1;min-width:90px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center}
+.stage.active{border-color:var(--accent);background:var(--bg2)}
+.stage .name{font-weight:600;font-size:11px;margin-bottom:2px}
+.stage .plane{color:var(--fgdim);font-size:9px;text-transform:uppercase;letter-spacing:1px}
+.stage .note{color:var(--yellow);font-size:9px;margin-top:4px;font-style:italic}
+.arrow{color:var(--fgdim);align-self:center;font-size:14px}
+
+/* Timeline */
+.timeline-bar{display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:4px;height:36px;margin-bottom:6px;position:relative;overflow:hidden}
+.timeline-bar .hour{position:absolute;top:0;bottom:0;border-left:1px solid var(--border);color:var(--fgdim);font-size:9px;padding:1px 2px;line-height:34px}
+.timeline-bar .now{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--red);z-index:5}
+.timeline-bar .now::after{content:"▼ NOW 14:32";position:absolute;top:-12px;left:-30px;font-size:9px;color:var(--red);white-space:nowrap;font-weight:700}
+.timeline-item{position:absolute;top:4px;bottom:4px;background:var(--accent);border-radius:2px;padding:2px 4px;font-size:9px;color:#000;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.timeline-item.now{background:var(--green)}
+.timeline-item.next{background:var(--yellow)}
+.timeline-item.event{background:var(--red)}
+.timeline-item:hover{outline:1px solid var(--fg)}
+
+.pl-list{margin-top:10px}
+.pl-item{padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:11px;cursor:pointer}
+.pl-item.now{border-left:3px solid var(--green)}
+.pl-item.next{border-left:3px solid var(--yellow)}
+.pl-item:hover{background:var(--bg2)}
+.pl-item .time{font-family:Menlo,Consolas,monospace;color:var(--accent);min-width:60px}
+.pl-item .name{flex:1}
+.pl-item .dur{color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+
+.preflight{padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-top:10px;font-size:11px}
+.preflight .check{display:flex;justify-content:space-between;padding:2px 0}
+.preflight .pass{color:var(--green)}
+.preflight .warn{color:var(--yellow)}
+.preflight .fail{color:var(--red)}
+
+/* Right side: composition */
+.layer{margin-bottom:14px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px}
+.layer h4{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.layer h4 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+.layer .items{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.item{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:10px}
 .item .name{font-weight:600;margin-bottom:2px}
 .item .on{color:var(--green)}
 .item .off{color:var(--fgdim)}
+
 a{color:var(--accent);text-decoration:none}
-.btn{padding:4px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer}
+.btn{padding:3px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer}
 footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">图文包装 / Composition — Program + Variant 双层</h2>
+  <h2 style="font-size:14px">节目编排 / Composition + Timeline — Director 工作域</h2>
   <div>
     <span class="lang">🌐 <b>中</b> / EN</span>
     <a href="03-switcher.html" style="margin-left:12px">← 切播器 Switcher</a>
@@ -39,50 +78,155 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 </header>
 
-<div class="flow">
-  <div class="stage"><div class="name">源 Source</div><div class="plane">RAW</div></div>
-  <div class="arrow">→</div>
-  <div class="stage"><div class="name">[切播 Switcher]</div><div class="plane">RAW</div></div>
-  <div class="arrow">→</div>
-  <div class="stage active"><div class="name">节目图文 Program Composition</div><div class="plane">RAW</div><div class="note">节目级 Logo / 字幕 / 版权</div></div>
-  <div class="arrow">→</div>
-  <div class="stage"><div class="name">节目主母版 Program-scope Master</div><div class="plane">RAW</div></div>
-  <div class="arrow">→</div>
-  <div class="stage"><div class="name">Variant 图文 Variant Composition</div><div class="plane">RAW</div><div class="note">平台 Logo / 水印 / 区域版权</div></div>
-  <div class="arrow">→</div>
-  <div class="stage"><div class="name">编码 Encode</div><div class="plane">RAW→COMPRESSED</div><div class="note">delivery boundary 投递边界</div></div>
-  <div class="arrow">→</div>
-  <div class="stage"><div class="name">输出变体 Output Variant</div><div class="plane">COMPRESSED</div></div>
+<!-- Tabs to switch sub-mode -->
+<div class="tabs">
+  <div class="tab active">📅 [ TIMELINE 排播 + 图文 ]</div>
+  <div class="tab">📺 [ COMPOSITION ONLY 图文预览 ]</div>
+  <div class="tab">📋 [ PLAYLIST ONLY 节目单 ]</div>
 </div>
 
-<div class="layer">
-  <h3><span class="cn">节目级图文</span> / PROGRAM SCOPE COMPOSITION（所有 Variant 共享）</h3>
-  <div class="items">
-    <div class="item"><div class="name">节目 Logo</div><div class="on">● ON 开启</div><div>位置 / Position: 右上 top-right</div></div>
-    <div class="item"><div class="name">节目 Bug</div><div class="on">● ON 开启</div><div>位置 / Position: 左下 bottom-left</div></div>
-    <div class="item"><div class="name">版权信息 / Copyright</div><div class="on">● ON 开启</div><div>位置 / Position: 右下 bottom-right</div></div>
-    <div class="item"><div class="name">字幕 / Subtitle</div><div class="on">● ON 开启</div><div>Live 直播 / File 文件 / SCTE-35</div></div>
+<div class="split">
+  <!-- LEFT: Timeline + Playlist -->
+  <div class="left">
+    <h3><span class="cn">24 小时排播表</span> / 24h TIMELINE — CH01 News HD</h3>
+
+    <div class="timeline-bar">
+      <div class="hour" style="left:0%">00</div>
+      <div class="hour" style="left:4.16%">01</div>
+      <div class="hour" style="left:8.33%">02</div>
+      <div class="hour" style="left:12.5%">03</div>
+      <div class="hour" style="left:16.66%">04</div>
+      <div class="hour" style="left:20.83%">05</div>
+      <div class="hour" style="left:25%">06</div>
+      <div class="hour" style="left:29.16%">07</div>
+      <div class="hour" style="left:33.33%">08</div>
+      <div class="hour" style="left:37.5%">09</div>
+      <div class="hour" style="left:41.66%">10</div>
+      <div class="hour" style="left:45.83%">11</div>
+      <div class="hour" style="left:50%">12</div>
+      <div class="hour" style="left:54.16%">13</div>
+      <div class="hour" style="left:58.33%">14</div>
+      <div class="hour" style="left:62.5%">15</div>
+      <div class="hour" style="left:33%">⚠ 14:00-15:00</div>
+      <div class="hour" style="left:66.66%">16</div>
+      <div class="hour" style="left:70.83%">17</div>
+      <div class="hour" style="left:75%">18</div>
+      <div class="hour" style="left:79.16%">19</div>
+      <div class="hour" style="left:83.33%">20</div>
+      <div class="hour" style="left:87.5%">21</div>
+      <div class="hour" style="left:91.66%">22</div>
+      <div class="hour" style="left:95.83%">23</div>
+      <!-- 节目项 -->
+      <div class="timeline-item now" style="left:58%;width:1.5%">新闻 News</div>
+      <div class="timeline-item next" style="left:59.5%;width:1%">广告 Ad</div>
+      <div class="timeline-item" style="left:60.5%;width:3%">新闻 News</div>
+      <div class="timeline-item" style="left:63.5%;width:2%">访谈</div>
+      <div class="timeline-item" style="left:65.5%;width:3%">新闻 News</div>
+      <div class="timeline-item" style="left:68.5%;width:2%">广告 Ad</div>
+      <div class="timeline-item event" style="left:70.5%;width:0.4%">INC</div>
+      <div class="timeline-item" style="left:71%;width:4%">电影 Movie</div>
+      <div class="hour" style="left:75%;">⚠ 18:00 新闻联播</div>
+      <div class="timeline-item" style="left:75%;width:5%">新闻联播</div>
+      <div class="now" style="left:60.4%"></div>
+    </div>
+
+    <h3 style="margin-top:14px"><span class="cn">今日节目单</span> / TODAY'S PLAYLIST</h3>
+    <div class="pl-list">
+      <div class="pl-item now">
+        <div class="time">14:28</div>
+        <div class="name">新闻 News Headlines</div>
+        <div class="dur">5:00</div>
+      </div>
+      <div class="pl-item next">
+        <div class="time">14:33</div>
+        <div class="name">广告 Ad — Sponsor A</div>
+        <div class="dur">0:30</div>
+      </div>
+      <div class="pl-item">
+        <div class="time">14:33:30</div>
+        <div class="name">新闻 News Headlines (续)</div>
+        <div class="dur">4:30</div>
+      </div>
+      <div class="pl-item">
+        <div class="time">14:38</div>
+        <div class="name">访谈 Interview — 财经</div>
+        <div class="dur">15:00</div>
+      </div>
+      <div class="pl-item">
+        <div class="time">14:53</div>
+        <div class="name">广告 Ad — Sponsor B</div>
+        <div class="dur">0:30</div>
+      </div>
+      <div class="pl-item">
+        <div class="time">14:53:30</div>
+        <div class="name">新闻 News Headlines (续)</div>
+        <div class="dur">2:00</div>
+      </div>
+      <div class="pl-item">
+        <div class="time">15:00</div>
+        <div class="name">⚠ 事件 #1248 Source.B frozen 5s</div>
+        <div class="dur" style="color:var(--red)">5s</div>
+      </div>
+    </div>
+
+    <div class="preflight">
+      <strong>下一项 Preflight / Next item Preflight:</strong>
+      <div class="check"><span>● 响度 Loudness</span><span class="pass">-23.4 LUFS ✓</span></div>
+      <div class="check"><span>● 版权 Rights</span><span class="pass">valid until 2027 ✓</span></div>
+      <div class="check"><span>● 时长 Duration</span><span class="pass">0:30 ✓</span></div>
+      <div class="check"><span>● 编码 Codec</span><span class="pass">H.264 ✓</span></div>
+    </div>
   </div>
-</div>
 
-<div class="layer">
-  <h3><span class="cn">变体级图文</span> / VARIANT SCOPE COMPOSITION（按 Output Variant 叠加）</h3>
-  <div class="items">
-    <div class="item"><div class="name">Variant A (国内版)</div><div class="on">● HLS</div><div>无 Variant 图文</div></div>
-    <div class="item"><div class="name">Variant B (海外版)</div><div class="on">● RTMP</div><div>无 Variant 图文</div></div>
-    <div class="item"><div class="name">Variant C (归档版)</div><div class="on">● File</div><div>无 Variant 图文</div></div>
-    <div class="item" style="opacity:0.5"><div class="name">+ 添加新 Variant Add New</div><div class="off">—</div><div>需 Define Output Profile</div></div>
+  <!-- RIGHT: Composition Pipeline + Layers -->
+  <div class="right">
+    <h3><span class="cn">图文处理链路</span> / COMPOSITION PIPELINE</h3>
+    <div class="flow">
+      <div class="stage"><div class="name">源 Source</div><div class="plane">RAW</div></div>
+      <div class="arrow">→</div>
+      <div class="stage"><div class="name">[切播 Switcher]</div><div class="plane">RAW</div></div>
+      <div class="arrow">→</div>
+      <div class="stage active"><div class="name">节目图文 Program</div><div class="plane">RAW</div><div class="note">节目级 Logo / 字幕 / 版权</div></div>
+      <div class="arrow">→</div>
+      <div class="stage"><div class="name">节目主母版</div><div class="plane">RAW</div></div>
+      <div class="arrow">→</div>
+      <div class="stage"><div class="name">变体图文 Variant</div><div class="plane">RAW</div><div class="note">平台 Logo / 水印</div></div>
+      <div class="arrow">→</div>
+      <div class="stage"><div class="name">编码 Encode</div><div class="plane">RAW→COMPRESSED</div><div class="note">delivery boundary</div></div>
+      <div class="arrow">→</div>
+      <div class="stage"><div class="name">输出变体</div><div class="plane">COMPRESSED</div></div>
+    </div>
+
+    <div class="layer">
+      <h4><span class="cn">节目级图文</span> / PROGRAM SCOPE COMPOSITION（所有 Variant 共享）</h4>
+      <div class="items">
+        <div class="item"><div class="name">节目 Logo</div><div class="on">● ON 开启</div><div>位置: 右上</div></div>
+        <div class="item"><div class="name">节目 Bug</div><div class="on">● ON 开启</div><div>位置: 左下</div></div>
+        <div class="item"><div class="name">版权信息</div><div class="on">● ON 开启</div><div>位置: 右下</div></div>
+        <div class="item"><div class="name">字幕</div><div class="on">● ON 开启</div><div>Live / File / SCTE-35</div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <h4><span class="cn">变体级图文</span> / VARIANT SCOPE COMPOSITION（按 Output Variant 叠加）</h4>
+      <div class="items">
+        <div class="item"><div class="name">Variant A (国内版)</div><div class="on">● HLS</div><div>无 Variant 图文</div></div>
+        <div class="item"><div class="name">Variant B (海外版)</div><div class="on">● RTMP</div><div>无 Variant 图文</div></div>
+        <div class="item"><div class="name">Variant C (归档版)</div><div class="on">● File</div><div>无 Variant 图文</div></div>
+        <div class="item" style="opacity:0.5"><div class="name">+ 添加新 Variant</div><div class="off">—</div><div>需 Define Output Profile</div></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn">💾 保存草稿 Save Draft</button>
+      <button class="btn">▶ Validate 验证 (X2 Preflight)</button>
+      <button class="btn" style="background:var(--accent);color:#fff">应用变更集 Apply Change Set</button>
+    </div>
   </div>
-</div>
-
-<div style="margin-top:16px;text-align:right">
-  <button class="btn">💾 Save Draft 保存草稿</button>
-  <button class="btn">▶ Validate 验证 (X2 Preflight)</button>
-  <button class="btn" style="background:var(--accent);color:#fff">Apply Change Set 应用变更集</button>
 </div>
 
 <footer>
-  V0.2 §3.7 Program Master 三独立 graph · §3.7.1 Composition 作用域分层 · Encode = delivery boundary 编码=投递边界
+  V0.2 §3.7 Program Master · §3.7.1 Composition 作用域分层 · Chain 3 Playout 节目单 = Timeline + Composition 双栏
 </footer>
 </body>
 </html>

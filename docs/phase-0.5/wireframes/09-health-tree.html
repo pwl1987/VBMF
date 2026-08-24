@@ -2,33 +2,82 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>09 Health Tree 健康树 — VBMF Phase 0.5 Low-Fi</title>
+<title>09 Health Tree 健康树 — VBMF Phase 0.5.1</title>
 <style>
 :root{--bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;--fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
+body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
 header,nav{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:12px}
 .lang{font-size:11px;color:var(--fgdim)}.lang b{color:var(--accent)}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.panel{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px}
-.panel h3{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-.panel h3 .cn{color:var(--fg);font-size:13px;text-transform:none;letter-spacing:0;margin-right:6px}
+.tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden;margin-bottom:0}
+.tab{padding:10px 18px;cursor:pointer;color:var(--fgdim);font-size:13px;border-right:1px solid var(--border);font-weight:600}
+.tab.active{background:var(--bg3);color:var(--fg)}
+.tab:hover:not(.active){background:var(--bg2);color:var(--fg)}
+.tab .badge{display:inline-block;background:var(--accent);color:#000;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px}
+
+.view{display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;min-height:560px}
+.view.active{display:block}
+
+.panel{background:var(--bg2);padding:16px}
+.panel h3{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.panel h3 .cn{color:var(--fg);font-size:12px;text-transform:none;letter-spacing:0;margin-right:6px}
+
+.row{display:grid;gap:12px;margin-bottom:12px}
+.row-2{grid-template-columns:1fr 1fr}
+.row-3{grid-template-columns:1fr 1fr 1fr}
+
+/* Operator View */
+.channel-status-card{padding:16px;background:var(--bg3);border:2px solid var(--green);border-radius:8px;margin-bottom:12px}
+.channel-status-card.degraded{border-color:var(--yellow)}
+.channel-status-card.failed{border-color:var(--red)}
+.channel-status-card .big{font-size:32px;font-weight:700;color:var(--green);margin-bottom:4px}
+.channel-status-card.degraded .big{color:var(--yellow)}
+.channel-status-card.failed .big{color:var(--red)}
+.channel-status-card .name{font-size:14px;font-weight:600}
+
+.svc-row{display:flex;align-items:center;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:4px;font-size:12px}
+.svc-row .name{flex:1}
+.svc-row .name b{font-size:13px;margin-right:6px}
+.svc-row .reason{color:var(--fgdim);font-size:11px;margin-top:2px}
+.svc-row .state{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;font-family:Menlo,Consolas,monospace}
+.svc-row .state.healthy{background:var(--green);color:#000}
+.svc-row .state.degraded{background:var(--yellow);color:#000}
+.svc-row .state.failed{background:var(--red);color:#fff}
+.svc-row .state.disabled{background:var(--gray);color:#000}
+
 .tree{font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.8}
-.node{padding:2px 0}
-.node .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}
-.node .green{background:var(--green)}
-.node .yellow{background:var(--yellow)}
-.node .red{background:var(--red)}
-.node .gray{background:var(--gray)}
-.node .role{display:inline-block;font-size:9px;padding:1px 4px;border-radius:2px;margin-left:6px;background:var(--bg3);color:var(--fgdim);text-transform:uppercase;letter-spacing:1px}
-.node .role.active{background:var(--green);color:#000}
-.node .role.standby{background:var(--yellow);color:#000}
-.node .role.offline{background:var(--gray);color:#fff}
-.node .rg{color:var(--accent);font-size:10px;margin-left:6px}
-.inv{display:grid;grid-template-columns:60px 1fr 100px;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px}
-.inv .id{font-weight:700;color:var(--accent)}
+.tree .node{padding:2px 0}
+.tree .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}
+.tree .dot.green{background:var(--green)}
+.tree .dot.yellow{background:var(--yellow)}
+.tree .dot.red{background:var(--red)}
+.tree .dot.gray{background:var(--gray)}
+.tree .role{display:inline-block;font-size:9px;padding:1px 4px;border-radius:2px;margin-left:6px;background:var(--bg2);color:var(--fgdim);text-transform:uppercase;letter-spacing:1px}
+.tree .role.active{background:var(--green);color:#000}
+.tree .role.standby{background:var(--yellow);color:#000}
+.tree .role.offline{background:var(--gray);color:#fff}
+.tree .rg{color:var(--accent);font-size:10px;margin-left:6px}
+
+/* Engineering View */
+.inv{display:grid;grid-template-columns:60px 1fr 100px;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
+.inv .id{font-weight:700;color:var(--accent);font-family:Menlo,Consolas,monospace}
 .inv .cond{color:var(--fg)}
+.inv .cond code{background:var(--bg3);padding:1px 4px;border-radius:2px;font-size:10px;color:var(--yellow)}
 .inv .res{text-align:right;font-family:Menlo,Consolas,monospace}
+
+.rule{padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:6px;font-size:11px;font-family:Menlo,Consolas,monospace}
+.rule .rname{color:var(--accent);font-weight:700;margin-right:8px}
+
+.ha-table{width:100%;border-collapse:collapse;font-size:11px}
+.ha-table th{background:var(--bg3);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;text-align:left}
+.ha-table td{padding:6px 8px;border-bottom:1px solid var(--border);font-family:Menlo,Consolas,monospace}
+.ha-table tr:last-child td{border-bottom:none}
+.ha-table .res{text-align:right;font-weight:600}
+.ha-table .res.healthy{color:var(--green)}
+.ha-table .res.degraded{color:var(--yellow)}
+.ha-table .res.failed{color:var(--red)}
+.ha-table .res.unknown{color:var(--gray)}
+
 .btn{padding:3px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;cursor:pointer;margin-right:4px}
 .btn:hover{background:var(--accent);color:#fff}
 a{color:var(--accent);text-decoration:none}
@@ -37,7 +86,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </head>
 <body>
 <header>
-  <h2 style="font-size:14px">健康树 / Health Tree (X5) + 7 Health Invariants 健康不变量 (C.26 Errata-14)</h2>
+  <h2 style="font-size:14px">健康树 / Health Tree (X5)</h2>
   <div>
     <span class="lang">🌐 <b>中</b> / EN</span>
     <a href="08-graph-designer.html" style="margin-left:12px">← 图设计 Graph Designer</a>
@@ -45,66 +94,167 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 </header>
 
-<div class="row">
+<div class="tabs">
+  <div class="tab active" data-view="op">👁 [ OPERATOR VIEW 操作员视图 ]</div>
+  <div class="tab" data-view="eng">⚙ [ ENGINEERING VIEW 工程视图 ]</div>
+  <div class="tab" data-view="rules">📜 [ AGGREGATION RULES 聚合规则 ]</div>
+  <div class="btn" style="margin-left:auto;margin-right:8px;padding:4px 10px;background:var(--bg3);color:var(--fg)">📊 历史 / Replay</div>
+</div>
+
+<!-- OPERATOR VIEW -->
+<div class="view active" id="op">
   <div class="panel">
-    <h3><span class="cn">CH01 News HD 当前快照</span> / CURRENT SNAPSHOT</h3>
+    <!-- Channel status hero card -->
+    <div class="channel-status-card">
+      <div class="name">CH01 — News HD 新闻频道</div>
+      <div class="big">● HEALTHY 健康</div>
+      <div style="color:var(--fgdim);font-size:11px;margin-top:4px">EffectiveChannelStatus · Lifecycle=RUNNING · Readiness=READY_TO_TAKE · Health=HEALTHY · Effective Mode=FRAME</div>
+    </div>
+
+    <h3><span class="cn">子系统态势</span> / SUBSYSTEMS</h3>
+    <div class="svc-row">
+      <div class="name"><b>源 Source</b> Primary=A(50p) Backup=B(25p)
+        <div class="reason">RG-001 · Primary 在用 HEALTHY · Backup 已就绪</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>切播器 Switcher</b>
+        <div class="reason">Compiled=FRAME · Effective=FRAME · A→B 87ms</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>节目主母版 Program Master</b>
+        <div class="reason">Video/Audio/Metadata 三独立 graph 同步</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>输出 SRS</b> HLS=1,247 客户端 / RTMP=OK / WebRTC=⚠
+        <div class="reason">WebRTC drift +15ms（轻微漂移，未触发告警）</div>
+      </div>
+      <span class="state degraded">DEGRADED</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>录制 Recording</b> 2h14m 持续
+        <div class="reason">本地 NVMe 77% 已用 · 30 天自动清理</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>时钟 Clock</b> PTP 锁定
+        <div class="reason">Fallback: TIMECODE → SYSTEM</div>
+      </div>
+      <span class="state healthy">HEALTHY</span>
+    </div>
+    <div class="svc-row">
+      <div class="name"><b>SDI 主输出</b> (V0.4 目标)
+        <div class="reason">Architecture Contract RESERVED · V0.2 DISABLED</div>
+      </div>
+      <span class="state disabled">DISABLED</span>
+    </div>
+
+    <h3 style="margin-top:16px"><span class="cn">快速操作</span> / QUICK ACTIONS</h3>
+    <button class="btn">📜 查看故障</button>
+    <button class="btn">🔄 查看切换</button>
+    <button class="btn">📼 查看录像</button>
+    <button class="btn">🔍 详细诊断</button>
+  </div>
+</div>
+
+<!-- ENGINEERING VIEW -->
+<div class="view" id="eng">
+  <div class="panel">
+    <h3><span class="cn">CH01 当前健康树</span> / CURRENT HEALTH TREE</h3>
     <div class="tree">
-      <div class="node"><span class="dot green"></span><b>CH01</b> <span style="color:var(--fgdim)">— 通道 / Channel: HEALTHY 健康 (EffectiveChannelStatus 有效通道状态)</span></div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>Source.Primary <span class="role active">ACTIVE 在用</span> <span class="rg">RG-001 冗余组</span> — HEALTHY 健康</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>Source.Backup <span class="role standby">STANDBY 待命</span> <span class="rg">RG-001 冗余组</span> — HEALTHY 健康</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>切播器 Switcher <span class="role active">ACTIVE</span> — HEALTHY 健康 (PACKET_SWITCH)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>图文 Composition <span class="role active">ACTIVE</span> — HEALTHY 健康 (Program-scope 节目级)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>音频混音 Audio Mixer <span class="role active">ACTIVE</span> — HEALTHY 健康 (-23 LUFS)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>视频主节点 Video Master Join — HEALTHY 健康 (AV sync 视音同步 +12ms)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>音频主节点 Audio Master Join — HEALTHY 健康 (AV sync 视音同步 +12ms)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>节目主母版 Program Master — HEALTHY 健康 (RAW 域)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>输出 SRS Output.SRS <span class="role active">ACTIVE</span> — HEALTHY 健康</div>
-      <div class="node" style="padding-left:48px"><span class="dot green"></span>HLS — HEALTHY 健康 (1,247 客户端 clients)</div>
-      <div class="node" style="padding-left:48px"><span class="dot green"></span>RTMP — HEALTHY 健康</div>
-      <div class="node" style="padding-left:48px"><span class="dot yellow"></span>WebRTC — DEGRADED 降级 (drift 漂移 +15ms)</div>
-      <div class="node" style="padding-left:24px"><span class="dot gray"></span>SDI 输出 Output.SDI <span class="role offline">DISABLED 已停用</span> — (V0.4 目标 Target)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>录制 Recording <span class="role active">ACTIVE</span> — HEALTHY 健康 (2h14m)</div>
+      <div class="node"><span class="dot green"></span><b>CH01</b> <span style="color:var(--fgdim)">— Channel: HEALTHY (EffectiveChannelStatus)</span></div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Source.Primary <span class="role active">ACTIVE</span> <span class="rg">RG-001</span> — HEALTHY</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Source.Backup <span class="role standby">STANDBY</span> <span class="rg">RG-001</span> — HEALTHY</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Switcher <span class="role active">ACTIVE</span> — HEALTHY (FRAME_SWITCH)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Composition <span class="role active">ACTIVE</span> — HEALTHY (Program-scope)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Audio Mixer <span class="role active">ACTIVE</span> — HEALTHY (-23 LUFS)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Video Master Join — HEALTHY (AV sync +12ms)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Audio Master Join — HEALTHY (AV sync +12ms)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Program Master — HEALTHY (RAW)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Output.SRS <span class="role active">ACTIVE</span> — HEALTHY</div>
+      <div class="node" style="padding-left:48px"><span class="dot green"></span>HLS — HEALTHY (1,247 clients)</div>
+      <div class="node" style="padding-left:48px"><span class="dot green"></span>RTMP — HEALTHY</div>
+      <div class="node" style="padding-left:48px"><span class="dot yellow"></span>WebRTC — DEGRADED (drift +15ms)</div>
+      <div class="node" style="padding-left:24px"><span class="dot gray"></span>Output.SDI <span class="role offline">DISABLED</span> — (V0.4 Target)</div>
+      <div class="node" style="padding-left:24px"><span class="dot green"></span>Recording <span class="role active">ACTIVE</span> — HEALTHY (2h14m)</div>
     </div>
-    <p style="color:var(--fgdim);font-size:11px;margin-top:8px">7 条 Health Invariants 健康不变量 (C.26 Errata-14) 全部通过 / All 7 passed</p>
-  </div>
 
-  <div class="panel">
-    <h3><span class="cn">7 条健康不变量</span> / 7 HEALTH INVARIANTS — VERIFICATION 验证</h3>
-    <div class="inv"><span class="id" style="color:var(--green)">H1 ✓</span><span class="cond">无 ACTIVE+FAILED / no ACTIVE+FAILED</span><span class="res" style="color:var(--green)">PASS</span></div>
-    <div class="inv"><span class="id" style="color:var(--green)">H2 ✓</span><span class="cond">无 ACTIVE+DEGRADED / no ACTIVE+DEGRADED</span><span class="res" style="color:var(--green)">PASS</span></div>
-    <div class="inv"><span class="id" style="color:var(--green)">H3 ✓</span><span class="cond">无 STANDBY+FAILED / no STANDBY+FAILED</span><span class="res" style="color:var(--green)">PASS</span></div>
-    <div class="inv"><span class="id" style="color:var(--green)">H4 ✓</span><span class="cond">无 STANDBY+DEGRADED / no STANDBY+DEGRADED</span><span class="res" style="color:var(--green)">PASS</span></div>
-    <div class="inv"><span class="id" style="color:var(--green)">H5 ✓</span><span class="cond">OFFLINE+FAILED → 系统已吸收 / absorbed</span><span class="res" style="color:var(--green)">PASS</span></div>
+    <h3 style="margin-top:16px"><span class="cn">7 条健康不变量</span> / 7 HEALTH INVARIANTS</h3>
+    <div class="inv"><span class="id" style="color:var(--green)">H1 ✓</span><span class="cond">无 <code>ACTIVE+FAILED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
+    <div class="inv"><span class="id" style="color:var(--green)">H2 ✓</span><span class="cond">无 <code>ACTIVE+DEGRADED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
+    <div class="inv"><span class="id" style="color:var(--green)">H3 ✓</span><span class="cond">无 <code>STANDBY+FAILED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
+    <div class="inv"><span class="id" style="color:var(--green)">H4 ✓</span><span class="cond">无 <code>STANDBY+DEGRADED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
+    <div class="inv"><span class="id" style="color:var(--green)">H5 ✓</span><span class="cond"><code>OFFLINE+FAILED</code> → 系统已吸收</span><span class="res" style="color:var(--green)">PASS</span></div>
     <div class="inv"><span class="id" style="color:var(--green)">H6 ✓</span><span class="cond">Source RG 全部候选不可用 → FAILED</span><span class="res" style="color:var(--green)">PASS</span></div>
-    <div class="inv"><span class="id" style="color:var(--green)">H7 ✓</span><span class="cond">effective_channel_status = channel_health_view</span><span class="res" style="color:var(--green)">PASS</span></div>
+    <div class="inv"><span class="id" style="color:var(--green)">H7 ✓</span><span class="cond"><code>effective_channel_status = channel_health_view</code></span><span class="res" style="color:var(--green)">PASS</span></div>
 
-    <h3 style="margin-top:16px"><span class="cn">聚合结果</span> / AGGREGATION RESULT</h3>
-    <div class="row" style="display:grid;grid-template-columns:140px 1fr;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
-      <span>通道健康聚合 / channel_health_aggregation</span><span style="color:var(--green);font-weight:600">HEALTHY 健康 (Rule 6)</span>
-    </div>
-    <div class="row" style="display:grid;grid-template-columns:140px 1fr;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
-      <span>通道健康视图 / channel_health_view</span><span style="color:var(--green);font-weight:600">HEALTHY 健康 (Policy 策略)</span>
-    </div>
+    <h3 style="margin-top:16px"><span class="cn">聚合结果</span> / AGGREGATION</h3>
+    <div class="rule"><span class="rname">channel_health_aggregation:</span> HEALTHY (Rule 6: 至少一个 ACTIVE+HEALTHY + 无 DEGRADED/FAILED/UNKNOWN)</div>
+    <div class="rule"><span class="rname">channel_health_view:</span> HEALTHY (Policy: lifecycle=RUNNING + aggregation=HEALTHY)</div>
 
-    <div style="margin-top:12px"><button class="btn">📊 历史 History</button><button class="btn">⏮ 回放 Replay</button><button class="btn">🔗 事件 #1248</button></div>
+    <h3 style="margin-top:16px"><span class="cn">节点详情（可解释性）</span> / NODE EXPLAINABILITY</h3>
+    <div class="svc-row">
+      <div class="name"><b>WebRTC</b>
+        <div class="reason">State: DEGRADED · Reason: drift +15ms · Detected: 14:18:32 · Duration: 14m · Impact: 直播流略延迟 · Auto Action: NONE · Recovery: NONE · Operator: 观察 30 分钟，超过 50ms 触发 ALERT</div>
+      </div>
+      <span class="state degraded">DEGRADED</span>
+    </div>
   </div>
 </div>
 
-<div class="panel">
-  <h3><span class="cn">故障场景示例（Phase 0.6 验收）</span> / FAILURE SCENARIO EXAMPLES (Phase 0.6 Acceptance)</h3>
-  <div style="font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.6">
-    <div><b>HA-01</b>: Primary=OFFLINE+FAILED, Backup=ACTIVE+HEALTHY → <span style="color:var(--green)">通道 HEALTHY 健康</span> (Rule 5: ACTIVE+HEALTHY 存在, 无 DEGRADED/FAILED/UNKNOWN)</div>
-    <div><b>HA-02</b>: Primary=OFFLINE+FAILED, Backup=STANDBY+HEALTHY → <span style="color:var(--yellow)">通道 DEGRADED 降级</span> (Rule 4: 源冗余组无 ACTIVE, 接管未发生 pending takeover)</div>
-    <div><b>HA-03</b>: Primary=OFFLINE+FAILED, Backup=OFFLINE+FAILED → <span style="color:var(--red)">通道 FAILED 失败</span> (Rule 3: Source RG all unavailable 全部候选不可用)</div>
-    <div><b>HA-04</b>: Primary=OFFLINE+FAILED, Backup=OFFLINE+FAILED (no ACTIVE/STANDBY) → <span style="color:var(--red)">通道 FAILED 失败</span></div>
-    <div><b>HA-05</b>: ACTIVE=UNKNOWN, STANDBY=HEALTHY → <span style="color:var(--gray)">通道 UNKNOWN 未知</span> (Rule 6 拒收, fall to UNKNOWN)</div>
-    <div><b>HA-06</b>: ACTIVE=HEALTHY, STANDBY=FAILED → <span style="color:var(--yellow)">通道 DEGRADED 降级</span> (Rule 5: STANDBY+(DEGRADED|FAILED))</div>
-    <div><b>HA-07</b>: ACTIVE=HEALTHY, OFFLINE+FAILED → <span style="color:var(--green)">通道 HEALTHY 健康</span> (H5: 系统已吸收)</div>
+<!-- AGGREGATION RULES VIEW -->
+<div class="view" id="rules">
+  <div class="panel">
+    <h3><span class="cn">channel_health_aggregation 7 规则</span> / 7 SQL RULES (V0.2.4 Errata-13 + Errata-14)</h3>
+    <div class="rule"><span class="rname">Rule 1:</span> ACTIVE+FAILED → <b style="color:var(--red)">FAILED</b></div>
+    <div class="rule"><span class="rname">Rule 2:</span> ACTIVE+DEGRADED → <b style="color:var(--yellow)">DEGRADED</b></div>
+    <div class="rule"><span class="rname">Rule 3:</span> Source RG 全部候选不可用 → <b style="color:var(--red)">FAILED</b> (新增 Errata-14)</div>
+    <div class="rule"><span class="rname">Rule 4:</span> Source RG 无 ACTIVE 节点 → <b style="color:var(--yellow)">DEGRADED</b> (新增 Errata-14, pending takeover)</div>
+    <div class="rule"><span class="rname">Rule 5:</span> STANDBY+(DEGRADED\|FAILED) → <b style="color:var(--yellow)">DEGRADED</b></div>
+    <div class="rule"><span class="rname">Rule 6:</span> 至少一个 ACTIVE+HEALTHY + 无 DEGRADED/FAILED/<b>UNKNOWN</b> → <b style="color:var(--green)">HEALTHY</b> (UNKNOWN 不得被吸收, Errata-14)</div>
+    <div class="rule"><span class="rname">Rule 7:</span> else → <b style="color:var(--gray)">UNKNOWN</b></div>
+
+    <h3 style="margin-top:20px"><span class="cn">HA-01..HA-07 验收用例</span> / Phase 0.6 ACCEPTANCE CASES</h3>
+    <table class="ha-table">
+      <thead>
+        <tr>
+          <th>Case</th>
+          <th>Health Tree 状态</th>
+          <th>期望 Channel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>HA-01</td><td>Primary=OFFLINE+FAILED, Backup=ACTIVE+HEALTHY</td><td class="res healthy">HEALTHY (Rule 5)</td></tr>
+        <tr><td>HA-02</td><td>Primary=OFFLINE+FAILED, Backup=STANDBY+HEALTHY</td><td class="res degraded">DEGRADED (Rule 4 pending takeover)</td></tr>
+        <tr><td>HA-03</td><td>Primary=OFFLINE+FAILED, Backup=OFFLINE+FAILED</td><td class="res failed">FAILED (Rule 3 Source RG all unavailable)</td></tr>
+        <tr><td>HA-04</td><td>Primary=OFFLINE+FAILED, Backup=OFFLINE+FAILED, no ACTIVE/STANDBY</td><td class="res failed">FAILED (Rule 3)</td></tr>
+        <tr><td>HA-05</td><td>ACTIVE=UNKNOWN, STANDBY=HEALTHY</td><td class="res unknown">UNKNOWN (Rule 6 拒收, fall to UNKNOWN)</td></tr>
+        <tr><td>HA-06</td><td>ACTIVE=HEALTHY, STANDBY=FAILED</td><td class="res degraded">DEGRADED (Rule 5 STANDBY+FAILED)</td></tr>
+        <tr><td>HA-07</td><td>ACTIVE=HEALTHY, OFFLINE+FAILED</td><td class="res healthy">HEALTHY (H5 系统已吸收)</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
+
+<script>
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.view).classList.add('active');
+  });
+});
+</script>
 
 <footer>
-  V0.2 §3.9 + §5 channel_health_aggregation 7 规则 + 7 条 Health Invariants 健康不变量 (C.26 Errata-14)
+  V0.2 §3.9 + §5 channel_health_aggregation 7 规则 + 7 Health Invariants (C.26 Errata-14) · Phase 0.5.1 双视图
 </footer>
 </body>
 </html>

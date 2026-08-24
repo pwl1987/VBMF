@@ -2,12 +2,15 @@
 
 > V0.2 Architecture Baseline LOCK FINAL（22 轮 review）之后的第一阶段。
 > 本阶段不修改架构，只做"操作员级"验证。
+>
+> **Phase 0.5.1** — Stateful Operator UX Closure（12 项 UI 语义修复）已完成，详见 [`ERRATA.md`](ERRATA.md)
 
 ## 范围（按 V0.2 §10 / §11 锁定）
 
 1. **操作员工作流文档** — 1 份
 2. **9 Low-Fi Wireframe** — HTML（**中英双语**；Dark Mode First；24/7 广播机房）
 3. **4 关键操作链原型** — 文档级可走通的流程规范
+4. **Phase 0.5.1 新增** — 1 状态总览页 (`10-states.html`) + 12 项 UI 语义修复 (见 `ERRATA.md`)
 
 ## 目录
 
@@ -16,16 +19,18 @@ phase-0.5/
 ├── README.md                       # 本目录说明（中英标签）
 ├── INDEX.md                        # 本文件
 ├── OPERATOR_WORKFLOW.md            # 操作员工作流（角色 / 流程 / 危险操作分层 / 状态机）
-├── wireframes/                     # 9 Low-Fi HTML 线框（中英双语，Dark Mode）
-│   ├── 01-dashboard.html           # 主控台（Channel Overview / PVW·PGM）
-│   ├── 02-sources.html             # 源管理
-│   ├── 03-switcher.html            # 切播器 / Take
-│   ├── 04-composition.html         # 图文包装
-│   ├── 05-audio.html               # 音频混音 / 响度
-│   ├── 06-output.html              # 输出（HLS/RTMP/WebRTC）
-│   ├── 07-recording.html           # 录制 / 回放
-│   ├── 08-graph-designer.html      # Signal Graph Designer（NEW）
-│   └── 09-health-tree.html         # Health Tree（NEW）
+├── ERRATA.md                       # Phase 0.5.1 变更归档（12 项 UI 语义修复）
+├── wireframes/                     # 10 Low-Fi HTML 线框（中英双语，Dark Mode）
+│   ├── 01-dashboard.html           # 主控台 (P0-2 + P2-1)
+│   ├── 02-sources.html             # 源管理 (P1-6 Clock Reference)
+│   ├── 03-switcher.html            # 切播器 / Take (P0-3 5 状态机 + L2)
+│   ├── 04-composition.html         # 图文 + 24h Timeline (P0-4)
+│   ├── 05-audio.html               # 音频混音 (P1-3 广播安全区)
+│   ├── 06-output.html              # 输出 (P1-4 3 视图 + Latency Probe)
+│   ├── 07-recording.html           # 录制 / Replay (P1-5 Incident→Replay)
+│   ├── 08-graph-designer.html      # Signal Graph Designer (P0-1 Scenario + 3 Tab)
+│   ├── 09-health-tree.html         # Health Tree (P0-5 + P1-2 3 视图)
+│   └── 10-states.html              # 10 状态总览 (P2-2 新增)
 └── chains/                         # 4 关键操作链
     ├── chain-1-on-air.md           # 链 1：播出（Operator）
     ├── chain-2-failure.md          # 链 2：故障（Operator + System）
@@ -33,19 +38,20 @@ phase-0.5/
     └── chain-4-engineering.md      # 链 4：工程（Engineer）
 ```
 
-## 9 页面清单（V0.2 §10）
+## 10 页面清单（V0.2 §10 · Phase 0.5.1 含 1 状态总览页）
 
-| # | 页面 | 主要角色 | 关键 Engines | 备注 |
+| # | 页面 | 主要角色 | 关键 Engines | Phase 0.5.1 修复 |
 |---|---|---|---|---|
-| 1 | Dashboard 主控台 | Operator | Channel / Switcher / Program Master | PVW/PGM 双窗 |
-| 2 | Sources 源管理 | Engineer | Source Adapter (11 types) | SDI/SRT/RTMP/HLS/... |
-| 3 | Switcher 切播器 | Operator | Switcher (3 modes) / Hot-Standby | Take 按钮 |
-| 4 | Composition 图文 | Director | Composition (RAW 域) | Program + Variant 两级 |
-| 5 | Audio 音频 | Operator | Audio Mixer / Loudness | EBU R128 |
-| 6 | Output 输出 | Operator | Output (SRS Adapter) | HLS/RTMP/WebRTC |
-| 7 | Recording 录制 | Operator | Recording (5 min chunk) | + 事件回溯 |
-| 8 | Graph Designer 图设计 | Engineer | X1 Graph Compiler / X2 Preflight | 拖拽式 |
-| 9 | Health Tree 健康树 | 全员 | X5 Health Tree / §3.9 Aggregation | 树形 + 7 Health Invariants |
+| 1 | Dashboard 主控台 | Operator | Channel / Switcher / Program Master | P0-2 + P2-1（System State Bar + Operator Intent） |
+| 2 | Sources 源管理 | Engineer | Source Adapter (11 types) | P1-6（Clock Reference 完整呈现） |
+| 3 | Switcher 切播器 | Operator | Switcher (3 modes) / Hot-Standby | P0-3（TAKE 5 状态机 + L2 确认） |
+| 4 | Composition 图文 | Director | Composition (RAW 域) | P0-4（Timeline + Composition 双栏） |
+| 5 | Audio 音频 | Operator | Audio Mixer / Loudness | P1-3（广播安全区 + AVSync） |
+| 6 | Output 输出 | Operator | Output (SRS Adapter) | P1-4（3 视图 + Latency Probe） |
+| 7 | Recording 录制 | Operator | Recording (5 min chunk) | P1-5（Incident → Replay 工作流） |
+| 8 | Graph Designer 图设计 | Engineer | X1 Graph Compiler / X2 Preflight | P0-1（Scenario + 3 Tab + Edge Inspector） |
+| 9 | Health Tree 健康树 | 全员 | X5 Health Tree / §3.9 Aggregation | P0-5（CSS 修复）+ P1-2（3 视图） |
+| 10 | **10 States 状态总览** | 全员 | 三轴 Runtime State | P2-2（新增 — 10 状态样例） |
 
 ## 4 关键操作链（V0.2 §10.11）
 
