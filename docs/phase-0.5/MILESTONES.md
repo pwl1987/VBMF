@@ -34,7 +34,7 @@ docs/
 │   ├── NAVIGATION.md                         # 4 域导航
 │   ├── DESIGN_SYSTEM.md                      # 4 State Models + 15 组件
 │   ├── I18N_SPEC.md                          # zh-CN + en-US 翻译规范
-│   ├── SURFACE_SPEC.md                       # 44 表面完整规范
+│   ├── SURFACE_SPEC.md                       # 表面规范 (计数由 SURFACE_REGISTRY.yaml 派生)
 │   ├── OPERATOR_WORKFLOW.md                  # 9 Core 操作流
 │   ├── ERRATA.md                             # 20 项修复归档
 │   ├── INDEX.md                              # Phase 0.5 总索引
@@ -109,7 +109,7 @@ docs/
 3. ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette)
 4. ⛔ **所有 README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 5. ⛔ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 LOCK
-6. ⛔ **GitHub README** 反映 4 域 + 44 表面, 不再有 "9 Core Pages" "0.5B 只定义" 等历史残留
+6. ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (52 wireframe + 1 Spec), 不再有 "9 Core Pages" "44" 等历史残留
 
 ## 5. 进入 Phase 0.6 的条件
 
@@ -129,7 +129,7 @@ V0.2 Architecture (LOCK FINAL)
 |---|---|---|
 | `README.md` (根) | "Phase 0.5 = LOCK FINAL" 前的所有 milestone 状态 | ⛔ 0.5C 提交后必改 |
 | `docs/phase-0.5/README.md` | "Phase 0.5 = UX BASELINE LOCK FINAL" | ⛔ 0.5D 完成后才能写 |
-| `docs/phase-0.5/SURFACE_SPEC.md` | 4 域 + 44 表面 + M-14/M-17 拆分 | ⛔ 0.5C 提交后必改 |
+| `docs/phase-0.5/SURFACE_SPEC.md` | 4 域 + `SURFACE_REGISTRY.yaml` + M-14/M-17 拆分 | ⛔ 0.5C 提交后必改 |
 | `docs/phase-0.5b/README.md` | (已删除) | ✅ 0.5C 删除 |
 | `docs/phase-0.6/README.md` | `< 100ms` → `target_failover_time_ms` | ⛔ 0.5C 提交后必改 |
 

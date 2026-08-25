@@ -40,7 +40,7 @@
 | 14 | File Profile 另一套 UI（Purpose: Archive/Proxy/Web/Social） | ⚠ | M-14 已含 File Profile 表单；"Purpose 语义"待核对 |
 | 15 | M-14 变 Transcode Center 顶层（File/Live/Jobs/Workers） | ⚠ | M-14/M-17/M-18(Jobs) 已分；Transcode Center 顶层容器待核对 |
 | 16 | Profile Bundle（News HD Live 模板聚合 Video+Audio+Output+QC+Edge） | ✅ | P-28 Profile Bundle（PIA §12） |
-| 17 | 模板一键自动带出 6 个 Profile | ✅ | P-28 |
+| 17 | 模板一键自动带出 7 个 Profile | ✅ | P-28 |
 | 18 | Template Preview Impact（资源预算 + Preflight） | ⚠ | PIA §6 4-Layer 已含 IMPACT；P-28 是否展示资源预算待核对 |
 | 19 | DESIRED/COMPILED/EFFECTIVE 推广到 Video/Audio/Output | ✅ | PIA §6 升级为 **4-Layer**（+ IMPACT）；E-40 已实装 4-Layer 面板 |
 | 20 | 音频+切换不合并但需 Channel Control Workspace 联动 | ✅ | PIA §5 双层 UI + CD-01 |
@@ -127,7 +127,7 @@
 | 10 | File Transcode ≠ Realtime Encode（两类 Job/UX） | ✅ | `M-14-file-transcode.html` + `M-17-realtime-transcode.html` 已分拆；PIA §12 |
 | 11 | Profile Type（FILE / REALTIME） | ✅ | `ENCODE_MODEL_SPEC.md`（上一轮补，焊实 `FILE_PROFILE`/`REALTIME_PROFILE` 双语义）|
 | 12 | Realtime Profile 专属属性（Latency/Failover/Warm-up/Hot Standby/Resource Reservation） | ✅ | `ENCODE_MODEL_SPEC.md`（Realtime 专属属性全列）|
-| 13 | Profile Bundle / Channel Template（一键带出 6 Profile） | ✅ | `P-28-profile-bundle.html` + PIA §12 |
+| 13 | Profile Bundle / Channel Template（一键带出 7 Profile） | ✅ | `P-28-profile-bundle.html` + PIA §12 |
 | 14 | Bundle 影响预览（资源预算 + Preflight） | ✅ | PIA §6 4-Layer 含 IMPACT；0.5E LOCK（Impact Preview 跨域 Spec）|
 | 15 | TAKE 前联合预检（TAKE PREFLIGHT） | ✅ | `B-13-take-preflight.md`（上一轮补，9 项联合检查）；CD-01 含 TAKE 按钮 |
 | 16 | Output 故障从 UI 阻止错误操作员行为（Guided Recovery） | ⚠ | SURFACE_SPEC §8.9 Failure Domain Matrix（Recovery Policy SoT）+ DESIGN_SYSTEM `recovery` 字段 + OPERATOR_WORKFLOW chain-1/2 + `06-output.html` Restart Adapter 按钮；**但无独立 "Output Failure Guided Recovery" 指导面板 wireframe**（缺口 G-B）|
@@ -213,7 +213,7 @@
 > 用户 (`a54d1a0` 评审后) 确认进入 0.5D 原型构建，逐张落 D1-D6 串联验收链。计数统一以 NAVIGATION §2.5 为权威（P0-8）。
 
 ### D1 ✅ CH-02 Create Channel Wizard（已建 + 已注册）
-- 文件：`operator/CH-02-create-channel.html`（6 步向导：① 模板&基础 ② 信号源 ③ 编码&音频 ④ 输出 ⑤ 资源预览 ⑥ 预检&提交）。
+- 文件：`operator/CH-02-create-channel.html`（7 步向导：① 模板&基础 ② 信号源 ③ 节目单(Virtual) ④ 编码&音频 ⑤ 输出 ⑥ 资源预览 ⑦ 预检&提交）。
 - 覆盖：Channel Template 工厂（不进运行态，见 OBJECT_VOCAB §1.5）、SDI Primary + UDP-Multicast Backup（E-40 双路径）、Source→Channel Assign、E-42 7 层入网验证、Realtime Encode 7 Profile、Audio Quick Adjust、Output delivery_criticality 分级、Resource 三档预览、B-13 9 项联合预检、ChangeSet（E-33）生成。
 - 注册：NAVIGATION BROADCAST 列表 + §2.5（BROADCAST 12→13 / 域合计 51→52 / TOTAL 52→53 / 总计 53→54）；SURFACE_SPEC 新增 §29.9.5 Batch 5 + BROADCAST 行 12→13 + TOTAL 行标历史/权威。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D2-D6 联调后 LOCK。
@@ -309,7 +309,7 @@
 > 用户确认执行前序 F.4 建议的全部三项后续: ① 06-output 升级落 G3/G4; ② E-37 落 G7; ③ 新建 D7 ChangeSet Review 独立审批 surface。
 
 ### G.1 G3 (P0) 基带 SDI 输出变体 — 06-output.html
-- 原 `CH01-SDI-Master` 仅标 `DISABLED (V0.4 Target)`; 现建模为**基带 SDI 输出变体** (BNC 12G-SDI / 3G-SDI 1080p50 / 16ch AES 嵌入音频 / Embedded Timecode / PTP 帧同步), 状态 BASEBAND·ACTIVE。
+- 原 `CH01-SDI-Master` 仅标 `DISABLED (V0.4 Target)`; 现建模为**基带 SDI 输出变体** (BNC 12G-SDI / 3G-SDI 1080p50 / 16ch AES 嵌入音频 / Embedded Timecode / PTP 帧同步), 状态 **BASEBAND·RESERVED (V0.2 Implementation DISABLED · Target V0.4)** — 0.5D.1 修正: 禁止运行态 ACTIVE (架构边界回退修复, 见 §H.1)。
 - 新增 🎞 SDI OUTPUT Tab, 强调"无网络依赖、故障不切节目源 (Failure Domain 输出适配器级)"。
 
 ### G.2 G4 (P0) Output Resilience 独立对象 — 06-output.html
@@ -328,3 +328,36 @@
 ### G.5 缺口闭环总账
 - 本轮闭合: G3✅ G4✅ G7✅ G6✅ (D7 收口) — 余 G9(D1 已统一) G10(D3/D4 部分) G11(D1) 延续标注。
 - 至此 F.2 全部 11 项缺口均有落点, 其中 10 项已闭 (G1 D1 / G2 D5 / G3 06-output / G4 06-output / G5 D5+D3 / G6 D7 / G7 E-37 / G8 D6 / G9 D1 / G11 D1), G10 部分落 D3/D4 延续。
+
+---
+
+## H. 0.5D.1 Semantic Consistency Closure (2026-08-25 末 · 用户第 4 轮检修 e164c826)
+
+> 用户检修结论: 不能宣布 Phase 0.5 LOCK FINAL — 问题是**语义/边界回退**而非缺页面。风险排序: SDI Master Output ACTIVE (越界回退) > 7 Profile 残留 > Template 未正式对象化 > 页面计数打架 > Reservation 未建模 > ChangeSet 状态混用。本轮只做 6 项语义焊死, 不再加页面。
+
+### H.1 SDI Master Output 回 RESERVED (P0-1, 架构边界守卫)
+- `06-output.html`: `CH01-SDI-Master` 由 BASEBAND·ACTIVE → **BASEBAND·RESERVED (V0.2 Implementation DISABLED · Target V0.4)**; Enable / Test Send 禁用, 仅"查看预留 Schema"。
+- 同步修正: CH-02 (D1) step5 SDI 输出 RESERVED + 预检移除 SDI; CD-01 v2 (D3) 输出区 SDI RESERVED + 预检移除; B-13 v2 (D6) Output Resilience SDI 行 RESERVED; D7 Diff 示例 SDI RESERVED。
+- 原则锁定: `Architecture Contract RESERVED → UI 可预览 → Configuration 可预留 → Runtime Implementation DISABLED → Runtime State 禁止 ACTIVE`。
+
+### H.2 Profile 7/7 全仓焊死 (P0-2)
+- 全仓清扫 "6 Profile / 6 种子类 / 6 个引用" 残留: OBJECT_VOCABULARY (§1.3, §2), POM (§1.2/§4/§5/§6), 0.5E, SURFACE_SPEC, RECONCILIATION, PIA, MILESTONES, P-20 html, CH-01 html。
+- invariant 唯一: **Profile = 7, Bundle = 7 refs** (Encoding/Audio/Output/Graphic/QC/Rights/Edge)。
+
+### H.3 Channel Template 正式对象 (P0-6)
+- OBJECT_VOCABULARY 新增 §1.15: `CHANNEL_TEMPLATE` (kind / DB 表 / Revision / Used By / Instantiate), 核心对象 14→15。Template 为创建工厂, 不进运行态; 模板默认 criticality 只影响新实例化, 不回灌已在播 Channel (D3 Bundle 快照不变)。
+
+### H.4 SURFACE_REGISTRY (P0-5, 计数单一事实源)
+- 新增 `SURFACE_REGISTRY.yaml`: 53 表面 (52 wireframe + 1 Spec E-41) 逐条登记 (id/domain/kind/status/milestone)。
+- 计数重排: M-17 规范归 MEDIA (BROADCAST 14→13); ENGINEERING 按注册表行数校正 (27→26, 含 E-41 SPEC + D7)。
+- **最终权威数: BROADCAST 13 / MEDIA 8 / ENGINEERING 26 / ADMIN 5 = 域合计 52 · TOTAL 53 (52 wireframe + 1 Spec)**。README / NAVIGATION / MILESTONES / SURFACE_SPEC 一律引用 Registry, 禁止手写 22/39/44/52/54/55/56。
+
+### H.5 Resource Reservation 语义焊死 (P1-3)
+- 新增 `RESOURCE_RESERVATION_SPEC.md`: Reservation 对象 (reservation_id / target / resource_vector / scope HOT|WARM|COLD|TRANSIENT / priority / state / acquired_at / released_at) + 生命周期 PROVISIONED→RESERVED→IN_USE→RELEASED + Quota / 仲裁规则 + HOT 必须 RESERVED 才算真锁 + Preflight 三档联动 (B-13 第 8 项)。
+
+### H.6 ChangeSet 三层状态 (P1-4)
+- OBJECT_VOCABULARY §1.14 焊死三层: `ChangeSetStatus` (DRAFT/VALIDATED/APPROVED/SCHEDULED/APPLIED/ROLLED_BACK/ABORTED) · `ReviewState` (NOT_REQUIRED/PENDING/APPROVED/REJECTED) · `TransactionPhase` (PREPARING/APPLYING/COMMITTED/ABORTED)。`phase` 只描述事务执行, `status` 不再含 APPLYING。
+
+### H.7 0.5D.1 状态判断
+- 本轮无新增 surface (D1-D7 已在前序); 修复: SDI 边界回退 / Profile 计数 / Template 对象 / Registry / Reservation / ChangeSet。
+- 后续 (非本轮): P1-1 Source/Endpoint/Adapter 边界、E-40 Media Contract 屏 (十三)、Network/Media Path 双视图组件 (十四)、Duplicate Channel (十九)、Host/Device Capacity 视图 (二十)、E-40→E-42 数据契约显式化。

@@ -44,10 +44,10 @@
 | **Phase 0.5A Operator Semantics** | ✅ LOCK FINAL | 9 Core + 1 Validation（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 |
 | **Phase 0.5B Product Surface** | ✅ UX BASELINE LOCK FINAL | 39 UI 表面（38 + CD-01）+ 5 P0 wireframes + 36 项语义收口（31 P0 + 5 P1）+ Design System + i18n |
 | **Phase 0.5C Info Arch** | 🟡 DRAFT (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
-| **Phase 0.5D P0 Product Surfaces** | ⛔ 待开始 | M-17 Realtime / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail |
+| **Phase 0.5D P0 Product Surfaces** | 🟡 0.5D.1 进行中 | D1-D7 原型已建 + 0.5D.1 Semantic Closure (6 项) |
 | **Reference Implementation** | 📋 Phase 0.6 (前置: 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | **Media Agent (Rust)** | 📋 Phase 1 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
-| **Web Console** | 📋 Phase 4 | 4 域 × 44 UI 表面 (按 SURFACE_SPEC + DESIGN_SYSTEM + I18N_SPEC 实施) |
+| **Web Console** | 📋 Phase 4 | 4 域 × 52 wireframe + 1 Spec (权威: `docs/phase-0.5/SURFACE_REGISTRY.yaml`) |
 
 ### 🏗️ 12 Engines + 5 横向系统 + 6 横切能力
 
@@ -82,7 +82,7 @@ docs/
 │   ├── PRODUCT_OBJECT_MODEL.md         ← 0.5C: 3 层组合关系 (Profile / Bundle / Variant)
 │   ├── NAVIGATION.md                   ← 0.5C: 4 顶层域 (BROADCAST/MEDIA/ENGINEERING/ADMIN)
 │   ├── MILESTONES.md                   ← 0.5C: 历史 milestone 归档 (0.5A/0.5B/0.5B.1/0.5B.2/0.5C)
-│   ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 44 表面 = 39 已锁定 + 5 个 0.5D 新增)
+│   ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (计数由 SURFACE_REGISTRY.yaml 派生)
 │   ├── DESIGN_SYSTEM.md                ← V0.1 Design System (Color / Component / 4 State Models / Keyboard)
 │   ├── I18N_SPEC.md                    ← V0.1 i18n Contract (zh-CN + en-US / Canonical Vocabulary / enum 翻译表)
 │   ├── OPERATOR_WORKFLOW.md            ← 9 Core 操作流
@@ -113,7 +113,7 @@ VBMF 是从 **V0.1 Web 视频编码器** 演进而来的，**V0.1 的所有基�
 | **Phase 0.5D** P0 Product Surfaces | ⛔ 0.5C 后 | M-17 Realtime / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
 | **Phase 0.6** Reference + FI | 📋 (前置: Phase 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | **Phase 1** Media Agent (Rust) | 📋 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
-| **Phase 4** Web Console | 📋 | 4 域 × 44 UI 表面 + 4 链验证 + VBMF Web UI |
+| **Phase 4** Web Console | 📋 | 4 域 × 52 wireframe + 1 Spec + 4 链验证 + VBMF Web UI |
 
 **V0.1 → V0.2 为什么必须升级（架构级问题不能局部修）：**
 
@@ -204,7 +204,7 @@ start docs/phase-0.5/product/M-11-media-library.html
 
 1. Read [`docs/architecture/README.md`](docs/architecture/README.md) — V0.2 quick reference
 2. Read [`docs/architecture/ARCHITECTURE_V0.2.md`](docs/architecture/ARCHITECTURE_V0.2.md) — Full architecture (192KB)
-3. Browse [`docs/phase-0.5/operator/`](docs/phase-0.5/operator/) + [`docs/phase-0.5/product/`](docs/phase-0.5/product/) — 15 wireframes (10 operator + 5 product, bilingual)
+3. Browse [`docs/phase-0.5/operator/`](docs/phase-0.5/operator/) + [`docs/phase-0.5/product/`](docs/phase-0.5/product/) — 52 wireframes + 1 Spec (计数见 [`docs/phase-0.5/SURFACE_REGISTRY.yaml`](docs/phase-0.5/SURFACE_REGISTRY.yaml), bilingual)
 4. Read [`docs/phase-0.5/chains/`](docs/phase-0.5/chains/) — 4 critical operation chains
 
 ### Repository

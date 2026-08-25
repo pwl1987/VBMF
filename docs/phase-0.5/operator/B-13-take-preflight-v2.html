@@ -96,7 +96,7 @@
   </div>
   <div style="margin-left:auto;text-align:right">
     <span class="pill pill-green">0.5D 原型 · D6</span><br>
-    <span class="pill pill-blue" style="margin-top:4px">验收链 Step 6/6 · 收尾</span><br>
+    <span class="pill pill-blue" style="margin-top:4px">0.5D 验收链 · D6 · 收尾</span><br>
     <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>9/9 PASS</span>
   </div>
 </div>
@@ -145,7 +145,7 @@
     <div class="sh"><span class="dot green"></span> 每 REQUIRED Output Variant 携带 OutputResilience 子对象 (P-28 Bundle 子对象 / 06-output)</div>
     <div class="orov"><span class="nm">HLS (REQUIRED)</span><span class="tag req">REQUIRED</span><span class="std" style="color:var(--fgdim)">retry 3x·exp-backoff 1s / heartbeat 5s / zombie &gt;30s / test-send 联动</span></div>
     <div class="orov"><span class="nm">RTMP (REQUIRED)</span><span class="tag req">REQUIRED</span><span class="std" style="color:var(--fgdim)">retry 3x·exp-backoff 1s / heartbeat 5s / zombie &gt;30s / test-send 联动</span></div>
-    <div class="orov"><span class="nm">SDI (REQUIRED)</span><span class="tag req">REQUIRED</span><span class="std" style="color:var(--fgdim)">baseband · 无网络依赖 · 重连 N/A (硬连)</span></div>
+    <div class="orov"><span class="nm">SDI (RESERVED)</span><span class="tag opt">RESERVED · V0.4</span><span class="std" style="color:var(--fgdim)">V0.2 Implementation DISABLED · 不参与运行态健康判定 · UI 仅预留 Schema</span></div>
     <div class="orov"><span class="nm">UDP-MC (OPTIONAL)</span><span class="tag opt">OPTIONAL</span><span class="std" style="color:var(--fgdim)">retry 2x·1s / heartbeat 10s (失败仅 WARN)</span></div>
   </div>
   <div class="gap ok">✅ G4 (P0) 闭合: 原在 D3/D4 标为"无独立 OutputResilience 对象"——现建模为 P-28 Bundle 子对象 (重连策略/心跳/退避/zombie 判定/Test Send 联动), 决策落在 06-output 而非 M-17. 运行态故障按其判定 zombie/重连, 不误切节目源 (Failure Domain).</div>

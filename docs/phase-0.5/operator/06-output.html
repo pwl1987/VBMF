@@ -144,11 +144,11 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <td><b>CH01-SDI-Master 主输出</b></td>
         <td>SDI (基带)</td>
         <td><span class="url">/dev/blackmagic/io0</span></td>
-        <td><i class="dot green"></i>BASEBAND · ACTIVE</td>
-        <td>1.5 Gbps (3G-SDI)</td>
-        <td>— (硬连)</td>
-        <td>live</td>
-        <td><button class="btn">详情 Detail (G3)</button><button class="btn danger">禁用 Disable (L3)</button></td>
+        <td><i class="dot gray"></i>BASEBAND · RESERVED</td>
+        <td>V0.2 实现 DISABLED</td>
+        <td>Target V0.4</td>
+        <td>—</td>
+        <td><button class="btn">Configure 预留 Schema</button><button class="btn" disabled>启用 Enable</button></td>
       </tr>
     </tbody>
   </table>
@@ -376,9 +376,9 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <!-- SDI OUTPUT VIEW (G3: 基带 SDI 输出变体) -->
 <div class="view" id="sdi">
   <div class="detail" style="border-left:3px solid var(--green)">
-    <h4>CH01-SDI-Master 主输出 (基带 SDI) <span class="badge">SDI</span> <span style="color:var(--green)">● BASEBAND · ACTIVE</span></h4>
+    <h4>CH01-SDI-Master 主输出 (基带 SDI) <span class="badge">SDI</span> <span style="color:var(--gray)">● BASEBAND · RESERVED (V0.2 Implementation DISABLED)</span></h4>
     <div class="diag" style="margin-top:0">
-      <b>G3 闭环:</b> 06-output 原仅 UDP OUTPUT + Failure Recovery, 现补<b>基带 SDI 输出变体</b> — 无网络依赖、故障不切节目源 (Failure Domain: 输出适配器级, 非信号源级)。
+      <b>G3 闭环 (架构边界守卫):</b> 基带 SDI 输出 = <b>V0.2 Architecture Contract RESERVED · Implementation DISABLED · Target V0.4</b> — UI 允许预览预留 Schema, 但 <b>禁止运行态 ACTIVE</b>。无网络依赖、故障不切节目源 (Failure Domain: 输出适配器级, 非信号源级)。
     </div>
     <div class="grid">
       <div class="field"><div class="k">Connector 接口</div><div class="v">BNC ×1 (12G-SDI)</div></div>
@@ -389,11 +389,12 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div class="field"><div class="k">Reference 参考</div><div class="v">PTP LOCKED (帧同步)</div></div>
       <div class="field"><div class="k">Network Dependency 网络依赖</div><div class="v green">无 (硬连)</div></div>
       <div class="field"><div class="k">Failure Domain 故障域</div><div class="v">输出适配器级</div></div>
-      <div class="field"><div class="k">On Failure 故障时</div><div class="v">提示 Rejoin / 修 Output, 不误切节目源</div></div>
+      <div class="field"><div class="k">Runtime State 运行态</div><div class="v gray">⛔ 禁止 ACTIVE (V0.2 DISABLED)</div></div>
     </div>
     <div style="margin-top:10px;display:flex;gap:6px">
-      <button class="btn primary">🚀 Test Send 发送测试</button>
-      <button class="btn">✎ Edit 编辑</button>
+      <button class="btn">🗂 查看预留 Schema</button>
+      <button class="btn" disabled>🚀 Test Send (V0.4)</button>
+      <button class="btn" disabled>启用 Enable</button>
     </div>
   </div>
 </div>
@@ -410,12 +411,15 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <tbody>
         <tr><td><b>HLS</b></td><td><span class="v green">REQUIRED</span></td><td>3x · exp-backoff 1s</td><td>5s</td><td>&gt;30s</td><td>联动 (启动前探活)</td></tr>
         <tr><td><b>RTMP</b></td><td><span class="v green">REQUIRED</span></td><td>3x · exp-backoff 1s</td><td>5s</td><td>&gt;30s</td><td>联动</td></tr>
-        <tr><td><b>SDI</b></td><td><span class="v green">REQUIRED</span></td><td>N/A (硬连)</td><td>N/A</td><td>N/A (硬连)</td><td>联动 (信号丢失检测)</td></tr>
+        <tr><td><b>SDI</b></td><td><span class="v">RESERVED (V0.4)</span></td><td>N/A</td><td>N/A</td><td>N/A</td><td>不参与运行态 (V0.2 DISABLED)</td></tr>
         <tr><td><b>UDP-MC</b></td><td><span class="v yellow">OPTIONAL</span></td><td>2x · 1s</td><td>10s</td><td>&gt;30s</td><td>联动 (失败仅 WARN)</td></tr>
       </tbody>
     </table>
     <div class="diag" style="margin-top:8px;border-left-color:var(--green)">
       <b>运行态:</b> 故障按其判定 zombie/重连 → 不影响节目源 (Failure Domain Matrix §8.9); REQUIRED FAIL → 阻断 TAKE; OPTIONAL/AUX FAIL → 仅 WARNING。
+    </div>
+    <div class="diag" style="margin-top:8px;border-left-color:var(--orange)">
+      <b>边界 (0.5D.1 焊死): Output Resilience ≠ Failure Recovery.</b> Resilience 回答"输出自己怎么自愈" (retry / backoff / heartbeat / zombie); Failure Domain 回答"自愈失败后系统下一步怎么办" (Fallback destination / Alert)。retry 全失败只降级 + 告警, <b>绝不切节目源</b>。
     </div>
   </div>
 </div>

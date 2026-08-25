@@ -62,11 +62,12 @@ Output Variant (Instance / 1 Channel N Variant, Profile + Destinations + Adapter
 ```
 docs/phase-0.5/
 ├── README.md                       ← 本文件 (Phase 0.5 顶层入口)
-├── OBJECT_VOCABULARY.md            ← 14 个对象权威定义
+├── OBJECT_VOCABULARY.md            ← 15 个对象权威定义
 ├── PRODUCT_OBJECT_MODEL.md         ← 3 层组合关系
 ├── NAVIGATION.md                   ← 4 域顶层导航
 ├── MILESTONES.md                   ← 历史 milestone 归档
-├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 52 表面, 以 NAVIGATION §2.5 为权威)
+├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (52 wireframe + 1 Spec)
+├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (计数由 SURFACE_REGISTRY.yaml 派生)
 ├── DESIGN_SYSTEM.md                ← V0.1 Design System
 ├── I18N_SPEC.md                    ← V0.1 i18n Contract
 ├── OPERATOR_WORKFLOW.md            ← 9 Core 操作流
@@ -81,14 +82,18 @@ docs/phase-0.5/
 
 ⛔ **`phase-0.5b/` 目录已删除** — 之前叫 `phase-0.5b` 是因为它晚于 `phase-0.5` 创建, 但 Git commit 才是版本管理, 目录应该表达 `phase / domain / role`, 不应承担版本职责。
 
-## 5. 页面架构 (合并 0.5A + 0.5B 后)
+## 5. 页面架构 (0.5D.1 起 · 由 SURFACE_REGISTRY.yaml 派生)
 
-| 类型 | 数量 | 路径 |
-|---|---|---|
-| **Operator** (0.5A 锁定) | 9 + 1 Validation = 10 | `operator/0[1-9]-*.html` + `operator/10-states.html` |
-| **Product** (0.5B.1 + 0.5D) | 5 + 6 待补 = 11 | `product/M-*.html` + `product/P-*.html` |
-| **Channel Detail** (0.5B.0) | 1 | (CD-01, Spec 锁定) |
-| **Total** | **22 / 44** (含 0.5D 全部新表面) | |
+| 域 | wireframe | Spec-only | 路径 |
+|---|---|---|---|
+| **BROADCAST** | 13 | 0 | `operator/` (01-07 + CH-01/02/02B + CD-01 + B-13) |
+| **MEDIA** | 8 | 0 | `operator/` (M-11..M-18, 含 M-17 Realtime Encode) |
+| **ENGINEERING** | 25 | 1 (E-41) | `operator/` (P-20..28 + E-31..42 + O-41..45 + D7) |
+| **ADMIN** | 5 | 0 | `operator/` (A-51..55) |
+| **域合计** | **51** | **1** | — |
+| 全局 (10-states Validation) | 1 | 0 | `operator/10-states.html` |
+| **TOTAL** | **52** | **1** | — |
+| **Phase 0.5 总计** | **53** (52 wireframe + 1 Spec) | | |
 
 ## 6. 与 V0.2 / Phase 0.6 / Phase 1 / Phase 4 关系
 
@@ -129,7 +134,7 @@ Phase 1 Media Agent (Rust) + Phase 4 Web Console
 - ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
 - ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 - ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
-- ⛔ **GitHub README** 反映 4 域 + 52 表面, 不再有 "9 Core Pages" "0.5B 只定义" 等历史残留
+- ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (52 wireframe + 1 Spec), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
 
 ---
 

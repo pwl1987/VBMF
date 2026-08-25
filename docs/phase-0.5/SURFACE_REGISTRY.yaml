@@ -1,0 +1,299 @@
+# =============================================================================
+# VBMF Surface Registry (0.5D.1 起为「页面计数」唯一事实源)
+# -----------------------------------------------------------------------------
+# invariant:
+#   1. 一个 surface 只能出现在一个 domain (M-17 规范归 MEDIA; E-41 为 SPEC-only)。
+#   2. 任何新增 surface 必须先在此登记, 再同步 README / NAVIGATION / MILESTONES /
+#      SURFACE_SPEC 中所有手写计数 (并全部改为引用本文件)。
+#   3. 历史手写数字 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 一律废止。
+#
+# 派生计数 (2026-08-25, 0.5D.1):
+#   BROADCAST 13 · MEDIA 8 · ENGINEERING 26 (含 E-41 SPEC) · ADMIN 5
+#   域合计 52 (51 wireframe + 1 SPEC) · 全局 Validation 1
+#   TOTAL 53 (52 wireframe + 1 Spec E-41) · Phase 0.5 总计 53
+#
+# kind 取值: DASHBOARD / REGISTRY / WORKFLOW / WORKSPACE / DETAIL /
+#            DESIGNER / INSPECTOR / APPROVAL / VALIDATION
+# status 取值: LOCK / DRAFT / SPEC / SPEC_WIREFRAME (Spec 锁定 + wireframe 已补)
+# =============================================================================
+surface:
+  # ---------------- BROADCAST (13) ----------------
+  - id: "01-dashboard"
+    domain: BROADCAST
+    kind: DASHBOARD
+    status: LOCK
+    milestone: "0.5A"
+  - id: "02-sources"
+    domain: BROADCAST
+    kind: REGISTRY
+    status: LOCK
+    milestone: "0.5A (0.5F 重画)"
+  - id: "03-switcher"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5A"
+  - id: "04-composition"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5A"
+  - id: "05-audio"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5A"
+  - id: "06-output"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5A (0.5D.1 升级: G3 SDI RESERVED / G4 Resilience)"
+  - id: "07-recording"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5A"
+  - id: "CH-01"
+    domain: BROADCAST
+    kind: REGISTRY
+    status: LOCK
+    milestone: "0.5F"
+  - id: "CH-02"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: DRAFT
+    milestone: "0.5D (D1 Create Channel Wizard)"
+  - id: "CH-02B"
+    domain: BROADCAST
+    kind: REGISTRY
+    status: DRAFT
+    milestone: "0.5D (D2 Channel Template Center)"
+  - id: "CD-01-WS"
+    domain: BROADCAST
+    kind: WORKSPACE
+    status: LOCK
+    milestone: "0.5F (0.5D D3 v2 升级)"
+    note: "Channel Control Workspace (Take Desk 7 块)"
+  - id: "CD-01-Detail"
+    domain: BROADCAST
+    kind: DETAIL
+    status: LOCK
+    milestone: "0.5F"
+    note: "Channel Detail (8 Tab)"
+  - id: "B-13"
+    domain: BROADCAST
+    kind: WORKFLOW
+    status: SPEC_WIREFRAME
+    milestone: "0.5F Spec → 0.5D D6 wireframe"
+    note: "Take Preflight (9 项联合预检)"
+
+  # ---------------- MEDIA (8) ----------------
+  - id: "M-11"
+    domain: MEDIA
+    kind: REGISTRY
+    status: LOCK
+    milestone: "0.5B.1"
+  - id: "M-12"
+    domain: MEDIA
+    kind: DETAIL
+    status: LOCK
+    milestone: "0.5B.1"
+  - id: "M-13"
+    domain: MEDIA
+    kind: WORKFLOW
+    status: SPEC
+    milestone: "0.5B.0"
+  - id: "M-14"
+    domain: MEDIA
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5D (File Transcode 重画)"
+  - id: "M-15"
+    domain: MEDIA
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0"
+  - id: "M-16"
+    domain: MEDIA
+    kind: WORKFLOW
+    status: SPEC
+    milestone: "0.5B.0"
+  - id: "M-17"
+    domain: MEDIA
+    kind: WORKSPACE
+    status: LOCK
+    milestone: "0.5D (0.5D.1 归 MEDIA; D4 v2 升级)"
+    note: "Realtime Encode (实时编码)"
+  - id: "M-18"
+    domain: MEDIA
+    kind: DETAIL
+    status: LOCK
+    milestone: "0.5D (Transcode Job Detail)"
+
+  # ---------------- ENGINEERING (26, 含 E-41 SPEC) ----------------
+  - id: "P-20"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: LOCK
+    milestone: "0.5D (Profile Center, 8 Tab: 7 Profile + Bundle)"
+  - id: "P-21"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: LOCK
+    milestone: "0.5B.1 (Encoding Profile)"
+  - id: "P-22"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: LOCK
+    milestone: "0.5B.1 (Output Profile)"
+  - id: "P-23"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: SPEC
+    milestone: "0.5B.0 (Audio Profile)"
+  - id: "P-24"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: SPEC
+    milestone: "0.5B.0 (Graphic Profile)"
+  - id: "P-25"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: SPEC
+    milestone: "0.5B.0 (QC Profile)"
+  - id: "P-26"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: SPEC
+    milestone: "0.5B.0 (Rights Profile)"
+  - id: "P-27"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: SPEC
+    milestone: "0.5B.0 (Edge Policy Profile)"
+  - id: "P-28"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: LOCK
+    milestone: "0.5D (Profile Bundle)"
+  - id: "E-31"
+    domain: ENGINEERING
+    kind: DESIGNER
+    status: LOCK
+    milestone: "0.5A (Graph Designer)"
+  - id: "E-32"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Preflight Center)"
+  - id: "E-33"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Change Sets)"
+  - id: "E-34"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Capability Registry)"
+  - id: "E-35"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Device Registry)"
+  - id: "E-36"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Resource / Capacity)"
+  - id: "E-37"
+    domain: ENGINEERING
+    kind: WORKSPACE
+    status: LOCK
+    milestone: "0.5D (0.5D.1 升级: G7 时钟域联动校验)"
+  - id: "E-38"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: LOCK
+    milestone: "0.5D (Hardware Inventory)"
+  - id: "E-40"
+    domain: ENGINEERING
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5F (0.5D D5 v2 创建向导)"
+  - id: "E-41"
+    domain: ENGINEERING
+    kind: INSPECTOR
+    status: SPEC
+    milestone: "0.5F (Network Path Inspector, SPEC-only)"
+    note: "唯一 Spec-only 表面 (0.5G 实施 wireframe)"
+  - id: "E-42"
+    domain: ENGINEERING
+    kind: WORKFLOW
+    status: SPEC_WIREFRAME
+    milestone: "0.5F Spec → 0.5D D5 wireframe (Source Test Bench)"
+  - id: "O-41"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Health Tree Operator 视图)"
+  - id: "O-42"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Incident Center)"
+  - id: "O-43"
+    domain: ENGINEERING
+    kind: DETAIL
+    status: SPEC
+    milestone: "0.5B.0 (Incident Timeline)"
+  - id: "O-44"
+    domain: ENGINEERING
+    kind: WORKFLOW
+    status: SPEC
+    milestone: "0.5B.0 (Replay)"
+  - id: "O-45"
+    domain: ENGINEERING
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Benchmarks)"
+  - id: "D7"
+    domain: ENGINEERING
+    kind: APPROVAL
+    status: DRAFT
+    milestone: "0.5D 后续 (ChangeSet Review 独立审批 surface)"
+
+  # ---------------- ADMIN (5) ----------------
+  - id: "A-51"
+    domain: ADMIN
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Users)"
+  - id: "A-52"
+    domain: ADMIN
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Roles)"
+  - id: "A-53"
+    domain: ADMIN
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Permissions)"
+  - id: "A-54"
+    domain: ADMIN
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (Audit Logs)"
+  - id: "A-55"
+    domain: ADMIN
+    kind: REGISTRY
+    status: SPEC
+    milestone: "0.5B.0 (System Settings)"
+
+  # ---------------- GLOBAL (1) ----------------
+  - id: "10-states-validation"
+    domain: GLOBAL
+    kind: VALIDATION
+    status: LOCK
+    milestone: "0.5A"
+    note: "全局状态参考 (非业务域)"

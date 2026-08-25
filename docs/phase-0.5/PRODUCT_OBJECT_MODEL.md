@@ -7,7 +7,7 @@
 >
 > **状态:** 🟡 **DRAFT 0.1** — 等待 0.5C LOCK FINAL
 >
-> **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 锁定的 14 个对象
+> **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 锁定的 15 个对象
 >
 > **关联:** [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md)
 
@@ -70,15 +70,15 @@ profile_bundles:
   notes: '新闻直播标准配置 / News Live Standard'
 ```
 
-**UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 6 个 Profile 引用, 不重新配置 6 套参数。
+**UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 7 个 Profile 引用, 不重新配置 7 套参数。
 
 **优势:**
-- Operator 改一个 Channel = 改一个 Bundle (6 个引用一次到位)
+- Operator 改一个 Channel = 改一个 Bundle (7 个引用一次到位)
 - Engineer 改一个 Profile (例如 HEVC → H.265) = 影响所有引用该 Profile 的 Bundle, 但有 Impact Preview 看到所有受影响 Channel
-- 不重复配置 (6 个 Profile 不需要在每个 Channel 重新填)
+- 不重复配置 (7 个 Profile 不需要在每个 Channel 重新填)
 
 **Revision 策略:**
-- Bundle 自己的 `revision_id` 表达"哪 6 个 Profile 版本组合"
+- Bundle 自己的 `revision_id` 表达"哪 7 个 Profile 版本组合"
 - 修改 Bundle = 创建新 Revision (V0.2 §1.13 锁定)
 
 ### 1.3 第 3 层: Output Variant (Instance / 1 个 Channel N 个 Variant)
@@ -123,7 +123,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
         ┌─────────────────┼─────────────────┐
         │                 │                 │
      SOURCE            BUNDLE            VARIANT
-   (1..N, 冗余)    (1, 6 个 Profile 引用)   (1..N, 输出)
+   (1..N, 冗余)    (1, 7 个 Profile 引用)   (1..N, 输出)
         │                 │                 │
         ↓                 ↓                 ↓
     ┌──────────┐    ┌──────────┐    ┌──────────┐
@@ -224,10 +224,10 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Encoding Profile, Variant |
 | **M-17 Realtime Transcode** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
 | **M-18 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
-| **P-20 Profile Center** (0.5D) | Profile (6 子类 Registry) | Bundle, Variant, Channel |
+| **P-20 Profile Center** (0.5D) | Profile (7 子类 Registry) | Bundle, Variant, Channel |
 | **P-21 Encoding Profile** | Encoding Profile | Bundle, Variant, Channel |
 | **P-22 Output Profile** | Output Profile | Bundle, Variant, Destination, Edge Policy |
-| **P-28 Profile Bundle** (0.5D) | Profile Bundle | Channel, 6 Profile, ChangeSet |
+| **P-28 Profile Bundle** (0.5D) | Profile Bundle | Channel, 7 Profile, ChangeSet |
 | **E-38 Hardware Inventory** (0.5D) | Hardware Capability + Device | Session, Job, Profile |
 | **E-37 Clock** (0.5D 升级) | Clock Reference + Fallback Chain | Session, Source, Channel |
 | **O-41 Health Tree** | Health Tree + Channel | Source, Node, RG, Incident |
@@ -243,7 +243,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 |---|---|
 | `media_assets` | Asset (1.1) |
 | `media_asset_versions` | Asset Version (1.2) |
-| `encoding_profiles` / `output_profiles` / `audio_profiles` 等 6 表 | Profile (1.3, 6 kind) |
+| `encoding_profiles` / `output_profiles` / `audio_profiles` 等 7 表 | Profile (1.3, 7 kind) |
 | `profile_bundles` (0.5D 持久化) | Profile Bundle (1.4, 0.5C 新增) |
 | `channels` | Channel (1.5) |
 | `sources` | Source (1.6) |
@@ -251,7 +251,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | `output_variants` | Output Variant (1.8) |
 | `output_destinations` | Output Destination (1.9) |
 | `output_adapters` | Output Adapter (1.10) |
-| `media_jobs` | Job (1.11, 5 kind) |
+| `media_jobs` | Job (1.11, 6 kind) |
 | `media_sessions` | Session (1.12, 2 kind) |
 | `config_revisions` | Revision (1.13) |
 | `change_sets` | Change Set (1.14) |
@@ -262,9 +262,9 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 
 ## 6. Phase 0.5C LOCK FINAL 验证清单
 
-- [ ] **导航 4 域** (BROADCAST / MEDIA / PROFILES / ENGINEERING) 顶层无数字
+- [ ] **导航 4 域** (BROADCAST / MEDIA / ENGINEERING / ADMIN) 顶层无数字
 - [ ] **7 Profile** 全部进 P-20 Profile Center, 不再各自分散
-- [ ] **M-14 / M-17** 显式标 "File Transcode" / "Realtime Transcode", 不再叫 "Transcode Center"
+- [ ] **M-14 / M-17** 显式标 "File Transcode" / "Realtime Encode", 不再叫 "Transcode Center"
 - [ ] **Variant vs Version** 命名严格分离
 - [ ] **Bundle** 进 SURFACE_SPEC §3.3 (新章节)
 - [ ] **Impact Preview** 在所有 Profile / Bundle / ChangeSet 页面有按钮

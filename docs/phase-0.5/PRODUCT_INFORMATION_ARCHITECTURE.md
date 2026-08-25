@@ -359,7 +359,7 @@ V0.2 §15 锁了 3-Layer (Desired / Compiled / Effective), Phase 0.5B.2 锁了 I
 | 对象 | DESIRED | COMPILED | EFFECTIVE | IMPACT |
 |---|---|---|---|---|
 | Channel | Channel config | Graph 编译 | Runtime Session | 4 维影响 |
-| Bundle | 6 Profile 引用 | ChangeSet apply | Runtime Variant | 4 维影响 |
+| Bundle | 7 Profile 引用 | ChangeSet apply | Runtime Variant | 4 维影响 |
 | Source | Source 6 字段 | Adapter 加载 | 实时流 | 4 维影响 |
 | Output | Output Profile | Adapter 加载 | 实际 destination | 4 维影响 |
 | Audio Profile | Profile config | Worker 加载 | 实际音量 | 4 维影响 |

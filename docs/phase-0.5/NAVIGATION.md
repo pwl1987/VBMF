@@ -5,7 +5,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure (0.5E Cross-Domain Capabilities 已 Spec 锁)
 >
-> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 55 wireframe + 1 spec（以 §2.5 为权威, 含 0.5D 原型 CH-02 / CH-02B / D7）· 待 0.5D 业务闭环后 FINAL
+> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 52 wireframe + 1 Spec（唯一权威: `SURFACE_REGISTRY.yaml`, 展示见 §2.5）· 0.5D.1 Semantic Closure 进行中
 >
 > **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) · [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) · [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`0.5E-CROSS_DOMAIN_CAPABILITIES.md`](0.5E-CROSS_DOMAIN_CAPABILITIES.md) (Impact Preview / Configuration Diff / Command Palette 跨域)
 
@@ -64,7 +64,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 
 ## 2. 顶层 4 域到 UI 表面的映射 (Phase 0.5D 锁定)
 
-### 2.1 BROADCAST 域 (13 表面 · 0.5F 后)
+### 2.1 BROADCAST 域 (13 表面 · 0.5D.1)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
@@ -73,7 +73,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **03-switcher** | Switcher 切播 | 🟢 LOCK (0.5A) | Operator |
 | **04-composition** | Composition 图文包装 | 🟢 LOCK (0.5A) | Director |
 | **05-audio** | Audio 音频 | 🟢 LOCK (0.5A) | Operator |
-| **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator · ✅ 0.5D 后续升级: G3 基带 SDI 输出变体 + G4 Output Resilience 独立对象已落 `operator/06-output.html` |
+| **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator · ✅ 0.5D 后续升级: G3 基带 SDI 输出变体 (**RESERVED · V0.2 实现 DISABLED · Target V0.4**) + G4 Output Resilience 独立对象已落 `operator/06-output.html` |
 | **07-recording** | Recording 录制 | 🟢 LOCK (0.5A) | Operator |
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
 | **CH-02** | Create Channel Wizard 频道创建向导 | 🟡 DRAFT (0.5D 原型 D1) | Operator / Director |
@@ -81,11 +81,11 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · v2 升级见验收链 D3 原型 `operator/CD-01-channel-workspace-v2.html` |
 | **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
 | **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Operator · v2 wireframe 已补见验收链 D6 原型 `operator/B-13-take-preflight-v2.html` |
-| **M-17** | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · v2 升级见验收链 D4 原型 `operator/M-17-realtime-transcode-v2.html` |
+| ~~**M-17**~~ | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · v2 见 D4 原型 `operator/M-17-realtime-transcode-v2.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
 
 > **注**: 08-graph-designer / 09-health-tree 已划归 ENGINEERING 域 (PIA V0.1 §12); 10-states Validation 是全局 Validation 不属于 BROADCAST。
 
-### 2.2 MEDIA 域 (7 表面 · 0.5D 后)
+### 2.2 MEDIA 域 (8 表面 · 0.5D.1)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
@@ -95,10 +95,10 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **M-14** | File Transcode 文件转码 (新名) | 🟢 LOCK (0.5D, 重画 6 步 Wizard) | Editor / Engineer |
 | **M-15** | Transcode Jobs 转码任务 (M-14 母页) | 🟡 Spec (0.5B.0) | Editor / Engineer |
 | **M-16** | Versions / Renders 资产版本渲染 | 🟡 Spec (0.5B.0) | Editor |
-| **M-17** | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer |
+| **M-17** | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · **0.5D.1 起规范计数域** (原与 BROADCAST 双列) |
 | **M-18** | Transcode Job Detail 转码任务详情 (M-15 子页升级为独立页) | 🟢 LOCK (0.5D) | Editor / Engineer |
 
-### 2.3 ENGINEERING 域 (25 表面 · 0.5F 后)
+### 2.3 ENGINEERING 域 (26 表面 · 0.5D.1, 含 E-41 SPEC)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
@@ -139,27 +139,28 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **A-54** | Audit Logs 审计日志 | 🟡 Spec (0.5B.0) | Admin |
 | **A-55** | System Settings 系统设置 | 🟡 Spec (0.5B.0) | Admin |
 
-### 2.5 总计 (0.5F 后 · 52 wireframe + 1 Spec)
+### 2.5 总计 (0.5D.1 起 · 由 `SURFACE_REGISTRY.yaml` 派生, 禁止手改)
 
-| 域 | 表面数 | 已 LOCK | Spec 锁定 (待 wireframe) | 0.5D 新增 | 0.5F 新增 |
-|---|---|---|---|---|---|
-| BROADCAST | 14 | 12 (0.5F 后全部 LOCK; CH-02, CH-02B 为 0.5D 原型待 LOCK) | 0 | 3 (M-17, CH-02, CH-02B) | +3 (CH-01, CD-01 WS, CD-01 Detail 升 wireframe) |
-| MEDIA | 8 | 5 (M-11/12/14/17/18) | 3 (M-13/15/16) | 2 (M-14 重画, M-18 新) | 0 |
-| ENGINEERING | 27 | 8 (P-20/21/22/28 + E-31/37/38/40) | 17 | 5 (P-20, P-28, E-37, E-38, 改 1) | +1 (E-40) |
-| ADMIN | 5 | 0 | 5 | 0 | 0 |
-| **域合计 (wireframe)** | **54** | **25** | **25** | **10** | **+4** |
-| 全局 (10-states Validation) | 1 | 1 | 0 | 0 | 0 |
-| **TOTAL wireframe** | **55** | **26** | **25** | **10** | **+4** |
-| E-41 Network Path (Spec only) | 1 Spec | 0 | 1 (0.5F Spec 锁, 0.5G 实施) | - | +1 Spec |
-| **Phase 0.5 总计** | **56** (55 wireframe + 1 Spec) | - | - | - | - |
+| 域 | 表面数 | wireframe | Spec-only | 关键新增 (0.5D / 0.5F / 0.5D.1) |
+|---|---|---|---|---|
+| BROADCAST | 13 | 13 | 0 | CH-01 / CH-02 (D1) / CH-02B (D2) / CD-01 WS+Detail / B-13 v2 (D6); M-17 归 MEDIA |
+| MEDIA | 8 | 8 | 0 | M-17 (0.5D.1 规范计数域, D4 v2) / M-14 重画 / M-18 新 |
+| ENGINEERING | 26 | 25 | 1 (E-41) | P-20 / P-28 / E-37 / E-38 / E-40 v2 (D5) / E-42 v2 (D5) / D7 (0.5D 后续) |
+| ADMIN | 5 | 5 | 0 | — |
+| **域合计** | **52** | **51** | **1** | — |
+| 全局 (10-states Validation) | 1 | 1 | 0 | — |
+| **TOTAL** | **53** | **52** | **1** | — |
+| **Phase 0.5 总计** | **53** (52 wireframe + 1 Spec E-41) | - | - | - |
 
-> **历史口径演化**: 0.5B 报 "30+ UI 表面" → 实为 38 → 0.5C 重排 40 → 0.5D 后 44 → 0.5F 后 **52 个 wireframe + 1 Spec (E-41)** = 53。
-> 02-sources.html 重画不计为新增。
-> ⛔ 禁止在 README / 阶段总结中再使用 39 / 44 / 47 等早期数字。
+> **历史口径演化**: 0.5B "30+/38" → 0.5C 重排 40 → 0.5D 44 → 0.5F "52+1" → **0.5D.1 起由 `SURFACE_REGISTRY.yaml` 唯一派生 (52 wireframe + 1 Spec E-41 = 53)**。
+> ⛔ 禁止在 README / 阶段总结中再手写 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 等任何孤立数字 — 一律引用 `SURFACE_REGISTRY.yaml`。
+> 02-sources.html 重画不计为新增; M-17 0.5D.1 起规范归 MEDIA (BROADCAST 14→13)。
 >
-> **[变更登记 · 0.5F 后]** 新增 3 份 Spec 文档登记（上一轮产出，待 0.5G 实施 wireframe）: `ENCODE_MODEL_SPEC.md` (P-21 双语义模型) / `E-42-source-test-bench.md` (Source Test Bench) / `B-13-take-preflight.md` (Take Preflight)。E-42 / B-13 为 Spec-only 表面，不计 0.5F 48 wireframe 计数；P-21 模型以引用形式挂接。详见 `SURFACE_SPEC.md` §29.9.3b Batch 4。
+> **[变更登记 · 0.5F 后]** 新增 3 份 Spec 文档登记（上一轮产出，待 0.5G 实施 wireframe）: `ENCODE_MODEL_SPEC.md` (P-21 双语义模型) / `E-42-source-test-bench.md` (Source Test Bench) / `B-13-take-preflight.md` (Take Preflight)。P-21 模型以引用形式挂接。详见 `SURFACE_SPEC.md` §29.9.3b Batch 4。
 >
-> **[变更登记 · 0.5D 后续]** 新增 D7 ChangeSet Review 独立审批 surface (ENGINEERING 域, +1 → 27): 从 B-13 内联 L2 审批拆出独立审阅面, 见 `operator/D7-changeset-review.html`; 同步落 G3 (06-output 基带 SDI 输出变体) / G4 (06-output Output Resilience 独立对象) / G7 (E-37 时钟域联动校验)。ENGINEERING 26→27 · 域合计 53→54 · TOTAL 54→55 · 总计 55→56。详见 `SURFACE_SPEC.md` D7 节 + `RECONCILIATION_0.5C_PROPOSAL_vs_0.5F.md` §G。
+> **[变更登记 · 0.5D 后续]** 新增 D7 ChangeSet Review 独立审批 surface (ENGINEERING 域): 见 `operator/D7-changeset-review.html`; 同步落 G3/G4 (06-output) + G7 (E-37)。历史登记口径已并入 0.5D.1 计数重排。
+>
+> **[变更登记 · 0.5D.1 Semantic Closure]** ① SDI Master Output 回 **RESERVED** (V0.2 实现 DISABLED, 禁止运行态 ACTIVE); ② Profile 7/7 全仓焊死; ③ Channel Template 正式对象 (OBJECT_VOCAB §1.15); ④ 新增 `SURFACE_REGISTRY.yaml` 唯一计数源, M-17 归 MEDIA, **计数重排: BROADCAST 13 / MEDIA 8 / ENGINEERING 26 (含 E-41 SPEC) / ADMIN 5 = 域合计 52 · TOTAL 53 (52 wireframe + 1 Spec)**; ⑤ `RESOURCE_RESERVATION_SPEC.md` (Reservation/Quota/Acquire/Release/HOT); ⑥ ChangeSet 三层状态 (Status/ReviewState/Phase)。详见 `RECONCILIATION_0.5C_PROPOSAL_vs_0.5F.md` §H。
 
 ---
 

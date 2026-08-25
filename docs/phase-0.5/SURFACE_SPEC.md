@@ -3313,7 +3313,7 @@ UI 顶层导航**从数字改为业务域**:
 |---|---|---|---|
 | **BROADCAST** | 直播 | Operator / Director | Channel · Source · Session (REALTIME) · Variant |
 | **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (6 kinds, 见 §29.5) |
-| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 6 Profile · Graph/Route (E-31) · ChangeSet · Preflight · Hardware (E-38 新增) · Clock (E-37 升级) · Health · Incident · Replay · Benchmark** |
+| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 7 Profile · Graph/Route (E-31) · ChangeSet · Preflight · Hardware (E-38 新增) · Clock (E-37 升级) · Health · Incident · Replay · Benchmark** |
 | **ADMIN** | 管理 | Admin | User · Role · Permission · Audit · System Setting |
 
 **计数表 (0.5C.1 重算 — 修正草稿与已锁定编号的撞号: E-34 已是 Capability Registry, E-36 已是 Resource/Capacity, E-37 本就是 Clock, M-15/M-16 已被占用; 新表面改用空闲编号 M-17 / M-18 / E-38):**
@@ -3360,8 +3360,8 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 
 | 表面 | 域 | 类型 | 关键交付 |
 |---|---|---|---|
-| **P-20 Profile Center** | ENGINEERING | 新增 | 7 Tab 切换 6 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
-| **P-28 Profile Bundle** | ENGINEERING | 新增 | 1 Channel 1 Bundle, 6 Profile 引用, 不重新配置 6 套参数 |
+| **P-20 Profile Center** | ENGINEERING | 新增 | 8 Tab 切换 7 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
+| **P-28 Profile Bundle** | ENGINEERING | 新增 | 1 Channel 1 Bundle, 7 Profile 引用, 不重新配置 7 套参数 |
 | **E-38 Hardware Inventory** | ENGINEERING | 新增 | HOST 顶层 (CPU/GPU/BMD/NIC/Storage) → Device 详情 (Capabilities/Ports/Assignment/Health/Temperature/Firmware/Driver); 与 E-35 Device Registry / E-36 Resource 互补 |
 | **E-37 Clock** (升级) | ENGINEERING | 升级 | Reference (PTP/TIMECODE/SYSTEM/MONOTONIC) + Fallback Chain + Offset/Drift/Lock + Fallback history (已有 Spec §E-37, 0.5D 补 wireframe) |
 | **M-17 Realtime Transcode** | BROADCAST | 新增 | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
@@ -3374,8 +3374,8 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 
 1. **Asset** (媒体资产, 1:1) — M-11 / M-12
 2. **Asset Version** (Master/Proxy/Mobile/Archive/Custom) — M-12 Tab ②
-3. **Profile** (6 子类) — P-20 Profile Center
-4. **Profile Bundle** (1 Channel 1 Bundle, 6 Profile 引用) — P-28 (0.5D)
+3. **Profile** (7 子类) — P-20 Profile Center
+4. **Profile Bundle** (1 Channel 1 Bundle, 7 Profile 引用) — P-28 (0.5D)
 5. **Channel** (运营单位) — CD-01
 6. **Source** (11 kinds) — 02 Sources
 7. **Route** (Graph 编译后) — 08 Graph Designer
@@ -3488,7 +3488,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 
 | 表面 | 域 | 类型 | 关键交付 |
 |---|---|---|---|
-| **CH-02 Create Channel Wizard** | BROADCAST | 新增 (D1) | 6 步向导: 模板→源(SDI主+UDP-MC备+E-42验证)→编码(7 Profile)→输出(分级)→资源预览→B-13预检; 生成 ChangeSet 落 Channel/Source/Bundle |
+| **CH-02 Create Channel Wizard** | BROADCAST | 新增 (D1) | 7 步向导: 模板→信号源→节目单(Virtual)→编码&音频→输出(分级)→资源→预检; 生成 ChangeSet 落 Channel/Source/Bundle |
 | **CH-02B Channel Template Center** | BROADCAST | 新增 (D2) | 模板工厂 (Template≠Bundle, 不进运行态); 实例化出 Profile Bundle(7 Profile 引用)+Channel(DRAFT); 覆盖 TV/Radio/Virtual; 文件 operator/CH-02b-channel-template-center.html |
 | *D3 CD-01 v2* | BROADCAST | 待建 | Channel Workspace 升级 |
 | *D4 M-17 Realtime Encode v2* | MEDIA | 待建 | Realtime Encode 升级 |
@@ -3507,7 +3507,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 | **TOTAL wireframe (历史 48; 当前权威 53, 见 NAVIGATION §2.5)** | 44 | +4 | 48 |
 | E-41 Network Path (Spec only) | - | +1 (0.5G 实施后 +1) | 1 Spec |
 
-> **0.5F 后 Phase 0.5 UI 表面以 NAVIGATION.md §2.5 为权威计数（52 wireframe + 1 spec）**; 本处 44 / 48 为历史 as-of 计数, 废止（统一见 NAVIGATION §2.5）
+> **0.5D.1 起 Phase 0.5 UI 表面计数以 `SURFACE_REGISTRY.yaml` 为唯一权威 (52 wireframe + 1 Spec E-41)**; 本处 44 / 48 / 52 / 54 / 55 / 56 均为历史 as-of 计数, 废止（统一见 `SURFACE_REGISTRY.yaml` + NAVIGATION §2.5）
 > 02-sources.html 重画不计为新增。
 > E-41 Network Path 仅 Spec 锁, 0.5G 实施后总计 49。
 > [变更登记] 0.5F 后新增 3 份 Spec（ENCODE_MODEL_SPEC / E-42 / B-13），均为 Spec-only；其中 E-42 / B-13 为表面，0.5G 实施 wireframe 后计数 +2；ENCODE_MODEL_SPEC 为模型文档，不计入表面计数。

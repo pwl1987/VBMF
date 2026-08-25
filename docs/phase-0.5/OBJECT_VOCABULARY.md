@@ -6,7 +6,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure
 >
-> **状态:** 🟡 **DRAFT 0.1** — 与 V0.2 Architecture §1, §3-§9 对齐, 等待 0.5C LOCK FINAL
+> **状态:** 🟡 **DRAFT 0.2** — 0.5D.1 Semantic Closure: 15 核心对象 (新增 Channel Template) · ChangeSet 三层状态 · 4 域映射
 
 ---
 
@@ -18,7 +18,7 @@
 
 ---
 
-## 1. 14 个核心对象 (Phase 0.5 锁定)
+## 1. 15 个核心对象 (Phase 0.5D.1 锁定)
 
 ### 1.1 Asset 媒体资产
 
@@ -49,9 +49,9 @@
 | **绝不允许混用** | ❌ 不要叫 "Variant" — 那是 Output 域的概念 |
 | **典型错误** | "Create Variant" 按钮含义模糊 → 必须分 "Create Asset Version" (M-12) / "Create Output Variant" (CD-01 Tab 6) |
 
-### 1.3 Profile 配置档 (6 种子类, kind 必填)
+### 1.3 Profile 配置档 (7 种子类, kind 必填)
 
-> 关键: **6 种 Profile 是 6 个 kind, 共享 P-20 Profile Center 入口, 但 schema 独立**。
+> 关键: **7 种 Profile 是 7 个 kind, 共享 P-20 Profile Center 入口, 但 schema 独立**。
 
 | 子类 | kind | DB 表 | 锁定状态 |
 |---|---|---|---|
@@ -93,7 +93,7 @@
 | **核心字段** | `channel_id, name, profile_bundle_ref, source_refs[], output_variant_refs[], redundancy_group_id, hot_standby_level` |
 | **绝不允许混用** | ❌ 不要叫 "Stream" / "Program" — Program 是 Composition 输出层, Channel 是运营单位 |
 
-> **Channel Template ≠ Bundle (提案采纳, 四层分离):** `Channel Template`(创建工厂, **不进运行态**) → 创建 `Profile Bundle`(当前 Channel 配置集合) → 引用 `Profile`(可复用策略) → 实例化 `Output Variant`(当前交付实例). Template 仅用于"新建 Channel"时一键带出 Bundle, 不作为运行模型对象. 详见 `P-28-profile-bundle.html`.
+> **Channel Template ≠ Bundle (0.5D.1 正式对象):** 见 §1.15 — `Channel Template`(创建工厂, **不进运行态**) → 实例化 `Profile Bundle`(当前 Channel 配置集合) → 引用 `Profile`(可复用策略) → 派生 `Output Variant`(当前交付实例). Template 仅用于"新建 Channel"时一键带出 Bundle.
 
 ### 1.6 Source 源
 
@@ -206,22 +206,36 @@
 | **DB 表** | `change_sets` + `change_set_items` |
 | **UI 入口** | E-33 Change Sets |
 | **唯一 ID** | `change_set_id` (UUID) |
-| **核心字段** | `change_set_id, title, phase (DRAFT/VALIDATED/SCHEDULED/APPLYING/APPLIED/ABORTED), items[] (item_kind, target_id, before_revision, after_revision, impact_summary), scheduled_at` |
+| **核心字段** | `change_set_id, title, status, review_state, phase, items[] (item_kind, target_id, before_revision, after_revision, impact_summary), scheduled_at` |
+| **三层状态 (0.5D.1 焊死)** | `ChangeSetStatus` (业务状态: DRAFT/VALIDATED/APPROVED/SCHEDULED/APPLIED/ROLLED_BACK/ABORTED) · `ReviewState` (审批: NOT_REQUIRED/PENDING/APPROVED/REJECTED) · `TransactionPhase` (事务: PREPARING/APPLYING/COMMITTED/ABORTED) — 三者严格分离, `phase` 只描述事务执行, 不再混当业务状态 |
 | **核心语义** | **Logical Atomic Apply** (V0.2 §4) — 整批生效或整批回滚 |
-| **绝不允许混用** | ❌ 不是 "Deployment" (部署是运行时) / "Workflow" (流程是审批) |
+| **绝不允许混用** | ❌ 不是 "Deployment" (部署是运行时) / "Workflow" (流程是审批); ⛔ `status` 不能含 APPLYING (那是 TransactionPhase) |
+
+### 1.15 Channel Template 频道模板 (0.5D.1 正式对象)
+
+| 字段 | 锁定 |
+|---|---|
+| **正式名** | Channel Template |
+| **kind 值** | `CHANNEL_TEMPLATE` |
+| **DB 表** | `channel_templates` (V0.4+) |
+| **UI 入口** | CH-02B Channel Template Center (Phase 0.5D) |
+| **唯一 ID** | `template_id` (UUID) |
+| **核心字段** | `template_id, name, template_revision, channel_type (TV_LIVE/RADIO_LIVE/VIRTUAL_PLAYOUT), default_source_policy, default_bundle_ref (Profile Bundle · 7 Profile 引用), default_output_variants[] (含默认 delivery_criticality), default_qc_policy, default_clock_policy, used_by[]` |
+| **Revision** | `template_revision` — 模板修订不可变 (V0.2 §1.13), 改模板 = 新 Revision |
+| **关系** | `Template (工厂, 不进运行态) → instantiate → Profile Bundle Revision → Channel (DRAFT)` |
+| **绝不允许混用** | ❌ 不是 "Profile" / "Preset" / "Bundle" — 模板是创建工厂对象, Bundle 是 Channel 实际配置集合 |
+| **典型错误** | 把"模板默认输出 criticality 改动"当成运行态改动 → 模板默认只影响**新实例化**的 Channel, 不回灌已在播 Channel (D3 Bundle 快照不变) |
 
 ---
 
-## 2. 6 大域对应核心对象 (Phase 0.5D Navigation 锁定)
+## 2. 4 大域对应核心对象 (Phase 0.5D Navigation 锁定)
 
 | 域 (Top Nav) | 核心对象 |
 |---|---|
-| **01 BROADCAST** | Channel, Source, Route, Session, Graph |
-| **02 MEDIA** | Asset, Asset Version, Job (FILE_TRANSCODE / PROBE / QC) |
-| **03 PROFILES** | Profile (6 子类), Profile Bundle, Revision |
-| **04 ENGINEERING** | Graph (design-time), Preflight Run, Change Set, Hardware, Clock |
-| **05 OPERATIONS** | Health Tree, Incident, Replay, Benchmark, Variant, Destination, Adapter, Session |
-| **06 ADMINISTRATION** | User, Role, Permission, Audit Log, System Setting |
+| **BROADCAST** | Channel, Channel Template, Source, Route, Session (OUTPUT), Graph, Output Variant, Destination, Adapter |
+| **MEDIA** | Asset, Asset Version, Job (FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE), Session (MEDIA) |
+| **ENGINEERING** | Profile (7 子类), Profile Bundle, Revision, Channel Template, Graph (design-time), Preflight Run, Change Set, Reservation, Hardware, Clock, Health Tree, Incident, Replay, Benchmark |
+| **ADMIN** | User, Role, Permission, Audit Log, System Setting |
 
 ---
 
