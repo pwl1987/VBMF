@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>M-18 · Transcode Job Detail 转码任务详情 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+    --health-healthy:#3fb950; --health-degraded:#d29922; --health-failed:#f85149; --health-unknown:#6e7681;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel h3 .cn{color:var(--fg);font-weight:500}
+  .panel h3 .en{color:var(--fgdim);font-size:11px;font-weight:400}
+  .panel h3 .pill{float:right}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:20px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.blue{color:var(--accent)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .pipeline{display:flex;align-items:stretch;gap:6px;margin:8px 0;padding:8px;background:var(--bg3);border-radius:3px}
+  .pipeline .stage{flex:1;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;text-align:center}
+  .pipeline .stage .ico{font-size:14px;margin-bottom:2px}
+  .pipeline .stage .name{font-size:10px;font-weight:600;color:var(--fg)}
+  .pipeline .stage .detail{font-size:9px;color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+  .pipeline .stage.done{border-color:var(--green);background:rgba(63,185,80,.05)}
+  .pipeline .stage.running{border-color:var(--accent);background:rgba(88,166,255,.05);animation:pulse 2s infinite}
+  .pipeline .stage.pending{opacity:.5}
+  .pipeline .stage.failed{border-color:var(--red);background:rgba(248,81,73,.05)}
+  .pipeline .arrow{display:flex;align-items:center;color:var(--fgdim);font-size:14px}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  details summary:hover{color:var(--fg)}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .progress{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin:4px 0}
+  .progress .bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .3s}
+  .log{background:#000;color:#0f0;font-family:Menlo,Consolas,monospace;font-size:10px;padding:8px;border-radius:3px;max-height:200px;overflow-y:auto;line-height:1.4}
+  .log .err{color:#f44}
+  .log .warn{color:#fa0}
+  .log .info{color:#0af}
+  .sev{font-weight:600}
+  .sev.crit{color:var(--red)}.sev.warn{color:var(--yellow)}.sev.ok{color:var(--green)}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.yellow{background:var(--yellow)}
+  .dot.red{background:var(--red);box-shadow:0 0 6px var(--red)}
+  .dot.gray{background:var(--gray)}
+  .dot.blue{background:var(--accent);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="M-15">M-15 Jobs (锁)</a> › <b>M-18 Job #TR-1822</b></div>
+    <h1><span class="cn">M-18 · 转码任务详情</span> <span class="en">TRANSCODE JOB DETAIL (Job #TR-1822)</span></h1>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <span class="pill pill-blue"><span class="dot blue"></span>RUNNING · 42%</span>
+    <span class="pill pill-blue">FILE_TRANSCODE</span>
+    <span class="pill pill-blue">Job #TR-1822</span>
+  </div>
+</div>
+
+<!-- Job Hero -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--accent)">
+  <h3><span class="cn">任务总览</span> / JOB HERO
+    <span class="pill pill-blue" style="float:right">2nd attempt · prev failed 14:21:08 (decode error)</span>
+  </h3>
+  <div class="row">
+    <div class="col-3">
+      <div class="k">Job ID</div>
+      <div class="v blue">TR-1822</div>
+    </div>
+    <div class="col-3">
+      <div class="k">Kind</div>
+      <div class="v">FILE_TRANSCODE</div>
+    </div>
+    <div class="col-3">
+      <div class="k">Status</div>
+      <div class="v blue">RUNNING</div>
+    </div>
+    <div class="col-3">
+      <div class="k">Progress</div>
+      <div class="v blue">42%</div>
+      <div class="progress"><div class="bar" style="width:42%"></div></div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <div class="col-3">
+      <div class="k">Created By</div>
+      <div class="v">Director Zhang</div>
+    </div>
+    <div class="col-3">
+      <div class="k">Created At</div>
+      <div class="v">2026-08-25 14:35:12</div>
+    </div>
+    <div class="col-3">
+      <div class="k">Started</div>
+      <div class="v">14:36:48 (1m 36s ago)</div>
+    </div>
+    <div class="col-3">
+      <div class="k">ETA</div>
+      <div class="v">14:42:18 (4m 12s remaining)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Pipeline 6 步 -->
+<div class="panel">
+  <h3><span class="cn">转码管线</span> / TRANSCODE PIPELINE (6 Stages: Decode → Probe → Scale → Video Filter → Encode → Mux)
+    <span class="pill pill-blue" style="float:right">stage 5/6 (ENCODE running)</span>
+  </h3>
+  <div class="pipeline">
+    <div class="stage done">
+      <div class="ico">📥</div>
+      <div class="name">1. DECODE</div>
+      <div class="detail">H.264 yuv420p</div>
+      <div class="detail" style="color:var(--green)">✓ 00:02</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage done">
+      <div class="ico">🔍</div>
+      <div class="name">2. PROBE</div>
+      <div class="detail">1920×1080</div>
+      <div class="detail" style="color:var(--green)">✓ 00:00</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage done">
+      <div class="ico">📐</div>
+      <div class="name">3. SCALE</div>
+      <div class="detail">1920×1080</div>
+      <div class="detail" style="color:var(--green)">✓ 00:00</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage done">
+      <div class="ico">🎨</div>
+      <div class="name">4. VIDEO FILTER</div>
+      <div class="detail">yadif + cropdetect</div>
+      <div class="detail" style="color:var(--green)">✓ 00:01</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage running">
+      <div class="ico">⚙️</div>
+      <div class="name">5. ENCODE</div>
+      <div class="detail">HEVC libx265</div>
+      <div class="detail" style="color:var(--accent)">▸ 01:36</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="stage pending">
+      <div class="ico">📦</div>
+      <div class="name">6. MUX + QC</div>
+      <div class="detail">MP4 + ffprobe</div>
+      <div class="detail">— pending</div>
+    </div>
+  </div>
+</div>
+
+<!-- Input + Profile + Output -->
+<div class="row">
+  <div class="col-4">
+    <div class="panel">
+      <h3><span class="cn">输入</span> / INPUT (Asset)</h3>
+      <table>
+        <tbody>
+          <tr><td>asset_id</td><td><span class="v">a-news-2026-08-25-001</span></td></tr>
+          <tr><td>filename</td><td><span class="v">news_morning_0825.mp4</span></td></tr>
+          <tr><td>size</td><td><span class="v">1.42 GB</span></td></tr>
+          <tr><td>duration</td><td><span class="v">00:30:25</span></td></tr>
+          <tr><td>container</td><td><span class="v">MP4</span></td></tr>
+          <tr><td>video</td><td><span class="v">H.264 1920×1080 25fps</span></td></tr>
+          <tr><td>audio</td><td><span class="v">AAC 2ch 48k 192k</span></td></tr>
+          <tr><td>sha256</td><td><span class="v" style="font-size:9px">a3f2...c8e1</span></td></tr>
+        </tbody>
+      </table>
+      <button class="btn" style="margin-top:8px;width:100%">Open Asset M-12 →</button>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="panel">
+      <h3><span class="cn">配置</span> / PROFILE (P-21 Encoding Profile)</h3>
+      <table>
+        <tbody>
+          <tr><td>name</td><td><span class="v">HEVC Main10 1080p25 Master</span></td></tr>
+          <tr><td>revision</td><td><span class="v">v3 ACTIVE</span></td></tr>
+          <tr><td>codec_video</td><td><span class="v">HEVC (libx265)</span></td></tr>
+          <tr><td>codec_audio</td><td><span class="v">AAC 2ch 48k 256k</span></td></tr>
+          <tr><td>resolution</td><td><span class="v">1920×1080 / 25</span></td></tr>
+          <tr><td>bitrate</td><td><span class="v">5.0 Mbps CBR</span></td></tr>
+          <tr><td>preset</td><td><span class="v">medium</span></td></tr>
+          <tr><td>gop</td><td><span class="v">50 / closed</span></td></tr>
+          <tr><td>validation</td><td><span class="pill pill-green">✓ PASS</span></td></tr>
+        </tbody>
+      </table>
+      <button class="btn" style="margin-top:8px;width:100%">Open Profile P-21 →</button>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="panel">
+      <h3><span class="cn">输出</span> / OUTPUT (Asset Version)</h3>
+      <table>
+        <tbody>
+          <tr><td>version_id</td><td><span class="v">v-news-001-HEVC</span></td></tr>
+          <tr><td>kind</td><td><span class="v">Master</span></td></tr>
+          <tr><td>file_path</td><td><span class="v" style="font-size:9px">/mnt/storage/news/v3/...</span></td></tr>
+          <tr><td>estimated_size</td><td><span class="v">~ 1.18 GB</span></td></tr>
+          <tr><td>estimated_duration</td><td><span class="v">~ 00:30:25</span></td></tr>
+          <tr><td>qc_status</td><td><span class="pill pill-yellow">PENDING (run after mux)</span></td></tr>
+          <tr><td>rights</td><td><span class="pill pill-green">VALID</span></td></tr>
+          <tr><td>use_in_playout</td><td><span class="pill pill-yellow">6/6 SAFETY GATE PENDING</span></td></tr>
+        </tbody>
+      </table>
+      <button class="btn primary" style="margin-top:8px;width:100%">Open Version (after complete) →</button>
+    </div>
+  </div>
+</div>
+
+<!-- 实时指标 + 质量 -->
+<div class="row">
+  <div class="col-8">
+    <div class="panel">
+      <h3><span class="cn">实时转码指标</span> / RUNTIME METRICS (Worker-02)
+        <span class="pill pill-blue" style="float:right">FRESH · age 1s</span>
+      </h3>
+      <div class="row">
+        <div class="col-3 metric">
+          <div class="label">FPS</div>
+          <div class="val green">127.4</div>
+          <div class="sub">target ≥ 25 · 5.1x realtime</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">CPU</div>
+          <div class="val green">71%</div>
+          <div class="sub">14.5 / 32 threads</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">RAM</div>
+          <div class="val green">1.2 GB</div>
+          <div class="sub">/ 30 GB</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">Disk Write</div>
+          <div class="val green">84 MB/s</div>
+          <div class="sub">/ 410 MB/s</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="col-3 metric">
+          <div class="label">Speed</div>
+          <div class="val blue">5.1x</div>
+          <div class="sub">realtime</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">Bitrate Actual</div>
+          <div class="val green">4.92 Mbps</div>
+          <div class="sub">CBR target 5.0</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">Frames Encoded</div>
+          <div class="val green">20,475</div>
+          <div class="sub">/ 45,625 total</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">Dropped</div>
+          <div class="val green">0</div>
+          <div class="sub">target 0</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span class="cn">质量评估</span> / QUALITY (Mini Acceptance Test running on first 5s sample)
+        <span class="pill pill-blue" style="float:right">15 项 / 12 PASS / 3 PENDING</span>
+      </h3>
+      <div class="row">
+        <div class="col-3 metric">
+          <div class="label">VMAF</div>
+          <div class="val blue">94.2</div>
+          <div class="sub">target ≥ 90</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">PSNR</div>
+          <div class="val blue">42.8 dB</div>
+          <div class="sub">target ≥ 38</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">SSIM</div>
+          <div class="val blue">0.978</div>
+          <div class="sub">target ≥ 0.95</div>
+        </div>
+        <div class="col-3 metric">
+          <div class="label">Loudness</div>
+          <div class="val yellow">-22.1 LUFS</div>
+          <div class="sub">target -23 ± 2</div>
+        </div>
+      </div>
+      <table style="margin-top:8px">
+        <thead><tr><th>区块</th><th>项</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Video (4)</td><td>Resolution / Pixel Format / Color / FPS / PTS Continuity</td><td><span class="pill pill-green">4/4 PASS</span></td></tr>
+          <tr><td>Audio (3)</td><td>Codec / Sample Rate / Channels / Layout</td><td><span class="pill pill-green">3/3 PASS</span></td></tr>
+          <tr><td>AV Sync + Mux (4)</td><td>Offset / Drift / Container / Index / Duration</td><td><span class="pill pill-yellow">2/4 PENDING (after mux)</span></td></tr>
+          <tr><td>Runtime (4)</td><td>FPS / Speed / CPU / RAM / ETA / Size</td><td><span class="pill pill-green">4/4 PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="panel">
+      <h3><span class="cn">Worker</span> / WORKER + ATTEMPTS</h3>
+      <table>
+        <tbody>
+          <tr><td>worker</td><td><span class="v">worker-02 (auto-selected)</span></td></tr>
+          <tr><td>host</td><td><span class="v">10.30.15.10</span></td></tr>
+          <tr><td>scheduler</td><td><span class="pill pill-green">AUTO</span></td></tr>
+        </tbody>
+      </table>
+      <div class="box-title" style="margin-top:8px">Attempts (2)</div>
+      <table>
+        <tbody>
+          <tr><td>#1</td><td><span class="pill pill-red">FAILED</span></td><td>14:21:08</td></tr>
+          <tr><td>#2</td><td><span class="pill pill-blue">RUNNING</span></td><td>14:36:48 ← current</td></tr>
+        </tbody>
+      </table>
+      <div class="diag" style="margin-top:8px;background:rgba(248,81,73,.05);border-left-color:var(--red)">
+        <b>Attempt #1 failed reason:</b> decode error at frame 3,021 (corrupt input chunk).
+        Auto-retried with new probe (ffprobe sanity check) and full re-decode.
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span class="cn">Use in Playout Safety Gate</span> / 6/6 (PENDING until COMPLETED)</h3>
+      <div style="font-size:11px;line-height:1.8">
+        <div><span class="sev ok">✓ QC</span> PASS (PENDING 12/12)</div>
+        <div><span class="sev ok">✓ Rights</span> VALID (CN / HLS / 2027-01-01)</div>
+        <div><span class="sev warn">◌ Version</span> READY (pending after Job COMPLETED)</div>
+        <div><span class="sev ok">✓ Duration</span> 30:25 (within 5s-7200s)</div>
+        <div><span class="sev ok">✓ Loudness</span> -22.1 LUFS (within -23 ± 2)</div>
+        <div><span class="sev ok">✓ Format</span> HEVC / Channel CH01 HLS compatible</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 实时日志 -->
+<div class="panel">
+  <h3><span class="cn">实时日志</span> / LIVE LOG (tail -f)
+    <span class="pill pill-blue" style="float:right">stream · 2s refresh</span>
+  </h3>
+  <div class="log">
+[14:36:48.001] <span class="info">[INFO]</span> Job #TR-1822 starting (attempt #2)
+[14:36:48.214] <span class="info">[INFO]</span> ffprobe: 1920x1080, yuv420p, 25fps, 30m25s
+[14:36:50.082] <span class="info">[INFO]</span> Decode: 1.42 GB -> decoded 45,625 frames
+[14:36:52.401] <span class="info">[INFO]</span> Probe: 0 issues, 0 black frames
+[14:36:52.520] <span class="info">[INFO]</span> Scale: 1920x1080 (no resize needed)
+[14:36:53.118] <span class="info">[INFO]</span> Video filter: yadif (deinterlace) + cropdetect
+[14:36:54.282] <span class="info">[INFO]</span> Encode: libx265 medium preset, 5Mbps CBR, GOP 50
+[14:36:54.395] <span class="info">[INFO]</span> Worker: 14.5 threads / 1.2 GB RAM
+[14:37:00.001] <span class="info">[INFO]</span> Frame 1,250 (5.0%) · 5.05x realtime
+[14:37:30.001] <span class="info">[INFO]</span> Frame 7,500 (16.4%) · 5.08x realtime
+[14:37:48.214] <span class="info">[INFO]</span> QC partial: VMAF 94.2 · PSNR 42.8 · SSIM 0.978
+[14:38:12.083] <span class="info">[INFO]</span> Frame 15,000 (32.9%) · 5.1x realtime
+[14:38:24.501] <span class="info">[INFO]</span> Frame 20,475 (42.0%) · 5.1x realtime · CPU 71%
+[14:38:24.502] <span class="info">[INFO]</span> ETA: 4m 12s remaining
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (M-18 Transcode Job Detail) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL (RUNNING)</b></td><td>Job RUNNING + Pipeline 1-5/6 + VMAF PASS</td><td>Pipeline 高亮 stage 5 + 实时 metric 全绿 + Live log 流</td></tr>
+        <tr><td><b>◌ LOADING (PENDING/QUEUED)</b></td><td>Job 提交但 Worker 未分配 / 排队中</td><td>Pipeline 全 pending (灰) + "Waiting for Worker..."</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>— (路由不存在)</td><td>404 引导 "回 M-15 Jobs 列表"</td></tr>
+        <tr><td><b>⚠ WARNING (DEGRADED)</b></td><td>CPU > 90% 或 ETA 翻倍 或 QC 1 项 FAIL</td><td>顶部黄条 + Recommend: 升 Worker 优先级 / 取消重排队</td></tr>
+        <tr><td><b>✗ ERROR (FAILED)</b></td><td>Pipeline 任一 stage FAIL (e.g. encode OOM) 或 Attempt #N > retry policy</td><td>顶部红条 + Attempts 表展开 + Retry 入口 (L2)</td></tr>
+        <tr><td><b>✓ COMPLETED</b></td><td>6/6 Pipeline + 15/15 QC + Version saved + Use in Playout enabled</td><td>Pipeline 全 done + Open Version 按钮 primary + 跳转 M-12</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Used By -->
+<details>
+  <summary>▸ Used By / Impact / Cancel</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>对象</th><th>引用</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>Asset</td><td>a-news-2026-08-25-001</td><td><span class="pill pill-blue">PRODUCING VERSION</span></td></tr>
+        <tr><td>Encoding Profile</td><td>H264-LIVE-1080P25-5M (被 P-21 v3 引用)</td><td><span class="pill pill-green">LOCKED</span></td></tr>
+        <tr><td>Worker</td><td>worker-02</td><td><span class="pill pill-blue">BUSY</span></td></tr>
+        <tr><td>User (Created By)</td><td>Director Zhang</td><td>—</td></tr>
+        <tr><td>Audit</td><td>Job Created / Started / Logs (audit trail)</td><td><span class="pill pill-green">LOGGED</span></td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn">⏸ Pause (L2)</button>
+      <button class="btn l2">⏹ Cancel Job (L2)</button>
+      <button class="btn l3">🔄 Force Retry (L3 · 需输入 "RETRY")</button>
+      <button class="btn">📋 Duplicate Job (L1)</button>
+      <button class="btn">📊 Export Log (L1)</button>
+    </div>
+  </div>
+</details>
+
+<footer>
+  VBMF Operator Console · M-18 Transcode Job Detail · MEDIA 域 · Phase 0.5D · 设计稿 v0.1
+  · 关联: M-15 Transcode Jobs (锁) / M-14 File Transcode (重画) / M-17 Realtime (0.5D) / M-12 Asset Detail / P-21 Encoding Profile
+  · Object: Job (FILE_TRANSCODE kind) · 6 子类: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE
+</footer>
+
+</body>
+</html>
