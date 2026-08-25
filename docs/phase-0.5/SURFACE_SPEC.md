@@ -2,7 +2,7 @@
 
 > **文档定位:** V0.2 架构对象 → VBMF Console UI 表面 的完整映射
 >
-> **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5A LOCK FINAL + Phase 0.5B-Closure-1 + 0.5B.1 + 0.5B.2 LOCK FINAL + 0.5C DRAFT 0.1
+> **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5A LOCK FINAL + Phase 0.5B-Closure-1 + 0.5B.1 + 0.5B.2 LOCK FINAL + 0.5C RECONCILED + 0.5D.6 Semantic/Execution Closure (2026-08-25)
 >
 > **Phase 0.5C 锁定:** UI 顶层导航从 6 编号域 (01..06) 改为 4 业务域 (BROADCAST / MEDIA / ENGINEERING / ADMIN). 详见 [`NAVIGATION.md`](NAVIGATION.md) §1 与本节 §29.2.
 >
@@ -17,7 +17,7 @@
 > health_invariants: 7                 # H1-H7 (Errata-14 锁定)
 > canonical_vocabulary: LOCKED         # 见 §2.6
 > never_reopen: V0.2.5                 # 不再开 V0.2.5
-> phase_0_5_status: 0.5A/0.5B/0.5B.1/0.5B.2 LOCK FINAL + 0.5C DRAFT 0.1
+> phase_0_5_status: 0.5A/0.5B/0.5B.1/0.5B.2 LOCK FINAL + 0.5C RECONCILED + 0.5D.6 Semantic/Execution Closure
 > phase_0_5c: Information_Architecture_Closure  # 目录归并 + Object Vocabulary + Navigation 4 域
 > top_navigation: 4 域 (BROADCAST / MEDIA / ENGINEERING / ADMIN)  # 0.5C 锁定
 > baseline_sot: docs/architecture/ARCHITECTURE_V0.2.md
@@ -3266,7 +3266,7 @@ Runtime (参考)
 
 # 29. Phase 0.5C — Information Architecture Closure (本节)
 
-> **状态**: 🟡 **DRAFT 0.1** (本轮, 待用户审过)
+> **状态**: 🟢 **RECONCILED** (0.5C 已完成 · 当前进度 0.5D.6 Semantic/Execution Closure · 本节为历史对账记录)
 >
 > **触发**: 0.5B.2 UX BASELINE LOCK FINAL 后, 用户反向 review 25 条, 发现:
 > 1. 目录结构 phase-0.5 + phase-0.5b 不应并列 (应统一目录 + milestone 归档)

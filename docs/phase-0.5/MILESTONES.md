@@ -5,7 +5,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure
 >
-> **状态:** 🟡 **DRAFT 0.1** — 等待 0.5C LOCK FINAL
+> **状态:** 🟢 **0.5C RECONCILED · 0.5D.6 Semantic/Execution Closure 完成** (2026-08-25) — 等待 0.5D LOCK + 0.5E LOCK 后 Phase 0.5 Freeze
 
 ---
 
@@ -82,9 +82,9 @@ docs/
 | **0.5B-Closure-1** | 2026-08 | 🟢 LOCK FINAL | 10 项产品化收口 (3-Layer / 4-Tuple / 3-Tier / 9D / H1-H7 / Dependency) | `270daa3` |
 | **0.5B.1 P0 Wireframes** | 2026-08 | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) | `3ef6a30` |
 | **0.5B.2 Product UX Closure** | 2026-08 | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL | `cec7407` |
-| **0.5C Info Arch Closure** | 2026-08 | 🟡 DRAFT 0.1 (本轮) | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (本轮提交) |
-| **0.5D P0 Product Surfaces** | (待) | ⛔ 未开始 | M-17 Realtime Transcode + E-38 Hardware + E-37 Clock 升级 + P-20 Profile Center + P-28 Profile Bundle + M-18 Job Detail + M-14 重画 | — |
-| **0.5E Global UX Layer** | (待) | ⛔ 未开始 | Impact Preview 全域 / Configuration Diff / Dependency View / Command Palette / Keyboard | (0.5B.2 已部分) |
+| **0.5C Info Arch Closure** | 2026-08 | 🟢 RECONCILED | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (0.5C 已完成) |
+| **0.5D P0 Product Surfaces** | 2026-08 | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` (待 0.5D LOCK) |
+| **0.5E Global UX Layer** | (待) | 🟡 SPEC | Impact Preview 全域 / Configuration Diff / Dependency View / Command Palette / Keyboard | (0.5B.2 已部分) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 

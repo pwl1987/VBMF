@@ -95,7 +95,7 @@
 
 ## 3. phase-0.5b/ 残留引用（清理项，非功能性死链）
 
-`search "phase-0.5b/"` 命中 4 个文件、10 处，但**全部为历史叙述 / 迁移记录**（描述"已 git mv / 已删除"），无 `](phase-0.5b/...)` 功能性死链：
+`search "phase-0.5b/"` 命中 4 个文件、10 处，但**全部为历史叙述 / 迁移记录**（描述"已 git mv / 已删除"），无 phase-0.5b 路径的功能性 Markdown 链接（链接形式 = 方括号文本 + 圆括号路径）：
 - `SURFACE_SPEC.md`（目录树示例 + "从 phase-0.5b/ 移过来"）
 - `README.md`（"phase-0.5b/README.md 已删除"）
 - `MILESTONES.md`（目录树示例 + 删除记录）
@@ -609,3 +609,28 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 
 ### N.3 结论
 - 审计**通过** (无对象/时序洞) → 满足用户 "Phase 0.5 架构与 UX 接近 Freeze" 的前置条件之一。仍不宣布 FINAL: 0.5E UX 面与 0.5G 实施面未闭环, 仓库 README 仍标 0.5D IN PROGRESS · 0.5E SPEC。
+
+---
+
+## O. 0.5D.6 Final Consistency Sweep — 全仓一致性终扫 (2026-08-25 末 · 用户第 10 轮选择 "2: 全仓一致性终扫")
+
+> 用户选择执行 **全仓 Canonical Vocabulary + Surface Registry + Workflow 一致性终扫** (0.5D.6 Click-Path Audit 之后的收口)。目标: 计数 / 链接 / 术语零残留。
+
+### O.1 Surface Registry 计数对账 ✅
+- `SURFACE_REGISTRY.yaml` (唯一事实源) 实际条目: **BROADCAST 13 · MEDIA 8 · ENGINEERING 26 (25 wireframe + 1 E-41 SPEC) · ADMIN 5 · GLOBAL 1 = TOTAL 53**。
+- 与 `NAVIGATION.md` §2.5 (BROADCAST 13 / MEDIA 8 / ENGINEERING 26 / ADMIN 5 / 域合计 52 / 全局 1 / TOTAL 53) 及 SURFACE_SPEC / README 完全一致; 无 22/39/44/52/53/54/55/56 孤立手写数字。
+
+### O.2 Canonical Vocabulary 残留扫描 ✅
+- `P-22 = Realtime Profile` / `SRTAdapter` (并列) / `CDN Endpoint` / `Failover Policy` / `6 Profile` / `RTP raw` / `Local Device Source =` / `-v2.html` — 页面层全部清零; 仅 RECONCILIATION 历史记录保留变更描述 (预期)。
+- 状态语言统一: OBJECT_VOCABULARY (SEMANTIC LOCKED 0.2) / PRODUCT_OBJECT_MODEL (SEMANTIC LOCKED 0.1) / EXECUTION_MODEL (SEMANTIC LOCKED) / RESOURCE_RESERVATION_SPEC (SEMANTIC LOCKED V0.2) 一致; 剩余 DRAFT 0.1 仅为 0.5E/0.5F 待审 Spec (PIA / E-41 / 0.5E-CROSS_DOMAIN, 属当前阶段正常状态)。
+
+### O.3 状态语言过期回写 ✅
+- 消除 "等待 0.5C LOCK FINAL" 而仓库已进入 0.5D.6 的过期表述: `MILESTONES.md` (头部 + 0.5C/0.5D/0.5E 行) · `SURFACE_SPEC.md` (适用版本 + `phase_0_5_status` + §29 头部) · `milestones/0.5C-INFO_ARCH_CLOSURE.md` (头部 + footer) · `NAVIGATION.md` (状态行 → 0.5D.6) · `README.md` (0.5D 行 → 0.5D.1-.6 完成, 待 LOCK)。
+
+### O.4 Workflow / 链接一致性 ✅
+- 正式校验器 `scripts/check_docs.py` (链接可达性 + 数字口径) **PASS** — 修复 1 处校验器误判: RECONCILIATION §3 代码片内的 phase-0.5b 字面链接模式 (naive regex 不防反引号)。
+- D1-D6 验收链 + D7 ChangeSet Review + CH-02B Template Center 文件全部存在; EXECUTION_MODEL §6 审计引用的 E-40/E-42/B-13/CD-01/M-17/M-14/CH-02/P-21/P-22/P-28 全部可达。
+
+### O.5 结论
+- **全仓一致性终扫通过**: 计数 / 链接 / 术语零残留。加上 0.5D.1-.6 语义/执行闭环, Phase 0.5 架构与 UX 已达到 "接近 Freeze" 状态。
+- **仍不宣布 FINAL**: 0.5E (Impact Preview / Config Diff / Command Palette / Global Risk / Critical field blocking) 为 SPEC, 0.5G 实施面未闭环; README 仍标 0.5D IN PROGRESS · 0.5E SPEC。
