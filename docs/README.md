@@ -10,18 +10,19 @@
 | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) | **V0.2 架构基线**（22 轮 review LOCK FINAL，192KB） | ✅ |
 | [`architecture/README.md`](architecture/README.md) | V0.2 架构快速参考 + 关键定义速查 | ✅ |
 | [`SYSTEM_AND_PROJECT_PLAN.md`](SYSTEM_AND_PROJECT_PLAN.md) | 初始系统 + 项目计划（V0.1 阶段） | ✅ |
-| [`phase-0.5/`](phase-0.5/) | 操作员工作流 + 9 Low-Fi 页面 + 4 关键操作链 | ✅ |
-| [`phase-0.6/`](phase-0.6/) | Executable Acceptance Specification 计划 | 📋 |
-| [`assets/`](assets/) | 图 / Diagram | 📋 |
+| [`phase-0.5/`](phase-0.5/) | Phase 0.5 统一入口：0.5A Operator（10 页 + 4 链）+ 0.5B Product Surface（38 表面 + 5 P0 wireframe + Design System + i18n）+ 0.5C Info Arch（4 域导航 + Object Vocabulary） | ✅ 0.5A/0.5B · 🟡 0.5C |
+| [`phase-0.6/`](phase-0.6/) | Executable Acceptance Specification 计划（前置: Phase 0.5 LOCK FINAL） | 📋 |
+| `assets/` | 图 / Diagram（空目录，待补） | 📋 |
 
 ## 阅读顺序（推荐）
 
 1. **[../../README.md](../../README.md)** — 项目门面
 2. **[architecture/ARCHITECTURE_V0.2.md](architecture/ARCHITECTURE_V0.2.md)** — V0.2 架构基线（1-2 小时通读）
-3. **[phase-0.5/INDEX.md](phase-0.5/INDEX.md)** — 操作员工作流（30 分钟）
-4. **[phase-0.5/wireframes/](phase-0.5/wireframes/)** — 9 Low-Fi 页面（中英双语，任意浏览器打开）
-5. **[phase-0.5/chains/](phase-0.5/chains/)** — 4 关键操作链
-6. 等待 Phase 0.6
+3. **[phase-0.5/README.md](phase-0.5/README.md)** — Phase 0.5 总览（4 域导航）
+4. **[phase-0.5/operator/](phase-0.5/operator/)** — 10 张 Operator 线框（中英双语，任意浏览器打开）
+5. **[phase-0.5/product/](phase-0.5/product/)** — 5 张 Product P0 线框 + **[SURFACE_SPEC.md](phase-0.5/SURFACE_SPEC.md)**（38 表面映射）+ [DESIGN_SYSTEM.md](phase-0.5/DESIGN_SYSTEM.md) + [I18N_SPEC.md](phase-0.5/I18N_SPEC.md)
+6. **[phase-0.5/chains/](phase-0.5/chains/)** — 4 关键操作链
+7. 等待 Phase 0.6
 
 ## V0.2 关键状态
 

@@ -7,9 +7,12 @@
 
 ```
 Phase 0    架构冻结                       ✅ V0.2 LOCK FINAL
-Phase 0.5  操作员工作流 & 线框            ✅ 完成（9 中英双语页面 + 4 链）
-Phase 0.6  Reference + Fault Injection   📋 即将启动
-Phase 1    Media Core（Rust + 24h 稳定）  📋 Phase 0.6 验收后
+Phase 0.5A 操作员语义与线框            ✅ LOCK FINAL（10 中英双语页面 + 4 链 + 20 项修复）
+Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（38 表面 + 5 P0 wireframe + 36 项收口）
+Phase 0.5C 信息架构收口                 🟡 DRAFT 0.1（目录归并 + 4 域导航 + Object Vocabulary）
+Phase 0.5D P0 产品表面                  ⛔ 待开始（6 新表面 + M-14 重画）
+Phase 0.6  Reference + Fault Injection   📋 前置: Phase 0.5 LOCK FINAL
+Phase 1    Media Agent（Rust + 24h 稳定） 📋 Phase 0.6 验收后
 Phase 2    后端基础                       📋
 Phase 2.5  Graph Compiler / Preflight     📋
 Phase 3    Auth & RBAC                    📋
@@ -31,36 +34,34 @@ V1.0       完整 IP 播控                   📋
 - V0.2 Runtime Semantics CLOSED
 - implementation_ambiguity: NONE
 - 9 Runtime 域 CLOSED + 3 Schema 焊死 + 2 Semantic Cleanup + 7 Health Invariants
-- 文档：`docs/architecture/ARCHITECTURE_V0.2.md`（192KB / 4021 lines）
+- 文档：`docs/architecture/ARCHITECTURE_V0.2.md`（192KB / 4020 lines）
 
-## Phase 0.5 — 操作员工作流与 Low-Fi 线框 ✅
+## Phase 0.5 — Operator Semantics + Product UI Surface ✅（0.5A/0.5B LOCK FINAL · 0.5C DRAFT）
 
-**已交付**：
+> 0.5C 起统一目录 `docs/phase-0.5/`（原 phase-0.5b/ 已归并），milestone 历史见 [`phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md)。
 
-- `docs/phase-0.5/INDEX.md` — Phase 0.5 总览
+**Phase 0.5A（Operator Semantics，LOCK FINAL）已交付**：
+
 - `docs/phase-0.5/OPERATOR_WORKFLOW.md` — 角色矩阵 + 三轴状态机 + 危险操作 3 层
-- 9 Low-Fi HTML 线框（**中英双语**，Dark Mode 24/7）：
-  1. Dashboard（主控台 / PVW·PGM）
-  2. Sources（源管理 / 11 types）
-  3. Switcher（切播器 / 3 modes）
-  4. Composition（图文包装 / RAW 域）
-  5. Audio（混音 / 响度 / 延迟）
-  6. Output（SRS Gateway Adapter）
-  7. Recording（录制 / 事件回溯）
-  8. Graph Designer（拖拽式，NEW）
-  9. Health Tree（X5，NEW）
+- 10 Low-Fi HTML 线框（`operator/`，**中英双语**，Dark Mode 24/7）：Dashboard / Sources / Switcher / Composition / Audio / Output / Recording / Graph Designer / Health Tree + 10-states Validation Page
 - 4 关键操作链：On-Air / Failure / Playout / Engineering
+- 20 项 UI 语义修复（`ERRATA.md`：12 P0 + 8 P1）
 
-**验收**：
+**Phase 0.5B（Product UI Surface，UX BASELINE LOCK FINAL）已交付**：
 
-- 9 页面互相跳转（20 链接）
-- 4 链引用 V0.2 架构（7 处 §X.Y 引用）
-- Health Tree 显式呈现 7 Health Invariants + 7 HA-01..HA-07 验收用例
-- Dark Mode 24/7 全部 CSS 用 `:root` dark 变量
+- `SURFACE_SPEC.md` — V0.2 架构对象 → 38 UI 表面完整映射（0.5A 10 + 新增 28；0.5C 起 4 域组织）
+- `DESIGN_SYSTEM.md` — token / 组件 / 状态模型 / 键盘规范
+- `I18N_SPEC.md` — zh-CN + en-US 契约 + Canonical Vocabulary + enum 翻译表
+- 5 张 P0 wireframe（`product/`）：M-11 Media Library / M-12 Asset Detail / M-14 Transcode Center / P-21 Encoding Profile / P-22 Output Profile
+- 36 项语义收口（31 P0 + 5 P1；B.0 13 + Closure-1 10 + B.2 8+5）
+
+**Phase 0.5C（Info Arch，DRAFT 0.1 待审）**：目录归并 + 4 域导航（BROADCAST/MEDIA/ENGINEERING/ADMIN）+ `OBJECT_VOCABULARY.md`（14 对象）+ `PRODUCT_OBJECT_MODEL.md` + `NAVIGATION.md` + 0.6 语义修复
+
+**Phase 0.5D（待开始）**：6 个新表面 wireframe（M-15 Realtime Transcode / M-16 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-34 Hardware / E-36 Clock）+ M-14 File Transcode 重画
 
 ## Phase 0.6 — Reference Implementation + Fault Injection 📋 **Next**
 
-> 即将启动。本阶段不写架构，只做 **Executable Acceptance Specification**。
+> 前置条件：Phase 0.5 LOCK FINAL（0.5D 完成后）。本阶段不写架构，只做 **Executable Acceptance Specification**。
 
 **计划交付**：
 
@@ -75,11 +76,11 @@ V1.0       完整 IP 播控                   📋
   - FI-04：Clock Drift +5ms/min → CLOCK → FALLBACK
   - FI-05：HLS 切片失败 → OUTPUT → RESTART_ADAPTER
 - **7 Health Invariants** → executable test cases
-  - HA-01..HA-07 from `docs/phase-0.5/wireframes/09-health-tree.html`
+  - HA-01..HA-07 from `docs/phase-0.5/operator/09-health-tree.html`
 - 端到端：在 10.30.15.10 服务器上跑通
 - 24h stability（基础）
 
-## Phase 1 — Media Core（Rust + 24h 稳定性）📋
+## Phase 1 — Media Agent（Rust + 24h 稳定性）📋
 
 - [ ] Media Agent v0（Rust + JSON-RPC）
 - [ ] Session Manager（Data Plane 标注 + Switch Mode + Hot-Standby）
@@ -124,16 +125,16 @@ X1-X6 横切能力的实施：
 
 ## Phase 3.5 — UI 原型与验证 📋
 
-- [ ] 9 页面 + 4 链端到端验证
+- [ ] 15 wireframe（10 operator + 5 product）+ 0.5D 新表面对应页面端到端验证
 - [ ] Reference A1/A2/B 真实可跑
 - [ ] 5 Fault Injection 全部覆盖
 
 ## Phase 4 — Web 控制台 📋
 
-- [ ] 9 核心页面（Phase 0.5 wireframe → 真实现）
+- [ ] 4 域 × 44 UI 表面（按 SURFACE_SPEC + DESIGN_SYSTEM + I18N_SPEC 实施；Phase 0.5 wireframe → 真实现）
 - [ ] 4 关键操作链验证
 - [ ] Dark Mode First 24/7
-- [ ] i18n 准备（中英双语）
+- [ ] i18n 落地（zh-CN 默认 + en-US，按 I18N_SPEC）
 
 ## Phase 5 — Signal Fabric 📋
 
@@ -177,7 +178,7 @@ X1-X6 横切能力的实施：
 
 | 阶段 | 社区协作 |
 |---|---|
-| Phase 0.5 | 公开 9 wireframe + 4 链（中英双语），欢迎 UI / UX 反馈 |
+| Phase 0.5 | 公开 15 wireframe + 38 表面 Spec + Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
 | Phase 0.6 | 公开 Reference A1/A2/B + 5 Fault Injection 配置，欢迎调参与建议 |
 | Phase 1+ | 接受 Rust / TypeScript 贡献 |
 

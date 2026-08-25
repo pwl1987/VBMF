@@ -16,8 +16,8 @@
 
 请通过以下私密渠道报告：
 
-- **Email**：[security@your-org.example.com](mailto:security@your-org.example.com)（替换为你的组织邮箱）
-- **GitHub Security Advisories**：[github.com/pwl1987/VBMF/security/advisories/new](../../security/advisories/new)
+- **GitHub Security Advisories（首选）**：[github.com/pwl1987/VBMF/security/advisories/new](../../security/advisories/new)
+- **Email**：待配置（开仓库前替换为真实安全邮箱；配置前请只用 Security Advisories）
 
 ### 报告内容
 
@@ -48,7 +48,7 @@
 - Web Console（TypeScript）— Phase 4 落地后
 - GraphSpec / GraphRuntime / Configuration Versioning 数据
 - Health Tree 数据暴露 / API 访问控制
-- BMDP/SDI / NDI / RIST / Zixi 输入处理
+- BMD SDI 输入处理（NDI / RIST / Zixi 为 V0.3+ 计划范围，落地后纳入）
 - FFmpeg 命令构建（避免命令注入）
 - PostgreSQL / Valkey / SRS / RustFS 部署脚本
 
@@ -73,7 +73,7 @@
 ### 主机
 
 - 操作系统硬化：`/etc/sysctl.d/99-hardening.conf`
-- sudo 限定：passwordless 仅 `lytv` 用户
+- sudo 限定：passwordless 仅限指定运维用户（部署细节见 `docs/SYSTEM_AND_PROJECT_PLAN.md`）
 - 文件权限：`/opt` owner 限定
 
 ### 应用

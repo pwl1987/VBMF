@@ -24,7 +24,7 @@
 > ```
 >
 > **关联文档 (Phase 0.5C 归并后):**
-> - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (192KB / 4021 行 / 22 轮 review)
+> - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (192KB / 4020 行 / 22 轮 review)
 > - [`docs/phase-0.5/README.md`](../README.md) — Phase 0.5 顶层入口 (4 域导航)
 > - [`docs/phase-0.5/OBJECT_VOCABULARY.md`](../OBJECT_VOCABULARY.md) — 0.5C 14 对象权威定义
 > - [`docs/phase-0.5/PRODUCT_OBJECT_MODEL.md`](../PRODUCT_OBJECT_MODEL.md) — 0.5C 3 层组合关系

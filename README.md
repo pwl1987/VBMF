@@ -6,7 +6,9 @@
 >
 > **Phase 0.5A UI Semantics ✅ LOCK FINAL · 9 Core + 1 Validation Pages + 4 操作链 + 20 项 UI 语义修复**
 >
-> **Phase 0.5B Product UI Surface ✅ UX BASELINE LOCK FINAL · 6 工作域 × 30+ UI 表面 + 5 P0 wireframes + 8 横切能力 + 28 项语义收口**
+> **Phase 0.5B Product UI Surface ✅ UX BASELINE LOCK FINAL · 38 UI 表面 + 5 P0 wireframes + 8 横切能力 + 36 项语义收口（31 P0 + 5 P1）**
+>
+> **Phase 0.5C Info Arch 🟡 DRAFT 0.1 · 目录归并 + 4 域导航 + Object Vocabulary（待审）**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![V0.2 Lock](https://img.shields.io/badge/V0.2-架构_LOCK_FINAL-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
@@ -40,7 +42,7 @@
 | **架构** | ✅ V0.2 LOCK FINAL | 22 轮 review，57 决策，完整可唯一实现 |
 | **Runtime Semantics** | ✅ CLOSED | 9 大 Runtime 域 + 3 Schema + 2 Semantic Cleanup + 7 Health Invariants |
 | **Phase 0.5A Operator Semantics** | ✅ LOCK FINAL | 9 Core + 1 Validation（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 |
-| **Phase 0.5B Product Surface** | ✅ UX BASELINE LOCK FINAL | 5 P0 wireframes + 28 项语义收口 + Design System + i18n |
+| **Phase 0.5B Product Surface** | ✅ UX BASELINE LOCK FINAL | 38 UI 表面 + 5 P0 wireframes + 36 项语义收口（31 P0 + 5 P1）+ Design System + i18n |
 | **Phase 0.5C Info Arch** | 🟡 DRAFT (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
 | **Phase 0.5D P0 Product Surfaces** | ⛔ 待开始 | M-15 Realtime / E-34 Hardware / E-36 Clock / P-20 Profile Center / P-28 Bundle / M-16 Job Detail |
 | **Reference Implementation** | 📋 Phase 0.6 (前置: 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
@@ -50,18 +52,22 @@
 ### 🏗️ 12 Engines + 5 横向系统 + 6 横切能力
 
 ```
-12 Engines (V0.2 Architecture LOCK FINAL):
-  Source (11 types) · Signal Fabric · Normalize · Switcher (3 modes) · Composition
-  Audio · Output · Playout · Recording · Replay · QC · (Master Join = Composition 子能力, 非独立 Engine)
+12 Engines (V0.2 §2.1 权威, LOCK FINAL):
+  Source (11 types) · Signal Fabric · Normalize · Redundancy · QC · Playout
+  Switcher (3 modes) · Composition · Audio · Output · Recording · Replay
+  (Master Join = Composition 子能力, 非独立 Engine)
 
-+ 5 横向系统: Source Adapter · Stream Gateway · Direct Output · Recording · Output Distribution
++ 5 横向系统 (V0.1 既有, V0.2 §2.2 权威):
+  H1 Safety · H2 Resource Scheduler · H3 Watchdog & Incident · H4 Audit · H5 Subtitle
+
 + 6 横切能力 (X1-X6):
   X1 Graph Compiler    X2 Preflight    X3 Configuration Versioning
   X4 Incident Timeline X5 Health Tree  X6 Capability Registry
 ```
 
-> ⛔ 历史错误修复 (Phase 0.5C): 之前 README 把 Master Join 误列为 Engine, Switcher/Composition/Audio 各出现两次。
-> 权威列表见 [`docs/architecture/ARCHITECTURE_V0.2.md` §1](docs/architecture/ARCHITECTURE_V0.2.md)。
+> ⛔ 历史错误修复 (Phase 0.5C): 早期 README 把 Master Join 误列为 Engine, Switcher/Composition/Audio 各出现两次,
+> 且横向系统误用 V0.1 适配器名单 (Source Adapter / Stream Gateway 等 — 它们是 Output/Source Engine 的 Adapter, 不是横向系统)。
+> 权威列表见 [`docs/architecture/ARCHITECTURE_V0.2.md`](docs/architecture/ARCHITECTURE_V0.2.md) §2.1 / §2.2。
 
 ### 📚 文档结构
 
@@ -76,7 +82,7 @@ docs/
 │   ├── PRODUCT_OBJECT_MODEL.md         ← 0.5C: 3 层组合关系 (Profile / Bundle / Variant)
 │   ├── NAVIGATION.md                   ← 0.5C: 4 顶层域 (BROADCAST/MEDIA/ENGINEERING/ADMIN)
 │   ├── MILESTONES.md                   ← 0.5C: 历史 milestone 归档 (0.5A/0.5B/0.5B.1/0.5B.2/0.5C)
-│   ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 44 表面)
+│   ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 44 表面 = 38 已锁定 + 6 个 0.5D 新增)
 │   ├── DESIGN_SYSTEM.md                ← V0.1 Design System (Color / Component / 4 State Models / Keyboard)
 │   ├── I18N_SPEC.md                    ← V0.1 i18n Contract (zh-CN + en-US / Canonical Vocabulary / enum 翻译表)
 │   ├── OPERATOR_WORKFLOW.md            ← 9 Core 操作流
@@ -84,7 +90,7 @@ docs/
 │   ├── INDEX.md
 │   ├── milestones/                     (5 历史 milestone 文档)
 │   ├── operator/                       (9 Core + 1 Validation HTML · 中英双语 · Dark Mode 24/7)
-│   ├── product/                        (5 P0 wireframes: M-11 / M-12 / M-14 / P-21 / P-22 · 0.5D 加 M-15/M-16/P-20/P-28)
+│   ├── product/                        (5 P0 wireframes: M-11 / M-12 / M-14 / P-21 / P-22 · 0.5D 加 M-15/M-16/P-20/P-28/E-34/E-36)
 │   └── chains/                         (4 链：On-Air / Failure / Playout / Engineering)
 ├── phase-0.6/                          ← Executable Acceptance Specification 计划 (前置: Phase 0.5 LOCK FINAL)
 │   └── README.md
@@ -102,12 +108,12 @@ VBMF 是从 **V0.1 Web 视频编码器** 演进而来的，**V0.1 的所有基�
 | **V0.1** Web 视频编码器 | 🟡 已冻结 | 服务器初始化 + FFmpeg git-2026-08-23 + 9 codec lib + 3 张 BMD DeckLink + Docker Compose 骨架 |
 | **V0.2** VBMF | ✅ LOCK FINAL | 12 Engines + 5 横向系统 + 6 横切能力 + 22 轮 review + 57 决策 |
 | **Phase 0.5A** Operator Semantics | ✅ **LOCK FINAL** | 9 Core + 1 Validation（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 — [ERRATA](docs/phase-0.5/ERRATA.md) |
-| **Phase 0.5B** Product Surface + 0.5B.1 P0 Wireframes + 0.5B.2 Product UX Closure | ✅ **UX BASELINE LOCK FINAL** | 4 域 × 38 表面 + 5 P0 wireframes + 28 项语义收口 + Design System + i18n — [SURFACE_SPEC](docs/phase-0.5/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5/DESIGN_SYSTEM.md) + [I18N_SPEC](docs/phase-0.5/I18N_SPEC.md) + [MILESTONES](docs/phase-0.5/MILESTONES.md) |
+| **Phase 0.5B** Product Surface + 0.5B.1 P0 Wireframes + 0.5B.2 Product UX Closure | ✅ **UX BASELINE LOCK FINAL** | 38 UI 表面（0.5C 起归并为 4 域）+ 5 P0 wireframes + 36 项语义收口（31 P0 + 5 P1）+ Design System + i18n — [SURFACE_SPEC](docs/phase-0.5/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5/DESIGN_SYSTEM.md) + [I18N_SPEC](docs/phase-0.5/I18N_SPEC.md) + [MILESTONES](docs/phase-0.5/MILESTONES.md) |
 | **Phase 0.5C** Info Arch Closure | 🟡 **DRAFT 0.1** (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
 | **Phase 0.5D** P0 Product Surfaces | ⛔ 0.5C 后 | M-15 Realtime / E-34 Hardware / E-36 Clock / P-20 Profile Center / P-28 Bundle / M-16 Job Detail / M-14 重画 |
 | **Phase 0.6** Reference + FI | 📋 (前置: Phase 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | **Phase 1** Media Agent (Rust) | 📋 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
-| **Phase 4** Web Console | 📋 | 9 页面 + 4 链验证 + VBMF Web UI |
+| **Phase 4** Web Console | 📋 | 4 域 × 44 UI 表面 + 4 链验证 + VBMF Web UI |
 
 **V0.1 → V0.2 为什么必须升级（架构级问题不能局部修）：**
 
@@ -159,14 +165,15 @@ cd VBMF
 cat docs/architecture/ARCHITECTURE_V0.2.md | less
 
 # 打开 Phase 0.5 线框（任意浏览器，中英双语）
-start docs/phase-0.5/wireframes/01-dashboard.html
+start docs/phase-0.5/operator/01-dashboard.html
+start docs/phase-0.5/product/M-11-media-library.html
 ```
 
 ### 🤝 贡献
 
 欢迎提交 PR。但请先阅读：
 - [CONTRIBUTING.md](CONTRIBUTING.md)
-- [架构冻结说明](docs/architecture/ARCHITECTURE_V0.2.md#final-state)
+- [架构冻结说明](docs/architecture/ARCHITECTURE_V0.2.md)（见文末「附录 D：Architecture Baseline LOCK FINAL 状态」）
 - **V0.2 已 LOCK FINAL**：任何架构级修改需开 V0.3 流程；Phase 0.5/0.6 是 Acceptance Validation，不修改架构
 
 ### 📜 许可证
@@ -197,7 +204,7 @@ start docs/phase-0.5/wireframes/01-dashboard.html
 
 1. Read [`docs/architecture/README.md`](docs/architecture/README.md) — V0.2 quick reference
 2. Read [`docs/architecture/ARCHITECTURE_V0.2.md`](docs/architecture/ARCHITECTURE_V0.2.md) — Full architecture (192KB)
-3. Browse [`docs/phase-0.5/wireframes/`](docs/phase-0.5/wireframes/) — 9 Low-Fi wireframes (bilingual)
+3. Browse [`docs/phase-0.5/operator/`](docs/phase-0.5/operator/) + [`docs/phase-0.5/product/`](docs/phase-0.5/product/) — 15 wireframes (10 operator + 5 product, bilingual)
 4. Read [`docs/phase-0.5/chains/`](docs/phase-0.5/chains/) — 4 critical operation chains
 
 ### Repository
@@ -212,7 +219,9 @@ start docs/phase-0.5/wireframes/01-dashboard.html
 |---|---|---|
 | V0.1 Web Video Encoder | 🟡 Archived | Server init + FFmpeg full codec + BMD driver + Docker Compose skeleton |
 | V0.2 VBMF | ✅ LOCK FINAL | 12 Engines + 22 review rounds + 57 decisions + 7 Health Invariants |
-| Phase 0.5.1 Operator UX Closure | ✅ Complete | 10 wireframes (bilingual) + 4 chains + 12 UI semantic fixes ([ERRATA](docs/phase-0.5/ERRATA.md)) |
+| Phase 0.5A Operator Semantics | ✅ Complete | 10 wireframes (bilingual) + 4 chains + 20 UI semantic fixes ([ERRATA](docs/phase-0.5/ERRATA.md)) |
+| Phase 0.5B Product Surface | ✅ UX Baseline Lock | 38 surfaces + 5 P0 wireframes + Design System + i18n ([SURFACE_SPEC](docs/phase-0.5/SURFACE_SPEC.md)) |
+| Phase 0.5C Info Arch Closure | 🟡 Draft | Directory consolidation + 4-domain navigation + object vocabulary |
 | Phase 0.6 Reference + FI | 📋 Next | A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | Phase 1 Media Agent (Rust) | 📋 | JSON-RPC + FFmpeg Command Builder + 24h stability |
 
@@ -229,9 +238,11 @@ start docs/phase-0.5/wireframes/01-dashboard.html
 | Phase | Status |
 |---|---|
 | Phase 0 (Architecture Freeze) | ✅ V0.2 LOCK FINAL |
-| Phase 0.5.1 (Operator UX Closure) | ✅ **LOCK FINAL** (9 Core + 1 Validation + 4 chains + 20 UI semantic fixes) |
-| Phase 0.5B (Product UI Surface) | ✅ **UX BASELINE LOCK FINAL** ([SURFACE_SPEC](docs/phase-0.5b/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5b/DESIGN_SYSTEM.md) + 5 P0 wireframes) |
-| Phase 0.6 (Reference + FI) | 📋 Next |
+| Phase 0.5A (Operator Semantics) | ✅ **LOCK FINAL** (9 Core + 1 Validation + 4 chains + 20 UI semantic fixes) |
+| Phase 0.5B (Product Surface) | ✅ **UX BASELINE LOCK FINAL** (38 surfaces + 5 P0 wireframes + Design System + i18n) |
+| Phase 0.5C (Info Arch) | 🟡 Draft (directory consolidation + 4-domain navigation + object vocabulary) |
+| Phase 0.5D (P0 Product Surfaces) | ⛔ Pending (6 new surfaces + M-14 redraw) |
+| Phase 0.6 (Reference + FI) | 📋 Next (after Phase 0.5 LOCK FINAL) |
 | Phase 1 (Media Agent Rust) | 📋 After 0.6 |
 | Phase 2-4 (Backend / Console) | 📋 |
 

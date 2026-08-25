@@ -10,14 +10,26 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 
 ## [未发布]
 
+### Phase 0.5C — Information Architecture Closure（2026-08-25，DRAFT 0.1 待审）
+- 目录归并：`docs/phase-0.5b/` 并入 `docs/phase-0.5/`（git mv 保留 history；wireframes 拆为 `operator/` 10 张 + `product/` 5 张）
+- 新增 `OBJECT_VOCABULARY.md`（14 对象权威定义）/ `PRODUCT_OBJECT_MODEL.md`（Profile/Bundle/Variant 3 层）/ `NAVIGATION.md` / `MILESTONES.md` + `milestones/` 历史归档
+- UI 顶层导航从 6 编号域改为 4 业务域（BROADCAST / MEDIA / ENGINEERING / ADMIN）
+- Phase 0.6 README 语义修复（failover 时延验收写法：target_failover_time_ms + 实测 p50/p95/p99，禁止协议式保证）
+- 0.5C.1 回写与对账（本轮）：README 引擎/横向系统名单按架构 §2.1/§2.2 修正；根目录残留副本清理；`.gitignore` 排雷（`*.ts` 全局忽略会吞掉 Phase 2/4 TypeScript 源码）；product wireframe 死链修复；ROADMAP/CHANGELOG/docs README 门面同步
+
+### Phase 0.5B — Product UI Surface（UX BASELINE LOCK FINAL）
+- 0.5B.0：`SURFACE_SPEC.md`（38 UI 表面 = 0.5A 10 + 新增 28）+ 13 项 P0 语义收口（SP-P0-1..13）+ `I18N_SPEC.md`（zh-CN + en-US 契约 / Canonical Vocabulary / 11 enum 翻译表）
+- 0.5B.1：5 张 P0 wireframe（M-11 Media Library / M-12 Asset Detail / M-14 Transcode Center / P-21 Encoding Profile / P-22 Output Profile）
+- Closure-1：10 项产品化收口（Output Profile/Variant/Destination/Adapter 4 元组、DESIRED/COMPILED/EFFECTIVE 三层、Dependency Preview 等）
+- 0.5B.2：8 项 P0 + 5 项 P1 UX 收口 + `DESIGN_SYSTEM.md`（token / 组件 / 状态模型 / 键盘）→ UX BASELINE LOCK FINAL
+- 语义收口合计 36 项（31 P0 + 5 P1），明细见 `docs/phase-0.5/SURFACE_SPEC.md` §30 收口项附录
+
+### Phase 0.5A — Operator Semantics（LOCK FINAL）
+- `OPERATOR_WORKFLOW.md` + 10 个双语 wireframe（`operator/`，9 Core + 1 Validation）+ 4 关键操作链（On-Air / Failure / Playout / Engineering）
+- 20 项 UI 语义修复（`ERRATA.md`：12 P0 + 8 P1）
+
 ### 新增
-- 初始化开源仓库
-- Phase 0.5 交付物：
-  - `docs/phase-0.5/INDEX.md` — Phase 0.5 总览
-  - `docs/phase-0.5/OPERATOR_WORKFLOW.md` — 操作员工作流（角色 / 流程 / 危险操作分层）
-  - `docs/phase-0.5/wireframes/` — 9 个 Low-Fi HTML 线框（**中英双语**，Dark Mode 24/7）
-  - `docs/phase-0.5/chains/` — 4 关键操作链（On-Air / Failure / Playout / Engineering）
-- 开源文件：README、LICENSE（Apache 2.0）、.gitignore、CONTRIBUTING、CHANGELOG、ROADMAP、SECURITY
+- 初始化开源仓库 + 开源文件：README、LICENSE（Apache 2.0）、.gitignore、CONTRIBUTING、CHANGELOG、ROADMAP、SECURITY
 
 ## [V0.2] - 2026-08-24 — 架构基线 LOCK FINAL
 
@@ -26,8 +38,8 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - 详见 `docs/architecture/ARCHITECTURE_V0.2.md` 附录 C（C.1-C.26 + V0.2 终态块）
 
 ### 核心架构
-- **12 Engines**：Source / Switcher / Playout / Composition / Audio / Master / Output / Recording / Replay / (5 子项)
-- **5 横向系统**：Source Adapter / Stream Gateway / Direct Output / Recording Distribution / Output Distribution
+- **12 Engines（§2.1）**：Source / Signal Fabric / Normalize / Redundancy / QC / Playout / Switcher / Composition / Audio / Output / Recording / Replay
+- **5 横向系统（§2.2，V0.1 既有）**：H1 Safety / H2 Resource Scheduler / H3 Watchdog & Incident / H4 Audit / H5 Subtitle
 - **6 横切能力 (X1-X6)**：Graph Compiler / Preflight / Configuration Versioning / Incident Timeline / Health Tree / Capability Registry
 - **22 原则**（V0.2.1 16 → V0.2.2 22）
 - **57 决策**（V0.2-final 40 → Cleanup-2 +3 → Errata-2 +4 → Errata-3 +4 → Errata-6 +2 → Errata-9 +4）
@@ -77,7 +89,7 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 ## 版本说明
 
 - **V0.2 LOCK FINAL**：任何架构级扩展必须开 V0.3 流程
-- **Phase 0.5**：Operator Workflow + 9 Low-Fi 线框 + 4 关键操作链（已完成）
-- **Phase 0.6**：Reference A1/A2/B + 5 Fault Injection + 7 Health Invariants = Executable Acceptance Specification
+- **Phase 0.5**：0.5A Operator Semantics（LOCK FINAL）+ 0.5B Product Surface（UX BASELINE LOCK FINAL）+ 0.5C Info Arch（DRAFT）+ 0.5D P0 Product Surfaces（待开始）
+- **Phase 0.6**：Reference A1/A2/B + 5 Fault Injection + 7 Health Invariants = Executable Acceptance Specification（前置: Phase 0.5 LOCK FINAL）
 - **Phase 1**：Media Agent (Rust) + Session Manager + FFmpeg Command Builder + 24h 稳定性
-- **Phase 4**：Web Console (9 页面 + 4 链验证)
+- **Phase 4**：Web Console (4 域 × 44 UI 表面 + 4 链验证)

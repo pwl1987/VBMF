@@ -1,6 +1,6 @@
 # V0.2 架构 — 快速参考
 
-> 完整内容见 [`ARCHITECTURE_V0.2.md`](ARCHITECTURE_V0.2.md)（192KB / 4021 lines）。
+> 完整内容见 [`ARCHITECTURE_V0.2.md`](ARCHITECTURE_V0.2.md)（192KB / 4020 lines）。
 > 本文件是**快速参考卡**，用于日常查找关键定义。
 
 ## 🚦 状态
@@ -16,17 +16,23 @@ v0_2_5:                   FORBIDDEN
 
 ## 🏗️ 12 Engines + 5 横向 + 6 横切
 
+> 编号与名称以 §2.1 / §2.2 为唯一权威。
+
 | 编号 | 名称 | 说明 |
 |---|---|---|
-| 1 | **Source 源** | 11 个 Source Adapter（SDI/SRT/RTMP/HLS/...） |
-| 2 | **Switcher 切播** | 3 Switch Mode（PACKET/FRAME/MASTER） |
-| 3 | **Playout 播控** | 节目单 / 时间线 / 插播 |
-| 4 | **Composition 图文** | 图文包装（RAW 域，Program + Variant 两级） |
-| 5 | **Audio 音频** | 混音 / 响度 / 延迟 |
-| 6 | **Output 输出** | 多路分发（SRS Adapter） |
-| 7 | **Recording 录制** | 收录 / 分段（5 min/段） |
-| 8 | **Replay 回放** | 延时 / 回放 |
-| 9-12 | (V0.2 锁定 4 子项) | — |
+| 1 | **Source 源** | 11 类输入（SDI/SRT/RTMP/HLS/FILE/INTERNAL/COMPOSITE/...） |
+| 2 | **Signal Fabric** | 路由 / 矩阵 / 边策略 |
+| 3 | **Normalize** | 格式归一（能力可拆） |
+| 4 | **Redundancy** | 主备 / 切换（PACKET/FRAME/MASTER 模式） |
+| 5 | **QC** | 信号质量监测 |
+| 6 | **Playout 播控** | 虚拟播控 / 时间线 / 插播 |
+| 7 | **Switcher 切播** | 按 Switch Mode 执行切换 |
+| 8 | **Composition 图文** | 图文包装（Program + Variant 两级；Master Join 为其子能力，非独立 Engine） |
+| 9 | **Audio 音频** | 混音 / 响度 / 延迟 / 同步 |
+| 10 | **Output 输出** | 多路分发（含 SRS Gateway Adapter） |
+| 11 | **Recording 录制** | 收录 / 分段（5 min/段） |
+| 12 | **Replay 回放** | 延时 / 回放 |
+| 横向 | **H1-H5** | Safety / Resource Scheduler / Watchdog & Incident / Audit / Subtitle（V0.1 既有） |
 | 横切 | **X1-X6** | Compiler / Preflight / Versioning / Incident / Health Tree / Capability |
 
 ## 📊 Data Plane 4 Layer × 7 Type
@@ -67,10 +73,10 @@ v0_2_5:                   FORBIDDEN
 
 | ID | Condition 条件 | Channel Result 通道结果 |
 |---|---|---|
-| **H1** | no ACTIVE+FAILED | (no fire) |
-| **H2** | no ACTIVE+DEGRADED | (no fire) |
-| **H3** | no STANDBY+FAILED | (no fire) |
-| **H4** | no STANDBY+DEGRADED | (no fire) |
+| **H1** | ACTIVE + FAILED | **FAILED** |
+| **H2** | ACTIVE + DEGRADED | **DEGRADED** |
+| **H3** | STANDBY + FAILED | **DEGRADED** |
+| **H4** | STANDBY + DEGRADED | **DEGRADED** |
 | **H5** | OFFLINE+FAILED | 系统已吸收（NO_DIRECT_CHANNEL_DEGRADATION） |
 | **H6** | Source RG 全部候选不可用 | **FAILED** |
 | **H7** | effective_channel_status = channel_health_view | 唯一入口 |

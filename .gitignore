@@ -74,7 +74,6 @@ out/
 *.swp
 *.swo
 *\%\%\%
-*_
 *\$*
 
 # ---- Sublime Text ----
@@ -136,8 +135,8 @@ develop-eggs/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -181,9 +180,11 @@ build/
 # ============================================
 # Media / FFmpeg / BMD
 # ============================================
+# NOTE (Phase 0.5C 对账): 不可全局忽略 *.ts — 会吞掉 Phase 2 (Fastify/TS) 与
+# Phase 4 (Web Console) 的全部 TypeScript 源码。MPEG-TS 媒体文件按目录忽略:
+# recordings/ / segments/ / chunks/ (运行时输出) 与 /media/ (素材落盘目录)。
 
 *.mp4
-*.ts
 *.m3u8
 *.mpd
 *.mkv
@@ -211,6 +212,7 @@ build/
 recordings/
 segments/
 chunks/
+/media/
 
 # BMD-specific
 *.mov.bak

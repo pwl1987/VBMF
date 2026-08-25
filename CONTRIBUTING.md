@@ -68,7 +68,7 @@ V0.2 已完成 22 轮 review，状态为 **LOCK FINAL**：
 
 1. 开 PR + 清晰描述
 2. Maintainer review V0.2 对齐
-3. CI 通过（linting, doc build）
+3. 本地检查通过（markdownlint / 相对链接可达；CI 配置后自动执行）
 4. Approve → merge
 
 ### 3. 文档规范
@@ -92,7 +92,7 @@ V0.2 已完成 22 轮 review，状态为 **LOCK FINAL**：
 
 | 优先级 | 领域 | 说明 |
 |---|---|---|
-| 🔥 高 | Phase 0.5 wireframe 润色 | 打开 `docs/phase-0.5/wireframes/*.html` 改进 |
+| 🔥 高 | Phase 0.5 wireframe 润色 | 打开 `docs/phase-0.5/operator/*.html`（10 张）与 `docs/phase-0.5/product/*.html`（5 张）改进 |
 | 🔥 高 | Phase 0.6 Reference A1 | PACKET_SWITCH 基础能力，需实际部署验证 |
 | 🔥 高 | Phase 0.6 Reference A2 | SDI 主备走 FRAME/MASTER |
 | 🟡 中 | Phase 0.6 5 Fault Injection | SDI 冻结 / 音频静音 / FFmpeg 崩溃 / Clock Drift / HLS 切片失败 |
@@ -103,7 +103,7 @@ V0.2 已完成 22 轮 review，状态为 **LOCK FINAL**：
 ## 🧪 测试策略
 
 - **架构文档**：任何对 12 Engines / 5 横向系统 / 6 横切能力 / 22 原则 / 57 决策的修改必须走 V0.3 流程
-- **Phase 0.5 wireframes**：视觉 review + click-through（9 页面互链）
+- **Phase 0.5 wireframes**：视觉 review + click-through（operator 10 页互链 + product 5 页跨域链接）
 - **Phase 0.6 References**：24h 稳定性 + 全部 5 Fault Injection 通过
 - **Phase 1 Media Agent**：24h SDI → HLS pipeline 稳定
 
@@ -115,7 +115,7 @@ V0.2 已完成 22 轮 review，状态为 **LOCK FINAL**：
 
 ## 📜 行为准则
 
-互相尊重。我们都是为了构建一个出色的广播平台。如有 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) 请遵守。
+互相尊重。我们都是为了构建一个出色的广播平台。（正式 Code of Conduct 文档待补；在此之前以 GitHub 社区准则为准。）
 
 ## 🙏 感谢
 
