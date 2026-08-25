@@ -67,6 +67,7 @@ docs/phase-0.5/
 ├── NAVIGATION.md                   ← 4 域顶层导航
 ├── MILESTONES.md                   ← 历史 milestone 归档
 ├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (52 wireframe + 1 Spec)
+├── EXECUTION_MODEL.md              ← 执行链/时序唯一事实源 (0.5D.3b)
 ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (计数由 SURFACE_REGISTRY.yaml 派生)
 ├── DESIGN_SYSTEM.md                ← V0.1 Design System
 ├── I18N_SPEC.md                    ← V0.1 i18n Contract

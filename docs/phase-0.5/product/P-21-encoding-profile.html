@@ -153,12 +153,12 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <div class="panel" style="border:1px solid var(--accent);margin-bottom:12px">
   <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
     <div style="font-size:12px;font-weight:600">Profile Type <span style="color:var(--fgdim);font-weight:400">(profile_type · 创建后不可变 · ENCODE_MODEL_SPEC §1)</span></div>
-    <label style="display:flex;align-items:center;gap:4px"><input type="radio" name="pt"> FILE_PROFILE <span style="color:var(--fgdim)">(文件转码 · Job)</span></label>
-    <label style="display:flex;align-items:center;gap:4px"><input type="radio" name="pt" checked> REALTIME_PROFILE <span style="color:var(--fgdim)">(实时编码 · Session)</span></label>
-    <span class="badge green">REALTIME_PROFILE · 本页为实时分支</span>
+    <label style="display:flex;align-items:center;gap:4px;opacity:0.45"><input type="radio" name="pt" disabled> FILE_PROFILE <span style="color:var(--fgdim)">(文件转码 · Job)</span></label>
+    <label style="display:flex;align-items:center;gap:4px"><input type="radio" name="pt" checked disabled> REALTIME_PROFILE <span style="color:var(--fgdim)">(实时编码 · Session)</span></label>
+    <span class="badge green">REALTIME_PROFILE · 🔒 immutable after creation</span>
   </div>
   <div style="margin-top:6px;color:var(--fgdim);font-size:10px">
-    选择后切换 Common + Realtime/File 段表单: REALTIME_PROFILE 强制 latency_class / hot_standby / resource_reservation / failover / worker constraints; FILE_PROFILE 显示 Quality/Speed/Parallelism/Retry/Output Asset (ENCODE_MODEL_SPEC §3/§4). <b>P-22 Output Profile 与本页相互独立</b> (P-22 只负责 Delivery Policy).
+    <b>Create 态:</b> 可选 FILE_PROFILE / REALTIME_PROFILE。<b>Edit 态 (本页):</b> immutable — 只读, 禁止切换 (0.5D.3 P1-5). REALTIME_PROFILE 强制 latency_class / hot_standby / resource_reservation / failover / worker constraints; FILE_PROFILE 显示 Quality/Speed/Parallelism/Retry/Output Asset (ENCODE_MODEL_SPEC §3/§4). <b>P-22 Output Profile 与本页相互独立</b> (P-22 只负责 Delivery Policy).
   </div>
 </div>
 

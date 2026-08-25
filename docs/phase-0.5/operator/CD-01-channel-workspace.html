@@ -169,6 +169,23 @@
   <div class="diag">7 种 Profile 是可复用策略引用, 非 UI 组合视图 (POM §4.2 / ENCODE_MODEL_SPEC). 本 Channel 编码走 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> (0.5D.3 修正: 原误标 P-22), Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01 Output 区). 深度配置见 M-17 (D4) / P-21 / P-22.</div>
 </div>
 
+<!-- ACTION CONTEXT BAR (0.5D.3 §十三: 操作员 TAKE 前一眼回答"能不能切") -->
+<div class="panel" style="border-left:3px solid var(--accent);padding:10px 12px">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:11px">
+    <b style="font-size:12px">CH01 新闻综合</b>
+    <span>PGM <b style="color:var(--green)">SDI-01</b></span>
+    <span>PVW <b>UDP-MC</b></span>
+    <span>MODE <b>FRAME_SWITCH</b></span>
+    <span>BACKUP <b style="color:var(--green)">READY_TO_TAKE</b></span>
+    <span>AUDIO <b style="color:var(--green)">HEALTHY</b></span>
+    <span>OUTPUT <b style="color:var(--green)">4/4 REQUIRED HEALTHY</b></span>
+    <span>RESOURCE <b style="color:var(--green)">RESERVED</b></span>
+    <span>CLOCK <b style="color:var(--green)">PTP LOCKED</b></span>
+    <span style="margin-left:auto"><button class="btn-primary">▶ TAKE</button></span>
+  </div>
+  <div style="margin-top:6px;font-size:10px;color:var(--fgdim)">Reservation RESERVED ✓ · B-13 Gate READY ✓ · 全部 REQUIRED HEALTHY ✓ → <span style="color:var(--green)">可以切</span>. 深度配置下沉 Engineering: P-21 / P-22 / E-37 / E-38 / E-40 / E-41 / E-42 (Channel Task 组织, 非 Engine Task).</div>
+</div>
+
 <!-- TOP ROW: LEFT PVW/PGM/NEXT + AUDIO | RIGHT SOURCE -->
 <div class="row">
   <div class="col-8">

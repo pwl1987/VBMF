@@ -147,15 +147,19 @@
 
 <!-- PIPELINE (沿用 M-17 0.5D LOCK 结构) -->
 <div class="panel">
-  <h3>🔀 实时编码管线 / PIPELINE (Source → Normalize → Encode → Output)</h3>
+  <h3>🔀 实时编码管线 / PIPELINE (Source → Normalize → Program Master → Encode → Output Variants → Adapters)</h3>
   <div class="pipeline">
     <div class="stage active"><div class="ico">📡</div><div class="name">SOURCE</div><div class="detail">SDI-01 (Primary)</div><div class="detail" style="color:var(--green)">1080i25 · LOCKED</div></div>
     <div class="arrow">→</div>
     <div class="stage active"><div class="ico">🔄</div><div class="name">NORMALIZE</div><div class="detail">1080p25 · UYVY422</div><div class="detail" style="color:var(--green)">BT.709</div></div>
     <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">H.264 · 5 Mbps</div><div class="detail" style="color:var(--green)">GOP 50 · CBR</div></div>
+    <div class="stage active"><div class="ico">🎬</div><div class="name">PROGRAM MASTER</div><div class="detail">PGM · FRAME_SWITCH</div><div class="detail" style="color:var(--green)">MASTER · ready</div></div>
     <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">📤</div><div class="name">OUTPUT</div><div class="detail">SRS · HLS + WebRTC</div><div class="detail" style="color:var(--green)">3 destinations</div></div>
+    <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">P-21 REALTIME · H.264</div><div class="detail" style="color:var(--green)">GOP 50 · CBR · ENC-v3</div></div>
+    <div class="arrow">→</div>
+    <div class="stage active"><div class="ico">📦</div><div class="name">OUTPUT VARIANTS</div><div class="detail">HLS · WebRTC</div><div class="detail" style="color:var(--green)">P-22 派生</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="ico">🔌</div><div class="name">ADAPTERS</div><div class="detail">SRS · WHIP</div><div class="detail" style="color:var(--fgdim)">E-35/E-38</div></div>
   </div>
   <div class="row" style="margin-top:8px">
     <div class="col-6">

@@ -106,7 +106,8 @@
 <!-- Step 2 Output Versions (主区) -->
 <div class="panel">
   <h3><span class="cn">第 2 步 · 选择输出版本</span> / STEP 2: Select Output Versions (Master / Proxy / Mobile / Archive / Custom)
-    <span class="pill pill-blue" style="float:right">2 versions selected · Estimated 1.18 GB</span>
+  <span class="pill pill-blue" style="float:right">2 versions selected · Estimated 1.18 GB</span>
+  <div style="font-size:10px;color:var(--fgdim);margin-top:4px">每个 Output Asset Version 绑定一个 <b>FILE_ENCODING_PROFILE (P-21 · FILE_PROFILE)</b> — 如 Master → ENC-v12 · Proxy → ENC-v22 · Archive → ENC-v07。⛔ REALTIME_PROFILE 不得出现在本 picker (M-17/Session 专属)。</div>
   </h3>
   <div class="diag" style="margin-top:0;margin-bottom:12px">
     <b>Asset Version (M-12 锁) ≠ Output Variant (CD-01 锁):</b>
@@ -237,8 +238,10 @@
       </div>
     </div>
     <div class="diag" style="margin-top:8px">
-      <b>Profile Common / Realtime / File 3 段 (Phase 0.5C §29.3):</b>
-      同一 P-21 Encoding Profile 同时支持 Realtime + File 两种语义. FILE 段独有: 1-pass/2-pass, CRF, Multi-pass, Segmenting, Batch Policy.
+      <b>Profile / Job Policy 分层 (0.5D.3):</b>
+      ① Encoding Profile (P-21 · <b>FILE_PROFILE</b>) 只含编码语义: Codec / Resolution / FPS / Bitrate / GOP / Audio / Container / Quality (CRF / 1-2 pass)。
+      ② <b>Batch Policy / Concurrency / Priority / Worker / Retry / Schedule / Storage 属 Job Policy (Step 5)</b>, 不混进 Profile (EXECUTION_MODEL §2)。
+      ③ 本 picker 只显示 <b>FILE_PROFILE 分支</b> (ENC-v12 / ENC-v22 ...), <b>严格禁止 REALTIME_PROFILE</b> — 那是 M-17 / Session 的 (ENCODE_MODEL_SPEC §3)。
     </div>
   </div>
 </details>

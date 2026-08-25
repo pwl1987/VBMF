@@ -459,3 +459,39 @@
 ### J.9 附带回写
 - OBJECT_VOCABULARY §1.13 Revision 前缀约定 (T-v3 / B-v2 / ENC-v7 / OUT-v4 / RS-); POM §1.2 Bundle 权限 (Operator 只能选兼容 Revision + ChangeSet, Engineer 才能编辑 Profile Definition)。
 - 剩余 (0.5E/0.5G): 同 §I.7 + E-40 Media Contract / Network-Media Path 双视图 / Duplicate Channel / Host/Device Capacity / Dependency/Impact Workspace。
+
+---
+
+## K. 0.5D.3b Closure — P-21/P-22 边界 + Reservation 时序 + EXECUTION_MODEL (2026-08-25 末 · 用户第 7 轮检修 64bacae)
+
+> 用户检修结论: 已进入收口阶段, 不再发散加页面 — 但 P-22 仍在配 Codec/Bitrate (边界重新污染), Reservation Spec 状态仍是 DRAFT, 缺 EXECUTION_MODEL。本轮 3 P0 + 3 P1。
+
+### K.1 P0-1 Canonical terminology residue 清零
+- B-13 "匹配 Realtime Profile P-22" → **Encoding Profile (P-21) · REALTIME_PROFILE · ENC-v3**。全仓 `P-22=Realtime` 语义清零。
+
+### K.2 P0-2 P-22 去 Encoding 参数 (继承 P-21 只读)
+- P-22 移除 Codec / Bitrate / GOP 等字段: 4-Tuple 示例 / 3 张 Profile 卡 / 3-Layer DESIRED / HLS 表单 Codec 行 → **Encoding Constraint inherited from P-21 ENC-v3 (RO)**。
+- Latency 只配置 **Delivery**; Channel E2E / Failover 改为 **Inherited Context 只读** (归属 Channel Latency Budget / Hot Standby Policy, 避免三处重复字段)。
+- 原则: `P-21 = HOW TO ENCODE` · `P-22 = HOW TO DELIVER`。
+
+### K.3 P0-3 P-21 profile_type Edit 态 immutable
+- P-21: Create 可选 FILE/REALTIME; **Edit 态 REALTIME_PROFILE 🔒 immutable after creation (radio disabled)**, 禁止切换。
+
+### K.4 P1-4 Reservation Spec 状态毕业
+- `DRAFT 0.1` → **SEMANTIC LOCKED V0.2** (implementation_authority: 本 Spec · wireframe_status: TODO 0.5E), 不再使用 DRAFT 词。
+
+### K.5 P1-5 TAKE 不触发资源抢占
+- **TAKE 只验证 `reservation.state == RESERVED`**; 抢占仅发生在 PREPROVISION/RESERVE 阶段。未 RESERVED → TAKE BLOCKED (Reason: NOT_READY → Action: Open Resource Impact/Provision)。Reservation Spec §6.1 + B-13 决策面板 + #9 检查均已锁。
+
+### K.6 P1-6 EXECUTION_MODEL.md
+- 新建 `EXECUTION_MODEL.md`: REALTIME 链 (Template→Channel→Bundle→Profiles→GraphRuntime→Reservation→Session→READY_TO_TAKE→TAKE→RUNNING→FAILOVER/OUTPUT RECOVERY) + FILE 链 (Asset→Job→Worker→Asset Version) + 时序判定表 (谁执行/前置/后置) + 对象创建/引用总表 + 状态机对照。
+
+### K.7 UX 附带回写
+- B-13: **FINAL TAKE GATE** 视觉条 (Config/Runtime/READY 三格) + Switch **Policy Target vs Measured** 分离 (100ms·HOT / p95 87ms)。
+- M-17 Pipeline 六段: Source→Normalize→**Program Master**→Encode→**Output Variants**→Adapters。
+- M-14: Output Version 绑定 **FILE_PROFILE (ENC-v12..)**, 禁 REALTIME_PROFILE; **Job Policy (Batch/Concurrency/Worker/Retry/Schedule) 与 Profile 分层** (Step 5)。
+- E-40: **Source Kind 首选** → Adapter → Protocol → Endpoint Schema 三级联动 (Network→UDP MC SSM 演示)。
+- CD-01: **Action Context Bar** (PGM/PVW/MODE/BACKUP/AUDIO/OUTPUT/RESOURCE/CLOCK + TAKE) — 一眼回答"能不能切"。
+
+### K.8 剩余 (0.5E/0.5G)
+- 同 §I.7 + E-40 Media Contract 屏 / Network-Media Path 双视图 / Duplicate Channel / Host-Device Capacity / Dependency-Impact Workspace / M-18 kind 差异化 / Context Command Palette / 退役工作流。

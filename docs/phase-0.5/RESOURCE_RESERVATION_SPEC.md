@@ -1,10 +1,10 @@
-# VBMF Resource Reservation Spec (V0.1 · 0.5D.1 语义焊死)
+# VBMF Resource Reservation Spec (V0.2 · 0.5D.3 Semantic Locked)
 
 > **目的:** 把 Resource Reservation 从"Preflight 预览数值"升级为**正式语义对象**, 焊死 Reservation / Quota / Acquire / Release / HOT 生命周期, 使实时系统(Realtime Encode / HOT Standby)的资源预算不再是 UI 数字。
 >
-> **关联:** `ENCODE_MODEL_SPEC.md` (REALTIME_PROFILE.resource_reservation=REQUIRED) · `B-13-take-preflight.md` (Resource 三档预检) · `ARCHITECTURE_V0.2.md` (H2 Resource Scheduler) · `OBJECT_VOCABULARY.md` (§1.15 Reservation)
+> **关联:** `ENCODE_MODEL_SPEC.md` (REALTIME_PROFILE.resource_reservation=REQUIRED) · `B-13-take-preflight.md` (Resource 三档预检 + TAKE 门禁) · `ARCHITECTURE_V0.2.md` (H2 Resource Scheduler) · `OBJECT_VOCABULARY.md` (§1.15 Reservation)
 >
-> **状态:** 🟡 **DRAFT 0.1** — 0.5D.1 Semantic Closure 语义锁定, wireframe 待 0.5E
+> **状态:** 🟢 **SEMANTIC LOCKED V0.2** (0.5D.3) · `implementation_authority: 本 Spec` · `wireframe_status: TODO (0.5E)` — 语义已锁, 不再用 "DRAFT"; UI 落地前只允许语义级修改。
 
 ---
 
@@ -67,13 +67,24 @@ RESERVED/IN_USE → PREEMPT_PENDING → DRAINING → RELEASED
   3. 备机 Session 处于 `warm/hot` 预启动状态 (视 HOT 级别), 切换无需重新 Acquire。
 - **释放时机**: 主备切换完成 / Channel 退役 / 运维显式释放 → `RELEASED`, 释放后立即触发 PENDING 仲裁。
 
-## 6. Preflight 联动 (B-13 第 8 项 Resource 预检)
+## 6. Preflight 联动 (B-13 第 9 项 Resource 预检)
 
 | 三档 | Preflight 判定 | Reservation 语义 |
 |---|---|---|
 | ≤80% | PASS | 直接创建 RESERVED (资源充足) |
-| 80-100% | 仅 reservation 满足可放行 | 若无空闲 → 尝试抢占 (见 §4.3); 否则 WARN |
+| 80-100% | 仅 reservation 满足可放行 | 无空闲 → 尝试抢占 (见 §4.3, 仅在 PREPROVISION/RESERVE 阶段); 否则 WARN |
 | >100% | BLOCK | 无 Reservation 可达成, TAKE 阻断 |
+
+### 6.1 TAKE 门禁 (0.5D.3 P1-5 — TAKE 不触发资源抢占)
+
+```text
+CONFIGURE → PRELIGHT/PREVIEW → PREPROVISION → RESERVE → READY_TO_TAKE → TAKE
+```
+
+- **抢占只发生在 PREPROVISION/RESERVE 阶段**, 绝不由 TAKE 操作临时触发。
+- **TAKE 只验证 `reservation.state == RESERVED`** (或 HOT 的备机副本 RESERVED)。
+- 未 RESERVED → **TAKE BLOCKED**: `Reason: Resource Reservation NOT_READY` / `Action: Open Resource Impact → Provision`。
+- 这保证"按下 TAKE"永远不是资源仲裁点 — 播出安全不依赖抢资源的时延。
 
 ## 7. 数据流示例 (Realtime Encode + HOT)
 

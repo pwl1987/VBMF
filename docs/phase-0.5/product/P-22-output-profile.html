@@ -108,7 +108,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="box">
       <div class="label">P-22 Output Profile</div>
       <div class="defines">定义 HOW (Delivery Policy)</div>
-      <div class="example">HLS-LIVE-01<br>5 Mbps CBR<br>LL-HLS 2s</div>
+      <div class="example">HLS-LIVE-01<br>LL-HLS 2s · 5-seg window<br>Encoding: inherited P-21 ENC-v3 (RO)</div>
       <div class="arrow">↓ 1 Profile → N Variants</div>
     </div>
     <div class="box">
@@ -179,17 +179,17 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div style="display:grid;grid-template-columns:1fr;gap:6px">
       <div class="profile-card selected">
         <h4>HLS-LIVE-01 <span class="badge blue">● ACTIVE</span></h4>
-        <div class="meta">HLS · 5 Mbps CBR · LL-HLS 2s</div>
+        <div class="meta">HLS · LL-HLS 2s · 5-seg window (Encoding: P-21 ENC-v3 RO)</div>
         <div style="font-size:10px;color:var(--fgdim)">3 Variants · 6 Destinations</div>
       </div>
       <div class="profile-card">
         <h4>HLS-LL-01 <span class="badge blue">● ACTIVE</span></h4>
-        <div class="meta">HLS · 3 Mbps · Low Latency 1s</div>
+        <div class="meta">HLS · LL 1s (Encoding: P-21 ENC-v4 RO)</div>
         <div style="font-size:10px;color:var(--fgdim)">2 Variants · 4 Destinations</div>
       </div>
       <div class="profile-card">
         <h4>RTMP-PUSH-01 <span class="badge blue">● ACTIVE</span></h4>
-        <div class="meta">RTMP · 4 Mbps CBR · Push to Origin</div>
+        <div class="meta">RTMP · Push to Origin (Encoding: P-21 ENC-v3 RO)</div>
         <div style="font-size:10px;color:var(--fgdim)">1 Variant · 1 Destination</div>
       </div>
       <div class="profile-card">
@@ -215,7 +215,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px">
         <div>
           <div style="color:var(--fgdim);font-size:10px;letter-spacing:1px">◉ DESIRED</div>
-          <div style="font-family:Menlo,Consolas,monospace;font-weight:600">HLS · 5 Mbps · LL-HLS 2s</div>
+          <div style="font-family:Menlo,Consolas,monospace;font-weight:600">HLS · LL-HLS 2s (Encoding: inherited P-21 ENC-v3)</div>
         </div>
         <div>
           <div style="color:var(--fgdim);font-size:10px;letter-spacing:1px">⚙ COMPILED</div>
@@ -248,17 +248,17 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <div class="form-row"><label>Protocol</label><select><option selected>HLS (Available)</option></select><div class="field-hint">仅 Available 可选</div></div>
         <div class="form-row"><label>Segment Duration</label><select><option>1s</option><option selected>2s</option><option>4s</option><option>6s</option></select></div>
         <div class="form-row"><label>Playlist Window</label><select><option>3</option><option selected>5</option><option>10</option></select></div>
-        <div class="form-row"><label>Codec</label><select><option selected>H.264</option><option>H.265</option></select></div>
-        <div class="form-row"><label>Latency Mode</label><select><option>Normal HLS</option><option selected>LL-HLS (Low Latency)</option></select></div>
+        <div class="form-row"><label>Encoding Constraint (继承自 P-21 · 只读)</label><input type="text" value="H.264 · 1080p25 · 5 Mbps · High@L4.1" readonly style="color:var(--fgdim)"><div class="field-hint">🔒 Codec/Bitrate/GOP/VBV/Profile/Level/Pixel Format 只由 P-21 Encoding Profile (REALTIME_PROFILE) 决定 (ENCODE_MODEL_SPEC §3) — P-22 不配置</div></div>
+        <div class="form-row"><label>Delivery Latency Mode</label><select><option>Normal HLS</option><option selected>LL-HLS (Low Latency)</option></select></div>
         <div class="form-row"><label>DRM</label><select><option selected>None</option></select><div class="field-hint">DRM [Reserved] V0.4+, 不可配置</div></div>
       </div>
     </div>
 
-    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Latency (3 个独立 Target — 不混)</h4>
+    <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Latency (0.5D.3: 只配置 Delivery; Channel E2E / Failover 为 Inherited Context 只读)</h4>
     <div class="form-grid">
       <div class="form-row"><label>Delivery Latency Target<br><span style="font-size:9px;color:var(--fgdim)">(协议本身, e.g. LL-HLS 2s segment)</span></label><input type="text" value="2000 ms (LL-HLS 2s)"></div>
-      <div class="form-row"><label>Channel E2E Latency Target<br><span style="font-size:9px;color:var(--fgdim)">(整链路端到端预算, per_channel_latency_target)</span></label><input type="text" value="≤ 200 ms"></div>
-      <div class="form-row"><label>Failover Latency Target<br><span style="font-size:9px;color:var(--fgdim)">(hot_standby_levels.target_failover_time)</span></label><input type="text" value="100 ms (Policy: HOT)"></div>
+      <div class="form-row"><label>Inherited Context · Channel E2E<br><span style="font-size:9px;color:var(--fgdim)">(Channel Latency Budget · 只读)</span></label><input type="text" value="≤ 200 ms" readonly style="color:var(--fgdim)"></div>
+      <div class="form-row"><label>Inherited Context · Failover<br><span style="font-size:9px;color:var(--fgdim)">(hot_standby_levels.target_failover_time · 只读)</span></label><input type="text" value="HOT / 100 ms target" readonly style="color:var(--fgdim)"><div class="field-hint">⛔ 避免 output_profile / channel_route / hot_standby_level 三处重复 — Failover 归属 Hot Standby Policy, E2E 归属 Channel Latency Budget</div></div>
     </div>
 
     <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Edge Policy (引用 P-27, 不在此处独立配置)</h4>

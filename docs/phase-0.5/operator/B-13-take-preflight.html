@@ -129,23 +129,38 @@
 
   <div class="subblk">
     <div class="sh"><span class="dot blue"></span> A · CONFIGURATION PREFLIGHT — "这套配置理论上能不能部署?"</div>
-    <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video (配置兼容)</div><div class="std">1080p25 · H.264 · 匹配 Realtime Profile P-22</div></div><div class="st pass">PASS</div></div>
+    <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video (配置兼容)</div><div class="std">1080p25 · H.264 · 匹配 Encoding Profile (P-21) · REALTIME_PROFILE · ENC-v3</div></div><div class="st pass">PASS</div></div>
     <div class="chk pass"><div class="no">3</div><div class="body"><div class="name">Audio (配置兼容)</div><div class="std">L/R + 16ch embedded · LUFS -23.0 ∈ Profile 范围</div></div><div class="st pass">PASS</div></div>
     <div class="chk pass"><div class="no">8</div><div class="body"><div class="name">Latency (配置 SLA)</div><div class="std">Budget PASS · ≤ max_startup_latency (est 1.8s / 2.0s)</div></div><div class="st pass">PASS</div></div>
-    <div class="chk pass"><div class="no">9</div><div class="body"><div class="name">Resource (配置 Vector)</div><div class="std">编码器 71% / 网络 63% · ≤80% PASS; HOT 独占已计入 Reservation</div></div><div class="st pass">PASS · BLOCK &gt;100%</div></div>
+    <div class="chk pass"><div class="no">9</div><div class="body"><div class="name">Resource (配置 Vector)</div><div class="std">编码器 71% / 网络 63% · ≤80% PASS · Reservation.state = RESERVED (TAKE 前已预占, 不临时抢占)</div></div><div class="st pass">PASS · BLOCK &gt;100%</div></div>
   </div>
 
   <div class="subblk" style="margin-top:10px">
     <div class="sh"><span class="dot green"></span> B · RUNTIME TAKE READINESS — "现在这一秒能不能切?"</div>
     <div class="chk pass"><div class="no">1</div><div class="body"><div class="name">Source (Primary)</div><div class="std">Source B LOCKED · UDP-MC 239.20.10.10 STREAMING</div></div><div class="st pass">PASS · 阻断</div></div>
     <div class="chk pass"><div class="no">4</div><div class="body"><div class="name">Clock</div><div class="std">PTP LOCKED · AVSync +12ms · drift +0.4ms/min</div></div><div class="st pass">PASS · 阻断</div></div>
-    <div class="chk pass"><div class="no">5</div><div class="body"><div class="name">Switch</div><div class="std">目标 Switch Mode = FRAME_SWITCH · eligible · p95 87ms &lt; 100</div></div><div class="st pass">PASS · 阻断</div></div>
+    <div class="chk pass"><div class="no">5</div><div class="body"><div class="name">Switch</div><div class="std">目标 Switch Mode = FRAME_SWITCH · eligible · <b>Policy Target</b> 100ms (HOT) · <b>Measured</b> p95 87ms</div></div><div class="st pass">PASS · 阻断</div></div>
     <div class="chk pass"><div class="no">6</div><div class="body"><div class="name">Backup</div><div class="std">READY_TO_TAKE · Hot Standby 就绪 (SDI-02 HOT)</div></div><div class="st pass">PASS · 阻断</div></div>
     <div class="chk pass"><div class="no">7</div><div class="body"><div class="name">Output (delivery_criticality)</div><div class="std">REQUIRED 全 HEALTHY; OPTIONAL/AUX 仅 WARNING · 按 Failure Domain 不误切源</div></div><div class="st pass">PASS · REQUIRED 阻断</div></div>
   </div>
 
-  <div class="diag" style="border-left-color:var(--green)">
-    <b>最终判断 (P0-3 + 0.5D.3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">READY → TAKE ENABLED</b>. 结果闭集: `READY` / `CONDITIONAL` (仅 WARNING + Reservation 满足 + REQUIRED 全 PASS) / `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). #7 REQUIRED FAIL → BLOCKED, OPTIONAL/AUX FAIL → 仅 WARNING. #7/#9 模型见下方 <b>OutputResilience (G4)</b> 与 <b>Reservation (G8)</b>.
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+    <div style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px 12px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px">CONFIGURATION</div>
+      <div style="color:var(--green);font-weight:600;font-size:16px">██████████ PASS</div>
+    </div>
+    <div style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px 12px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px">RUNTIME READINESS</div>
+      <div style="color:var(--green);font-weight:600;font-size:16px">██████████ PASS</div>
+    </div>
+    <div style="flex:1.4;background:linear-gradient(135deg,#0d1117 0%,#12301a 100%);border:1px solid var(--green);border-radius:4px;padding:8px 12px;font-size:11px">
+      <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px">FINAL TAKE GATE</div>
+      <div style="color:var(--green);font-weight:600;font-size:16px">🟢 READY TO TAKE</div>
+      <div style="color:var(--fgdim);font-size:10px">Reservation RESERVED ✓ · REQUIRED 全 HEALTHY ✓</div>
+    </div>
+  </div>
+  <div class="diag" style="border-left-color:var(--green);margin-top:8px">
+    <b>最终判断 (P0-3 + 0.5D.3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">READY → TAKE ENABLED</b>. 结果闭集: `READY` / `CONDITIONAL` (仅 WARNING + Reservation 满足 + REQUIRED 全 PASS) / `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). <b>Reservation 门禁 (P1-5):</b> TAKE 只验证 <code>reservation.state == RESERVED</code> (已 PREPROVISION/RESERVE), <b>绝不临时触发资源抢占</b>; 未 RESERVED → TAKE BLOCKED (Reason: Reservation NOT_READY → Action: Open Resource Impact / Provision).
   </div>
   <div class="diag" style="border-left-color:var(--purple);margin-top:8px">
     <b>四动作语义 (0.5D.2):</b> Configure (改 Desired) ≠ Validate (Preflight, 本页) ≠ Apply (ChangeSet / Logical Atomic) ≠ Operate (TAKE / FAILOVER / RESTART / FALLBACK). <b>Apply ≠ Start; Start ≠ Take; Take ≠ Failover.</b> Apply 走 ChangeSet, Operate 在 CD-01.

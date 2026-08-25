@@ -452,7 +452,7 @@ Profiles
 - Threads (1 / 2 / 4 / 8 / auto)
 - Preset (ultrafast / superfast / veryfast / faster / fast / medium / slow)
 - Tune (film / animation / grain / stillimage / zerolatency)
-- Latency Mode (Normal / Low Latency / Ultra-Low)
+- Latency Class (NORMAL / LOW / ULTRA_LOW · REALTIME_PROFILE, 取代旧 Latency Mode)
 
 #### Audio
 - Codec (AAC / Opus / MP3 / Vorbis)
@@ -581,7 +581,7 @@ Codec → Encoder → Capability → Resource Estimate
 - Segment Duration (1s / 2s / 4s / 6s)
 - Playlist Window (3 / 5 / 10 segments)
 - Codec (H.264 / H.265)
-- Latency Mode (LL-HLS / Normal HLS)
+- Delivery Latency Mode (LL-HLS / Normal HLS)
 - **DRM 字段: V0.2 灰显, 标 "Reserved"**
 
 #### RTMP Specific
@@ -2233,7 +2233,7 @@ P-21 Encoding Profile Builder
 ### Section 5: Encoder (Runtime Discovery 驱动)
 - Encoder Engine (Auto / libx264 / libx265 / NVENC / QSV / BMD H.264)
 - Available 列表 (动态) + ✗ 标注不可用 + 原因
-- Preset / Tune / Threads / Latency Mode
+- Preset / Tune / Threads / Latency Class
 
 ### Section 6: Audio
 - Codec / Sample Rate / **Channel Layout** / **Bit Depth**
