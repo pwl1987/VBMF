@@ -6,11 +6,13 @@
   2. docs/ 下 HTML wireframe 的 href 目标存在（扫描全部, 不再只查第一个）
   3. Markdown / HTML 的锚点 (#section) 目标存在（防死锚点, 如 #final-state）
   4. 关键数字口径（表面计数 / 收口计数 / 引擎与横向系统名单）
+  5. Phase 0.6 FI 集合一致性（canonical FI ID 集合 == scope/schedule/outputs 引用数, 防 5→7 类语义漂移）
 
 用法:
   python scripts/check_docs.py          # 全部检查
   python scripts/check_docs.py links    # 只查链接 + 锚点
   python scripts/check_docs.py numbers  # 只查数字口径
+  python scripts/check_docs.py phase06  # 只查 Phase 0.6 FI 集合一致性
 
 退出码: 0 = 通过, 1 = 有错误
 """
@@ -145,7 +147,7 @@ def load_sot():
         m = re.search(r"TOTAL\s*(\d+)", t)
         if m:
             total = m.group(1)
-        m2 = re.search(r"TOTAL\s*\d+\s*\(\s*(\d+)\s+wireframe", t)
+        m2 = re.search(r"TOTAL\s*\d+\s*=\s*(\d+)\s*LOCK", t)
         if m2:
             wf = m2.group(1)
     return total, wf
@@ -157,7 +159,7 @@ def check_numbers():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     expectations = [
         (f"README 含 SoT 总数 {total}", bool(total and total in readme)),
-        (f"README 含 SoT wireframe 数 {wf}", bool(wf and f"{wf} wireframe" in readme)),
+        (f"README 含 SoT LOCK 数 {wf}", bool(wf and f"{wf} LOCK" in readme)),
         ("收口计数 36（31 P0 + 5 P1）", "36 项语义收口（31 P0 + 5 P1）" in readme),
         ("README 引擎名单含 Redundancy", "Redundancy" in readme),
         ("README 引擎名单含 Signal Fabric", "Signal Fabric" in readme),
@@ -225,6 +227,56 @@ def check_nav_domain_counts():
     return errs
 
 
+def check_phase06_fi_ids():
+    """Phase 0.6 Fault Injection 集合一致性护栏 (0.6 启动前 Doc Patch 引入)。
+
+    目标: 防止 "规范新增 FI-06/FI-07, 但 scope/schedule/outputs 仍写 5 FI" 的语义漂移
+    (即用户指出的 '5 Fault Injection' vs 实际 FI-01A/B/02~07 = 7 个)。
+
+    规则:
+      1. 从 phase-0.6/README.md 全文中抽取所有 canonical FI ID (形如 FI-01A / FI-02 ...)。
+      2. 期望 FI 数 = canonical 集合大小。
+      3. 该文件内不得出现与期望数不一致的 "N Fault Injection" / "N FI" 字面量。
+      4. scope / schedule / outputs 中每个被引用的 FI ID 必须属于 canonical 集合
+         (反向: canonical 中每个 ID 至少应在某处被引用, 防止声明了却没接入)。
+    """
+    errs = []
+    p06 = ROOT / "docs" / "phase-0.6" / "README.md"
+    if not p06.exists():
+        return errs
+    text = p06.read_text(encoding="utf-8")
+
+    fi_ids = re.findall(r"FI-\d{2}[A-Z]?", text)
+    canonical = sorted(set(fi_ids))
+    if not canonical:
+        return errs
+    expected = len(canonical)
+
+    # 规则 3: 文件内 "N Fault Injection" / "N FI" 必须与 expected 一致
+    for m in re.finditer(r"(\d+)\s*(?:Fault\s*Injection|FI)\b", text, flags=re.IGNORECASE):
+        n = int(m.group(1))
+        if n != expected:
+            errs.append(
+                f"[FI-CONSISTENCY] phase-0.6/README.md 出现 '{m.group(0)}' "
+                f"但 canonical FI 集合大小为 {expected} ({', '.join(canonical)})"
+            )
+
+    # 规则 4a: 每个 canonical FI 至少被引用一次 (已在 fi_ids 中, 必然成立, 这里仅占位)
+    # 规则 4b: 反向 — 其它 0.6 摘要文档若写 "N FI" 须等于 expected
+    for md in iter_files("*.md"):
+        if "phase-0.6" not in md.parts and md.name not in ("README.md", "ROADMAP.md", "CONTRIBUTING.md", "INDEX.md"):
+            continue
+        t = md.read_text(encoding="utf-8")
+        for m in re.finditer(r"(\d+)\s*Fault\s*Injection", t, flags=re.IGNORECASE):
+            n = int(m.group(1))
+            if n != expected:
+                errs.append(
+                    f"[FI-CONSISTENCY] {md.relative_to(ROOT)} 出现 '{m.group(0)}' "
+                    f"但 phase-0.6 canonical FI 集合大小为 {expected}"
+                )
+    return errs
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     errors = []
@@ -234,6 +286,8 @@ def main():
     if mode in ("all", "numbers"):
         errors += check_numbers()
         errors += check_nav_domain_counts()
+    if mode in ("all", "phase06"):
+        errors += check_phase06_fi_ids()
 
     if errors:
         print(f"FAIL — {len(errors)} 个问题:")

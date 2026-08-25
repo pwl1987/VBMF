@@ -69,7 +69,7 @@ V1.0       完整 IP 播控                   📋
   - 验证：Capability Contract、GOP/IDR、PTS/DTS、timebase、SPS/PPS、audio continuity
 - **Reference A2**（SDI 主备走 FRAME/MASTER）：SDI-A/B → Normalize → Encode → FRAME/MASTER → SRS → HLS
 - **Reference B**（异构源 + 图文 + 多 Master）：SDI + SRT + Composition + Audio Mixer → MASTER_SWITCH → Program Master → SRS
-- **5 Fault Injection**：
+- **8 Fault Injection / Failure-Domain Tests (FI-01A/B/02~07)**：
   - FI-01：SDI 冻结 5s → SOURCE → FAILOVER
   - FI-02：音频静音 8s → PIPELINE → RESTART
   - FI-03：Primary FFmpeg 进程崩溃 → PIPELINE → RESTART
@@ -127,7 +127,7 @@ X1-X6 横切能力的实施：
 
 - [ ] 15 wireframe（10 operator + 5 product）+ 0.5D 新表面对应页面端到端验证
 - [ ] Reference A1/A2/B 真实可跑
-- [ ] 5 Fault Injection 全部覆盖
+- [ ] 8 Fault Injection / Failure-Domain Tests (FI-01A/B/02~07) 全部覆盖
 
 ## Phase 4 — Web 控制台 📋
 
@@ -171,7 +171,7 @@ X1-X6 横切能力的实施：
 |---|---|
 | Phase 0.6 真实部署发现 V0.2 漏 | 开 V0.3 流程，不私自改 V0.2 |
 | 7 Health Invariants 实测未通过 | 调 SQL 实现或算法，不动 Schema |
-| 5 Fault Injection 恢复动作不符合 §8.9 | 修复实现，§8.9 是 SoT |
+| 8 Fault Injection / Failure-Domain Tests 恢复动作不符合 §8.9 | 修复实现，§8.9 是 SoT |
 | Playwright 浏览器 E2E 不稳定 | 用直接 JSON-RPC 测试，浏览器只测渲染 |
 
 ## 与开源社区的协作
@@ -179,7 +179,7 @@ X1-X6 横切能力的实施：
 | 阶段 | 社区协作 |
 |---|---|
 | Phase 0.5 | 公开 55 wireframes + 1 Spec = 56 surfaces（SoT: SURFACE_REGISTRY.yaml）+ Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
-| Phase 0.6 | 公开 Reference A1/A2/B + 5 Fault Injection 配置，欢迎调参与建议 |
+| Phase 0.6 | 公开 Reference A1/A2/B + 8 Fault Injection (FI-01A/B/02~07) 配置，欢迎调参与建议 |
 | Phase 1+ | 接受 Rust / TypeScript 贡献 |
 
 ---
