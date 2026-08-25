@@ -16,7 +16,8 @@
 |---|---|---|---|
 | **Runtime Architecture SoT** | `docs/architecture/ARCHITECTURE_V0.2.md` | 进程模型、角色、Runtime Semantics、Schema、Decision Tree | 已被 LOCK FINAL；不再开 V0.2.5 |
 | **本文件 (Reconciliation SoT)** | `docs/architecture/TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md` | 技术栈清单 + 跨平面所有权矩阵 + Forbidden 依赖 | 不重写 V0.2 算法/语义 |
-| **Project Implementation Plan** | `docs/SYSTEM_AND_PROJECT_PLAN.md` | 服务器基线、基础设施、实施路线（须与 V0.2 对齐） | 不得凌驾于 V0.2 Runtime Semantics |
+| **Project Implementation Plan** | `docs/SYSTEM_AND_PROJECT_PLAN.md` | 服务器基类、基础设施、实施路线（须与三层 SoT 对齐） | 不得凌驾于 V0.2 Runtime Semantics |
+| **Deployment / Dev Runtime SoT** | `docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md` | 部署平面 / BMD 设备透传 / SSH / Hot Reload / Self-Healing / ENV Preflight | 不得违反 F2/F4/F11（Media Agent 硬件媒体生命周期归属） |
 | **UX / Workflow SoT** | Phase 0.5 | Operator Workflow / Surface / Object Model | 不重新选择技术栈 |
 | **Acceptance SoT** | `docs/phase-0.6/` | 可执行验收（只能验证上层定义） | 不得重新选择 Rust/Node/SRS/GStreamer |
 

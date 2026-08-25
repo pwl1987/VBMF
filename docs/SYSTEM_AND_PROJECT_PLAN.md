@@ -268,7 +268,7 @@ srt tls dtls http https
 | ORM | **Drizzle** | TS 类型安全 + SQL 优先 |
 | 缓存 | **Valkey** | Redis 兼容, runtime cache / session / locks / rate limit |
 | 队列 | **BullMQ** | Valkey 驱动的任务队列 (转码/缩略图/打包/分析) |
-| 对象存储 | **RustFS** | S3 兼容, 原片/Proxy/Thumbnail/HLS assets (生产可 MinIO) |
+| 对象存储 | **RustFS** | S3 兼容, 原片/Proxy/Thumbnail/HLS assets; **V0.2 canonical object storage, 不再保留 MinIO 分叉** (见 Deployment Contract) |
 | 流媒体网关 / Streaming Gateway | **SRS** ⚠️ 已锁定 | 主流媒体服务器: RTMP/SRT/HLS/WebRTC(WHEP) 汇聚·分发·协议转换; FFmpeg/GStreamer → SRS → {RTMP, HLS, WHEP}; **不纳入 MediaMTX** (避免双 Gateway 增加运维/故障域/测试矩阵) |
 | 鉴权 | **Better Auth** | 用户/会话 |
 | 授权 | **CASL** | RBAC: User→Role→Permission→Capability→Action (TAKE/Override/Failover/Restart…) |
@@ -551,23 +551,26 @@ lsmod | grep -E "blackmagic|vfio"
 
 ### 3.4 BMD + Docker 模式
 
-**方式 A：设备透传**
+> ⚠️ **V0.2 唯一模式 = 设备透传（方式 A）**。理由：Runtime Ownership Contract（`docs/architecture/TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md` §4 F2/F4/F11）已锁死 **Rust Media Agent 是 DeckLink / GStreamer / Live FFmpeg 的唯一 Runtime Owner**。任何把 DeckLink 留在 Host、由 Host ffmpeg 收 SDI 再转发进容器的方案，都会让 Media Agent 失去硬件媒体生命周期所有权，直接违反 F2/F4/F11，**不得采用**。
+
+**方式 A：设备透传（V0.2 canonical — 开发/生产统一）**
 ```bash
-# Host 上加载模块
+# Host 上加载模块（宿主机专属：Linux kernel + BMD driver + DeckLink hardware）
 sudo modprobe blackmagic blackmagic-io vfio-pci
 
-# 跑容器
+# Media-Agent 容器直接持 DeckLink（设备透传，Agent 拥有生命周期）
 docker run -it --rm \
   --device /dev/blackmagic \
   --device /dev/dv0 --device /dev/dv1 --device /dev/io0 \
   -v /usr/lib/libDeckLinkAPI.so:/usr/lib/libDeckLinkAPI.so:ro \
   --network host \
   your-bmd-image \
-  ffmpeg -f decklink -list_devices 1 -i dummy
+  # 容器内: Rust Media Agent 启动 GStreamer ingest + Live FFmpeg + DeckLink session
 ```
 
-**方式 B：网络转发（推荐生产）**
+**方式 B：网络转发（降级为 Historical Compatibility / Diagnostic Workaround — 不再推荐生产）**
 ```bash
+# 仅用于: 诊断/临时旁路/无透传权限的受限环境; 不得作为 V0.2 实施基线
 # Host: ffmpeg 收 SDI → RTMP
 ffmpeg -f decklink -i "DeckLink SDI (1)" \
   -c:v libx264 -preset ultrafast -f flv \
@@ -576,12 +579,14 @@ ffmpeg -f decklink -i "DeckLink SDI (1)" \
 # 容器里只消费网络流
 ffmpeg -i rtmp://host.docker.internal:1935/live/sdi -c copy out.flv
 ```
+> ⚠️ 此模式使 Host ffmpeg 持有 DeckLink，Media Agent 退化为网络流消费者，**与 F4/F11 冲突**；仅当设备透传不可行时作临时诊断手段。
 
 **关键约束：**
 - 内核模块必须 host 加载（容器共享 kernel）
 - `IOMMU` (VT-d/AMD-Vi) 必开
 - `/dev/dv*` 是字符设备，**不能多容器共享**
 - librtmp 用 ffmpeg 内置 stack（不必装 librtmp）
+- **全开发环境 Docker 化**：PostgreSQL / Valkey / RustFS / SRS / Fastify / Worker / Web / Media Agent 均跑容器，仅 Linux kernel + BMD driver + DeckLink 属宿主机；开发经 **SSH** 操作 BMD 服务器（SSH = Dev/Ops Transport，不进入 Runtime Control Plane）；热更新 / 自愈 / ENV Preflight 见 `docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md`。
 
 ### 3.5 监控与排错
 
