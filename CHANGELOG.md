@@ -41,6 +41,15 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-Profile**：新增 Encoding/Packaging Profile 责任边界写死（Encoding 仅 codec/resolution/bitrate/GOP/rate-control；Packaging 负责 container/segment/manifest/DRM；P-21 Encoding Profile 禁止承担 Packaging 职责）。
 - 校验：`scripts/check_docs.py` **PASS**。结论：Phase 0.5 维持 LOCK FINAL；Phase 0.6 进入 Executable Acceptance 前的关键语义/一致性缺口已闭环。
 
+### Phase 0.6 Consistency Gate（2026-08-25，基于 909d88e）
+- **P0-WHEP-Scope**：Phase 0.6 `不在本阶段范围` 与 Reference B 已验收 WHEP 矛盾。改为：RIST / Zixi / NDI 完整功能开发不在 0.6；**WHEP 作为 Output Variant / Browser Playback 的 Acceptance 验证 = IN SCOPE**（实现深度：SRS Adapter 路径校验）。「WebRTC 全功能开发」≠「WHEP 输出路径 Acceptance」。
+- **P1-EngCount**：NAVIGATION ENGINEERING 域 `26 表面` → `29 表面 · 数量由 SURFACE_REGISTRY.yaml 派生`（与 Registry SoT / NAVIGATION 域汇总表一致）；并新增 `check_docs.py` 规则 `check_nav_domain_counts`：NAVIGATION ENGINEERING 计数必须与 Registry 一致，禁止手写漂移。
+- **P1-CD01-ID**：NAVIGATION 表面表 `CD-01` → `CD-01-WS` / `CD-01-Detail`（与 Registry 已拆分的双 surface 对齐），UI 显示名保持 Channel Control Workspace / Channel Detail，ID 不再压缩。
+- **P1-POM-Status**：`PRODUCT_OBJECT_MODEL.md` 状态 `SEMANTIC LOCKED 0.1` → 文档级 `LOCK FINAL` + `Semantic Schema Version: 0.1 (PIA Schema)`，标题同步 `(V0.1 · LOCK FINAL)`，避免 "0.1 还可能重设计" 的误读。
+- **P1-UI-E2E-01**：Phase 0.6 新增 `UI-E2E-01`（Profile Revision → Selective Apply → Runtime Verification），要求经**真实 UI 点击**走通 P-21 → P-28 → CD-01 → E-50 → D7 → Apply → M-17 → 06 Output，上下文全程保留，与 §E2E 系统级验证互为佐证。
+- **P1-ObjectMatrix**：新增 `docs/phase-0.5/OBJECT_NAVIGATION_MATRIX.md`——核心对象跳转矩阵（查看→修改→运行态→影响→返回闭环）+ 硬规则（跳转携带对象上下文、禁止泛化首页、surface ID 与 Registry 一致），NAVIGATION 已加引用。属 Phase 4 实现约束文档（本门禁唯一新增文档，非 UI 页面）。
+- 校验：`scripts/check_docs.py` **PASS**（含新增 NAVIGATION/Registry 计数一致性规则）。结论：Phase 0.5 维持 LOCK FINAL；本门禁为进入 Phase 0.6 Executable Acceptance 前的最后一组一致性收口，未做新增 UI 页面（仅 OBJECT_NAVIGATION_MATRIX.md 为授权例外）。
+
 ### Phase 0.6 Final Preflight Cleanup（2026-08-25，基于 b5c47fa）
 - **P0-Contract**：`PRODUCT_OBJECT_MODEL.md` 删除 `SIGUSR1 = V0.2 协议` 的错误产品契约表述，改为正式 Runtime Apply Contract `Session Apply Runtime Revision`（JSON-RPC `session.apply_revision`, V0.2 §3.x Runtime Contract）；SIGUSR1 仅标为 Implementation Detail，禁止写入产品/运行时契约（防止进程信号偷偷变成架构事实）。
 - **P1-Status**：统一 0.5C 状态文本 DRAFT/RECONCILED → LOCK FINAL——Root README Evolution 表 `🟡 DRAFT 0.1` → `🟢 LOCK FINAL`；MILESTONES `🟢 RECONCILED` → `🟢 LOCK FINAL`；NAVIGATION `🟡 RECONCILED` → `🟢 LOCK FINAL`（保留 `Historical: RECONCILED`），章节标题 `Phase 0.5C RECONCILED 验证清单` → `LOCK FINAL 验证清单`。

@@ -266,6 +266,34 @@ Output still HEALTHY (Variant 全同步: HLS / RTMP / WHEP)
 - [ ] Apply 期间 Output 持续 HEALTHY（零黑场 / 零中断）
 - [ ] 回滚路径：Rollback → 上一 Runtime Revision
 
+### UI-E2E-01: Profile Revision → Selective Apply → Runtime Verification (真实 UI 点击路径)
+
+E2E Acceptance 必须经由 **真实 UI 点击** 走通（不是测试人员直接调 API），证明 56 个 surface 之间的跳转闭环成立：
+
+```
+P-21 Encoding Profile (FILE_PROFILE / REALTIME_PROFILE)
+  ↓ "Used By" / Impact
+P-28 Profile Bundle
+  ↓ 引用新 Profile
+CD-01 Channel Control Workspace (CD-01-WS / CD-01-Detail)
+  ↓ 受影响 Channel
+E-50 Impact Preview (跨域能力)
+  ↓ 选择性 Channel
+D7 ChangeSet Review (独立审批 surface)
+  ↓ Apply (Operator 真实点击)
+M-17 Realtime Session (Runtime)
+  ↓ session.apply_revision
+06 Output (Output Runtime Link → 对应 Variant / Destination / Adapter)
+```
+
+**验收项**：
+
+- [ ] 上述每一跳都是 UI 内真实点击，入口可达、上下文 (profile_rev / bundle_rev / channel_id / variant_id / runtime_revision) 全程保留
+- [ ] "Used By / Impact" 从 P-21 真实跳到 E-50，而非手动查表
+- [ ] D7 ChangeSet Review 为独立审批 surface，Apply 动作有 Operator 明确确认
+- [ ] M-17 → 06 Output 经 `[Open Output]` 携带对象上下文（非泛化 Output 首页）
+- [ ] Apply 后 Runtime Revision +1，Output 全程 HEALTHY（与 §E2E 系统级验证互为佐证）
+
 ## 部署环境
 
 - 服务器：10.30.15.10（Ubuntu 26.04，32 核 / 30 GB / 546 GB / 3 张 BMD DeckLink）
@@ -296,4 +324,5 @@ Output still HEALTHY (Variant 全同步: HLS / RTMP / WHEP)
 - V0.2 架构修改（FORBIDDEN）
 - 实际生产部署
 - 多节点 HA（V0.4）
-- WebRTC / RIST / Zixi / NDI（V0.3/V0.5）
+- RIST / Zixi / NDI（V0.3）— 完整功能开发不在 0.6
+- **WebRTC 全功能开发（V0.3/V0.5）不在范围**；但 **WHEP 作为 Output Variant / Browser Playback 的 Acceptance 验证 = IN SCOPE**（实现深度：SRS Adapter 路径校验，见 Reference B / UDP·SSM fixture / 06-output）。「WebRTC 全功能开发」≠「WHEP 输出路径 Acceptance」。

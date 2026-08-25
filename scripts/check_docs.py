@@ -66,11 +66,28 @@ def check_html_links():
         return errs
 
 
+def load_sot():
+    """从 SURFACE_REGISTRY.yaml 解析 Surface Count SoT（唯一事实源）"""
+    reg = (ROOT / "docs" / "phase-0.5" / "SURFACE_REGISTRY.yaml")
+    total = wf = None
+    if reg.exists():
+        t = reg.read_text(encoding="utf-8")
+        m = re.search(r"TOTAL\s*(\d+)", t)
+        if m:
+            total = m.group(1)
+        m2 = re.search(r"TOTAL\s*\d+\s*\(\s*(\d+)\s+wireframe", t)
+        if m2:
+            wf = m2.group(1)
+    return total, wf
+
+
 def check_numbers():
     errs = []
+    total, wf = load_sot()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     expectations = [
-        ("表面口径 39（38 + CD-01）", "39 UI 表面（38 + CD-01）" in readme),
+        (f"README 含 SoT 总数 {total}", bool(total and total in readme)),
+        (f"README 含 SoT wireframe 数 {wf}", bool(wf and f"{wf} wireframe" in readme)),
         ("收口计数 36（31 P0 + 5 P1）", "36 项语义收口（31 P0 + 5 P1）" in readme),
         ("README 引擎名单含 Redundancy", "Redundancy" in readme),
         ("README 引擎名单含 Signal Fabric", "Signal Fabric" in readme),
@@ -88,12 +105,34 @@ def check_numbers():
     spec = ROOT / "docs" / "phase-0.5" / "SURFACE_SPEC.md"
     if spec.exists():
         text = spec.read_text(encoding="utf-8")
-        if "**39**" not in text:
-            errs.append("[NUMBER] SURFACE_SPEC §1 已锁定总计 39 口径缺失")
+        if total and f"**{total}**" not in text:
+            errs.append(f"[NUMBER] SURFACE_SPEC §1 当前锁定总计 {total} 口径缺失（SoT: SURFACE_REGISTRY.yaml）")
         if "# 30. 附录：Phase 0.5B 语义收口项总清单" not in text:
             errs.append("[NUMBER] SURFACE_SPEC §30 收口项附录缺失")
     else:
         errs.append("[NUMBER] docs/phase-0.5/SURFACE_SPEC.md 不存在（目录又动了？同步本脚本）")
+    return errs
+
+
+def check_nav_domain_counts():
+    """NAVIGATION 的 ENGINEERING 域表面数必须与 SURFACE_REGISTRY.yaml SoT 一致
+    （数字由 Registry 派生, 不得手写, 防止 26/29 这类漂移）。"""
+    errs = []
+    reg = (ROOT / "docs" / "phase-0.5" / "SURFACE_REGISTRY.yaml")
+    if not reg.exists():
+        return errs
+    t = reg.read_text(encoding="utf-8")
+    m = re.search(r"ENGINEERING\s+(\d+)\s*\(", t)
+    if not m:
+        return errs
+    eng_sot = m.group(1)
+    nav = (ROOT / "docs" / "phase-0.5" / "NAVIGATION.md").read_text(encoding="utf-8")
+    m2 = re.search(r"ENGINEERING 域\s*\((\d+) 表面", nav)
+    if m2 and m2.group(1) != eng_sot:
+        errs.append(
+            f"[NUMBER] NAVIGATION ENGINEERING 域表面数 {m2.group(1)} "
+            f"与 SURFACE_REGISTRY SoT {eng_sot} 不一致（数字必须由 Registry 派生, 不得手写）"
+        )
     return errs
 
 
@@ -105,6 +144,7 @@ def main():
         errors += check_html_links()
     if mode in ("all", "numbers"):
         errors += check_numbers()
+        errors += check_nav_domain_counts()
 
     if errors:
         print(f"FAIL — {len(errors)} 个问题:")

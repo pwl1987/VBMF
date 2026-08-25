@@ -1,11 +1,11 @@
-# VBMF Product Object Model (V0.1 锁定)
+# VBMF Product Object Model (V0.1 · LOCK FINAL)
 
 > **目的:** Phase 0.5C Information Architecture Closure 的核心交付。
 > 锁定 **产品对象之间的"组合关系"**, 不再让 UI 表面各管各的孤立存在。
 >
 > **本阶段:** 0.5C Information Architecture Closure
 >
-> **状态:** 🟢 **SEMANTIC LOCKED 0.1** (0.5D.5) — 与 OBJECT_VOCABULARY / EXECUTION_MODEL 同状态语言同步
+> **状态:** 🟢 **LOCK FINAL** (文档级, 0.5C Info Arch Closure) · **Semantic Schema Version:** 0.1 (PIA Schema; 与 OBJECT_VOCABULARY / EXECUTION_MODEL 同状态语言同步)
 >
 > **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 锁定的 15 个对象
 >

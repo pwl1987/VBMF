@@ -80,8 +80,8 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
 | **CH-02** | Create Channel Wizard 频道创建向导 | 🟢 LOCK (0.5F.3 升 · SURFACE_REGISTRY) | Operator / Director |
 | **CH-02B** | Channel Template Center 频道模板工厂 | 🟢 LOCK (0.5F.1 升 · SURFACE_REGISTRY) | Operator / Director |
-| **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · D3 升级已并入正页 `operator/CD-01-channel-workspace.html` |
-| **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
+| **CD-01-WS** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · D3 升级已并入正页 `operator/CD-01-channel-workspace.html` |
+| **CD-01-Detail** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
 | **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟢 LOCK (0.5F.1 升 · Interaction Surface, SURFACE_REGISTRY) | Operator · D6 wireframe 已并入正页 `operator/B-13-take-preflight.html` |
 | ~~**M-17**~~ | Realtime Session 实时媒体会话 (Encoding Session · Runtime) | 🟢 LOCK (0.5D) | Operator / Engineer · D4 升级已并入正页 `operator/M-17-realtime-transcode.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
 
@@ -100,7 +100,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **M-17** | Realtime Session 实时媒体会话 (Encoding Session · Runtime) | 🟢 LOCK (0.5D) | Operator / Engineer · **0.5D.1 起规范计数域** (原与 BROADCAST 双列) |
 | **M-18** | Transcode Job Detail 转码任务详情 (M-15 子页升级为独立页) | 🟢 LOCK (0.5D) | Editor / Engineer |
 
-### 2.3 ENGINEERING 域 (26 表面 · 0.5D.1, 含 E-41 SPEC)
+### 2.3 ENGINEERING 域 (29 表面 · 数量由 SURFACE_REGISTRY.yaml 派生 · 0.5D.1, 含 E-41 SPEC)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
@@ -184,6 +184,8 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | 临时 Override | BROADCAST / CD-01 | ENGINEERING / P-28 Bundle | Audit Log (ADMIN / A-54) |
 
 **核心规则:** 任何跨域跳转必须保留 **Context** (Channel ID / Asset ID / Job ID / ChangeSet ID), 跳过去后该对象页面顶部显示"来自 / Go Back"。
+
+> **对象跳转矩阵（查看 → 修改 → 运行态 → 影响 → 返回 闭环）见 [`OBJECT_NAVIGATION_MATRIX.md`](OBJECT_NAVIGATION_MATRIX.md)** — Phase 4 实现约束：每个核心对象都必须存在该闭环，跳转必须携带对象上下文，禁止打开泛化首页。
 
 ---
 
