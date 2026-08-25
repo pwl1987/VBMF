@@ -199,6 +199,19 @@ Level 2 (Remote BMD): SSH → pinned SHA → Docker Compose → ENV Preflight �
 - **Acceptance Manifest**（每次实机记录）：`commit / host / os / kernel / bmd_driver / decklink_sdk / ffmpeg / gstreamer / srs / docker / compose / test_run_id`，使 FI-08 PASS 可追溯到具体硬件/版本。
 - 不建议让 GitHub CI 经 SSH 直接跑全部硬件验收（避免真实硬件成 CI 脆弱外部依赖）。
 
+### BMD 出向与镜像源约束（NET-01，实测 2026-08-25）
+> BMD 验收机（10.30.15.10）**出向 HTTPS 受限**：`registry-1.docker.io` 直连 TLS 被 reset，`163`/`dockerpull.org` 等公共 mirror DNS/TCP 不可达。
+> **唯一可用镜像源**：`docker.1ms.run`（毫秒镜像，CDN 智能分发）。已配入 BMD `/etc/docker/daemon.json` 的 `registry-mirrors`。
+
+- **规则**：BMD 上拉取任何公共镜像必须经 `docker.1ms.run`。直连 `docker pull <img>`（不经 mirror）会失败，属环境约束而非配置错误。
+- 配置片段（`/etc/docker/daemon.json`）：
+  ```json
+  { "registry-mirrors": ["https://docker.1ms.run"],
+    "runtimes": { "runsc": { "path": "/usr/local/bin/runsc" } } }
+  ```
+- 若后续换镜像站，须同步更新此处 + BMD 实机 daemon.json，并在 `Acceptance Manifest` 记录。
+- **影响验收脚本**：所有 `docker run/pull` 不应硬编码完整 mirror 路径；依赖 daemon 级 mirror 即可。
+
 ---
 
 ## 10. CI 三项硬门禁（Gate A 工程化，纯 CI 不需硬件）
@@ -293,16 +306,20 @@ Node (Control / Async Plane)          Rust (Media Runtime Plane)
 
 ## 15. Media Agent Runtime Isolation Risk（MEDIA-SEC-01）
 
-> **硬环境风险项**：`gVisor (runsc) + /dev/blackmagic + SYS_ADMIN` 的真实硬件兼容性**尚未验证**，
-> 直接决定 Media Agent 能否真正访问 DeckLink。须 BMD 真机测试决定。
+> **硬环境风险项**：`gVisor (runsc) + /dev/blackmagic + SYS_ADMIN` 的真实硬件兼容性**须 BMD 真机测试决定**。
 
-**Option A**（默认）：gVisor `runsc`，验证通过则保留。
+**实机进度（2026-08-25，证据 `evidence/bmd-10.30.15.10/2026-08-25-media-sec-01-runsc.md`）**：
+- ✅ runsc 已安装并注册进 Docker（`Runtimes` 含 `runsc`，Default=`runc`）。
+- ✅ **Step 2 PASS**：runsc 容器内 `--device=/dev/blackmagic` 透传 `dv0/dv1/io0` 完整可见（主从次 10,263/264/265），与 runc baseline 一致；不挂 `--device` 时 runsc 不可见设备（无泄漏）。
+- ⏳ **Step 3 待定**：GStreamer DeckLink `open`/capture 最小 probe，需含 gstreamer + Blackmagic SDK 的媒体镜像（较重，自建）。
+
+**Option A**（当前倾向，Step 2 已支持）：gVisor `runsc`，Step 3 通过后正式敲定 `compose.acceptance.yml` 的 `runtime: runsc`。
 **Option B**（备选，倾向广播稳定性优先）：Media Agent 改用 `runc` + 其他隔离：
 - `seccomp` profile（专用 `ops/nginx/seccomp-media.json` 占位）
 - `AppArmor` / `cgroup` / `capabilities` 收敛 / `read_only` rootfs + 特定 `tmpfs`
 - 可靠访问 DeckLink 优先于通用 gVisor 隔离。
 
-**决策权**：最终由 G-RUNTIME Remote Acceptance（§9）真机结果裁定，不在文档阶段定死。
+**决策权**：最终由 G-RUNTIME Remote Acceptance（§9）Step 3 真机结果裁定，不在文档阶段定死。
 
 ---
 

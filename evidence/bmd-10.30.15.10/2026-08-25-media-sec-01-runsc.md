@@ -32,28 +32,46 @@ Default Runtime = runc
 
 ✅ **runsc 已成功注册进 Docker daemon。** Default 仍为 `runc`，符合 DEPLOY-04（DEV=runc 默认不阻塞开发）。
 
-## Step 2：runsc + /dev/blackmagic 设备透传（⚠️ 受阻：镜像源不可用）
+## Step 2：runsc + /dev/blackmagic 设备透传（✅ PASS）
 
-**步骤**：原计划用最小容器（`alpine` 或 `nginx:1.27-alpine`）以 `--runtime=runsc --device=/dev/blackmagic:/dev/blackmagic` 启动，验证容器内可见 `dv0/dv1/io0`。
+**镜像源突破**：用户指定国内镜像站 `docker.1ms.run`（毫秒镜像，CDN 智能分发）。已将其配入 BMD `/etc/docker/daemon.json` 的 `registry-mirrors`，重启 docker 后 `nginx:1.27-alpine` 与 `alpine:3.20` 均成功拉取。原"出向 HTTPS 受限"阻塞解除（仅 docker hub 直连不通，镜像站可达）。
 
-**受阻原因（新阻塞项）**：
-- BMD 服务器**出向 HTTPS 全面受限**（docker.com / google storage TLS 被 reset，docker hub mirror 如 163/dockerpull.org DNS 或 TCP 不可达）。
-- 阿里云 `registry.cn-hangzhou.aliyuncs.com` 仅作为 `registry-mirrors` 配置，但 `nginx` / `library/nginx` 拉取均 `pull access denied`（该 mirror 未开放 library 命名空间或需登录）。
-- 结果：`docker pull` 任何公共镜像均失败。**本地开发机也未安装 docker**，无法用 `docker save` 中转。
+**步骤**：使用 `alpine:3.20`，三组对照：
+1. `--runtime=runsc --device=/dev/blackmagic:/dev/blackmagic`
+2. `--runtime=runc --device=/dev/blackmagic:/dev/blackmagic`（baseline）
+3. `--runtime=runsc`（不带 --device，验证无泄漏）
 
-**结论**：Step 2/3 的 smoke 因**镜像不可得**而暂停，非 runsc 自身问题。runsc 注册已验证，待镜像源就绪后补做。
+**结果**：
+```text
+--- inside runsc container (+device) ---
+crw-rw-rw- 1 root root 10, 263 Aug 25 15:59 dv0
+crw-rw-rw- 1 root root 10, 264 Aug 25 15:59 dv1
+crw-rw-rw- 1 root root 10, 265 Aug 25 15:59 io0   (exit=0)
 
-## 待解决（阻塞项）
+--- inside runc container (+device) ---   (主从次设备号与 runsc 完全一致)
+crw-rw-rw- 1 root root 10, 263 dv0
+crw-rw-rw- 1 root root 10, 264 dv1
+crw-rw-rw- 1 root root 10, 265 io0
 
-- [ ] **镜像源**：BMD 需可用镜像获取渠道。候选：
-  - 离线镜像 tar（如你提供 `alpine`/`busybox` 的 `docker save` 包，scp 后 `docker load`）；
-  - 或内网/私有 registry 地址（配置 `registry-mirrors` 或 `insecure-registries`）；
-  - 或放开 BMD 出向对某一镜像 CDN 的 HTTPS。
-- [ ] 镜像就绪后补做：runsc 容器内 `ls /dev/blackmagic` 确认 `dv0/dv1/io0` 可见（对比 runc baseline）。
-- [ ] 再补 GStreamer DeckLink open/capture 最小 probe（需含 gstreamer + decklink 插件的镜像，更重，建议离线准备）。
+--- runsc no-device ---
+ls: /dev/blackmagic: No such file or directory   (exit=1)
+```
+
+✅ **结论**：
+- runsc 下 DeckLink 设备 `dv0/dv1/io0` 完整透传，主/从/次设备号（10,263/264/265）与宿主机一致。
+- 不挂 `--device` 时 runsc 容器**不可见** blackmagic → gVisor 无默认暴露宿主设备，符合最小权限。
+- runsc 与 runc 设备透传行为一致 → **MEDIA-SEC-01 Option A（runsc）在设备可达性层面成立**。
+
+## 待解决（剩余项）
+
+- [x] **镜像源**：已用 `docker.1ms.run`（毫秒镜像）作为 BMD `registry-mirrors` 永久配置，拉取正常。**记入 BMD 环境约束**（Deployment SoT §9 / ops/README）。
+- [x] Step 2：runsc 容器内 `ls /dev/blackmagic` 确认 `dv0/dv1/io0` 可见（对比 runc baseline）—— **PASS**。
+- [ ] **Step 3（GStreamer DeckLink open probe）**：需含 gstreamer + decklink 插件的镜像。DeckLink 插件依赖 Blackmagic `Desktop Video` SDK（闭源），通常需自建镜像（在 `blackmagic:decklink` 基础镜像上叠 gstreamer + 项目媒体 agent）。建议：
+  - 先基于 `docker.1ms.run` 拉 `ubuntu:22.04` + apt 装 gstreamer + Blackmagic SDK 构建媒体镜像，再 `gst-launch-1.0 decklinkvideosrc device-number=0 ! fakesink` 做 open 验证；
+  - 该步较重，是否现在做取决于验收节奏（见下）。
 
 ## 决策影响
 
-- 在 Step 2 PASS 前，**MEDIA-SEC-01 仍判定为"未验证"**。
-- 当前 compose `compose.acceptance.yml` 的 `media-agent.runtime: runsc` 与 `compose.prod.yml` 的 `runtime: runc` + `seccomp:unconfined` 均为**待 smoke 结果最终锁定**的占位（DEPLOY-04）。
-- 不因为 runsc 已注册就宣布 Option A 成立；也不因镜像受阻就跳到 Option B。需先拿到镜像完成透传验证。
+- Step 2 PASS → **MEDIA-SEC-01 Option A（runsc）在设备可达性层面成立**，可继续沿 runsc 路线。但**最终 Gate 2 锁定**仍需 Step 3（真实 decklink 驱动 open/capture）与 GStreamer 运行时验证。
+- 当前 compose 分层（dev=runc / acceptance=runsc / prod=runc+seccomp）维持为待 Step 3 结果的占位（DEPLOY-04）。Step 3 PASS 后 acceptance 的 `runsc` 可正式敲定；prod 是否切 runsc 视捕获稳定性再定。
+- **BMD 出向约束正式明确**：docker hub 直连不通，仅经 `docker.1ms.run` 镜像可拉公共镜像。该约束需写进 Deployment SoT §9 与 ops/README，避免后续有人直连 pull 报"环境坏"。
