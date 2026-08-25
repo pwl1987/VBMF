@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>E-37 · Clock 时钟 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .chain{display:flex;align-items:stretch;gap:6px;margin:8px 0;padding:12px;background:var(--bg3);border-radius:3px}
+  .chain .node{flex:1;padding:12px;background:var(--bg2);border:2px solid var(--border);border-radius:3px;text-align:center;position:relative}
+  .chain .node.active{border-color:var(--green);background:rgba(63,185,80,.05)}
+  .chain .node.standby{border-color:var(--gray);background:var(--bg2);opacity:.7}
+  .chain .node.failed{border-color:var(--red);background:rgba(248,81,73,.05)}
+  .chain .node .ico{font-size:20px;margin-bottom:4px}
+  .chain .node .name{font-size:11px;font-weight:600;color:var(--fg)}
+  .chain .node .meta{font-size:10px;color:var(--fgdim);margin-top:2px;font-family:Menlo,Consolas,monospace}
+  .chain .arrow{display:flex;align-items:center;color:var(--fgdim);font-size:18px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:22px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.blue{color:var(--accent)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>E-37 Clock 时钟 (升级从 0.5B.0 Spec stub 到 0.5D 完整 wireframe)</b></div>
+  <h1><span class="cn">E-37 · 时钟</span> <span class="en">CLOCK REFERENCE & FALLBACK CHAIN (PTP / TIMECODE / SYSTEM / MONOTONIC)</span></h1>
+</div>
+
+<!-- 顶部: 当前 Reference + Lock 状态 -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--accent)">
+  <h3><span class="cn">当前时钟参考</span> / CURRENT CLOCK REFERENCE
+    <span class="pill pill-green" style="float:right">PTP LOCKED · BROADCAST_GRADE</span>
+  </h3>
+  <div class="row">
+    <div class="col-3 metric">
+      <div class="label">Reference Class</div>
+      <div class="val green">BROADCAST_GRADE</div>
+      <div class="sub">PTP grandmaster · GPS-disciplined</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Offset from Master</div>
+      <div class="val green">+0.012 ms</div>
+      <div class="sub">target &lt; 1 ms · Excellent</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Drift Rate</div>
+      <div class="val green">+0.4 ms/min</div>
+      <div class="sub">target &lt; 5 ms/min</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Lock Duration</div>
+      <div class="val green">17h 23m</div>
+      <div class="sub">since last reset</div>
+    </div>
+  </div>
+</div>
+
+<!-- Fallback Chain (V0.2 §3.5 锁) -->
+<div class="panel">
+  <h3><span class="cn">回退链</span> / FALLBACK CHAIN (4 levels, V0.2 §3.5 锁定)
+    <span class="pill pill-blue" style="float:right">PTP → TIMECODE → MEDIA → SYSTEM (MONOTONIC)</span>
+  </h3>
+  <div class="chain">
+    <div class="node active">
+      <div class="ico">🌐</div>
+      <div class="name">1. PTP (Active)</div>
+      <div class="meta">grandmaster.local</div>
+      <div class="meta" style="color:var(--green)">LOCKED · 0.012 ms</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node standby">
+      <div class="ico">⏱️</div>
+      <div class="name">2. TIMECODE</div>
+      <div class="meta">SDI embedded</div>
+      <div class="meta" style="color:var(--gray)">Standby</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node standby">
+      <div class="ico">📺</div>
+      <div class="name">3. MEDIA</div>
+      <div class="meta">Stream PTS</div>
+      <div class="meta" style="color:var(--gray)">Standby</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node standby">
+      <div class="ico">⏰</div>
+      <div class="name">4. SYSTEM (MONOTONIC)</div>
+      <div class="meta">Local clock</div>
+      <div class="meta" style="color:var(--gray)">Last resort</div>
+    </div>
+  </div>
+  <div class="diag">
+    <b>Fallback Policy (V0.2 §3.5 锁定):</b>
+    1 级 PTP LOCKED → 2 级 TIMECODE (SDI 嵌入) → 3 级 MEDIA (流内 PTS) → 4 级 SYSTEM (本地 MONOTONIC).
+    Fallback Trigger = L3 (high risk, 见 E-37 操作) + 写入 Audit Trail.
+    Fail-back 优先级: 4 → 3 → 2 → 1 (PTP 重新可用时自动切回).
+  </div>
+</div>
+
+<!-- 4 Reference Class 对比 -->
+<div class="row">
+  <div class="col-6">
+    <div class="panel">
+      <h3><span class="cn">参考时钟详情</span> / REFERENCE CLOCK DETAIL
+        <span class="pill pill-blue" style="float:right">当前: PTP grandmaster</span>
+      </h3>
+      <table>
+        <tbody>
+          <tr><td>kind</td><td><span class="v">PTP</span></td></tr>
+          <tr><td>source</td><td><span class="v">grandmaster.local (10.30.15.1)</span></td></tr>
+          <tr><td>protocol</td><td><span class="v">IEEE 1588-2019 (PTPv2.1)</span></td></tr>
+          <tr><td>transport</td><td><span class="v">UDP / multicast (224.0.1.129)</span></td></tr>
+          <tr><td>domain</td><td><span class="v">0 (default)</span></td></tr>
+          <tr><td>priority1 / priority2</td><td><span class="v">64 / 64 (default)</span></td></tr>
+          <tr><td>offset (current)</td><td><span class="v green">+0.012 ms</span></td></tr>
+          <tr><td>drift (last 1h)</td><td><span class="v green">+0.4 ms/min</span></td></tr>
+          <tr><td>sync interval</td><td><span class="v">-3 (8 packets/sec)</span></td></tr>
+          <tr><td>announce interval</td><td><span class="v">1 (1 packet/sec)</span></td></tr>
+          <tr><td>locked since</td><td><span class="v">2026-08-24 22:16:42</span></td></tr>
+          <tr><td>uplink (e.g. GPS)</td><td><span class="v green">GPS-disciplined (PPS locked)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="panel">
+      <h3><span class="cn">Reference Class (4 类)</span> / REFERENCE_CLASS (V0.2 + Phase 0.5B.2 P0-1)</h3>
+      <table>
+        <thead><tr><th>Class</th><th>Source</th><th>Use Case</th><th>Broadcast OK?</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="pill pill-green">BROADCAST_GRADE</span></td>
+            <td>PTP grandmaster (GPS)</td>
+            <td>主参考 · 多 Channel 同步</td>
+            <td><span class="v green">✓</span></td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-blue">GOOD</span></td>
+            <td>PTP 普通 (LAN)</td>
+            <td>备用 · 单机房</td>
+            <td><span class="v green">✓</span></td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-yellow">FAIR</span></td>
+            <td>TIMECODE / NTP</td>
+            <td>临时 · 跨机房</td>
+            <td><span class="v yellow">⚠</span></td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-red">POOR</span></td>
+            <td>SYSTEM / MONOTONIC</td>
+            <td>Last resort</td>
+            <td><span class="v red">✗</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="diag">
+        <b>SignalContract.timebase / clock (Phase 0.5B.2 P0-1 锁定):</b>
+        SignalContract 现在必须显式声明 video_timebase / audio_timebase / clock.domain /
+        clock.reference_class, 配合 RuntimeAlignment 区分静态能力 vs 运行态时钟对齐.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 实时指标 -->
+<div class="panel">
+  <h3><span class="cn">实时时钟指标</span> / REAL-TIME CLOCK METRICS (FRAMESYNC)
+    <span class="pill pill-green" style="float:right">FRESH · age 1s · H3 PASS</span>
+  </h3>
+  <div class="row">
+    <div class="col-3 metric">
+      <div class="label">PTP Offset</div>
+      <div class="val green">+0.012 ms</div>
+      <div class="sub">target &lt; 1 ms · 24h avg 0.018</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Drift Rate</div>
+      <div class="val green">+0.4 ms/min</div>
+      <div class="sub">target &lt; 5 ms/min</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Lock State</div>
+      <div class="val green">LOCKED</div>
+      <div class="sub">since 17h 23m</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">PPS Stability</div>
+      <div class="val green">±0.001 ms</div>
+      <div class="sub">GPS-disciplined</div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="col-3 metric">
+      <div class="label">PTP Packets/s</div>
+      <div class="val green">8.0</div>
+      <div class="sub">sync interval -3 · target 8</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Announce/s</div>
+      <div class="val green">1.0</div>
+      <div class="sub">no BMCA change</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Master Uptime</div>
+      <div class="val green">17h 23m</div>
+      <div class="sub">no master change</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Consumers</div>
+      <div class="val blue">12 Channels</div>
+      <div class="sub">all LOCKED · 0 DEGRADED</div>
+    </div>
+  </div>
+</div>
+
+<!-- Fallback History -->
+<div class="panel">
+  <h3><span class="cn">回退历史</span> / FALLBACK HISTORY (last 30d)
+    <span class="pill pill-blue" style="float:right">12 events · 0 unresolved</span>
+  </h3>
+  <table>
+    <thead><tr><th>Time</th><th>Event</th><th>From → To</th><th>Duration</th><th>Reason</th><th>Who</th><th>Audit</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>2026-08-22 03:14</td>
+        <td><span class="pill pill-blue">FALLBACK</span></td>
+        <td>PTP → TIMECODE</td>
+        <td>4m 22s</td>
+        <td>PTP master 切换 (grandmaster.local 重启)</td>
+        <td>System</td>
+        <td><a style="color:var(--accent)">AUDIT-2026-0822-001</a></td>
+      </tr>
+      <tr>
+        <td>2026-08-22 03:19</td>
+        <td><span class="pill pill-green">FAILBACK</span></td>
+        <td>TIMECODE → PTP</td>
+        <td>—</td>
+        <td>PTP master 恢复</td>
+        <td>System</td>
+        <td><a style="color:var(--accent)">AUDIT-2026-0822-002</a></td>
+      </tr>
+      <tr>
+        <td>2026-08-15 11:42</td>
+        <td><span class="pill pill-yellow">DEGRADED</span></td>
+        <td>PTP offset +0.8 ms</td>
+        <td>2m 18s</td>
+        <td>短暂网络抖动 (eth0)</td>
+        <td>System</td>
+        <td><a style="color:var(--accent)">AUDIT-2026-0815-003</a></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (E-37 Clock) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>PTP LOCKED + offset &lt; 1ms + drift &lt; 5ms/min</td><td>顶部全绿 + Fallback Chain 第 1 节点 active + H3 PASS</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>PTP 启动同步 (3-5s)</td><td>PTP 节点 spinning + "Acquiring PTP lock..."</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>— (Clock 永远存在, 引导式)</td><td>引导 "Configure PTP grandmaster" + 选 Reference Class</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>PTP offset 1-5ms / drift 5-10ms/min / DEGRADED</td><td>顶部黄条 + 当前节点标黄 + H3 WARN + 自动监控</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>PTP LOST / 自动 fallback 到 TIMECODE</td><td>红色 Banner + Chain 切到 2 节点 + Fallback History 写入 + H3 FAIL</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>全 Reference 不可达 / Clock LOST (SYSTEM MONOTONIC)</td><td>顶部红条 + 影响 Session 列表 (AV sync 不可保证) + 强制 NACK + 通知 Admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- 关联: 跨域使用 -->
+<details>
+  <summary>▸ Used By (跨域 Clock 引用)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>对象</th><th>引用</th><th>依赖</th></tr></thead>
+      <tbody>
+        <tr><td>Realtime Session</td><td>RT-01 (CH01)</td><td>REQUIRED (PTP LOCKED 才能 READY_TO_TAKE)</td></tr>
+        <tr><td>Realtime Session</td><td>RT-02 (CH03)</td><td>REQUIRED</td></tr>
+        <tr><td>Realtime Session</td><td>RT-03 (CH05)</td><td>REQUIRED</td></tr>
+        <tr><td>Source Adapter</td><td>SDI (NTP-free)</td><td>OPTIONAL (SDI 自带 timecode)</td></tr>
+        <tr><td>Graph Designer</td><td>E-37 (Reference)</td><td>在 Graph Spec 引用 clock_domain_mappings</td></tr>
+        <tr><td>Switcher</td><td>FRAME/MASTER Switch</td><td>切换前后 master 需 LOCKED</td></tr>
+        <tr><td>Health Invariant H3</td><td>PTP LOCKED & DEGRADED &lt; 1%</td><td>硬约束</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Actions -->
+<div class="panel" style="display:flex;gap:6px;flex-wrap:wrap">
+  <button class="btn primary">⏱ Sync PTP Now</button>
+  <button class="btn">🔄 Re-detect Reference</button>
+  <button class="btn">📊 Export Fallback History</button>
+  <button class="btn l3">⚠ Manual Fallback Trigger (L3 · 需 Who/Why/Until + Audit)</button>
+  <button class="btn">📋 Open E-37 Configuration →</button>
+</div>
+
+<footer>
+  VBMF Operator Console · E-37 Clock · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
+  · 关联: SignalContract (Phase 0.5B.2 P0-1) / 02 Sources (Lock Reference 显示) / Switcher (FRAME/MASTER) / 09 Health Tree (H3) / 08 Graph Designer (clock_domain_mappings)
+  · V0.2 Architecture: Clock Runtime Domain CLOSED · 9-dim Runtime 域之一 · Health Invariant H3 (PTP LOCKED & DEGRADED &lt; 1%)
+  · 4 Reference Class: BROADCAST_GRADE / GOOD / FAIR / POOR
+  · Fallback Chain 4 级: PTP → TIMECODE → MEDIA → SYSTEM (MONOTONIC)
+</footer>
+
+</body>
+</html>

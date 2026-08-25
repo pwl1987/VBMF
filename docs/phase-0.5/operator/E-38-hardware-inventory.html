@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>E-38 · Hardware Inventory 硬件清单 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .device-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:8px}
+  .device-card .header{background:transparent;border-bottom:1px solid var(--border);padding:0 0 6px 0;margin:0 0 8px 0;display:flex;align-items:center;gap:8px}
+  .device-card h4{font-size:12px;font-weight:600;color:var(--fg);margin:0}
+  .device-card .specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;font-size:10px}
+  .port-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px}
+  .port{padding:4px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:2px;font-size:10px;text-align:center;font-family:Menlo,Consolas,monospace}
+  .port.free{color:var(--green);border-color:var(--green)}
+  .port.busy{color:var(--yellow);border-color:var(--yellow);background:rgba(210,153,34,.05)}
+  .port.error{color:var(--red);border-color:var(--red);background:rgba(248,81,73,.05)}
+  .port.offline{color:var(--gray);border-color:var(--gray)}
+  .gauge{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:4px}
+  .gauge .bar{height:100%;background:var(--green);transition:width .3s}
+  .gauge .bar.yellow{background:var(--yellow)}
+  .gauge .bar.red{background:var(--red)}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:18px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.blue{color:var(--accent)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>E-38 Hardware Inventory 硬件清单</b></div>
+  <h1><span class="cn">E-38 · 硬件清单</span> <span class="en">HARDWARE INVENTORY (HOST → Device → Port · Runtime Discovered)</span></h1>
+</div>
+
+<!-- HOST 顶层 (host 10.30.15.10) -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--accent)">
+  <h3><span class="cn">主机</span> / HOST (10.30.15.10 · Ubuntu 26.04 · 32c/30GB/546GB)
+    <span class="pill pill-green" style="float:right">Runtime Discovered · 0 issues</span>
+  </h3>
+  <div class="row">
+    <div class="col-3 metric">
+      <div class="label">CPU</div>
+      <div class="val green">32 cores</div>
+      <div class="sub">Intel Xeon E5-2697A · 71% used (22.7 free)</div>
+      <div class="gauge"><div class="bar" style="width:71%"></div></div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">RAM</div>
+      <div class="val green">30 GB</div>
+      <div class="sub">DDR4 ECC · 8% used (2.4 GB)</div>
+      <div class="gauge"><div class="bar" style="width:8%"></div></div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">GPU</div>
+      <div class="val gray">None</div>
+      <div class="sub">—</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">VRAM</div>
+      <div class="val gray">N/A</div>
+      <div class="sub">—</div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <div class="col-3 metric">
+      <div class="label">NIC (3 ports)</div>
+      <div class="val blue">3</div>
+      <div class="sub">eth0 10G + eth1 1G + eth2 1G</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Storage</div>
+      <div class="val green">546 GB</div>
+      <div class="sub">NVMe · 61% used (212 GB free)</div>
+      <div class="gauge"><div class="bar" style="width:61%"></div></div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">BMD Cards</div>
+      <div class="val green">3</div>
+      <div class="sub">Duo 2 + SDI + Mini Monitor 4K</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Driver</div>
+      <div class="val green">16.2a1</div>
+      <div class="sub">Desktop Video · healthy</div>
+    </div>
+  </div>
+</div>
+
+<!-- BMD 设备详情 (3 张卡) -->
+<div class="panel">
+  <h3><span class="cn">Blackmagic Design 采集卡</span> / BMD DECKLINK CARDS (3 cards · 7 ports · 0 unbound)
+    <span class="pill pill-green" style="float:right">Desktop Video 16.2a1 · PCIe Gen3 x4</span>
+  </h3>
+
+  <!-- Duo 2 -->
+  <div class="device-card">
+    <div class="header">
+      <h4>📺 DeckLink Duo 2</h4>
+      <span class="pill pill-green">HEALTHY</span>
+      <span class="pill pill-blue">PCI 0000:01:00.0</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--fgdim)">Firmware: 1.4.1 · Driver: 16.2a1 · Temp 48°C</span>
+    </div>
+    <div class="specs">
+      <div><span class="k">Model</span><br><span class="v">Duo 2 (4K mini)</span></div>
+      <div><span class="k">PCIe</span><br><span class="v">Gen3 x4</span></div>
+      <div><span class="k">Inputs</span><br><span class="v">2 (SD/HD/3G-SDI)</span></div>
+      <div><span class="k">Outputs</span><br><span class="v">2 (SD/HD/3G-SDI)</span></div>
+      <div><span class="k">Max Resolution</span><br><span class="v">1080p60</span></div>
+      <div><span class="k">Capabilities</span><br><span class="v">SDI 12-bit RGB / 10-bit YUV</span></div>
+    </div>
+    <div style="margin-top:8px">
+      <div class="box-title">Ports (2 IN + 2 OUT)</div>
+      <div class="port-grid">
+        <div class="port busy">IN-1 · CH01 SDI-01 · ACTIVE</div>
+        <div class="port busy">IN-2 · CH01 SDI-02 · STANDBY</div>
+        <div class="port free">OUT-1 · free</div>
+        <div class="port free">OUT-2 · free</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SDI -->
+  <div class="device-card">
+    <div class="header">
+      <h4>📺 DeckLink SDI</h4>
+      <span class="pill pill-green">HEALTHY</span>
+      <span class="pill pill-blue">PCI 0000:02:00.0</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--fgdim)">Firmware: 1.3.2 · Driver: 16.2a1 · Temp 51°C</span>
+    </div>
+    <div class="specs">
+      <div><span class="k">Model</span><br><span class="v">SDI (single link)</span></div>
+      <div><span class="k">PCIe</span><br><span class="v">Gen2 x4</span></div>
+      <div><span class="k">Inputs</span><br><span class="v">1 (SD/HD/3G-SDI)</span></div>
+      <div><span class="k">Outputs</span><br><span class="v">1 (SD/HD/3G-SDI)</span></div>
+      <div><span class="k">Max Resolution</span><br><span class="v">1080p60</span></div>
+      <div><span class="k">Capabilities</span><br><span class="v">SDI 10-bit YUV</span></div>
+    </div>
+    <div style="margin-top:8px">
+      <div class="box-title">Ports (1 IN + 1 OUT)</div>
+      <div class="port-grid">
+        <div class="port free">IN-1 · free</div>
+        <div class="port free">OUT-1 · free</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mini Monitor 4K -->
+  <div class="device-card">
+    <div class="header">
+      <h4>🖥️ DeckLink Mini Monitor 4K</h4>
+      <span class="pill pill-green">HEALTHY</span>
+      <span class="pill pill-blue">PCI 0000:03:00.0</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--fgdim)">Firmware: 1.2.0 · Driver: 16.2a1 · Temp 44°C</span>
+    </div>
+    <div class="specs">
+      <div><span class="k">Model</span><br><span class="v">Mini Monitor 4K</span></div>
+      <div><span class="k">PCIe</span><br><span class="v">Gen2 x1</span></div>
+      <div><span class="k">Inputs</span><br><span class="v">0 (output only)</span></div>
+      <div><span class="k">Outputs</span><br><span class="v">1 (6G-SDI / HDMI)</span></div>
+      <div><span class="k">Max Resolution</span><br><span class="v">2160p30 (4K)</span></div>
+      <div><span class="k">Capabilities</span><br><span class="v">6G-SDI + HDMI 2.0</span></div>
+    </div>
+    <div style="margin-top:8px">
+      <div class="box-title">Ports (0 IN + 1 OUT)</div>
+      <div class="port-grid">
+        <div class="port offline">IN · no input</div>
+        <div class="port free">OUT-1 · free</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NIC 详情 -->
+<div class="panel">
+  <h3><span class="cn">网卡</span> / NETWORK INTERFACES (3 NICs)
+    <span class="pill pill-green" style="float:right">V0.2 §2.4 + 0.5C.1 P0-3 NIC_TOKENS per-interface</span>
+  </h3>
+  <table>
+    <thead><tr><th>Interface</th><th>Speed</th><th>Role</th><th>Used (avg)</th><th>Headroom</th><th>NIC_AFFINITY</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>eth0</b></td>
+        <td>10 Gbps</td>
+        <td>data (default)</td>
+        <td>1.2 Gbps</td>
+        <td><div class="gauge" style="width:80px"><div class="bar green" style="width:12%"></div></div></td>
+        <td><span class="pill pill-blue">required: [eth0]</span></td>
+        <td><span class="pill pill-green">UP</span></td>
+        <td><button class="btn">Details</button></td>
+      </tr>
+      <tr>
+        <td><b>eth1</b></td>
+        <td>1 Gbps</td>
+        <td>management</td>
+        <td>120 Mbps</td>
+        <td><div class="gauge" style="width:80px"><div class="bar green" style="width:12%"></div></div></td>
+        <td><span class="pill pill-gray">avoid: [eth1]</span></td>
+        <td><span class="pill pill-green">UP</span></td>
+        <td><button class="btn">Details</button></td>
+      </tr>
+      <tr>
+        <td><b>eth2</b></td>
+        <td>1 Gbps</td>
+        <td>data (spare)</td>
+        <td>0 Mbps</td>
+        <td><div class="gauge" style="width:80px"><div class="bar green" style="width:0%"></div></div></td>
+        <td><span class="pill pill-gray">preferred: [eth0]</span></td>
+        <td><span class="pill pill-gray">DOWN</span></td>
+        <td><button class="btn">Enable</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="diag">
+    <b>Preflight 必须 per-NIC 检查 (Phase 0.5B.2 P0-3 锁定):</b>
+    旧 Resource Vector 只看 NIC 总和 (AVAILABLE = 11 Gbps), 但如果两个 Job 都绑到 eth1 (1 Gbps),
+    1800 Mbps &gt; 1 Gbps = FAIL. 现在每个 NIC 单独 token, Job 显式指定 NIC_AFFINITY (required/preferred/avoid).
+  </div>
+</div>
+
+<!-- Storage -->
+<div class="panel">
+  <h3><span class="cn">存储</span> / STORAGE (NVMe)
+    <span class="pill pill-green" style="float:right">W &lt; 80% / E ≥ 90% / C &gt; 95% (全局统一阈值)</span>
+  </h3>
+  <table>
+    <thead><tr><th>Mount</th><th>Device</th><th>Total</th><th>Used</th><th>Free</th><th>Usage</th><th>Purpose</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>/</b></td>
+        <td>/dev/nvme0n1p2</td>
+        <td>100 GB</td>
+        <td>34 GB</td>
+        <td>66 GB</td>
+        <td><div class="gauge" style="width:100px"><div class="bar green" style="width:34%"></div></div></td>
+        <td>system</td>
+        <td><span class="pill pill-green">OK</span></td>
+      </tr>
+      <tr>
+        <td><b>/mnt/storage</b></td>
+        <td>/dev/nvme1n1</td>
+        <td>546 GB</td>
+        <td>333 GB</td>
+        <td>213 GB</td>
+        <td><div class="gauge" style="width:100px"><div class="bar yellow" style="width:61%"></div></div></td>
+        <td>recordings + assets</td>
+        <td><span class="pill pill-green">W (61% &lt; 80%)</span></td>
+      </tr>
+      <tr>
+        <td><b>/tmp</b></td>
+        <td>tmpfs</td>
+        <td>8 GB</td>
+        <td>1.2 GB</td>
+        <td>6.8 GB</td>
+        <td><div class="gauge" style="width:100px"><div class="bar green" style="width:15%"></div></div></td>
+        <td>transcode scratch</td>
+        <td><span class="pill pill-green">OK</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Capability Discovery (Resource Vector 9-Dim) -->
+<div class="panel">
+  <h3><span class="cn">能力发现</span> / HARDWARE CAPABILITY DISCOVERY (Resource Vector 9-Dim + Device Token)
+    <span class="pill pill-blue" style="float:right">device_registry · hardware_capability</span>
+  </h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="box-title">CPU Capability (worker-01/02/03)</div>
+      <table>
+        <tbody>
+          <tr><td>cores</td><td><span class="v">32</span></td></tr>
+          <tr><td>threads</td><td><span class="v">64 (HT)</span></td></tr>
+          <tr><td>arch</td><td><span class="v">x86_64</span></td></tr>
+          <tr><td>flags</td><td><span class="v" style="font-size:9px">avx2 avx512 vnni</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Encoder Capability (FFmpeg)</div>
+      <table>
+        <tbody>
+          <tr><td>libx264</td><td><span class="v green">✓ v0.165.x</span></td></tr>
+          <tr><td>libx265</td><td><span class="v green">✓ v3.6+</span></td></tr>
+          <tr><td>libvpx</td><td><span class="v green">✓ v1.14</span></td></tr>
+          <tr><td>libfdk_aac</td><td><span class="v green">✓ v2.0.2</span></td></tr>
+          <tr><td>libmp3lame</td><td><span class="v green">✓ v3.100</span></td></tr>
+          <tr><td>libopus</td><td><span class="v green">✓ v1.4</span></td></tr>
+          <tr><td>nvenc</td><td><span class="v gray">✗ (no GPU)</span></td></tr>
+          <tr><td>qsv</td><td><span class="v gray">✗ (no GPU)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-4">
+      <div class="box-title">9-Dim Resource Vector (Runtime)</div>
+      <table>
+        <tbody>
+          <tr><td>CPU threads</td><td><span class="v">64</span></td></tr>
+          <tr><td>GPU sessions</td><td><span class="v gray">0</span></td></tr>
+          <tr><td>VRAM</td><td><span class="v gray">0</span></td></tr>
+          <tr><td>RAM</td><td><span class="v">30 GB</span></td></tr>
+          <tr><td>NIC_INGRESS_MBPS</td><td><span class="v">11200 (3 NIC sum)</span></td></tr>
+          <tr><td>NIC_EGRESS_MBPS</td><td><span class="v">11200</span></td></tr>
+          <tr><td>Disk MB/s</td><td><span class="v">2100 (NVMe)</span></td></tr>
+          <tr><td>PCIe RX/TX</td><td><span class="v">Gen3 x16</span></td></tr>
+          <tr><td>BMD tokens</td><td><span class="v">3 in / 4 out (Runtime Discovered)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (E-38 Hardware Inventory) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>所有硬件 HEALTHY + 0 unbound port + Discovery 0 issues</td><td>HOST 顶部 4 metric 全绿 + 3 device card 全 HEALTHY + 0 issues</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>Discovery 第一次 / 手动 Refresh</td><td>HOST skeleton + device card skeleton + "Discovering hardware..."</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 host (新系统) / 0 device discovered</td><td>引导 "Configure first host" / "Run Hardware Discovery"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>温度 65°C+ / Storage ≥ 80% / NIC 错误率高</td><td>黄色 Banner + 对应 metric 标黄 + Recommend: 散热 / 清理</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>设备 DEGRADED / 驱动 load 失败 / Port ERROR</td><td>红色 Banner + 标红 device card + Retry Discovery</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>主 BMD 卡 ERROR + 备用 OFFLINE / 全部 NIC DOWN / 磁盘 C &gt; 95%</td><td>顶部红条 + 影响 Session 列表 + 写入保护提示 + 通知 Admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Actions -->
+<div class="panel" style="display:flex;gap:6px;flex-wrap:wrap">
+  <button class="btn primary">🔄 Re-run Hardware Discovery</button>
+  <button class="btn">📋 Export Inventory (JSON)</button>
+  <button class="btn">📊 Open E-35 Device Registry →</button>
+  <button class="btn">📊 Open E-36 Resource / Capacity →</button>
+  <button class="btn l2">⚠ Manual Override (L2 · 需 Who/Why)</button>
+</div>
+
+<footer>
+  VBMF Operator Console · E-38 Hardware Inventory · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
+  · 关联: E-35 Device Registry (锁) / E-36 Resource / Capacity (锁) / E-37 Clock (升级) / P-21 Encoding Profile (BMD Resource)
+  · Object: device_registry / hardware_capability (V0.2 锁) / Device Token (per-port) / NIC_TOKENS (Phase 0.5B.2 P0-3)
+  · 9-Dim Resource Vector (V0.2 §3.8 锁): CPU/GPU/VRAM/RAM/NIC/NIC/Disk/PCIe/BMD
+</footer>
+
+</body>
+</html>
