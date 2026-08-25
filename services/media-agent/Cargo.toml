@@ -1,0 +1,32 @@
+﻿[package]
+name = "media-agent"
+version = "0.1.0"
+edition = "2021"
+description = "VBMF Rust Media Agent — Hardware Plane (DeckLink/GStreamer). Control Plane lives in Node/Fastify."
+
+# Gate 2 skeleton: trait/struct shapes ONLY. No business logic yet.
+# Interface frozen against SoT §15.2 (MEDIA-02/03/04) + §14 (Node/Rust boundary).
+
+[dependencies]
+# Async runtime (supervisor/monitor loops)
+tokio = { version = "1", features = ["full"] }
+# IPC/transport to Node Fastify (JSON-RPC or gRPC — shape TBD in §14 contract)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Error handling
+anyhow = "1"
+thiserror = "1"
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+# Time (lease ttl / health timestamps)
+chrono = { version = "0.4", features = ["serde"] }
+# UUID (lease/device ids)
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+# Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)
+
+[profile.release]
+opt-level = 3
+lto = true

@@ -1,0 +1,6 @@
+﻿# Rust build artifacts
+/target
+
+# Syncthing temp files (repo is syncthing-synced)
+~syncthing~*
+*.syncthing
