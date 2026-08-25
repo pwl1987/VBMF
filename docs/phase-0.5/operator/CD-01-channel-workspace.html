@@ -354,7 +354,7 @@
         <button class="btn" onclick="addNet()">＋ 添加</button>
         <span class="diag" style="margin:0">⛔ 无自由 URL 输入 — Destination 统一由 <b>06-output Destination Wizard</b> 创建 (协议 → Delivery Mode → Endpoint Schema), 本页只选 Output Profile + 选已建 Destination (单一创建入口原则 0.5D.5). 资源三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
       </div>
-      <div class="diag">REQUIRED 必须 HEALTHY 否则 Take 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4.</div>
+      <div class="diag">REQUIRED 必须 HEALTHY 否则 Take <b>BLOCKED</b> (被禁用 → DEGRADED → BLOCKED, 不似普通按钮); OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4 / 0.5F.11 P0-1.</div>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 独立对象 (重连策略·指数退避 / 心跳 / zombie 判定 / Test Send 联动) 落 06-output + D6/B-13. ✅ G3 (P0) 已闭合: SDI 基带输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema, 不参与运行态.</div>
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
         <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Recovery (0.5F.9 P1-2 · 0.5F.10 P1-4 Impact Preview)</div>
@@ -364,14 +364,21 @@
           <span style="font-size:11px">UDP-MC <span class="pill pill-yellow">DEGRADED</span></span><button class="btn">Restart</button><button class="btn l2">Disable</button><button class="btn">View</button>
         </div>
         <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--red);border-radius:3px;padding:8px;font-size:11px">
-          <div style="color:var(--red);font-weight:600;margin-bottom:4px">⚠ Disable Impact Preview (REQUIRED 输出必须预演 · 0.5F.10 P1-4)</div>
+          <div style="color:var(--red);font-weight:600;margin-bottom:4px">⚠ Disable Impact Preview (REQUIRED 输出必须预演 · 0.5F.10 P1-4 · 0.5F.11 P0-1 修正)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
             <div>Current: <span class="pill pill-green">HLS REQUIRED</span> <span class="pill pill-green">RTMP REQUIRED</span></div>
             <div>After Disable: <span class="pill pill-red">HLS DISABLED</span> · Channel = <span class="pill pill-red">DEGRADED</span></div>
-            <div>Effect: 必选输出丢失 · Take 仍放行降级 (不阻断)</div>
-            <div>Confirm: 需 L2 + Who/Why 二次确认</div>
+            <div>Effect: 必选输出丢失 · <span style="color:var(--red);font-weight:600">TAKE = BLOCKED</span></div>
+            <div>Confirm: L2 二次确认 (Who/Why) · 仅记录意图</div>
           </div>
-          <div class="diag" style="margin-top:6px">Delivery Criticality → Safety Consequence → Confirmation 必须连起来: Disable REQUIRED 输出触发 Impact Preview + L2 二次确认, 不似普通按钮. OPTIONAL/AUX 仅 WARNING (0.5F.10 P1-4).</div>
+          <div style="margin-top:6px;background:#161b22;border:1px solid var(--border);border-radius:3px;padding:6px">
+            <div style="font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Emergency Override (仅极端场景)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">
+              <div>Level: <span class="pill pill-red">L3</span> + Audit + Who/Why</div>
+              <div>Effect: 临时 Take 放行 · Channel 仍 DEGRADED · 全量告警</div>
+            </div>
+          </div>
+          <div class="diag" style="margin-top:6px">Delivery Criticality → Safety Consequence → Confirmation 必须连起来: Disable REQUIRED → Impact Preview + L2 确认 → <span style="color:var(--red)">TAKE BLOCKED</span>; 除非显式 <b>Emergency Override (L3 + Audit + Who/Why)</b>. 与 B-13 "REQUIRED 全 HEALTHY → Take 放行" 一致: REQUIRED 不健康即阻断. OPTIONAL/AUX 仅 WARNING (0.5F.11 P0-1).</div>
         </div>
       </div>
     </div>
@@ -394,7 +401,7 @@
         <button class="btn-primary">▶ TAKE (NEXT → PGM)</button>
         <button class="btn">⏸ STOP</button>
       </div>
-      <div class="diag" style="color:var(--green)">READY_TO_TAKE · REQUIRED 输出全 HEALTHY → Take 放行.</div>
+      <div class="diag" style="color:var(--green)">READY_TO_TAKE · REQUIRED 输出全 HEALTHY → Take 放行; 任一 REQUIRED 不健康/被禁用 → <span style="color:var(--red)">TAKE BLOCKED</span> (除非 Emergency Override L3).</div>
       <div class="note" style="border-left-color:var(--yellow)">⚠ G9 (P1): 全局口径统一 — TAKE 在 CD-01 的 READY_TO_TAKE 阶段 (非向导). 向导第⑥步已改"创建前预检", 此处为运行态 TAKE, 二者不混.</div>
     </div>
     <!-- HEALTH -->

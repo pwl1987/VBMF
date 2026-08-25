@@ -129,7 +129,7 @@ surface:
     kind: WORKSPACE
     status: LOCK
     milestone: "0.5D (0.5D.1 归 MEDIA; D4 v2 升级)"
-    note: "Realtime Encode (实时编码)"
+    note: "Realtime Session 实时媒体会话 (Encoding Session · Runtime)"
   - id: "M-18"
     domain: MEDIA
     kind: DETAIL

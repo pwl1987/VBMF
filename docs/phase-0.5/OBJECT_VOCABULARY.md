@@ -181,7 +181,7 @@
 | **正式名** | Session |
 | **kind 值** | `SESSION` |
 | **DB 表** | `media_sessions` |
-| **UI 入口** | M-17 Realtime Transcode / CD-01 Channel Detail / 01 Dashboard |
+| **UI 入口** | M-17 Realtime Session 实时媒体会话 / CD-01 Channel Detail / 01 Dashboard |
 | **唯一 ID** | `session_id` (UUID) |
 | **2 子类 (kind 必填)** | `MEDIA_SESSION (实时编码) / OUTPUT_SESSION (实时输出)` |
 | **核心字段** | `session_id, kind, lifecycle (STOPPED/STARTING/RUNNING/STOPPING), readiness (NOT_READY/READY_TO_TAKE), health (HEALTHY/DEGRADED/FAILED/UNKNOWN), parent_ref (Channel/Variant), runtime_metrics` |

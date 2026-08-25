@@ -10,6 +10,15 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 
 ## [未发布]
 
+### Phase 0.5F — Final Consistency & Safety Closure（0.5F.11，2026-08-25，LOCK FINAL）
+- **P0-1 运行控制语义闭环**：CD-01 修 REQUIRED Output→TAKE 规则矛盾——REQUIRED 输出不健康/被禁用必须 TAKE = BLOCKED；新增 Emergency Override（L3 + Audit + Who/Why）逃生通道。
+- **P0-2 Phase 状态唯一事实源（SoT）**：MILESTONES.md 声明为 Phase 阶段状态 SoT；README / Phase README / ROADMAP 派生一致；0.5F 子项编号清理（FG-01..FG-07 全 ✅）。
+- **P1-1 E-40 动态分支**：Kind Selector 交互切换 5 个 Kind 表单（Network/Physical/File/Internal/Composite），只渲染选中分支，非静态展板。
+- **P1-2 E-42 真实验证档**：新增 Validation Profile Selector，5 个 Kind 各含真实验证步骤（Network/Physical/File/Internal 5 层、Composite 7 层），预览独立成 panel。
+- **P1-3 E-40 Composite 修正**：GraphSpec → Child Sources → Compile → Verify 流程，明确 Graph ≠ Source（Composite Source 包装的是 Graph/Route，非另一 Source）。
+- **P1-4 M-17 命名统一**：全仓库 "Realtime Transcode" 残留文本统一为 "Realtime Session 实时媒体会话"（POM/PIA/ENCODE_MODEL/E-41/M-14/OBJECT_VOCABULARY/SURFACE_REGISTRY/SURFACE_SPEC/ROADMAP/0.5C closure）；RECONCILIATION 历史决策记录保留原 rename 表述。
+- 校验：`scripts/check_docs.py` 链接可达性 + 数字口径一致性 **PASS**。完成后 Phase 0.5 可真正冻结并进入 Phase 0.6 Executable Acceptance。
+
 ### Phase 0.5C — Information Architecture Closure（2026-08-25，DRAFT 0.1 待审）
 - 目录归并：`docs/phase-0.5b/` 并入 `docs/phase-0.5/`（git mv 保留 history；wireframes 拆为 `operator/` 10 张 + `product/` 5 张）
 - 新增 `OBJECT_VOCABULARY.md`（14 对象权威定义）/ `PRODUCT_OBJECT_MODEL.md`（Profile/Bundle/Variant 3 层）/ `NAVIGATION.md` / `MILESTONES.md` + `milestones/` 历史归档

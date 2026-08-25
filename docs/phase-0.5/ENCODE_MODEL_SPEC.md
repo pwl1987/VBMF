@@ -114,7 +114,7 @@ EncodingProfile:
 |---|---|
 | `profile_type` 选择 | ✅ 已落地 P-21 Section 1 `profile_type` 单选 (FILE_PROFILE / REALTIME_PROFILE, 0.5D.3) |
 | Common 段字段 | P-21 §392-470（9 区，广播级，已 LOCK） |
-| `REALTIME_PROFILE` 运行时 | M-17 Realtime Transcode（Session 三轴 + 实时指标） |
+| `REALTIME_PROFILE` 运行时 | M-17 Realtime Session（Session 三轴 + 实时指标） |
 | `FILE_PROFILE` 运行时 | M-14 File Transcode（6 步 Wizard）/ M-18 Job Detail |
 | `Job` / `Session` 包装 | OBJECT_VOCABULARY §1.11/§1.12（`REALTIME_PROFILE` 由 `MEDIA_SESSION` 承载, 非 Job） |
 | Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 7 Profile） |

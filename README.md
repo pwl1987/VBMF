@@ -8,7 +8,7 @@
 >
 > **Phase 0.5B Product UI Surface ✅ UX BASELINE LOCK FINAL · 39 UI 表面（38 + CD-01）+ 5 P0 wireframes + 8 横切能力 + 36 项语义收口（31 P0 + 5 P1）**
 >
-> **Phase 0.5C Info Arch 🟡 DRAFT 0.1 · 目录归并 + 4 域导航 + Object Vocabulary（待审）**
+> **Phase 0.5 = 🟢 LOCK FINAL (2026-08-25)** · 权威阶段状态 (SoT) 见 [`docs/phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md) · 子模块 0.5A/0.5B/0.5C/0.5D/0.5E/0.5F 全部收口
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![V0.2 Lock](https://img.shields.io/badge/V0.2-架构_LOCK_FINAL-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)
@@ -43,8 +43,8 @@
 | **Runtime Semantics** | ✅ CLOSED | 9 大 Runtime 域 + 3 Schema + 2 Semantic Cleanup + 7 Health Invariants |
 | **Phase 0.5A Operator Semantics** | ✅ LOCK FINAL | 9 Core + 1 Validation（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 |
 | **Phase 0.5B Product Surface** | ✅ UX BASELINE LOCK FINAL | 39 UI 表面（38 + CD-01）+ 5 P0 wireframes + 36 项语义收口（31 P0 + 5 P1）+ Design System + i18n |
-| **Phase 0.5C Info Arch** | 🟡 DRAFT (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
-| **Phase 0.5D P0 Product Surfaces** | 🟡 0.5D.1 进行中 | D1-D7 原型已建 + 0.5D.1 Semantic Closure (6 项) |
+| **Phase 0.5C Info Arch** | 🟢 LOCK FINAL | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 (派生自 MILESTONES.md SoT) |
+| **Phase 0.5D P0 Product Surfaces** | 🟢 LOCK FINAL | D1-D7 原型已建 + 0.5D.1 Semantic Closure (6 项) |
 | **Reference Implementation** | 📋 Phase 0.6 (前置: 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | **Media Agent (Rust)** | 📋 Phase 1 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
 | **Web Console** | 📋 Phase 4 | 4 域 × 52 wireframe + 1 Spec (权威: `docs/phase-0.5/SURFACE_REGISTRY.yaml`) |
@@ -110,7 +110,7 @@ VBMF 是从 **V0.1 Web 视频编码器** 演进而来的，**V0.1 的所有基�
 | **Phase 0.5A** Operator Semantics | ✅ **LOCK FINAL** | 9 Core + 1 Validation（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 — [ERRATA](docs/phase-0.5/ERRATA.md) |
 | **Phase 0.5B** Product Surface + 0.5B.1 P0 Wireframes + 0.5B.2 Product UX Closure | ✅ **UX BASELINE LOCK FINAL** | 39 UI 表面（38 + CD-01；0.5C 起归并为 4 域）+ 5 P0 wireframes + 36 项语义收口（31 P0 + 5 P1）+ Design System + i18n — [SURFACE_SPEC](docs/phase-0.5/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5/DESIGN_SYSTEM.md) + [I18N_SPEC](docs/phase-0.5/I18N_SPEC.md) + [MILESTONES](docs/phase-0.5/MILESTONES.md) |
 | **Phase 0.5C** Info Arch Closure | 🟡 **DRAFT 0.1** (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
-| **Phase 0.5D** P0 Product Surfaces | ⛔ 0.5C 后 | M-17 Realtime / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
+| **Phase 0.5D** P0 Product Surfaces | ✅ 已完成 (LOCK FINAL) | M-17 Realtime Session / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
 | **Phase 0.6** Reference + FI | 📋 (前置: Phase 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | **Phase 1** Media Agent (Rust) | 📋 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |
 | **Phase 4** Web Console | 📋 | 4 域 × 52 wireframe + 1 Spec + 4 链验证 + VBMF Web UI |
@@ -240,8 +240,8 @@ start docs/phase-0.5/product/M-11-media-library.html
 | Phase 0 (Architecture Freeze) | ✅ V0.2 LOCK FINAL |
 | Phase 0.5A (Operator Semantics) | ✅ **LOCK FINAL** (9 Core + 1 Validation + 4 chains + 20 UI semantic fixes) |
 | Phase 0.5B (Product Surface) | ✅ **UX BASELINE LOCK FINAL** (39 surfaces + 5 P0 wireframes + Design System + i18n) |
-| Phase 0.5C (Info Arch) | 🟡 Draft (directory consolidation + 4-domain navigation + object vocabulary) |
-| Phase 0.5D (P0 Product Surfaces) | ⛔ Pending (6 new surfaces + M-14 redraw) |
+| Phase 0.5C (Info Arch) | 🟢 LOCK FINAL (directory consolidation + 4-domain navigation + object vocabulary) |
+| Phase 0.5D (P0 Product Surfaces) | 🟢 LOCK FINAL (6 new surfaces + M-14 redraw) |
 | Phase 0.6 (Reference + FI) | 📋 Next (after Phase 0.5 LOCK FINAL) |
 | Phase 1 (Media Agent Rust) | 📋 After 0.6 |
 | Phase 2-4 (Backend / Console) | 📋 |

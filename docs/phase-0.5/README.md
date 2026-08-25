@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **→ Phase 0.6 Executable Acceptance**
+> **状态 (派生自 [`MILESTONES.md`](MILESTONES.md) SoT)**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **0.5F.11 Final Consistency & Safety Closure (2 P0 + 4 P1)** · **→ Phase 0.6 Executable Acceptance**
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -149,14 +149,14 @@ Phase 1 Media Agent (Rust) + Phase 4 Web Console
 7. **Design System** — 5 张 wireframe 统一组件 (DESIGN_SYSTEM.md)
 8. **Command Palette + Keyboard** — Ctrl+K / G D / G M / T / F / R 等
 
-## 9. 当前 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
+## 9. 当前 LOCK FINAL 条件 (已于 2026-08-25 全部达成 ✅ · 0.5F.11 P0-2 焊死 SoT)
 
-- ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
-- ⛔ **0.5D LOCK FINAL** (M-17 + E-38 + E-37 + P-20 + P-28 + M-18 wireframe + M-14 重画)
-- ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
-- ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
-- ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
-- ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
+- ✅ **0.5C LOCK FINAL** (4 域 IA + Object Model + 57 决策)
+- ✅ **0.5D LOCK FINAL** (M-17 + E-38 + E-37 + P-20 + P-28 + M-18 wireframe + M-14 重画)
+- ✅ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
+- ✅ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步 (派生自 MILESTONES.md SoT)
+- ✅ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
+- ✅ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
 
 ---
 

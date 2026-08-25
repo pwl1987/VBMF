@@ -493,7 +493,7 @@ HEALTHY → FAILED
 影响:
   · 1 Channel: CH01 (新闻综合) — 当前 ON AIR
   · 2 Output: CDN-A (HLS) + CDN-A (RTMP)
-  · 0 Session (Realtime Transcode 暂未切到此 Path)
+  · 0 Session (Realtime Session 暂未切到此 Path)
 建议: 立即切 CH01 到 Backup Source (SRT-001)
 [ APPLY BACKUP ]   [ DISMISS ]
 ─────────────────────────────────────────────────────────────
@@ -639,7 +639,7 @@ network_path:
   impact:
     affected_channels: [CH01]
     affected_outputs: [CDN-A-HLS-001, CDN-A-RTMP-001]
-    affected_sessions: []        # 0 (Realtime Transcode 暂未切到此 Path)
+    affected_sessions: []        # 0 (Realtime Session 暂未切到此 Path)
 
   audit:
     created_at: 2026-08-25T08:30:00Z

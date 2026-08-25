@@ -165,7 +165,7 @@ source:
 | Adapter | 02-sources / 详情 + E-40 Network Source | Engineer |
 | Endpoint | **E-40 Network Source 配置 + Diagnostics** | Engineer |
 | Contract | E-34 Capability Registry | Engineer |
-| Runtime | M-17 Realtime Transcode (Metrics 区域) | Operator |
+| Runtime | M-17 Realtime Session (Metrics 区域) | Operator |
 | QC | 02-sources / 详情 + 09 Health Tree | All |
 
 ### 2.4 锁定 2
@@ -560,7 +560,7 @@ VBMF Console
 │   ├── Media Library (M-11)
 │   ├── Asset Detail (M-12)
 │   ├── File Transcode (M-14)
-│   ├── Realtime Transcode (M-17)
+│   ├── Realtime Session (M-17)
 │   ├── Transcode Job Detail (M-18)
 │   ├── Transcode Jobs (M-15 锁)
 │   └── Versions (M-16 锁)

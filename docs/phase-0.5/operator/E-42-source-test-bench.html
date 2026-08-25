@@ -80,6 +80,10 @@
   .audio-preview .vside .vbar{flex:1;width:7px;background:var(--bg4);border:1px solid var(--border);border-radius:2px;position:relative;overflow:hidden}
   .audio-preview .vside .vbar .lvl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--green) 0%,var(--green) 68%,var(--yellow) 86%,var(--red) 100%)}
   .audio-preview .monitor{flex:1;height:auto;aspect-ratio:16/9}
+  .vtab{cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:12px;font-size:10px;font-weight:600;background:var(--bg3)}
+  .vtab.on{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.1)}
+  .vprof{display:none}
+  .vprof.show{display:block}
 </style>
 </head>
 <body>
@@ -96,16 +100,24 @@
   </div>
 </div>
 
-<!-- Validation Profile by Source Kind (0.5F.9 P0-1) -->
-<div class="panel" style="border-color:var(--blue)">
-  <h3>Validation Profile by Source Kind (0.5F.9 P0-1)</h3>
+<!-- Validation Profile selector (0.5F.11 P1-2: 真正按 Kind 动态验证) -->
+<div class="panel" style="border-color:var(--accent)">
+  <h3>Validation Profile (按 Source Kind 选择验证档 · 0.5F.11 P1-2)</h3>
+  <div id="vprofSelector" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+    <div class="vtab on" data-v="network">NETWORK / SSM</div>
+    <div class="vtab" data-v="physical">PHYSICAL / SDI</div>
+    <div class="vtab" data-v="file">FILE</div>
+    <div class="vtab" data-v="internal">INTERNAL / FILLER</div>
+    <div class="vtab" data-v="composite">COMPOSITE</div>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px">
-    <div><b>NETWORK</b><br>Network → Transport → Container → Video → Audio → Clock → QC</div>
+    <div><b>NETWORK</b><br>IGMP → Transport → Container → Video → Audio → Clock → QC</div>
     <div><b>PHYSICAL (SDI/BMD)</b><br>Device → Signal Lock → Format → Video → Audio → Clock → QC</div>
     <div><b>FILE</b><br>File Access → Container → Video → Audio → Timecode → Rights → QC</div>
-    <div><b>INTERNAL</b><br>Template → Render → Clock → QC</div>
+    <div><b>INTERNAL</b><br>Render → Video → Audio → Clock → QC</div>
+    <div><b>COMPOSITE</b><br>Child Sources → Graph Compile → Data Plane → Clock → Resource → Latency → QC</div>
   </div>
-  <div class="diag">不同 Kind 使用不同验证档; 下方 7 层为 <b>NETWORK</b> 档 (最常用). 验证通过后输出 Verified Media Contract (SRC-vN), 再允许 D1 ASSIGN (0.5F.9).</div>
+  <div class="diag">不同 Kind 使用不同验证档, 下方验证详情随 Profile <b>动态切换</b> (不是只有 Network 一种). 验证通过后输出 Verified Media Contract (SRC-vN), 再允许 D1 ASSIGN (0.5F.9 / 0.5F.11 P1-2).</div>
 </div>
 
 <!-- Fixture States by Kind (0.5F.10 P0-2: per-Kind representative fixtures) -->
@@ -143,67 +155,81 @@
   </div>
 </div>
 
-<!-- 7-LAYER VALIDATION STACK -->
-<div class="row">
-  <div class="col-7">
-    <div class="panel">
-      <h3>🔬 7 层入网验证 (Network → … → QC) <span class="pill pill-green" style="float:right">7/7 PASS</span></h3>
-      <div class="layer l-pass">
-        <div class="idx">1</div>
-        <div class="body"><div class="name">Network 网络层</div><div class="checks">IGMP v3 JOINED · Route reachable · eno1 UP 10G · SSM 239.20.10.10 · Loss 0.003% · RTT 12ms</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="layer l-pass">
-        <div class="idx">2</div>
-        <div class="body"><div class="name">Transport 传输层</div><div class="checks">RTP seq 连续 · RTCP 收 · Continuity Counter PASS · Discontinuity 0 (24h)</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="layer l-pass">
-        <div class="idx">3</div>
-        <div class="body"><div class="name">Container 容器层</div><div class="checks">MPEG-TS · PID 0x100 present · CC ok · PCR discontinuity 0 · bitrate 4.92 Mbps</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="layer l-pass">
-        <div class="idx">4</div>
-        <div class="body"><div class="name">Video 视频层</div><div class="checks">H.264 · 1080i25 → norm 1080p25 · 25.00 fps · GOP 50 closed · VBV 42%</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="layer l-pass">
-        <div class="idx">5</div>
-        <div class="body"><div class="name">Audio 音频层</div><div class="checks">AAC-LC · 48k · L/R + 16ch embedded · LUFS -23.0 · RMS -26.1 · Silence 0</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="layer l-pass">
-        <div class="idx">6</div>
-        <div class="body"><div class="name">Clock 时钟层</div><div class="checks">PTP LOCKED · AVSync +12ms · PTS drift +0.4ms/min · BT.709</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="layer l-pass">
-        <div class="idx">7</div>
-        <div class="body"><div class="name">QC 质量层</div><div class="checks">Freeze 0 · Black 0 · Slate none · Silence 0 · Bars none · Aspect 16:9</div></div>
-        <div class="status pass">PASS</div>
-      </div>
-      <div class="diag">单层 FAIL 即整体 FAILED; 修复对应层后「重测」从该层起重跑 (增量验证). 阈值见 B-13 §P0-2 / E-40 6 状态.</div>
-    </div>
+<!-- DYNAMIC VALIDATION STACK (0.5F.11 P1-2: 5 个真实验证档) -->
+<div class="panel">
+  <h3>🔬 入网验证详情 (按 Validation Profile 动态) <span class="pill pill-green" style="float:right" id="vprofCount">7/7 PASS</span></h3>
+
+  <!-- NETWORK -->
+  <div class="vprof show" id="vprof-network">
+    <div class="layer l-pass"><div class="idx">1</div><div class="body"><div class="name">Network 网络层</div><div class="checks">IGMP v3 JOINED · Route reachable · eno1 UP 10G · SSM 239.20.10.10 · Loss 0.003% · RTT 12ms</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">2</div><div class="body"><div class="name">Transport 传输层</div><div class="checks">RTP seq 连续 · RTCP 收 · Continuity Counter PASS · Discontinuity 0 (24h)</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">3</div><div class="body"><div class="name">Container 容器层</div><div class="checks">MPEG-TS · PID 0x100 present · CC ok · PCR discontinuity 0 · bitrate 4.92 Mbps</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">4</div><div class="body"><div class="name">Video 视频层</div><div class="checks">H.264 · 1080i25 → norm 1080p25 · 25.00 fps · GOP 50 closed · VBV 42%</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">5</div><div class="body"><div class="name">Audio 音频层</div><div class="checks">AAC-LC · 48k · L/R + 16ch embedded · LUFS -23.0 · RMS -26.1 · Silence 0</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">6</div><div class="body"><div class="name">Clock 时钟层</div><div class="checks">PTP LOCKED · AVSync +12ms · PTS drift +0.4ms/min · BT.709</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">7</div><div class="body"><div class="name">QC 质量层</div><div class="checks">Freeze 0 · Black 0 · Slate none · Silence 0 · Bars none · Aspect 16:9</div></div><div class="status pass">PASS</div></div>
   </div>
-  <!-- LIVE PREVIEW (G5 落点) -->
-  <div class="col-5">
-    <div class="panel">
-      <h3>🖥 实时预览 (G5 源预览端点) <span class="pill pill-blue" style="float:right">Preview Stream</span></h3>
-      <div class="monitor"><span class="live">● LIVE</span>1080p25 · 16:9<span class="res">UDP-MC</span></div>
-      <div class="audio-preview">
-        <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:64%"></div></div></div>
-        <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
-        <div class="monitor" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px">LUFS -23.0 · RMS -26.1<br>48k · AAC-LC</div>
-        <div class="vside"><div class="k">1</div><div class="vbar"><div class="lvl" style="height:60%"></div></div></div>
-        <div class="vside"><div class="k">2</div><div class="vbar"><div class="lvl" style="height:54%"></div></div></div>
-      </div>
-      <div class="diag"><b>G5 闭合:</b> 视频缩略流 + 音频 LUFS/RMS 预览端点在此定义 (Source Runtime Preview Stream). D1 第③步/D3 PVW 复用同一端点, 不重复定义. 16ch→输出布局映射见 G10 (D3/D4).</div>
-      <div class="row" style="margin-top:8px">
-        <div class="col-6"><div class="metric"><div class="label">LUFS-I</div><div class="val green">-23.0</div><div class="sub">target EBU R128</div></div></div>
-        <div class="col-6"><div class="metric"><div class="label">AV Offset</div><div class="val green">+12 ms</div><div class="sub">&lt;40ms</div></div></div>
-      </div>
-    </div>
+
+  <!-- PHYSICAL -->
+  <div class="vprof" id="vprof-physical">
+    <div class="layer l-pass"><div class="idx">1</div><div class="body"><div class="name">Device 设备层</div><div class="checks">BMD DeckLink Duo2 · SDI IN1 · Driver OK · Firmware current</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">2</div><div class="body"><div class="name">Signal Lock 信号锁定</div><div class="checks">1080p50 · LOCKED · Pixel UYVY422 · No glitch</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">3</div><div class="body"><div class="name">Format 格式层</div><div class="checks">1080p50 → norm 1080p25 · 25.00 fps · GOP · VBV</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">4</div><div class="body"><div class="name">Video 视频层</div><div class="checks">H.264 present · Resolution match · Framerate match</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">5</div><div class="body"><div class="name">Audio 音频层</div><div class="checks">Embedded PCM 48k 2ch · LUFS -23.0 · Silence 0</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">6</div><div class="body"><div class="name">Clock 时钟层</div><div class="checks">TIMECODE/PTP LOCKED · AVSync +12ms</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">7</div><div class="body"><div class="name">QC 质量层</div><div class="checks">Freeze 0 · Black 0 · Silence 0 · Aspect 16:9</div></div><div class="status pass">PASS</div></div>
+  </div>
+
+  <!-- FILE -->
+  <div class="vprof" id="vprof-file">
+    <div class="layer l-pass"><div class="idx">1</div><div class="body"><div class="name">File Access 文件访问</div><div class="checks">Asset News_2026_08_25.mp4 · Version v3 · Read OK · Checksum</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">2</div><div class="body"><div class="name">Container 容器层</div><div class="checks">MP4 · moov · bitrate 8.2 Mbps</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">3</div><div class="body"><div class="name">Video 视频层</div><div class="checks">H.264 1080p25 · 25.00 fps</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">4</div><div class="body"><div class="name">Audio 音频层</div><div class="checks">AAC 48k 2ch · LUFS -23.0 · RMS -26.1</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">5</div><div class="body"><div class="name">Timecode 时码层</div><div class="checks">09:58:00:00 present · continuous · drop-none</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">6</div><div class="body"><div class="name">Rights 版权层</div><div class="checks">VALID · window OK · territory OK</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">7</div><div class="body"><div class="name">QC 质量层</div><div class="checks">Freeze 0 · Black 0 · Silence 0</div></div><div class="status pass">PASS</div></div>
+  </div>
+
+  <!-- INTERNAL -->
+  <div class="vprof" id="vprof-internal">
+    <div class="layer l-pass"><div class="idx">1</div><div class="body"><div class="name">Render 生成层</div><div class="checks">BLACK/SLATE/FILLER generated · engine OK · stable</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">2</div><div class="body"><div class="name">Video 视频层</div><div class="checks">1080p25 · pattern stable · no drift</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">3</div><div class="body"><div class="name">Audio 音频层</div><div class="checks">SILENCE/BED · 48k · LUFS -23.0</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">4</div><div class="body"><div class="name">Clock 时钟层</div><div class="checks">PTP/FREERUN LOCKED · AVSync</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">5</div><div class="body"><div class="name">QC 质量层</div><div class="checks">Freeze 0 · Black per spec · Silence per spec</div></div><div class="status pass">PASS</div></div>
+  </div>
+
+  <!-- COMPOSITE -->
+  <div class="vprof" id="vprof-composite">
+    <div class="layer l-pass"><div class="idx">1</div><div class="body"><div class="name">Child Sources 子源</div><div class="checks">SDI-IN-01 + SRT-CAM-02 + BLACK selected · all VERIFIED</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">2</div><div class="body"><div class="name">Graph Compile 图编译</div><div class="checks">Data Plane OK · Resource OK · no cycle</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">3</div><div class="body"><div class="name">Data Plane 数据面</div><div class="checks">throughput OK · jitter &lt; 1ms</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">4</div><div class="body"><div class="name">Clock 时钟层</div><div class="checks">PTP LOCKED across children · AVSync aligned</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">5</div><div class="body"><div class="name">Resource 资源层</div><div class="checks">GPU/CPU reserved · &lt; 80%</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">6</div><div class="body"><div class="name">Latency 延迟层</div><div class="checks">e2e &lt; budget (12ms) · stable</div></div><div class="status pass">PASS</div></div>
+    <div class="layer l-pass"><div class="idx">7</div><div class="body"><div class="name">QC 质量层</div><div class="checks">composite Freeze 0 · Black 0 · Silence 0</div></div><div class="status pass">PASS</div></div>
+  </div>
+
+  <div class="diag">单层 FAIL 即整体 FAILED; 修复对应层后「重测」从该层起重跑 (增量验证). 每个 Kind 的验证步骤不同 (上方 Profile 切换). 阈值见 B-13 §P0-2 / E-40 6 状态.</div>
+</div>
+
+<!-- LIVE PREVIEW (G5 落点) -->
+<div class="panel">
+  <h3>🖥 实时预览 (G5 源预览端点) <span class="pill pill-blue" style="float:right">Preview Stream</span></h3>
+  <div class="monitor"><span class="live">● LIVE</span>1080p25 · 16:9<span class="res">UDP-MC</span></div>
+  <div class="audio-preview">
+    <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:64%"></div></div></div>
+    <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
+    <div class="monitor" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px">LUFS -23.0 · RMS -26.1<br>48k · AAC-LC</div>
+    <div class="vside"><div class="k">1</div><div class="vbar"><div class="lvl" style="height:60%"></div></div></div>
+    <div class="vside"><div class="k">2</div><div class="vbar"><div class="lvl" style="height:54%"></div></div></div>
+  </div>
+  <div class="diag"><b>G5 闭合:</b> 视频缩略流 + 音频 LUFS/RMS 预览端点在此定义 (Source Runtime Preview Stream). D1 第③步/D3 PVW 复用同一端点, 不重复定义. 16ch→输出布局映射见 G10 (D3/D4).</div>
+  <div class="row" style="margin-top:8px">
+    <div class="col-6"><div class="metric"><div class="label">LUFS-I</div><div class="val green">-23.0</div><div class="sub">target EBU R128</div></div></div>
+    <div class="col-6"><div class="metric"><div class="label">AV Offset</div><div class="val green">+12 ms</div><div class="sub">&lt;40ms</div></div></div>
   </div>
 </div>
 
@@ -240,6 +266,19 @@
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
   🧭 这是 0.5D 验收链第 5 张 (D5, E-42 Source Test Bench). 本页**首次真正补模型**而非仅反射: 闭合 G2 (源不在频道向导内联创建, 在 E-40 创建后经本台 7 层验证为 VERIFIED 才进 D1 ASSIGN) 与 G5 (视频缩略流 + 音频 LUFS/RMS 预览端点在此定义, D1③/D3 复用). 7 层: Network/Transport/Container/Video/Audio/Clock/QC; 单层 FAIL → FAILED, 不可存 VERIFIED. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. E-42 为既有 Spec-only 表面 (0.5G 实施), 本页补其 wireframe, 不新增 surface 计数.
 </div>
+
+<script>
+(function(){
+  function showVprof(v){
+    document.querySelectorAll('#vprofSelector .vtab').forEach(function(t){t.classList.toggle('on',t.dataset.v===v)});
+    document.querySelectorAll('.vprof').forEach(function(p){p.classList.toggle('show', p.id==='vprof-'+v)});
+    var n=(v==='internal')?5:7;
+    document.getElementById('vprofCount').textContent=n+'/'+n+' PASS';
+  }
+  document.querySelectorAll('#vprofSelector .vtab').forEach(function(t){t.onclick=function(){showVprof(t.dataset.v)}});
+  showVprof('network');
+})();
+</script>
 
 <script>
 (function(){var k='e42-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();

@@ -235,7 +235,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | **M-11 Media Library** (product) | Asset | Asset Version, Job, QC Profile, Rights Profile |
 | **M-12 Asset Detail** (product) | Asset + Asset Version | QC Profile, Rights Profile, Channel (Used By) |
 | **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Encoding Profile, Variant |
-| **M-17 Realtime Transcode** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
+| **M-17 Realtime Session** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
 | **M-18 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
 | **P-20 Profile Center** (0.5D) | Profile (7 子类 Registry) | Bundle, Variant, Channel |
 | **P-21 Encoding Profile** | Encoding Profile | Bundle, Variant, Channel |

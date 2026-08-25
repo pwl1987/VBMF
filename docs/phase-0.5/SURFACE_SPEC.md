@@ -3273,7 +3273,7 @@ Runtime (参考)
 > 2. Realtime Encode / File Transcode 必须现在拆 (不增加 Engine)
 > 3. README / ROADMAP / SURFACE_SPEC / Phase 0.6 README 之间状态不同步
 > 4. 缺少"对象组合关系"产品级入口 (Profile Bundle)
-> 5. 缺少 Hardware / Clock / Realtime Transcode / Profile Center / Job Detail
+> 5. 缺少 Hardware / Clock / Realtime Session / Profile Center / Job Detail
 > 6. 数字 (01-06) 不应进 UI 顶层导航
 > 7. Phase 0.6 README 写了 `< 100ms` 错误语义 (应 `target_failover_time_ms + measured p50/p95/p99`)
 
@@ -3320,7 +3320,7 @@ UI 顶层导航**从数字改为业务域**:
 
 | 域 | 已锁定表面 | 0.5D 新增 | 域内合计 |
 |---|---|---|---|
-| BROADCAST | 9 (01-07 Core + 08→E-31·09→O-41 归 ENGINEERING 后剩 7 + CD-01) | +1 (**M-17 Realtime Transcode**) | 9 |
+| BROADCAST | 9 (01-07 Core + 08→E-31·09→O-41 归 ENGINEERING 后剩 7 + CD-01) | +1 (**M-17 Realtime Session**) | 9 |
 | MEDIA | 6 (M-11~16) | +1 (**M-18 Job Detail**, 由 M-15 子页升级为独立页; M-14 重画不加数) | 7 |
 | ENGINEERING | 19 (E-31~37 = 7 + O-41~45 = 5 + P-21~27 = 7) | +3 (**P-20** + **P-28** + **E-38 Hardware**; E-37 Clock 为升级不加数) | 22 |
 | ADMIN | 5 (A-51~55) | 0 | 5 |
@@ -3340,12 +3340,12 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 
 | 产品语义 | 底层 Engine | 运行时对象 | UI 表面 |
 |---|---|---|---|
-| **Realtime Transcode** (实时转码) | Encode Engine (REALTIME mode) | **Session (MEDIA_SESSION)** | **M-17 Realtime Transcode** (0.5D 新增) |
+| **Realtime Session** (实时转码) | Encode Engine (REALTIME mode) | **Session (MEDIA_SESSION)** | **M-17 Realtime Session** (0.5D 新增) |
 | **File Transcode** (文件转码) | Encode Engine (FILE mode) | **Job (FILE_TRANSCODE kind)** | **M-14 File Transcode** (0.5B.1 M-14 改名, 0.5D 重画) |
 
 详细 2 种语义对比:
 
-| 维度 | Realtime Transcode | File Transcode |
+| 维度 | Realtime Session | File Transcode |
 |---|---|---|
 | 输入 | Source (SDI / SRT / RTMP) | Asset (MP4 / MOV / TS) |
 | 输出 | Variant (live) → SRS | Asset Version (新 Version) |
@@ -3364,7 +3364,7 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 | **P-28 Profile Bundle** | ENGINEERING | 新增 | 1 Channel 1 Bundle, 7 Profile 引用, 不重新配置 7 套参数 |
 | **E-38 Hardware Inventory** | ENGINEERING | 新增 | HOST 顶层 (CPU/GPU/BMD/NIC/Storage) → Device 详情 (Capabilities/Ports/Assignment/Health/Temperature/Firmware/Driver); 与 E-35 Device Registry / E-36 Resource 互补 |
 | **E-37 Clock** (升级) | ENGINEERING | 升级 | Reference (PTP/TIMECODE/SYSTEM/MONOTONIC) + Fallback Chain + Offset/Drift/Lock + Fallback history (已有 Spec §E-37, 0.5D 补 wireframe) |
-| **M-17 Realtime Transcode** | BROADCAST | 新增 | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
+| **M-17 Realtime Session** | BROADCAST | 新增 | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
 | **M-18 Transcode Job Detail** | MEDIA | 新增 (由 M-15 子页升级为独立页) | Job #TR-1822 (Status/Input/Profile/Worker/Pipeline 6 步/Quality VMAF PSNR SSIM/Output/Attempts) |
 | **M-14 File Transcode** (重画) | MEDIA | 重画 | 6 步 New File Transcode Wizard (Source / Output / Profile / QC / Schedule / Submit), 不再"贴实时 Worker" 形式 |
 

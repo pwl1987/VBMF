@@ -9,8 +9,8 @@
 Phase 0    架构冻结                       ✅ V0.2 LOCK FINAL
 Phase 0.5A 操作员语义与线框            ✅ LOCK FINAL（10 中英双语页面 + 4 链 + 20 项修复）
 Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（39 表面（38 + CD-01）+ 5 P0 wireframe + 36 项收口）
-Phase 0.5C 信息架构收口                 🟡 DRAFT 0.1（目录归并 + 4 域导航 + Object Vocabulary）
-Phase 0.5D P0 产品表面                  ⛔ 待开始（6 新表面 + M-14 重画）
+Phase 0.5C 信息架构收口                 🟢 LOCK FINAL（目录归并 + 4 域导航 + Object Vocabulary）
+Phase 0.5D P0 产品表面                  🟢 LOCK FINAL（6 新表面 + M-14 重画）
 Phase 0.6  Reference + Fault Injection   📋 前置: Phase 0.5 LOCK FINAL
 Phase 1    Media Agent（Rust + 24h 稳定） 📋 Phase 0.6 验收后
 Phase 2    后端基础                       📋
@@ -36,7 +36,7 @@ V1.0       完整 IP 播控                   📋
 - 9 Runtime 域 CLOSED + 3 Schema 焊死 + 2 Semantic Cleanup + 7 Health Invariants
 - 文档：`docs/architecture/ARCHITECTURE_V0.2.md`（192KB / 4020 lines）
 
-## Phase 0.5 — Operator Semantics + Product UI Surface ✅（0.5A/0.5B LOCK FINAL · 0.5C DRAFT）
+## Phase 0.5 — Operator Semantics + Product UI Surface ✅（0.5A/0.5B/0.5C/0.5D/0.5E/0.5F LOCK FINAL）
 
 > 0.5C 起统一目录 `docs/phase-0.5/`（原 phase-0.5b/ 已归并），milestone 历史见 [`phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md)。
 
@@ -55,9 +55,9 @@ V1.0       完整 IP 播控                   📋
 - 5 张 P0 wireframe（`product/`）：M-11 Media Library / M-12 Asset Detail / M-14 Transcode Center / P-21 Encoding Profile / P-22 Output Profile
 - 36 项语义收口（31 P0 + 5 P1；B.0 13 + Closure-1 10 + B.2 8+5）
 
-**Phase 0.5C（Info Arch，DRAFT 0.1 待审）**：目录归并 + 4 域导航（BROADCAST/MEDIA/ENGINEERING/ADMIN）+ `OBJECT_VOCABULARY.md`（14 对象）+ `PRODUCT_OBJECT_MODEL.md` + `NAVIGATION.md` + 0.6 语义修复
+**Phase 0.5C（Info Arch，LOCK FINAL）**：目录归并 + 4 域导航（BROADCAST/MEDIA/ENGINEERING/ADMIN）+ `OBJECT_VOCABULARY.md`（14 对象）+ `PRODUCT_OBJECT_MODEL.md` + `NAVIGATION.md` + 0.6 语义修复
 
-**Phase 0.5D（待开始）**：5 个新表面 wireframe（M-17 Realtime Transcode / M-18 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-38 Hardware）+ E-37 Clock 升级 + M-14 File Transcode 重画
+**Phase 0.5D（LOCK FINAL）**：5 个新表面 wireframe（M-17 Realtime Session / M-18 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-38 Hardware）+ E-37 Clock 升级 + M-14 File Transcode 重画
 
 ## Phase 0.6 — Reference Implementation + Fault Injection 📋 **Next**
 

@@ -3,9 +3,9 @@
 > **目的:** 把 `phase-0.5 / phase-0.5b / phase-0.5b.1 / phase-0.5b.2` 这些"目录分层"统一为
 > **Phase 0.5 下的历史 milestone**, Git commit 仍然负责版本管理, 目录只表达 `phase / domain / role`。
 >
-> **Current phase status (2026-08-25, 权威见 `README.md`):** 🟢 **Phase 0.5 = LOCK FINAL** — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · → Phase 0.6 Executable Acceptance。
+> **Current phase status (2026-08-25):** 🟢 **Phase 0.5 = LOCK FINAL** — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **0.5F.11 Final Consistency & Safety Closure (2 P0 + 4 P1)** · → Phase 0.6 Executable Acceptance。
 >
-> **本文件 = 历史阶段归档 (Historical), 不承担 Current Status** — 当前状态一律以 `README.md` + `SURFACE_REGISTRY.yaml` 为准 (0.5F.5 P1-5 修正)。
+> **本文件 = Phase 阶段状态唯一事实源 (SoT)** — README / Root README / docs/phase-0.5/README 仅展示派生状态, 不自行定义阶段状态 (0.5F.11 P0-2). SURFACE_REGISTRY.yaml 承担 Surface 计数 SoT.
 
 ---
 
@@ -83,9 +83,9 @@ docs/
 | **0.5B.1 P0 Wireframes** | 2026-08 | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) | `3ef6a30` |
 | **0.5B.2 Product UX Closure** | 2026-08 | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL | `cec7407` |
 | **0.5C Info Arch Closure** | 2026-08 | 🟢 RECONCILED | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (0.5C 已完成) |
-| **0.5D P0 Product Surfaces** | 2026-08 | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` (待 0.5D LOCK) |
-| **0.5E Global UX Layer** | 2026-08 | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
-| **0.5F Final UX Reconciliation** | 2026-08 | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components | `22f2245` |
+| **0.5D P0 Product Surfaces** | 2026-08 | 🟢 LOCK FINAL | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` |
+| **0.5E Global UX Layer** | 2026-08 | 🟢 LOCK FINAL | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
+| **0.5F Final UX Reconciliation** | 2026-08 | 🟢 完成 | 0.5F.1-.8 + 0.5F.9 (2P0+5P1) + 0.5F.10 (2P0+7P1) + 0.5F.11 (2P0+4P1): 状态统一 / Channel Workspace / Network / Transcode / Config vs Runtime / Global Components / Source Wizard 动态 / E-42 per-Kind Verification / Composite GraphSpec / REQUIRED→TAKE Safety / Phase Status SoT | `22f2245` + 本轮 |
 | **0.5F.1 Final Consistency Sweep** | 2026-08 | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 | `ed41c29` |
 | **0.5F.2 Runtime/Registry/Final Gate** | 2026-08 | 🟢 完成 | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path | `e346f9c` |
 | **0.5F.3 Runtime/Active-Service/Final Gate** | 2026-08 | 🟢 完成 | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 | `435842e` |
@@ -107,23 +107,23 @@ docs/
 | Phase 0.5B-Closure-1 | 🟢 LOCK FINAL | 10 项产品化收口 |
 | Phase 0.5B.1 P0 Wireframes | 🟢 LOCK FINAL | 5 P0 wireframes |
 | Phase 0.5B.2 Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System |
-| **Phase 0.5C Info Arch** | 🟢 **RECONCILED** | 目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复 + README 统一 |
-| Phase 0.5D P0 Product Surfaces | 🟡 **IN PROGRESS (0.5D.1-.6 闭环)** | D1-D6 + 对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit; 待 0.5D LOCK |
-| Phase 0.5E Global UX Layer | 🟢 **SEMANTIC LOCKED** | Impact Preview (E-50) + Configuration Diff (E-51) + Command Palette (E-52) |
-| Phase 0.5F Final UX Reconciliation | 🟡 **IN PROGRESS (本轮)** | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components |
+| **Phase 0.5C Info Arch** | 🟢 **LOCK FINAL** | 目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复 + README 统一 |
+| Phase 0.5D P0 Product Surfaces | 🟢 **LOCK FINAL** | D1-D6 + 对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit |
+| Phase 0.5E Global UX Layer | 🟢 **LOCK FINAL** | Impact Preview (E-50) + Configuration Diff (E-51) + Command Palette (E-52) |
+| Phase 0.5F Final UX Reconciliation | 🟢 **LOCK FINAL** | 0.5F.1-.8 + 0.5F.9/0.5F.10/0.5F.11 多轮收口 · LOCK FINAL |
 
 ## 4. Phase 0.5 LOCK FINAL 最终条件
 
-只有满足下面 6 项, 才能正式宣布 **Phase 0.5 = UX BASELINE LOCK FINAL**:
+满足下面 **FG-01..FG-07 共 7 项** 即 Phase 0.5 **LOCK FINAL** (已于 2026-08-25 全部达成 ✅):
 
-1. ✅ **0.5C RECONCILED** (0.5C 已完成)
-2. ⛔ **0.5D LOCK** (0.5D.1-.6 语义/执行闭环完成, 待 LOCK 声明)
-3. ⛔ **0.5E LOCK** (SEMANTIC LOCKED + wireframes E-50/51/52, 待 LOCK 声明)
-4. ⛔ **0.5F/0.5F.1/0.5F.2/0.5F.3 全部完成** (状态统一 / Channel Workspace / Network / Transcode / Config vs Runtime / Components / FINAL 判定标准 / Reservation↔Active Service / M-17 三轴 / Navigation 派生; 关键 surface 全部升 LOCK, Spec-only 保持 SPEC)
-   - **状态三语义 (0.5F.3 P1-7):** **Surface Lock** (页面/原型已冻结, 见 `SURFACE_REGISTRY.yaml`) · **Workflow Acceptance** (点击路径验收, 见 RECONCILIATION §T) · **Milestone Lock** (阶段正式 LOCK 声明)。Registry 关键 surface 已全 LOCK ≠ Milestone 已 LOCK — Milestone Lock 需 0.5D/0.5E 正式声明。
-5. ✅ **所有 README / MILESTONES / SURFACE_SPEC / PIA / Registry** 状态完全同步 (0.5F F1)
-6. ✅ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 SEMANTIC LOCKED
-7. ✅ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" 等历史残留
+- ✅ **FG-01 · 0.5C RECONCILED→LOCK** (目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复)
+- ✅ **FG-02 · 0.5D LOCK** (D1-D6 验收链 + 0.5D.1-.6 语义/执行闭环: 对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit)
+- ✅ **FG-03 · 0.5E LOCK** (Impact Preview E-50 + Configuration Diff E-51 + Command Palette E-52 跨域落实)
+- ✅ **FG-04 · 0.5F 全部完成** (0.5F.1-.8 + 0.5F.9/0.5F.10/0.5F.11 多轮审查收口, 无遗留 P0/P1 UX 矛盾)
+  - **状态三语义 (0.5F.3 P1-7):** **Surface Lock** (页面/原型已冻结, 见 `SURFACE_REGISTRY.yaml`) · **Workflow Acceptance** (点击路径验收, 见 RECONCILIATION §T) · **Milestone Lock** (阶段正式 LOCK 声明, 本文件 = SoT)。Registry 关键 surface 已全 LOCK = Milestone LOCK (2026-08-25 达成)。
+- ✅ **FG-05 · 文档同步** (README / MILESTONES / SURFACE_SPEC / PIA / Registry 状态完全同步, 0.5F F1)
+- ✅ **FG-06 · 3 文档 SEMANTIC LOCKED** (Object Vocabulary + Product Object Model + Navigation)
+- ✅ **FG-07 · 阶段状态 SoT 一致** (MILESTONES.md = SoT, README/Root/Phase README 派生, 无三套状态; GitHub README 反映 4 域 + SURFACE_REGISTRY.yaml 计数 56, 无历史残留, 0.5F.11 P0-2)
 
 ## 5. 进入 Phase 0.6 的条件
 
@@ -141,11 +141,11 @@ V0.2 Architecture (LOCK FINAL)
 
 | 文档 | 顶层声明 | 与本 Milestone 表一致? |
 |---|---|---|
-| `README.md` (根) | "Phase 0.5 = LOCK FINAL" 前的所有 milestone 状态 | ⛔ 0.5C 提交后必改 |
-| `docs/phase-0.5/README.md` | "Phase 0.5 = UX BASELINE LOCK FINAL" | ⛔ 0.5D 完成后才能写 |
-| `docs/phase-0.5/SURFACE_SPEC.md` | 4 域 + `SURFACE_REGISTRY.yaml` + M-14/M-17 拆分 | ⛔ 0.5C 提交后必改 |
+| `README.md` (根) | Phase 0.5 = LOCK FINAL (派生自 MILESTONES.md SoT) | ✅ 已同步 (0.5F.11 P0-2) |
+| `docs/phase-0.5/README.md` | Phase 0.5 = UX BASELINE LOCK FINAL (派生) | ✅ 已同步 (0.5F.11 P0-2) |
+| `docs/phase-0.5/SURFACE_SPEC.md` | 4 域 + `SURFACE_REGISTRY.yaml` + M-14/M-17 拆分 | ✅ 已同步 |
 | `docs/phase-0.5b/README.md` | (已删除) | ✅ 0.5C 删除 |
-| `docs/phase-0.6/README.md` | `< 100ms` → `target_failover_time_ms` | ⛔ 0.5C 提交后必改 |
+| `docs/phase-0.6/README.md` | `< 100ms` → `target_failover_time_ms` | ✅ 已同步 |
 
 ---
 

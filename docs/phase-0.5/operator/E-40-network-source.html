@@ -59,6 +59,11 @@
   .life .node.cur{border-color:var(--purple);color:var(--purple);font-weight:600;background:rgba(163,113,247,.1)}
   .life .node.ver{border-color:var(--green);color:var(--green)}
   .life .arrow{color:var(--fgdim)}
+  .branch{display:none}
+  .branch.show{display:block}
+  .kind-opt{cursor:pointer;padding:8px 12px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);transition:.15s}
+  .kind-opt small{display:block;color:var(--fgdim);font-size:10px}
+  .kind-opt.on{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.1)}
 </style>
 </head>
 <body>
@@ -87,17 +92,17 @@
   <div class="diag"><b>G2 闭合:</b> D1 第②步只能"选"已有 VERIFIED 源, 不能"新建并验证". 内联新建源必须在此(E-40)完成, 经 <a href="E-42-source-test-bench.html" style="color:var(--accent)">E-42</a> 7 层验证为 VERIFIED 后才可回 D1 ASSIGN. 模板(D2)默认源同理须指向 VERIFIED 源.</div>
 </div>
 
-<!-- Source Kind selector (0.5F.9 P0-1: unified Source Ingest Wizard) -->
-<div class="panel" style="border-color:var(--blue)">
-  <h3>① Source Kind · 源类型 (统一接入入口)</h3>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <div style="padding:8px 12px;border:1px solid var(--blue);border-radius:4px;background:var(--bg3)">🌐 Network<small style="display:block;color:var(--fgdim)">UDP/RTP/SRT/RTMP/HLS/RTSP/WebRTC</small></div>
-    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">🔌 Physical<small style="display:block;color:var(--fgdim)">SDI / BMD (DeckLink)</small></div>
-    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">📁 File</div>
-    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">⚙ Internal<small style="display:block;color:var(--fgdim)">BLACK/BARS/FILLER</small></div>
-    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">🧩 Composite</div>
+<!-- Source Kind selector (0.5F.11 P1-1: 真正动态分支) -->
+<div class="panel" style="border-color:var(--accent)">
+  <h3>① Source Kind · 源类型 (统一接入入口 · 动态分支)</h3>
+  <div id="kindSelector" style="display:flex;gap:8px;flex-wrap:wrap">
+    <div class="kind-opt on" data-kind="network">🌐 Network<small>UDP/RTP/SRT/RTMP/HLS/RTSP/WebRTC</small></div>
+    <div class="kind-opt" data-kind="physical">🔌 Physical<small>SDI / BMD (DeckLink)</small></div>
+    <div class="kind-opt" data-kind="file">📁 File</div>
+    <div class="kind-opt" data-kind="internal">⚙ Internal<small>BLACK/BARS/FILLER</small></div>
+    <div class="kind-opt" data-kind="composite">🧩 Composite</div>
   </div>
-  <div class="diag">统一入口:<b>所有 Kind 共用一个 Wizard</b> (CREATE → VERIFY → ASSIGN), 仅按 Kind 展开不同 Device/Endpoint Schema. 5 种 Kind 各有配置分支 (Network/Physical/File/Internal/Composite), 物理源 (SDI/BMD) 不再需要独立页面 (0.5F.9 P0-1 + 0.5F.10).</div>
+  <div class="diag">统一入口:<b>所有 Kind 共用一个 Wizard</b> (CREATE → VERIFY → ASSIGN). 选 Kind 后<b>只渲染该 Kind 的配置表单</b> (下方动态切换), 不是 5 个表单平铺. 5 种 Kind 各自 Device/Endpoint/Graph Schema (0.5F.9 P0-1 + 0.5F.10 + 0.5F.11 P1-1).</div>
 </div>
 
 <!-- WIZARD STEPPER -->
@@ -110,7 +115,7 @@
 </div>
 
 <!-- CREATE FORM (Adapter / Endpoint / Security, 沿用 E-40 0.5F 字段) -->
-<div class="row">
+<div class="branch show" id="branch-network"><div class="row">
   <div class="col-8">
     <div class="panel">
       <h3>📝 创建网络源 (Network → UDP) <small style="font-size:11px;color:var(--fgdim)">· 分支演示, 其余 Transport / Physical / File / Internal 见同 Wizard</small></h3>
@@ -229,6 +234,7 @@
     </div>
   </div>
 </div>
+</div>
 
 <!-- Network Path Compact Summary (0.5F.8 P1-3) -->
 <div class="panel" style="border-color:var(--orange)">
@@ -252,7 +258,7 @@
 </div>
 
 <!-- Physical Source Branch (0.5F.9 P0-1: unified wizard, Physical = SDI/BMD) -->
-<div class="panel" style="border-color:var(--green)">
+<div class="panel branch" id="branch-physical" style="border-color:var(--green)">
   <h2>① 创建 Physical Source (SDI / BMD)</h2>
   <div class="row">
     <div class="col-8">
@@ -278,7 +284,7 @@
 </div>
 
 <!-- File Source Branch (0.5F.10 P0-1: unified wizard, File = Asset playback) -->
-<div class="panel" style="border-color:var(--gray)">
+<div class="panel branch" id="branch-file" style="border-color:var(--gray)">
   <h2>① 创建 File Source (资产回放)</h2>
   <div class="row">
     <div class="col-8">
@@ -308,7 +314,7 @@
 </div>
 
 <!-- Internal Source Branch (0.5F.10 P0-1: unified wizard, Internal = generated signal) -->
-<div class="panel" style="border-color:var(--purple)">
+<div class="panel branch" id="branch-internal" style="border-color:var(--purple)">
   <h2>① 创建 Internal Source (生成信号)</h2>
   <div class="row">
     <div class="col-8">
@@ -334,21 +340,21 @@
 </div>
 
 <!-- Composite Source Branch (0.5F.10 P1-1: Graph-backed Source, not plain Endpoint) -->
-<div class="panel" style="border-color:var(--accent)">
+<div class="panel branch" id="branch-composite" style="border-color:var(--accent)">
   <h2>① 创建 Composite Source (Graph-backed · 子源合成)</h2>
   <div class="row">
     <div class="col-8">
       <div class="form-grid">
-        <div class="field"><label>Source Graph</label><select><option>SDI-IN-01</option><option>SRT-CAM-02</option><option>BLACK</option></select></div>
-        <div class="field"><label>Select Children</label><select multiple><option>SDI-IN-01</option><option>SRT-CAM-02</option><option>BLACK</option></select></div>
+        <div class="field"><label>Graph Spec</label><select><option>COMPOSITE_NEWS_MAIN_v3</option><option>COMPOSITE_SPORT_CAM_MIX</option></select></div>
+        <div class="field"><label>Child Sources</label><select multiple><option>SDI-IN-01</option><option>SRT-CAM-02</option><option>BLACK</option></select></div>
         <div class="field"><label>Composition / Routing</label><select><option>Main+Key</option><option>PiP</option><option>N-cam Mix</option></select></div>
         <div class="field"><label>Clock</label><select><option>PTP</option></select></div>
       </div>
-      <div class="diag">COMPOSITE 不是普通 Endpoint 分支, 而是 <b>Graph-backed Source</b>: 选已有子源 → 定义合成/路由 → Compile → Validate → Verified Composite Contract. 输出 RAW_VIDEO / RAW_AUDIO + PTP Clock.</div>
+      <div class="diag">COMPOSITE = <b>Graph-backed Source</b>: 选 Graph Spec (设计态 Spec) → 选 Child Sources (已有子源) → 定义合成/路由 → <b>Compile</b> → 校验 Data Plane / Clock / Resource / Latency → Verified Composite Contract. <b>Graph ≠ Source</b>: Graph 是设计态 Spec, Route 是编译产物 (V0.2 对象模型). 输出 RAW_VIDEO / RAW_AUDIO + PTP.</div>
     </div>
     <div class="col-4">
       <div class="panel" style="margin:0">
-        <div class="k">Compile</div>
+        <div class="k">Compile → Route / GraphRuntime</div>
         <div class="v" style="color:var(--green)">✓ Data Plane · ✓ Clock · ✓ Resource · ✓ Latency</div>
         <div class="k" style="margin-top:8px">Output Contract</div>
         <div class="v">RAW_VIDEO · RAW_AUDIO · PTP</div>
@@ -356,6 +362,17 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Wizard step footer (0.5F.11 P1-1: 动态分支 + 步骤) -->
+<div class="panel" style="border-color:var(--accent)">
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="btn">← Back</button>
+    <button class="btn">💾 Save Draft</button>
+    <span style="flex:1"></span>
+    <button class="btn primary">Next → Verify (E-42)</button>
+  </div>
+  <div class="diag">Wizard 步骤: ① 选 Kind → ② 填该 Kind 表单 → ③ Verify (E-42) → ④ VERIFIED / ASSIGN. 切换 Kind 只换中间表单, 生命周期条/验证上下文不重渲 (0.5F.11 P1-1).</div>
 </div>
 
 <!-- Signal Path Diagnostics (0.5F F3) -->
@@ -377,6 +394,17 @@
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
   🧭 这是 0.5D 验收链第 5 张 (D5, E-40 Network Source Wizard). 与 E-42 验证台共同**闭合 G2 (源不在频道向导内联创建, 在此独立创建→E-42 验证→VERIFIED 池→D1 ASSIGN) 与 G5 (预览端点在 E-42)**. E-40 基础配置(0.5F LOCK)已含 Adapter/Endpoint/Security 8 字段与 6 状态样例(CRITICAL 不可存 VERIFIED); 本页仅补"创建→验证→ASSIGN"闭环与 E-42 链接. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 升级既有 E-40 (0.5F LOCK), 不新增 surface 计数.
 </div>
+
+<script>
+(function(){
+  function showBranch(k){
+    document.querySelectorAll('#kindSelector .kind-opt').forEach(function(o){o.classList.toggle('on',o.dataset.kind===k)});
+    document.querySelectorAll('.branch').forEach(function(b){b.classList.toggle('show', b.id==='branch-'+k)});
+  }
+  document.querySelectorAll('#kindSelector .kind-opt').forEach(function(o){o.onclick=function(){showBranch(o.dataset.kind)}});
+  showBranch('network');
+})();
+</script>
 
 <script>
 (function(){var k='e40v2-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
