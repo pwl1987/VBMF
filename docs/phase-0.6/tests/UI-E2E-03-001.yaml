@@ -1,0 +1,42 @@
+id: UI-E2E-03-001
+title: Channel → Realtime Session → Output → Health (realtime domain UI click loop)
+gate: G-UIUX
+reference: UI-E2E
+fixture_id: F-UI-SESSION-FLOW
+env_prereq_id: ENV-LAB-01
+runner: runners/run_ui_e2e.py
+depends_on: [AC-03B-001]
+timeout: 600
+preconditions:
+  - "Engineer session authenticated"
+  - "Channel (CD-01-WS) exists with REALTIME_PROFILE (M-17)"
+actions:
+  - step: 1
+    do: "Browser: CD-01 Channel Control Workspace → configure Realtime Session (M-17)"
+  - step: 2
+    do: "Browser: Provision/Reservation → STARTING → READY_TO_TAKE → RUNNING"
+  - step: 3
+    do: "Browser: M-17 [Open Output] (carry object context) → 06 Output (Output Variant)"
+  - step: 4
+    do: "Browser: 06 Output [Open Health] → 09 Health Tree"
+expected:
+  context_preserved: true
+  session_state_machine_valid: true
+  output_opens_with_context: true
+  health_closes_loop: true
+  runtime_health: "HEALTHY"
+pass_rule: "context_preserved == true AND session_state_machine_valid == true AND output_opens_with_context == true AND health_closes_loop == true AND runtime_health == 'HEALTHY'"
+negative_case:
+  id: UI-E2E-03-001-NEG
+  do: "Reuse UI-E2E-02 FILE_TRANSCODE entry for REALTIME_ENCODE"
+  expect_fail: "violates separation (FILE_TRANSCODE ≠ REALTIME_ENCODE entry)"
+evidence:
+  - "evidence/{id}_{run_ts}_playwright_trace.zip"
+  - "evidence/{id}_{run_ts}_dom_snapshot.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule:
+  max: 2
+  backoff_s: 60
+abort_rule:
+  consecutive_fail: 3
+note: "UI 行为不可旁路 UI; Realtime Session 三轴 (STARTING/READY_TO_TAKE/RUNNING) 非单轴迁移"

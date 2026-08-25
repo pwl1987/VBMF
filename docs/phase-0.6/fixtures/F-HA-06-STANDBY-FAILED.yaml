@@ -1,0 +1,9 @@
+id: F-HA-06-STANDBY-FAILED
+title: HA-06 ACTIVE HEALTHY / STANDBY FAILED
+reference: HA
+params:
+  active_rg_state: "HEALTHY"
+  standby_rg_state: "FAILED"
+expected:
+  channel_health: "DEGRADED"
+must_not: ["resolved_as_HEALTHY"]

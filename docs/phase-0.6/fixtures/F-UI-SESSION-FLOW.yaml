@@ -1,0 +1,13 @@
+id: F-UI-SESSION-FLOW
+title: UI-E2E-03 realtime session fixture
+reference: UI-E2E
+seed:
+  channel: "CH01"
+  realtime_profile: "RT-PROFILE-01"
+  output_variant: "OUT-HLS"
+  health_tree: "09"
+expectations:
+  context_preserved: true
+  session_reaches_running: true
+  output_opens_with_context: true
+  runtime_health: "HEALTHY"

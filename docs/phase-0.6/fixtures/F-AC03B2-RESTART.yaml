@@ -1,0 +1,14 @@
+id: F-AC03B2-RESTART
+title: AC-03B-2 Override + Runtime Restart fixture
+reference: AC-03B
+params:
+  level: "L3"
+  who: "required"
+  why: "required"
+  until_ttl_wall_clock: true
+  persisted_in: "runtime_store"
+expected:
+  survive_session_restart: true
+  survive_agent_restart: true
+  survive_controller_restart: true
+  ttl_not_reset_on_restart: true

@@ -1,0 +1,11 @@
+id: F-HA-07-ABSORBED
+title: HA-07 ACTIVE HEALTHY / OFFLINE+FAILED absorbed (H5)
+reference: HA
+params:
+  active_rg_state: "HEALTHY"
+  standby_rg_state: "OFFLINE+FAILED"
+  system_absorbed: true
+expected:
+  channel_health: "HEALTHY"
+  absorbed: true
+must_not: ["demote_to_DEGRADED"]

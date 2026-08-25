@@ -1,0 +1,10 @@
+id: F-HA-05-ACTIVE-UNKNOWN
+title: HA-05 ACTIVE UNKNOWN / STANDBY HEALTHY
+reference: HA
+params:
+  active_rg_state: "UNKNOWN"
+  standby_rg_state: "HEALTHY"
+expected:
+  channel_health: "UNKNOWN"
+  standby_not_promoted: true
+must_not: ["auto_promote_standby"]

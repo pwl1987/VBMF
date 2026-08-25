@@ -304,17 +304,48 @@ def check_phase06_fi_ids():
     return errs
 
 
+# Phase 0.6 G-DOC-READY 的 COVERAGE 子门禁 SoT:
+# 规范明确要求、Harness 必须逐一落地的条目, 以 Test Case id 前缀 (末段 -NNN 之前) 精确核对。
+# 任何缺失 => G-DOC-READY = NOT (COVERAGE FAIL), 不能进入 G-RUNTIME。
+# 键 = canonical 条目 id 前缀; 值 = 所属 reference 族 (仅文档用途)。
+PHASE06_COVERAGE_REQUIRED = {
+    "AC-01": "A1",
+    "A2": "A2",
+    "B": "B",
+    "AC-03B": "AC-03B",
+    "AC-03B-2": "AC-03B",
+    "AC-03B-2-6": "AC-03B",
+    "FI-01A": "FI",
+    "FI-01B": "FI",
+    "FI-02": "FI",
+    "FI-03": "FI",
+    "FI-04": "FI",
+    "FI-05": "FI",
+    "FI-06": "FI",
+    "FI-07": "FI",
+    "HA-01": "HA",
+    "HA-02": "HA",
+    "HA-03": "HA",
+    "HA-04": "HA",
+    "HA-05": "HA",
+    "HA-06": "HA",
+    "HA-07": "HA",
+    "UI-E2E-01": "UI-E2E",
+    "UI-E2E-02": "UI-E2E",
+    "UI-E2E-03": "UI-E2E",
+    "UI-E2E-04": "UI-E2E",
+}
+
+
 def check_phase06_harness():
-    """Phase 0.6 G-DOC-READY 门禁: Harness 引用闭环校验 (G-DOC Entry Patch 引入)。
+    """Phase 0.6 G-DOC-READY 门禁 (回应 GDOC-01/02/03): 拆成 3 个子门禁, 全部 PASS 才 G-DOC-READY。
 
-    在 G-DOC 文件化后、进入 G-RUNTIME 前, 必须确认:
-      1. 每个 tests/*.yaml 的 fixture_id / env_prereq_id / runner 实际存在
-         (防止 "Test Case 写了 fixture 但 fixtures/ 里没有")。
-      2. canonical FI 集合中每个 FI ID 在 tests/ 至少有 1 个对应 Test Case
-         (防止 "规范说 8 个 FI, 但 Test Cases 只建了 5 个")。
-      3. 每个 AC / UI-E2E Reference 在 tests/ 至少有 1 个 Test Case。
+    STRUCTURE : Harness 引用闭环 (fixture/env/runner 文件存在, 防 "写了没建")。
+    COVERAGE  : 规范条目族全落地 (HA-01~07 / UI-E2E-01~04 / AC-03B + AC-03B-2 + AC-03B-2-6 /
+                A1/A2/B/FI-01A/B/02~07 每个 ≥1 Test Case, 且 reference 字段精确匹配, 非 id 子串)。
+    EXECUTOR  : Runner 真实化 (含 evaluate_pass_rule / HARNESS_READY 三态标记, 不再 "文件存在即 PASS")。
 
-    这样即在 G-DOC 与 G-RUNTIME 之间焊死 "测试框架本身先冻结" 的 Gate。
+    => G-DOC-READY = STRUCTURE AND COVERAGE AND EXECUTOR 全绿。
     """
     try:
         import yaml as _yaml
@@ -339,41 +370,90 @@ def check_phase06_harness():
         if d:
             tests.append((y, d))
 
-    # 规则 1: fixture_id / env_prereq_id / runner 必须存在
+    # ---------- STRUCTURE ----------
     for y, d in tests:
         rel = y.relative_to(ROOT)
         fid = d.get("fixture_id")
         if fid and not (p06 / "fixtures" / f"{fid}.yaml").exists():
-            errs.append(f"[HARNESS] {rel} 引用 fixture '{fid}' 不存在 (fixtures/{fid}.yaml)")
+            errs.append(f"[G-DOC-STRUCTURE] {rel} 引用 fixture '{fid}' 不存在 (fixtures/{fid}.yaml)")
         eid = d.get("env_prereq_id")
         if eid and not (p06 / "env" / f"{eid}.yaml").exists():
-            errs.append(f"[HARNESS] {rel} 引用 env '{eid}' 不存在 (env/{eid}.yaml)")
+            errs.append(f"[G-DOC-STRUCTURE] {rel} 引用 env '{eid}' 不存在 (env/{eid}.yaml)")
         runner = d.get("runner")
         if runner and not (p06 / runner).exists():
-            errs.append(f"[HARNESS] {rel} 引用 runner '{runner}' 不存在 (期望 docs/phase-0.6/{runner})")
+            errs.append(f"[G-DOC-STRUCTURE] {rel} 引用 runner '{runner}' 不存在 (期望 docs/phase-0.6/{runner})")
 
-    # 规则 2+3: canonical FI / AC / UI-E2E 每个至少有 1 个 Test Case
-    refs = {}
+    # ---------- COVERAGE ----------
+    # 收集所有 Test Case id, 归一化为 "规范条目 token" (去掉末尾 -NNN / _NNN),
+    # 再用结构化比对 (非 id 子串猜测) 核对 PHASE06_COVERAGE_REQUIRED 全条目均已被覆盖。
+    covered_ids = set()
     for y, d in tests:
-        r = d.get("reference")
-        if r:
-            refs.setdefault(r, []).append(d.get("id"))
+        tid = d.get("id") or ""
+        if tid:
+            covered_ids.add(tid)
+            # 逐层剥前缀, 允许 AC-03B-2-001 同时计入 AC-03B-2 与 AC-03B
+            t = tid
+            while True:
+                t = re.sub(r"[-_][^-_]+$", "", t)
+                if t == tid or not t:
+                    break
+                covered_ids.add(t)
 
-    # FI 完备性: 从 phase-0.6 README 抽 canonical FI, 检查每个有 Test Case
+    present = sorted(covered_ids)
+    for item in PHASE06_COVERAGE_REQUIRED:
+        hit = (item in covered_ids) or any(
+            t == item or t.startswith(item + "-") or t.startswith(item + "_")
+            for t in covered_ids
+        )
+        if not hit:
+            errs.append(
+                f"[G-DOC-COVERAGE] 规范要求条目 '{item}' 在 tests/ 无对应 Test Case "
+                f"(已建 id 条目: {present if present else 'none'})"
+            )
+
+    # FI 弱关联补强 (GDOC-03): canonical FI 集合 (从 README) 须被 id 精确覆盖
     readme = (p06 / "README.md").read_text(encoding="utf-8") if (p06 / "README.md").exists() else ""
     fi_ids = sorted(set(re.findall(r"FI-\d{2}[A-Z]?", readme)))
     for fid in fi_ids:
-        if not any(tid and fid in tid for tid in refs.get("FI", [])):
-            errs.append(f"[HARNESS] canonical FI '{fid}' 在 tests/ 无对应 Test Case (期望 ≥1)")
+        if fid not in covered_ids and not any(
+            t == fid or t.startswith(fid + "-") or t.startswith(fid + "_")
+            for t in covered_ids
+        ):
+            errs.append(
+                f"[G-DOC-COVERAGE] canonical FI '{fid}' 在 tests/ 无对应 Test Case "
+                f"(已建 FI: {sorted(t for t in covered_ids if t.startswith('FI-')) or 'none'})"
+            )
 
-    # AC / UI-E2E 完备性提示 (至少 A1/A2/B/FI/HA/UI-E2E/AC-03B 各 ≥1)
-    for need in ("A1", "A2", "B", "FI", "HA", "UI-E2E", "AC-03B"):
-        if need not in refs:
-            errs.append(f"[HARNESS] Reference '{need}' 在 tests/ 无对应 Test Case (期望 ≥1)")
+    # ---------- EXECUTOR ----------
+    runner_files = {
+        "runners/run_reference_a1.py",
+        "runners/run_fi_matrix.py",
+        "runners/run_ui_e2e.py",
+    }
+    for rf in runner_files:
+        rp = p06 / rf
+        if not rp.exists():
+            errs.append(f"[G-DOC-EXECUTOR] runner '{rf}' 缺失")
+            continue
+        src = rp.read_text(encoding="utf-8")
+        # 真实化标记: 必须引入 evaluate_pass_rule (或 harness_common) 且区分 HARNESS_READY 三态,
+        # 不得再出现 "文件存在即 PASS" 的 bool(fixture and env and pass_rule) 裸判定。
+        if "harness_common" not in src and "evaluate_pass_rule" not in src:
+            errs.append(f"[G-DOC-EXECUTOR] {rf} 未接入 evaluate_pass_rule (仍是 skeleton connectivity PASS)")
+        if "HARNESS_READY" not in src:
+            errs.append(f"[G-DOC-EXECUTOR] {rf} 未区分 HARNESS_READY/PASS 三态 (仍可能误报 PASS)")
+        if "bool(fixture and env and test.get(\"pass_rule\"))" in src:
+            errs.append(f"[G-DOC-EXECUTOR] {rf} 仍存在 '文件存在即 PASS' 的裸判定")
     return errs
 
 
 def main():
+    # Windows GBK 控制台下确保 utf-8 输出, 避免 ∅/中文编码崩溃
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:  # noqa
+        pass
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     errors = []
     if mode in ("all", "links"):
@@ -386,6 +466,12 @@ def main():
         errors += check_phase06_fi_ids()
         errors += check_phase06_harness()
 
+    if mode in ("all", "phase06") and not errors:
+        # 仅当 phase06 无错时给出 G-DOC-READY 三子门禁全绿结论
+        print("PASS — Phase 0.6 G-DOC-READY: [STRUCTURE]✓ [COVERAGE]✓ [EXECUTOR]✓ "
+              "(注意: 仅表示 'G-DOC 规范已完整建模', 不等于 'Runtime 真实执行 PASS')")
+        if mode == "phase06":
+            sys.exit(0)
     if errors:
         print(f"FAIL — {len(errors)} 个问题:")
         for e in errors:

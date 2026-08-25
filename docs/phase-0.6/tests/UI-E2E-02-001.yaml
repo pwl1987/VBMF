@@ -1,0 +1,45 @@
+id: UI-E2E-02-001
+title: Asset → File Transcode → Asset Version → QC (media domain UI click loop)
+gate: G-UIUX
+reference: UI-E2E
+fixture_id: F-UI-TRANSCODE-FLOW
+env_prereq_id: ENV-LAB-01
+runner: runners/run_ui_e2e.py
+depends_on: [AC-02-001]
+timeout: 600
+preconditions:
+  - "Engineer session authenticated"
+  - "Encoding Profile (P-21) + Packaging Profile (P-20) + Output Profile (P-22) exist"
+actions:
+  - step: 1
+    do: "Browser: M-11 Media Library → Create Asset Version → M-12 Asset Detail"
+  - step: 2
+    do: "Browser: M-12 → File Transcode → M-14 (select P-21 + P-20 + P-22 as independent choices)"
+  - step: 3
+    do: "Browser: Preview / Test Encode → M-18 Job Detail (job_id, FILE_TRANSCODE)"
+  - step: 4
+    do: "Browser: wait COMPLETED → new Asset Version (asset_version_id)"
+  - step: 5
+    do: "Browser: QC via M-18/QC Profile (P-25) → Used By → CD-01"
+expected:
+  context_preserved: true
+  new_asset_version_jumps_back_to_m12: true
+  qc_result_written_to_asset_version: true
+  used_by_links_to_channel: true
+  encoding_pkg_profiles_independent: true
+  transcode_health: "HEALTHY"
+pass_rule: "context_preserved == true AND new_asset_version_jumps_back_to_m12 == true AND qc_result_written_to_asset_version == true AND used_by_links_to_channel == true AND encoding_pkg_profiles_independent == true AND transcode_health == 'HEALTHY'"
+negative_case:
+  id: UI-E2E-02-001-NEG
+  do: "Merge Encoding+Packaging Profile into one selector in M-14"
+  expect_fail: "violates OBJECT_NAVIGATION_MATRIX (profiles must be independent choices)"
+evidence:
+  - "evidence/{id}_{run_ts}_playwright_trace.zip"
+  - "evidence/{id}_{run_ts}_dom_snapshot.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule:
+  max: 2
+  backoff_s: 60
+abort_rule:
+  consecutive_fail: 3
+note: "FILE_TRANSCODE 与 REALTIME_ENCODE 不共用同一 UI 入口; UI 行为不可旁路 UI"

@@ -38,9 +38,9 @@ Phase 0.6 References ─┘
     ├─ env/  (Environment Prereq YAML)
     ├─ runners/  (可执行 runner 脚本)
     └─ evidence/  (证据落地)
-        ↓  scripts/check_docs.py phase06  (引用闭环 + FI 完备性 + G-DOC-READY)
-  G-DOC-READY   ← 测试框架本身先冻结, 再跑实体测试
-        ↓
+        ↓  scripts/check_docs.py phase06  (三子门禁: STRUCTURE + COVERAGE + EXECUTOR)
+  G-DOC-READY   ← [STRUCTURE]✓ [COVERAGE]✓ [EXECUTOR]✓ 三者全绿 (仅表示 "规范已完整建模且骨架可连通")
+        ↓  注意: G-DOC-READY ≠ "Runtime 真实执行 PASS" (runner 当前为 HARNESS_READY 三态)
   G-RUNTIME  (A1 → A2 → B → FI-01A/B/02~07 → HA-01~07, 先 Runtime 再 UI)
         ↓
   G-UIUX  (UI-E2E-01~04 + TAKE revision 验证)
@@ -48,7 +48,9 @@ Phase 0.6 References ─┘
   PHASE 0.6 ACCEPTED   (任意 Gate FAIL = NOT ACCEPTED)
 
 > **G-DOC-READY 原则 (FLOW-01)**: 不能出现 "测试跑了 20 次才发现 Evidence/Test ID/Fixture ID/Pass Rule 不统一"。
-> 先把 Harness 结构 + 引用闭环冻结 (check_docs.py phase06 全绿), 再开始实体测试。
+> 先把 Harness 结构 + 引用闭环 + 规范全覆盖冻结 (check_docs.py phase06 全绿), 再开始实体测试。
+> **G-DOC-READY 三子门禁 (FLOW-02)**: STRUCTURE=引用文件存在; COVERAGE=规范条目族全落地 (HA-01~07/UI-E2E-01~04/AC-03B+AC-03B-2+AC-03B-2-6/A1/A2/B/FI-01A/B/02~07);
+> EXECUTOR=runner 真实化 (evaluate_pass_rule + HARNESS_READY/PASS 三态, 不再 "文件存在即 PASS")。
 
 ## Harness Layout (G-DOC 落地, GDOC-02)
 
@@ -57,8 +59,9 @@ docs/phase-0.6/
 ├── README.md
 ├── SCHEMA.md            # Test Case YAML SoT
 ├── ACCEPTANCE_REPORT.md # Gate 结果 + 覆盖矩阵
-├── tests/               # AC-01-001.yaml / A2-001 / B-001 / FI-01A-001 / HA-01-001 / AC-03B-001 / UI-E2E-01-001 ...
-├── fixtures/            # F-A1-PASS / F-FI-01A-SDI-FREEZE / F-FI-06-MASTER-JOIN / F-FI-07-RECORDING ...
+├── tests/               # 24 Test Cases: AC-01-001 / A2-001 / B-001 / AC-03B-001 / AC-03B-2-001 / AC-03B-2-6-001
+│                        #   FI-01A/B-001, FI-02~07-001 / HA-01~07-001 / UI-E2E-01~04-001
+├── fixtures/            # F-A1-PASS / F-FI-01A-SDI-FREEZE / F-FI-06-MASTER-JOIN / F-FI-07-RECORDING / F-AC03B2-* / F-HA-0X-* / F-UI-* ...
 ├── env/                 # ENV-LAB-01.yaml (真实地址 <LAB_HOST> 占位, 私有 manifest)
 ├── runners/             # run_reference_a1.py / run_fi_matrix.py / run_ui_e2e.py
 └── evidence/            # {test_id}_{run_ts}_{pass|fail}.json

@@ -1,0 +1,9 @@
+id: F-HA-03-BOTH-FAILED
+title: HA-03 Primary & Backup both OFFLINE+FAILED
+reference: HA
+params:
+  primary_rg_state: "OFFLINE+FAILED"
+  backup_rg_state: "OFFLINE+FAILED"
+expected:
+  channel_health: "FAILED"
+must_not: ["resolved_as_DEGRADED"]

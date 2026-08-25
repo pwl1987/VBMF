@@ -1,0 +1,29 @@
+id: HA-02-001
+title: HA-02 Backup STANDBY+HEALTHY pending takeover → DEGRADED
+gate: G-RUNTIME
+reference: HA
+fixture_id: F-HA-02-BACKUP-STANDBY
+env_prereq_id: ENV-LAB-01
+runner: runners/run_fi_matrix.py
+depends_on: [HA-01-001]
+timeout: 300
+preconditions:
+  - "Active/Standby controller pair"
+  - "Primary source RG OFFLINE+FAILED"
+  - "Backup source STANDBY+HEALTHY (not yet promoted)"
+actions:
+  - step: 1
+    do: "Observe failover decision for Primary=OFFLINE+FAILED / Backup=STANDBY+HEALTHY"
+expected:
+  channel_health: "DEGRADED"
+  takeover_pending: true
+pass_rule: "channel_health == 'DEGRADED' AND takeover_pending == true"
+negative_case:
+  id: HA-02-001-NEG
+  do: "Backup STANDBY+HEALTHY mis-resolved as HEALTHY"
+  expect_fail: "violates Rule 4 (pending takeover must be DEGRADED)"
+evidence:
+  - "evidence/{id}_{run_ts}_ha_state.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 0, backoff_s: 0}
+abort_rule: {consecutive_fail: 1}

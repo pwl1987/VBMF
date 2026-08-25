@@ -1,0 +1,33 @@
+id: UI-E2E-04-001
+title: Navigation Closure over all 32 LOCK Surfaces (per-Surface Covered/NotCovered)
+gate: G-UIUX
+reference: UI-E2E
+fixture_id: F-UI-NAV-CLOSURE
+env_prereq_id: ENV-LAB-01
+runner: runners/run_ui_e2e.py
+depends_on: [UI-E2E-01-001, UI-E2E-02-001, UI-E2E-03-001]
+timeout: 900
+preconditions:
+  - "Registry SoT: 32 LOCK Surfaces (BROADCAST 13 / MEDIA 5 / ENGINEERING 13 / ADMIN 0 — see SURFACE_REGISTRY.yaml)"
+actions:
+  - step: 1
+    do: "Browser: for each LOCK Surface, assert reachable from navigation and intra-domain links resolve"
+  - step: 2
+    do: "Produce per-Surface table: Surface ID → Covered(Y/N) → Evidence ref"
+expected:
+  all_32_lock_surfaces_declared: true
+  nav_claim_not_substituted_by_3_chains: true
+pass_rule: "all_32_lock_surfaces_declared == true AND nav_claim_not_substituted_by_3_chains == true"
+negative_case:
+  id: UI-E2E-04-001-NEG
+  do: "Claim full closure from UI-E2E-01/02/03 chains only (3 chains ≡ 56 navigation)"
+  expect_fail: "violates rule: E2E 3 chains PASS ≠ all LOCK Surface nav closure"
+evidence:
+  - "evidence/{id}_{run_ts}_nav_closure_table.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule:
+  max: 1
+  backoff_s: 120
+abort_rule:
+  consecutive_fail: 2
+note: "Must enumerate every LOCK Surface; 'NotCovered' allowed but must be explicit, not implicit"

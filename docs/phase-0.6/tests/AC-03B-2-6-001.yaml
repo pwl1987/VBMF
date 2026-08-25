@@ -1,0 +1,38 @@
+id: AC-03B-2-6-001
+title: Clock adjustment during Override (TTL determinism under clock correction)
+gate: G-RUNTIME
+reference: AC-03B
+fixture_id: F-AC03B2-6-CLOCK
+env_prereq_id: ENV-LAB-01
+runner: runners/run_reference_a1.py
+depends_on: [AC-03B-2-001]
+timeout: 300
+preconditions:
+  - "Override L3 active, wall-clock TTL, Runtime Revision N"
+  - "Clock Domain object (PTP lock status) observable"
+actions:
+  - step: 1
+    do: "Perform NTP correction / manual clock rollback (time travels backward)"
+  - step: 2
+    do: "Observe Override TTL resolution (must not extend / not reset to full)"
+  - step: 3
+    do: "Perform clock step forward (NTP step)"
+  - step: 4
+    do: "Verify PTP unlock does NOT auto-clear Override"
+  - step: 5
+    do: "Audit records correction magnitude + post-correction TTL remaining"
+expected:
+  ttl_not_extended_by_rollback: true
+  expiry_authoritative_clock_deterministic: true
+  audit_records_clock_correction: true
+  ptp_unlock_does_not_clear_override: true
+pass_rule: "ttl_not_extended_by_rollback == true AND expiry_authoritative_clock_deterministic == true AND audit_records_clock_correction == true AND ptp_unlock_does_not_clear_override == true"
+negative_case:
+  id: AC-03B-2-6-001-NEG
+  do: "Clock rollback resets TTL to full → Override never expires"
+  expect_fail: "violates 'TTL not extended by clock rollback'"
+evidence:
+  - "evidence/{id}_{run_ts}_audit_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 0, backoff_s: 0}
+abort_rule: {consecutive_fail: 1}

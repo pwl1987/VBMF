@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Phase 0.6 Runner — Reference A1 (PACKET switch) + AC-03B Override.
 
-真实可执行骨架: 加载 Test Case YAML + Fixture + Env, 对 pass_rule 做占位求值,
-产出 evidence 文件。实际 runtime 调用点以 `<RUNTIME_RPC>` 占位, 由真实环境 manifest 注入。
+演进 (回应 GDOC-04/05): 不再 "文件存在即 PASS"。
+- 通过 harness_common.evaluate_pass_rule 对 expected 做结构化求值。
+- 当前 measured=None (无真实 runtime 调用点 <RUNTIME_RPC>), 只能产出 HARNESS_READY。
+- 真正实体测量值经 pass_rule 判定通过才输出 PASS。
 
 用法:
   python docs/phase-0.6/runners/run_reference_a1.py docs/phase-0.6/tests/AC-01-001.yaml
-  python docs/phase-0.6/runners/run_reference_a1.py docs/phase-0.6/tests/AC-03B-001.yaml
 """
 import sys
 import json
@@ -15,15 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 P06 = ROOT / "docs" / "phase-0.6"
-
-
-def load_yaml(path):
-    # 极简 YAML 解析 (避免外部依赖): 真实环境应使用 PyYAML
-    try:
-        import yaml
-        return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    except ImportError:
-        raise SystemExit("PyYAML required in real env: pip install pyyaml")
+sys.path.insert(0, str(P06 / "runners"))
+import harness_common as H  # noqa: E402
 
 
 def resolve_ref(test, subdir, key):
@@ -33,34 +27,39 @@ def resolve_ref(test, subdir, key):
     p = P06 / subdir / f"{ref}.yaml"
     if not p.exists():
         raise SystemExit(f"[HARNESS] {key} '{ref}' not found at {p}")
-    return load_yaml(p)
+    return H.load_yaml(p)
 
 
 def main():
     if len(sys.argv) < 2:
         print("usage: run_reference_a1.py <test.yaml>")
         sys.exit(2)
-    test = load_yaml(sys.argv[1])
+    test = H.load_yaml(Path(sys.argv[1]))
     fixture = resolve_ref(test, "fixtures", "fixture_id")
     env = resolve_ref(test, "env", "env_prereq_id")
     run_ts = time.strftime("%Y%m%dT%H%M%S")
 
     # --- 真实 runtime 调用点 (占位) ---
-    # result = runtime_rpc.switch_take(source=..., mode=...)
-    # 此处仅做骨架断言: 引用文件已解析即视为 harness 连通
-    passed = bool(fixture and env and test.get("pass_rule"))
+    # measured = runtime_rpc.switch_take(source=..., mode=...)  # <RUNTIME_RPC>
+    # measured = runtime_rpc.query_health(channel=...)          # 返回 {no_black_frame: bool, p99_latency_ms: int, ...}
+    measured = None  # 骨架阶段: 不臆造测量值
+
+    result, detail = H.classify(test, fixture, env, measured)
     evidence = {
         "test_id": test["id"],
         "run_ts": run_ts,
         "fixture": test.get("fixture_id"),
         "env": test.get("env_prereq_id"),
+        "runner_phase": "skeleton (measured via <RUNTIME_RPC> not yet wired)",
         "pass_rule": test.get("pass_rule"),
-        "result": "PASS" if passed else "FAIL",
+        "result": result,
+        "measurements": detail,
     }
-    art = P06 / "evidence" / f"{test['id']}_{run_ts}_{'pass' if passed else 'fail'}.json"
+    art = P06 / "evidence" / f"{test['id']}_{run_ts}_{result.lower()}.json"
     art.write_text(json.dumps(evidence, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(evidence, indent=2, ensure_ascii=False))
-    sys.exit(0 if passed else 1)
+    # HARNESS_READY / FAIL 不视为 Acceptance PASS; 仅 PASS 退出 0
+    sys.exit(0 if result == "PASS" else 1)
 
 
 if __name__ == "__main__":

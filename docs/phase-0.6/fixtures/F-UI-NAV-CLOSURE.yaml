@@ -1,0 +1,13 @@
+id: F-UI-NAV-CLOSURE
+title: UI-E2E-04 navigation closure fixture (32 LOCK Surfaces)
+reference: UI-E2E
+seed:
+  lock_surface_count: 32
+  domains:
+    BROADCAST: 13
+    MEDIA: 5
+    ENGINEERING: 13
+    ADMIN: 0
+expectations:
+  every_lock_surface_declared: true
+  per_surface_evidence_required: true

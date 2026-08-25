@@ -1,0 +1,12 @@
+id: F-AC03B2-6-CLOCK
+title: AC-03B-2-6 Clock adjustment during Override fixture
+reference: AC-03B
+params:
+  override_active: true
+  clock_events: ["ntp_rollback", "ntp_step_forward", "ptp_unlock"]
+  authoritative_clock: "monotonic_assisted"
+expected:
+  ttl_not_extended: true
+  expiry_deterministic: true
+  audit_records_correction: true
+  ptp_unlock_keeps_override: true

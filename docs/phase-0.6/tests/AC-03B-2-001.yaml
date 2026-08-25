@@ -1,0 +1,39 @@
+id: AC-03B-2-001
+title: Override + Runtime Restart persistence (cross restart semantics)
+gate: G-RUNTIME
+reference: AC-03B
+fixture_id: F-AC03B2-RESTART
+env_prereq_id: ENV-LAB-01
+runner: runners/run_reference_a1.py
+depends_on: [AC-03B-001]
+timeout: 300
+preconditions:
+  - "Override L3 active (Who/Why/Until wall-clock TTL), Runtime Revision N"
+  - "Override persisted in Runtime store (not Agent memory only)"
+actions:
+  - step: 1
+    do: "Restart Session / Media Agent"
+  - step: 2
+    do: "Restart Controller (Override owner = Runtime, not Controller memory)"
+  - step: 3
+    do: "After restart, verify re-apply of Override value to Runtime Revision N"
+  - step: 4
+    do: "Wait wall-clock TTL, observe auto rollback"
+expected:
+  override_persisted_in_store: true
+  reapplied_after_session_restart: true
+  reapplied_after_agent_restart: true
+  controller_restart_does_not_clear: true
+  ttl_wall_clock_remaining_not_reset: true
+  rollback_on_ttl_expiry: true
+  runtime_revision_after_rollback: "N"
+pass_rule: "override_persisted_in_store == true AND reapplied_after_session_restart == true AND reapplied_after_agent_restart == true AND controller_restart_does_not_clear == true AND ttl_wall_clock_remaining_not_reset == true AND rollback_on_ttl_expiry == true AND runtime_revision_after_rollback == 'N'"
+negative_case:
+  id: AC-03B-2-001-NEG
+  do: "Override stored only in Agent memory → Agent restart loses it"
+  expect_fail: "violates persistence (must survive restart via Runtime store)"
+evidence:
+  - "evidence/{id}_{run_ts}_audit_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 0, backoff_s: 0}
+abort_rule: {consecutive_fail: 1}

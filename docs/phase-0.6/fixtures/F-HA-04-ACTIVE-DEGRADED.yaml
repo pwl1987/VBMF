@@ -1,0 +1,9 @@
+id: F-HA-04-ACTIVE-DEGRADED
+title: HA-04 ACTIVE DEGRADED / STANDBY OFFLINE+FAILED
+reference: HA
+params:
+  active_rg_state: "DEGRADED"
+  standby_rg_state: "OFFLINE+FAILED"
+expected:
+  channel_health: "DEGRADED"
+must_not: ["resolved_as_FAILED"]

@@ -1,0 +1,14 @@
+id: F-UI-TRANSCODE-FLOW
+title: UI-E2E-02 media domain transcode fixture
+reference: UI-E2E
+seed:
+  asset: "ASSET-001"
+  encoding_profile: "ENC-1080P-H264"
+  packaging_profile: "PKG-HLS"
+  output_profile: "OUT-FILE"
+  qc_profile: "QC-P25"
+expectations:
+  context_preserved: true
+  new_asset_version_created: true
+  qc_passed: true
+  transcode_health: "HEALTHY"

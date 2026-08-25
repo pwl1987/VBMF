@@ -65,8 +65,23 @@ abort_rule:
 | fixture_id | ✅ | 必须存在于 `fixtures/` |
 | env_prereq_id | ✅ | 必须存在于 `env/` |
 | runner | ✅ | 必须存在于 `runners/` 且可执行 |
-| pass_rule | ✅ | 布尔表达式, 由 runner 求值 |
+| pass_rule | ✅ | 布尔表达式, 由 runner **真实求值** (对 `expected` 字段结构化断言, 非 "文件存在即 PASS") |
 | artifact_naming | ✅ | 证据文件命名模板 |
 | abort_rule | ✅ | Gate 级中止条件 |
 
-> **G-DOC-READY 门禁**: 所有 `tests/*.yaml` 必须通过 `scripts/check_docs.py phase06` 的引用合法性校验 (fixture_id / env_prereq_id / runner 实际存在), 且每个 FI/AC ID 在 `tests/` 中有 ≥1 对应 Test Case, 方可进入 G-RUNTIME。
+### Runner 结果三态 (回应 GDOC-04/05/06)
+
+| 结果 | 含义 | 是否构成 Acceptance PASS |
+|---|---|---|
+| `HARNESS_READY` | 骨架连通 (fixture/env/pass_rule 解析成功), 但 `measured` 来自占位 `<RUNTIME_RPC>`/`<INJECTION_HOOK>`/`<BROWSER_DRIVER>`, 未经过真实测量 | ❌ 否 |
+| `PASS` | 真实 `measured` 经 `evaluate_pass_rule` 对 `expected` 全部判定为真 | ✅ 是 |
+| `FAIL` | `pass_rule` 求值存在假值, 或骨架连通失败 | ❌ 否 |
+
+> 当前阶段 runner 的 `measured=None` (真实 runtime 调用点未接入), 只能产出 `HARNESS_READY`, **严禁输出 PASS**, 防止验收报告污染。
+
+> **G-DOC-READY 门禁 (三子门禁, 回应 GDOC-02)**: 所有 `tests/*.yaml` 必须通过 `scripts/check_docs.py phase06`, 拆为:
+> - **G-DOC-STRUCTURE**: fixture_id / env_prereq_id / runner 文件实际存在 (防 "写了没建")。
+> - **G-DOC-COVERAGE**: 规范条目族全落地 — HA-01~07、UI-E2E-01~04、AC-03B + AC-03B-2 + AC-03B-2-6、A1/A2/B、FI-01A/B/02~07 每个 ≥1 Test Case (id 前缀结构化比对, 非子串猜测)。
+> - **G-DOC-EXECUTOR**: runner 已接入 `evaluate_pass_rule` 且区分 `HARNESS_READY/PASS` 三态, 不再 "文件存在即 PASS"。
+>
+> 三者全绿 = G-DOC-READY = GREEN。注意: 这仅证明 **"G-DOC 规范已完整建模且骨架可连通"**, 不等于 **"Runtime 真实执行 PASS"**。

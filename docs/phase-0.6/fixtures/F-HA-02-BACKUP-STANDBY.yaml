@@ -1,0 +1,10 @@
+id: F-HA-02-BACKUP-STANDBY
+title: HA-02 Primary OFFLINE+FAILED / Backup STANDBY+HEALTHY
+reference: HA
+params:
+  primary_rg_state: "OFFLINE+FAILED"
+  backup_rg_state: "STANDBY+HEALTHY"
+expected:
+  channel_health: "DEGRADED"
+  takeover_pending: true
+must_not: ["resolved_as_HEALTHY"]
