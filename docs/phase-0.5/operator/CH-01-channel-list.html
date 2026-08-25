@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CH-01 · Channel List 频道列表 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+    --health-healthy:#3fb950; --health-degraded:#d29922; --health-failed:#f85149; --health-unknown:#6e7681;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .channel-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:14px;cursor:pointer;transition:border-color .2s;position:relative}
+  .channel-card:hover{border-color:var(--accent);background:rgba(88,166,255,.05)}
+  .channel-card.on-air{border-left:3px solid var(--green)}
+  .channel-card.degraded{border-left:3px solid var(--yellow)}
+  .channel-card.failed{border-left:3px solid var(--red)}
+  .channel-card .name{font-size:14px;font-weight:600;color:var(--fg);margin-bottom:4px}
+  .channel-card .desc{font-size:11px;color:var(--fgdim);margin-bottom:8px}
+  .channel-card .mini-monitor{background:#000;border:1px solid var(--border);border-radius:3px;height:80px;display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--fgdim);margin-bottom:8px;position:relative;overflow:hidden}
+  .channel-card .mini-monitor::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--green);box-shadow:0 0 4px var(--green);animation:scan 3s linear infinite}
+  @keyframes scan{0%{top:0}100%{top:100%}}
+  .channel-card .stat-row{display:flex;justify-content:space-between;font-size:10px;margin-top:4px;font-family:Menlo,Consolas,monospace}
+  .channel-card .stat-row .k{color:var(--fgdim)}
+  .channel-card .stat-row .v{color:var(--fg)}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+  .metric .val{font-size:18px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}
+  .metric .sub{font-size:9px;color:var(--fgdim);margin-top:1px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.yellow{background:var(--yellow)}
+  .dot.red{background:var(--red);box-shadow:0 0 6px var(--red);animation:pulse 1.5s infinite}
+  .dot.gray{background:var(--gray)}
+  .dot.blue{background:var(--accent);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>CH-01 Channel List 频道列表</b></div>
+    <h1><span class="cn">CH-01 · 频道列表</span> <span class="en">CHANNEL LIST (BROADCAST domain entry · 0.5F new)</span></h1>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <span class="pill pill-green">4 Channels</span>
+    <span class="pill pill-blue">2 ON AIR</span>
+    <span class="pill pill-yellow">1 DEGRADED</span>
+    <button class="btn primary">+ Create Channel (L1)</button>
+  </div>
+</div>
+
+<!-- 顶部统计 -->
+<div class="row">
+  <div class="col-3 metric">
+    <div class="label">Active Channels</div>
+    <div class="val green">3 / 4</div>
+    <div class="sub">2 ON AIR · 1 STANDBY</div>
+  </div>
+  <div class="col-3 metric">
+    <div class="label">On Air (LIVE)</div>
+    <div class="val green">2</div>
+    <div class="sub">CH01 · CH03</div>
+  </div>
+  <div class="col-3 metric">
+    <div class="label">Degraded</div>
+    <div class="val yellow">1</div>
+    <div class="sub">CH02 (SDI-02 packet loss 0.5%)</div>
+  </div>
+  <div class="col-3 metric">
+    <div class="label">Total HLS Clients</div>
+    <div class="val blue">2,894</div>
+    <div class="sub">+ 612 RTMP + 178 WebRTC</div>
+  </div>
+</div>
+
+<!-- 4 个 Channel 卡片 (Channel-centric) -->
+<div class="row" style="margin-top:12px">
+  <!-- CH01 News -->
+  <div class="col-6">
+    <a href="CD-01-channel-workspace.html" style="text-decoration:none;color:inherit">
+      <div class="channel-card on-air">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+          <div>
+            <div class="name">📺 CH01 · 新闻综合</div>
+            <div class="desc">Daily news · 06:00-24:00 · Profile Bundle: CH01-News-Live v3</div>
+          </div>
+          <span class="pill pill-green"><span class="dot green"></span>ON AIR</span>
+        </div>
+        <div class="mini-monitor">PGM · SDI-01 · 1080p25</div>
+        <div class="stat-row"><span class="k">PGM Source</span><span class="v green">SDI-01 (● ACTIVE)</span></div>
+        <div class="stat-row"><span class="k">PVW Source</span><span class="v yellow">SDI-02 (○ STANDBY)</span></div>
+        <div class="stat-row"><span class="k">Switch Mode</span><span class="v blue">FRAME_SWITCH</span></div>
+        <div class="stat-row"><span class="k">L/R Meter</span><span class="v">████████ -23.0 LUFS</span></div>
+        <div class="stat-row"><span class="k">Output</span><span class="v green">HLS+RTMP+UDP+WebRTC (4 destinations)</span></div>
+        <div class="stat-row"><span class="k">H1-H7</span><span class="v green">7/7 PASS</span></div>
+        <div style="margin-top:8px;display:flex;gap:4px">
+          <span class="pill pill-green" style="font-size:9px">FRAME_SWITCH</span>
+          <span class="pill pill-green" style="font-size:9px">HEALTHY</span>
+          <span class="pill pill-blue" style="font-size:9px">PTP LOCKED</span>
+          <span class="pill pill-blue" style="font-size:9px">1247 HLS</span>
+        </div>
+      </div>
+    </a>
+  </div>
+  <!-- CH02 Sports -->
+  <div class="col-6">
+    <a href="CD-01-channel-workspace.html?ch=CH02" style="text-decoration:none;color:inherit">
+      <div class="channel-card degraded">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+          <div>
+            <div class="name">🏆 CH02 · 体育直播</div>
+            <div class="desc">Sports event · Profile Bundle: CH02-Sports-Live v2</div>
+          </div>
+          <span class="pill pill-yellow"><span class="dot yellow"></span>DEGRADED</span>
+        </div>
+        <div class="mini-monitor">PGM · UDP-MULTICAST · 1080p25</div>
+        <div class="stat-row"><span class="k">PGM Source</span><span class="v green">UDP-MULTICAST-239.20.10.10 (● ACTIVE)</span></div>
+        <div class="stat-row"><span class="k">PVW Source</span><span class="v yellow">SDI-02 (○ STANDBY · 0.5% loss)</span></div>
+        <div class="stat-row"><span class="k">Switch Mode</span><span class="v orange">FRAME_SWITCH (degraded)</span></div>
+        <div class="stat-row"><span class="k">L/R Meter</span><span class="v">███████░ -22.5 LUFS</span></div>
+        <div class="stat-row"><span class="k">Output</span><span class="v yellow">HLS+WebRTC (1.2k HLS · 0 dest down)</span></div>
+        <div class="stat-row"><span class="k">H1-H7</span><span class="v yellow">5/7 PASS · H2 DEGRADED · H6 STALE</span></div>
+        <div style="margin-top:8px;display:flex;gap:4px">
+          <span class="pill pill-yellow" style="font-size:9px">FRAME_SWITCH</span>
+          <span class="pill pill-yellow" style="font-size:9px">DEGRADED</span>
+          <span class="pill pill-orange" style="font-size:9px">H6 STALE</span>
+          <span class="pill pill-blue" style="font-size:9px">1.2k HLS</span>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+<div class="row" style="margin-top:12px">
+  <!-- CH03 Live Show -->
+  <div class="col-6">
+    <a href="CD-01-channel-workspace.html?ch=CH03" style="text-decoration:none;color:inherit">
+      <div class="channel-card on-air">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+          <div>
+            <div class="name">🎤 CH03 · 综艺直播</div>
+            <div class="desc">Live show · Profile Bundle: CH03-Show-Live v1</div>
+          </div>
+          <span class="pill pill-green"><span class="dot green"></span>ON AIR</span>
+        </div>
+        <div class="mini-monitor">PGM · SRT-REMOTE-001 · 1080p25</div>
+        <div class="stat-row"><span class="k">PGM Source</span><span class="v green">SRT-REMOTE-001 (● ACTIVE)</span></div>
+        <div class="stat-row"><span class="k">PVW Source</span><span class="v blue">SRT-REMOTE-002 (○ STANDBY)</span></div>
+        <div class="stat-row"><span class="k">Switch Mode</span><span class="v blue">PACKET_SWITCH</span></div>
+        <div class="stat-row"><span class="k">L/R Meter</span><span class="v">████████ -23.5 LUFS</span></div>
+        <div class="stat-row"><span class="k">Output</span><span class="v green">HLS+RTMP+WebRTC (3 destinations)</span></div>
+        <div class="stat-row"><span class="k">H1-H7</span><span class="v green">7/7 PASS</span></div>
+        <div style="margin-top:8px;display:flex;gap:4px">
+          <span class="pill pill-green" style="font-size:9px">PACKET_SWITCH</span>
+          <span class="pill pill-green" style="font-size:9px">HEALTHY</span>
+          <span class="pill pill-blue" style="font-size:9px">SRT encrypted</span>
+          <span class="pill pill-blue" style="font-size:9px">890 HLS</span>
+        </div>
+      </div>
+    </a>
+  </div>
+  <!-- CH04 Archive -->
+  <div class="col-6">
+    <a href="CD-01-channel-workspace.html?ch=CH04" style="text-decoration:none;color:inherit">
+      <div class="channel-card">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+          <div>
+            <div class="name">📼 CH04 · 归档频道</div>
+            <div class="desc">Archive playout · 24/7 · Profile Bundle: CH04-Archive v1</div>
+          </div>
+          <span class="pill pill-gray"><span class="dot gray"></span>STANDBY</span>
+        </div>
+        <div class="mini-monitor">PGM · FILE-PLAYOUT-001 · 1080p25</div>
+        <div class="stat-row"><span class="k">PGM Source</span><span class="v gray">FILE-PLAYOUT-001 (○ STANDBY)</span></div>
+        <div class="stat-row"><span class="k">PVW Source</span><span class="v gray">—</span></div>
+        <div class="stat-row"><span class="k">Switch Mode</span><span class="v gray">— (idle)</span></div>
+        <div class="stat-row"><span class="k">L/R Meter</span><span class="v gray">—</span></div>
+        <div class="stat-row"><span class="k">Output</span><span class="v gray">FILE (S3 archive)</span></div>
+        <div class="stat-row"><span class="k">H1-H7</span><span class="v green">7/7 PASS (idle)</span></div>
+        <div style="margin-top:8px;display:flex;gap:4px">
+          <span class="pill pill-gray" style="font-size:9px">STANDBY</span>
+          <span class="pill pill-gray" style="font-size:9px">IDLE</span>
+          <span class="pill pill-blue" style="font-size:9px">FILE (S3)</span>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Channel List 表格视图 (备查) -->
+<details>
+  <summary>▸ 表格视图 (备查) — 含 profile bundle ref / redundancy_group / 上次启动</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Profile Bundle</th><th>Primary Source</th><th>Backup</th><th>Output</th><th>Status</th><th>Last Take</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>CH01</b></td>
+          <td>新闻综合</td>
+          <td>24/7 News</td>
+          <td>CH01-News-Live v3</td>
+          <td>SDI-01</td>
+          <td>SDI-02</td>
+          <td>HLS+RTMP+UDP+WebRTC</td>
+          <td><span class="pill pill-green">ON AIR</span></td>
+          <td>87ms (1h ago)</td>
+          <td><button class="btn">Open CD-01 →</button></td>
+        </tr>
+        <tr>
+          <td><b>CH02</b></td>
+          <td>体育直播</td>
+          <td>Event-based</td>
+          <td>CH02-Sports-Live v2</td>
+          <td>UDP-MULTICAST</td>
+          <td>SDI-02</td>
+          <td>HLS+WebRTC</td>
+          <td><span class="pill pill-yellow">DEGRADED</span></td>
+          <td>1.2s (8m ago)</td>
+          <td><button class="btn">Open CD-01 →</button></td>
+        </tr>
+        <tr>
+          <td><b>CH03</b></td>
+          <td>综艺直播</td>
+          <td>Event-based</td>
+          <td>CH03-Show-Live v1</td>
+          <td>SRT-REMOTE-001</td>
+          <td>SRT-REMOTE-002</td>
+          <td>HLS+RTMP+WebRTC</td>
+          <td><span class="pill pill-green">ON AIR</span></td>
+          <td>0ms (real-time)</td>
+          <td><button class="btn">Open CD-01 →</button></td>
+        </tr>
+        <tr>
+          <td><b>CH04</b></td>
+          <td>归档频道</td>
+          <td>24/7 File</td>
+          <td>CH04-Archive v1</td>
+          <td>FILE-PLAYOUT</td>
+          <td>—</td>
+          <td>FILE (S3)</td>
+          <td><span class="pill pill-gray">STANDBY</span></td>
+          <td>— (idle 6h)</td>
+          <td><button class="btn">Open CD-01 →</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (CH-01 Channel List) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>所有 Channel 健康, mini-monitor 滚动</td><td>完整 4 Channel 卡片 + 顶部 4 metric + 表格视图折叠</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>首次打开 / Refresh</td><td>4 Channel 卡片 skeleton + 顶部 metric skeleton</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 Channel (新系统)</td><td>引导 "Create first Channel" + 选 Profile Bundle</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>≥ 1 Channel DEGRADED</td><td>顶部黄条 + 标黄 Channel 卡片 + Recommend Action</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>≥ 1 Channel FAILED</td><td>红色 Banner + 标红 Channel + 一键 Open 故障详情</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>全部 Channel FAILED / DB 不可达</td><td>顶部红条 + 联系 Admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- 跨域 -->
+<div class="panel">
+  <h3><span class="cn">跨域跳转</span> / CROSS-DOMAIN NAVIGATION (8 横切能力 #2 Dependency)
+    <span class="pill pill-blue" style="float:right">Context preserved (Channel ID)</span>
+  </h3>
+  <div class="row">
+    <div class="col-6">
+      <div class="box-title">从 Channel 跳到 Engineering 深页</div>
+      <table>
+        <tbody>
+          <tr><td>CH01 / SOURCE 块</td><td>→</td><td>02 Sources (E-40 Network Source 配置)</td></tr>
+          <tr><td>CH01 / AUDIO 块</td><td>→</td><td>05 Audio (deep mixer config)</td></tr>
+          <tr><td>CH01 / OUTPUT 块</td><td>→</td><td>06 Output + P-22 (per-variant)</td></tr>
+          <tr><td>CH01 / SWITCH 块</td><td>→</td><td>03 Switcher + 08 Graph (decision tree)</td></tr>
+          <tr><td>CH01 / HEALTH 块</td><td>→</td><td>09 Health Tree (full subtree)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-6">
+      <div class="box-title">从 Channel 跳到 Media</div>
+      <table>
+        <tbody>
+          <tr><td>CH01 / Composition</td><td>→</td><td>M-11 Media Library (templates)</td></tr>
+          <tr><td>CH01 / Recording</td><td>→</td><td>07 Recording (incidents + clips)</td></tr>
+          <tr><td>CH01 / Profile Bundle</td><td>→</td><td>P-28 Profile Bundle (6 Profile refs)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="diag">
+    <b>PIA §5 双层 UI 原则 (0.5F 锁):</b>
+    Operator 看到 Channel 状态, Engineer 才进深页. CD-01 Workspace 不并入 ENGINEERING 深页.
+  </div>
+</div>
+
+<footer>
+  VBMF Operator Console · CH-01 Channel List · BROADCAST 域 · Phase 0.5F (PIA §1 锁) · 设计稿 v0.1
+  · 关联: CD-01 Channel Workspace (Take Desk) / CD-01 Channel Detail (8 Tab) / 02 Sources / 09 Health Tree
+  · 4 Channel: CH01 (ON AIR News) / CH02 (DEGRADED Sports) / CH03 (ON AIR Show) / CH04 (STANDBY Archive)
+  · Object: Channel (V0.2 §3.6 锁) · 1st-class UI object (PIA §1 锁)
+  · Mini-monitor 模拟 PGM 实时画面扫描线 (placeholder for future thumbnail)
+</footer>
+
+</body>
+</html>

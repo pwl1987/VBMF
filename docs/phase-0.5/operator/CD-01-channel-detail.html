@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CD-01 · CH01 Channel Detail (8 Tab) 频道详情 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--green);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:12px;background:var(--bg2);border-radius:3px 3px 0 0;padding:0 8px}
+  .tab{padding:8px 14px;cursor:pointer;font-size:12px;color:var(--fgdim);border-bottom:2px solid transparent;font-weight:500}
+  .tab:hover{color:var(--fg);background:var(--bg3)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(88,166,255,.05)}
+  .tab .num{display:inline-block;padding:0 6px;background:var(--bg3);border-radius:8px;font-size:9px;margin-left:4px;color:var(--fg)}
+  .tab.active .num{background:var(--accent);color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:18px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green)}
+  .dot.yellow{background:var(--yellow)}
+  .dot.red{background:var(--red);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- Header: CH01 + 当前 Tab 状态 -->
+<div class="header">
+  <div>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CH-01-channel-list.html">CH-01 Channel List</a> › <a href="CD-01-channel-workspace.html">CD-01 CH01 News 综合</a> › <b>CD-01 Detail (Tab 1 Overview active)</b></div>
+    <h1><span class="cn">📺 CD-01 CH01 · 新闻综合 · 详情</span> <span class="en">CD-01 CHANNEL DETAIL (8 Tab · 0.5F PIA §8)</span></h1>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+    <span class="pill pill-green"><span class="dot green"></span>ON AIR</span>
+    <span class="pill pill-blue">FRAME_SWITCH</span>
+    <span class="pill pill-green">7/7 H1-H7</span>
+  </div>
+</div>
+
+<!-- 8 Tab -->
+<div class="tabs">
+  <div class="tab active">1 Overview <span class="num">●</span></div>
+  <div class="tab">2 Switch <span class="num">3</span></div>
+  <div class="tab">3 Audio <span class="num">8</span></div>
+  <div class="tab">4 Output <span class="num">4</span></div>
+  <div class="tab">5 Graph <span class="num">2</span></div>
+  <div class="tab">6 Health <span class="num">7</span></div>
+  <div class="tab">7 History <span class="num">28</span></div>
+  <div class="tab">8 Config <span class="num">6</span></div>
+</div>
+
+<!-- Tab 1 Overview (默认 = CD-01 Channel Workspace 嵌入) -->
+<div class="panel">
+  <h3><span class="cn">Tab 1 · Overview</span> / = CD-01 Channel Control Workspace (Take Desk 嵌入)
+    <span class="pill pill-green" style="float:right">7 块全可见</span>
+  </h3>
+  <div class="diag">
+    <b>PIA §8.2 锁:</b>
+    Tab 1 Overview 不重复设计, 与 CD-01 Channel Control Workspace 同一模板 (PVW/PGM/NEXT + SOURCE + AUDIO + OUTPUT + SWITCH + HEALTH + TAKE).
+    <a href="CD-01-channel-workspace.html" style="color:var(--accent)">→ 跳到 CD-01 Workspace (Take Desk 完整版) →</a>
+  </div>
+</div>
+
+<!-- Tab 2 Switch (深页: Source 列表 + Decision Tree) -->
+<details open>
+  <summary>▸ Tab 2 · Switch 切换决策 + Source 列表 (深页, 替代 03-switcher.html 入口)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">Source 列表 (redundancy_group = rg-sdi-rt01)</span>
+      <span class="pill pill-green" style="float:right">3 Sources · 2/3 HEALTHY</span>
+    </h3>
+    <table>
+      <thead><tr><th>Role</th><th>Source ID</th><th>Adapter</th><th>Endpoint</th><th>Contract</th><th>Runtime</th><th>QC</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr style="background:rgba(63,185,80,.05)">
+          <td><b style="color:var(--green)">● ACTIVE</b></td>
+          <td>SDI-01</td>
+          <td>BMD (DeckLink Duo 2 / IN-1)</td>
+          <td>PCI 0000:01:00.0 · ch 1</td>
+          <td>1080i25 · H.264 ready</td>
+          <td><span class="pill pill-green">LOCKED · 0% loss</span></td>
+          <td><span class="pill pill-green">PASS</span></td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+        <tr>
+          <td><b style="color:var(--accent);opacity:.7">○ STANDBY</b></td>
+          <td>SDI-02</td>
+          <td>BMD (DeckLink Duo 2 / IN-2)</td>
+          <td>PCI 0000:01:00.0 · ch 2</td>
+          <td>1080i25 · H.264 ready</td>
+          <td><span class="pill pill-green">LOCKED · 0% loss</span></td>
+          <td><span class="pill pill-green">PASS</span></td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+        <tr style="opacity:.6">
+          <td><b style="color:var(--gray);text-decoration:line-through">○ OFFLINE</b></td>
+          <td>SDI-03</td>
+          <td>BMD (DeckLink SDI / IN-1)</td>
+          <td>PCI 0000:02:00.0</td>
+          <td>1080i25</td>
+          <td><span class="pill pill-gray">OFFLINE</span></td>
+          <td>—</td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h3><span class="cn">Switch Decision Tree</span> (V0.2 §3.4 + Capability check + Runtime Alignment)
+      <span class="pill pill-blue" style="float:right">→ FRAME_SWITCH</span>
+    </h3>
+    <div class="row">
+      <div class="col-6">
+        <div class="box-title">5-Step Decision</div>
+        <table>
+          <tbody>
+            <tr><td>1. Source Discovery</td><td><span class="v green">✓ 3 found</span></td></tr>
+            <tr><td>2. Capability Contract</td><td><span class="v green">✓ PASS (17+ attrs)</span></td></tr>
+            <tr><td>3. Runtime Alignment</td><td><span class="v green">✓ PASS (GOP/IDR/PTS/Clock)</span></td></tr>
+            <tr><td>4. Mandatory Attrs</td><td><span class="v green">✓ 全部 PASS</span></td></tr>
+            <tr><td>5. Switch Mode Selection</td><td><span class="v blue">→ FRAME_SWITCH (frame-level)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-6">
+        <div class="box-title">Switch History (24h)</div>
+        <table>
+          <tbody>
+            <tr><td>14:23:08</td><td>SDI-03 → SDI-01</td><td><span class="pill pill-green">87ms</span></td></tr>
+            <tr><td>08:42:15</td><td>SDI-02 → SDI-03</td><td><span class="pill pill-yellow">124ms</span></td></tr>
+            <tr><td>02:14:32</td><td>SDI-01 → SDI-02</td><td><span class="pill pill-green">76ms</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="diag">
+      <b>PIA §6 4-Layer:</b>
+      DESIRED (FRAME_SWITCH) = COMPILED (FRAME_SWITCH) = EFFECTIVE (FRAME_SWITCH) · Δ 无降级
+    </div>
+  </div>
+</details>
+
+<!-- Tab 3 Audio (深页: Mixer + 8 路) -->
+<details>
+  <summary>▸ Tab 3 · Audio 8 路调音 (深页, 替代 05-audio.html 入口)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">Audio Mixer · 8 路 (3 Stereo + 2 Mono + Master)</span>
+      <span class="pill pill-green" style="float:right">Audio Profile: NEWS-STEREO-R128 v1 · EBU R128</span>
+    </h3>
+    <table>
+      <thead><tr><th>Ch</th><th>Source</th><th>Pan</th><th>Level</th><th>Mute</th><th>Delay (ms)</th><th>Phase</th><th>EQ</th></tr></thead>
+      <tbody>
+        <tr><td>1 L</td><td>SDI-01 L (de-embed)</td><td>C</td><td>0 dB</td><td>—</td><td>0</td><td>0°</td><td>Flat</td></tr>
+        <tr><td>2 R</td><td>SDI-01 R (de-embed)</td><td>C</td><td>0 dB</td><td>—</td><td>0</td><td>0°</td><td>Flat</td></tr>
+        <tr><td>3 L</td><td>SDI-02 L (backup)</td><td>C</td><td>-3 dB</td><td>—</td><td>+12 (AV sync)</td><td>0°</td><td>Flat</td></tr>
+        <tr><td>4 R</td><td>SDI-02 R (backup)</td><td>C</td><td>-3 dB</td><td>—</td><td>+12</td><td>0°</td><td>Flat</td></tr>
+        <tr><td>5 M</td><td>Commentator Mic (XLR)</td><td>—</td><td>-6 dB</td><td>—</td><td>+45 (lip sync)</td><td>—</td><td>HPF 80Hz</td></tr>
+        <tr><td>6 M</td><td>Backup Mic</td><td>—</td><td>-∞</td><td>✓</td><td>0</td><td>—</td><td>—</td></tr>
+        <tr><td>7 SFX L</td><td>SFX Player 1</td><td>L100</td><td>-12 dB</td><td>—</td><td>0</td><td>0°</td><td>—</td></tr>
+        <tr><td>8 SFX R</td><td>SFX Player 2</td><td>R100</td><td>-12 dB</td><td>—</td><td>0</td><td>0°</td><td>—</td></tr>
+        <tr style="background:rgba(63,185,80,.05)">
+          <td><b>Master L/R</b></td><td>Sum</td><td>—</td><td><b>-6.0 dB</b></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="diag">
+      <b>Audio Profile (P-23, NEWS-STEREO-R128 v1):</b>
+      LUFS Target -23 ± 1, True Peak Max -1.0 dBTP, EBU R128 mode.
+      4-Layer 投影: DESIRED = Master -6 dB · COMPILED = loaded by worker-02 · EFFECTIVE = actual -6.2 dB · IMPACT = adjust delta &lt; 0.3 dB.
+    </div>
+  </div>
+</details>
+
+<!-- Tab 4 Output (深页: 4 Variants) -->
+<details>
+  <summary>▸ Tab 4 · Output 4 Variants + Destinations + 3-Tier Protocol (深页, 替代 06-output.html 入口)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">Output Variants (1 Channel · 4 Variants)</span>
+      <span class="pill pill-green" style="float:right">4 ACTIVE</span>
+    </h3>
+    <table>
+      <thead><tr><th>Variant</th><th>Profile</th><th>Destinations</th><th>Adapter</th><th>Status</th><th>Bitrate</th><th>Clients</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>V-CH01-HLS-Domestic</b></td>
+          <td>HLS-LIVE-MAIN v2</td>
+          <td>CDN-A (primary) + CDN-B (backup)</td>
+          <td>SRSAdapter</td>
+          <td><span class="pill pill-green">● ACTIVE</span></td>
+          <td>4.9Mbps</td>
+          <td>1,247</td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+        <tr>
+          <td><b>V-CH01-RTMP-Internal</b></td>
+          <td>RTMP-PUSH v1</td>
+          <td>YouTube + Facebook (push)</td>
+          <td>RTMPAdapter</td>
+          <td><span class="pill pill-green">● ACTIVE</span></td>
+          <td>4.9Mbps</td>
+          <td>312</td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+        <tr>
+          <td><b>V-CH01-UDP-Multicast</b></td>
+          <td>UDP-MULTICAST v1</td>
+          <td>239.30.1.10:5000 (SSM)</td>
+          <td>UDPAdapter</td>
+          <td><span class="pill pill-green">● ACTIVE</span></td>
+          <td>4.9Mbps</td>
+          <td>89</td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+        <tr>
+          <td><b>V-CH01-WebRTC</b></td>
+          <td>WebRTC-WHIP v1</td>
+          <td>WHIP-SRS ingest</td>
+          <td>WebRTCAdapter</td>
+          <td><span class="pill pill-green">● ACTIVE</span></td>
+          <td>4.9Mbps</td>
+          <td>178</td>
+          <td><button class="btn">Detail →</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Tab 5 Graph (深页: 2 graph = Video + Audio) -->
+<details>
+  <summary>▸ Tab 5 · Graph 2 graphs (Video / Audio 独立, Master Join 联合判定) — 深页, 替代 08-graph-designer.html 入口</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">Program Master (2 graphs 联合)</span>
+      <span class="pill pill-green" style="float:right">2/2 COMPILED · Master Join LOCKED</span>
+    </h3>
+    <div class="row">
+      <div class="col-6">
+        <div class="box-title">Graph 1: Video</div>
+        <pre style="font-size:9px;color:var(--fg);background:var(--bg3);padding:8px;border-radius:3px;font-family:Menlo,Consolas,monospace;line-height:1.4">Source[SDI-01] (ACTIVE)
+  → Normalize[1080p25]
+  → Switcher[FRAME_SWITCH]
+  → Composition[Program-Template-v3]
+  → Master[Program-Video]
+  → Encode[H264-LIVE-5M]
+  → Output[4 Variants]</pre>
+      </div>
+      <div class="col-6">
+        <div class="box-title">Graph 2: Audio (3 graph 独立运行)</div>
+        <pre style="font-size:9px;color:var(--fg);background:var(--bg3);padding:8px;border-radius:3px;font-family:Menlo,Consolas,monospace;line-height:1.4">Source[SDI-01 L+R] (de-embed)
+  → Mixer[8-ch → Stereo]
+  → Loudness[EBU R128 -23 LUFS]
+  → Delay[+12ms AV sync]
+  → Master[Program-Audio]
+  → Output[4 Variants]
+
+Master Join: Video × Audio → Program
+  联合判定: LOCKED, AV offset +12ms</pre>
+      </div>
+    </div>
+    <div class="diag">
+      <b>PIA §6 4-Layer (Graph):</b>
+      DESIRED = HEVC Main10 1080p25 + AAC 2ch · COMPILED = libx265 + libfdk_aac · EFFECTIVE = 4.9Mbps HLS · IMPACT (修 v4 变 HEVC HDR) = CPU +25%.
+    </div>
+  </div>
+</details>
+
+<!-- Tab 6 Health (深页: 7 Invariants + 9 Subsystem) -->
+<details>
+  <summary>▸ Tab 6 · Health (7 Invariants H1-H7 + 9 Subsystem + Incident Timeline)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">Health Tree (CH01 scope · 9 Subsystem)</span>
+      <span class="pill pill-green" style="float:right">7/7 H1-H7 PASS · 9/9 Subsystem</span>
+    </h3>
+    <div class="row">
+      <div class="col-6">
+        <div class="box-title">7 Health Invariants (H1-H7)</div>
+        <table>
+          <tbody>
+            <tr><td>H1</td><td>At least one ACTIVE Source HEALTHY</td><td><span class="pill pill-green">✓</span></td></tr>
+            <tr><td>H2</td><td>All ACTIVE Nodes HEALTHY</td><td><span class="pill pill-green">✓</span></td></tr>
+            <tr><td>H3</td><td>PTP Clock LOCKED &amp; DEGRADED &lt; 1%</td><td><span class="pill pill-green">✓</span></td></tr>
+            <tr><td>H4</td><td>All ACTIVE Sessions READY_TO_TAKE</td><td><span class="pill pill-green">✓</span></td></tr>
+            <tr><td>H5</td><td>Output Adapter 状态匹配 3-Tier Protocol</td><td><span class="pill pill-green">✓</span></td></tr>
+            <tr><td>H6</td><td>Health Freshness FRESH (age &lt; 30s)</td><td><span class="pill pill-green">✓ age 1s</span></td></tr>
+            <tr><td>H7</td><td>UI/API 一致性 (channel_health_view == UI 颜色)</td><td><span class="pill pill-green">✓</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-6">
+        <div class="box-title">9 Subsystem (按 V0.2 §3.8 锁)</div>
+        <table>
+          <tbody>
+            <tr><td>SOURCE</td><td><span class="pill pill-green">3/3</span></td></tr>
+            <tr><td>SWITCHER</td><td><span class="pill pill-green">READY</span></td></tr>
+            <tr><td>COMPOSITION</td><td><span class="pill pill-green">READY</span></td></tr>
+            <tr><td>AUDIO</td><td><span class="pill pill-green">8/8 LOCKED</span></td></tr>
+            <tr><td>MASTER</td><td><span class="pill pill-green">JOIN LOCKED</span></td></tr>
+            <tr><td>OUTPUT</td><td><span class="pill pill-green">4/4</span></td></tr>
+            <tr><td>RECORDING</td><td><span class="pill pill-green">REC</span></td></tr>
+            <tr><td>CLOCK</td><td><span class="pill pill-green">PTP LOCKED</span></td></tr>
+            <tr><td>RESOURCE</td><td><span class="pill pill-green">CPU 71% RAM 8%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- Tab 7 History (深页: ChangeSet + Audit) -->
+<details>
+  <summary>▸ Tab 7 · History (28 events · ChangeSet / Audit / Switch 切换历史)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">History · 28 events (last 30d)</span>
+      <span class="pill pill-blue" style="float:right">ChangeSet 5 · Audit 23</span>
+    </h3>
+    <table>
+      <thead><tr><th>Time</th><th>Event</th><th>By</th><th>Detail</th><th>Impact</th></tr></thead>
+      <tbody>
+        <tr><td>14:23:08</td><td><span class="pill pill-green">SWITCH</span></td><td>Director Zhang</td><td>SDI-03 → SDI-01 (PGM)</td><td>87ms · H4 OK</td></tr>
+        <tr><td>2026-08-24 19:30</td><td><span class="pill pill-blue">CHANGESET</span></td><td>Director Zhang</td><td>Profile Bundle v2→v3 (Upgrade H.264→HEVC)</td><td>CPU +25% · Bundle Rev v3</td></tr>
+        <tr><td>2026-08-22 03:14</td><td><span class="pill pill-orange">FALLBACK</span></td><td>System</td><td>PTP → TIMECODE (PTP master 重启)</td><td>4m 22s · H3 OK</td></tr>
+        <tr><td>2026-08-15 11:42</td><td><span class="pill pill-yellow">DEGRADED</span></td><td>System</td><td>SDI-01 PTP offset +0.8ms (网络抖动)</td><td>2m 18s · H3 WARN</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Tab 8 Config (深页: Channel Profile + Bundle + Override L2) -->
+<details>
+  <summary>▸ Tab 8 · Config (Channel Profile · Profile Bundle ref · Override L2 · 4-Layer)</summary>
+  <div class="panel" style="margin-top:8px">
+    <h3><span class="cn">Channel Profile (CH01)</span> + Profile Bundle + Override (L2)
+      <span class="pill pill-green" style="float:right">Bundle: CH01-News-Live v3 · 4-Layer OK</span>
+    </h3>
+    <div class="row">
+      <div class="col-6">
+        <div class="box-title">Channel Profile</div>
+        <table>
+          <tbody>
+            <tr><td>channel_id</td><td><span class="v">CH01</span></td></tr>
+            <tr><td>name</td><td><span class="v">新闻综合</span></td></tr>
+            <tr><td>type</td><td><span class="v">24/7 News</span></td></tr>
+            <tr><td>hot_standby_level</td><td><span class="v">HOT (100ms target)</span></td></tr>
+            <tr><td>redundancy_group</td><td><span class="v">rg-sdi-rt01</span></td></tr>
+            <tr><td>profile_bundle_ref</td><td><span class="v">CH01-News-Live v3</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-6">
+        <div class="box-title">4-Layer (PIA §6 推广)</div>
+        <table>
+          <tbody>
+            <tr><td>DESIRED</td><td><span class="v">CH01-News-Live (H.264 1080p25 5M)</span></td></tr>
+            <tr><td>COMPILED</td><td><span class="v green">libx264 + libfdk_aac · worker-02</span></td></tr>
+            <tr><td>EFFECTIVE</td><td><span class="v green">Revision v3 ACTIVE</span></td></tr>
+            <tr><td>IMPACT</td><td><span class="v">Affected: 0 (Bundle locked) · Risk: LOW</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="diag" style="margin-top:8px">
+      <b>Override (L2):</b>
+      临时 Override Bundle 需 L2 审计 (Who/Why/Until) + Audit Log 写入.
+      Until 到期后自动回滚到 Bundle 默认. <button class="btn l2" style="margin-left:8px">Override (L2) →</button>
+    </div>
+  </div>
+</details>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (CD-01 Channel Detail) — 完整 Spec 收口 (PIA §8)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>Tab 1 active + 7 Tab 全部可点</td><td>8 Tab 完整 + 默认 Tab 1 = Workspace 嵌入 + Tab 2-8 折叠</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>切 Tab 时</td><td>当前 Tab skeleton + "Loading Tab N..."</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>— (路由不存在)</td><td>404 引导 "回 CH-01 Channel List"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>Bundle 1 项 DEPRECATED / Override 临近到期</td><td>顶部黄条 + Tab 8 Config 标黄 + 标红 Override</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>Bundle 不可用 / Channel 不可达</td><td>红色 Banner + 标红 Tab + 一键跳到 09 Health Tree</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>Channel FAILED / 全 Profile 不可用</td><td>顶部红条 + 强制 NACK + 通知 Admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<footer>
+  VBMF Operator Console · CD-01 Channel Detail (8 Tab) · BROADCAST 域 · Phase 0.5F (PIA §8 锁) · 设计稿 v0.1
+  · 关联: CH-01 Channel List / CD-01 Channel Workspace (Take Desk) / 02-09 工程深页
+  · Object: Channel (V0.2 §3.6) · 8 Tab = Overview (Take Desk) + Switch + Audio + Output + Graph + Health + History + Config
+  · Tab 1 Overview = CD-01 Workspace 同一模板 (PIA §8.2 锁)
+  · Tab 2-8 = Engineering 深页入口 (跨域保留 Channel ID 上下文)
+</footer>
+
+</body>
+</html>
