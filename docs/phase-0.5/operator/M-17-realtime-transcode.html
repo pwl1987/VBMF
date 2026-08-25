@@ -70,7 +70,7 @@
 <div class="header">
   <div>
     <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="M-17-realtime-transcode.html">M-17 Realtime Encode</a> › <b>Profile Bundle 反射 (D4)</b></div>
-    <h1><span>⚙️ M-17 · 实时编码</span> <span class="en">REALTIME ENCODE · Profile Bundle 反射</span></h1>
+    <h1><span>⚙️ M-17 · 实时媒体会话</span> <span class="en">REALTIME MEDIA SESSION · Session Workspace (不是 Job Queue, ≠ M-14)</span></h1>
   </div>
   <div style="margin-left:auto;text-align:right">
     <span class="pill pill-green">0.5D 原型 · D4</span><br>
@@ -168,8 +168,8 @@
         <thead><tr><th>Role</th><th>Source</th><th>Status</th><th>Switch</th></tr></thead>
         <tbody>
           <tr><td><span class="pill pill-green">ACTIVE</span></td><td>SDI-01</td><td>ON-AIR</td><td>—</td></tr>
-          <tr><td><span class="pill pill-blue">STANDBY</span></td><td>SDI-02</td><td>HOT</td><td>FRAME_SWITCH 40ms</td></tr>
-          <tr><td><span class="pill pill-gray">OFFLINE</span></td><td>SDI-03</td><td>COLD</td><td>MASTER_SWITCH 2s</td></tr>
+          <tr><td><span class="pill pill-blue">STANDBY</span></td><td>SDI-02</td><td>HOT</td><td>FRAME_SWITCH · Eligibility PASS (Target/Measured 见下)</td></tr>
+          <tr><td><span class="pill pill-gray">OFFLINE</span></td><td>SDI-03</td><td>COLD</td><td>MASTER_SWITCH · Eligibility — (offline)</td></tr>
         </tbody>
       </table>
     </div>
@@ -247,6 +247,18 @@
         </tbody>
       </table>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 已建模为独立对象 (06-output + D6/B-13: 重连策略/心跳/退避/zombie 判定). M-17 Backup Output retry 3x 为该对象在编码面的触点, 决策留在 06-output 而非 M-17. 此处仅展示, 不编辑.</div>
+    </div>
+    <div class="panel" style="border-color:var(--accent)">
+      <h3>🎙 一屏判断「能不能播」 (0.5F F4) <span class="pill pill-blue" style="float:right">Session 联动摘要</span></h3>
+      <table>
+        <tbody>
+          <tr><td>Audio</td><td>AUDIO-NEWS-v2 · 48k/2ch · LUFS-I -23.1 · AV Offset +18ms</td></tr>
+          <tr><td>Output</td><td>4 Variants · HLS ✓ RTMP ✓ UDP-MC ✓ WebRTC ⚠</td></tr>
+          <tr><td>QC</td><td>10/10 PASS</td></tr>
+          <tr><td>Clock</td><td>PTP LOCKED</td></tr>
+        </tbody>
+      </table>
+      <div class="diag">Encode Session 能否播出 = Audio/Output/QC/Clock 四维联动; 深页在 CD-01 Detail (Audio/Graph) 与 E-37 (Clock)。</div>
     </div>
   </div>
 </div>

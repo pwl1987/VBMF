@@ -578,8 +578,13 @@ Phase 4 实施验收:
 | **PreflightGate** | TAKE/Apply 前门禁 (B-13 / E-32) | §6.18 (已有) |
 | **ReservationSummary** | Reservation 状态摘要 (RESERVED/IN_USE/RELEASED + 9-dim) | RESOURCE_RESERVATION_SPEC (0.5F 统一) |
 | **DangerActions** | L1/L2/L3 危险操作统一 | §6.15 (已有) |
+| **ContextHeader** | 对象上下文条: Domain · Object · Revision · Effective · Session · Channel (0.5F F1) | CD-01 / P-21 / E-40 (0.5F 统一) |
+| **ObjectIdentity** | 对象身份头 (id/kind/status) — ContextHeader 的原子件 | 全部页面 (0.5F 统一) |
+| **DesiredCompiledEffective** | D/C/E/I 4 轴标注 (D Desired / C Compiled / E Effective / I Impact) | P-21 / E-50 (0.5F 统一) |
+| **RuntimeActionBar** | Runtime 操作条: TAKE / FAILOVER / RESTART / RETRY (绝不进 ChangeSet, EXECUTION_MODEL §7) | CD-01 / B-13 / M-17 (0.5F 统一) |
+| **CommandPalette** | Ctrl+K 全局命令面板 (Navigate/Search/Action + Context + RBAC + 6 状态) | E-52 (0.5F 统一) |
 
-**强制:** E-50/E-51/E-52 引用同一 token 集 (§2) 与上表组件语义; 新增组件先入本表再入 wireframe。
+**强制:** E-50/E-51/E-52 引用同一 token 集 (§2) 与上表组件语义; 新增组件先入本表再入 wireframe。0.5F F1 要求全部页面体现 **ContextHeader + DesiredCompiledEffective** (工程页 D/C/E/I 标注)。
 
 ---
 

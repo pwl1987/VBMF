@@ -3,9 +3,9 @@
 > **目的:** Phase 0.5F 收口核心。锁定 **Channel-centric UX + Network Source/Output 模型 + 双层 UI 导航**。
 > 不再按 Engine 一一对应拆页面, 而按用户工作流组织。
 >
-> **本阶段:** 0.5F Channel/Network UX Closure (DRAFT 0.1)
+> **本阶段:** 0.5F Final UX Reconciliation
 >
-> **状态:** 🟡 **DRAFT 0.1** — 待用户审, 锁后 → 5 张新 wireframe
+> **状态:** 🟢 **SEMANTIC LOCKED 0.1** (0.5F · 0.5D.6 终扫后升) — Channel-centric UX / Network Source/Output 模型 / 双层 UI / 4-Layer / Workspace 核心原则已锁定; 对应 surface (CH-01/CD-01/E-40/E-41) 已全部 LOCK (SURFACE_REGISTRY)
 >
 > **权威源:** 沿用 [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 15 对象 + [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) 3 层组合
 
@@ -696,4 +696,4 @@ VBMF Console
 
 ---
 
-**VBMF Contributors** · VBMF Product Information Architecture V0.1.1 · Phase 0.5E Cross-Domain UX (DRAFT 0.1 → Spec 锁)
+**VBMF Contributors** · VBMF Product Information Architecture V0.1.1 · Phase 0.5F Final UX Reconciliation (SEMANTIC LOCKED 0.1)

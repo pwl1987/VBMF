@@ -85,6 +85,7 @@ docs/
 | **0.5C Info Arch Closure** | 2026-08 | 🟢 RECONCILED | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (0.5C 已完成) |
 | **0.5D P0 Product Surfaces** | 2026-08 | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` (待 0.5D LOCK) |
 | **0.5E Global UX Layer** | 2026-08 | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
+| **0.5F Final UX Reconciliation** | 2026-08 | 🟡 IN PROGRESS (本轮) | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components | (本轮) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 
@@ -96,20 +97,22 @@ docs/
 | Phase 0.5B-Closure-1 | 🟢 LOCK FINAL | 10 项产品化收口 |
 | Phase 0.5B.1 P0 Wireframes | 🟢 LOCK FINAL | 5 P0 wireframes |
 | Phase 0.5B.2 Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System |
-| **Phase 0.5C Info Arch** | 🟡 **DRAFT** (本轮) | 目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复 + README 统一 |
-| Phase 0.5D P0 Product Surfaces | ⛔ 0.5C 后做 | M-17 + E-38 + E-37 + P-20 + P-28 + M-18 + M-14 重画 |
-| Phase 0.5E Global UX Layer | ⛔ 0.5D 后做 | Impact Preview + Configuration Diff 全域 |
+| **Phase 0.5C Info Arch** | 🟢 **RECONCILED** | 目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复 + README 统一 |
+| Phase 0.5D P0 Product Surfaces | 🟡 **IN PROGRESS (0.5D.1-.6 闭环)** | D1-D6 + 对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit; 待 0.5D LOCK |
+| Phase 0.5E Global UX Layer | 🟢 **SEMANTIC LOCKED** | Impact Preview (E-50) + Configuration Diff (E-51) + Command Palette (E-52) |
+| Phase 0.5F Final UX Reconciliation | 🟡 **IN PROGRESS (本轮)** | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components |
 
 ## 4. Phase 0.5 LOCK FINAL 最终条件
 
 只有满足下面 6 项, 才能正式宣布 **Phase 0.5 = UX BASELINE LOCK FINAL**:
 
-1. ⛔ **0.5C LOCK FINAL** (本轮提交)
-2. ⛔ **0.5D LOCK FINAL** (M-17 + E-38 + E-37 + P-20 + P-28 + M-18 + M-14 重画)
-3. ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette)
-4. ⛔ **所有 README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
-5. ⛔ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 LOCK
-6. ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" 等历史残留
+1. ✅ **0.5C RECONCILED** (0.5C 已完成)
+2. ⛔ **0.5D LOCK** (0.5D.1-.6 语义/执行闭环完成, 待 LOCK 声明)
+3. ⛔ **0.5E LOCK** (SEMANTIC LOCKED + wireframes E-50/51/52, 待 LOCK 声明)
+4. ⛔ **0.5F Final UX Reconciliation 完成** (状态统一 / Channel Workspace / Network / Transcode / Config vs Runtime / Components)
+5. ✅ **所有 README / MILESTONES / SURFACE_SPEC / PIA / Registry** 状态完全同步 (0.5F F1)
+6. ✅ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 SEMANTIC LOCKED
+7. ✅ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" 等历史残留
 
 ## 5. 进入 Phase 0.6 的条件
 

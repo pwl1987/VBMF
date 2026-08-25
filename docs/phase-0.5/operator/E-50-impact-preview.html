@@ -118,6 +118,12 @@ runtime.jitter         | —                | —                | 0.9ms (🔒) 
 ───────────────────────┴──────────────────┴──────────────────┴───────────────────┴────────
 WHAT WILL HAPPEN (Runtime Effect)                     | Reconnect · Re-negotiate · Re-verify · Possible failover</div>
   <div class="diag"><b>PIA §6 锁 6:</b> <b>Effective 列用户不能编辑</b> (🔒 read-only); 任何修改只能改 Desired 列, 修改后触发 Recompile → 新 Effective。Impact Preview 是因为 <b>「我要改变什么」</b>, 不是因为「这个对象目前很重要」— <b>Desired ≠ Effective 才是有效 delta</b> (0.5F F4 修正)。</div>
+  <div class="diag" style="border-left-color:var(--green)">
+    <b>Change Delta vs Operational Risk (0.5F F5 焊死):</b><br>
+    <b>Change Delta</b> = 有没有真正改变配置 (Desired ≠ Effective → <span style="color:var(--green)">PRESENT</span>)<br>
+    <b>Operational Risk</b> = 即使 delta 存在, 运行影响多大 (Active Channels / Sessions / Live Event / Bundle)<br>
+    <b>Delta = NONE → Risk = NONE</b> (无配置变化不弹 Impact Preview, 不触发 ChangeSet)。本例 Delta=PRESENT → Risk=HIGH, 二者明确分离。
+  </div>
 
   <h3 style="margin-top:14px">③ 4 维影响 (Channels / Sessions / Variants / Audit) <span class="pill pill-purple" style="float:right">必显示</span></h3>
   <div class="row">

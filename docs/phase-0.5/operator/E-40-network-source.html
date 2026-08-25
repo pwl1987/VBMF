@@ -108,6 +108,9 @@
           <span style="font-size:10px;color:var(--fgdim)">UDP · RTP · SRT · RTMP · HLS · WebRTC Pull · RTSP — 本页演示 Network → UDP</span>
         </div>
         <div style="font-size:10px;color:var(--fgdim);margin-top:4px">Physical (SDI) / File / Internal (BLACK·BARS·FILLER) 为其他 Kind 分支。Kind 决定 Transport; Transport(UDP) 再决定 Delivery Mode (UNICAST / MULTICAST_ASM / MULTICAST_SSM), 三者 Endpoint Schema 不同 — 不是平铺大表单。</div>
+        <div style="font-size:10px;color:var(--fgdim);margin-top:4px">
+          <span class="pill pill-green">endpoint_role: SOURCE_INGRESS</span> 接收侧字段: bind address / join group / IGMP / receive buffer / packet loss。输出侧 <span class="pill pill-orange">OUTPUT_EGRESS</span> 在 06-output Destination Wizard: destination / TTL / DSCP / send buffer / rate shaping (0.5F F3 INGRESS/EGRESS 对称体系)。
+        </div>
       </div>
       <div class="form-grid">
         <div class="form-row"><label>Transport</label><select><option selected>UDP</option><option>RTP</option><option>SRT</option><option>RTMP</option><option>HLS</option><option>WebRTC Pull</option><option>RTSP</option></select></div>
@@ -190,6 +193,22 @@
       <div class="gap">⚠ G5 预览端点不在本页: 视频缩略流 + 音频 LUFS/RMS 预览在 <a href="E-42-source-test-bench.html" style="color:var(--orange)">E-42</a> 定义 (Source Runtime Preview Stream), 本页不重复.</div>
     </div>
   </div>
+</div>
+
+<!-- Signal Path Diagnostics (0.5F F3) -->
+<div class="panel" style="border-color:var(--accent)">
+  <h3>📡 Signal Path Diagnostics (0.5F F3) <span class="pill pill-blue" style="float:right">配置 → 验证 连续流程</span></h3>
+  <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;font-size:10px;margin-top:4px">
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>NIC</b></div><div class="k" style="font-size:9px">eno1 · Link 10GbE</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>Route</b></div><div class="k" style="font-size:9px">10.30.20.0/24</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>IGMP</b></div><div class="k" style="font-size:9px">joined 239.20.10.10</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>Packets</b></div><div class="k" style="font-size:9px">12,480 pps</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>MPEG-TS</b></div><div class="k" style="font-size:9px">PAT/PMT</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>H.264</b></div><div class="k" style="font-size:9px">1080p25</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>AAC</b></div><div class="k" style="font-size:9px">48kHz / 2ch</div></div>
+    <div style="background:var(--bg3);border:1px solid var(--green);border-radius:3px;padding:6px;text-align:center"><div style="color:var(--green)">✓</div><div><b>QC</b></div><div class="k" style="font-size:9px">PASS</div></div>
+  </div>
+  <div class="diag">故障路径视觉化: 任一层 FAIL → 该层标红 + 上层灰显, 快速定位断点 (E-42 7 层验证的 UX 呈现)。UDP 单播/组播可在此链定位 Join 失败 / 路由缺失 / 丢包 (0.5F F3)。</div>
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">

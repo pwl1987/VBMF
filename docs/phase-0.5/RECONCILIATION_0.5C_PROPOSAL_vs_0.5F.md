@@ -686,3 +686,35 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 
 ### Q.7 结论
 - 0.5F 六项全部落盘; 0.5E 与 0.5D 语义/执行模型反向对账无冲突。**仍不宣布 FINAL** (0.5D LOCK + 0.5E LOCK 待用户确认)。剩余 P2: Command Palette `/` 快捷键 (V0.3) · Impact 5 维 (+Cost) · Diff Graph diff · Player Capability 由 Capability Registry 推导。
+
+---
+
+## R. 0.5F Final UX Reconciliation — 六 Closure 收口 (2026-08-25 末 · 用户第 12 轮全链路审查 e84bd0c)
+
+> 用户以 `e84bd0c` 做当前版本审查: 架构/Channel Workspace/网络/转码方向全部正确, **最大剩余 = 0.5C/D/E/F 状态文档互相矛盾** (README 0.5D IN PROGRESS vs 0.5E 文档 0.5D LOCK; PIA DRAFT vs Registry LOCK; MILESTONES 旧世界)。用户建议进入最后阶段 **Phase 0.5F — Final UX Reconciliation (6 Closure, 不再加页面)**。
+
+### R.1 F1 — Milestone State Closure (P0 修复)
+- **统一状态语言**: 0.5A/B LOCK FINAL · 0.5C RECONCILED · 0.5D 0.5D.1-.6 闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED · 0.5F Final UX Reconciliation (本轮)。
+- 落点: README (状态行/前置条件/矩阵加 0.5F 行) · 0.5E §0.1 演进图 (改真实状态, 删 0.5D/0.5F 假 LOCK) · **PIA DRAFT 0.1 → SEMANTIC LOCKED 0.1** (核心 UX 原则已承担, 对应 surface 全 LOCK) · MILESTONES (§2 表 + §3 判定矩阵 + §4 最终条件 7 项) · EXECUTION_MODEL 头状态补 §7 · SURFACE_REGISTRY 注释补 0.5F。
+
+### R.2 F2 — Channel Workspace Closure
+- CD-01 Action Context Bar → **三层视觉层级**: 🟢 DECISION (PGM/PVW/NEXT/MODE + TAKE/FAILOVER) → 🔵 READINESS (Backup/Audio/Output/Resource/Clock) → ⚪ DIAGNOSIS (深页链路: Profile/Graph/Source Endpoint/Resource/Incident)。Operator 值班"什么现在必须知道"一屏可辨。
+
+### R.3 F3 — Network Source / Destination Closure
+- E-40 加 **endpoint_role: SOURCE_INGRESS** 徽章 (接收侧字段), 输出侧 **OUTPUT_EGRESS** 在 06-output Destination Wizard (对称体系, 0.5F F3)。
+- E-40 加 **Signal Path Diagnostics**: NIC→Route→IGMP→Packets→MPEG-TS→H.264→AAC→QC 故障路径视觉化 (任一层 FAIL 标红 + 上层灰显)。
+
+### R.4 F4 — Transcode Closure
+- M-17 命名澄清: **Realtime Media Session (实时媒体会话)** ≠ M-14 Job Queue (≠ Job)。
+- 移除无来源固定延迟: `FRAME_SWITCH 40ms` / `MASTER_SWITCH 2s` → **Eligibility PASS/CONDITIONAL** + 引用 Target(100ms)/Measured(p95 87ms)。
+- M-17 加 **一屏判断「能不能播」** 四维联动摘要 (Audio/Output/QC/Clock)。
+
+### R.5 F5 — Configuration vs Runtime Closure
+- EXECUTION_MODEL §7 双管线确认 (上轮已焊死); E-50 补 **Change Delta vs Operational Risk** 分离: Delta = 有没有真正改变配置 (Desired≠Effective → PRESENT); Risk = 运行影响多大。**Delta=NONE → Risk=NONE** (无变化不弹 Impact, 不触发 ChangeSet)。
+
+### R.6 F6 — Global UX Component Closure
+- DESIGN_SYSTEM §12 补 **ContextHeader / ObjectIdentity / DesiredCompiledEffective (D/C/E/I) / RuntimeActionBar / CommandPalette** 5 组件; 强制 0.5F F1 全页面体现 ContextHeader + 工程页 D/C/E/I 标注。
+
+### R.7 结论
+- **四向对账 (Phase 状态 + 业务对象 + 页面行为 + 执行模型) 完成**: 0.5C/D/E/F 状态统一, Channel Workspace 三层, Network INGRESS/EGRESS + Signal Path, Transcode 双模型, Config vs Runtime 双管线, Global Components 收敛。
+- **仍不宣布 FINAL**: 0.5D LOCK + 0.5E LOCK 两个正式声明待用户确认 (内容已全部落盘)。确认后 → Phase 0.5 LOCK FINAL → Phase 0.6 Executable Acceptance。剩余 P2: Command Palette `/` (V0.3) · Impact 5 维 (+Cost) · Diff Graph diff · Player Capability Registry 推导 · 物理源统一入口 wireframe。

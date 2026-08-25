@@ -7,7 +7,7 @@
 #      SURFACE_SPEC 中所有手写计数 (并全部改为引用本文件)。
 #   3. 历史手写数字 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 一律废止。
 #
-# 派生计数 (2026-08-25, 0.5D.6 终扫 + 0.5E):
+# 派生计数 (2026-08-25, 0.5D.6 终扫 + 0.5E + 0.5F):
 #   BROADCAST 13 · MEDIA 8 · ENGINEERING 29 (含 E-41 SPEC) · ADMIN 5
 #   域合计 55 (54 wireframe + 1 SPEC) · 全局 Validation 1
 #   TOTAL 56 (55 wireframe + 1 Spec E-41) · Phase 0.5 总计 56
