@@ -4,7 +4,8 @@
 > **生成**: 2026-08-25（基于基线 `a6eca1f`，第 44 轮审查结论；commit `3888980` 复核后落地）。
 > **状态**: **DEPLOYMENT SoT — 与 `ARCHITECTURE_V0.2.md`（Runtime SoT）+ `TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md`（Ownership SoT）共同构成三层 SoT；不重开 V0.2**。
 >
-> **为什么存在**：Runtime Ownership 已在 Ownership SoT 锁死（Media Agent = DeckLink/GStreamer/Live FFmpeg 唯一 Owner），但「Docker 开发环境 / BMD 设备透传 / SSH 远程开发 / 热更新 / 自愈」尚未整合成正式 Deployment Contract，且 `SYSTEM_AND_PROJECT_PLAN.md` 仍存在与 Ownership 冲突的旧表述（方式 B 推荐生产、RustFS 生产可 MinIO）。本文件负责锁这五件事。
+> **为什么存在**：Runtime Ownership 已在 Ownership SoT 锁死（Media Agent = DeckLink/GStreamer/Live FFmpeg 唯一 Owner），但「Docker 开发环境 / BMD 设备透传 / SSH 远程开发 / 热更新 / 自愈 / Nginx 反代 / 远程实机验收」尚未整合成正式 Deployment Contract，且 `SYSTEM_AND_PROJECT_PLAN.md` 仍存在与 Ownership 冲突的旧表述。本文件负责锁这些事。
+> **选型待拍板**：反向代理初选 Caddy（Plan §2.7 #8），但 V0.2 广播场景需精细 proxy policy，本文件 §8 以 **Nginx** 为主要 Reverse Proxy Contract；若最终保留 Caddy 须满足同等策略。请在 G-RUNTIME 前确认。
 
 ---
 
@@ -136,3 +137,106 @@ L4 Infrastructure       Docker restart / server recovery
 - F2/F4/F11：Media Agent 拥有 DeckLink/GStreamer/Live FFmpeg → 部署上 BMD 必须设备透传进 Media-Agent 容器（§1/§2）。
 - F9：Control Plane 不得 spawn ffmpeg → 容器内 Fastify 仍禁 `child_process.spawn("ffmpeg")`；live ffmpeg 只在 Media-Agent 容器。
 - 本文件与 Ownership SoT 冲突时，以 **Ownership SoT 的硬件媒体生命周期归属** 为准。
+
+---
+
+## 8. Nginx Reverse Proxy Contract（NGINX-01 / API-02 / API-03 / OPS-01）
+
+> **Nginx = 唯一对外 HTTP/HTTPS 入口**（V0.2 广播场景需精细 proxy policy；若保留 Caddy 须满足同等策略）。Fastify **不当作媒体流代理**；SRS 承担媒体协议平面。
+
+### 路由边界
+```
+Internet/LAN ──HTTPS──▶ Nginx
+ ├── /            → Web (React, Vite build)
+ ├── /api/*       → Fastify (Public API)
+ ├── /ops/*       → Fastify Ops API (stricter auth/audit/rate-limit/IP-allowlist/VPN-LAN)
+ ├── /admin/*     → Fastify Admin (最强隔离)
+ ├── /ws/*        → WebSocket (Fastify)
+ ├── /events/*    → SSE (Fastify)
+ └── /health/*    → Health/Readiness (liveness + preflight)
+```
+
+### Control Plane vs Media Plane
+- **Nginx 负责 Control Plane**：`/api /ws /events /ops /admin` + 可选 HTTP media ingress/egress routing。
+- **SRS 负责 Media Protocol Plane**：`RTMP / SRT / HLS / WHEP` 由 SRS 直接对外（或经 Nginx 域名层路由，但 **Nginx 不承担 SRS 的媒体协议转换**）。
+- **禁止**：让 Fastify 变成媒体流代理（HLS 大量 segment 不得与 API 同 proxy policy）。
+
+### TLS / Headers / 长连接
+- TLS termination + HSTS；透传 `X-Forwarded-For/Proto/Host` 给 Fastify（Fastify 须信任 proxy）。
+- WebSocket：`proxy_http_version 1.1` + `Upgrade` + `Connection "upgrade"`。
+- SSE：`proxy_buffering off` + 长 `proxy_read_timeout` + keepalive（否则 Job Progress/Runtime State 偶发 30s 不更新）。
+
+### 大文件上传（API-02, tus + Fastify multipart）
+- `client_max_body_size 0`（或 ≥10G）；`proxy_request_buffering off`；`proxy_read_timeout` / `proxy_send_timeout` 调大（2GB/10GB 视频不得被 Nginx 截断/超时）。
+
+### Ops 隔离（OPS-01）
+- `/ops`、`/admin` 不得与普通 `/api` 同暴露面：更强 auth + audit + rate limit + IP allowlist / VPN / LAN policy。
+
+---
+
+## 9. Remote BMD Acceptance（G-RUNTIME 前置，必须实机）
+
+> **Phase 0.6 G-RUNTIME 不能在 GitHub CI 完成**。GitHub Actions runner 无真实 BMD 卡/DeckLink SDK/SDI 链路/设备租约。
+
+### 两级验收
+```
+Level 1 (GitHub CI):  lint / schema / Graph Compiler assertion / ownership guard /
+                      unit / frontend E2E(mock) / fixture validation / runner self-test
+Level 2 (Remote BMD): SSH → pinned SHA → Docker Compose → ENV Preflight →
+                      Device Lease → A2(real SDI) → FI-08 → FI-09 → HA → Evidence
+```
+
+### Remote Acceptance Workspace（避免随便 clone）
+```
+/opt/vbmf-dev/
+├── repo/          # git checkout <exact-SHA>
+├── evidence/      # 实机验收产物 (FI-08/09, A2, HA 实测)
+├── artifacts/
+├── logs/
+└── runtime/
+```
+- **验收绑定 Git SHA**：`git checkout <exact-SHA>`，禁止"差不多最新"。
+- **Acceptance Manifest**（每次实机记录）：`commit / host / os / kernel / bmd_driver / decklink_sdk / ffmpeg / gstreamer / srs / docker / compose / test_run_id`，使 FI-08 PASS 可追溯到具体硬件/版本。
+- 不建议让 GitHub CI 经 SSH 直接跑全部硬件验收（避免真实硬件成 CI 脆弱外部依赖）。
+
+---
+
+## 10. CI 三项硬门禁（Gate A 工程化，纯 CI 不需硬件）
+
+1. **Fastify FFmpeg spawn Guard**：静态禁止 `apps/api`、`packages/control-plane` 出现 `spawn("ffmpeg")/exec("ffmpeg")/execFile("ffmpeg")`；允许 `apps/worker`、`services/media-agent` 按职责使用（F9）。
+2. **Graph Compiler Output Assertion**：CI 校验 Compiler 产物 = `Runtime Graph Intent` schema，且 **不含** `gst-launch`/`ffmpeg` 具体进程命令（F10）。
+3. **Device Lease contract test**：自动化测 Acquire/Renew/Release/Crash Recovery/Stale Lease/Double Acquire/Agent Restart/Concurrent Diagnostic Attempt（F11；实机部分留 Level 2）。
+
+---
+
+## 11. Environment Profile（DEV / ACCEPTANCE / PRODUCTION，FLOW-REMOTE-01）
+
+| Profile | 特征 | 禁止 |
+|---|---|---|
+| **DEV** | 热更新 / debug logging / controlled restart / BMD 可选 mock | 不得当生产用 |
+| **ACCEPTANCE** | pinned commit / 真实 BMD+DeckLink+SRS / evidence capture | 不得当生产 |
+| **PRODUCTION** | immutable image / controlled rollout / **no HMR** / stricter self-healing / Nginx TLS | 不得 HMR / 不得调试热更 |
+
+> Rust Media Agent 有 Live Session，**DEV hot reload 严禁误用到 PRODUCTION**（controlled restart 仅 DEV/ACCEPTANCE）。
+
+### Controlled Rust Dev Restart（非裸 cargo-watch）
+```
+Source Change → Detect → Build → Validate binary → Quiesce/Prepare →
+Controlled Restart → Re-acquire Device Lease → Rebuild GStreamer →
+Rebuild Live FFmpeg → Restore Graph → Verify active_source_id → HEALTHY
+```
+> 禁止 `cargo-watch kill → build → run` 直接杀 Live Session（会丢 DeckLink lease / PGM black）。
+
+---
+
+## 12. Ops Visibility（UX-OPS-01，Phase 4 落）
+
+Operator UI 除 Channel Health 外，须下钻 Runtime Owner 链：
+```
+Channel → Runtime → Media Agent(Host/Container/Session/Recovery)
+                  → DeckLink(Device/Lease/Signal)
+                  → GStreamer(Pipeline/State)
+                  → FFmpeg(Process/Encode)
+                  → SRS(Output)
+```
+且 Health Tree 暴露 Recovery State（`NONE/RESTARTING/RECOVERED/RETRYING/BACKOFF/ESCALATED/MANUAL_REQUIRED`），使 FI-08 自动恢复对现场可见（不仅 HEALTHY）。

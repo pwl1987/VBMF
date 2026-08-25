@@ -448,12 +448,12 @@ DB 标记完成，状态推 SSE
 |---|---|---|---|
 | 1 | 鉴权方案 | better-auth / lucia-auth / @fastify/jwt | **better-auth**（现代 + 全栈 + TS-first） |
 | 2 | 流媒体服务器 | SRS（已锁定） | **SRS**（项目已确认主流媒体服务器；RTMP/HLS/SRT/WebRTC-WHEP 全覆盖；**MediaMTX 不纳入**以避免双 Gateway 负担） |
-| 3 | 对象存储 | RustFS / MinIO | **RustFS**（国产/轻）；生产**MinIO**更稳 |
+| 3 | 对象存储 | RustFS / MinIO | **RustFS**（V0.2 canonical；MinIO 分叉已废弃，见 Deployment SoT） |
 | 4 | 实时推送 | SSE / WebSocket | **SSE**（Fastify 内置、单向、够用） |
 | 5 | 上传协议 | tus / 分片普通 | **tus**（断点续传 + 进度） |
 | 6 | 部署 | docker-compose / K8s | 起步 **docker-compose**；规模化 K8s |
 | 7 | 监控 | Sentry 云 / GlitchTip 自部署 | 起步 **Sentry 云**；合规上 **GlitchTip** |
-| 8 | 反向代理 | Caddy / nginx + certbot | **Caddy**（配置 5 行 + 自动 HTTPS） |
+| 8 | 反向代理 | Caddy / nginx + certbot | **初选 Caddy**；但 V0.2 广播场景需精细 proxy policy（大上传/WS/SSE/媒体边界），**最终以 `DEPLOYMENT_AND_DEV_RUNTIME.md` §8 Nginx Reverse Proxy Contract 为准**（Nginx 为主要反代；若保留 Caddy 须满足同等 proxy policy） |
 | 9 | Auth 用户模型 | 单租户 / 多租户 | 起步 **单租户**；SaaS 化时升级 |
 | 10 | 浏览器支持 | 现代 only / 兼容旧版 | **现代 only**（Chrome/Edge/Safari/Firefox 最新版） |
 
