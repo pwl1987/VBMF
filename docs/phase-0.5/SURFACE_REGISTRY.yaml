@@ -141,7 +141,7 @@ surface:
     domain: ENGINEERING
     kind: REGISTRY
     status: LOCK
-    milestone: "0.5D (Profile Center, 8 Tab: 7 Profile + Bundle)"
+    milestone: "0.5D (Profile Center, 9 Tab: 8 Profile + Bundle)"
   - id: "P-21"
     domain: ENGINEERING
     kind: DETAIL

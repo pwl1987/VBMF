@@ -9,6 +9,8 @@
 > **Phase 0.5B Product UI Surface ✅ UX BASELINE LOCK FINAL · 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml）+ 5 P0 wireframes + 8 横切能力 + 36 项语义收口（31 P0 + 5 P1）**
 >
 > **Phase 0.5 = 🟢 LOCK FINAL (2026-08-25)** · 权威阶段状态 (SoT) 见 [`docs/phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md) · 子模块 0.5A/0.5B/0.5C/0.5D/0.5E/0.5F 全部收口
+>
+> **⚠️ 历史分组 ≠ 当前 surface 计数**: 上方 "9 Core + 1 Validation" / "5 P0 wireframes" 等是 **Phase 0.5A/0.5B 历史文档分组**, 不是总数; 当前权威 surface 计数 = **56 (55 wireframe + 1 Spec, 归并 4 域)**, 唯一事实源 (SoT) 是 [`docs/phase-0.5/SURFACE_REGISTRY.yaml`](docs/phase-0.5/SURFACE_REGISTRY.yaml) + [`docs/phase-0.5/NAVIGATION.md`](docs/phase-0.5/NAVIGATION.md)。请勿用历史分组相加 (如 10 + 5) 反推总数。
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![V0.2 Lock](https://img.shields.io/badge/V0.2-架构_LOCK_FINAL-green.svg)](docs/architecture/ARCHITECTURE_V0.2.md)

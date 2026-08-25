@@ -66,7 +66,7 @@
 
 <div class="header">
   <div class="breadcrumb"><a href="P-20-profile-center.html">P-20 Profile Center</a> › <b>P-28 Profile Bundle Registry (3 Bundles)</b></div>
-  <h1><span class="cn">P-28 · 通道交付包</span> <span class="en">PROFILE BUNDLE (1 Channel 1 Bundle · 7 Profile 引用 · 不重复配置)</span></h1>
+  <h1><span class="cn">P-28 · 通道交付包</span> <span class="en">PROFILE BUNDLE (1 Channel 1 Bundle · 8 Profile 引用 · 不重复配置)</span></h1>
 </div>
 
 <!-- 顶部 Bundle 列表 -->
@@ -135,7 +135,7 @@
 
 <!-- 选中 Bundle 详情: 6 引用 -->
 <div class="panel">
-  <h3><span class="cn">CH01-News-Live 详情</span> / BUNDLE DETAIL (7 Profile 引用, 非副本)
+  <h3><span class="cn">CH01-News-Live 详情</span> / BUNDLE DETAIL (8 Profile 引用, 非副本)
     <span class="pill pill-green" style="float:right">Channel CH01 · 1 Realtime Session + 3 Output Variants</span>
   </h3>
   <div class="row">
@@ -171,6 +171,22 @@
         </div>
       </div>
     </div>
+    <!-- Packaging (P0: 第 8 个 Profile kind) -->
+    <div class="col-4">
+      <div class="bundle-slot required">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">📦 Packaging Profile (REQUIRED)</div>
+        <div class="profile-name">HLS-CMAF-v2</div>
+        <div class="profile-meta">v2 ACTIVE · HLS + CMAF · container / segment / manifest</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-20 →</a>
+          ·
+          <span style="color:var(--green)">PASS</span>
+        </div>
+      </div>
+    </div>
     <!-- Output -->
     <div class="col-4">
       <div class="bundle-slot required">
@@ -182,6 +198,22 @@
         <div class="profile-meta">v2 ACTIVE · HLS · CDN-A primary + CDN-B backup</div>
         <div style="margin-top:6px;font-size:10px">
           <a style="color:var(--accent);text-decoration:none">Open P-22 →</a>
+          ·
+          <span style="color:var(--green)">PASS</span>
+        </div>
+      </div>
+    </div>
+    <!-- Graphic (P0: 补齐缺失的 Graphic slot) -->
+    <div class="col-4">
+      <div class="bundle-slot optional">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">🎨 Graphic Profile (OPTIONAL)</div>
+        <div class="profile-name">NEWS-LOWERTHIRD</div>
+        <div class="profile-meta">v1 · Lower-third / Bug / Logo overlay</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-24 →</a>
           ·
           <span style="color:var(--green)">PASS</span>
         </div>
@@ -247,7 +279,7 @@
       <h3><span class="cn">3-Layer (Bundle 视角)</span> / DESIRED → COMPILED → EFFECTIVE</h3>
       <table>
         <tbody>
-          <tr><td>DESIRED</td><td><span class="v">CH01-News-Live Bundle (7 Profile 引用)</span></td></tr>
+          <tr><td>DESIRED</td><td><span class="v">CH01-News-Live Bundle (8 Profile 引用)</span></td></tr>
           <tr><td>COMPILED</td><td><span class="v green">Resolved at Apply · Atomic Cutover</span></td></tr>
           <tr><td>EFFECTIVE</td><td><span class="v green">Revision v3 ACTIVE</span></td></tr>
           <tr><td>Δ</td><td><span class="v green">COMPILED == EFFECTIVE<br>Reason: 无降级</span></td></tr>
@@ -338,7 +370,7 @@
     <table>
       <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
       <tbody>
-        <tr><td><b>● NORMAL</b></td><td>Bundle ACTIVE + 7 Profile 引用全部 OK + Channel RUNNING</td><td>顶部全绿 + 6 slot 全部带 profile name + Revision 历史 + 3-Layer</td></tr>
+        <tr><td><b>● NORMAL</b></td><td>Bundle ACTIVE + 8 Profile 引用全部 OK + Channel RUNNING</td><td>顶部全绿 + 8 slot 全部带 profile name + Revision 历史 + 3-Layer</td></tr>
         <tr><td><b>◌ LOADING</b></td><td>Bundle 创建中 / 引用解析中</td><td>slot skeleton + "Resolving Profile references..."</td></tr>
         <tr><td><b>○ EMPTY</b></td><td>0 Bundle (新系统)</td><td>引导 "Create first Bundle from Channel template"</td></tr>
         <tr><td><b>⚠ WARNING</b></td><td>引用 Profile 1 个 DEPRECATED / Channel 在 DRAFT</td><td>黄色 Banner + 引用标黄 + Recommend: 升级到新 Revision</td></tr>
@@ -362,7 +394,7 @@
 <footer>
   VBMF Operator Console · P-28 Profile Bundle · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
   · 关联: P-20 Profile Center / P-21 Encoding / P-22 Output / P-23 Audio / P-24 Graphic / P-25 QC / P-26 Rights / P-27 Edge Policy
-  · Object: Profile Bundle (1 Channel 1 Bundle, 7 Profile 引用)
+  · Object: Profile Bundle (1 Channel 1 Bundle, 8 Profile 引用)
   · 3-Layer + 4 Workflows + Revision 不可变 + Logical Atomic Apply
 </footer>
 

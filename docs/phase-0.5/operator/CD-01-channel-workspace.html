@@ -140,11 +140,11 @@
         <div class="diag">Channel Template = 创建工厂 (OBJECT_VOCAB §1.15). 本 Channel 在 STARTING 时由其实例化; 模板本身不参与运行态.</div>
       </div>
       <div class="col-4">
-        <div class="k">Bundle Snapshot (7 Profile 引用)</div>
-        <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
+        <div class="k">Bundle Snapshot (8 Profile 引用)</div>
+        <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">8 refs</span></div>
         <div class="k" style="margin-top:4px">Template Sync</div>
         <div class="v" style="font-size:11px;color:var(--yellow)">OFF · immutable snapshot</div>
-        <div class="diag">实例化时快照 Template 默认 7 Profile 引用; Template Rev 升级 <b>不会自动同步</b>到本 Channel (快照不可变).</div>
+        <div class="diag">实例化时快照 Template 默认 8 Profile 引用; Template Rev 升级 <b>不会自动同步</b>到本 Channel (快照不可变).</div>
       </div>
       <div class="col-4">
         <div class="k">Channel Lifecycle</div>
@@ -158,17 +158,18 @@
 
 <!-- PROFILE BUNDLE -->
 <div class="panel">
-  <h3>📦 Profile Bundle · 7 Profile 引用 (P-28) <span class="pill pill-blue">实例化快照 · 源自 Template Rev T-v3</span></h3>
+  <h3>📦 Profile Bundle · 8 Profile 引用 (P-28) <span class="pill pill-blue">实例化快照 · 源自 Template Rev T-v3</span></h3>
   <div class="pbundle">
     <span class="pchip on">Encoding Profile (P-21) ● active · REALTIME_PROFILE</span>
-    <span class="pchip">Output Profile (P-22)</span>
     <span class="pchip">Audio Profile (P-23)</span>
+    <span class="pchip">Packaging Profile (P-20)</span>
+    <span class="pchip">Output Profile (P-22)</span>
     <span class="pchip">Graphic Profile (P-24)</span>
     <span class="pchip">QC Profile (P-25)</span>
     <span class="pchip">Rights Profile (P-26)</span>
     <span class="pchip">Edge Policy Profile (P-27)</span>
   </div>
-  <div class="diag">7 种 Profile 是可复用策略引用, 非 UI 组合视图 (POM §4.2 / ENCODE_MODEL_SPEC). 本 Channel 编码走 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> (0.5D.3 修正: 原误标 P-22), Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01 Output 区). 深度配置见 M-17 (D4) / P-21 / P-22.</div>
+  <div class="diag">8 种 Profile 是可复用策略引用, 非 UI 组合视图 (POM §4.2 / ENCODE_MODEL_SPEC). 本 Channel 编码走 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> (0.5D.3 修正: 原误标 P-22), Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01 Output 区). 深度配置见 M-17 (D4) / P-21 / P-22.</div>
 </div>
 
 <!-- FIXTURE 快照声明 (0.5F.4 P2 统一) -->
@@ -421,7 +422,7 @@
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 3 张 (D3, CD-01 Channel Control Workspace). 本页把 D1/D2 产出的 <b>Template → Profile Bundle → Channel</b> 在运行态反射: 顶部 Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余 (srcP/srcB 来自模板) + 反向追溯 D2. 历史缺口块: G3/G4/G5 已由 0.5D.1 关闭 (绿块), G10 PARTIAL 待 0.5E (详见对账报告 §F/§H/§I). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 本页为运行态反射原型, 不新增 surface (升级既有 CD-01, 不计入 NAVIGATION 计数).
+  🧭 这是 0.5D 验收链第 3 张 (D3, CD-01 Channel Control Workspace). 本页把 D1/D2 产出的 <b>Template → Profile Bundle → Channel</b> 在运行态反射: 顶部 Provenance 条 + 8 Profile 引用快照 + Output criticality 升级 + 源冗余 (srcP/srcB 来自模板) + 反向追溯 D2. 历史缺口块: G3/G4/G5 已由 0.5D.1 关闭 (绿块), G10 PARTIAL 待 0.5E (详见对账报告 §F/§H/§I). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 本页为运行态反射原型, 不新增 surface (升级既有 CD-01, 不计入 NAVIGATION 计数).
 </div>
 
 <script>

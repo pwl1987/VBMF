@@ -134,7 +134,29 @@
         <div class="form-row"><label>Transport</label><select><option selected>UDP</option><option>RTP</option><option>SRT</option><option>RTMP</option><option>HLS</option><option>WebRTC Pull</option><option>RTSP</option></select></div>
         <div class="form-row"><label>Delivery Mode (UDP)</label><select><option>UNICAST</option><option>MULTICAST_ASM</option><option selected>MULTICAST_SSM</option></select></div>
       </div>
-      <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · MULTICAST_SSM (active)</div>
+      <script>
+      function setDM(mode){
+        ['UNICAST','ASM','SSM'].forEach(function(m){
+          var p=document.getElementById('e40-'+m.toLowerCase());
+          if(p) p.style.display = (m===mode)?'block':'none';
+          var b=document.getElementById('dm-'+m.toLowerCase());
+          if(b){
+            var on = (m===mode);
+            b.style.background = on ? 'var(--accent)' : 'transparent';
+            b.style.color = on ? '#fff' : 'var(--fg)';
+            b.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+          }
+        });
+      }
+      </script>
+      <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Delivery Mode (三级联动 · 视觉可切换)</div>
+      <div style="display:flex;gap:6px;margin:4px 0 10px">
+        <button id="dm-unicast" onclick="setDM('UNICAST')" style="padding:4px 10px;font-size:11px;border:1px solid var(--border);background:transparent;color:var(--fg);border-radius:3px;cursor:pointer">UNICAST</button>
+        <button id="dm-asm" onclick="setDM('ASM')" style="padding:4px 10px;font-size:11px;border:1px solid var(--border);background:transparent;color:var(--fg);border-radius:3px;cursor:pointer">MULTICAST ASM</button>
+        <button id="dm-ssm" onclick="setDM('SSM')" style="padding:4px 10px;font-size:11px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:3px;cursor:pointer">MULTICAST SSM</button>
+      </div>
+      <div id="e40-ssm">
+      <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · MULTICAST_SSM</div>
       <div class="form-grid">
         <div class="form-row"><label>Local Interface</label><select><option selected>eno1 (10G · 10.30.20.10)</option><option>eno2</option></select></div>
         <div class="form-row"><label>Multicast Group</label><input value="239.20.10.10" style="border-color:var(--accent)"></div>
@@ -144,8 +166,8 @@
         <div class="form-row"><label>Transport Format</label><select><option selected>MPEG-TS over UDP</option><option>RTP (encapsulation)</option></select></div>
         <div class="form-row"><label>DSCP/TOS</label><input value="46 (EF) / 0xB8"></div>
       </div>
-      <!-- 仅当 Delivery Mode = UNICAST 时渲染 (当前 SSM, 隐藏) -->
-      <div style="display:none">
+      </div>
+      <div id="e40-uni" style="display:none">
       <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · UNICAST</div>
       <div class="form-grid" style="opacity:0.85">
         <div class="form-row"><label>Local Interface</label><select><option selected>eno1</option></select></div>
@@ -156,8 +178,7 @@
         <div class="form-row"><label>DSCP/TOS</label><input value="46 (EF)"></div>
       </div>
       </div>
-      <!-- 仅当 Delivery Mode = MULTICAST_ASM 时渲染 (当前 SSM, 隐藏) -->
-      <div style="display:none">
+      <div id="e40-asm" style="display:none">
       <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · MULTICAST_ASM</div>
       <div class="form-grid" style="opacity:0.85">
         <div class="form-row"><label>Local Interface</label><select><option selected>eno1</option></select></div>

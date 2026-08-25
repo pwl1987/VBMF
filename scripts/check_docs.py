@@ -185,24 +185,43 @@ def check_numbers():
 
 
 def check_nav_domain_counts():
-    """NAVIGATION 的 ENGINEERING 域表面数必须与 SURFACE_REGISTRY.yaml SoT 一致
-    （数字由 Registry 派生, 不得手写, 防止 26/29 这类漂移）。"""
+    """NAVIGATION 每个域的表面数必须与 SURFACE_REGISTRY.yaml SoT 一致
+    （数字由 Registry 派生, 不得手写, 防止 BROADCAST / MEDIA / ADMIN / GLOBAL 漂移）。
+
+    - BROADCAST / MEDIA / ENGINEERING / ADMIN: NAVIGATION 有 "DOMAIN 域 (N 表面)" 头,
+      与 Registry "DOMAIN (N)" 段头 SoT 比对。
+    - GLOBAL: NAVIGATION 无独立"域 (N 表面)"头, 改为校验 Registry 内 GLOBAL 条目数 == SoT。
+    """
     errs = []
     reg = (ROOT / "docs" / "phase-0.5" / "SURFACE_REGISTRY.yaml")
     if not reg.exists():
         return errs
-    t = reg.read_text(encoding="utf-8")
-    m = re.search(r"ENGINEERING\s+(\d+)\s*\(", t)
-    if not m:
-        return errs
-    eng_sot = m.group(1)
+    reg_text = reg.read_text(encoding="utf-8")
     nav = (ROOT / "docs" / "phase-0.5" / "NAVIGATION.md").read_text(encoding="utf-8")
-    m2 = re.search(r"ENGINEERING 域\s*\((\d+) 表面", nav)
-    if m2 and m2.group(1) != eng_sot:
-        errs.append(
-            f"[NUMBER] NAVIGATION ENGINEERING 域表面数 {m2.group(1)} "
-            f"与 SURFACE_REGISTRY SoT {eng_sot} 不一致（数字必须由 Registry 派生, 不得手写）"
-        )
+
+    nav_domains = ["BROADCAST", "MEDIA", "ENGINEERING", "ADMIN"]
+    for d in nav_domains:
+        m = re.search(rf"{d}\s*\((\d+)", reg_text)
+        if not m:
+            continue
+        sot = m.group(1)
+        m2 = re.search(rf"{d} 域\s*\((\d+) 表面", nav)
+        if m2 and m2.group(1) != sot:
+            errs.append(
+                f"[NUMBER] NAVIGATION {d} 域表面数 {m2.group(1)} "
+                f"与 SURFACE_REGISTRY SoT {sot} 不一致（数字必须由 Registry 派生, 不得手写）"
+            )
+
+    # GLOBAL: NAVIGATION 无"域 (N 表面)"头 → 校验 Registry 内 GLOBAL 条目数 == SoT
+    mg = re.search(r"GLOBAL\s*\((\d+)", reg_text)
+    if mg:
+        g_sot = int(mg.group(1))
+        g_entries = len(re.findall(r"^\s*domain:\s*GLOBAL\s*$", reg_text, flags=re.MULTILINE))
+        if g_entries != g_sot:
+            errs.append(
+                f"[NUMBER] SURFACE_REGISTRY GLOBAL 条目数 {g_entries} "
+                f"与 GLOBAL SoT {g_sot} 不一致"
+            )
     return errs
 
 

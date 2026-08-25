@@ -63,6 +63,30 @@ Asset (M-11)
 - 任何跳转都携带 `asset_id` / `asset_version_id` / `job_id`, **禁止**从转码页跳到泛化首页后丢失上下文。
 - `Job` 与 `Asset Version` 双向可达: Job 详情能看到产出 Asset Version, Asset Version 能看到触发它的 Job。
 
+### 1.2 对象动作矩阵（OBJECT_ACTION_MATRIX · 与 1 节导航矩阵互补）
+
+> 1 节是 **cross-object 点对点导航**（A 怎么到 B）；本矩阵是 **per-object 生命周期动作契约**：每个对象必须存在 `View → Edit → Runtime → Impact → Revision` 五态，且 Edit / Revision 统一走 `session.apply_revision`（V0.2 §3.x Runtime Contract），禁止散落的直接写操作。
+
+| 对象 | View | Edit | Runtime | Impact | Revision |
+| --- | --- | --- | --- | --- | --- |
+| Source | E-40 / Source List | ChangeSet → E-40 编辑 | M-17 信号态 | E-50 | session.apply_revision |
+| Profile (8 kinds) | P-20 / P-21..P-27 | ChangeSet | 模板级（不进运行态） | E-50 | session.apply_revision |
+| Bundle | P-28 | ChangeSet（引用不复制） | CD-01 Bundle 快照 | E-50 / E-51 | session.apply_revision |
+| Variant | CD-01 Output / 06-output | ChangeSet | CD-01 Runtime Output | E-50 | session.apply_revision |
+| Realtime Session | M-17 | ChangeSet（Reservation） | M-17 | E-50 | session.apply_revision |
+| Output | 06-output / CD-01 | ChangeSet | CD-01 Output 区 | E-50 | session.apply_revision |
+| Incident | E-30 / CD-01 Health | ChangeSet / Auto | CD-01 Health | E-50 | session.apply_revision |
+| ChangeSet | E-33 | —（本身即变更单元） | — | E-50 | E-33 apply |
+| Channel | CH-01 / CD-01 | CH-02 / ChangeSet | CD-01 运行态 | E-50 | session.apply_revision |
+| Asset | Asset Library | ChangeSet | — | E-50 | session.apply_revision |
+| Asset Version | Asset Version 详情 | Create Version（ChangeSet） | — | E-50 | session.apply_revision |
+| Job | Job List / M-17 | ChangeSet | Job 执行态 | E-50 | session.apply_revision |
+| Route | Route 配置 | ChangeSet | Route 运行态 | E-50 | session.apply_revision |
+| Destination | 06-output Destination | ChangeSet | Destination 运行态 | E-50 | session.apply_revision |
+| Adapter | Adapter 注册 | ChangeSet | Adapter 运行态 | E-50 | session.apply_revision |
+| Revision | Revision 历史（E-33） | — | — | — | — |
+| Channel Template | CH-02b | CH-02b 编辑 | —（不进运行态） | E-50 | session.apply_revision |
+
 ---
 
 ## 2. 闭环自检清单（Acceptance）

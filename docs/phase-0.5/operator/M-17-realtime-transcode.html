@@ -93,8 +93,8 @@
       <div class="diag">CH01 由 Template <b>CH01-News-Live</b> Rev T-v3 实例化 (见 <a href="CH-02b-channel-template-center.html" style="color:var(--accent)">D2</a> / <a href="CD-01-channel-workspace.html" style="color:var(--accent)">D3</a>)。</div>
     </div>
     <div class="col-4">
-      <div class="k">Profile Bundle (7 Profile 引用)</div>
-      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
+      <div class="k">Profile Bundle (8 Profile 引用)</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">8 refs</span></div>
       <div class="diag">本 Session 的编码参数来自 Bundle 中 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> 的快照 (immutable)。</div>
     </div>
     <div class="col-4">
@@ -103,22 +103,23 @@
       <div class="diag">DESIRED = Encoding Profile (P-21) · profile_type=REALTIME_PROFILE rev ENC-v3 → COMPILED → EFFECTIVE 一致 (无降级)。</div>
     </div>
   </div>
-  <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 本 Session 在 <a href="CD-01-channel-workspace.html">D3 CD-01</a> 的 Profile Bundle 条 (P-21 高亮) 与 <a href="CH-02b-channel-template-center.html">D2 模板</a> 的默认 7 Profile 引用互相印证。</div>
+  <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 本 Session 在 <a href="CD-01-channel-workspace.html">D3 CD-01</a> 的 Profile Bundle 条 (P-21 高亮) 与 <a href="CH-02b-channel-template-center.html">D2 模板</a> 的默认 8 Profile 引用互相印证。</div>
 </div>
 
-<!-- PROFILE BUNDLE 7 引用 -->
+<!-- PROFILE BUNDLE 8 引用 -->
 <div class="panel">
-  <h3>📦 Profile Bundle · 7 Profile 引用 (P-28) <span class="pill pill-purple">REALTIME_PROFILE = 本页激活</span></h3>
+  <h3>📦 Profile Bundle · 8 Profile 引用 (P-28) <span class="pill pill-purple">REALTIME_PROFILE = 本页激活</span></h3>
   <div class="pbundle">
     <span class="pchip on">Encoding Profile (P-21) ● active · REALTIME_PROFILE</span>
-    <span class="pchip">Output Profile (P-22)</span>
     <span class="pchip">Audio Profile (P-23)</span>
+    <span class="pchip">Packaging Profile (P-20)</span>
+    <span class="pchip">Output Profile (P-22)</span>
     <span class="pchip">Graphic Profile (P-24)</span>
     <span class="pchip">QC Profile (P-25)</span>
     <span class="pchip">Rights Profile (P-26)</span>
     <span class="pchip">Edge Policy Profile (P-27)</span>
   </div>
-  <div class="diag">7 Profile 是可复用策略引用 (POM §4.2). 本页 Session 仅消费 <b>Encoding Profile (P-21) 的 REALTIME_PROFILE 分支</b>; Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01), 其余由 D3(CD-01) / M-14 / QC 等各自消费. 与 D1④ / D2 / D3 完全一致.</div>
+  <div class="diag">8 Profile 是可复用策略引用 (POM §4.2). 本页 Session 仅消费 <b>Encoding Profile (P-21) 的 REALTIME_PROFILE 分支</b>; Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01), 其余由 D3(CD-01) / M-14 / QC 等各自消费. 与 D1④ / D2 / D3 完全一致.</div>
 </div>
 
 <!-- 3-LAYER 配置态 -->
@@ -301,7 +302,7 @@
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 4 张 (D4, M-17 Realtime Encode). 本页把 D1/D2/D3 产出的 <b>Profile Bundle → Encoding Profile (P-21) · REALTIME_PROFILE</b> 在编码运行态反射: 顶部 Provenance 条 (Channel CH01 ← 模板 ← Bundle) + 7 Profile 引用 (P-21 REALTIME 高亮, P-22 Output 不激活) + 3-Layer 配置态绑定 P-21 ENC-v3 + Pipeline/指标/健康检查 (沿用 M-17 0.5D LOCK). G4 触点: Backup Output retry 3x 已由独立 OutputResilience 对象覆盖 (06-output + D6/B-13, 0.5D.1 闭合). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 本页为升级原型, 不新增 surface (升级既有 M-17, 不计入 NAVIGATION 计数).
+  🧭 这是 0.5D 验收链第 4 张 (D4, M-17 Realtime Encode). 本页把 D1/D2/D3 产出的 <b>Profile Bundle → Encoding Profile (P-21) · REALTIME_PROFILE</b> 在编码运行态反射: 顶部 Provenance 条 (Channel CH01 ← 模板 ← Bundle) + 8 Profile 引用 (P-21 REALTIME 高亮, P-22 Output 不激活) + 3-Layer 配置态绑定 P-21 ENC-v3 + Pipeline/指标/健康检查 (沿用 M-17 0.5D LOCK). G4 触点: Backup Output retry 3x 已由独立 OutputResilience 对象覆盖 (06-output + D6/B-13, 0.5D.1 闭合). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 本页为升级原型, 不新增 surface (升级既有 M-17, 不计入 NAVIGATION 计数).
 </div>
 
 <script>

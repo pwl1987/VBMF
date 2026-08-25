@@ -55,7 +55,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 |---|---|---|---|
 | **BROADCAST** | 直播 | Operator / Director | Channel, Source, Graph, Route, Session, Variant |
 | **MEDIA** | 媒体 | Content Manager / Post Production | Asset, Asset Version, Job (FILE_TRANSCODE/PROBE/QC/UPLOAD/ARCHIVE) |
-| **ENGINEERING** | 工程 | Engineer / SRE | Profile (7), Profile Bundle, Change Set, Preflight, Hardware, Clock, Capability, Health, Incident, Replay, Benchmark |
+| **ENGINEERING** | 工程 | Engineer / SRE | Profile (8), Profile Bundle, Change Set, Preflight, Hardware, Clock, Capability, Health, Incident, Replay, Benchmark |
 | **ADMIN** | 管理 | Admin | User, Role, Permission, Audit Log, System Setting |
 
 > ⛔ **PROFILES 不再是顶层域** — 因为 Profile 是 6 个子类, 全部进 ENGINEERING 域的 P-20 Profile Center。

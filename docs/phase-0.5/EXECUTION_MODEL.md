@@ -15,10 +15,10 @@ Template (CHANNEL_TEMPLATE, 工厂, 不进运行态)
    │  instantiate (D1/D2)
    ▼
 Channel (DRAFT) ──────────────┐
-   │  snapshot 默认 7 Profile  │  source assignment (02-sources / D1)
+   │  snapshot 默认 8 Profile  │  source assignment (02-sources / D1)
    ▼                          │  E-40 create → E-42 VERIFIED → ASSIGN PRIMARY/BACKUP
 Profile Bundle (B-v2, immutable)   ▼
-   │  resolve 7 Profile refs   Source Assignment (role/priority/standby)
+   │  resolve 8 Profile refs   Source Assignment (role/priority/standby)
    ▼                          │
 Profiles (P-21 ENC-v3 REALTIME / P-22 / P-23..)  │
    │  compile                 │
@@ -43,8 +43,8 @@ TAKE (operator action) ──► active_source=PRIMARY · Primary Reservation RE
 
 | 事件 | 谁执行 | 前置条件 | 后置状态 |
 |---|---|---|---|
-| `instantiate` | D1/D2 向导 | Template 存在, 7 Profile 默认 | Channel DRAFT + Bundle B-v2 快照 |
-| `resolve` | 编译期 | Bundle 快照有效 | 7 Profile 引用 resolved |
+| `instantiate` | D1/D2 向导 | Template 存在, 8 Profile 默认 | Channel DRAFT + Bundle B-v2 快照 |
+| `resolve` | 编译期 | Bundle 快照有效 | 8 Profile 引用 resolved |
 | `compile` | Graph Runtime | Profiles 兼容 (P-21 REALTIME) | DESIRED → COMPILED |
 | `provision` | H2 Scheduler | Preflight A (Config) PASS | Reservation PROVISIONED |
 | `reserve` | H2 Scheduler | 9-dim vector 可满足 | Reservation RESERVED (HOT 备机同锁) |
@@ -100,7 +100,7 @@ Output Asset Version (ENC-v12 / ENC-v22 ...) ──► QC (可选) ──► 发
 |---|---|---|---|---|
 | Channel Template | Engineer (CH-02B) | 默认 Bundle 模板 / 默认源策略 | Channel (Used By) | Channel |
 | Profile | Engineer (P-20/P-21/P-22..) | 无 | Bundle / Channel | — |
-| Profile Bundle | Engineer (P-28) / Template 快照 | 7 Profile (revision 引用) | Channel (1:1) | Output Variant 派生 |
+| Profile Bundle | Engineer (P-28) / Template 快照 | 8 Profile (revision 引用) | Channel (1:1) | Output Variant 派生 |
 | Channel | Operator (D1) | Template / Bundle / Source Assignment | Session / Reservation | Session |
 | Source | Engineer (E-40) | Adapter / Endpoint / Contract | Channel (ASSIGN) | — |
 | Output Variant | Bundle 派生 (D1/D3) | P-22 Output Profile | Channel (交付) | — |
@@ -164,7 +164,7 @@ Draft → Validate → ChangeSet       Prepared Session → Readiness
 |---|---|---|---|---|---|---|
 | B1 | P-21 Create (FILE_PROFILE / REALTIME_PROFILE) | `profiles` (ENCODING) | `ENC-v3` | — | `PROFILE_CREATE` | Profile Revision 不可变 |
 | B2 | P-22 Create (Delivery Policy) | `profiles` (OUTPUT) | `OUT-v4` | — | `PROFILE_CREATE` | 不落 Destination/Adapter |
-| B3 | P-28 Bundle (7 Profile refs) | `profile_bundles` | `B-v2` | — | `BUNDLE_CREATE` | 引用 7 Profile Rev |
+| B3 | P-28 Bundle (8 Profile refs) | `profile_bundles` | `B-v2` | — | `BUNDLE_CREATE` | 引用 8 Profile Rev |
 
 ### 6.3 路径 C — Channel 创建 (D1 CH-02 向导)
 

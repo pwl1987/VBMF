@@ -102,14 +102,14 @@
 
 <div class="header">
   <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CH-02-create-channel.html">CH-02 Create Channel</a> › <b>Channel Template Center</b></div>
-  <h1><span class="cn">CH-02B · 频道模板工厂</span> <span class="en">CHANNEL TEMPLATE CENTER (不进运行态 · 一键带出 6/7 Profile Bundle · Template≠Bundle≠Profile≠Variant)</span></h1>
+  <h1><span class="cn">CH-02B · 频道模板工厂</span> <span class="en">CHANNEL TEMPLATE CENTER (不进运行态 · 一键带出 8 Profile Bundle · Template≠Bundle≠Profile≠Variant)</span></h1>
 </div>
 
 <div class="hint">
-  <b>核心定位:</b> Channel Template 是<b>创建工厂</b>, 本身<b>不进入运行态</b>。在 <a href="CH-02-create-channel.html" style="color:var(--accent)">CH-02 新建频道</a> Step 1 选一个模板 → 实例化出 1 个 <b>Profile Bundle</b> (7 Profile 引用) + 1 个 <b>Channel (DRAFT)</b>。对模板的修改<b>不会回灌</b>已实例化的 Bundle / Channel (immutable)。
+  <b>核心定位:</b> Channel Template 是<b>创建工厂</b>, 本身<b>不进入运行态</b>。在 <a href="CH-02-create-channel.html" style="color:var(--accent)">CH-02 新建频道</a> Step 1 选一个模板 → 实例化出 1 个 <b>Profile Bundle</b> (8 Profile 引用) + 1 个 <b>Channel (DRAFT)</b>。对模板的修改<b>不会回灌</b>已实例化的 Bundle / Channel (immutable)。
   <div class="hier">
     <span class="node t">Channel Template (工厂)</span><span class="arrow">──实例化──▶</span>
-    <span class="node b">Profile Bundle (7 Profile 引用)</span><span class="arrow">+</span>
+    <span class="node b">Profile Bundle (8 Profile 引用)</span><span class="arrow">+</span>
     <span class="node">Channel DRAFT</span><span class="arrow">·</span>
     <span class="node p">Profile (可复用策略)</span><span class="arrow">→</span>
     <span class="node v">Output Variant (交付实例)</span>
@@ -186,7 +186,7 @@
     </div>
     <div class="col-6">
       <div class="create-form">
-        <label>默认 7 Profile 引用 (实例化进 Bundle)</label>
+        <label>默认 8 Profile 引用 (实例化进 Bundle)</label>
         <div id="profSelects"></div>
         <label>默认输出 Variants (网络型)</label>
         <div class="chks" id="cOuts">
@@ -215,7 +215,7 @@
     <table>
       <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
       <tbody>
-        <tr><td><b>● NORMAL</b></td><td>模板注册表非空 + 至少一个 ACTIVE 模板被引用</td><td>指标全绿 + 模板卡带 7 Profile 引用 chip + 详情可读</td></tr>
+        <tr><td><b>● NORMAL</b></td><td>模板注册表非空 + 至少一个 ACTIVE 模板被引用</td><td>指标全绿 + 模板卡带 8 Profile 引用 chip + 详情可读</td></tr>
         <tr><td><b>◌ LOADING</b></td><td>模板列表异步加载</td><td>卡 skeleton + spinner</td></tr>
         <tr><td><b>○ EMPTY</b></td><td>0 模板 (新部署)</td><td>中央引导 "从零创建第一个频道模板" + 主按钮</td></tr>
         <tr><td><b>⚠ WARNING</b></td><td>某模板默认引用的 Profile 被 DEPRECATED</td><td>黄色 Banner + 该 Profile chip 标黄 + 建议升 Rev</td></tr>
@@ -237,7 +237,7 @@
 <footer>
   VBMF Operator Console · CH-02B Channel Template Center · BROADCAST 域 · Phase 0.5D 验收链 D2 · 设计稿 v0.1
   · 关联: <a href="CH-02-create-channel.html" style="color:var(--accent)">CH-02 (D1)</a> / P-28 Profile Bundle / P-20..P-27 Profiles / CD-01 (D3)
-  · 对象: Channel Template (工厂, 不进运行态) → 实例化 Profile Bundle (7 Profile 引用) + Channel
+  · 对象: Channel Template (工厂, 不进运行态) → 实例化 Profile Bundle (8 Profile 引用) + Channel
   · <b>验收链:</b> D1 创建 (CH-02) → <b>D2 模板工厂 (本页)</b> → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13
 </footer>
 
@@ -246,31 +246,32 @@
 var P = {
   ec:[['H264-LIVE-1080P25-5M','v3'],['H264-LIVE-720P30-3M','v2'],['HEVC-LIVE-1080P25-8M','v1']],
   ac:[['NEWS-STEREO-R128','v1'],['SPORTS-SURROUND','v1'],['RADIO-MONO-OPUS','v1']],
+  pk:[['HLS-CMAF-v2','v2'],['DASH-AVC-v1','v1']],
   oc:[['HLS-LIVE-MAIN','v2'],['HLS-LL-LOW','v1'],['RTMP-PUSH','v3'],['ICECAST-AAC','v1']],
   qc:[['NEWS-QC','v1'],['SPORTS-QC','v1'],['BASIC-QC','v1']],
   rg:[['NEWS-DOMESTIC','v4'],['SPORTS-DOMESTIC','v3'],['RADIO-LICENSE','v2']],
   eg:[['LIVE-DEFAULT','v2'],['LOW_LATENCY_EDGE','v1']],
   gc:[['NEWS-GFX','v1'],['SPORTS-GFX','v1'],['NONE','v0']]
 };
-var PLABEL={ec:'Encoding P-21',ac:'Audio P-23',oc:'Output P-22',qc:'QC P-25',rg:'Rights P-26',eg:'Edge P-27',gc:'Graphic P-24'};
+var PLABEL={ec:'Encoding P-21',ac:'Audio P-23',pk:'Packaging P-20',oc:'Output P-22',qc:'QC P-25',rg:'Rights P-26',eg:'Edge P-27',gc:'Graphic P-24'};
 var templates=[
   {id:'tpl-news',name:'CH01-News-Live',type:'TV_LIVE',rev:'v3',status:'ACTIVE',usedBy:12,
-    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'NEWS-STEREO-R128 v1',oc:'HLS-LIVE-MAIN v2',qc:'NEWS-QC v1',rg:'NEWS-DOMESTIC v4',eg:'LIVE-DEFAULT v2',gc:'NEWS-GFX v1'},
+    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'NEWS-STEREO-R128 v1',pk:'HLS-CMAF-v2 v2',oc:'HLS-LIVE-MAIN v2',qc:'NEWS-QC v1',rg:'NEWS-DOMESTIC v4',eg:'LIVE-DEFAULT v2',gc:'NEWS-GFX v1'},
     srcP:'VIDEO_SOURCE (CAM-A)',srcB:'VIDEO_SOURCE (CAM-B)',switchMode:'AUTO',
     outs:[{proto:'HLS',crit:'required'},{proto:'RTMP',crit:'optional'},{proto:'UDP-MC',crit:'optional'},{proto:'WebRTC',crit:'aux'}],
     note:'新闻直播标准蓝图, 实例化 12 个频道'},
   {id:'tpl-sports',name:'CH02-Sports-Live',type:'TV_LIVE',rev:'v2',status:'ACTIVE',usedBy:8,
-    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'SPORTS-SURROUND v1',oc:'HLS-LL-LOW v1',qc:'SPORTS-QC v1',rg:'SPORTS-DOMESTIC v3',eg:'LOW_LATENCY_EDGE v1',gc:'SPORTS-GFX v1'},
+    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'SPORTS-SURROUND v1',pk:'HLS-CMAF-v2 v2',oc:'HLS-LL-LOW v1',qc:'SPORTS-QC v1',rg:'SPORTS-DOMESTIC v3',eg:'LOW_LATENCY_EDGE v1',gc:'SPORTS-GFX v1'},
     srcP:'VIDEO_SOURCE (CAM-MAIN)',srcB:'VIDEO_SOURCE (CAM-2)',switchMode:'AUTO',
     outs:[{proto:'HLS',crit:'required'},{proto:'RTMP',crit:'optional'},{proto:'SRT',crit:'optional'}],
     note:'体育低延迟蓝图'},
   {id:'tpl-radio',name:'CH05-Radio-News',type:'RADIO_LIVE',rev:'v1',status:'ACTIVE',usedBy:5,
-    p:{ec:'RADIO-MONO-OPUS v1',ac:'RADIO-MONO-OPUS v1',oc:'ICECAST-AAC v1',qc:'BASIC-QC v1',rg:'RADIO-LICENSE v2',eg:'LIVE-DEFAULT v2',gc:'NONE v0'},
+    p:{ec:'RADIO-MONO-OPUS v1',ac:'RADIO-MONO-OPUS v1',pk:'HLS-CMAF-v2 v2',oc:'ICECAST-AAC v1',qc:'BASIC-QC v1',rg:'RADIO-LICENSE v2',eg:'LIVE-DEFAULT v2',gc:'NONE v0'},
     srcP:'EXTERNAL_NETWORK (Studio-IP)',srcB:'LOCAL_ASSET (Backup File)',switchMode:'AUTO',
     outs:[{proto:'RTMP',crit:'required'},{proto:'SRT',crit:'optional'},{proto:'UDP',crit:'optional'},{proto:'Icecast',crit:'optional'}],
     note:'广播新闻音频蓝图, 仅音频无视频'},
   {id:'tpl-vt',name:'VT-Playout-Default',type:'VIRTUAL_PLAYOUT',rev:'v1',status:'DRAFT',usedBy:0,
-    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'NEWS-STEREO-R128 v1',oc:'HLS-LIVE-MAIN v2',qc:'NEWS-QC v1',rg:'NEWS-DOMESTIC v4',eg:'LIVE-DEFAULT v2',gc:'NONE v0'},
+    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'NEWS-STEREO-R128 v1',pk:'HLS-CMAF-v2 v2',oc:'HLS-LIVE-MAIN v2',qc:'NEWS-QC v1',rg:'NEWS-DOMESTIC v4',eg:'LIVE-DEFAULT v2',gc:'NONE v0'},
     srcP:'PLAYLIST (节目单)',srcB:'PLAYLIST (节目单)',switchMode:'N/A',
     outs:[{proto:'HLS',crit:'required'},{proto:'RTMP',crit:'optional'}],
     note:'虚拟编排播出蓝图 — 信号源=节目单, 无独立信号源步 (见 D1)'}

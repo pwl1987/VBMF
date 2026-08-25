@@ -371,7 +371,7 @@
 
 <!-- STEP 4: ENCODE & AUDIO (含信号源预览 + 跳转) -->
 <div class="panel" id="step4" style="display:none">
-  <h3>④ 编码 & 音频 (含信号源预览 · Realtime Encode 7 Profile) <span class="pill pill-blue">模型见 ENCODE_MODEL_SPEC</span></h3>
+  <h3>④ 编码 & 音频 (含信号源预览 · 8 Profile · Realtime Encode) <span class="pill pill-blue">模型见 ENCODE_MODEL_SPEC</span></h3>
   <div class="row">
     <div class="col-6">
       <div class="card">
@@ -400,17 +400,18 @@
     <div class="col-6">
       <div class="vt-only">
       <div class="field">
-        <label>Profile Bundle (7 策略引用 · 模板默认已 resolve)</label>
+        <label>Profile Bundle (8 策略引用 · 模板默认已 resolve)</label>
         <div style="border:1px solid var(--border);border-radius:3px;padding:6px;background:var(--bg2);margin-bottom:4px">
           <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Encoding</span><span style="flex:1;font-size:11px">P-21 · REALTIME_PROFILE · ENC-v3</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
-          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Output</span><span style="flex:1;font-size:11px">P-22 · OUT-v4</span><a href="06-output.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
           <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Audio</span><span style="flex:1;font-size:11px">P-23 · AUDIO-v8</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
-          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Graphics</span><span style="flex:1;font-size:11px">GFX 引用 (模板默认)</span></div>
-          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">QC</span><span style="flex:1;font-size:11px">QC 引用 (模板默认)</span></div>
-          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Rights</span><span style="flex:1;font-size:11px">RIGHTS 引用 (模板默认)</span></div>
-          <div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="width:66px;font-size:10px;color:var(--fgdim)">Edge</span><span style="flex:1;font-size:11px">EDGE 引用 (模板默认)</span></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Packaging</span><span style="flex:1;font-size:11px">P-20 · PKG-HLS-CMAF-v2 (HLS+CMAF)</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Output</span><span style="flex:1;font-size:11px">P-22 · OUT-v4</span><a href="06-output.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Graphic</span><span style="flex:1;font-size:11px">P-24 · GFX 引用 (模板默认)</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">QC</span><span style="flex:1;font-size:11px">QC 引用 (模板默认)</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Rights</span><span style="flex:1;font-size:11px">RIGHTS 引用 (模板默认)</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="width:66px;font-size:10px;color:var(--fgdim)">Edge</span><span style="flex:1;font-size:11px">EDGE 引用 (模板默认)</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
         </div>
-        <div class="hint">7 种 Profile 是 Bundle 的可复用策略引用, 各自独立; 非单一"转码 Profile"组合框 (POM §4.2).</div>
+        <div class="hint">8 种 Profile 是 Bundle 的可复用策略引用, 各自独立; 非单一"转码 Profile"组合框 (POM §4.2).</div>
         <div style="display:flex;gap:4px;margin-top:6px"><button class="btn">使用模板默认</button><button class="btn">选择 Bundle → P-28</button></div>
       </div>
       <div class="card">
@@ -571,6 +572,15 @@
         <div class="changeset">CREATE channel "CH02"
   type    : <span id="csType">TV_LIVE (电视频道直播)</span>
   template: 新闻直播模板
+  profile_bundle: CH02-News-Live-v3
+    ENC    : ENC-v3 · P-21 REALTIME_PROFILE
+    AUD    : AUDIO-v8 · P-23
+    PKG    : HLS-CMAF-v2 · P-20 (Packaging)
+    OUT    : OUT-v4 · P-22
+    GFX    : NEWS-LOWERTHIRD · P-24
+    QC     : NEWS-QC · P-25
+    RIGHTS : CN-News · P-26
+    EDGE   : Default-Resilience · P-27
   source  : SDI-IN-01 (PRIMARY) + UDP-MC 239.10.20.10 (BACKUP)
   encode  : REALTIME_PROFILE (ZeroLatency)
   audio   : -23 LUFS / +12ms
@@ -583,7 +593,7 @@ atomic  : true</div>
       </div>
       <div class="gap ok">✅ G6 已闭合 (D7): ChangeSet Review 独立审批 surface 已建 (operator/D7-changeset-review.html) — Diff / Risk / Approve(L1-L3)/Reject/Rollback / Audit 链.</div>
       <div class="note">提交后执行链 (0.5F.2 P0 修正 · <b>Apply ≠ Start</b>): <b>ChangeSet Apply → Reservation PROVISIONED→RESERVED → Session STARTING (lifecycle) · NOT_READY (readiness) → READY_TO_TAKE → (TAKE) → RUNNING</b>. 本向导止于生成 ChangeSet; Apply / Provision / Start 由审批 (D7) + H2 Scheduler (Reservation Spec) 推进; TAKE 在 CD-01 执行. ⛔ Session 无 `RESERVED` 状态 (那是 Reservation.state, EXECUTION_MODEL §0).</div>
-      <div class="gap ok">📦 <b>CREATE 将生成 (对象映射 · 0.5F.2):</b> ① `channels` (Channel DRAFT) → ② `profile_bundles` (B-v2 快照, 7 Profile @rev 引用) → ③ `sources` ASSIGNED (PRIMARY/BACKUP) → ④ `output_variants` (引用 P-22 + Destination) → ⑤ ChangeSet → Apply 后 → ⑥ `reservations` (PROVISIONED→RESERVED) → ⑦ `media_sessions` (READY_TO_TAKE)。每步对应 DB Object, 不产生模型外对象.</div>
+      <div class="gap ok">📦 <b>CREATE 将生成 (对象映射 · 0.5F.2):</b> ① `channels` (Channel DRAFT) → ② `profile_bundles` (B-v2 快照, 8 Profile @rev 引用) → ③ `sources` ASSIGNED (PRIMARY/BACKUP) → ④ `output_variants` (引用 P-22 + Destination) → ⑤ ChangeSet → Apply 后 → ⑥ `reservations` (PROVISIONED→RESERVED) → ⑦ `media_sessions` (READY_TO_TAKE)。每步对应 DB Object, 不产生模型外对象.</div>
     </div>
   </div>
 
@@ -592,7 +602,7 @@ atomic  : true</div>
     <h3>📋 上线总览 / CHANNEL SUMMARY (Apply 前确认) <span class="pill pill-green" style="float:right">8 PASS · 1 WARN</span></h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:11px">
       <div><div class="k">Input</div><div class="v">SDI-A (PRIMARY) · UDP-MC 239.10.20.10 (BACKUP)</div></div>
-      <div><div class="k">Profile Bundle</div><div class="v">CH02-News-Live-v3 (7 引用)</div></div>
+      <div><div class="k">Profile Bundle</div><div class="v">CH02-News-Live-v3 (8 引用)</div></div>
       <div><div class="k">Output</div><div class="v">HLS (REQ) · RTMP (REQ) · UDP-MC (OPT) · WebRTC (AUX)</div></div>
       <div><div class="k">Clock</div><div class="v">PTP / ptp0</div></div>
       <div><div class="k">Switch</div><div class="v">FRAME_SWITCH</div></div>
