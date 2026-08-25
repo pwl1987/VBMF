@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>M-14 · File Transcode 文件转码 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .wizard-steps{display:flex;gap:4px;margin-bottom:16px;background:var(--bg2);padding:4px;border-radius:4px}
+  .wizard-steps .step{flex:1;padding:8px 12px;text-align:center;font-size:11px;color:var(--fgdim);border-radius:3px;cursor:pointer;position:relative;background:var(--bg3);border:1px solid var(--border)}
+  .wizard-steps .step .num{font-size:9px;color:var(--fgdim2);text-transform:uppercase;letter-spacing:1px}
+  .wizard-steps .step.active{background:rgba(88,166,255,.15);border-color:var(--accent);color:var(--accent);font-weight:600}
+  .wizard-steps .step.done{background:rgba(63,185,80,.1);border-color:var(--green);color:var(--green)}
+  .wizard-steps .step .check{position:absolute;top:2px;right:4px;font-size:9px}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .form-row{display:flex;flex-direction:column;gap:3px}
+  .form-row label{font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:.5px}
+  .form-row input,.form-row select{padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;font-size:11px;font-family:Menlo,Consolas,monospace}
+  .checklist{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .checklist .item{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px}
+  .checklist .item .ico{width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;font-size:10px}
+  .checklist .item .ico.ok{color:var(--green)}
+  .checklist .item .ico.warn{color:var(--yellow)}
+  .checklist .item .ico.fail{color:var(--red)}
+  .checklist .item .ico.pending{color:var(--gray)}
+  .checklist .item .ico.skip{color:var(--fgdim2)}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:5px 12px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px}
+  .metric .label{color:var(--fgdim);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+  .metric .val{font-size:16px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}
+  .metric .sub{font-size:9px;color:var(--fgdim);margin-top:1px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="M-15">M-15 Transcode Jobs (锁)</a> › <b>M-14 New File Transcode</b></div>
+  <h1><span class="cn">M-14 · 文件转码 (新建)</span> <span class="en">FILE TRANSCODE · 6-STEP WIZARD (Source → Output → Profile → QC → Schedule → Submit)</span></h1>
+</div>
+
+<!-- 6 步 Wizard -->
+<div class="wizard-steps">
+  <div class="step done"><span class="check">✓</span><div class="num">STEP 1</div>选择输入 Source</div>
+  <div class="step active"><div class="num">STEP 2</div>选择输出 Output</div>
+  <div class="step"><div class="num">STEP 3</div>选择 Profile</div>
+  <div class="step"><div class="num">STEP 4</div>选择 QC</div>
+  <div class="step"><div class="num">STEP 5</div>排程 Schedule</div>
+  <div class="step"><div class="num">STEP 6</div>提交 Submit</div>
+</div>
+
+<!-- Step 1 Source: 已选 input (折叠) -->
+<details>
+  <summary>▸ Step 1 Source (已选 news_morning_0825.mp4 · 1.42 GB · H.264 1080p25 AAC · 00:30:25)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="row">
+      <div class="col-3"><div class="metric"><div class="label">Asset</div><div class="val">a-news-2026-08-25-001</div><div class="sub">news_morning_0825.mp4</div></div></div>
+      <div class="col-3"><div class="metric"><div class="label">Size / Duration</div><div class="val">1.42 GB</div><div class="sub">00:30:25 (1825s)</div></div></div>
+      <div class="col-3"><div class="metric"><div class="label">Container</div><div class="val">MP4</div><div class="sub">H.264 / AAC</div></div></div>
+      <div class="col-3"><div class="metric"><div class="label">Source QC</div><div class="val green">PASS</div><div class="sub">10/10 checks (probe)</div></div></div>
+    </div>
+  </div>
+</details>
+
+<!-- Step 2 Output Versions (主区) -->
+<div class="panel">
+  <h3><span class="cn">第 2 步 · 选择输出版本</span> / STEP 2: Select Output Versions (Master / Proxy / Mobile / Archive / Custom)
+    <span class="pill pill-blue" style="float:right">2 versions selected · Estimated 1.18 GB</span>
+  </h3>
+  <div class="diag" style="margin-top:0;margin-bottom:12px">
+    <b>Asset Version (M-12 锁) ≠ Output Variant (CD-01 锁):</b>
+    这里选的是 Asset Version (Master/Proxy/Mobile/Archive/Custom), 跟 Channel 的 Output Variant 无关.
+    完成后跳 M-12 Asset Detail / Tab ② Versions 查看.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:24px"><input type="checkbox" checked></th>
+        <th>Output Version</th>
+        <th>Profile Reference</th>
+        <th>Codec</th>
+        <th>Resolution</th>
+        <th>Bitrate</th>
+        <th>Audio</th>
+        <th>Estimated Size</th>
+        <th>ETA</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><input type="checkbox" checked></td>
+        <td><b>Master</b></td>
+        <td>HEVC-Main10-1080P25-4M v2</td>
+        <td>HEVC Main10</td>
+        <td>1920×1080 / 25</td>
+        <td>4.0 Mbps</td>
+        <td>AAC 2ch 192k</td>
+        <td>~ 880 MB</td>
+        <td>5m 23s</td>
+      </tr>
+      <tr>
+        <td><input type="checkbox" checked></td>
+        <td><b>Proxy</b></td>
+        <td>Proxy-H264-720P-1.5M v3</td>
+        <td>H.264 Main</td>
+        <td>1280×720 / 25</td>
+        <td>1.5 Mbps</td>
+        <td>AAC 2ch 96k</td>
+        <td>~ 300 MB</td>
+        <td>2m 11s</td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>Mobile</b></td>
+        <td>Mobile-H264-480P-800k v0 (DRAFT)</td>
+        <td>H.264 Baseline</td>
+        <td>854×480 / 25</td>
+        <td>0.8 Mbps</td>
+        <td>AAC 2ch 64k</td>
+        <td>~ 180 MB</td>
+        <td>1m 18s</td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>Archive</b></td>
+        <td>Archive-HEVC-4:2:2-50M v1</td>
+        <td>HEVC 4:2:2 10bit</td>
+        <td>1920×1080 / 25</td>
+        <td>50 Mbps VBR</td>
+        <td>PCM 8ch 48k</td>
+        <td>~ 11 GB</td>
+        <td>22m 18s</td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>Custom</b></td>
+        <td><a style="color:var(--accent)">+ Create Custom Profile →</a></td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="box-title" style="margin-top:12px">Output Destination (保存位置)</div>
+  <div class="form-grid">
+    <div class="form-row">
+      <label>Path Template</label>
+      <input type="text" value="/mnt/storage/news/{date}/{version}/">
+    </div>
+    <div class="form-row">
+      <label>Storage</label>
+      <input type="text" value="/mnt/storage (213 GB free · W&lt;80%)" readonly>
+    </div>
+  </div>
+</div>
+
+<!-- Step 3 Profile (简要) -->
+<details>
+  <summary>▸ Step 3 Profile (Encoding + 2-Pass / CRF / Batch Policy)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Pass Mode</label>
+        <select>
+          <option selected>1-pass (faster, less quality)</option>
+          <option>2-pass (better quality, 2x time)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Rate Control (CRF / CBR / VBR)</label>
+        <select>
+          <option>CRF (default, 18-28 for HEVC)</option>
+          <option selected>CBR (固定码率, 直播/移动端)</option>
+          <option>VBR (可变码率, 存储)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Segmenting (HLS / DASH)</label>
+        <select>
+          <option>None (single file)</option>
+          <option selected>2s segments (LL-HLS)</option>
+          <option>4s segments (HLS)</option>
+          <option>6s segments (DASH)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Batch Policy</label>
+        <select>
+          <option selected>Parallel (all at once, max CPU)</option>
+          <option>Sequential (one by one, save CPU)</option>
+          <option>Throttled (N concurrent)</option>
+        </select>
+      </div>
+    </div>
+    <div class="diag" style="margin-top:8px">
+      <b>Profile Common / Realtime / File 3 段 (Phase 0.5C §29.3):</b>
+      同一 P-21 Encoding Profile 同时支持 Realtime + File 两种语义. FILE 段独有: 1-pass/2-pass, CRF, Multi-pass, Segmenting, Batch Policy.
+    </div>
+  </div>
+</details>
+
+<!-- Step 4 QC + Mini Acceptance Test -->
+<details>
+  <summary>▸ Step 4 QC Profile (15 项 Mini Acceptance Test)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="form-grid">
+      <div class="form-row">
+        <label>QC Profile</label>
+        <select>
+          <option>NEWS-QC v1 (10 checks)</option>
+          <option selected>BROADCAST-QC v3 (15 checks, stricter)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Sample Duration</label>
+        <input type="text" value="5s (full first 5s)">
+      </div>
+    </div>
+    <div class="checklist" style="margin-top:8px">
+      <div class="item"><span class="ico ok">✓</span>Resolution: 1920×1080 (target)</div>
+      <div class="item"><span class="ico ok">✓</span>Pixel Format: yuv420p10le (target)</div>
+      <div class="item"><span class="ico ok">✓</span>Color: BT.709 (target)</div>
+      <div class="item"><span class="ico ok">✓</span>FPS: 25.00 (target)</div>
+      <div class="item"><span class="ico ok">✓</span>PTS Continuity: OK (no gap)</div>
+      <div class="item"><span class="ico ok">✓</span>Audio Codec: AAC (target)</div>
+      <div class="item"><span class="ico ok">✓</span>Audio Sample Rate: 48 kHz (target)</div>
+      <div class="item"><span class="ico ok">✓</span>Audio Channels: 2 / Stereo (target)</div>
+      <div class="item"><span class="ico warn">⚠</span>A/V Sync Offset: +12 ms (target &lt; 40 ms, OK)</div>
+      <div class="item"><span class="ico ok">✓</span>Drift: +2.1 ms/min (target &lt; 5)</div>
+      <div class="item"><span class="ico ok">✓</span>Container: MP4 (valid)</div>
+      <div class="item"><span class="ico ok">✓</span>Index: OK</div>
+      <div class="item"><span class="ico ok">✓</span>Duration: 00:00:05 (matches sample)</div>
+      <div class="item pending">▸ Runtime (FPS/Speed/CPU/RAM) — measured after first run</div>
+      <div class="item pending">▸ Quality (VMAF/PSNR/SSIM/Loudness) — measured after first run</div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button class="btn primary">▶ Run Mini Acceptance Test (L1)</button>
+      <button class="btn">Skip Test (use later validation)</button>
+    </div>
+  </div>
+</details>
+
+<!-- Step 5 Schedule -->
+<details>
+  <summary>▸ Step 5 Schedule (立即 / 排程 / 等窗口)</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Start Time</label>
+        <select>
+          <option selected>立即 (now)</option>
+          <option>凌晨 02:00 (maintenance window)</option>
+          <option>下次空闲 (queue &lt; 1)</option>
+          <option>指定时间 →</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Priority</label>
+        <select>
+          <option>Low (后台)</option>
+          <option selected>Normal (默认)</option>
+          <option>High (插队)</option>
+          <option>Urgent (L2 · 需 Who/Why)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Worker Assignment</label>
+        <select>
+          <option selected>● AUTO (Scheduler)</option>
+          <option>○ Manual</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Retry on Failure</label>
+        <input type="text" value="2 attempts (auto)">
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- Step 6 Submit Summary + 8 横切能力 -->
+<div class="panel">
+  <h3><span class="cn">第 6 步 · 提交汇总</span> / STEP 6: SUBMIT SUMMARY (Before Submit)
+    <span class="pill pill-blue" style="float:right">2 versions · 1 Worker · AUTO schedule</span>
+  </h3>
+  <div class="row">
+    <div class="col-6">
+      <div class="box-title">Submit Payload</div>
+      <table>
+        <tbody>
+          <tr><td>source</td><td><span class="v">a-news-2026-08-25-001 (1.42 GB)</span></td></tr>
+          <tr><td>outputs</td><td><span class="v">2 (Master HEVC + Proxy H.264)</span></td></tr>
+          <tr><td>qos_profile</td><td><span class="v">BROADCAST-QC v3 (15 checks)</span></td></tr>
+          <tr><td>schedule</td><td><span class="v">now · Normal priority · AUTO worker</span></td></tr>
+          <tr><td>estimated_time</td><td><span class="v">7m 34s (2 jobs in parallel)</span></td></tr>
+          <tr><td>estimated_size</td><td><span class="v">~ 1.18 GB</span></td></tr>
+          <tr><td>storage_impact</td><td><span class="v">+ 1.18 GB (W 61% → 62%)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-6">
+      <div class="box-title">Use in Playout Safety Gate (6/6)</div>
+      <div class="checklist">
+        <div class="item"><span class="ico ok">✓</span>QC PASS (15/15)</div>
+        <div class="item"><span class="ico ok">✓</span>Rights VALID (CN / HLS / 2027-01-01)</div>
+        <div class="item"><span class="ico ok">✓</span>Version READY (after Job COMPLETED)</div>
+        <div class="item"><span class="ico ok">✓</span>Duration OK (00:30:25 within 5s-7200s)</div>
+        <div class="item"><span class="ico ok">✓</span>Loudness -22.1 LUFS (within -23 ± 2)</div>
+        <div class="item"><span class="ico ok">✓</span>Format compatible (HEVC / Channel CH01 HLS)</div>
+      </div>
+      <div class="diag" style="margin-top:8px">
+        <b>6/6 Safety Gate (Phase 0.5B.2 P1 强化):</b>
+        任一 FAIL → 按钮变 L3 阻塞 + 原因.
+      </div>
+    </div>
+  </div>
+  <div class="box-title" style="margin-top:12px">Impact Preview (修改前 8 横切能力 #1)</div>
+  <div class="checklist">
+    <div class="item"><span class="ico ok">✓</span>Affected Channels: 0 (this is file transcode, not channel)</div>
+    <div class="item"><span class="ico ok">✓</span>Affected Output Variants: 0 (Asset Version, not Variant)</div>
+    <div class="item"><span class="ico ok">✓</span>Active Sessions: 0 (no session touched)</div>
+    <div class="item"><span class="ico ok">✓</span>Pending ChangeSets: 0</div>
+    <div class="item"><span class="ico ok">✓</span>Resource: CPU +18% during transcode, ETA 7m 34s</div>
+    <div class="item"><span class="ico ok">✓</span>Risk: LOW (file transcode, isolated)</div>
+    <div class="item"><span class="ico ok">✓</span>Rollback: delete output versions (L1)</div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn">← Back 上一步</button>
+    <button class="btn">💾 Save as Draft (L1)</button>
+    <button class="btn primary">▶ Submit Job (L1) → 跳 M-18 Job Detail</button>
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (M-14 File Transcode) — 完整 Spec 收口 (重画)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL (Step 6 Submit)</b></td><td>6 步全完成 + 6/6 Safety Gate PASS</td><td>Submit 按钮 primary · Impact Preview 全绿</td></tr>
+        <tr><td><b>◌ LOADING (Step 1 加载 Source)</b></td><td>M-11 选 Asset 后跳本页</td><td>Step 1 skeleton + Asset 列表 skeleton</td></tr>
+        <tr><td><b>○ EMPTY (未选 Source)</b></td><td>直接进本页未选 Asset</td><td>引导 "回 M-11 选 Asset" / "Upload new asset"</td></tr>
+        <tr><td><b>⚠ WARNING (1 项 QC FAIL)</b></td><td>e.g. Loudness -25 LUFS 越界</td><td>黄色 Banner + Recommend: 改 QC Profile / 加 Re-encode 步骤</td></tr>
+        <tr><td><b>✗ ERROR (Submit 失败)</b></td><td>Worker 全部不可达 / Storage 满</td><td>红色 Banner + Recommend: 等 Storage 释放 / 手动改 Worker</td></tr>
+        <tr><td><b>✗✗ CRITICAL (Source 无效)</b></td><td>Source 已被删除 / Rights 失效</td><td>顶部红条 + Submit 按钮 L3 阻塞 + 强制重选 Source</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- File vs Realtime 区分 (Phase 0.5C §29.3) -->
+<details>
+  <summary>▸ File vs Realtime 区分 (Phase 0.5C §29.3 锁定)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>维度</th><th>File Transcode (M-14, 本页)</th><th>Realtime Transcode (M-17)</th></tr></thead>
+      <tbody>
+        <tr><td>输入</td><td>Asset (MP4/MOV/TS)</td><td>Source (SDI/SRT/RTMP)</td></tr>
+        <tr><td>输出</td><td>Asset Version (新 Version)</td><td>Output Variant (live) → SRS</td></tr>
+        <tr><td>运行时对象</td><td><b>Job (FILE_TRANSCODE kind)</b></td><td><b>Session (MEDIA_SESSION)</b></td></tr>
+        <tr><td>状态机</td><td>5 状态 (PENDING/QUEUED/RUNNING/COMPLETED/FAILED)</td><td>三轴 (lifecycle + readiness + health)</td></tr>
+        <tr><td>用户关心</td><td>% Progress/ETA/Output Size/Quality/CRF</td><td>FPS/Speed/CPU/Dropped/AV Offset/Latency</td></tr>
+        <tr><td>失败恢复</td><td>1-pass/2-pass/Retry/Cancel</td><td>FRAME/MASTER failover</td></tr>
+        <tr><td>UI 步骤</td><td>6 步 Wizard (Source/Output/Profile/QC/Schedule/Submit)</td><td>无 (持续运行)</td></tr>
+        <tr><td>P-21 Profile</td><td>FILE 段 (CRF/1-2 pass/Multi-pass/Segmenting/Batch)</td><td>REALTIME 段 (Latency/GOP/VBV/Warmup)</td></tr>
+      </tbody>
+    </table>
+    <div class="diag">
+      <b>共享:</b> 1 个 Encode Engine, 2 个产品语义. Profile Registry (P-21/P-20) 共享,
+      <b>不增加第 2 个 Engine</b> (Phase 0.5C 锁定).
+    </div>
+  </div>
+</details>
+
+<footer>
+  VBMF Operator Console · M-14 File Transcode · MEDIA 域 · Phase 0.5D · 设计稿 v0.1 (重画)
+  · 关联: M-11 Media Library / M-12 Asset Detail / M-15 Transcode Jobs (锁) / M-17 Realtime (0.5D) / M-18 Job Detail (0.5D) / P-20 Profile Center (0.5D) / P-21 Encoding Profile (锁)
+  · Object: Job (FILE_TRANSCODE kind) · 6 子类: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE
+  · 8 横切能力: #1 Impact Preview / #2 Dependency Graph / #3 Explain Why / #4 Runtime Freshness / #5 Configuration Diff / #6 Compatibility Advisor / #7 Design System / #8 Command Palette
+  · Mini Acceptance Test 15 项 / Use in Playout Safety Gate 6/6 (Phase 0.5B.2 P1 锁定)
+</footer>
+
+</body>
+</html>
