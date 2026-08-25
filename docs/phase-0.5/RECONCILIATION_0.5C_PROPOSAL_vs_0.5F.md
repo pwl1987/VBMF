@@ -584,3 +584,28 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 
 ### M.8 剩余 (下一轮: 从用户实际点击路径反推 DB Object / Revision / Runtime Session / Audit Event 闭环审计)
 - 用户要求完成四项后做 **"从用户实际点击路径反推 DB Object / Revision / Runtime Session / Audit Event"** 闭环审计; 通过后才考虑 Phase 0.5 Freeze。仓库仍 0.5D IN PROGRESS · 0.5E SPEC, 不宣布 FINAL。
+
+---
+
+## N. 0.5D.6 Click-Path Closure Audit — 用户点击路径 → DB Object / Revision / Session / Audit Event (2026-08-25 末 · 用户第 9 轮后续 "继续")
+
+> 按用户要求, 完成 0.5D.5 四项后执行 **"从用户实际点击路径反推 DB Object / Revision / Runtime Session / Audit Event"** 闭环审计。审计结果落 **EXECUTION_MODEL.md §6** (0.5D.6)。
+
+### N.1 审计覆盖路径
+- **A Source**: E-40 创建 → E-42 7 层验证 → VERIFIED → D1 ASSIGN (SourceLifecycle DRAFT→TESTING→VERIFIED→ASSIGNED→ACTIVE)。
+- **B Profile/Bundle**: P-21 (ENC-v3) / P-22 (OUT-v4) → P-28 Bundle (B-v2)。
+- **C Channel 创建**: CH-02 Step1-7 → ChangeSet (E-33) → Approve → Apply → Provision/Reserve → Session s-001 (READY_TO_TAKE)。
+- **D CD-01 日常**: 切源 / 加 Variant (走 ChangeSet) / Audio MUTE·DIM (即时生效, 不进 ChangeSet) / 深页查看。
+- **E TAKE**: B-13 9 项 → Operator Intent → TAKE → **Runtime Event (非 ChangeSet)** → Audit/Incident Timeline。
+- **F Failover/OutputRecovery**: 备 Session (HOT RESERVED) → Effective Switch Mode → 恢复/Incident。
+- **G FILE Job**: M-14 → Job (PENDING→RUNNING→COMPLETED) → Asset Version +1。
+- **H ChangeSet**: Draft→Validate→Approve→Apply → Runtime Revision +1 (触发 C7 Provision)。
+
+### N.2 审计关键结论
+- 每条用户点击都能反推**唯一** DB Object / Revision / (如需) Session / Audit Event (A-54 hash chain); 无"点击落在模型外"。
+- **TAKE 与 ChangeSet 路径完全分离** (E 路径 vs H 路径); 运行事件不 bump Revision, 只写 Audit/Incident。
+- **单一创建入口映射** 落表: Source=E-40 · Destination=CD-01/06-output Wizard · Profile=P-21/P-22 · Bundle=P-28 · ChangeSet=配置变更 · Adapter=E-35 Device Registry。
+- 剩余 (0.5E/0.5G): Impact Preview / Configuration Diff / Command Palette / Global Risk / Critical field blocking (Spec, Phase 4 实施); Player Capability 由 Capability Registry 推导 (P2)。
+
+### N.3 结论
+- 审计**通过** (无对象/时序洞) → 满足用户 "Phase 0.5 架构与 UX 接近 Freeze" 的前置条件之一。仍不宣布 FINAL: 0.5E UX 面与 0.5G 实施面未闭环, 仓库 README 仍标 0.5D IN PROGRESS · 0.5E SPEC。
