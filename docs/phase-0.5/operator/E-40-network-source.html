@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>E-40 · Network Source 配置 + Multicast Diagnostics — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.15);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .mode-tabs{display:flex;gap:2px;margin-bottom:12px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:4px}
+  .mode-tab{flex:1;padding:10px;text-align:center;cursor:pointer;border-radius:3px;font-size:12px;color:var(--fgdim);font-weight:500;border:1px solid transparent}
+  .mode-tab:hover{color:var(--fg);background:var(--bg3)}
+  .mode-tab.active{color:var(--accent);background:rgba(88,166,255,.1);border-color:var(--accent)}
+  .mode-tab .count{display:inline-block;padding:1px 6px;background:var(--bg3);border-radius:8px;font-size:9px;margin-left:4px;color:var(--fg)}
+  .mode-tab.active .count{background:var(--accent);color:#fff}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .form-row{display:flex;flex-direction:column;gap:3px}
+  .form-row label{font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:.5px}
+  .form-row input,.form-row select{padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;font-size:11px;font-family:Menlo,Consolas,monospace}
+  .form-row .required::after{content:' *';color:var(--red)}
+  .form-row .optional{color:var(--fgdim2);font-size:9px;margin-left:4px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  .btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:18px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}
+  .metric .sub{font-size:9px;color:var(--fgdim);margin-top:1px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green);box-shadow:0 0 4px var(--green)}
+  .dot.yellow{background:var(--yellow)}
+  .dot.red{background:var(--red);animation:pulse 1.5s infinite}
+  .dot.gray{background:var(--gray)}
+  .dot.blue{background:var(--accent);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="02-sources.html">02 Sources</a> › <b>E-40 UDP-MULTICAST-001 Network Source 配置 + Multicast Diagnostics</b></div>
+  <h1><span class="cn">E-40 · 网络源配置 (UDP Unicast / Multicast)</span> <span class="en">NETWORK SOURCE CONFIG + MULTICAST DIAGNOSTICS (0.5F PIA §3 锁)</span></h1>
+</div>
+
+<!-- 顶部 Source 状态 -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--accent)">
+  <h3><span class="cn">源状态</span> / UDP-MULTICAST-001 (SSM · 239.20.10.10:5000)
+    <span class="pill pill-green" style="float:right"><span class="dot green"></span>LOCKED · JOINED · 0.003% loss</span>
+  </h3>
+  <div class="row">
+    <div class="col-3 metric">
+      <div class="label">Source ID</div>
+      <div class="val blue">UDP-MULTICAST-001</div>
+      <div class="sub">CH02 (● PRIMARY)</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Adapter</div>
+      <div class="val">UDP/ADAPTER v1.0</div>
+      <div class="sub">live-media-stack 0.4.2</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Mode</div>
+      <div class="val">Multicast SSM</div>
+      <div class="sub">239.20.10.10:5000</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">Loss / Jitter</div>
+      <div class="val green">0.003% / 0.9ms</div>
+      <div class="sub">12,480 packets/sec</div>
+    </div>
+  </div>
+</div>
+
+<!-- Mode 切换: UDP Unicast / UDP Multicast / RTP / SRT -->
+<div class="mode-tabs">
+  <div class="mode-tab">UDP Unicast</div>
+  <div class="mode-tab active">UDP Multicast (SSM)</div>
+  <div class="mode-tab">RTP/UDP</div>
+  <div class="mode-tab">SRT Caller</div>
+  <div class="mode-tab">SRT Listener</div>
+</div>
+
+<!-- Adapter 配置 (Protocol) -->
+<div class="panel">
+  <h3><span class="cn">Adapter 配置 (协议层)</span> / ADAPTER (PIA §2 字段 #2)
+    <span class="pill pill-blue" style="float:right">UDP/ADAPTER v1.0</span>
+  </h3>
+  <div class="form-grid">
+    <div class="form-row">
+      <label class="required">Protocol</label>
+      <select><option>UDP</option><option selected>RTP/UDP</option><option>SRT</option><option>RTMP</option><option>HLS</option><option>RTSP</option><option>WebRTC Pull</option></select>
+    </div>
+    <div class="form-row">
+      <label class="required">Adapter Version</label>
+      <input type="text" value="UDP/ADAPTER v1.0 (live-media-stack 0.4.2)">
+    </div>
+    <div class="form-row">
+      <label class="required">Container</label>
+      <select><option selected>MPEG-TS</option><option>RTP (raw)</option><option>SRT (MPEG-TS)</option></select>
+    </div>
+    <div class="form-row">
+      <label>Payload Size</label>
+      <input type="text" value="1316 (auto)">
+    </div>
+  </div>
+</div>
+
+<!-- Endpoint 配置 (Network) - Unicast / Multicast 切换 -->
+<div class="panel">
+  <h3><span class="cn">Endpoint 配置 (网络层)</span> / ENDPOINT (PIA §2 字段 #3 · Multicast 模式)
+    <span class="pill pill-purple" style="float:right">Multicast SSM (Source-Specific)</span>
+  </h3>
+  <div class="form-grid">
+    <div class="form-row">
+      <label class="required">Mode</label>
+      <select><option>Unicast</option><option selected>Multicast</option></select>
+    </div>
+    <div class="form-row">
+      <label class="required">Local Interface</label>
+      <select><option selected>eno1 (10G · 10.30.20.10)</option><option>eno2 (1G · mgmt)</option></select>
+    </div>
+    <div class="form-row">
+      <label class="required">Multicast Group</label>
+      <input type="text" value="239.20.10.10" style="border-color:var(--accent)">
+    </div>
+    <div class="form-row">
+      <label class="required">Port</label>
+      <input type="text" value="5000">
+    </div>
+    <div class="form-row">
+      <label>Local Bind Address</label>
+      <input type="text" value="0.0.0.0">
+    </div>
+    <div class="form-row">
+      <label>VLAN</label>
+      <input type="text" value="120">
+    </div>
+    <div class="form-row">
+      <label>DSCP / TOS</label>
+      <input type="text" value="46 (EF) / 0xB8">
+    </div>
+    <div class="form-row">
+      <label>TTL</label>
+      <input type="text" value="16">
+    </div>
+    <div class="form-row">
+      <label class="required">Source-Specific</label>
+      <select><option>ASM (Any-Source Multicast)</option><option selected>SSM (Source-Specific Multicast)</option></select>
+    </div>
+    <div class="form-row">
+      <label class="required">SSM Source IP</label>
+      <input type="text" value="10.30.20.100" style="border-color:var(--accent)">
+    </div>
+    <div class="form-row">
+      <label class="required">IGMP Version</label>
+      <select><option>v2</option><option selected>v3 (with SSM support)</option></select>
+    </div>
+    <div class="form-row">
+      <label>Join Policy</label>
+      <select><option selected>Auto (on START)</option><option>Manual</option></select>
+    </div>
+    <div class="form-row">
+      <label>Socket Reuse (SO_REUSEADDR)</label>
+      <select><option>Disabled</option><option selected>Enabled (recommended)</option></select>
+    </div>
+  </div>
+</div>
+
+<!-- Security 配置 (PIA §11) -->
+<div class="panel">
+  <h3><span class="cn">网络安全 (PIA §11 Network Source Security)</span> / SECURITY
+    <span class="pill pill-blue" style="float:right">8 字段文档化 (V0.2 不强校验)</span>
+  </h3>
+  <div class="form-grid">
+    <div class="form-row">
+      <label>IP Allowlist</label>
+      <input type="text" value="10.30.20.0/24 · 10.30.30.0/24" style="border-color:var(--green)">
+    </div>
+    <div class="form-row">
+      <label>Interface Binding (强制)</label>
+      <select><option selected>eno1 only (mandatory)</option><option>All interfaces (unsafe)</option></select>
+    </div>
+    <div class="form-row">
+      <label>SSM Validation (拒绝 ASM)</label>
+      <select><option>Allow ASM (unsafe)</option><option selected>Reject ASM (mandatory for SSM)</option></select>
+    </div>
+    <div class="form-row">
+      <label>Input Rate Limit</label>
+      <input type="text" value="20 Mbps (auto-throttle above)">
+    </div>
+  </div>
+</div>
+
+<!-- Multicast Diagnostics (核心新增) -->
+<div class="panel" style="border-color:var(--green)">
+  <h3><span class="cn">多播诊断 (Multicast Diagnostics · 7 项)</span> / DIAGNOSTICS
+    <span class="pill pill-green" style="float:right"><span class="dot green"></span>ALL CHECKS PASS · last update 2s ago</span>
+  </h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="box-title">Network Reachability (PIA §10)</div>
+      <table>
+        <tbody>
+          <tr><td>Interface</td><td><span class="v">eno1 · 10G</span></td></tr>
+          <tr><td>Link</td><td><span class="v green">● UP 10 Gbps</span></td></tr>
+          <tr><td>Route</td><td><span class="v green">● reachable</span></td></tr>
+          <tr><td>Multicast Join</td><td><span class="v green">● JOINED</span></td></tr>
+          <tr><td>IGMP</td><td><span class="v green">● v3</span></td></tr>
+          <tr><td>Packets/s</td><td><span class="v blue">12,480</span></td></tr>
+          <tr><td>Last Packet</td><td><span class="v green">12 ms ago</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Quality Metrics</div>
+      <table>
+        <tbody>
+          <tr><td>Packet Loss</td><td><span class="v green">0.003%</span></td></tr>
+          <tr><td>Jitter</td><td><span class="v green">0.9 ms</span></td></tr>
+          <tr><td>RTT (SSM ping)</td><td><span class="v green">12 ms</span></td></tr>
+          <tr><td>Bitrate Actual</td><td><span class="v">4.92 Mbps</span></td></tr>
+          <tr><td>Continuity Counter</td><td><span class="v green">PASS</span></td></tr>
+          <tr><td>Discontinuities (24h)</td><td><span class="v green">0</span></td></tr>
+          <tr><td>PTS Drift</td><td><span class="v green">+0.4 ms/min</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Test Operations (L2 · 需 Who/Why)</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn primary">▶ Test Join (L2)</button>
+        <button class="btn">⏹ Test Leave (L2)</button>
+        <button class="btn">🔍 Packet Probe (L2)</button>
+        <button class="btn">📊 IGMP Querier Check (L2)</button>
+        <button class="btn">🔬 RTP Header Inspect (L2)</button>
+        <button class="btn">📋 Export Diagnostics (L1)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Network Path (PIA §10) -->
+<div class="panel">
+  <h3><span class="cn">网络路径 (Network Path · PIA §10)</span> / PATH
+    <span class="pill pill-blue" style="float:right">E-41 Network Path Inspector (Spec 锁, 0.5F 文档化)</span>
+  </h3>
+  <pre style="background:var(--bg3);padding:12px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:var(--fg)">Source (10.30.20.100:5000)         [STAGE 1: Network Source]
+   ↓
+eno1 (10.30.20.10, VLAN 120)         [STAGE 2: Network Adapter]
+   ↓
+10G Switch (gateway 10.30.20.1)       [STAGE 3: Network Path]
+   ↓
+eno1 (VBMF 10.30.20.10)              [STAGE 4: Worker]
+   ↓
+Worker (process Source)              [STAGE 5: Worker]
+   ↓
+Route (Switcher + Composition + Master)   [STAGE 6: Compile]
+   ↓
+Worker (process Output)              [STAGE 7: Output]
+   ↓
+4 Output Variants (HLS + RTMP + UDP-Multicast + WebRTC)   [STAGE 8: Output]</pre>
+  <div class="diag">
+    <b>E-41 Network Path Inspector (0.5F Spec 锁, wireframe V0.5G 实施):</b>
+    自动探测中间路由节点 (traceroute + SNMP) · 显示完整路径 + 关键 hop 状态 + 延迟 + 丢包率.
+    用途: 故障定位 ("UDP Source 断了, 是网卡? VLAN? Switch?").
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (E-40 Network Source) — 完整 Spec 收口 (PIA §3)</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>LOCKED · JOINED · Loss &lt; 0.01% · 5/7 Diagnostics PASS</td><td>顶部全绿 + 7 Diagnostics 全 PASS + Path 完整</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>Test Join / 重新解析 Endpoint</td><td>Endpoint 字段 skeleton + "Joining multicast..." spinner</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>Source 创建中</td><td>引导 "Fill Adapter / Endpoint / Contract 3 段"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>Loss 0.01-0.1% / IGMP v2 / SSM 缺失</td><td>顶部黄条 + 标黄 Diagnostic + Recommend: 升 v3 / 补 SSM source</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>NOT JOINED / RTT &gt; 100ms / Discontinuity &gt; 0</td><td>红色 Banner + 标红 Diagnostic + 一键 Packet Probe</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>IGMP failed / Route unreachable / Card DOWN</td><td>顶部红条 + 通知 Admin + 强切备份 Source</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- 4-Layer (PIA §6 推广) -->
+<div class="panel">
+  <h3><span class="cn">4-Layer (PIA §6 推广)</span> / DESIRED → COMPILED → EFFECTIVE → IMPACT
+    <span class="pill pill-green" style="float:right">DESIRED == EFFECTIVE</span>
+  </h3>
+  <table>
+    <tbody>
+      <tr><td>DESIRED</td><td><span class="v">UDP Multicast SSM 239.20.10.10:5000 / IGMP v3</span></td></tr>
+      <tr><td>COMPILED</td><td><span class="v green">UDP/ADAPTER v1.0 + eno1 + VLAN 120</span></td></tr>
+      <tr><td>EFFECTIVE</td><td><span class="v green">LOCKED · JOINED · 0.003% loss</span></td></tr>
+      <tr><td>IMPACT</td><td><span class="v">Affected: CH02 + 1 Output Variant · Risk: LOW (LOCKED)</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  VBMF Operator Console · E-40 Network Source 配置 + Multicast Diagnostics · ENGINEERING 域 · Phase 0.5F · 设计稿 v0.1
+  · PIA §3 Network Endpoint 统一对象 + PIA §4 External Network Source + PIA §10 Network Path + PIA §11 Security
+  · 5 Mode Tab: UDP Unicast / Multicast (SSM) / RTP/UDP / SRT Caller / SRT Listener
+  · 6 字段分解 (PIA §2): Identity / Adapter / Endpoint / Contract / Runtime / QC
+  · 7 Diagnostics: Network Reachability + Quality Metrics + Test Operations
+  · 0.5F 实装 UDP Unicast + Multicast (SSM/ASM) + SRT; RTP/RTMP/HLS/RTSP/WebRTC/RIST/Zixi/NDI Spec 锁, V0.3 实施
+</footer>
+
+</body>
+</html>

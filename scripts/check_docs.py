@@ -53,13 +53,17 @@ def check_html_links():
         if SKIP_DIRS & set(html.parts):
             continue
         text = html.read_text(encoding="utf-8")
-        for m in re.finditer(r'href="([^"#]+)"', text):
+        for m in re.finditer(r'href="([^"]+)"', text):
             target = m.group(1)
-            if target.startswith(("http://", "https://", "mailto:")):
+            if target.startswith(("http://", "https://", "mailto:", "javascript:")):
                 continue
-            if not (html.parent / target).resolve().exists():
+            # 剥离 query string (?ch=CH02) 和 anchor (#section)
+            target_no_qs = target.split("?", 1)[0].split("#", 1)[0]
+            if not target_no_qs:
+                continue
+            if not (html.parent / target_no_qs).resolve().exists():
                 errs.append(f"[HTML-LINK] {html.relative_to(ROOT)} -> {target}")
-    return errs
+        return errs
 
 
 def check_numbers():
