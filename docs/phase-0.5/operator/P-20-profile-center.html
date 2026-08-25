@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>P-20 · Profile Center 配置中心 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+    --health-healthy:#3fb950; --health-degraded:#d29922; --health-failed:#f85149; --health-unknown:#6e7681;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-purple{background:rgba(163,113,247,.15);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:12px;background:var(--bg2);border-radius:3px 3px 0 0;padding:0 8px}
+  .tab{padding:8px 14px;cursor:pointer;font-size:12px;color:var(--fgdim);border-bottom:2px solid transparent;font-weight:500}
+  .tab:hover{color:var(--fg);background:var(--bg3)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(88,166,255,.05)}
+  .tab .count{display:inline-block;padding:1px 6px;background:var(--bg3);border-radius:8px;font-size:9px;margin-left:4px;color:var(--fg)}
+  .tab.active .count{background:var(--accent);color:#fff}
+  .tab .ico{margin-right:4px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  tr.selected td{background:rgba(88,166,255,.1)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:20px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.blue{color:var(--accent)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>P-20 Profile Center 配置中心</b></div>
+  <h1><span class="cn">P-20 · 配置中心</span> <span class="en">PROFILE CENTER (7 Tabs: 6 Profile Registries + Bundle)</span></h1>
+</div>
+
+<!-- 顶部统计: 全域 Profile 健康 + 影响面 -->
+<div class="row">
+  <div class="col-3 metric">
+    <div class="label">Profile 总数</div>
+    <div class="val blue">87</div>
+    <div class="sub">across 7 registries</div>
+  </div>
+  <div class="col-3 metric">
+    <div class="label">ACTIVE</div>
+    <div class="val green">62</div>
+    <div class="sub">71% utilization</div>
+  </div>
+  <div class="col-3 metric">
+    <div class="label">DEPRECATED</div>
+    <div class="val yellow">18</div>
+    <div class="sub">still referenced by 4 bundles</div>
+  </div>
+  <div class="col-3 metric">
+    <div class="label">DRIFT / STALE</div>
+    <div class="val yellow">7</div>
+    <div class="sub">last modified > 30d</div>
+  </div>
+</div>
+
+<!-- 7 Tab 切换 -->
+<div class="tabs">
+  <div class="tab active"><span class="ico">⚙️</span>Encoding <span class="count">18</span></div>
+  <div class="tab"><span class="ico">🔊</span>Audio <span class="count">12</span></div>
+  <div class="tab"><span class="ico">📤</span>Output <span class="count">15</span></div>
+  <div class="tab"><span class="ico">🎨</span>Graphic <span class="count">8</span></div>
+  <div class="tab"><span class="ico">🔍</span>QC <span class="count">14</span></div>
+  <div class="tab"><span class="ico">⚖️</span>Rights <span class="count">11</span></div>
+  <div class="tab"><span class="ico">🔌</span>Edge <span class="count">9</span></div>
+  <div class="tab" style="border-left:1px solid var(--border);background:rgba(88,166,255,.05)"><span class="ico">📦</span>Bundle <span class="count" style="background:var(--accent)">3</span></div>
+</div>
+
+<!-- Encoding Profile 列表 (默认 Tab) -->
+<div class="panel">
+  <h3><span class="cn">编码配置</span> / ENCODING PROFILES (18 total · 5 ACTIVE · 4 DEPRECATED · 9 DRAFT)
+    <span class="pill pill-blue">Source: encoding_profiles table</span>
+  </h3>
+  <div style="margin-bottom:8px;display:flex;gap:6px;align-items:center">
+    <input type="text" placeholder="Filter by name / codec / revision..." style="flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);border-radius:3px;font-size:11px">
+    <button class="btn">🔍 Search</button>
+    <button class="btn">Filter ▾</button>
+    <button class="btn primary" style="margin-left:auto">+ Create Encoding Profile</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:24px"><input type="checkbox"></th>
+        <th>Name</th>
+        <th>Codec</th>
+        <th>Resolution</th>
+        <th>Bitrate</th>
+        <th>Audio</th>
+        <th>Status</th>
+        <th>Used By</th>
+        <th>Last Modified</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="selected">
+        <td><input type="checkbox" checked></td>
+        <td><b>H264-LIVE-1080P25-5M</b></td>
+        <td>H.264 High@4.1</td>
+        <td>1920×1080 / 25</td>
+        <td>5.0 Mbps CBR</td>
+        <td>AAC 2ch 192k</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td>2 Bundles · 3 Channels</td>
+        <td>v3 · 2d ago</td>
+        <td><button class="btn">Open P-21 →</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>HEVC-Main10-1080P25-4M</b></td>
+        <td>HEVC (libx265) Main10</td>
+        <td>1920×1080 / 25</td>
+        <td>4.0 Mbps CBR</td>
+        <td>AAC 2ch 192k</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td>1 Bundle · 1 Channel</td>
+        <td>v2 · 5d ago</td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>LL-HLS-720P25-2M</b></td>
+        <td>H.264 Baseline@3.1</td>
+        <td>1280×720 / 25</td>
+        <td>2.0 Mbps CBR</td>
+        <td>AAC 2ch 128k</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td>0 Bundles (testing)</td>
+        <td>v1 · 1d ago</td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>Archive-HEVC-4:2:2-50M</b></td>
+        <td>HEVC 4:2:2 10bit</td>
+        <td>1920×1080 / 25</td>
+        <td>50 Mbps VBR</td>
+        <td>PCM 8ch 48k</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td>0 Bundles</td>
+        <td>v1 · 7d ago</td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"></td>
+        <td><b>Proxy-H264-720P-1.5M</b></td>
+        <td>H.264 Main@3.0</td>
+        <td>1280×720 / 25</td>
+        <td>1.5 Mbps CBR</td>
+        <td>AAC 2ch 96k</td>
+        <td><span class="pill pill-yellow">⚠ DEPRECATED</span></td>
+        <td>1 Bundle (CH01)</td>
+        <td>v3 · 14d ago</td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+      <tr style="opacity:.6">
+        <td><input type="checkbox"></td>
+        <td><b>Mobile-H264-480P-800k</b></td>
+        <td>H.264 Baseline@2.0</td>
+        <td>854×480 / 25</td>
+        <td>0.8 Mbps CBR</td>
+        <td>AAC 2ch 64k</td>
+        <td><span class="pill pill-gray">○ DRAFT</span></td>
+        <td>—</td>
+        <td>v0 · 1h ago</td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="diag">
+    <b>Used By (全局 Dependency Graph #2):</b> 选中 H264-LIVE-1080P25-5M →
+    影响: <b>2 Profile Bundles (CH01-News-Live / CH03-Sports-Live)</b> ·
+    <b>3 Channels (CH01/CH03/CH05)</b> · 1 正在运行的 Realtime Session (RT-01).
+    改这一行前必看 Impact Preview (8 横切能力 #1).
+  </div>
+</div>
+
+<!-- Selected Profile: 3-Layer + Used By 详细 -->
+<div class="panel">
+  <h3><span class="cn">已选 Profile 详情</span> / SELECTED: H264-LIVE-1080P25-5M
+    <span class="pill pill-green">3-Layer DESIRED→COMPILED→EFFECTIVE</span>
+  </h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="box-title">Configuration Triangle (V0.2 锁定)</div>
+      <table>
+        <tbody>
+          <tr><td>DESIRED</td><td><span class="v">H.264 1080p25 5Mbps</span></td></tr>
+          <tr><td>COMPILED</td><td><span class="v green">libx264 · worker-02</span></td></tr>
+          <tr><td>EFFECTIVE</td><td><span class="v green">Revision v3 ACTIVE</span></td></tr>
+          <tr><td>Δ</td><td><span class="v green">COMPILED == EFFECTIVE<br>Reason: 无降级, 健康运行</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Used By (跨域引用)</div>
+      <table>
+        <tbody>
+          <tr><td><b>Profile Bundles</b></td><td>2 (CH01-News / CH03-Sports)</td></tr>
+          <tr><td><b>Channels</b></td><td>3 (CH01 · CH03 · CH05)</td></tr>
+          <tr><td><b>Realtime Sessions</b></td><td>1 active (RT-01)</td></tr>
+          <tr><td><b>Output Variants</b></td><td>5 across 3 channels</td></tr>
+          <tr><td><b>ChangeSets (pending)</b></td><td>1 (scheduled 14:30)</td></tr>
+          <tr><td><b>Transcode Jobs</b></td><td>3 (queued)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Validation (15 项 + Compatibility)</div>
+      <table>
+        <tbody>
+          <tr><td>Self Validation</td><td><span class="pill pill-green">15/15 PASS</span></td></tr>
+          <tr><td>Compatibility vs Source</td><td><span class="pill pill-green">✓</span> SDI / SRT / RTMP</td></tr>
+          <tr><td>Compatibility vs Worker</td><td><span class="pill pill-green">✓</span> libx264 (all 3 workers)</td></tr>
+          <tr><td>Compatibility vs Output</td><td><span class="pill pill-green">✓</span> HLS / RTMP / WebRTC</td></tr>
+          <tr><td>Compatibility vs Player</td><td><span class="pill pill-yellow">⚠</span> iOS old (H.264 High@4.1)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:6px">
+    <button class="btn primary">Open in P-21 Builder →</button>
+    <button class="btn">📊 Impact Preview (8 横切能力 #1) →</button>
+    <button class="btn">📜 Revision History (10 versions) →</button>
+    <button class="btn">📦 Use in Profile Bundle →</button>
+    <button class="btn l2">Mark DEPRECATED (L2)</button>
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (P-20 Profile Center) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>列表 + 详情 + 3-Layer + Used By 完整</td><td>完整 7 Tab + 选中行高亮 + 右侧 Used By 7 项</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>首次打开 / 切 Tab</td><td>列表 skeleton + 详情 panel skeleton</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 Profile (新系统)</td><td>引导 "Create from Preset" (8 个: Broadcast 1080p25 H.264/HEVC/LL/Archive/Proxy/Mobile/Web/Custom)</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>DRIFT / STALE Profile 存在 / 兼容性 ⚠</td><td>黄色 Banner + DRIFT 计数 (顶部 metric) + iOS old 兼容性 标黄</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>DB 连接失败 / Schema mismatch</td><td>红色 Banner + Retry + 联系 Admin</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>ACTIVE Profile 与 Worker capability 不匹配 (全部 Worker 不可用)</td><td>顶部红条 + 强制回滚 + 通知 Admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Profile Bundle 入口 (顶部 Tab #8) -->
+<details>
+  <summary>▸ Profile Bundle (顶部 Tab #8, P-28 入口) — 跨 Profile 组合</summary>
+  <div class="panel" style="margin-top:8px">
+    <div class="diag" style="margin-top:0">
+      <b>Profile Bundle (P-28, 0.5D 锁 Spec):</b>
+      1 Channel 1 Bundle, 6 Profile 引用 (不重复配置).<br>
+      例 CH01-News-Live = H264-LIVE-1080P25-5M + NEWS-STEREO-R128 + HLS-LIVE-MAIN + NEWS-QC + NEWS-DOMESTIC + LIVE-DEFAULT + NEWS-LOWERTHIRD.<br>
+      Engineer 改 Profile → Impact Preview → 影响所有 Bundle → ChangeSet → Logical Atomic Apply.
+    </div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button class="btn primary">Open P-28 Profile Bundle Registry →</button>
+      <button class="btn">+ Create Bundle (L1)</button>
+    </div>
+  </div>
+</details>
+
+<footer>
+  VBMF Operator Console · P-20 Profile Center · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
+  · 关联: P-21 Encoding Profile (锁) / P-22 Output Profile (锁) / P-23 Audio / P-24 Graphic / P-25 QC / P-26 Rights / P-27 Edge Policy / P-28 Profile Bundle (0.5D)
+  · 8 横切能力: Impact Preview / Dependency Graph / Explain Why / Configuration Diff / Compatibility Advisor 全部跨 Profile Registry
+  · Vocabulary: 6 Profile kinds (ENCODING/AUDIO/OUTPUT/GRAPHIC/QC/RIGHTS) + EDGE_POLICY = 7 Tab
+</footer>
+
+</body>
+</html>

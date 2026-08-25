@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>P-28 · Profile Bundle 通道交付包 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-purple{background:rgba(163,113,247,.15);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .bundle-slot{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;position:relative;min-height:90px}
+  .bundle-slot.required{border-left:3px solid var(--accent)}
+  .bundle-slot.optional{border-left:3px solid var(--gray)}
+  .bundle-slot .slot-name{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fgdim);margin-bottom:4px}
+  .bundle-slot .profile-name{font-size:13px;font-weight:600;color:var(--fg);margin-bottom:4px}
+  .bundle-slot .profile-meta{font-size:10px;color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+  .bundle-slot .profile-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:20px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="P-20-profile-center.html">P-20 Profile Center</a> › <b>P-28 Profile Bundle Registry (3 Bundles)</b></div>
+  <h1><span class="cn">P-28 · 通道交付包</span> <span class="en">PROFILE BUNDLE (1 Channel 1 Bundle · 6 Profile 引用 · 不重复配置)</span></h1>
+</div>
+
+<!-- 顶部 Bundle 列表 -->
+<div class="panel">
+  <h3><span class="cn">Bundle 列表</span> / BUNDLE REGISTRY (3 bundles)
+    <span class="pill pill-blue" style="float:right">1 Channel 1 Bundle (1:1)</span>
+  </h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Channel</th>
+        <th>Encoding</th>
+        <th>Audio</th>
+        <th>Output</th>
+        <th>QC</th>
+        <th>Rights</th>
+        <th>Edge</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="selected" style="background:rgba(88,166,255,.1)">
+        <td><b>CH01-News-Live</b></td>
+        <td>CH01</td>
+        <td>H264-LIVE-1080P25-5M v3</td>
+        <td>NEWS-STEREO-R128 v1</td>
+        <td>HLS-LIVE-MAIN v2</td>
+        <td>NEWS-QC v1</td>
+        <td>NEWS-DOMESTIC v4</td>
+        <td>LIVE-DEFAULT v2</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td><button class="btn">Open ↓</button></td>
+      </tr>
+      <tr>
+        <td><b>CH03-Sports-Live</b></td>
+        <td>CH03</td>
+        <td>H264-LIVE-1080P25-5M v3</td>
+        <td>SPORTS-SURROUND v1</td>
+        <td>HLS-LL-LOW v1</td>
+        <td>SPORTS-QC v1</td>
+        <td>SPORTS-DOMESTIC v3</td>
+        <td>LOW_LATENCY_EDGE v1</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+      <tr>
+        <td><b>CH05-Archive</b></td>
+        <td>CH05</td>
+        <td>Archive-HEVC-4:2:2-50M v1</td>
+        <td>ARCHIVE-PCM-8CH v1</td>
+        <td>ARCHIVE-FILE v1</td>
+        <td>ARCHIVE-QC v1</td>
+        <td>ARCHIVE-UNLIMITED v1</td>
+        <td>ARCHIVE_EDGE v1</td>
+        <td><span class="pill pill-yellow">⚠ DRAFT</span></td>
+        <td><button class="btn">Open →</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:8px;display:flex;gap:6px">
+    <button class="btn primary" style="margin-left:auto">+ Create Profile Bundle (L1)</button>
+  </div>
+</div>
+
+<!-- 选中 Bundle 详情: 6 引用 -->
+<div class="panel">
+  <h3><span class="cn">CH01-News-Live 详情</span> / BUNDLE DETAIL (6 Profile 引用, 非副本)
+    <span class="pill pill-green" style="float:right">Channel CH01 · 1 Realtime Session + 3 Output Variants</span>
+  </h3>
+  <div class="row">
+    <!-- Encoding -->
+    <div class="col-4">
+      <div class="bundle-slot required">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">⚙️ Encoding Profile (REQUIRED)</div>
+        <div class="profile-name">H264-LIVE-1080P25-5M</div>
+        <div class="profile-meta">v3 ACTIVE · H.264 High@4.1 · 5Mbps CBR</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-21 →</a>
+          ·
+          <span style="color:var(--green)">13/15 Validation</span>
+        </div>
+      </div>
+    </div>
+    <!-- Audio -->
+    <div class="col-4">
+      <div class="bundle-slot required">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">🔊 Audio Profile (REQUIRED)</div>
+        <div class="profile-name">NEWS-STEREO-R128</div>
+        <div class="profile-meta">v1 ACTIVE · AAC 2ch 48k · EBU R128</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-23 →</a>
+          ·
+          <span style="color:var(--green)">PASS</span>
+        </div>
+      </div>
+    </div>
+    <!-- Output -->
+    <div class="col-4">
+      <div class="bundle-slot required">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">📤 Output Profile (REQUIRED)</div>
+        <div class="profile-name">HLS-LIVE-MAIN</div>
+        <div class="profile-meta">v2 ACTIVE · HLS · CDN-A primary + CDN-B backup</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-22 →</a>
+          ·
+          <span style="color:var(--green)">PASS</span>
+        </div>
+      </div>
+    </div>
+    <!-- QC -->
+    <div class="col-4">
+      <div class="bundle-slot optional">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">🔍 QC Profile (OPTIONAL)</div>
+        <div class="profile-name">NEWS-QC</div>
+        <div class="profile-meta">v1 · Black / Freeze / Loudness / AV Sync / 10 checks</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-25 →</a>
+        </div>
+      </div>
+    </div>
+    <!-- Rights -->
+    <div class="col-4">
+      <div class="bundle-slot required">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">⚖️ Rights Profile (REQUIRED)</div>
+        <div class="profile-name">NEWS-DOMESTIC</div>
+        <div class="profile-meta">v4 · CN / HLS / 2027-01-01</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-26 →</a>
+          ·
+          <span style="color:var(--green)">VALID</span>
+        </div>
+      </div>
+    </div>
+    <!-- Edge Policy -->
+    <div class="col-4">
+      <div class="bundle-slot required">
+        <div class="profile-actions">
+          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+        </div>
+        <div class="slot-name">🔌 Edge Policy Profile (REQUIRED)</div>
+        <div class="profile-name">LIVE-DEFAULT</div>
+        <div class="profile-meta">v2 · Retry 3x · 1s backoff · CDN-B failover</div>
+        <div style="margin-top:6px;font-size:10px">
+          <a style="color:var(--accent);text-decoration:none">Open P-27 →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="diag">
+    <b>关键规则 (Phase 0.5C PRODUCT_OBJECT_MODEL §1.2 锁定):</b>
+    改 Bundle = 创建新 Revision → 进入 ChangeSet → Logical Atomic Apply.
+    不允许直接改 Bundle 内的 Profile (Profile 改回去自身 Revision).
+    1 Channel 1 Bundle 1:1 反向引用.
+  </div>
+</div>
+
+<!-- 3-Layer + 4 Workflows -->
+<div class="row">
+  <div class="col-6">
+    <div class="panel">
+      <h3><span class="cn">3-Layer (Bundle 视角)</span> / DESIRED → COMPILED → EFFECTIVE</h3>
+      <table>
+        <tbody>
+          <tr><td>DESIRED</td><td><span class="v">CH01-News-Live Bundle (6 Profile 引用)</span></td></tr>
+          <tr><td>COMPILED</td><td><span class="v green">Resolved at Apply · Atomic Cutover</span></td></tr>
+          <tr><td>EFFECTIVE</td><td><span class="v green">Revision v3 ACTIVE</span></td></tr>
+          <tr><td>Δ</td><td><span class="v green">COMPILED == EFFECTIVE<br>Reason: 无降级</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h3><span class="cn">WorkFlow #1 创建新频道</span></h3>
+      <div style="font-size:11px;line-height:1.6;color:var(--fgdim)">
+        1. Operator 选 "Create Channel"<br>
+        2. 选 Bundle (新建 / 复用现有)<br>
+        3. 选 Source (1..N, 冗余配置)<br>
+        4. 选 Output Variant (1..N)<br>
+        5. <b>Preflight (E-32)</b><br>
+        6. 提交 ChangeSet (DRAFT → VALIDATED → SCHEDULED → APPLYING → APPLIED)<br>
+        7. Channel 进入 STARTING → READY_TO_TAKE
+      </div>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="panel">
+      <h3><span class="cn">WorkFlow #2 升级一个 Profile (影响多个 Bundle)</span></h3>
+      <div style="font-size:11px;line-height:1.6;color:var(--fgdim)">
+        1. Engineer 改 H264-LIVE-1080P25-5M (创建新 Revision v4)<br>
+        2. <b>Impact Preview:</b> 2 个 Bundle (CH01-News / CH03-Sports) 引用 v3 → 将升级到 v4<br>
+        3. 选 Channel 子集 (e.g. 1 个 Channel 先升, 1 个稍后)<br>
+        4. 创建 ChangeSet (含 2 个 ChangeSetItem: 2 个 Bundle 升级)<br>
+        5. 选 Schedule (立即 / 凌晨 02:00 / 下次维护窗口)<br>
+        6. 走 Logical Atomic Apply
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span class="cn">WorkFlow #3 / #4</span> 临时 Override · 改 Channel Output Profile</h3>
+      <div style="font-size:11px;line-height:1.6;color:var(--fgdim)">
+        <b>Override (L2):</b> Operator 进 CD-01 → "临时 Override" (L2) →
+        选临时 Profile → 填 Who/Why/Until → 立即生效 (不进 ChangeSet, 进 Audit) → Until 到期回滚.<br>
+        <b>改 Channel (Workflow #3):</b> Operator 进 CD-01 → 改 Bundle 引用 v2→v3 → Impact Preview (3 个 Variant) → ChangeSet → 立即应用 → Variant 重派生.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Revision 历史 -->
+<div class="panel">
+  <h3><span class="cn">修订历史</span> / REVISION HISTORY (CH01-News-Live)
+    <span class="pill pill-blue" style="float:right">3 revisions · immutable snapshots</span>
+  </h3>
+  <table>
+    <thead><tr><th>Revision</th><th>Created By</th><th>Created At</th><th>Change Notes</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      <tr style="background:rgba(63,185,80,.05)">
+        <td><b>v3</b> (current)</td>
+        <td>Director Zhang</td>
+        <td>2026-08-24 19:30</td>
+        <td>Upgraded to HEVC Main10 for HDR support (later rolled back, kept v2 + H.264)</td>
+        <td><span class="pill pill-green">● ACTIVE</span></td>
+        <td><button class="btn">View</button> <button class="btn">Diff vs v2</button></td>
+      </tr>
+      <tr>
+        <td>v2</td>
+        <td>Engineer Li</td>
+        <td>2026-08-15 14:22</td>
+        <td>Upgraded audio to AAC 256k from 192k</td>
+        <td><span class="pill pill-gray">○ SUPERSEDED</span></td>
+        <td><button class="btn">View</button> <button class="btn">Diff vs v1</button></td>
+      </tr>
+      <tr>
+        <td>v1</td>
+        <td>System</td>
+        <td>2026-08-01 10:00</td>
+        <td>Initial creation</td>
+        <td><span class="pill pill-gray">○ SUPERSEDED</span></td>
+        <td><button class="btn">View</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="diag">
+    <b>Revision 不可变原则 (V0.2 锁定):</b>
+    Revision 一旦创建, 不可修改, 只能通过新 Revision 覆盖.
+    ChangeSetItem = (item_kind, target_id, before_revision, after_revision, impact_summary).
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (P-28 Profile Bundle) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>Bundle ACTIVE + 6 Profile 引用全部 OK + Channel RUNNING</td><td>顶部全绿 + 6 slot 全部带 profile name + Revision 历史 + 3-Layer</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>Bundle 创建中 / 引用解析中</td><td>slot skeleton + "Resolving Profile references..."</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 Bundle (新系统)</td><td>引导 "Create first Bundle from Channel template"</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>引用 Profile 1 个 DEPRECATED / Channel 在 DRAFT</td><td>黄色 Banner + 引用标黄 + Recommend: 升级到新 Revision</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>引用 Profile 不可用 / Channel 失败</td><td>红色 Banner + 引用标红 + 选择备用 Profile (L2)</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>Channel 引用 Bundle 但 Channel 不可用 (Master 失败)</td><td>顶部红条 + Bundle locked + 通知 Admin + Rollback 入口</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Actions -->
+<div class="panel" style="display:flex;gap:6px;flex-wrap:wrap">
+  <button class="btn primary">💾 Save as new Revision (L2 · ChangeSet)</button>
+  <button class="btn">📊 Impact Preview →</button>
+  <button class="btn">📜 All Revisions →</button>
+  <button class="btn">📦 View Channel CH01 →</button>
+  <button class="btn l2">⏸ Mark DEPRECATED (L2)</button>
+  <button class="btn l3">Delete Bundle (L3 · 检查 Used By 8 维度)</button>
+</div>
+
+<footer>
+  VBMF Operator Console · P-28 Profile Bundle · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
+  · 关联: P-20 Profile Center / P-21 Encoding / P-22 Output / P-23 Audio / P-24 Graphic / P-25 QC / P-26 Rights / P-27 Edge Policy
+  · Object: Profile Bundle (1 Channel 1 Bundle, 6 Profile 引用)
+  · 3-Layer + 4 Workflows + Revision 不可变 + Logical Atomic Apply
+</footer>
+
+</body>
+</html>
