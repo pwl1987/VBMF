@@ -17,11 +17,13 @@ services:
       - "8080:8080"   # HLS/HTTP-FLV delivery
       # 1985 (SRS API) + 8000 (SRT) kept internal unless required
 
-  # PROD: prefer runc + seccomp/AppArmor if gVisor DeckLink proven unstable
-  # (MEDIA-SEC-01 Option B). Keep cap drop + read-only root where possible.
+  # PROD: media-agent runtime = the MEDIA-SEC-01 VALIDATED choice (locked after smoke test).
+  # Until validation completes, default runc + seccomp (Option B, broadcast-stability-first).
+  # If runsc smoke PASSES, switch `runtime: runsc` + keep cap_add SYS_ADMIN.
   media-agent:
+    runtime: runc
     cap_add:
       - SYS_ADMIN
-    # security_opt:
-    #   - "seccomp:./nginx/seccomp-media.json"
+    security_opt:
+      - "seccomp:unconfined"   # placeholder; replace with ops/nginx/seccomp-media.json (Option B) post-validation
     read_only: false   # GStreamer/FFmpeg need writable temp; mount specific tmpfs

@@ -188,9 +188,9 @@ services:
     build:
       context: .
       dockerfile: ops/Dockerfile.media-agent
-    runtime: runsc            # gVisor (Deployment SoT §2). Alt: runc + seccomp/AppArmor (MEDIA-SEC-01)
-    cap_add:
-      - SYS_ADMIN             # for GStreamer/DeckLink device ops under gVisor
+    # DEPLOY-04: runtime NOT pinned in BASE. DEV defaults runc (no runsc needed);
+    # ACCEPTANCE/PROD overlays set the MEDIA-SEC-01-validated runtime (runsc or runc+seccomp).
+    # cap_add + runtime are applied per-profile overlay to avoid blocking dev without runsc.
     devices:
       - /dev/blackmagic:/dev/blackmagic   # DeckLink passthrough (F11); Host ffmpeg MUST NOT hold it
     environment:

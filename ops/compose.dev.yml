@@ -16,8 +16,8 @@ services:
     ports:
       - "3000:3000"
 
-  # Media Agent in DEV: gVisor runsc; controlled restart must preserve live session
+  # Media Agent in DEV: runtime=runc (DEPLOY-04; no runsc dependency for dev).
+  # Controlled restart must preserve live session (never kill live session).
   media-agent:
-    cap_add:
-      - SYS_ADMIN
-    # HMR-equivalent: rebuild + controlled restart (never kill live session)
+    runtime: runc
+    # cap_add only if device ops require; runc default usually fine without SYS_ADMIN

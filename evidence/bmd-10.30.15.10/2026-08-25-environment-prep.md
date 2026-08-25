@@ -4,6 +4,22 @@
 > 本文档是真实 Blackmagic Design（BMD）服务器上环境准备的可审计记录，符合"环境预检（ENV Preflight）+ 验收证据"要求。
 > **注意：SHA / 主机标识属于验收证据，不是密件，不得涂销。**
 
+## 0. 证据标识（EVID-01 / EVID-02 修正）
+
+> 为防止"环境已准备"被误读为"当前 commit 已远程验收"，本证据严格分离两个 SHA：
+> - **`environment_base_sha`**：本机环境所基于的仓库提交（即当时 checkout 并验证的源码状态）。
+> - **`test_subject_sha`**：本证据实际证明其结论的提交。
+> 两者在本文件一致；后续任何 Runtime Acceptance（FI-08/FI-09）证据须单独记录，且 `test_subject_sha` 须等于被测提交。
+
+| 字段 | 值 |
+|---|---|
+| 证据类型 | Environment Prep Evidence（环境准备，**非** Runtime Acceptance） |
+| `environment_base_sha` | `7cc33dde2ab3070c28087df7d0aae570c6c8df5f`（`7cc33dd`） |
+| `test_subject_sha` | `7cc33dde2ab3070c28087df7d0aae570c6c8df5f`（`7cc33dd`） |
+| 编写提交（document commit） | `b427dd8`（仅改写本证据文本为中文，未改变被测对象） |
+
+⚠️ **边界声明**：本证据仅证明 `7cc33dd` 环境下的 Docker / DeckLink / Compose 配置可用。**不等同**于 `b427dd8` 或任何后续提交已通过远程验收。Runtime Acceptance 证据将独立成文件（`acceptance-*.md`）。
+
 ## 1. 目标机器
 
 | 项目 | 值 |
@@ -13,7 +29,7 @@
 | 操作系统 | Ubuntu 26.04 LTS（代号 resolute） |
 | 内核 | `7.0.0-30-generic #30-Ubuntu SMP PREEMPT_DYNAMIC` |
 | 架构 | x86_64 |
-| VBMF 仓库提交号 | `7cc33dde2ab3070c28087df7d0aae570c6c8df5f`（简称 `7cc33dd`） |
+| `environment_base_sha` | `7cc33dde2ab3070c28087df7d0aae570c6c8df5f`（简称 `7cc33dd`） |
 | 仓库路径 | `/opt/vbmf-dev/repo`（按 §9 要求精确 checkout 该 SHA） |
 | 工作目录布局 | `/opt/vbmf-dev/{repo,evidence,artifacts,logs,runtime}` |
 

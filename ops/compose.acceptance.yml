@@ -18,8 +18,10 @@ services:
       - "8000:8000"   # SRT
       - "1989:1989"   # WHEP/WebRTC
 
-  # ACCEPTANCE: media-agent runtime decision pending BMD test (MEDIA-SEC-01).
-  # Default runsc; if DeckLink access fails on runsc, switch to runc + seccomp.
+  # ACCEPTANCE: media-agent runtime = MEDIA-SEC-01 candidate.
+  # Set to runsc IF smoke test (Step 2/3) PASSES; else runc + seccomp (Option B).
+  # This field is finalized by the MEDIA-SEC-01 acceptance result, not by default.
   media-agent:
+    runtime: runsc
     cap_add:
       - SYS_ADMIN
