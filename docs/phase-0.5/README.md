@@ -55,7 +55,7 @@ Output Variant (Instance / 1 Channel N Variant, Profile + Destinations + Adapter
 ```
 
 完整对象模型见 [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md)。
-14 个对象权威定义见 [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md)。
+15 个对象权威定义见 [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md)。
 
 ## 4. 目录结构 (Phase 0.5C 锁定)
 

@@ -269,7 +269,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 - [ ] **Bundle** 进 SURFACE_SPEC §3.3 (新章节)
 - [ ] **Impact Preview** 在所有 Profile / Bundle / ChangeSet 页面有按钮
 - [ ] **Configuration Triangle** 文档化 4 维 (Desired / Compiled / Effective / Impact)
-- [ ] **Object Vocabulary** 14 个对象在所有 wireframe 中命名一致
+- [ ] **Object Vocabulary** 15 个对象在所有 wireframe 中命名一致
 - [ ] **DB schema 字段名** 与 Object Vocabulary 一致
 - [ ] **Phase 0.6 README** 修正 `< 100ms` → `target_failover_time_ms + measured p50/p95/p99`
 

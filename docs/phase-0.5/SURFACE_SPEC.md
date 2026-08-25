@@ -26,7 +26,7 @@
 > **关联文档 (Phase 0.5C 归并后):**
 > - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (192KB / 4020 行 / 22 轮 review)
 > - [`docs/phase-0.5/README.md`](../README.md) — Phase 0.5 顶层入口 (4 域导航)
-> - [`docs/phase-0.5/OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) — 0.5C 14 对象权威定义
+> - [`docs/phase-0.5/OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) — 0.5D.1 15 对象权威定义
 > - [`docs/phase-0.5/PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) — 0.5C 3 层组合关系
 > - [`docs/phase-0.5/NAVIGATION.md`](NAVIGATION.md) — 0.5C 4 域顶层导航
 > - [`docs/phase-0.5/MILESTONES.md`](MILESTONES.md) — 0.5C 历史 milestone 归档
@@ -3287,7 +3287,7 @@ docs/phase-0.5b/   (Product, 5)
 NEW (本轮):
 docs/phase-0.5/
 ├── README.md                    (Phase 0.5 顶层入口, 4 域导航)
-├── OBJECT_VOCABULARY.md         (14 对象权威定义, 0.5C 新增)
+├── OBJECT_VOCABULARY.md         (15 对象权威定义, 0.5C 新增)
 ├── PRODUCT_OBJECT_MODEL.md      (3 层组合, 0.5C 新增)
 ├── NAVIGATION.md                (4 域, 0.5C 新增)
 ├── MILESTONES.md                (历史 milestone, 0.5C 新增)
@@ -3534,7 +3534,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 - [x] `check_docs.py` PASS (含 ?query 兼容)
 - [x] NAVIGATION §2 域表更新 (CH-01/CD-01/E-40/E-41 + 修 M/E 撞号, commit `7a9b54f`)
 - [x] PIA §15 验证清单全部勾选 (0.5F 锁 9 + 0.5E 锁 6, 本轮更新)
-- [ ] ROADMAP 同步 48 表面口径 (0.5G 完成后做)
+- [ ] ROADMAP 计数由 SURFACE_REGISTRY.yaml 派生 (52 wireframe + 1 Spec)
 
 ### 29.9.7 0.5F 后续 (0.5G / 0.5H / 0.5E)
 
@@ -3567,7 +3567,7 @@ PIA §6 锁 6 要求 "4-Layer 推广 + Impact 必显示", 本轮在 0.5F Batch 1
 | 2 | Impact Preview 4 维影响必显示 |
 | 3 | 风险评级 4 级 (LOW/MEDIUM/HIGH/CRITICAL) + 算法 |
 | 4 | Effective 字段 🔒 read-only, 不允许改 |
-| 5 | Configuration Diff 推广到 14 核心对象 (除 Revision) |
+| 5 | Configuration Diff 推广到 15 核心对象 (除 Revision) |
 | 6 | Diff 视图 3 种 + 字段数自动选择 |
 | 7 | Diff 字段分类 3 类 (Value/Structure/Semantic) + 颜色 |
 | 8 | Critical 字段 (Schema/Identity/Capability/Timebase/Security) 阻断 |
@@ -3588,7 +3588,7 @@ SURFACE_SPEC §24  Used By + Impact Preview (局部, P-21/P-22/M-14)
             ↓
 SURFACE_SPEC §28.2  8 横切能力 (Impact Preview / Configuration Diff / Command Palette 是其中 3 个)
             ↓
-0.5E Spec  跨域 3 大能力 (本轮, 把 §24/§28.2 推广到全部 4 域 × 14 对象)
+0.5E Spec  跨域 3 大能力 (本轮, 把 §24/§28.2 推广到全部 4 域 × 15 对象)
             ↓
 PIA V0.1 §15  0.5E LOCK FINAL 6 条件 (PIA §15 锁 7, 见下文更新)
 ```
@@ -3598,7 +3598,7 @@ PIA V0.1 §15  0.5E LOCK FINAL 6 条件 (PIA §15 锁 7, 见下文更新)
 | 实施项 | V0.2 (Phase 4) | V0.3 后续 |
 |---|---|---|
 | Impact Preview 7 对象 | ✅ | 推广到 14 |
-| Configuration Diff 14 对象 (除 Revision) | ✅ | Route Graph Diff |
+| Configuration Diff 15 对象 (除 Revision) | ✅ | Route Graph Diff |
 | Command Palette 入口 + 3 类命令 | ✅ | 全文 + OCR + LLM 推荐 |
 | Risk 算法 4 级 | ✅ | 机器学习预测 |
 | Critical 字段阻断 5 类 | ✅ | 全 Schema 字段 |

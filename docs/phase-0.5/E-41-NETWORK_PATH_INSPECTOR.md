@@ -704,7 +704,7 @@ network_path:
 ## 16. 相关文档
 
 - [`PRODUCT_INFORMATION_ARCHITECTURE.md` §10](PRODUCT_INFORMATION_ARCHITECTURE.md#10-network-path-model-新架构对象-v02-24-扩展) — PIA V0.1 Network Path Model 来源
-- [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) — 14 核心对象权威定义 (Route, Output Adapter, Output Destination)
+- [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) — 15 核心对象权威定义 (Route, Output Adapter, Output Destination)
 - [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) — 3 层组合关系 (Profile → Bundle → Variant)
 - [`NAVIGATION.md` §3](NAVIGATION.md) — ENGINEERING 域 Network 子域位置
 - [`SURFACE_SPEC.md` §29](SURFACE_SPEC.md) — 0.5C/0.5D/0.5F 收口

@@ -227,7 +227,7 @@
           <tr><td>retry</td><td style="color:var(--orange)">3x backoff 1s</td></tr>
         </tbody>
       </table>
-      <div class="gap">⚠ G4 (P0) Output Resilience 在 M-17 已硬编码 retry 3x backoff 1s, 但无独立 <b>OutputResilience</b> 配置对象 (重连策略/心跳/退避/zombie 判定). 决策: 留在 06-output 而非 M-17 → 落 D6 / B-13. 此处仅展示, 不编辑.</div>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 已建模为独立对象 (06-output + D6/B-13: 重连策略/心跳/退避/zombie 判定). M-17 Backup Output retry 3x 为该对象在编码面的触点, 决策留在 06-output 而非 M-17. 此处仅展示, 不编辑.</div>
     </div>
   </div>
 </div>

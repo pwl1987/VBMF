@@ -7,7 +7,7 @@
 >
 > **状态:** 🟡 **DRAFT 0.1** — 待用户审, 锁后 → 5 张新 wireframe
 >
-> **权威源:** 沿用 [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 14 对象 + [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) 3 层组合
+> **权威源:** 沿用 [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 15 对象 + [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) 3 层组合
 
 ---
 
@@ -653,7 +653,7 @@ VBMF Console
 ### 15.0 0.5E 锁 6 条件 (本轮新)
 
 - [x] Impact Preview 跨域 Spec 锁 (Part 1 — 7 对象 / 4 维 / 4 级 Risk / Effective 🔒)
-- [x] Configuration Diff 跨域 Spec 锁 (Part 2 — 14 对象 / 3 视图 / 3 类字段 / Critical 阻断)
+- [x] Configuration Diff 跨域 Spec 锁 (Part 2 — 15 对象 / 3 视图 / 3 类字段 / Critical 阻断)
 - [x] Command Palette 跨域 Spec 锁 (Part 3 — Ctrl+K + 顶部搜索 + `/` + 3 类命令 + RBAC + 6 状态)
 - [x] 4-Layer 集成 (Part 4 §1)
 - [x] 4 域导航集成 (Part 4 §2)
@@ -669,7 +669,7 @@ VBMF Console
 - [x] `check_docs.py` PASS (含 CH-01/CD-01/E-40, ?query 兼容修复)
 - [x] NAVIGATION §2 域表更新 (CH-01/CD-01/E-40/E-41 + 修 M/E 撞号, commit `7a9b54f`)
 - [x] SURFACE_SPEC §29.9 0.5F Channel/Network UX Closure 收口 (commit `7a9b54f`)
-- [x] 3 文档 (PIA + Vocabulary + Object Model) 三方一致 (Object Model 与 PIA §10 路径模型一致; Vocabulary §1.6 14 对象含 Route/Output Adapter)
+- [x] 3 文档 (PIA + Vocabulary + Object Model) 三方一致 (Object Model 与 PIA §10 路径模型一致; Vocabulary §1.6 15 对象含 Route/Output Adapter)
 
 ### 15.2 0.5 全部完成度 (0.5A → 0.5E)
 
@@ -677,7 +677,7 @@ VBMF Console
 |---|---|---|---|
 | **0.5A** | Operator Semantics (9 Core + 1 Validation + 4 chains + 20 项修复) | ✅ LOCK FINAL | (历史) |
 | **0.5B** | Product Surface (39 表面 + 36 收口) | ✅ UX BASELINE LOCK FINAL | (历史) |
-| **0.5C** | Info Arch Closure (4 域导航 + 14 对象 + 3-Layer) | ✅ LOCK FINAL | `380f9a7` + `7f58502` + `b2ca121` |
+| **0.5C** | Info Arch Closure (4 域导航 + 15 对象 + 3-Layer) | ✅ LOCK FINAL | `380f9a7` + `7f58502` + `b2ca121` |
 | **0.5D** | P0 Product Surfaces (M-17/M-18/P-20/P-28/E-38 + E-37 升级 + M-14 重画) | ✅ LOCK FINAL | `ea5f5b9` / `bd02890` / `d5cfb50` / `0020562` / `418f484` |
 | **0.5F** | Channel/Network UX (PIA V0.1 12 锁 · CH-01/CD-01/E-40/E-41) | ✅ LOCK FINAL | `bda8134` / `0511c8c` / `7a9b54f` |
 | **0.5E** | Cross-Domain Capabilities (Impact Preview / Configuration Diff / Command Palette 跨域) | ✅ **本轮 LOCK FINAL** | 本轮 |

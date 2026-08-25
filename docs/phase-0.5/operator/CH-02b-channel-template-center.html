@@ -149,12 +149,12 @@
           <tr><td class="k">切换模式</td><td class="v" id="dSwitch">–</td></tr>
         </tbody>
       </table>
-      <div class="diag gap" style="margin-top:8px"><b>设计缺口 G2:</b> Source 内联创建 (现场建 Source) 在 P-21/P-23 待定; 模板默认源当前仅引用已有 Source 种类, 待补内联创建能力.</div>
+      <div class="diag gap" style="margin-top:8px"><b>设计缺口 G2 ✅ 已闭合 (D5):</b> Source 不内联创建 — 在 E-40 独立创建 → E-42 7 层验证为 VERIFIED → VERIFIED 池 → 模板/D1 仅引用 VERIFIED 源. 见 E-40 v2 / E-42.</div>
     </div>
     <div class="col-8">
       <div class="box-title" style="font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">默认输出 / Default Output Variants (实例化后出现在 CH-02 Step 5)</div>
       <div id="dOutputs"></div>
-      <div class="diag gap" style="margin-top:8px"><b>设计缺口 G3:</b> 06-output 基带输出 (SDI) 待补 — 模板默认输出当前仅<b>网络型</b> (HLS/RTMP/SRT/UDP-MC/WebRTC/Icecast/DAB+), 基带 SDI 待 06-output 升稿后接入.<br><b>设计缺口 G4:</b> Output Resilience 待补 — 模板默认输出的韧性 (主备 / 多 CDN / failover 策略) 在 06-output 升稿后接入.</div>
+      <div class="diag gap" style="margin-top:8px"><b>设计缺口 G3 ✅ 已闭合 (0.5D.1):</b> 基带 SDI 输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema; 模板默认输出仍以<b>网络型</b>为主 (HLS/RTMP/SRT/UDP-MC/WebRTC/Icecast/DAB+).<br><b>设计缺口 G4 ✅ 已闭合 (0.5D.1):</b> Output Resilience (主备 / 多 CDN / failover 策略) 已建模为独立对象, 06-output + D6/B-13 接入.</div>
     </div>
   </div>
   <div class="diag" style="margin-top:10px">
@@ -197,7 +197,7 @@
           <label><input type="checkbox" value="WebRTC"> WebRTC</label>
           <label><input type="checkbox" value="Icecast"> Icecast</label>
           <label><input type="checkbox" value="DAB+"> DAB+</label>
-          <label><input type="checkbox" value="SDI"> SDI (G3 待补)</label>
+          <label><input type="checkbox" value="SDI"> SDI (RESERVED · V0.4)</label>
         </div>
         <div style="margin-top:10px;display:flex;gap:6px">
           <button class="btn primary" onclick="createTmpl()">＋ 创建模板 (L1 → DRAFT)</button>

@@ -287,7 +287,7 @@
         <a href="E-40-network-source.html" class="btn">＋ 新建网络源 (E-40 网络输入)</a>
         <a href="02-sources.html" class="btn">源管理 / 基带源 →</a>
       </div>
-      <div class="gap">⚠ 设计缺口: 当前向导只能"选"已有源, 不能就地"新建并验证". 内联新建源向导应在 D5/E-40 提供, 经 E-42 7 层验证后回到此处 ASSIGN.</div>
+      <div class="gap ok">✅ G2 已闭合 (D5): 源在 E-40 独立创建 → E-42 7 层验证为 VERIFIED → 此处仅从 VERIFIED 池 ASSIGN (PRIMARY/BACKUP). 设计上不内联新建源.</div>
     </div>
     <div class="col-6">
       <div class="slot">
@@ -390,7 +390,7 @@
           </div>
         </div>
         <div class="diag">LUFS-I -23.0 · AV Offset +12ms · 峰值 -3.1dB · 漂移 +0.4ms/min</div>
-        <div class="gap">⚠ 设计缺口: 预览依赖 Source Runtime 提供视频缩略流 + 音频 RMS/LUFS 流; 当前 E-40/E-42 未定义预览端点 (并入 D5). 音频映射 (16ch→输出布局) 也待补充.</div>
+        <div class="gap ok">✅ G5 已闭合 (D5): 预览端点定义在 E-42 (Source Runtime Preview Stream), 本步与 D3 PVW 复用同一端点; 音频映射 16ch→输出布局余项并入 G10 (PARTIAL, 待 0.5E).</div>
       </div>
     </div>
     <div class="col-6">
@@ -509,7 +509,7 @@
       </div>
       <div class="diag"><b>Criticality 层级 (0.5D.1 焊死):</b> Template 提供<b>默认 Criticality</b> → Channel 实例化后为 <b>Variant Instance Criticality</b> → Preflight 按<b>实例值</b>判定 (REQUIRED 必须 HEALTHY 否则 TAKE 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略). 模板默认改动 <b>不回灌</b>已实例化 Channel (D3 Bundle 快照不变). 见 B-13 §P0-4.</div>
       <a href="06-output.html" class="btn" style="margin-top:4px">管理输出变体 →</a>
-      <div class="gap">⚠ 设计缺口: ① 06-output 当前仅有 UDP OUTPUT + Failure Recovery, <b>缺 SDI 基带输出变体</b>; ② 网络输出的"Health Check / 重连 / 心跳"在模型层(B-13 §8.9)有 Failure Recovery, 但<b>无独立的 Output Resilience 配置对象</b>(重连次数/退避/心跳阈值未建模); ③ Test Send 与运行态监控未联动. 归入 D6 / 06-output 升级.</div>
+      <div class="gap ok">✅ G3/G4 已闭合 (0.5D.1): ① SDI 基带 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema; ② OutputResilience 独立配置对象已建模 (重连次数/退避/心跳/Test Send 联动, 06-output + D6/B-13).</div>
     </div>
   </div>
 </div>
@@ -534,7 +534,12 @@
         <div class="k" style="margin-top:4px">GPU 合计 105%</div><div class="meter"><div class="fill" style="width:100%"></div></div>
         <div class="diag" style="color:var(--red)">✗ >100%: BLOCK, 禁止 Take. 减码率 / 暂停后台 Job / 调整 Reservation.</div>
       </div>
-      <div class="gap">⚠ 设计缺口: Reservation (资源预约) 目前仅是预览数值, 缺显式 Reservation/Quota 对象与跨 Channel 仲裁; HOT 独占的"预约扣减"与释放时机未建模 (归入 D6 / B-13).</div>
+      <div class="card" style="border-color:var(--green);margin-top:8px"><div class="title">Reservation 对象 (RESOURCE_RESERVATION_SPEC.md · 0.5D.1)</div>
+        <div class="k" style="margin-top:4px">state</div><div class="v green">PROVISIONED (ChangeSet Apply 后 → RESERVED)</div>
+        <div class="k" style="margin-top:4px">scope</div><div class="v">HOT (独占 · 主+备同时占用)</div>
+        <div class="k" style="margin-top:4px">owner / expires</div><div class="v">CH02 / session stop → RELEASED → 触发仲裁</div>
+        <div class="diag" style="color:var(--green);margin-top:6px">✅ Reservation/Quota 对象已建模 (RESOURCE_RESERVATION_SPEC.md): 本步生成 PROVISIONED 预算; Apply 后由 H2 Scheduler Acquire → RESERVED; HOT 备机同步 RESERVED; 跨 Channel 仲裁按 priority + acquired_at. 设计缺口已关闭 (0.5D.1).</div>
+      </div>
     </div>
   </div>
 </div>
@@ -568,7 +573,7 @@
 impact  : 2 surface (CH02, +1 Output Variant)
 atomic  : true</div>
       </div>
-      <div class="gap">⚠ 设计缺口: ChangeSet 生成后无"审批/审阅"界面 (E-33 仅定义结构). 需补 ChangeSet Review/Approve surface (归入 D6 或独立 D7).</div>
+      <div class="gap ok">✅ G6 已闭合 (D7): ChangeSet Review 独立审批 surface 已建 (operator/D7-changeset-review.html) — Diff / Risk / Approve(L1-L3)/Reject/Rollback / Audit 链.</div>
       <div class="note">提交后 Channel lifecycle: <b>STOPPED → STARTING → READY_TO_TAKE → (TAKE) → RUNNING</b>. 本向导止于 STARTING; TAKE 在 CD-01 执行.</div>
     </div>
   </div>
@@ -586,7 +591,7 @@ atomic  : true</div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
   🧭 这是 0.5D 验收链第 1 张 (D1, 已迭代: 频道类型 TV/Radio/Virtual / 字号切换 / 源可选跳转 / 双视频预览 / 输出基带+韧性 / Virtual 移除信号源选项卡 / 网络输出可无限添加). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b>.
-  橙色块为内联"设计缺口"标注 (详见对账报告 §F). 本向导不产生运行态对象, 仅生成 ChangeSet 经审批后落到 Channel/Source/Profile Bundle.
+  内联缺口块已按 0.5D.1 状态更新: G2/G3/G4/G5/G6 均标 ✅ 已闭合 (绿块), 仅"节目单/Scheduler 运行态对象"保留 ⚠ (待 0.5E, 非冻结阻断). 详见对账报告 §F/§H/§I. 本向导不产生运行态对象, 仅生成 ChangeSet 经审批后落到 Channel/Source/Profile Bundle.
 </div>
 
 <script>

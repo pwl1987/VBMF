@@ -7,6 +7,33 @@
 
 图例：✅ 已锁 / ⚠ 部分覆盖或待核对 / ❌ 明确缺口
 
+> **⚠ CURRENT BASELINE (SoT) — 0.5D.1 起生效:** 本文件以下所有章节为 **HISTORY**（逐轮对账与 D1-D7 落地记录），当前状态以本节为准。任何自动化 / 人工审查**禁止**把历史章节的 "待补 / 未完成 / 仍待" 文字当作当前缺口。
+>
+> | 缺口 | 当前状态 | 关闭方式 (closed_by) |
+> |---|---|---|
+> | G-A UDP Output 对称面 | ✅ CLOSED | G-A 轮 (06-output UDP OUTPUT) |
+> | G-B Output Failure Guided Recovery | ✅ CLOSED | G-A 轮 (06-output FAILURE RECOVERY) |
+> | G-C Source→Channel 主动 Assign | ✅ CLOSED | G-C 轮 (02-sources ASSIGN TO CHANNEL) |
+> | G-D 3 Spec 登记 | ✅ CLOSED | G-D 轮 (SURFACE_SPEC §29.9.3b Batch 4) |
+> | G1 Encoding Profile 双语义 | ✅ CLOSED | ENCODE_MODEL_SPEC.md |
+> | G2 Source 内联创建 | ✅ CLOSED | D5 (E-40 v2 + E-42) |
+> | G3 基带 SDI 输出变体 | ✅ CLOSED | 0.5D.1 (06-output RESERVED, commit `6367cd8`) |
+> | G4 Output Resilience 对象 | ✅ CLOSED | D6 (B-13 v2) + 06-output, 0.5D.1 收口 |
+> | G5 源预览端点 | ✅ CLOSED | D5 (E-42 Source Runtime Preview Stream) |
+> | G6 ChangeSet 审批界面 | ✅ CLOSED | D7 (ChangeSet Review 独立 surface) |
+> | G7 时钟域联动校验 | ✅ CLOSED | 0.5D.1 (E-37, commit `6367cd8`) |
+> | G8 Reservation / Quota | ✅ CLOSED | D6 + 0.5D.1 (RESOURCE_RESERVATION_SPEC.md) |
+> | G9 Take/Create 口径 | ✅ CLOSED | D1 文案统一 |
+> | G10 音频映射 / 权限 / 告警 | 🟡 PARTIAL | D3/D4 部分落, 余项延续 (非冻结阻断) |
+> | G11 命名约束 | ✅ CLOSED | D1 命名约束 |
+> | P0-1..P0-9 第三轮一致性 | ✅ CLOSED | 第三轮采纳 + 0.5D 实施 |
+> | SDI Master Output ACTIVE 回退 | ✅ CLOSED | 0.5D.1 (commit `6367cd8`) |
+> | Profile 6/7 残留 | ✅ CLOSED | 0.5D.1 全仓焊死 (commit `6367cd8`) |
+> | 页面计数多源打架 | ✅ CLOSED | 0.5D.1 SURFACE_REGISTRY.yaml (commit `6367cd8`) |
+> | ChangeSet 状态混用 | ✅ CLOSED | 0.5D.1 三层状态 (commit `6367cd8`) |
+>
+> **SoT 链:** `OBJECT_VOCABULARY.md` (15 对象) ← `SURFACE_REGISTRY.yaml` (53 表面 = 52 wireframe + 1 Spec E-41) ← `NAVIGATION.md` §2.5 ← `PIA` ← 本表。
+
 ---
 
 ## 0. 背景对齐（重要）
@@ -221,35 +248,35 @@
 ### D2 ✅ CH-02B Channel Template Center（已建 + 已注册）
 - 文件：`operator/CH-02b-channel-template-center.html`（模板注册表 + 模板详情（默认 7 Profile 引用 / 默认源 / 默认输出）+ 从零创建表单 + 6 状态样例）。
 - 覆盖：Channel Template = 创建工厂（**不进运行态**），实例化出 Profile Bundle（7 Profile 引用，P-21/22/23/24/25/26/27）+ Channel(DRAFT)；Template≠Bundle≠Profile≠Variant 层级明示；覆盖 TV_LIVE / RADIO_LIVE / VIRTUAL_PLAYOUT 三类；模板卡可 Clone / Deprecate / Use→CH-02；创建表单动态生成 7 Profile 引用 + 默认输出 Variants。
-- 缺口标注（沿用 D1 口径）：G2 默认源内联创建待定 / G3 基带 SDI 输出待补 / G4 Output Resilience 待补。
+- 缺口标注（沿用 D1 口径）：G2 默认源内联创建待定 / G3 基带 SDI 输出待补 / G4 Output Resilience 待补。`state: historical: OPEN@D2 · current: CLOSED · closed_by: D5(G2) + 0.5D.1 6367cd8(G3/G4)`
 - 注册：NAVIGATION BROADCAST 列表 + §2.5（BROADCAST 13→14 / 域合计 52→53 / TOTAL 53→54 / 总计 54→55）；SURFACE_SPEC §29.9.3 条目已同步；CH-02 页脚验收链标注 D2。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D3-D6 联调后 LOCK。
 
 ### D3 ✅ CD-01 Channel Control Workspace v2（已建 + 已注册）
 - 文件：`operator/CD-01-channel-workspace-v2.html`（运行态反射：Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余(srcP/srcB 来自模板) + 反向追溯 D2）。
 - 覆盖：本页把 D1/D2 产出的 Template→Bundle→Channel 在运行态反射：① 顶部 Provenance 条显示源自 Template Rev + Profile Bundle 快照(immutable, 不回灌); ② Profile Bundle 7 Profile 引用(P-21~P-27)与 D1 第④步 / D2 模板默认引用一致; ③ Output Variants 带 delivery_criticality (REQUIRED/OPTIONAL/AUX) 与 D1 第⑤步口径一致, 可无限添加; ④ 源冗余 PRIMARY=srcP / BACKUP=srcB 来自模板默认; ⑤ 反向追溯链接到 D2 (Used By)。
-- 缺口标注（沿用 D1/D2 口径）：G3 基带 SDI 输出变体缺失 / G4 Output Resilience 未建模 / G5 源预览端点缺失 / G9 Take/Create 口径 / G10 音频映射/权限/告警。
+- 缺口标注（沿用 D1/D2 口径）：G3 基带 SDI 输出变体缺失 / G4 Output Resilience 未建模 / G5 源预览端点缺失 / G9 Take/Create 口径 / G10 音频映射/权限/告警。`state: historical: OPEN@D3 · current: CLOSED · closed_by: D5(G5) + 0.5D.1 6367cd8(G3/G4)`
 - 注册：升级既有 CD-01 (0.5F LOCK), **不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**; CD-01 行注 v2 原型。NAVIGATION §2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D4-D6 联调后随 CD-01 一同评估 LOCK。
 
 ### D4 ✅ M-17 Realtime Encode v2（已建 + 已注册）
 - 文件：`operator/M-17-realtime-transcode-v2.html`（运行态反射：Provenance 条 + 7 Profile 引用(REALTIME 高亮) + 3-Layer 配置态绑定 P-22 + Pipeline/指标/健康检查(沿用 M-17 0.5D LOCK) + Backup Output retry 标 G4 触点）。
 - 覆盖：① 顶部 Provenance 条显示本 RT Encoder Session 属于 Channel CH01 (源自模板 CH01-News-Live Rev v3 → Bundle bundle-news-01)，Realtime Profile (P-22) 为当前激活 Profile；② Profile Bundle 7 Profile 引用(P-21~P-27) 与 D1④ / D2 / D3 一致，REALTIME 高亮；③ 3-Layer 配置态(DESIRED=P-22 rev → COMPILED → EFFECTIVE) 绑定 Realtime Profile，修改须经 ChangeSet 升 rev，不污染模板默认；④ Pipeline Source→Normalize→Encode→Output + 实时指标 + H1-H7 健康检查（沿用 M-17）；⑤ Backup Output retry 3x backoff 1s 标为 G4 触点；⑥ 反向追溯链接 D3(CD-01 v2) / D2(模板)。
-- 缺口标注（沿用 D1/D2/D3 口径）：G4 Output Resilience 在 M-17 的 Backup Output retry 硬编码，但无独立 OutputResilience 配置对象（决策留 06-output 而非 M-17）→ 落 D6；G9 Take/Create 口径；G10 Rights 地域/音频映射。
+- 缺口标注（沿用 D1/D2/D3 口径）：G4 Output Resilience 在 M-17 的 Backup Output retry 硬编码，但无独立 OutputResilience 配置对象（决策留 06-output 而非 M-17）→ 落 D6；G9 Take/Create 口径；G10 Rights 地域/音频映射。`state: historical: OPEN@D4 · current: CLOSED · closed_by: D6(G4) + 0.5D.1 6367cd8`
 - 注册：升级既有 M-17 (0.5D LOCK)，**不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**；M-17 行注 v2 原型。§2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D5-D6 联调后随 M-17 一同评估。
 
 ### D5 ✅ E-40 Network Source Wizard + E-42 Test Bench（已建 + 已注册 · 闭合 G2/G5）
 - 文件：`operator/E-40-network-source-v2.html`（创建向导：Adapter/Endpoint/Security 8 字段 + 生命周期 DRAFT→E-42→VERIFIED→D1 ASSIGN + 链接 E-42）；`operator/E-42-source-test-bench.html`（7 层验证台 wireframe：Network/Transport/Container/Video/Audio/Clock/QC + 实时预览 + VERIFIED/FAILED 判定）。
 - 覆盖（**本链首次真正补模型而非仅反射**）：① 闭合 **G2 (P0)**：源不在频道向导(D1 第②步)内联创建；在 E-40 独立创建后经 E-42 7 层验证为 VERIFIED 才进 VERIFIED 池，供 D1 第②步 ASSIGN 为 PRIMARY/BACKUP；模板(D2)默认源同理须指向 VERIFIED 源；② 闭合 **G5 (P1)**：视频缩略流 + 音频 LUFS/RMS 预览端点定义在 E-42（Source Runtime Preview Stream），D1 第③步/D3 PVW 复用同一端点，不重复定义；③ 验证台单层 FAIL → FAILED，不可存 VERIFIED / 不可用于 ON AIR（呼应 E-40 CRITICAL 不可存 VERIFIED），仅可存 UNVERIFIED/修复/重测；④ 反向追溯链接 D1 / E-40 / E-42 互相印证。
-- 缺口标注（沿用 D1/D2/D3/D4 口径）：G5 的子项「音频 16ch→输出布局映射」并入 G10（D3/D4）；G3 基带 SDI 输出变体 / G4 Output Resilience / G6 端点拓扑 / G8 变更门禁 不在 D5，落 D6。
+- 缺口标注（沿用 D1/D2/D3/D4 口径）：G5 的子项「音频 16ch→输出布局映射」并入 G10（D3/D4）；G3 基带 SDI 输出变体 / G4 Output Resilience / G6 端点拓扑 / G8 变更门禁 不在 D5，落 D6。`state: historical: OPEN@D5 · current: CLOSED · closed_by: D6(G4/G6/G8) + 0.5D.1 6367cd8(G3/G7)`
 - 注册：E-40 (0.5F LOCK)、E-42 (Spec-only 表面, 0.5G 实施) 均为既有 surface；本次 E-42 补 wireframe、E-40 补 v2 创建闭环，**不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**。E-40/E-42 行注 D5 原型。§2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D6 联调后随 E-40/E-42 一同评估。
 
 ### D6 ✅ B-13 Take Preflight v2（已建 + 已注册 · 闭合 G4/G6/G8 · 验收链收尾）
 - 文件：`operator/B-13-take-preflight-v2.html`（9 项联合预检面板 + Output Resilience 对象(G4) + Reservation/Quota 对象(G8) + ChangeSet 审批闭环(G6) + CANCEL/TAKE 决策）。
 - 覆盖（**本链收尾, 闭合最后三个缺口**）：① 9 项联合检查 (Spec §1): Source/Video/Audio/Clock/Switch/Backup/Output/Latency/Resource, 全 PASS 才放 TAKE, 对齐 Failure Domain Matrix (Output 坏不误切源); ② **G4 (P0) 闭合**: 建模独立 OutputResilience 子对象 (P-28 Bundle 子对象 / 06-output) — 每 REQUIRED Output 带 retry 3x·指数退避 1s / heartbeat 5s / zombie &gt;30s / Test Send 联动, 决策落 06-output 而非 M-17 (呼应 D3/D4 标注); ③ **G8 (P1) 闭合**: 显式 Reservation/Quota 对象 + HOT 独占扣减/释放时机 + 跨 Channel 仲裁, 与 REALTIME_PROFILE.resource_reservation=REQUIRED 一致; ④ **G6 (P0) 闭合**: 9 PASS → 提交 ChangeSet (E-33) 带 L2 Review/Approve/回滚闭环 (原子提交+审阅), 原 E-33 仅结构缺审批界面; ⑤ 反向追溯链接 D1-D5 (CD-01 TAKE 触发 / E-42 VERIFIED 源 / D1 输出 criticality / D4 编码资源)。
-- 缺口标注（链末收口）: G3 基带 SDI 输出变体仍待 06-output 升级 (B-13 #7 已显示 SDI REQUIRED, 但 06-output 缺该变体) / G7 时钟域联动校验 (E-37) / G9 Take/Create 口径已在 D1 文案统一 / G10 音频映射 (D3/D4) / G11 命名约束 (D1) — 均不在 D6 范围, 延续既有标注。G6 若需独立审阅 surface, 可拆 D7 ChangeSet Review (见 F.4 建议), 本链 D6 已内联闭合。
+- 缺口标注（链末收口）: G3 基带 SDI 输出变体仍待 06-output 升级 (B-13 #7 已显示 SDI REQUIRED, 但 06-output 缺该变体) / G7 时钟域联动校验 (E-37) / G9 Take/Create 口径已在 D1 文案统一 / G10 音频映射 (D3/D4) / G11 命名约束 (D1) — 均不在 D6 范围, 延续既有标注。G6 若需独立审阅 surface, 可拆 D7 ChangeSet Review (见 F.4 建议), 本链 D6 已内联闭合。`state: historical: OPEN@D6 · current: G3/G7 CLOSED (0.5D.1 6367cd8), G10 PARTIAL`
 - 注册：B-13 为既有 Spec-only 表面 (0.5G 实施); 本次补其 wireframe, **不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**。B-13 行注 D6 原型。§2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型）。**验收链 D1→D2→D3→D4→D5→D6 全链完成**。
 
@@ -361,3 +388,37 @@
 ### H.7 0.5D.1 状态判断
 - 本轮无新增 surface (D1-D7 已在前序); 修复: SDI 边界回退 / Profile 计数 / Template 对象 / Registry / Reservation / ChangeSet。
 - 后续 (非本轮): P1-1 Source/Endpoint/Adapter 边界、E-40 Media Contract 屏 (十三)、Network/Media Path 双视图组件 (十四)、Duplicate Channel (十九)、Host/Device Capacity 视图 (二十)、E-40→E-42 数据契约显式化。
+
+---
+
+## I. 0.5D.2 / 0.5E Closure — SoT 回写 + 状态/工作流闭环 (2026-08-25 末 · 用户第 5 轮检修 6367cd8)
+
+> 用户检修结论: 已非常接近 Phase 0.5 FINAL, 但**规范层尾部不一致** ("新模型已修, 旧文档/旧 UI 仍留旧语义") 仍不能冻结。本轮不加页面, 只做 SoT 回写 + 状态/工作流 Closure。
+
+### I.1 P0-1 全仓旧计数 / 对象数残留清零
+- 14→15 对象: PIA (3 处) / 0.5E (2 处) / SURFACE_SPEC (5 处) / E-41 / MILESTONES / milestones / POM / phase-0.5 README 全部改 15。
+- 48→53 表面: 0.5E Navigate / Command Palette / 验证清单 (4 处) + SURFACE_SPEC ROADMAP 改注册表口径。
+- 6→7 Profile: NAVIGATION ENGINEERING 域表 Profile (6)→(7)。
+- 说明: Job "6 子类" (FILE_TRANSCODE/REALTIME_ENCODE/PROBE/QC/UPLOAD/ARCHIVE) 为正确, 未动。
+
+### I.2 P0-2 RECONCILIATION 切 Current Baseline
+- 文件顶部新增 **CURRENT BASELINE (SoT)** 块: G-A~G-D / G1-G11 / P0-1..P0-9 / SDI 回退 / Profile 残留 / 计数多源 / ChangeSet 混用 全部登记当前状态 + closed_by。下方所有章节标注 HISTORY, 禁止把历史 "待补/未完成" 当当前缺口。
+- D2-D6 历史缺口标注行内联 `state: historical / current / closed_by` 标记。
+
+### I.3 P0-3 Preflight 时态分离 (B-13 v2)
+- 9 项拆两区: **A · CONFIGURATION PREFLIGHT** (Video/Audio/Latency/Resource — "能部署吗") + **B · RUNTIME TAKE READINESS** (Source/Clock/Switch/Backup/Output — "现在能切吗")。
+- 最终判断: CONFIGURATION = PASS · RUNTIME READINESS = PASS → **TAKE AVAILABLE**; 附四动作语义 (Configure ≠ Validate ≠ Apply ≠ Operate)。
+
+### I.4 P1-1 Source Assignment Matrix (02-sources)
+- ASSIGN TO CHANNEL 面板升级为矩阵视图: Source × Channel × Role × Priority × Standby × Verified × Preflight + [Change Role][Promote][Detach]。
+- 关系语义焊死: Source→Channel 多对多, 均为 **Channel relationship 操作, 不修改 Source 自身配置** (Adapter/Endpoint/Contract 属 E-40/E-42)。
+
+### I.5 P1-2 Reservation 对象化回写 (CH-02 step6)
+- 消除矛盾: CH-02 资源预览原 "缺 Reservation/Quota 对象" 缺口卡 → 改为 **Reservation 对象卡** (state PROVISIONED→RESERVED / scope HOT / owner CH02 / expires session stop), 与 RESOURCE_RESERVATION_SPEC.md 一致, 设计缺口已关闭。
+
+### I.6 附带回写
+- D3 CD-01 v2 Provenance 条完整化: Template / **Instantiated at** / Bundle Snapshot / **Template Sync OFF · immutable snapshot** — 明确"实例化后与模板的关系"。
+- B-13 v2 页脚 G3/G7 状态改为已闭 (0.5D.1)。
+
+### I.7 剩余 (非冻结阻断, 0.5E/0.5G)
+- E-40 Media Contract 屏 · Network/Media Path 双视图组件 · Duplicate Channel · Host/Device Capacity 视图 · E-40→E-42 数据契约显式化 · M-18 kind 差异化 UI · Context Command Palette · Dependency/Impact Workspace · 退役工作流统一 UX。

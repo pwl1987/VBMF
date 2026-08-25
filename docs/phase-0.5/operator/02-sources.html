@@ -345,15 +345,19 @@
     <button class="btn primary">🔗 Assign + Preflight (L2)</button>
     <a href="CD-01-channel-workspace.html" class="btn">↗ Open CD-01 Channel Workspace →</a>
   </div>
-  <h3 style="font-size:11px;color:var(--fgdim);margin:16px 0 8px">Current Mapping 当前映射</h3>
+  <h3 style="font-size:11px;color:var(--fgdim);margin:16px 0 8px">Source Assignment Matrix 源分配矩阵 (P1-1 · 多对多关系视图)</h3>
   <table>
-    <thead><tr><th>Source</th><th>Channel</th><th>Role</th><th>Clock</th><th>Switch</th><th>Standby</th><th>Preflight</th></tr></thead>
+    <thead><tr><th>Source</th><th>Channel</th><th>Role</th><th>Priority</th><th>Standby</th><th>Verified</th><th>Preflight</th><th></th></tr></thead>
     <tbody>
-      <tr><td>SDI-01</td><td>CH01</td><td><span class="pill pill-green">PRIMARY</span></td><td>AUTO</td><td>FRAME_SWITCH</td><td>HOT</td><td><span class="pill pill-green">PASS</span></td></tr>
-      <tr><td>UDP-MULTICAST-001</td><td>CH02</td><td><span class="pill pill-green">PRIMARY</span></td><td>AUTO</td><td>FRAME_SWITCH</td><td>HOT</td><td><span class="pill pill-green">PASS</span></td></tr>
-      <tr><td>UDP-EXT-001</td><td>CH03</td><td><span class="pill pill-yellow">BACKUP</span></td><td>AUTO</td><td>FRAME_SWITCH</td><td>WARM</td><td><span class="pill pill-green">PASS</span></td></tr>
+      <tr><td>SDI-01</td><td>CH01</td><td><span class="pill pill-green">PRIMARY</span></td><td style="font-family:Menlo,monospace">100</td><td>HOT</td><td><span style="color:var(--green)">✅ E-42</span></td><td><span class="pill pill-green">PASS</span></td><td><button class="btn">Change Role</button><button class="btn">Detach</button></td></tr>
+      <tr><td>UDP-MULTICAST-001</td><td>CH01</td><td><span class="pill pill-yellow">BACKUP</span></td><td style="font-family:Menlo,monospace">90</td><td>HOT</td><td><span style="color:var(--green)">✅ E-42</span></td><td><span class="pill pill-green">PASS</span></td><td><button class="btn">Promote</button><button class="btn">Change Role</button></td></tr>
+      <tr><td>SRT-02</td><td>CH01</td><td><span class="pill pill-yellow">BACKUP</span></td><td style="font-family:Menlo,monospace">80</td><td>WARM</td><td><span style="color:var(--green)">✅ E-42</span></td><td><span class="pill pill-gray">NOT TESTED</span></td><td><button class="btn">Change Role</button></td></tr>
+      <tr><td>UDP-EXT-001</td><td>CH03</td><td><span class="pill pill-yellow">BACKUP</span></td><td style="font-family:Menlo,monospace">80</td><td>WARM</td><td><span style="color:var(--yellow)">⚠ VERIFIED</span></td><td><span class="pill pill-green">PASS</span></td><td><button class="btn">Promote</button><button class="btn">Detach</button></td></tr>
     </tbody>
   </table>
+  <div class="diag" style="border-left-color:var(--purple);margin-top:8px">
+    <b>关系语义 (P1-1):</b> Source→Channel 为<b>多对多</b>关系 (1 Source 可入多个 redundancy_group / 1 Channel 可有多 Source)。<b>[Assign] / [Change Role] / [Promote] / [Detach]</b> 均为 <b>Channel relationship 操作</b> — 只改 assignment 关系 (role / priority / standby)，<b>绝不修改 Source 自身配置</b> (Adapter / Endpoint / Contract 由 E-40 / E-42 持有)。[Promote] 需先过 B-13 Runtime TAKE READINESS (Primary/Backup/Clock/Output 全 PASS)。
+  </div>
 </div>
 
 <footer>

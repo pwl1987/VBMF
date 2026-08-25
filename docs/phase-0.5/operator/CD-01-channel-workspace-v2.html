@@ -132,19 +132,23 @@
   <h3>⛓ 实例来源 Provenance (Template → Bundle → Channel) <span class="pill pill-purple">immutable snapshot</span></h3>
   <div class="row">
     <div class="col-4">
-      <div class="k">源自 Channel Template (工厂, 不进运行态)</div>
+      <div class="k">Template (创建工厂, 不进运行态)</div>
       <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">CH01-News-Live</a> <span class="pill pill-purple">Rev v3</span></div>
-      <div class="diag">Channel Template = 创建工厂 (OBJECT_VOCAB §1.5). 本 Channel 在 STARTING 时由其实例化; 模板本身不参与运行态.</div>
+      <div class="k" style="margin-top:4px">Instantiated at</div>
+      <div class="v" style="font-size:11px">2026-08-25 08:30 (实例化时刻)</div>
+      <div class="diag">Channel Template = 创建工厂 (OBJECT_VOCAB §1.15). 本 Channel 在 STARTING 时由其实例化; 模板本身不参与运行态.</div>
     </div>
     <div class="col-4">
-      <div class="k">Profile Bundle (7 Profile 引用)</div>
+      <div class="k">Bundle Snapshot (7 Profile 引用)</div>
       <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
-      <div class="diag">实例化时快照 Template 默认 7 Profile 引用; Template Rev 升级不回灌本 Channel (快照不可变).</div>
+      <div class="k" style="margin-top:4px">Template Sync</div>
+      <div class="v" style="font-size:11px;color:var(--yellow)">OFF · immutable snapshot</div>
+      <div class="diag">实例化时快照 Template 默认 7 Profile 引用; Template Rev 升级 <b>不会自动同步</b>到本 Channel (快照不可变).</div>
     </div>
     <div class="col-4">
       <div class="k">Channel Lifecycle</div>
       <div class="v green" style="margin:4px 0;font-size:14px">● RUNNING</div>
-      <div class="diag">STARTING → READY_TO_TAKE → (TAKE) → RUNNING. 模板仅参与 STARTING 之前; 之后运行态独立于模板.</div>
+      <div class="diag">STARTING → READY_TO_TAKE → (TAKE) → RUNNING. 模板仅参与 STARTING 之前; 之后运行态独立于模板 (D3 Provenance 完整化).</div>
     </div>
   </div>
   <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 在 <a href="CH-02b-channel-template-center.html">D2 Channel Template Center</a> 的模板卡 "Used By" 列表可看到本 Channel (验证 D2 的反向追溯声明).</div>
@@ -228,7 +232,7 @@
           <div class="diag">Ch1-2 主 · Ch3-8 伴音 · Ch9-16 空闲</div>
         </div>
       </div>
-      <div class="gap">⚠ G10 (P2): 16ch → 输出布局映射 (Embed Audio 选 Ch1-8/1-16) 在 D1 已暴露, 但运行态音频映射 / Rights 窗口地域 / 监控告警端点未建模. → 落 D3/D4.</div>
+      <div class="gap">🟡 G10 (PARTIAL · 非冻结阻断): 16ch → 输出布局映射 (Embed Audio 选 Ch1-8/1-16) 已在 D1 暴露; 运行态音频映射 / Rights 地域 / 告警端点余项待 0.5E.</div>
     </div>
   </div>
   <div class="col-4">
@@ -251,7 +255,7 @@
         <div class="sr"><span class="name">冷备, 不参与 failover 链</span></div>
       </div>
       <div class="diag">2/3 HEALTHY. PRIMARY=srcP, BACKUP=srcB (源自 CH01-News-Live 模板默认). 备源经 E-42 7 层验证 (G2).</div>
-      <div class="gap">⚠ G5 (P1): 源实时预览 (视频缩略流 + 音频 LUFS/RMS 端点) 未定义, 待 D5/E-42 补; 当前 PVW 预览为占位.</div>
+      <div class="gap ok">✅ G5 (P1) 已闭合 (D5 / 0.5D.1): 源实时预览端点定义在 E-42 (Source Runtime Preview Stream), D1/D3 PVW 复用同一端点, 不重复定义.</div>
     </div>
   </div>
 </div>
@@ -277,7 +281,7 @@
         <span class="diag" style="margin:0">同 D1 第⑤步口径: 网络输出可无限添加, 资源预览三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
       </div>
       <div class="diag">REQUIRED 必须 HEALTHY 否则 Take 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4.</div>
-      <div class="gap">⚠ G4 (P0) Output Resilience 未建模: 重连策略(指数退避·次数) / 心跳间隔 / zombie 输出判定 / Test Send 联动 均无独立 OutputResilience 配置对象, 待 D6 / 06-output. ⚠ G3 (P0) SDI 基带输出变体在 06-output 仍缺失, 此处仅为 wireframe 占位.</div>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 独立对象 (重连策略·指数退避 / 心跳 / zombie 判定 / Test Send 联动) 落 06-output + D6/B-13. ✅ G3 (P0) 已闭合: SDI 基带输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema, 不参与运行态.</div>
     </div>
   </div>
   <div class="col-4">
@@ -287,7 +291,7 @@
       <div class="failover"><span class="on">AUTO</span> 信号丢失自动切 (判据阈值待定)</div>
       <div class="failover" style="border-left:3px solid var(--gray);border-color:var(--gray)">Hot Standby: <b>HOT</b> (独占资源). 主源故障按决策自动/手动切备源.</div>
       <div class="diag">切换判据 (静帧/黑场/音频丢失阈值) 在 D5/E-40 定义; 此处仅选策略.</div>
-      <div class="gap">⚠ G4 (P0): 输出层故障 ≠ 源故障, 但 Output Resilience (重连/心跳) 未建模, 故障恢复行为待 D6 明确.</div>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): Output Resilience (重连/心跳/退避) 已建模为独立对象 (06-output + D6/B-13); 输出层故障 ≠ 源故障, retry 失败只降级+告警, 不切源.</div>
     </div>
     <!-- TAKE -->
     <div class="panel">
@@ -316,7 +320,7 @@
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 3 张 (D3, CD-01 Channel Workspace v2 升级). 本页把 D1/D2 产出的 <b>Template → Profile Bundle → Channel</b> 在运行态反射: 顶部 Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余 (srcP/srcB 来自模板) + 反向追溯 D2. 橙色块延续 D1/D2 口径标注 G3/G4/G5/G9/G10 缺口 (详见对账报告 §F). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b>. 本页为运行态反射原型, 不新增 surface (升级既有 CD-01, 不计入 NAVIGATION 计数).
+  🧭 这是 0.5D 验收链第 3 张 (D3, CD-01 Channel Workspace v2 升级). 本页把 D1/D2 产出的 <b>Template → Profile Bundle → Channel</b> 在运行态反射: 顶部 Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余 (srcP/srcB 来自模板) + 反向追溯 D2. 历史缺口块: G3/G4/G5 已由 0.5D.1 关闭 (绿块), G10 PARTIAL 待 0.5E (详见对账报告 §F/§H/§I). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b>. 本页为运行态反射原型, 不新增 surface (升级既有 CD-01, 不计入 NAVIGATION 计数).
 </div>
 
 <script>

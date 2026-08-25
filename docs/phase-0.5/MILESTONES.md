@@ -29,7 +29,7 @@ docs/
 docs/
 ├── phase-0.5/                                # 整个 Phase 0.5 一个目录
 │   ├── README.md                             # Phase 0.5 顶层 README
-│   ├── OBJECT_VOCABULARY.md                  # 14 个对象权威定义
+│   ├── OBJECT_VOCABULARY.md                  # 15 个对象权威定义
 │   ├── PRODUCT_OBJECT_MODEL.md               # 3 层组合关系
 │   ├── NAVIGATION.md                         # 4 域导航
 │   ├── DESIGN_SYSTEM.md                      # 4 State Models + 15 组件

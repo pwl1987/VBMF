@@ -123,19 +123,33 @@
   </div>
 </div>
 
-<!-- 9-ITEM CHECKLIST -->
+<!-- 9-ITEM CHECKLIST · 时态分离 (P0-3: Configuration Preflight ≠ Runtime Take Readiness) -->
 <div class="panel">
-  <h3>🔬 联合检查 · 9 项 (全部 PASS 放 TAKE) <span class="pill pill-green" style="float:right">9/9 PASS</span></h3>
-  <div class="chk pass"><div class="no">1</div><div class="body"><div class="name">Source</div><div class="std">Source B LOCKED · UDP-MC 239.20.10.10 STREAMING</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video</div><div class="std">1080p25 · H.264 · 匹配 Realtime Profile P-22</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk pass"><div class="no">3</div><div class="body"><div class="name">Audio</div><div class="std">L/R + 16ch embedded · LUFS -23.0 ∈ Profile 范围</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk pass"><div class="no">4</div><div class="body"><div class="name">Clock</div><div class="std">PTP LOCKED · AVSync +12ms · drift +0.4ms/min</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk pass"><div class="no">5</div><div class="body"><div class="name">Switch</div><div class="std">目标 Switch Mode = FRAME_SWITCH · eligible · p95 87ms &lt; 100</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk pass"><div class="no">6</div><div class="body"><div class="name">Backup</div><div class="std">READY_TO_TAKE · Hot Standby 就绪 (SDI-02 HOT)</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk pass"><div class="no">7</div><div class="body"><div class="name">Output (delivery_criticality)</div><div class="std">REQUIRED 全 HEALTHY; OPTIONAL/AUX 仅 WARNING · 按 Failure Domain 不误切源</div></div><div class="st pass">PASS · REQUIRED 阻断</div></div>
-  <div class="chk warn"><div class="no">8</div><div class="body"><div class="name">Latency</div><div class="std">Budget PASS · ≤ max_startup_latency (est 1.8s / 2.0s)</div></div><div class="st pass">PASS · 阻断</div></div>
-  <div class="chk warn"><div class="no">9</div><div class="body"><div class="name">Resource (E-36 Vector)</div><div class="std">编码器 71% / 网络 63% · ≤80% PASS; HOT 独占已计入 Reservation</div></div><div class="st pass">PASS · BLOCK &gt;100%</div></div>
-  <div class="diag">#7 / #9 见下方 <b>OutputResilience (G4)</b> 与 <b>Reservation (G8)</b> 模型; 对齐 Failure Domain Matrix: Output 坏→提示 Rejoin/修 Output, 不误切节目源.</div>
+  <h3>🔬 联合检查 · 9 项 · 时态分离 (Configuration ≠ Runtime) <span class="pill pill-green" style="float:right">9/9 PASS</span></h3>
+
+  <div class="subblk">
+    <div class="sh"><span class="dot blue"></span> A · CONFIGURATION PREFLIGHT — "这套配置理论上能不能部署?"</div>
+    <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video (配置兼容)</div><div class="std">1080p25 · H.264 · 匹配 Realtime Profile P-22</div></div><div class="st pass">PASS</div></div>
+    <div class="chk pass"><div class="no">3</div><div class="body"><div class="name">Audio (配置兼容)</div><div class="std">L/R + 16ch embedded · LUFS -23.0 ∈ Profile 范围</div></div><div class="st pass">PASS</div></div>
+    <div class="chk pass"><div class="no">8</div><div class="body"><div class="name">Latency (配置 SLA)</div><div class="std">Budget PASS · ≤ max_startup_latency (est 1.8s / 2.0s)</div></div><div class="st pass">PASS</div></div>
+    <div class="chk pass"><div class="no">9</div><div class="body"><div class="name">Resource (配置 Vector)</div><div class="std">编码器 71% / 网络 63% · ≤80% PASS; HOT 独占已计入 Reservation</div></div><div class="st pass">PASS · BLOCK &gt;100%</div></div>
+  </div>
+
+  <div class="subblk" style="margin-top:10px">
+    <div class="sh"><span class="dot green"></span> B · RUNTIME TAKE READINESS — "现在这一秒能不能切?"</div>
+    <div class="chk pass"><div class="no">1</div><div class="body"><div class="name">Source (Primary)</div><div class="std">Source B LOCKED · UDP-MC 239.20.10.10 STREAMING</div></div><div class="st pass">PASS · 阻断</div></div>
+    <div class="chk pass"><div class="no">4</div><div class="body"><div class="name">Clock</div><div class="std">PTP LOCKED · AVSync +12ms · drift +0.4ms/min</div></div><div class="st pass">PASS · 阻断</div></div>
+    <div class="chk pass"><div class="no">5</div><div class="body"><div class="name">Switch</div><div class="std">目标 Switch Mode = FRAME_SWITCH · eligible · p95 87ms &lt; 100</div></div><div class="st pass">PASS · 阻断</div></div>
+    <div class="chk pass"><div class="no">6</div><div class="body"><div class="name">Backup</div><div class="std">READY_TO_TAKE · Hot Standby 就绪 (SDI-02 HOT)</div></div><div class="st pass">PASS · 阻断</div></div>
+    <div class="chk pass"><div class="no">7</div><div class="body"><div class="name">Output (delivery_criticality)</div><div class="std">REQUIRED 全 HEALTHY; OPTIONAL/AUX 仅 WARNING · 按 Failure Domain 不误切源</div></div><div class="st pass">PASS · REQUIRED 阻断</div></div>
+  </div>
+
+  <div class="diag" style="border-left-color:var(--green)">
+    <b>最终判断 (P0-3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">TAKE AVAILABLE</b>. 任一区域 FAIL → 对应区标 RED → TAKE 禁用; #7 REQUIRED FAIL → 阻断, OPTIONAL/AUX FAIL → 仅 WARNING (不误切源). #7/#9 模型见下方 <b>OutputResilience (G4)</b> 与 <b>Reservation (G8)</b>.
+  </div>
+  <div class="diag" style="border-left-color:var(--purple);margin-top:8px">
+    <b>四动作语义 (0.5D.2):</b> Configure (改 Desired) ≠ Validate (Preflight, 本页) ≠ Apply (ChangeSet / Logical Atomic) ≠ Operate (TAKE / FAILOVER / RESTART / FALLBACK). <b>Apply ≠ Start; Start ≠ Take; Take ≠ Failover.</b> Apply 走 ChangeSet, Operate 在 CD-01.
+  </div>
 </div>
 
 <!-- G4 OUTPUT RESILIENCE (闭合 G4) -->
@@ -191,7 +205,7 @@
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight v2) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (E-33 带 L2 Review/Approve/回滚, 可拆 D7). G3 (SDI 基带输出变体仍待 06-output 升级) / G7 (时钟域联动 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
+  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight v2) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (E-33 带 L2 Review/Approve/回滚, 可拆 D7). G3 (SDI 基带输出变体 — 0.5D.1 已以 RESERVED 落 06-output, commit 6367cd8) / G7 (时钟域联动 — 0.5D.1 已落 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4, PARTIAL) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
 </div>
 
 <script>
