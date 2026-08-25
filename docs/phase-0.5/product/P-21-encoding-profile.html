@@ -281,8 +281,16 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
     <div class="form-row"><label>Startup Budget</label><input type="text" value="≤ 2.0s"><div class="field-hint">max startup latency (B-13 Preflight #8)</div></div>
     <div class="form-row"><label>Hot Standby</label><select><option>COLD</option><option>WARM</option><option selected>HOT</option></select></div>
-    <div class="form-row"><label>Resource Reservation</label><select><option selected>REQUIRED</option><option>OFF</option></select><div class="field-hint">与 RESOURCE_RESERVATION_SPEC 联动</div></div>
-    <div class="form-row"><label>Failover Policy</label><select><option>PACKET</option><option selected>FRAME</option><option>MASTER</option></select></div>
+    <div class="form-row"><label>Resource Reservation</label><input type="text" value="🔒 REQUIRED" readonly style="color:var(--green);font-weight:600"><div class="field-hint">🔒 REALTIME_PROFILE 强约束 (resource_reservation=REQUIRED, ENCODE_MODEL_SPEC §3) · 禁 OFF · FILE_PROFILE 时显示 N/A</div></div>
+    <div class="form-row">
+      <label>Failover Compatibility</label>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;padding:4px 0">
+        <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" checked> FRAME_SWITCH</label>
+        <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" checked> MASTER_SWITCH</label>
+        <label style="display:flex;align-items:center;gap:4px"><input type="checkbox"> PACKET_SWITCH</label>
+      </div>
+      <div class="field-hint">Encoding Profile 只声明 <b>兼容哪些 Switch Mode</b> (可多选, ENCODE_MODEL_SPEC §3 failover_compatibility); 实际 <b>Effective Switch Mode</b> 由 Graph Compiler Decision Tree (Capability + Runtime Alignment + Channel Target + Clock) 决定. 本例 effective = FRAME_SWITCH.</div>
+    </div>
     <div class="form-row"><label>Worker Constraints</label><input type="text" value="realtime-pool · cpu-pinning"></div>
   </div>
 </div>
@@ -339,7 +347,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="section-content" style="margin-top:8px">
     <h3 class="section-h">3. Rate Control 码率控制</h3>
     <div class="form-grid">
-      <div class="form-row"><label>Mode</label><select><option selected>CBR</option><option>VBR</option><option>Capped VBR</option></select></div>
+      <div class="form-row"><label>Mode (REALTIME)</label><select><option selected>CBR</option><option>Capped VBR</option><option disabled>VBR (Unbounded · 🚫 禁用于 REALTIME)</option></select><div class="field-hint">REALTIME_PROFILE 禁止 Unbounded VBR (ENCODE_MODEL_SPEC §3 rate_control); 实时码率预算必须可预测. FILE_PROFILE 可选 VBR / 2-pass.</div></div>
       <div class="form-row"><label>Bitrate (Mbps)</label><input type="text" value="5.0"></div>
       <div class="form-row"><label>VBV Maxrate (Mbps)</label><input type="text" value="5.5"></div>
       <div class="form-row"><label>VBV Buffer (kbit)</label><input type="text" value="10000"></div>

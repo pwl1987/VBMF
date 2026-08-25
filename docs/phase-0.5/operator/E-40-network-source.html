@@ -100,24 +100,46 @@
 <div class="row">
   <div class="col-8">
     <div class="panel">
-      <h3>📝 创建网络源 (UDP Multicast SSM)</h3>
+      <h3>📝 创建网络源 (Network → UDP)</h3>
       <div style="background:var(--bg2);border:1px solid var(--accent);border-radius:4px;padding:10px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:6px">① Source Kind <span style="color:var(--fgdim);font-weight:400">(第一选择 · 决定 Adapter → Protocol → Endpoint Schema → Verification)</span></div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:6px">① Source Kind → ② Transport → ③ Delivery Mode → ④ Endpoint Schema <span style="color:var(--fgdim);font-weight:400">(三级联动: 决定 Schema)</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <span class="pill pill-yellow">Network</span>
-          <span style="font-size:10px;color:var(--fgdim)">UDP Unicast · UDP MC ASM · UDP MC SSM · RTP · SRT · RTMP · HLS · WebRTC Pull · RTSP</span>
+          <span style="font-size:10px;color:var(--fgdim)">UDP · RTP · SRT · RTMP · HLS · WebRTC Pull · RTSP — 本页演示 Network → UDP</span>
         </div>
-        <div style="font-size:10px;color:var(--fgdim);margin-top:4px">Physical (SDI) / File (Local · Object Storage) / Internal (BLACK · BARS · FILLER) 为其他 Kind 分支 — 本页演示 <b>Network → UDP Multicast SSM</b> 三级联动 (0.5D.3)。Kind 改变时 Protocol 与 Endpoint Schema 随之切换, 非一个大表单。</div>
+        <div style="font-size:10px;color:var(--fgdim);margin-top:4px">Physical (SDI) / File / Internal (BLACK·BARS·FILLER) 为其他 Kind 分支。Kind 决定 Transport; Transport(UDP) 再决定 Delivery Mode (UNICAST / MULTICAST_ASM / MULTICAST_SSM), 三者 Endpoint Schema 不同 — 不是平铺大表单。</div>
       </div>
       <div class="form-grid">
-        <div class="form-row"><label>Protocol</label><select><option selected>UDP/RTP</option><option>SRT</option><option>RTMP</option><option>HLS</option></select></div>
-        <div class="form-row"><label>Container</label><select><option selected>MPEG-TS</option><option>RTP raw</option></select></div>
+        <div class="form-row"><label>Transport</label><select><option selected>UDP</option><option>RTP</option><option>SRT</option><option>RTMP</option><option>HLS</option><option>WebRTC Pull</option><option>RTSP</option></select></div>
+        <div class="form-row"><label>Delivery Mode (UDP)</label><select><option>UNICAST</option><option>MULTICAST_ASM</option><option selected>MULTICAST_SSM</option></select></div>
+      </div>
+      <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · MULTICAST_SSM (active)</div>
+      <div class="form-grid">
         <div class="form-row"><label>Local Interface</label><select><option selected>eno1 (10G · 10.30.20.10)</option><option>eno2</option></select></div>
         <div class="form-row"><label>Multicast Group</label><input value="239.20.10.10" style="border-color:var(--accent)"></div>
         <div class="form-row"><label>Port</label><input value="5000"></div>
         <div class="form-row"><label>SSM Source IP</label><input value="10.30.20.100" style="border-color:var(--accent)"></div>
         <div class="form-row"><label>IGMP</label><select><option selected>v3 (SSM)</option><option>v2</option></select></div>
+        <div class="form-row"><label>Transport Format</label><select><option selected>MPEG-TS over UDP</option><option>RTP (encapsulation)</option></select></div>
         <div class="form-row"><label>DSCP/TOS</label><input value="46 (EF) / 0xB8"></div>
+      </div>
+      <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · UNICAST (alternate)</div>
+      <div class="form-grid" style="opacity:0.85">
+        <div class="form-row"><label>Local Interface</label><select><option selected>eno1</option></select></div>
+        <div class="form-row"><label>Remote Address</label><input value="10.30.20.50"></div>
+        <div class="form-row"><label>Remote Port</label><input value="5000"></div>
+        <div class="form-row"><label>Source Address (opt)</label><input value="—"></div>
+        <div class="form-row"><label>Transport Format</label><select><option selected>MPEG-TS over UDP</option><option>RTP</option></select></div>
+        <div class="form-row"><label>DSCP/TOS</label><input value="46 (EF)"></div>
+      </div>
+      <div style="font-size:10px;color:var(--fgdim);margin:8px 0 4px;text-transform:uppercase;letter-spacing:1px">Endpoint Schema · MULTICAST_ASM (alternate)</div>
+      <div class="form-grid" style="opacity:0.85">
+        <div class="form-row"><label>Local Interface</label><select><option selected>eno1</option></select></div>
+        <div class="form-row"><label>Group Address</label><input value="239.20.10.10"></div>
+        <div class="form-row"><label>Port</label><input value="5000"></div>
+        <div class="form-row"><label>IGMP Version</label><select><option selected>v2 (ASM)</option><option>v3</option></select></div>
+        <div class="form-row"><label>Join / Leave</label><select><option selected>Auto-Join</option></select></div>
+        <div class="form-row"><label>DSCP/TOS</label><input value="46 (EF)"></div>
       </div>
       <div class="form-grid" style="margin-top:10px">
         <div class="form-row"><label>IP Allowlist</label><input value="10.30.20.0/24"></div>
@@ -125,17 +147,35 @@
         <div class="form-row"><label>SSM Validation</label><select><option selected>Reject ASM</option></select></div>
         <div class="form-row"><label>Input Rate Limit</label><input value="20 Mbps"></div>
       </div>
-      <div class="diag">字段集与 E-40 0.5F LOCK 一致 (Adapter/Endpoint/Security 8 字段). Source Kind 9 子类 (UDP-MC/SRT/RTMP/.../NDI/SDI/...) 选择决定可用协议与验证项.</div>
+      <div class="diag">三级联动: Source Kind → Transport(UDP/RTP/SRT/...) → Delivery Mode(Unicast/MC ASM/MC SSM) → Endpoint Schema. UDP/RTP 是 Transport (封装层), 非 Container; SSM 以 IGMPv3 校验 Source. 字段集与 E-40 0.5F LOCK 一致 (Adapter/Endpoint/Security 8 字段; 6 状态样例 CRITICAL 不可存 VERIFIED).</div>
     </div>
   </div>
   <div class="col-4">
     <div class="panel">
       <h3>🔬 验证 (E-42) <span class="pill pill-purple" style="float:right">必过</span></h3>
       <div class="v" style="margin:4px 0">UDP-MULTICAST-001 <span class="pill pill-purple">DRAFT</span></div>
-      <div class="diag">创建后必须跑 E-42 7 层验证; 未验证源不可存 VERIFIED, 不可用于 ON AIR.</div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:10px;margin-top:6px">
+        <div style="color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;font-size:9px;margin-bottom:4px">Verification Result (E-42 → 回写本页)</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px">
+          <span>Carrier</span><span style="color:var(--green)">✓</span>
+          <span>Packets</span><span style="color:var(--green)">✓</span>
+          <span>Continuity Counter</span><span style="color:var(--green)">✓</span>
+          <span>PAT / PMT</span><span style="color:var(--green)">✓</span>
+          <span>Video</span><span style="color:var(--green)">H.264 1080p25</span>
+          <span>Audio</span><span style="color:var(--green)">AAC 48k 2ch</span>
+          <span>PTS / DTS</span><span style="color:var(--green)">✓</span>
+          <span>PCR</span><span style="color:var(--green)">✓</span>
+          <span>Bitrate</span><span style="color:var(--green)">8.2 Mbps</span>
+          <span>Jitter</span><span style="color:var(--green)">3.1 ms</span>
+          <span>Loss</span><span style="color:var(--green)">0.02%</span>
+          <span>Clock</span><span style="color:var(--green)">LOCKED</span>
+        </div>
+        <div style="margin-top:6px;color:var(--green);font-weight:600">SOURCE READY ✓</div>
+      </div>
+      <div class="diag">创建后必须跑 E-42 7 层验证; 未验证源不可存 VERIFIED, 不可用于 ON AIR. 验证结果 compact 回写本页, 再允许 SAVE VERIFIED / ASSIGN.</div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
         <a href="E-42-source-test-bench.html" class="btn primary">▶ Run Source Test Bench → E-42</a>
-        <button class="btn l2">💾 存为 DRAFT (稍后验证)</button>
+        <button class="btn l2">💾 存为 VERIFIED (验证后)</button>
         <a href="CH-02-create-channel.html" class="btn">→ 去 D1 选 VERIFIED 源</a>
       </div>
       <div class="gap">⚠ G5 预览端点不在本页: 视频缩略流 + 音频 LUFS/RMS 预览在 <a href="E-42-source-test-bench.html" style="color:var(--orange)">E-42</a> 定义 (Source Runtime Preview Stream), 本页不重复.</div>

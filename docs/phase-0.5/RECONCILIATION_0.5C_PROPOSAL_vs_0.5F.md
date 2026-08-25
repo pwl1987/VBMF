@@ -495,3 +495,55 @@
 
 ### K.8 剩余 (0.5E/0.5G)
 - 同 §I.7 + E-40 Media Contract 屏 / Network-Media Path 双视图 / Duplicate Channel / Host-Device Capacity / Dependency-Impact Workspace / M-18 kind 差异化 / Context Command Palette / 退役工作流。
+
+---
+
+## L. 0.5D.4 Semantic Closure — P-22/P-21 对象边界 + 网络源建模 + 执行时序 (2026-08-25 末 · 用户第 8 轮反向审计 2d818f8)
+
+> 用户以 `2d818f8` 做反向一致性审计: 上一轮关键修正已落地, 但发现更深一层对象边界渗透。**结论: 仍不能 Freeze, 但本轮只做 `0.5D.4 Semantic Closure` (P0/P1 对象边界 + 执行时序), 不扩展页面。** 本轮 6 P0 + 7 P1 + 1 P2。
+
+### L.1 P0-1 P-22 移除 Destination / CDN Endpoint 表单
+- P-22 删除 `CDN Endpoint (Primary) https://cdn-a.internal/live` 表单字段 → 改为只读 `Destination 归 CD-21 Output → Variant → Destination`, 并加 field-hint 警告三处同存风险。Edge Policy 注修正: "Alternate Destination 由 P-27 **引用** (非本页创建)"。
+
+### L.2 P0-2 P-22 Adapter 归并 (SRT 不是独立 Adapter)
+- P-22 Adapter 示例 `SRSAdapter · FileAdapter / UDPAdapter · SRTAdapter` → `SRSAdapter (HLS·RTMP·SRT·WebRTC) · UDPAdapter · FileAdapter`。SRT 是 SRS Gateway 的一种 delivery protocol, 不再在 UI 造并列 `SRTAdapter` (与 V0.2 Output (SRS)→HLS/RTMP/SRT/WebRTC 一致)。
+
+### L.3 P0-3 P-21 REALTIME Resource Reservation 锁 REQUIRED
+- P-21 `Resource Reservation [REQUIRED/OFF]` → `🔒 REQUIRED` 只读, 禁 OFF (resource_reservation=REQUIRED 强约束); FILE_PROFILE 显示 N/A。
+
+### L.4/L.5 P0-4/5 P-21 Failover Policy → Failover Compatibility (多选)
+- P-21 `Failover Policy [PACKET/FRAME/MASTER]` 单选 → `Failover Compatibility` 多选 checkbox (FRAME_SWITCH / MASTER_SWITCH / PACKET_SWITCH); field-hint: Encoding Profile 只声明兼容哪些 Switch Mode, 实际 Effective 由 Graph Compiler Decision Tree 决定。
+- ENCODE_MODEL_SPEC §3 `failover_compatibility` 命名同步为 `PACKET_SWITCH/FRAME_SWITCH/MASTER_SWITCH` (可多选), 与 UI 一致。
+
+### L.6 P0-6 P-21 REALTIME Rate Control 限 CBR/Capped VBR
+- P-21 `Mode [CBR/VBR/Capped VBR]` → `[CBR / Capped VBR / (disabled) VBR (Unbounded · 🚫 禁用于 REALTIME)]`, 禁 Unbounded VBR (ENCODE_MODEL_SPEC §3 rate_control)。
+
+### L.7 P1-7 ENCODE_MODEL_SPEC 回写 profile_type 已落地
+- §1 标题 `profile_type 枚举（P-21 当前缺失）` → `（✅ 0.5D.3 已落地于 P-21）`; §1 说明 / §5 映射表 / §7 锚点三处同步回写, 消除 "Spec 与 HTML 两份事实"。
+
+### L.8/L.9 P1-8/9 E-40 三级联动 + UDP Unicast 分支 + Transport Format
+- E-40 表单重构为 **Source Kind → Transport → Delivery Mode → Endpoint Schema**: Transport (UDP/RTP/SRT/...) → Delivery Mode (UNICAST/MULTICAST_ASM/MULTICAST_SSM) → Endpoint Schema。补全 **UDP Unicast** (Remote Address/Port) 与 **Multicast ASM** (Group/IGMPv2) 分支 Schema (此前仅 SSM)。
+- `Container [MPEG-TS / RTP raw]` → `Transport Format [MPEG-TS over UDP / RTP (encapsulation)]`, 明确 UDP/RTP 是 Transport (封装层) 而非 Container。
+
+### L.10/L.11/L.12 P1-10/11/12 UX 闭环
+- E-40 验证面板回写 **E-42 Verification Result** compact 摘要 (Carrier/Packets/PAT-PMT/Video/Audio/Bitrate/Jitter/Loss/Clock → SOURCE READY), 再允许 SAVE VERIFIED/ASSIGN。
+- M-17 指标区加 **异常→恢复动作** 下钻 (Open AVSync Detail / Apply Compensation / Restart Adapter / Open Incident), 从监控页变生产操作页。
+- B-13 加 **Compact Confirmation** 说明: 正常 TAKE 显示紧凑确认, 仅异常展开 9 项诊断 (避免 24/7 盲点式确认)。
+
+### L.13 P1-13 EXECUTION_MODEL 加 TAKE vs ChangeSet 分离
+- 新增 §5: Configuration Change (ChangeSet→Apply→Runtime Rev) ≠ Operational TAKE (Runtime Event, 引用但不创建 ChangeSet); 模型层 Configuration/Runtime/Operational Surface 三分离。
+
+### L.14 P2-14 M-17 Target vs Measured 视觉分离
+- M-17 切换表 `target_failover_time_ms=100 (HOT)` / `measured_failover_ms p95=87` → 拆为 **HOT POLICY (Target 100ms)** 与 **BENCHMARK (Measured 87ms, ≠ Target)** 两段, 明确分割线。
+
+### L.15 关系焊死 (用户原话)
+```
+P-21 = 如何编码        P-22 = 如何交付 (≠ Destination ≠ Adapter)
+P-27 = 如何处理交付故障  CD-01 = Channel 操作组合
+M-17 = REALTIME Session  M-14 = FILE Job   E-40 = 外部 Source Endpoint
+REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
+```
+
+### L.16 剩余 (0.5E/0.5G, 全仓一致性扫描后 Freeze)
+- E-40 Media Contract 屏 / Network-Media Path 双视图 / P-22 未来 O-xx Destination 独立页 / Player Capability 由 Capability Registry 动态计算 / 全仓 Canonical Vocabulary + Surface Registry + Workflow 一致性扫描。
+- 用户建议下一轮做 **全仓一致性扫描**, 确认无 "两个模型之间来回渗透" 后, 再进入 **Phase 0.5 Freeze**。

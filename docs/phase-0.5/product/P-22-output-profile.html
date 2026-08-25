@@ -126,7 +126,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="box">
       <div class="label">Output Adapter</div>
       <div class="executes">执行协议 Plugin</div>
-      <div class="example">SRSAdapter · FileAdapter<br>UDPAdapter · SRTAdapter</div>
+      <div class="example">SRSAdapter <span style="color:var(--fgdim);font-size:9px">(HLS·RTMP·SRT·WebRTC)</span><br>UDPAdapter · FileAdapter</div>
     </div>
   </div>
   <div style="margin-top:10px;font-size:11px;color:var(--fgdim)">
@@ -272,11 +272,11 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
           <option>+ Create New Edge Policy →</option>
         </select>
         <div style="font-size:10px;color:var(--fgdim);margin-top:4px">
-          Reconnect / Retry / Failover / Backoff / Alternate Destination 由 P-27 Edge Policy Profile 统一管理.
-          Output Profile 仅负责 HOW (Delivery); Edge Policy 负责 Failure Handling.
+          Reconnect / Retry / Failover / Backoff 由 P-27 Edge Policy Profile 统一管理 (引用已在 CD-01 配置的 Destination).
+          Output Profile 仅负责 HOW (Delivery); Edge Policy 负责 Failure Handling (P-27 = 如何处理交付故障).
         </div>
       </div>
-      <div class="form-row"><label>CDN Endpoint (Primary)</label><input type="text" value="https://cdn-a.internal/live"></div>
+      <div class="form-row"><label>Destination (主/备/归档)</label><input type="text" value="归 CD-01 → Output → Variant → Destination" readonly style="color:var(--fgdim)"><div class="field-hint">⛔ P-22 只配 Delivery Policy (Profile); Destination 不在本页 — 由 CD-01 Channel Output 区或未来 O-xx Destination 页配置 (见 4-Tuple 关系). 否则会 output_profile.primary_endpoint / output_variant.destination / output_destination.endpoint 三处同存.</div></div>
     </div>
 
     <h4 style="color:var(--fgdim);font-size:11px;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Player Capability</h4>

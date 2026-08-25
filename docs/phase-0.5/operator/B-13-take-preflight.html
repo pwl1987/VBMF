@@ -160,7 +160,7 @@
     </div>
   </div>
   <div class="diag" style="border-left-color:var(--green);margin-top:8px">
-    <b>最终判断 (P0-3 + 0.5D.3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">READY → TAKE ENABLED</b>. 结果闭集: `READY` / `CONDITIONAL` (仅 WARNING + Reservation 满足 + REQUIRED 全 PASS) / `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). <b>Reservation 门禁 (P1-5):</b> TAKE 只验证 <code>reservation.state == RESERVED</code> (已 PREPROVISION/RESERVE), <b>绝不临时触发资源抢占</b>; 未 RESERVED → TAKE BLOCKED (Reason: Reservation NOT_READY → Action: Open Resource Impact / Provision).
+    <b>最终判断 (P0-3 + 0.5D.3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">READY → TAKE ENABLED</b>. 结果闭集: `READY` / `CONDITIONAL` (仅 WARNING + Reservation 满足 + REQUIRED 全 PASS) / `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). <b>Reservation 门禁 (P1-5):</b> TAKE 只验证 <code>reservation.state == RESERVED</code> (已 PREPROVISION/RESERVE), <b>绝不临时触发资源抢占</b>; 未 RESERVED → TAKE BLOCKED (Reason: Reservation NOT_READY → Action: Open Resource Impact / Provision). <b>UX (0.5D.4):</b> 正常 TAKE 显示 <b>Compact Confirmation</b> (READY/RESERVED/SOURCE LOCKED/BACKUP READY), 仅异常才展开 9 项 B-13 诊断 — 避免 24/7 盲点式确认.</div>
   </div>
   <div class="diag" style="border-left-color:var(--purple);margin-top:8px">
     <b>四动作语义 (0.5D.2):</b> Configure (改 Desired) ≠ Validate (Preflight, 本页) ≠ Apply (ChangeSet / Logical Atomic) ≠ Operate (TAKE / FAILOVER / RESTART / FALLBACK). <b>Apply ≠ Start; Start ≠ Take; Take ≠ Failover.</b> Apply 走 ChangeSet, Operate 在 CD-01.

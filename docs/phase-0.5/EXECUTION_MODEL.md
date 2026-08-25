@@ -4,7 +4,7 @@
 >
 > **关联:** `OBJECT_VOCABULARY.md` (15 对象) · `PRODUCT_OBJECT_MODEL.md` (3 层组合) · `RESOURCE_RESERVATION_SPEC.md` (Reservation 生命周期) · `ENCODE_MODEL_SPEC.md` (FILE/REALTIME) · `B-13-take-preflight.html` (Preflight 门禁)
 >
-> **状态:** 🟢 **LOCKED** (0.5D.3) — 与 §J 对账一致
+> **状态:** 🟢 **LOCKED** (0.5D.3 + §5 0.5D.4) — 与 §J/§K 对账一致
 
 ---
 
@@ -109,6 +109,23 @@ Output Asset Version (ENC-v12 / ENC-v22 ...) ──► QC (可选) ──► 发
 - **Provision vs Reserve:** Provision = 预算/计划 (PROVISIONED); Reserve = 实际锁定 (RESERVED, 锁 9-dim vector + device_tokens)。HOT 备机必须同为 RESERVED 才算真锁。
 - **Start vs Take:** Start = Session 拉起 (STARTING→READY_TO_TAKE); Take = Operator 切出 (READY_TO_TAKE→RUNNING)。Start 后可停在 READY_TO_TAKE 等指令。
 - **Release:** STOP / 故障切换完成后 → RELEASED → 触发 PENDING 仲裁 (抢占走 PREEMPT_PENDING→DRAINING→RELEASED, 不直接 FAILED)。
+
+---
+
+## 5. Configuration Change ≠ Operational TAKE (0.5D.4 焊死)
+
+```text
+Configuration Change                Operational TAKE
+─────────────────────              ─────────────────────
+Draft → Validate → ChangeSet       Prepared Session → Readiness
+→ Approve → Apply → Runtime Rev     → Operator Intent → TAKE (Runtime Event)
+                                        → Incident / Audit
+```
+
+- **Configuration Change** 走 ChangeSet (Logical Atomic), 进 Runtime Revision。
+- **Operational TAKE** 是运行时事件 (Operator Intent → Runtime Event), 可引用 ChangeSet / Runtime Revision, 但**不是所有 TAKE 都创建 ChangeSet**。
+- B-13 验证对象 = 运行时就绪态 (Source / Clock / Output / Reservation); 与配置 ChangeSet 解耦 — **TAKE ≠ 一次配置变更**。
+- 模型层: **Configuration Surface ≠ Runtime Surface ≠ Operational Surface** — Desired/Compiled/Effective 是对象状态层; Config/Runtime/Operate 是用户工作层 (0.5D.4)。
 
 ---
 

@@ -27,7 +27,7 @@ EncodingProfile
 
 ---
 
-## 1. `profile_type` 枚举（本 Spec 新增，P-21 当前缺失）
+## 1. `profile_type` 枚举（✅ 0.5D.3 已落地于 P-21）
 
 ```yaml
 EncodingProfile:
@@ -37,7 +37,7 @@ EncodingProfile:
   file: FileSegment           # 仅当 profile_type == FILE_PROFILE 时必填
 ```
 
-> P-21 当前 Builder 未显式呈现 `profile_type` 选择；0.5D 实施时需在 **Section 1 Overview** 顶部加入 `profile_type` 单选，并据此切换 Realtime/File 段表单。
+> ✅ P-21 已落地 `profile_type` 单选 (FILE_PROFILE / REALTIME_PROFILE, 创建后不可变), 按类型切换 Realtime/File 段表单 (0.5D.3). 本 Spec 即其权威定义。
 
 ---
 
@@ -74,7 +74,7 @@ EncodingProfile:
 | `max_startup_latency` | ms（如 2000） | Preflight 校验上限 |
 | `target_cpu` | 核心数预算（如 4.0） | 联动 E-36 Resource Scheduler |
 | `target_gpu_sessions` | 并发 session 数 | 联动 Hardware Encoder Runtime Discovery |
-| `failover_compatibility` | `PACKET` / `FRAME` / `MASTER`（可多选） | 联动 V0.2 Switch Mode 3 |
+| `failover_compatibility` | `PACKET_SWITCH` / `FRAME_SWITCH` / `MASTER_SWITCH`（**可多选**） | Encoding Profile 只声明兼容哪些 Switch Mode; 实际 Effective Switch Mode 由 Graph Compiler Decision Tree 决定 (V0.2) |
 | `hot_standby` | `COLD` / `WARM` / `HOT` | 联动 V0.2 Hot-Standby 3 |
 | `resource_reservation` | `REQUIRED` | 实时预算预留，拒绝超卖 |
 
@@ -111,7 +111,7 @@ EncodingProfile:
 
 | 本 Spec | 现有文档 / 表面 |
 |---|---|
-| `profile_type` 选择 | P-21 §18.1 Builder Section 1（0.5D 加 `profile_type` 单选 + 段切换） |
+| `profile_type` 选择 | ✅ 已落地 P-21 Section 1 `profile_type` 单选 (FILE_PROFILE / REALTIME_PROFILE, 0.5D.3) |
 | Common 段字段 | P-21 §392-470（9 区，广播级，已 LOCK） |
 | `REALTIME_PROFILE` 运行时 | M-17 Realtime Transcode（Session 三轴 + 实时指标） |
 | `FILE_PROFILE` 运行时 | M-14 File Transcode（6 步 Wizard）/ M-18 Job Detail |
@@ -133,7 +133,7 @@ EncodingProfile:
 
 ## 7. 0.5D 实施锚点
 
-1. P-21 Builder Section 1 增加 `profile_type` 单选 → 切换 Realtime/File 段
+1. P-21 `profile_type` 单选 (✅ 已落地 0.5D.3) → 切换 Realtime/File 段
 2. Realtime 段按 §3 落字段 + Validation 新增实时校验
 3. M-17 / M-14 分别绑定 `REALTIME_PROFILE` / `FILE_PROFILE` 类型过滤
 4. P-28 Bundle 允许混合引用两类 Profile（Video 用 REALTIME，Archive 派生用 FILE）

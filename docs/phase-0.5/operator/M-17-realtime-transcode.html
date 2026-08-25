@@ -179,8 +179,10 @@
         <thead><tr><th>属性</th><th>值</th></tr></thead>
         <tbody>
           <tr><td>effective_switch_mode</td><td><span class="pill pill-blue">FRAME_SWITCH</span></td></tr>
-          <tr><td>target_failover_time_ms</td><td>100 (HOT)</td></tr>
-          <tr><td>measured_failover_ms p95</td><td>87</td></tr>
+          <tr style="background:var(--bg3)"><td colspan="2" style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px">HOT POLICY (Target · Policy)</td></tr>
+          <tr><td>target_failover_time_ms</td><td><b>100 ms</b> (Policy: HOT)</td></tr>
+          <tr style="background:var(--bg3)"><td colspan="2" style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px">BENCHMARK (Measured · 实测 ≠ Target)</td></tr>
+          <tr><td>measured_failover_ms p95</td><td><b>87 ms</b> (实测, 非 Target)</td></tr>
           <tr><td>filler_if_gt_1s</td><td><span class="pill pill-green">FILLER (snow+tone)</span></td></tr>
         </tbody>
       </table>
@@ -210,6 +212,15 @@
         <div class="col-3 metric"><div class="label">Clients</div><div class="val blue">1,247 HLS</div><div class="sub">+312 RTMP +89 WHIP</div></div>
       </div>
       <div class="diag">数据: E-38 Hardware + E-36 Resource · FRESH age 1s (0.5B.2 P0-2). H1-H7 全 PASS.</div>
+      <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
+        <div style="font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">异常 → 恢复动作 (监控必须可下钻到操作, 否则只是漂亮监控页)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button class="btn l2">AVSYNC +186ms · Open AVSync Detail</button>
+          <button class="btn l2">Apply Compensation</button>
+          <button class="btn l2">OUTPUT HLS DEGRADED · Restart Adapter</button>
+          <button class="btn l2">Open Incident #1248</button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="col-4">
