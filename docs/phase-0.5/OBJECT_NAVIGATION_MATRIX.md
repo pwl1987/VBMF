@@ -155,3 +155,40 @@ Effective Runtime
 - [ ] CD-01 同上下文呈现 Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 协作区
 - [ ] 点击 Audio → P-23 / Switch → 03 / Output → 06（深页），携带 `channel_id`
 - [ ] 不新增 Surface；驾驶舱 + 深页结构（OBJECT_VOCABULARY §1.19）
+
+---
+
+## 4. Phase 0.6 验收工作流 (0.5F.15 P-16 收口 · 不新增 Surface)
+
+> 仍以现有 Surface 验收，不增加页面。每条链必须端到端跑通对象→跳转→运行态。
+
+### AC-01 网络直播信号（外来 UDP/SSM）
+```text
+UDP/SSM (Source Workspace §1.17)
+ → Create Source → TEST → VERIFY → ASSIGN (Primary/Backup)
+ → CD-01-WS (Channel Workspace)
+ → Audio (§1.19) → Switcher (03) → PGM → Output Variant → SRS/UDP → Health
+```
+
+### AC-02 文件转码
+```text
+Asset (M-11) → Asset Version (M-12)
+ → M-14 (File Transcode) → Target Asset Version Role (§1.20)
+ → FILE_ENCODING_PROFILE (P-21) → Packaging Profile (P-20)
+ → Job Policy → Test Encode → Submit → Job (M-18, FILE_TRANSCODE)
+ → New Asset Version → QC → Used By
+```
+
+### AC-03 配置变更
+```text
+P-21/P-22 (Profile) → Change Bundle / Profile
+ → Impact Preview (P-28 §3.5) → Affected Channels/Variants → Resource → Preflight
+ → ChangeSet → Approve → Transactional Cutover → Compiled → Effective
+```
+
+### AC-04 故障
+```text
+CD-01-WS → Source failure → Failure Domain → Decision Tree
+ → PACKET / FRAME / MASTER → Failover (§1.23, ≠TAKE≠ChangeSet)
+ → Audit → Incident → Replay
+```

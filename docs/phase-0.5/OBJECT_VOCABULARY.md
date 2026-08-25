@@ -137,7 +137,7 @@
 | **绝不允许混用** | ❌ **Output Variant ≠ Asset Version** (后者在 1.2) |
 | **关系** | 1 Channel → N Output Variants (1:1 Profile 派生, 但 1 Profile → N Variants across channels) |
 | **Packaging 归属 (0.5F.13 焊死)** | ⛔ **禁止** 把 Packaging 当成 "全 Channel 唯一实例"。`packaging_profile_ref` 是 **per-Variant** 引用: 未显式指定时继承 `Bundle.packaging_profile_ref` (Default), 显式指定时 Variant Override。最终 `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override` (见 §1.16)。HLS / RTMP / UDP / File / WebRTC / 未来 2110 共存即靠此机制。 |
-| **Output Profile 唯一 SoT (0.5F.13 焊死)** | `output_profile_ref` 的**唯一权威来源 = Variant** (per-Variant 派生实例)。Bundle 不再持有 `output_profile_ref` 作为运行态真相; Bundle 仅提供 Template-level 默认 (`default_output_profile_ref`, 实例化时带入, 可被 Variant 覆盖)。禁止出现 "Bundle 的 Output Profile 与 Variant 的 Output Profile 双真相"。 |
+| **Output Profile 唯一 SoT (0.5F.13/0.5F.15 焊死)** | `output_profile_ref` 的**唯一权威来源 = Variant** (per-Variant 派生实例)。Bundle 仅提供 **Bundle/Instance Default** (`default_output_profile_ref`, 实例化时带入, 可被 Variant 覆盖); ⚠ 此 Default 属于 **Instance Bundle 层**, **不是** Channel Template 层。真正的 Template 级默认是 `ChannelTemplate.default_output_variants[]` (实例化后才落到 Instance Bundle 的 `default_output_profile_ref`)。禁止出现 "Bundle 的 Output Profile 与 Variant 的 Output Profile 双真相"。 |
 
 ### 1.9 Destination 输出目的地
 
@@ -443,7 +443,7 @@ Configuration Source Panel (点击任意派生值展开)
 
 ### 1.17 Source Workspace 统一入口 (0.5F.14 P2-9 焊死)
 
-Source 已定义 12 类 kind + Endpoint 子对象。UX 必须做成**连续 Wizard**, 而非分散页面 (E-40 Network Source / E-42 Source Test Bench 已存在, 仅 UI 收口):
+Source 已定义 **11 类 kind** + Endpoint 子对象 (0.5F.15 P0-2 校正: 原文误写"12 类", 实际枚举为 11, 与 V0.2 的 11 Source Adapter 一致)。UX 必须做成**连续 Wizard**, 而非分散页面 (E-40 Network Source / E-42 Source Test Bench 已存在, 仅 UI 收口):
 
 ```text
 Create Source
@@ -459,6 +459,7 @@ Create Source
   TEST → LOCK → VERIFY → ASSIGN → ACTIVE / STANDBY
 ```
 
+> ⛔ **0.5F.15 P0-2 · SourceKind = 11 (非 12)**: `SDI / SRT / RTMP / HLS / WebRTC / RTP / UDP / RTSP / FILE / INTERNAL / COMPOSITE`。未来协议 (V0.3: RIST / Zixi / NDI) 通过独立 **Source Adapter Capability Registry** 注册能力, **不**修改 `SourceKind` 枚举——`SourceKind` 数量与 `Source Adapter` 数量概念上不必相等。
 > 不产生新 Surface; 复用 02 Sources + E-40 + E-42。状态流转即 Source 业务生命周期 (§1.6)。
 
 ### 1.18 两条对象链: FILE_TRANSCODE vs REALTIME SESSION (0.5F.14 P1-3 焊死)
@@ -483,14 +484,94 @@ REALTIME SESSION (M-17)
 CD-01 作为统一操作上下文 (驾驶舱), 深度配置仍为独立页面 (Drawer/Inspector):
 
 ```text
-CD-01 Channel Workspace
+CD-01-WS (Channel Workspace · 驾驶舱)
   Source · Switch · Health · PVW · PGM · NEXT
   Audio (LUFS/AV Sync/Drift) · Output (HLS/RTMP/UDP) 同上下文协作
   点击 Audio → P-23 / Switch → 03 / Output → 06 (深页)
+
+CD-01-Detail (Channel Detail / Inspector · 深页)
+  Variant / Destination / Source Endpoint / Audio Profile / Output Profile 深度配置
 ```
 
-> 不新增 Surface; Audio/Switch/Output/Health 在 Channel Workspace 同一上下文中协作, 深配进 P-23 / 03 / 06。
+> ⛔ **0.5F.15 P1-2 · CD-01 命名约定 (全库统一)**: 文档中任何 "CD-01" 简写**必须**解析为 `CD-01-WS` 或 `CD-01-Detail` 之一, 不得含糊:
+> - `CD-01-WS` = Channel Workspace (实时操作驾驶舱: Source/Switch/PVW/PGM/NEXT/Audio/Output/Health 同上下文)
+> - `CD-01-Detail` = Channel Detail / Inspector (深度配置: Variant/Destination/Source Endpoint/Audio Profile/Output Profile)
+> - 全库已落地的两份 wireframe 即 `CD-01-channel-workspace.html` (WS) 与 `CD-01-channel-detail.html` (Detail), 不能压成单页。
+> 不新增 Surface; 驾驶舱 + 深页结构。
+
+### 1.20 Asset Version Role 与 Encoding Profile Preset 分离 (0.5F.15 P1-3 焊死)
+
+M-14 的 `Master / Proxy / Mobile / Archive / Custom` 是 **Asset Version Role**, **不是** Encoding Profile Preset。两者必须分层:
+
+```yaml
+AssetVersionRole:   # 资产版本的角色/交付规格类别
+  MASTER
+  PROXY
+  MOBILE
+  ARCHIVE
+  CUSTOM
+
+# 派生链 (0.5F.15):
+Asset Version Role
+   ↓ 决定目标规格类别
+Encoding Profile (FILE_PROFILE)   # 具体编码参数 (P-21)
+   ↓
+Packaging Profile                  # 封装 (P-20)
+   ↓
+Job Policy                         # 运行时策略
+```
+
+> ⛔ 禁止把 `AssetVersionRole` 当 `Encoding Profile` 用 (如 "Proxy = ENC-v22" 是 Role→Profile 的绑定, 不是 Role=Profile)。M-14 Step2 选的是 Role, Step3 才选 FILE_PROFILE。
+
+### 1.21 Storage Destination 对象化 (0.5F.15 P1-4 焊死)
+
+File Transcode 的"保存位置"必须从路径字符串升级为对象:
+
+```yaml
+StorageDestination:
+  id
+  name: Local NVMe / NAS-01 / RustFS / NFS-Archive / S3-Compatible
+  path_template: /mnt/storage/news/{date}/{version}/
+  retention
+  access_policy
+  capacity
+  write_speed
+  availability
+```
+
+> M-14 的 `Path Template` / `Storage` 字段应绑定到 `StorageDestination` 引用, 而非裸字符串。未来 Archive/Backup/Publish/Distribution 复用同一对象。
+
+### 1.22 Network Source = 配置 + 实时信号监控工作台 (0.5F.15 P1-5 焊死)
+
+Source Workspace (§1.17) 的 Network Source 选 `UDP / Multicast / 239.10.10.20:1234` 后, **必须**立即呈现实时信号监控 (与 Source Monitor 强关联, 非独立页面):
+
+```text
+LINK     NIC eno2 UP · VLAN 120 OK · IGMP JOINED OK
+SIGNAL   Packets 3.2M · Bitrate 12.4Mbps · Jitter 0.8ms · Loss 0
+FORMAT   1080i25 · UYVY422 · 48kHz/8ch
+QC       Video HEALTHY · Audio HEALTHY · PTS LOCKED · Clock PTP
+```
+
+> 配置 Wizard 与 Signal Monitor 在 Source Workspace 同上下文协作 (类比 CD-01 Audio/Switch/Output 同上下文)。
+
+### 1.23 TAKE 与 AUTO FAILOVER 视觉层区分 (0.5F.15 P1-6 焊死)
+
+CD-01-WS 上 `TAKE` (Operator Intent) 与 `FAILOVER` (Failure Domain 自动/辅助) 必须视觉区分, 不能同等级按钮:
+
+```text
+PRIMARY   ● ACTIVE
+BACKUP    ● READY_TO_TAKE
+[ TAKE BACKUP ]         ← Operator Intent (人工)
+[ AUTO FAILOVER ARM ]   ← Automation policy (自动)
+
+⚠ SOURCE FAILURE 时:
+Automatic Failover · FRAME_SWITCH
+Reason: Primary SDI signal lost 2.1s
+[ Take Now ]  [ Inspect ]
+```
+
+> ⛔ `TAKE ≠ FAILOVER ≠ ChangeSet` (EXECUTION_MODEL §0/§4). Operator 意图与系统故障切换在 UI 上必须可分辨。
 
 ---
 
-**VBMF Contributors** · VBMF Object Vocabulary V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13/0.5F.14 Profile Ownership & Variant Delivery Closure
+**VBMF Contributors** · VBMF Object Vocabulary V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13/0.5F.14/0.5F.15 Object Boundary & Workflow Closure

@@ -400,10 +400,12 @@
       <h3>🎬 TAKE / 状态</h3>
       <div class="takeover">
         <button class="btn-primary">▶ TAKE (NEXT → PGM)</button>
+        <button class="btn" style="border-color:var(--yellow);color:var(--yellow)">⚡ AUTO FAILOVER ARM</button>
         <button class="btn">⏸ STOP</button>
       </div>
       <div class="diag" style="color:var(--green)">READY_TO_TAKE · REQUIRED 输出全 HEALTHY → Take 放行; 任一 REQUIRED 不健康/被禁用 → <span style="color:var(--red)">TAKE BLOCKED</span> (除非 Emergency Override L3).</div>
       <div class="note" style="border-left-color:var(--yellow)">⚠ G9 (P1): 全局口径统一 — TAKE 在 CD-01 的 READY_TO_TAKE 阶段 (非向导). 向导第⑥步已改"创建前预检", 此处为运行态 TAKE, 二者不混.</div>
+      <div class="note" style="border-left-color:var(--orange)">⚑ 0.5F.15 P1-6: <b>TAKE (Operator Intent, 绿)</b> 与 <b>AUTO FAILOVER (Failure Domain 自动/辅助, 黄)</b> 必须视觉区分, 不能同等级灰按钮. 故障时才显示 <b>⚠ SOURCE FAILURE</b> 条: <code>Automatic Failover · FRAME_SWITCH · Reason: Primary SDI signal lost 2.1s</code> + <code>[ Take Now ] [ Inspect ]</code>. ⛔ TAKE ≠ FAILOVER ≠ ChangeSet (EXECUTION_MODEL §0/§4).</div>
     </div>
     <!-- HEALTH -->
     <div class="panel">

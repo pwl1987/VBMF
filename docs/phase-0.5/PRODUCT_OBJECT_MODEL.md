@@ -73,7 +73,7 @@ profile_bundles:
   notes: '新闻直播标准配置 / News Live Standard'
 ```
 
-> ⛔ **0.5F.14 P0 · 删除旧双真相**: 此处**不再有** `output_profile_ref` 字段。Bundle 只持 `default_output_profile_ref` 作为 Template 级默认；**唯一权威** = `output_variants[].output_profile_ref`（见 §1.4 / OBJECT_VOCABULARY §1.8）。禁止在 Bundle schema 中同时出现 `output_profile_ref` 与 Variant 的 `output_profile_ref`。
+> ⛔ **0.5F.14 P0 / 0.5F.15 P1-1 · 删除旧双真相 + 术语校正**: 此处**不再有** `output_profile_ref` 字段。Bundle 只持 `default_output_profile_ref` 作为 **Bundle/Instance Default** (属于 Instance Bundle 层, **非** Channel Template 层; Template 级默认是 `ChannelTemplate.default_output_variants[]`)。**唯一权威** = `output_variants[].output_profile_ref`（见 §1.4 / OBJECT_VOCABULARY §1.8）。禁止在 Bundle schema 中同时出现 `output_profile_ref` 与 Variant 的 `output_profile_ref`。
 
 **UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 8 个 Profile 引用, 不重新配置 8 套参数。
 
@@ -284,7 +284,7 @@ REALTIME SESSION (M-17):
 | **M-11 Media Library** (product) | Asset | Asset Version, Job, QC Profile, Rights Profile |
 | **M-12 Asset Detail** (product) | Asset + Asset Version | QC Profile, Rights Profile, Channel (Used By) |
 | **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Asset Version, Encoding Profile (FILE_PROFILE), Packaging Profile |
-| **M-17 Realtime Session** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
+| **M-17 Realtime Session** (product, 0.5D) | Session (MEDIA_SESSION; 实时编码属 Session 运行态, **非 Job**) | Channel, Source, Encoding Profile (REALTIME_PROFILE) |
 | **M-18 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
 | **P-20 Profile Center** (0.5D) | Profile (8 子类 Registry) | Bundle, Variant, Channel |
 | **P-21 Encoding Profile** | Encoding Profile | Bundle, Variant, Channel |
@@ -313,7 +313,7 @@ REALTIME SESSION (M-17):
 | `output_variants` | Output Variant (1.8) |
 | `output_destinations` | Output Destination (1.9) |
 | `output_adapters` | Output Adapter (1.10) |
-| `media_jobs` | Job (1.11, 6 kind) |
+| `media_jobs` | Job (1.11, **5 kind**: FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE) |
 | `media_sessions` | Session (1.12, 2 kind) |
 | `config_revisions` | Revision (1.13) |
 | `change_sets` | Change Set (1.14) |
@@ -340,4 +340,4 @@ REALTIME SESSION (M-17):
 
 ---
 
-**VBMF Contributors** · VBMF Product Object Model V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13 Profile Ownership & Variant Delivery Closure
+**VBMF Contributors** · VBMF Product Object Model V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13/0.5F.14/0.5F.15 Profile Ownership & Workflow Closure

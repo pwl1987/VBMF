@@ -41,6 +41,19 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P2 · CD-01 Channel Workspace**：OBJECT_VOCABULARY §1.19 收口 Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 同上下文协作，深配进 P-23/03/06（驾驶舱 + 深页）。NAVIGATION_MATRIX §3.3 加验收闭环。
 - 校验：**未新增任何 Surface**（Registry SoT 维持 56）；一致性 98% / UI-UX 语义 97%。结论：完成 0.5F.14 后 Phase 0.5 Product/UX Semantics 可真正 Freeze；下一提交进入 Phase 0.6 Executable Acceptance（AC-01 外来 UDP/SSM→Source→Channel→Switch→Audio→Output；AC-02 Asset→Asset Version→File Transcode→Packaging→QC→New Asset Version；AC-03 Channel→Bundle→Variant×N→Effective Runtime→Fault/Failover）。
 
+### Phase 0.5F — Final Workflow Consistency & Source/Channel UX Closure（0.5F.15，2026-08-25，LOCK FINAL，基于 967b522 复检）
+- **P0-1 · JobKind 5 vs 6 数字冲突（全库对账）**：OBJECT_VOCABULARY §1.11 已 5 子类（移除 REALTIME_ENCODE），但 POM §5 写 `6 kind`、SURFACE_SPEC §29.5/域表写 `6 kinds`、I18N 翻译表含 `realtime_encode`。本轮统一为 **5 kinds**（FILE_TRANSCODE/PROBE/QC/UPLOAD/ARCHIVE），REALTIME_ENCODE 明确属 Session；修 POM §5、SURFACE_SPEC §29.5+域表、I18N 翻译表（删 realtime_encode）。
+- **P0-2 · Source "12 类" vs 实际 11 类**：OBJECT_VOCABULARY §1.17 原误写"12 类"，校正为 **11 类**（与 V0.2 11 Source Adapter 一致）；新增 **Source Adapter Capability Registry** 概念（RIST/Zixi/NDI 经 Registry 注册，不改 SourceKind 枚举）。SURFACE_SPEC 域表已 11，一并核对一致。
+- **P1-1 · `default_output_profile_ref` 措辞**：OBJECT_VOCABULARY §1.8 + POM §1.2 将 "Template-level 默认" 改为 **Bundle/Instance Default**（属 Instance Bundle 层，非 Channel Template 层）；Template 级默认 = `ChannelTemplate.default_output_variants[]`，实例化后落到 Instance Bundle。
+- **P1-2 · CD-01 / CD-01-WS / CD-01-Detail 全库统一**：OBJECT_VOCABULARY §1.19 加命名约定——"CD-01" 简写必须解析为 `CD-01-WS`（驾驶舱）或 `CD-01-Detail`（深页 Inspector），两份 wireframe 已落地，禁压单页。
+- **P1-3 · AssetVersionRole ≠ Encoding Profile Preset**：OBJECT_VOCABULARY §1.20 新增 `AssetVersionRole`(MASTER/PROXY/MOBILE/ARCHIVE/CUSTOM) 枚举 + 派生链（Role→FILE_PROFILE→Packaging→Job）；M-14 Step2 加说明。
+- **P1-4 · Storage Destination 对象化**：OBJECT_VOCABULARY §1.21 新增 `StorageDestination` 对象（Local NVMe/NAS-01/RustFS/NFS-Archive/S3-Compatible + Retention/Access/Capacity/Speed/Availability）；M-14 保存位置字段绑定到对象，非裸路径。
+- **P1-5 · Network Source 配置+实时监控工作台**：OBJECT_VOCABULARY §1.22 要求选 UDP/Multicast 后立即呈现 LINK/SIGNAL/FORMAT/QC 实时信号（与 Source Monitor 强关联），非独立页面。
+- **P1-6 · TAKE vs AUTO FAILOVER 视觉区分**：OBJECT_VOCABULARY §1.23 + CD-01-WS wireframe 加 `▶ TAKE (绿, Operator Intent)` 与 `⚡ AUTO FAILOVER ARM (黄, Failure Domain)` 视觉分离 + 故障 SOURCE FAILURE 条；⛔ TAKE≠FAILOVER≠ChangeSet。
+- **P-12 · 交付实例化链**：EXECUTION_MODEL §3.1 新增 `Template→Instance Bundle→Output Variant×N→Destination×N→Adapter→Session→Effective`，明确 Bundle 本身不运行、Variant 才是 delivery instance、Session 才是 runtime，与 `Source→Channel→Route→Session` 对称。
+- **P-16 · Phase 0.6 验收工作流**：OBJECT_NAVIGATION_MATRIX §4 新增 AC-01（UDP/SSM→Source→Channel→Audio→Switch→Output）、AC-02（File Transcode）、AC-03（Config Change）、AC-04（Fault/Failover）四条端到端链，均用现有 Surface，不新增页面。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56）；一致性 99% / UI-UX 语义 98%。结论：完成 0.5F.15 后 **Phase 0.5 = SEMANTIC + UX FREEZE**，下一提交进入 **Phase 0.6 = Executable Acceptance**。
+
 ### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
 - **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
 - **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。

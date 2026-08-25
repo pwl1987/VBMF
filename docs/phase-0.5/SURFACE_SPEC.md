@@ -3314,7 +3314,7 @@ UI 顶层导航**从数字改为业务域**:
 | 域 | 中文 | 主要用户 | 包含对象 (本域新增) |
 |---|---|---|---|
 | **BROADCAST** | 直播 | Operator / Director | Channel · Source · Session (REALTIME) · Variant |
-| **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (6 kinds, 见 §29.5) |
+| **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (**5 kinds**, 见 §29.5) |
 | **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 8 Profile · Graph/Route (E-31) · ChangeSet · Preflight · Hardware (E-38 新增) · Clock (E-37 升级) · Health · Incident · Replay · Benchmark** |
 | **ADMIN** | 管理 | Admin | User · Role · Permission · Audit · System Setting |
 
@@ -3384,7 +3384,7 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 8. **Output Variant** (1 Channel N Variant) — CD-01 Tab 6
 9. **Output Destination** (host:port) — 06 Output
 10. **Output Adapter** (SRSAdapter/UDPAdapter/RTPAdapter/FileAdapter) — P-22
-11. **Job** (6 kinds: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE; REALTIME_ENCODE 由 Session 包装 — 见 §29.3 与 [`OBJECT_VOCABULARY.md` §1.11](OBJECT_VOCABULARY.md)) — M-14 / M-15 / M-18
+11. **Job** (**5 kinds: FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE** — [`OBJECT_VOCABULARY.md` §1.11](OBJECT_VOCABULARY.md); REALTIME_ENCODE 已移出 Job, 属 Session 包装, 见 §29.3) — M-14 / M-15 / M-18
 12. **Session** (2 kinds: MEDIA_SESSION / OUTPUT_SESSION, 三轴状态) — M-17 / CD-01
 13. **Revision** (不可变快照) — P-21 §10 / P-22 / CD-01
 14. **Change Set** (Logical Atomic Apply) — E-33

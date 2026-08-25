@@ -111,6 +111,28 @@ Output Asset Version (ENC-v12 / ENC-v22 ...) ──► QC (可选) ──► 发
 | Job | Editor/API | Asset / FILE_PROFILE | Worker | Output Asset Version |
 | ChangeSet | 任何 Configure 动作 | items (before/after revision) | Apply | — |
 
+### 3.1 交付实例化链 (0.5F.15 P-12 焊死 — Bundle 本身不运行)
+
+> **关键不变量:** `Bundle 本身不"运行"`; `Variant` 才是 delivery instance; `Session` 才是 runtime。完整对称于 `Source → Channel → Route → Session`:
+
+```text
+Channel Template
+   ↓ instantiate
+Instance Bundle (持 default_*_profile_ref)
+   ↓ 派生
+Output Variant × N (output_profile_ref / packaging_profile_ref override)
+   ↓ 每个 Variant
+Output Destination × N (host:port)
+   ↓ 绑定
+Output Adapter (SRSAdapter / UDPAdapter / RTPAdapter / FileAdapter)
+   ↓ 拉起
+Session (MEDIA_SESSION / OUTPUT_SESSION)
+   ↓
+Effective Runtime
+```
+
+与 `Source → Channel → Route → Session` 形成对称结构: 配置侧 (Template→Bundle→Variant→Destination→Adapter→Session) 与信号侧 (Source→Channel→Route→Session) 在 Session 层汇合。
+
 ---
 
 ## 4. 状态机对照 (为什么这样切)

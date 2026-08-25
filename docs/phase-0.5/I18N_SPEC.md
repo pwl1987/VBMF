@@ -581,16 +581,13 @@ status.job:
     en-US: Cancelled
 ```
 
-#### Job Kind 翻译表 (0.5C.1 补 — 6 kinds, 见 SURFACE_SPEC §29.5)
+#### Job Kind 翻译表 (0.5C.1 补 → 0.5F.15 P0-1 校正: **5 kinds**, REALTIME_ENCODE 已移出 Job 属 Session, 见 OBJECT_VOCABULARY §1.11)
 
 ```yaml
 job.kind:
   file_transcode:
     zh-CN: 文件转码
     en-US: File Transcode
-  realtime_encode:
-    zh-CN: 实时编码
-    en-US: Realtime Encode
   probe:
     zh-CN: 探测
     en-US: Probe
