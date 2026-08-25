@@ -3416,14 +3416,91 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 - `README.md` (根, 修 Engine 列表 + 9 Core 残留 + 4 域导航)
 - `docs/phase-0.6/README.md` (修 `< 100ms` 语义)
 
-**0.5D 待做 (5 个新 wireframe + 1 个升级 + 1 个重画, 全部放 `product/` — M/P/E 前缀的产品表面):**
-- `docs/phase-0.5/product/M-17-realtime-transcode.html` (新, BROADCAST 域)
-- `docs/phase-0.5/product/E-38-hardware-inventory.html` (新)
-- `docs/phase-0.5/product/E-37-clock.html` (升级, 已有 Spec 无 wireframe)
-- `docs/phase-0.5/product/P-20-profile-center.html` (新)
-- `docs/phase-0.5/product/P-28-profile-bundle.html` (新)
-- `docs/phase-0.5/product/M-18-transcode-job-detail.html` (新, 由 M-15 子页升级为独立页)
-- `docs/phase-0.5/product/M-14-file-transcode.html` (原 M-14 重画, 原地替换)
+**0.5D 实际落地路径 (更正 — 0.5C.1 目录归并后, 全部放 `operator/`):**
+- `docs/phase-0.5/operator/M-17-realtime-transcode.html` (新, BROADCAST 域)
+- `docs/phase-0.5/operator/E-38-hardware-inventory.html` (新, ENGINEERING 域)
+- `docs/phase-0.5/operator/E-37-clock.html` (升级, 已有 Spec 无 wireframe)
+- `docs/phase-0.5/operator/P-20-profile-center.html` (新, ENGINEERING 域)
+- `docs/phase-0.5/operator/P-28-profile-bundle.html` (新, ENGINEERING 域)
+- `docs/phase-0.5/operator/M-18-transcode-job-detail.html` (新, 由 M-15 子页升级为独立页)
+- `docs/phase-0.5/operator/M-14-file-transcode.html` (原 M-14 重画, 从 product/ 移到 operator/)
+
+---
+
+## 29.9 Phase 0.5F — Channel/Network UX Closure (PIA V0.1 锁后实施)
+
+PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_INFORMATION_ARCHITECTURE.md#13-pia-锁-12-项-总结)) 后, Phase 0.5F 分 3 批落地:
+
+### 29.9.1 Batch 1 (commit `bda8134`) — Channel 工作台 3 张
+
+| 表面 | 域 | 类型 | 关键交付 |
+|---|---|---|---|
+| **CH-01 Channel List** | BROADCAST | 新增 | 4 Channel 卡片 + mini-monitor; 顶层导航 BROADCAST 域新页; Channel 为 UI 第一对象 |
+| **CD-01 Channel Control Workspace** | BROADCAST | 新增 | Take Desk 7 块 1 屏: PVW/PGM/NEXT + SOURCE + AUDIO + OUTPUT + SWITCH + HEALTH + TAKE 按钮 |
+| **CD-01 Channel Detail** | BROADCAST | 新增 | 8 Tab: Overview / Switch / Audio / Output / Graph / Health / History / Config; Tab 1 Overview = CD-01 Workspace 同一模板 |
+
+### 29.9.2 Batch 2 (commit `0511c8c`) — Network Source 模型 2 张
+
+| 表面 | 域 | 类型 | 关键交付 |
+|---|---|---|---|
+| **02-sources.html** (重写) | ENGINEERING | 重画 | 双段 Source 二级 Taxonomy: Local Device Source (SDI/Internal/File) + External Network Source (9 子类: UDP Unicast/Multicast, SRT, RTMP, HLS, RTSP, WebRTC Pull, RIST, Zixi, NDI) |
+| **E-40 Network Source** | ENGINEERING | 新增 | UDP Unicast + Multicast 配置面板 + Multicast Diagnostics 7 项 + Network Source Security 8 字段 (PIA §11 锁) |
+| `scripts/check_docs.py` | tooling | 修复 | 兼容 `?query` 和 `#anchor`, 修 CH-01 `?ch=CH0x` 假阳性 |
+
+### 29.9.3 Batch 3 (本轮 commit 待) — Network Path Spec 1 文档
+
+| 文档 | 域 | 类型 | 关键交付 |
+|---|---|---|---|
+| **E-41 Network Path Inspector Spec** | ENGINEERING | Spec 锁 | Network Path 5 类 Node Kind + 8 类失败模式 + 4-Layer 应用 + 6 状态 + Schema 草稿; wireframe 0.5G 实施 |
+
+### 29.9.4 0.5F 计数表 (PIA Batch 1+2+3)
+
+| 域 | 0.5D 已锁定 | 0.5F 新增 | 0.5F 域内合计 |
+|---|---|---|---|
+| BROADCAST | 9 (01-07 Core + CD-01 + M-17) | +3 (**CH-01** + **CD-01 Channel Workspace** + **CD-01 Detail 升 wireframe**) | 12 |
+| MEDIA | 8 (M-11~18) | 0 | 8 |
+| ENGINEERING | 22 (E-31~38 + O-41~45 + P-20~28) | +1 (**E-40 Network Source**); E-41 Spec 锁 (不计为表面) | 23 |
+| ADMIN | 5 (A-51~55) | 0 | 5 |
+| 全局 | 1 (10-states Validation, 不属任何域) | 0 | 1 |
+| **TOTAL wireframe** | **44** | **+4** | **48** |
+| E-41 Network Path (Spec only) | - | +1 (0.5G 实施后 +1) | 1 Spec |
+
+> **0.5F 后 Phase 0.5 UI 表面 = 48 个 wireframe 完成** (44 + CH-01 + CD-01 WS + CD-01 Detail 升 wireframe + E-40)
+> 02-sources.html 重画不计为新增。
+> E-41 Network Path 仅 Spec 锁, 0.5G 实施后总计 49。
+> ⛔ 禁止在 README / 阶段总结中再使用 39 / 44 / 47 等早期数字。
+
+### 29.9.5 0.5F 实施要点
+
+- ⛔ **不引入第 13 个 Engine** (PIA §10.3 锁); E-41 是 Network Endpoint 内部诊断
+- ✅ **Channel 为 UI 第一对象** (顶层导航 BROADCAST 域)
+- ✅ **Source 6 字段** (Identity / Adapter / Endpoint / Contract / Runtime / QC) 通过 E-40 完整配置
+- ✅ **Network Endpoint 统一对象** (UDP Unicast/Multicast/RTP/SRT) 通过 E-40 表达
+- ✅ **双层 UI**: Operation 工作台 (CD-01 Workspace) + Engineering 深页 (E-40 / E-41)
+- ✅ **4-Layer (Desired/Compiled/Effective/Impact)** 推广到 E-41 (§8)
+- ✅ **Take Desk 7 块** (CD-01 Workspace)
+- ✅ **CD-01 8 Tab** (CD-01 Detail)
+- ✅ **Network Source Security 8 字段** 在 E-40 留位 (PIA §11 锁, V0.2 不强校验)
+- ✅ **check_docs.py** 通过 (修 query 兼容)
+
+### 29.9.6 0.5F LOCK FINAL 前必过清单 (PIA §15 同步)
+
+- [x] PIA V0.1 12 锁 (commit `bda8134` 同期)
+- [x] 5 张新 wireframe 落地 (CH-01 / CD-01 Workspace / CD-01 Detail / 02-sources 重写 / E-40)
+- [x] E-41 Network Path Spec 锁 (本轮)
+- [x] `check_docs.py` PASS (含 ?query 兼容)
+- [ ] NAVIGATION §3 表更新 (CH-01/CD-01/E-40 加进 BROADCAST/ENGINEERING 域)
+- [ ] PIA §15 验证清单全部勾选
+- [ ] ROADMAP 同步 47 表面口径
+
+### 29.9.7 0.5F 后续 (0.5G / 0.5H)
+
+| 轮次 | 范围 | 状态 |
+|---|---|---|
+| **0.5G** | E-41 Network Path wireframe; P-20 加 "by Channel" Tab (PIA §15 §6 项调整) | 待启动 |
+| **0.5H** | Network Source Security 8 字段实装 (PIA §11, V0.3 起步) | 待启动 |
+| **0.5E** | 4-Layer + Impact Preview + Configuration Diff + Command Palette 全部跨域 | 待启动 |
+| **0.5 LOCK FINAL** | 0.5A/B/C/D/E/F/G/H 全部完成, PIA/MILESTONES/NAVIGATION/README/ROADMAP 同步 | 待启动 |
 
 ---
 
@@ -3493,5 +3570,5 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 
 ---
 
-**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure + 0.5C Information Architecture Closure
+**VBMF Contributors** · VBMF UI/UX Surface Specification V0.3 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure + 0.5C Information Architecture Closure + 0.5C.1 一致性收口 + 0.5D P0 Product Surfaces + 0.5F Channel/Network UX Closure
 

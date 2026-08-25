@@ -650,14 +650,29 @@ VBMF Console
 
 ## 15. PIA 验证清单 (0.5F LOCK FINAL 前必过)
 
-- [ ] 用户审过 PIA 12 锁
-- [ ] 5 张新 wireframe 落地
-- [ ] 02-sources.html 重写
-- [ ] check_docs.py PASS (含 CH-01/CD-01/E-40)
-- [ ] NAVIGATION §3 表更新 (CH-01/CD-01/E-40 加进 BROADCAST/ENGINEERING 域)
-- [ ] SURFACE_SPEC §29 扩到 §30 (0.5F 收口)
-- [ ] 3 文档 (PIA + Vocabulary + Object Model) 三方一致
+- [x] 用户审过 PIA 12 锁 (commit `bda8134` 同期)
+- [x] 3 张 Channel 工作台 wireframe 落地 (CH-01 + CD-01 Workspace + CD-01 Detail, commit `bda8134`)
+- [x] 02-sources.html 重写 (commit `0511c8c`)
+- [x] E-40 Network Source wireframe (commit `0511c8c`)
+- [x] E-41 Network Path Inspector Spec (本轮, batch 3)
+- [x] `check_docs.py` PASS (含 CH-01/CD-01/E-40, ?query 兼容修复)
+- [ ] NAVIGATION §3 表更新 (CH-01/CD-01/E-40/E-41 加进 BROADCAST/ENGINEERING 域) — 0.5G 前完成
+- [x] SURFACE_SPEC §29.9 0.5F Channel/Network UX Closure 收口 (本轮)
+- [x] 3 文档 (PIA + Vocabulary + Object Model) 三方一致 (Object Model 与 PIA §10 路径模型一致; Vocabulary §1.6 14 对象含 Route/Output Adapter)
+- [ ] 0.5G E-41 wireframe 实施 + 0.5E 4-Layer/Impact Preview/Diff 跨域 + README/ROADMAP 同步 47 表面
+
+### 15.1 0.5F 完成度
+
+| 项 | 状态 | 提交 |
+|---|---|---|
+| Batch 1 (CH-01 + CD-01 Workspace + CD-01 Detail) | ✅ | `bda8134` |
+| Batch 2 (02-sources 重写 + E-40) | ✅ | `0511c8c` |
+| Batch 3 (E-41 Spec) | ✅ | 本轮 |
+| NAVIGATION §3 表更新 | ⏳ | 0.5G 前 |
+| 0.5G (E-41 wireframe + P-20 by Channel Tab) | ⏳ | 待启动 |
+| 0.5E (4-Layer / Impact Preview / Diff / Cmd Palette 跨域) | ⏳ | 待启动 |
+| Phase 0.5 LOCK FINAL | ⏳ | 0.5A/B/C/D/E/F/G/H 全部完成 |
 
 ---
 
-**VBMF Contributors** · VBMF Product Information Architecture V0.1 · Phase 0.5F Channel/Network UX Closure (DRAFT 0.1)
+**VBMF Contributors** · VBMF Product Information Architecture V0.1 · Phase 0.5F Channel/Network UX Closure (DRAFT 0.1 → Spec 锁)

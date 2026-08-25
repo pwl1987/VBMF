@@ -64,40 +64,42 @@ Phase 0.5B 用了 6 个**编号工作域**:
 
 ## 2. 顶层 4 域到 UI 表面的映射 (Phase 0.5D 锁定)
 
-### 2.1 BROADCAST 域 (12 表面)
+### 2.1 BROADCAST 域 (12 表面 · 0.5F 后)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
 | **01-dashboard** | Dashboard 主控台 | 🟢 LOCK (0.5A) | Operator |
-| **02-sources** | Sources 源管理 | 🟢 LOCK (0.5A) | Operator / Engineer |
+| **02-sources** | Sources 源管理 | 🟢 LOCK (0.5A, **0.5F 重画**: 二级 Taxonomy Local + External Network) | Operator / Engineer |
 | **03-switcher** | Switcher 切播 | 🟢 LOCK (0.5A) | Operator |
 | **04-composition** | Composition 图文包装 | 🟢 LOCK (0.5A) | Director |
 | **05-audio** | Audio 音频 | 🟢 LOCK (0.5A) | Operator |
 | **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator |
 | **07-recording** | Recording 录制 | 🟢 LOCK (0.5A) | Operator |
-| **08-graph-designer** | Graph Designer 图设计 | 🟢 LOCK (0.5A) | Engineer |
-| **09-health-tree** | Health Tree 健康树 | 🟢 LOCK (0.5A) | All |
-| **10-states** | 10 States 状态总览 | 🟢 LOCK (0.5A, Validation) | All |
-| **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟡 Spec 锁定 (0.5B.0) | All |
-| **M-15** | Realtime Transcode 实时转码 | 🔴 0.5D 新增 | Operator / Engineer |
+| **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
+| **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator |
+| **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
+| **M-17** | Realtime Transcode 实时转码 | 🟢 LOCK (0.5D) | Operator / Engineer |
 
-### 2.2 MEDIA 域 (7 表面)
+> **注**: 08-graph-designer / 09-health-tree 已划归 ENGINEERING 域 (PIA V0.1 §12); 10-states Validation 是全局 Validation 不属于 BROADCAST。
+
+### 2.2 MEDIA 域 (7 表面 · 0.5D 后)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
 | **M-11** | Media Library 媒体库 | 🟢 LOCK (0.5B.1) | Content Manager |
 | **M-12** | Asset Detail 资产详情 (5 Tab) | 🟢 LOCK (0.5B.1) | Content Manager / Editor |
 | **M-13** | Upload / Ingest 上传/收录 | 🟡 Spec (0.5B.0) | Content Manager |
-| **M-14** | File Transcode 文件转码 (新名) | 🟡 Spec 锁定, wireframe 待 0.5D 重画 | Editor / Engineer |
-| **M-16** | Transcode Job Detail 转码任务详情 | 🔴 0.5D 新增 | Editor / Engineer |
-| **M-17** | Versions / Renders 资产版本渲染 | 🟡 Spec (0.5B.0) | Editor |
-| **M-18** | Playlists / Composition Templates | 🟡 Spec (0.5B.0) | Director / Editor |
+| **M-14** | File Transcode 文件转码 (新名) | 🟢 LOCK (0.5D, 重画 6 步 Wizard) | Editor / Engineer |
+| **M-15** | Transcode Jobs 转码任务 (M-14 母页) | 🟡 Spec (0.5B.0) | Editor / Engineer |
+| **M-16** | Versions / Renders 资产版本渲染 | 🟡 Spec (0.5B.0) | Editor |
+| **M-17** | Realtime Transcode 实时转码 | 🟢 LOCK (0.5D) | Operator / Engineer |
+| **M-18** | Transcode Job Detail 转码任务详情 (M-15 子页升级为独立页) | 🟢 LOCK (0.5D) | Editor / Engineer |
 
-### 2.3 ENGINEERING 域 (16 表面)
+### 2.3 ENGINEERING 域 (25 表面 · 0.5F 后)
 
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
-| **P-20** | Profile Center 配置中心 | 🔴 0.5D 新增 (0.5C 锁 Spec) | Engineer |
+| **P-20** | Profile Center 配置中心 | 🟢 LOCK (0.5D) | Engineer |
 | **P-21** | Encoding Profile 编码配置 | 🟢 LOCK (0.5B.1) | Engineer |
 | **P-22** | Output Profile 输出配置 | 🟢 LOCK (0.5B.1) | Engineer |
 | **P-23** | Audio Profile 音频配置 | 🟡 Spec (0.5B.0) | Engineer |
@@ -105,13 +107,17 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **P-25** | QC Profile 质量配置 | 🟡 Spec (0.5B.0) | Engineer |
 | **P-26** | Rights Profile 版权配置 | 🟡 Spec (0.5B.0) | Legal / Engineer |
 | **P-27** | Edge Policy Profile 边缘策略 | 🟡 Spec (0.5B.0) | SRE |
-| **P-28** | Profile Bundle 通道交付包 | 🔴 0.5D 新增 (0.5C 锁 Spec) | Engineer / Director |
+| **P-28** | Profile Bundle 通道交付包 | 🟢 LOCK (0.5D) | Engineer / Director |
+| **E-31** | Graph Designer 图设计 (0.5A #08 升级) | 🟢 LOCK (0.5A, 0.5B 升 Engineering) | Engineer |
 | **E-32** | Preflight Center 预检中心 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-33** | Change Sets 变更集 | 🟡 Spec (0.5B.0) | Engineer |
-| **E-34** | Hardware Inventory 硬件清单 | 🔴 0.5D 新增 (0.5C 锁 Spec) | Engineer |
+| **E-34** | Capability Registry 能力注册 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-35** | Device Registry 设备注册 | 🟡 Spec (0.5B.0) | Engineer |
-| **E-36** | Clock 时钟 | 🔴 0.5D 新增 (0.5C 锁 Spec) | Engineer |
-| **E-37** | Capability Registry 能力注册 | 🟡 Spec (0.5B.0) | Engineer |
+| **E-36** | Resource / Capacity 资源/容量 | 🟡 Spec (0.5B.0) | Engineer / SRE |
+| **E-37** | Clock 时钟 | 🟢 LOCK (0.5D 升级: 4 级 Fallback Chain) | Engineer |
+| **E-38** | Hardware Inventory 硬件清单 | 🟢 LOCK (0.5D) | Engineer |
+| **E-40** | Network Source 网络源 (UDP Unicast/Multicast + 9 External 子类 + Security 8 字段) | 🟢 LOCK (0.5F) | Engineer |
+| **E-41** | Network Path Inspector 网络路径检查器 (5 Hop Kind + 8 Failure Mode) | 🟡 Spec 锁 (0.5F); wireframe 0.5G 实施 | Engineer / SRE |
 | **O-41** | Health Tree 实时健康树 (Operator 视图) | 🟡 Spec (0.5B.0) | SRE |
 | **O-42** | Incident Center 事件中心 | 🟡 Spec (0.5B.0) | SRE |
 | **O-43** | Incident Timeline 事件时间线 | 🟡 Spec (0.5B.0) | SRE |
@@ -128,17 +134,23 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **A-54** | Audit Logs 审计日志 | 🟡 Spec (0.5B.0) | Admin |
 | **A-55** | System Settings 系统设置 | 🟡 Spec (0.5B.0) | Admin |
 
-### 2.5 总计
+### 2.5 总计 (0.5F 后 · 52 wireframe + 1 Spec)
 
-| 域 | 表面数 | 已 LOCK | Spec 锁定 (待 wireframe) | 0.5D 新增 |
-|---|---|---|---|---|
-| BROADCAST | 12 | 10 | 1 (CD-01) | 1 (M-17) |
-| MEDIA | 7 | 2 (M-11, M-12) | 3 (M-13, M-17, M-18) | 2 (M-14 重画, M-18 新增) |
-| ENGINEERING | 20 | 2 (P-21, P-22) | 13 | 5 (P-20, P-28, E-34, E-37 + 改 1) |
-| ADMIN | 5 | 0 | 5 | 0 |
-| **TOTAL** | **44** | **14** | **22** | **8** |
+| 域 | 表面数 | 已 LOCK | Spec 锁定 (待 wireframe) | 0.5D 新增 | 0.5F 新增 |
+|---|---|---|---|---|---|
+| BROADCAST | 12 | 12 (0.5F 后全部 LOCK) | 0 | 1 (M-17) | +3 (CH-01, CD-01 WS, CD-01 Detail 升 wireframe) |
+| MEDIA | 8 | 5 (M-11/12/14/17/18) | 3 (M-13/15/16) | 2 (M-14 重画, M-18 新) | 0 |
+| ENGINEERING | 26 | 8 (P-20/21/22/28 + E-31/37/38/40) | 17 | 5 (P-20, P-28, E-37, E-38, 改 1) | +1 (E-40) |
+| ADMIN | 5 | 0 | 5 | 0 | 0 |
+| **域合计 (wireframe)** | **51** | **25** | **25** | **8** | **+4** |
+| 全局 (10-states Validation) | 1 | 1 | 0 | 0 | 0 |
+| **TOTAL wireframe** | **52** | **26** | **25** | **8** | **+4** |
+| E-41 Network Path (Spec only) | 1 Spec | 0 | 1 (0.5F Spec 锁, 0.5G 实施) | - | +1 Spec |
+| **Phase 0.5 总计** | **53** (52 wireframe + 1 Spec) | - | - | - | - |
 
-> 历史: 0.5B 报 "30+ UI 表面", 实为 38 (算 9 operator + 1 validation + 28 product)。现在 Phase 0.5C 重排后, **44 表面 (含 0.5D 新增 8)**, 全部进 4 域, 数字不再主导 UI。
+> **历史口径演化**: 0.5B 报 "30+ UI 表面" → 实为 38 → 0.5C 重排 40 → 0.5D 后 44 → 0.5F 后 **52 个 wireframe + 1 Spec (E-41)** = 53。
+> 02-sources.html 重画不计为新增。
+> ⛔ 禁止在 README / 阶段总结中再使用 39 / 44 / 47 等早期数字。
 
 ---
 
