@@ -132,9 +132,9 @@ Phase 0.5B 用了 6 个**编号工作域**:
 
 | 域 | 表面数 | 已 LOCK | Spec 锁定 (待 wireframe) | 0.5D 新增 |
 |---|---|---|---|---|
-| BROADCAST | 12 | 10 | 1 (CD-01) | 1 (M-15) |
-| MEDIA | 7 | 2 (M-11, M-12) | 3 (M-13, M-17, M-18) | 2 (M-14 重画, M-16 新增) |
-| ENGINEERING | 20 | 2 (P-21, P-22) | 13 | 5 (P-20, P-28, E-34, E-36 + 改 1) |
+| BROADCAST | 12 | 10 | 1 (CD-01) | 1 (M-17) |
+| MEDIA | 7 | 2 (M-11, M-12) | 3 (M-13, M-17, M-18) | 2 (M-14 重画, M-18 新增) |
+| ENGINEERING | 20 | 2 (P-21, P-22) | 13 | 5 (P-20, P-28, E-34, E-37 + 改 1) |
 | ADMIN | 5 | 0 | 5 | 0 |
 | **TOTAL** | **44** | **14** | **22** | **8** |
 
@@ -149,7 +149,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | 业务流 | 起点 | 中转 | 终点 |
 |---|---|---|---|
 | 升级 Encoding Profile | ENGINEERING / P-21 | Change Set (E-33) → Impact Preview | BROADCAST / CD-01 (受影响的 Channel) |
-| 创建转码任务 | MEDIA / M-11 选 Asset | MEDIA / M-14 (File) | MEDIA / M-16 (Job Detail) |
+| 创建转码任务 | MEDIA / M-11 选 Asset | MEDIA / M-14 (File) | MEDIA / M-18 (Job Detail) |
 | 查看 Channel 实时状态 | BROADCAST / 01 Dashboard | BROADCAST / CD-01 | ENGINEERING / 09 Health Tree |
 | 调查录像异常 | BROADCAST / 07 Recording | ENGINEERING / O-42 Incident | ENGINEERING / O-44 Replay |
 | 临时 Override | BROADCAST / CD-01 | ENGINEERING / P-28 Bundle | Audit Log (ADMIN / A-54) |
@@ -223,10 +223,10 @@ V0.2 12 Engines 不变, 本 Navigation 4 域是**产品 UX 层**对应, 不动 V
 - [ ] 每个域显示主对象图标, 不用数字
 - [ ] 数字仅出现在 URL path (如 `/broadcast/cd-01/:id`) 和内部 page_id
 - [ ] M-14 改名为 "File Transcode" / 文件转码
-- [ ] M-15 新增 "Realtime Transcode" / 实时转码
+- [ ] M-17 新增 "Realtime Transcode" / 实时转码
 - [ ] Profile Center (P-20) 顶部 7 Tab (Enc/Audio/Out/Graphic/QC/Rights/Edge)
 - [ ] Profile Bundle (P-28) 进入 ENGINEERING 域
-- [ ] Hardware (E-34) / Clock (E-36) 进入 ENGINEERING 域
+- [ ] Hardware (E-38) / Clock (E-37) 进入 ENGINEERING 域
 - [ ] 所有跨域跳转保留 Context
 - [ ] 权限矩阵在 SURFACE_SPEC §6 与本表一致
 

@@ -264,7 +264,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 
 - [ ] **导航 4 域** (BROADCAST / MEDIA / PROFILES / ENGINEERING) 顶层无数字
 - [ ] **6 Profile** 全部进 P-20 Profile Center, 不再各自分散
-- [ ] **M-14 / M-15** 显式标 "File Transcode" / "Realtime Transcode", 不再叫 "Transcode Center"
+- [ ] **M-14 / M-17** 显式标 "File Transcode" / "Realtime Transcode", 不再叫 "Transcode Center"
 - [ ] **Variant vs Version** 命名严格分离
 - [ ] **Bundle** 进 SURFACE_SPEC §3.3 (新章节)
 - [ ] **Impact Preview** 在所有 Profile / Bundle / ChangeSet 页面有按钮

@@ -97,7 +97,7 @@ docs/
 | Phase 0.5B.1 P0 Wireframes | 🟢 LOCK FINAL | 5 P0 wireframes |
 | Phase 0.5B.2 Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System |
 | **Phase 0.5C Info Arch** | 🟡 **DRAFT** (本轮) | 目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复 + README 统一 |
-| Phase 0.5D P0 Product Surfaces | ⛔ 0.5C 后做 | M-15 + E-34 + E-36 + P-20 + P-28 + M-16 + M-14 重画 |
+| Phase 0.5D P0 Product Surfaces | ⛔ 0.5C 后做 | M-17 + E-38 + E-37 + P-20 + P-28 + M-18 + M-14 重画 |
 | Phase 0.5E Global UX Layer | ⛔ 0.5D 后做 | Impact Preview + Configuration Diff 全域 |
 
 ## 4. Phase 0.5 LOCK FINAL 最终条件
@@ -105,7 +105,7 @@ docs/
 只有满足下面 6 项, 才能正式宣布 **Phase 0.5 = UX BASELINE LOCK FINAL**:
 
 1. ⛔ **0.5C LOCK FINAL** (本轮提交)
-2. ⛔ **0.5D LOCK FINAL** (M-15 + E-34 + E-36 + P-20 + P-28 + M-16 + M-14 重画)
+2. ⛔ **0.5D LOCK FINAL** (M-17 + E-38 + E-37 + P-20 + P-28 + M-18 + M-14 重画)
 3. ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette)
 4. ⛔ **所有 README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 5. ⛔ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 LOCK
@@ -129,7 +129,7 @@ V0.2 Architecture (LOCK FINAL)
 |---|---|---|
 | `README.md` (根) | "Phase 0.5 = LOCK FINAL" 前的所有 milestone 状态 | ⛔ 0.5C 提交后必改 |
 | `docs/phase-0.5/README.md` | "Phase 0.5 = UX BASELINE LOCK FINAL" | ⛔ 0.5D 完成后才能写 |
-| `docs/phase-0.5/SURFACE_SPEC.md` | 4 域 + 44 表面 + M-14/M-15 拆分 | ⛔ 0.5C 提交后必改 |
+| `docs/phase-0.5/SURFACE_SPEC.md` | 4 域 + 44 表面 + M-14/M-17 拆分 | ⛔ 0.5C 提交后必改 |
 | `docs/phase-0.5b/README.md` | (已删除) | ✅ 0.5C 删除 |
 | `docs/phase-0.6/README.md` | `< 100ms` → `target_failover_time_ms` | ⛔ 0.5C 提交后必改 |
 

@@ -99,7 +99,7 @@ Phase 0.5 UX Baseline (本目录, LOCK FINAL 条件见 MILESTONES.md)
    ↓ 验收
 Phase 0.6 Executable Acceptance Specification
    ↓ 实施
-Phase 1 Media Core (Rust) + Phase 4 Web Console
+Phase 1 Media Agent (Rust) + Phase 4 Web Console
 ```
 
 **禁止:** 在 Phase 0.5 LOCK FINAL 之前开 Phase 0.6, 否则测试会因 UI / 文档未锁而反复改。
@@ -125,7 +125,7 @@ Phase 1 Media Core (Rust) + Phase 4 Web Console
 ## 9. 当前 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
 
 - ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
-- ⛔ **0.5D LOCK FINAL** (M-15 + E-34 + E-36 + P-20 + P-28 + M-16 wireframe + M-14 重画)
+- ⛔ **0.5D LOCK FINAL** (M-17 + E-38 + E-37 + P-20 + P-28 + M-18 wireframe + M-14 重画)
 - ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
 - ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 - ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
