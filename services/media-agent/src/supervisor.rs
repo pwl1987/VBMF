@@ -1,8 +1,7 @@
-﻿//! Runtime Supervisor — crash/hang/lost-device detection & restart.
+//! Runtime Supervisor — crash/hang/lost-device detection & restart.
 //! Frozen interface per SoT §15.2 (MEDIA-03). No logic yet.
 
 use std::time::Duration;
-use uuid::Uuid;
 
 /// Monitor process/pipeline health; restart on failure.
 pub trait Supervisor {

@@ -1,4 +1,4 @@
-﻿//! GStreamer Pipeline Controller — capture lifecycle.
+//! GStreamer Pipeline Controller — capture lifecycle.
 //! Frozen interface per SoT §15.2. No logic yet.
 
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ pub trait PipelineController {
     fn recover(&self, handle: &PipelineHandle) -> Result<PipelineHandle, PipelineError>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineHandle(pub Uuid);
 
 #[derive(Debug, thiserror::Error)]
