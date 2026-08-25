@@ -194,6 +194,7 @@
         <div class="slot-name">📦 Packaging Profile (REQUIRED)</div>
         <div class="profile-name">HLS-CMAF-v2</div>
         <div class="profile-meta">v2 ACTIVE · HLS + CMAF · container / segment / manifest</div>
+        <div style="margin-top:6px;font-size:10px;color:var(--fgdim)">⚑ 0.5F.13: 此处为 <b>Bundle Default</b> Packaging。未显式指定 packaging_profile_ref 的 Variant 继承此值；指定者走 Variant Override → <b>EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override</b>。</div>
         <div style="margin-top:6px;font-size:10px">
           <a style="color:var(--accent);text-decoration:none">Open P-20 →</a>
           ·
@@ -405,11 +406,15 @@
   <button class="btn l3">Delete Bundle (L3 · 检查 Used By 8 维度)</button>
 </div>
 
+<div class="panel" style="font-size:11px;color:var(--fgdim);border-left:3px solid var(--orange,#d29922);padding:8px 12px;margin-top:8px">
+  ⚠ <b>0.5F.13 · Bundle Change 必须进入 Configuration Surface</b>：任意 slot 的 <code>▾ Change</code> 不是普通下拉——改一个 Profile 会触发 <b>Bundle Revision → Graph Compile → Resource Recalculate → Preflight → ChangeSet → Apply</b>。点击 <code>▾ Change</code> 必须先弹 <b>Impact Preview</b>（Affected: Encoding Session / Output Variant ×N / Resource / Reservation / Preflight；Risk: LOW/MEDIUM/HIGH），再 <b>Create ChangeSet</b>，禁止直接就地替换。
+</div>
+
 <footer>
   VBMF Operator Console · P-28 Profile Bundle · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
   · 关联: P-20 Profile Center / P-21 Encoding / P-22 Output / P-23 Audio / P-24 Graphic / P-25 QC / P-26 Rights / P-27 Edge Policy
   · Object: Profile Bundle (1 Channel 1 Bundle, 8 Profile 引用)
-  · 3-Layer + 4 Workflows + Revision 不可变 + Logical Atomic Apply
+  · 3-Layer + 5 Workflows (含 0.5F.13 Output/Packaging 归属 + 继承链可视化) + Revision 不可变 + Logical Atomic Apply
 </footer>
 
 <script>

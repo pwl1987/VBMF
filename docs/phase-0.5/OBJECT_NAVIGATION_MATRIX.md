@@ -27,7 +27,7 @@
 | Source | Open Channel 打开频道 | CD-01-WS / CD-01-Detail | `channel_id` |
 | Profile | Used By 影响面 | E-50 Impact Preview | `profile_rev` |
 | Bundle | Open Channel 打开频道 | CD-01-WS / CD-01-Detail | `bundle_rev` |
-| Variant | Open Output 打开输出 | 06 Output | `variant_id` |
+| Variant | Open Output 打开输出 | 06 Output | `variant_id` + `output_profile_ref` + `packaging_profile_ref` |
 | Realtime Session | Open Output 打开输出 | 06 Output | `session_id` + `variant_id` |
 | Output | Open Health 打开健康 | 09 Health Tree | `node_path` |
 | Incident | Replay 回放 | 07 Recording | `incident_id` |
@@ -51,10 +51,14 @@
 ```
 Asset (M-11)
   → Create Asset Version (M-12 Tab ②)
-  → File Transcode (M-14)
-  → 选 Encoding Profile (P-21) + Packaging Profile (P-20 Packaging Tab) + Output Profile (P-22)
-  → Preview / Test Encode
-  → Job (M-18, FILE_TRANSCODE, job_id)
+  → File Transcode (M-14, Transcode Center / FILE 模式)
+  → 选 Output Version (asset_version_id)
+  → 选 Encoding Profile (P-21)
+  → 选 Packaging Profile (P-20 Packaging Tab · 默认继承 Bundle Default, 可 Variant Override, 0.5F.13)
+  → 选 Output Profile (P-22 · 唯一 SoT = Variant, 0.5F.13)
+  → Job Policy (M-14 Step ⑤)
+  → Preview / Test Encode (M-14 Step ⑥)
+  → Submit → Job (M-18, FILE_TRANSCODE, job_id)
   → COMPLETED → 新 Asset Version (asset_version_id)
   → QC (M-18 Job Detail / QC Profile)
   → Used By → Channel / Playout (CD-01)
@@ -104,3 +108,37 @@ Asset (M-11)
 - [ ] Destination / Adapter：`dest_id` / `adapter_ref` 在 06 Output 与 09 Health Tree 间闭环
 - [ ] Revision：`revision_id` 在 D7 与 ChangeSet 间可达
 - [ ] Channel Template：`template_id` 实例化 → CD-01 闭环
+- [ ] **0.5F.13**: Variant 跳转携带 `output_profile_ref` + `packaging_profile_ref`, 后者可 Variant Override 继承 Bundle Default
+- [ ] **0.5F.13**: 任意 Profile 派生值 Surface 提供 Inherited/Overridden/Explicit/Compiled/Effective 来源链 (闭环覆盖 §3.5)
+
+---
+
+## 3. 配置继承链闭环 (0.5F.13 新增)
+
+> Phase 4 实现约束：Profile → Bundle → Variant → Runtime 的 5 层派生，必须在 UI 上形成「来源可解释」闭环，禁止运行态正确但来源不可追溯。
+
+### 3.1 层级与 5 态来源
+
+```text
+Global Profile (Explicit)
+      ↓ Inherited
+Profile Bundle (引用)
+      ↓ Inherited / Overridden
+Channel Configuration
+      ↓ Overridden (per-Variant)
+Output Variant (output_profile_ref / packaging_profile_ref)
+      ↓ Compiled
+Compiled Runtime
+      ↓ Effective
+Effective Runtime
+```
+
+每屏显示派生值，必须可展开：
+`Inherited`（灰）/ `Overridden`（橙）/ `Explicit` / `Compiled` / `Effective`（主显示加粗）。
+
+### 3.2 闭环要求（Acceptance 0.5F.13）
+
+- [ ] P-28 / CD-01 / P-21 / P-22 / M-14 任一 Profile 派生值，点击可见完整来源链
+- [ ] Variant 的 `packaging_profile_ref` 显式标注「继承 Bundle」或「Variant Override」
+- [ ] `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override` 计算路径可回溯
+- [ ] 改 Bundle Default 时，Impact Preview 明确区分「受影响 Variant（未指定）」与「不受影响 Variant（已 Override）」

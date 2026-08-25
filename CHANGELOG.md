@@ -19,6 +19,15 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-4 M-17 命名统一**：全仓库 "Realtime Transcode" 残留文本统一为 "Realtime Session 实时媒体会话"（POM/PIA/ENCODE_MODEL/E-41/M-14/OBJECT_VOCABULARY/SURFACE_REGISTRY/SURFACE_SPEC/ROADMAP/0.5C closure）；RECONCILIATION 历史决策记录保留原 rename 表述。
 - 校验：`scripts/check_docs.py` 链接可达性 + 数字口径一致性 **PASS**。完成后 Phase 0.5 可真正冻结并进入 Phase 0.6 Executable Acceptance。
 
+### Phase 0.5F — Profile Ownership & Variant Delivery Closure（0.5F.13，2026-08-25，LOCK FINAL）
+- **P0 · Packaging 归属焊死**：Output Variant 增 `packaging_profile_ref`（per-Variant 引用），未指定继承 `Bundle.packaging_profile_ref`（Default），指定则 Variant Override → `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override`。支持 HLS / RTMP / UDP / File / WebRTC / 2110 多 Variant 共存（CH01 国内 HLS+CMAF / 海外 RTMP / 归档 MP4 不再共享单 Packaging）。OBJECT_VOCABULARY §1.8 + §1.16 新增。
+- **P0 · Output Profile 唯一 SoT**：`output_profile_ref` 唯一权威 = Variant；Bundle 仅持 `default_output_profile_ref` 模板默认（实例化带入、可覆盖），禁止 "Bundle + Variant" 双真相。PRODUCT_OBJECT_MODEL §3.3 守卫。
+- **P1 · Bundle Change 必须进 Configuration Surface**：P-28 `▾ Change` 改为先弹 Impact Preview（Affected: Encoding Session / Output Variant ×N / Resource / Reservation / Preflight；Risk 分级）→ Create ChangeSet，禁止就地下拉替换。
+- **P1 · M-14 Workflow 重排**：推荐顺序对齐 Object Model——Asset → Output Version → Encoding → Packaging → Job Policy → Test Encode → Submit；并建议 Transcode Center 统一入口内分 [FILE] / [REALTIME] 两种运行模式。
+- **P1 · 继承链可视化**：新增 Profile → Bundle → Variant → Runtime 5 层派生来源链，每屏派生值可展开 Inherited / Overridden / Explicit / Compiled / Effective（OBJECT_VOCABULARY §1.16 + PRODUCT_OBJECT_MODEL §3.5 + OBJECT_NAVIGATION_MATRIX §3）。
+- **P1 · Source 连续流程 / UDP 网络上下文 / CD-01 工作驾驶舱**：在 0.5F.13 复检结论中记为后续可优化项（P2），本提交未展开，待 Phase 0.6 决定。
+- 校验：一致性 95% / UI-UX 语义完整度 92%；**未新增任何 Surface**（Registry SoT 维持 56）；仅四份权威文档 + 两份 wireframe 内联提示收口。结论：Phase 0.5 Product/UX Semantics 可冻结，下一提交应进入 Phase 0.6 Executable Acceptance（AC-01/AC-02/AC-03）。
+
 ### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
 - **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
 - **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。

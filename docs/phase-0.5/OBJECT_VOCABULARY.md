@@ -132,10 +132,12 @@
 | **DB 表** | `output_variants` |
 | **UI 入口** | CD-01 Channel Detail / Tab 6 Output |
 | **唯一 ID** | `variant_id` (UUID) |
-| **核心字段** | `variant_id, channel_id, profile_ref, destinations[] (Output Destination 引用), runtime_state, encoding_session_ref` |
+| **核心字段** | `variant_id, channel_id, output_profile_ref (OUTPUT_PROFILE 引用), packaging_profile_ref (PACKAGING_PROFILE 引用 · 见 1.16 覆盖链), destinations[] (Output Destination 引用), runtime_state, encoding_session_ref` |
 | **命名约定** | `V-{channel}-{protocol}-{region}` 例: `V-CH01-HLS-Domestic` |
 | **绝不允许混用** | ❌ **Output Variant ≠ Asset Version** (后者在 1.2) |
 | **关系** | 1 Channel → N Output Variants (1:1 Profile 派生, 但 1 Profile → N Variants across channels) |
+| **Packaging 归属 (0.5F.13 焊死)** | ⛔ **禁止** 把 Packaging 当成 "全 Channel 唯一实例"。`packaging_profile_ref` 是 **per-Variant** 引用: 未显式指定时继承 `Bundle.packaging_profile_ref` (Default), 显式指定时 Variant Override。最终 `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override` (见 §1.16)。HLS / RTMP / UDP / File / WebRTC / 未来 2110 共存即靠此机制。 |
+| **Output Profile 唯一 SoT (0.5F.13 焊死)** | `output_profile_ref` 的**唯一权威来源 = Variant** (per-Variant 派生实例)。Bundle 不再持有 `output_profile_ref` 作为运行态真相; Bundle 仅提供 Template-level 默认 (`default_output_profile_ref`, 实例化时带入, 可被 Variant 覆盖)。禁止出现 "Bundle 的 Output Profile 与 Variant 的 Output Profile 双真相"。 |
 
 ### 1.9 Destination 输出目的地
 
@@ -356,4 +358,67 @@ V0.2 §1-§9 已经锁定了 12 Engines + 5 横向系统 + 6 横切能力。本 
 
 ---
 
-**VBMF Contributors** · VBMF Object Vocabulary V0.1 · Phase 0.5C Information Architecture Closure
+## 1.16 Profile → Bundle → Variant → Runtime 继承链 (0.5F.13 焊死)
+
+广播系统配置存在 5 层派生。每层在 UI 必须一眼可解释 (继承/覆盖/快照语义), 禁止 "运行态正确但来源不可追溯"。
+
+### 继承层级 (自上而下覆盖)
+
+```text
+Global Profile (ENC/AUD/PKG/OUT/GFX/QC/RIGHTS/EDGE)
+      ↓ 引用
+Profile Bundle (Channel Template)
+      ↓ 实例化
+Channel Configuration
+      ↓ per-Variant 覆盖
+Output Variant (Override)
+      ↓ 编译
+Compiled Runtime
+      ↓ 运行
+Effective Runtime
+```
+
+### 每层必须标注的来源态 (5 态)
+
+| 态 | 含义 | UI 呈现 |
+|---|---|---|
+| `Inherited` | 直接继承上层, 本层未改 | 灰色 / "继承自 Bundle" |
+| `Overridden` | 本层显式覆盖上层 | 橙色 / "Variant 覆盖" |
+| `Explicit` | 本层原始定义 (如 Global Profile 自身) | 默认 |
+| `Compiled` | 编译层合并结果 | "编译结果" |
+| `Effective` | 最终运行态 | 加粗 / 主显示 |
+
+### Packaging 归属示例 (CH01 三 Variant — 0.5F.13 核心)
+
+```text
+Bundle.packaging_profile_ref = PKG-DEFAULT (HLS+CMAF 模板级默认)
+
+V-CH01-HLS-Domestic
+   packaging_profile_ref = <继承 PKG-DEFAULT>
+   EFFECTIVE_PACKAGING   = HLS + CMAF + Manifest + Segment
+
+V-CH01-RTMP-Overseas
+   packaging_profile_ref = PKG-RTMP (Variant Override)
+   EFFECTIVE_PACKAGING   = RTMP (无 HLS manifest)
+
+V-CH01-Archive
+   packaging_profile_ref = PKG-MP4 (Variant Override)
+   EFFECTIVE_PACKAGING   = MP4 单文件
+```
+
+### Bitrate 可解释性示例
+
+```text
+Bitrate
+   Profile:   5 Mbps   (Explicit)
+   Bundle:    inherited
+   Variant:   8 Mbps   Override
+   Compiled:  8 Mbps
+   Effective: 8 Mbps
+```
+
+> **守卫 (0.5F.13)**: 任何 Surface 显示 Profile 派生值, 必须同时可展开 "Inherited / Overridden / Explicit / Compiled / Effective" 来源链。禁止只显示最终值而无来源。
+
+---
+
+**VBMF Contributors** · VBMF Object Vocabulary V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13 Profile Ownership & Variant Delivery Closure

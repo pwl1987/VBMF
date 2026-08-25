@@ -138,10 +138,11 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
                           │
         ┌─────────────────┼─────────────────┐
         │                 │                 │
-     SOURCE            BUNDLE            VARIANT
-   (1..N, 冗余)    (1, 8 个 Profile 引用)   (1..N, 输出)
-        │                 │                 │
-        ↓                 ↓                 ↓
+     SOURCE            BUNDLE            VARIANT (1..N)
+   (1..N, 冗余)    (1, 8 个 Profile 引用)   每个 Variant 持:
+        │                 │                · output_profile_ref
+        │                 │                · packaging_profile_ref
+        ↓                 ↓                (未指定→继承 Bundle)
     ┌──────────┐    ┌──────────┐    ┌──────────┐
     │ Health   │    │ Used By  │    │ Session  │
     │ Tree     │    │ + Impact │    │ + Run    │
@@ -166,7 +167,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 1. **改 Bundle = 创建 Revision → 进入 ChangeSet → 走 Logical Atomic Apply**
 2. **改 Profile = 影响所有引用该 Profile 的 Bundle → 走 ChangeSet**
 3. **改 Channel = 改 Bundle 引用或 Source 引用 → 走 ChangeSet**
-4. **改 Variant = 不允许 (Variant 是派生) — 改回 Profile 改**
+4. **改 Variant = 默认不允许随意改回 Profile**（Variant 是派生）；**但 Packaging / Output Profile 两个 per-Variant 引用允许 Variant 级 Override**（见 §3.3 / 0.5F.13）：未指定则继承 `Bundle.packaging_profile_ref` / `Bundle.default_output_profile_ref`，显式指定则 Variant Override，最终 `EFFECTIVE = Bundle Default ↓ Variant Override`。
 
 ---
 
@@ -195,28 +196,49 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 6. 走 Logical Atomic Apply
 ```
 
-### 3.3 Workflow: 改一个 Channel 的 Output Profile
+### 3.3 Workflow: 改一个 Channel 的输出 / Packaging (0.5F.13 焊死归属)
 
 ```
-1. Operator 进 CD-01 Channel Detail
-2. 看到 Bundle = CH01-News-Live (用 v2)
-3. 改 Bundle 引用 v2 → v3
-4. 立刻看到 Impact Preview: 3 个 Variant 都将用 v3
-5. 创建 ChangeSet (单 item)
-6. 立即应用 (不调度, 因为该 Channel 在用 v2 但 Preflight 已过)
-7. ChangeSet 走 APPLYING → APPLIED
-8. Variant 重新派生 → Session 收到 `Apply Runtime Revision` 指令 (JSON-RPC `session.apply_revision`, V0.2 §3.x Runtime Contract)；SIGUSR1 仅作为某实现内部的进程信号 (**Implementation Detail**)，**不**写入产品/运行时契约。
+1. Operator 进 CD-01 Channel Detail → Tab Output Variants
+2. 看到 3 个 Variant, 各自的:
+     · output_profile_ref     (唯一 SoT = Variant)
+     · packaging_profile_ref  (未指定=继承 Bundle Default, 指定=Variant Override)
+3. 场景 A — 改全 Channel 默认 Packaging:
+     进 P-28 Bundle → 改 packaging_profile_ref v2 → v3
+     → Impact Preview: 3 个 Variant 中"未显式指定"的那些将继承 v3
+4. 场景 B — 仅改某 Variant 的 Packaging (如把 RTMP Variant 切到 PKG-RTMP):
+     在 Variant 行直接设 packaging_profile_ref = PKG-RTMP (Variant Override)
+     → EFFECTIVE_PACKAGING = PKG-RTMP, 不影响其他 Variant
+5. 改 Bundle / 改 Variant 引用 都进入 ChangeSet (Impact Preview → Create ChangeSet)
+6. ChangeSet 走 APPLYING → APPLIED
+7. Variant 重新派生 → Session 收到 `Apply Runtime Revision` 指令 (JSON-RPC `session.apply_revision`, V0.2 §3.x Runtime Contract)；SIGUSR1 仅作为某实现内部的进程信号 (**Implementation Detail**)，**不**写入产品/运行时契约。
 ```
+
+> ⛔ **0.5F.13 明确**: `Output Profile` 的唯一 SoT = Variant (`output_profile_ref`)。Bundle 仅持 `default_output_profile_ref` 作 Template 默认, 实例化时带入, **可被 Variant 覆盖**; 禁止 "Bundle Output Profile + Variant Output Profile" 双真相。
 
 ### 3.4 Workflow: 临时 Override (紧急切到备用 Profile)
 
 ```
-1. Operator 进 CD-01 / Tab Bundle
+1. Operator 进 CD-01 / Tab Bundle (或特定 Variant)
 2. 看到 "临时 Override" 按钮 (L2)
-3. 选临时 Profile (e.g. backup HLS-LL)
+3. 选临时 Profile (e.g. backup HLS-LL) — 作用于 Bundle Default 或特定 Variant 的 packaging/output ref
 4. 填写 Who/Why/Until (强制 L2 审计)
 5. 立即生效 (不进 ChangeSet, 但进 Audit Log)
-6. Until 到期后, 自动回滚到 Bundle 默认 Profile
+6. Until 到期后, 自动回滚到 Bundle 默认 Profile / Variant 原 Override
+```
+
+### 3.5 Workflow: 配置继承链可解释性 (0.5F.13 P1)
+
+```
+1. 任意显示 Profile 派生值的 Surface (P-28 / CD-01 / P-21 / P-22 / M-14)
+2. 每个值旁提供 "来源" 展开:
+     Inherited   (继承自上层, 本层未改)
+     Overridden  (本层显式覆盖)
+     Explicit    (本层原始定义)
+     Compiled    (编译合并结果)
+     Effective   (最终运行态, 主显示)
+3. 例: Bitrate = 8 Mbps (Effective), 展开见 Profile 5 → Bundle inherited → Variant 8 Override → Compiled 8
+4. 禁止只显示最终值而无来源链 (OBJECT_VOCABULARY §1.16 守卫)
 ```
 
 ---
@@ -288,7 +310,10 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 - [ ] **Object Vocabulary** 15 个对象在所有 wireframe 中命名一致
 - [ ] **DB schema 字段名** 与 Object Vocabulary 一致
 - [ ] **Phase 0.6 README** 修正 `< 100ms` → `target_failover_time_ms + measured p50/p95/p99`
+- [ ] **0.5F.13**: Output Variant 持 `output_profile_ref` + `packaging_profile_ref` 双引用, 后者支持 Variant Override 继承 Bundle Default
+- [ ] **0.5F.13**: `Output Profile` 唯一 SoT = Variant, Bundle 仅持 `default_output_profile_ref` 作模板默认
+- [ ] **0.5F.13**: 任何 Profile 派生值 Surface 提供 Inherited/Overridden/Explicit/Compiled/Effective 来源链 (见 §3.5 / OBJECT_VOCABULARY §1.16)
 
 ---
 
-**VBMF Contributors** · VBMF Product Object Model V0.1 · Phase 0.5C Information Architecture Closure
+**VBMF Contributors** · VBMF Product Object Model V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13 Profile Ownership & Variant Delivery Closure

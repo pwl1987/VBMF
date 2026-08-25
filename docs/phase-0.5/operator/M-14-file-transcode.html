@@ -90,6 +90,10 @@
   <div class="step"><div class="num">STEP 6</div>提交 Submit</div>
 </div>
 
+<div class="panel" style="font-size:11px;color:var(--fgdim);border-left:3px solid var(--accent,#58a6ff);padding:8px 12px;margin-top:8px">
+  ⓘ <b>0.5F.13 · 推荐 Workflow（与 Object Model 对齐）</b>：① Select Asset → ② Select Output Version → ③ Select Encoding Profile → ④ Select Packaging Profile（默认继承 Bundle Default，可 Variant Override）→ ⑤ Job Policy → ⑥ Preview / Test Encode → Submit。当前 wireframe 的 Step 2/3 已贴近该顺序；<b>Transcode Center</b> 建议作为统一媒体处理入口，内分 <b>[ FILE ]</b>（Asset→Encoding→Packaging→Job→QC→Asset Version）与 <b>[ REALTIME ]</b>（Source→Encoding→Session→Reservation→READY_TO_TAKE→Output）两种运行模式，避免“文件转码 / 实时编码”被理解成两个割裂产品。
+</div>
+
 <!-- Step 1 Source: 已选 input (折叠) -->
 <details>
   <summary>▸ Step 1 Source (已选 news_morning_0825.mp4 · 1.42 GB · H.264 1080p25 AAC · 00:30:25)</summary>
@@ -203,6 +207,8 @@
 <details>
   <summary>▸ Step 3 Profile (Encoding / Packaging / Job Policy — 职责分离)</summary>
   <div class="panel" style="margin-top:8px">
+
+    <div class="diag" style="border-left:3px solid var(--purple,#a371f7);padding:6px 10px;margin-bottom:8px">⚑ <b>0.5F.13 · Packaging / Output Profile 归属</b>：本步为<b>单 Output Asset Version</b> 选 Packaging Profile（= Variant 级 `packaging_profile_ref`，未指定则继承 Bundle Default）。`Output Profile` 唯一 SoT = 该 Version 对应的 Variant；禁止与 Bundle 产生双真相。选择项旁应可展开 <b>Inherited / Overridden / Explicit / Compiled / Effective</b> 来源链（OBJECT_VOCABULARY §1.16）。</div>
 
     <!-- ① Encoding Profile -->
     <div class="box-title" style="color:#58a6ff">① Encoding Profile (P-21 · FILE_PROFILE)</div>
