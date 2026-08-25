@@ -97,6 +97,10 @@ docs/
 | **0.5F.9 Micro-Closure** | 2026-08 | 🟢 完成 | P0: E-40 统一 Source Ingest Wizard + E-42 Source Verification Bench; OBJECT_VOCAB/ENCODE 清除 REALTIME_ENCODE JobKind. P1: CD-01 Audio/Output 运行控制·恢复 / Source Freshness / Provenance 折叠 / CH-02 Expected Effective / Surface 三计数 | (本轮) |
 | **0.5F.10 Source & Runtime Safety Micro Closure** | 2026-08 | 🟢 完成 | P0: E-40 多 Kind Wizard 视觉 (File/Internal/Composite 分支) + E-42 per-Kind Fixture (5 Kind 验收态). P1: Composite Graph-backed / Freshness Policy / STALE ON AIR / Output Disable Impact Preview / Audio Semantics+L级 / E-42 Capability Inputs / M-17 Realtime Session | (本轮) |
 | **0.5F.11 Final Consistency & Safety Closure** | 2026-08 | 🟢 LOCK FINAL | 2 P0 + 4 P1: CD-01 REQUIRED→TAKE BLOCKED + Emergency Override L3 / Phase Status SoT (MILESTONES=SoT) / E-40 动态 Kind 分支 / E-42 5-Kind Validation Profiles / E-40 Composite GraphSpec→Child→Compile / M-17 Realtime Session 命名统一 | `e9ebe6f` |
+| **0.5F.13 Profile Ownership & Variant Delivery Closure** | 2026-08 | 🟢 LOCK FINAL | Packaging per-Variant / Output Profile 唯一 SoT / Bundle Change→Impact Preview / 继承链可解释性 | `b4e409f` |
+| **0.5F.14 Object Boundary & Channel Workspace Closure** | 2026-08 | 🟢 LOCK FINAL | 清旧双真相 (output_profile_ref→default_output_profile_ref) / M-14 拆 FILE_TRANSCODE·REALTIME SESSION 两链 / Target Asset Version / 全局 Configuration Source Panel / Source·Channel Workspace | `967b522` |
+| **0.5F.15 Final Workflow Consistency & Source/Channel UX Closure** | 2026-08 | 🟢 LOCK FINAL | JobKind 5 / SourceKind 11 / CD-01-WS·Detail / AssetVersionRole / StorageDestination / TAKE·FAILOVER / 交付实例化链 / AC-01~04 | `0c8fd0d` |
+| **0.5F.16 SoT & Acceptance Final Reconciliation** | 2026-08 | 🟢 LOCK FINAL | MILESTONES/README/POM/SURFACE/NAVIGATION 状态回写 0.5F.11→0.5F.15 / Output Destination UDP Egress Schema / Storage Path Override / AC-03B Temporary Override | `0c8fd0d`+本轮 |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 
@@ -111,7 +115,7 @@ docs/
 | **Phase 0.5C Info Arch** | 🟢 **LOCK FINAL** | 目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复 + README 统一 |
 | Phase 0.5D P0 Product Surfaces | 🟢 **LOCK FINAL** | D1-D6 + 对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit |
 | Phase 0.5E Global UX Layer | 🟢 **LOCK FINAL** | Impact Preview (E-50) + Configuration Diff (E-51) + Command Palette (E-52) |
-| Phase 0.5F Final UX Reconciliation | 🟢 **LOCK FINAL** | 0.5F.1-.8 + 0.5F.9/0.5F.10/0.5F.11 多轮收口 · LOCK FINAL |
+| Phase 0.5F Final UX Reconciliation | 🟢 **LOCK FINAL** | 0.5F.1-.8 + 0.5F.9/0.5F.10/0.5F.11 + 0.5F.13/0.5F.14/0.5F.15/0.5F.16 多轮收口 · LOCK FINAL (最新收口 = 0.5F.16, 2026-08-25) |
 
 ## 4. Phase 0.5 LOCK FINAL 最终条件
 
@@ -120,11 +124,11 @@ docs/
 - ✅ **FG-01 · 0.5C RECONCILED→LOCK** (目录归并 + Object Vocabulary + Navigation + Product Object Model + 0.6 语义修复)
 - ✅ **FG-02 · 0.5D LOCK** (D1-D6 验收链 + 0.5D.1-.6 语义/执行闭环: 对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit)
 - ✅ **FG-03 · 0.5E LOCK** (Impact Preview E-50 + Configuration Diff E-51 + Command Palette E-52 跨域落实)
-- ✅ **FG-04 · 0.5F 全部完成** (0.5F.1-.8 + 0.5F.9/0.5F.10/0.5F.11 多轮审查收口, 无遗留 P0/P1 UX 矛盾)
+- ✅ **FG-04 · 0.5F 全部完成** (0.5F.1-.8 + 0.5F.9/0.5F.10/0.5F.11 + 0.5F.13/0.5F.14/0.5F.15/0.5F.16 多轮审查收口, 无遗留 P0/P1 UX 矛盾)
   - **状态三语义 (0.5F.3 P1-7):** **Surface Lock** (页面/原型已冻结, 见 `SURFACE_REGISTRY.yaml`) · **Workflow Acceptance** (点击路径验收, 见 RECONCILIATION §T) · **Milestone Lock** (阶段正式 LOCK 声明, 本文件 = SoT)。Registry 关键 surface 已全 LOCK = Milestone LOCK (2026-08-25 达成)。
 - ✅ **FG-05 · 文档同步** (README / MILESTONES / SURFACE_SPEC / PIA / Registry 状态完全同步, 0.5F F1)
 - ✅ **FG-06 · 3 文档 SEMANTIC LOCKED** (Object Vocabulary + Product Object Model + Navigation)
-- ✅ **FG-07 · 阶段状态 SoT 一致** (MILESTONES.md = SoT, README/Root/Phase README 派生, 无三套状态; GitHub README 反映 4 域 + SURFACE_REGISTRY.yaml 计数 56, 无历史残留, 0.5F.11 P0-2)
+- ✅ **FG-07 · 阶段状态 SoT 一致** (MILESTONES.md = SoT, README/Root/Phase README 派生, 无三套状态; GitHub README 反映 4 域 + SURFACE_REGISTRY.yaml 计数 56, 无历史残留; 最新收口 = 0.5F.16, 0.5F.16 P0 已回写状态 SoT)
 
 ## 5. 进入 Phase 0.6 的条件
 

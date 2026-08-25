@@ -54,6 +54,19 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P-16 · Phase 0.6 验收工作流**：OBJECT_NAVIGATION_MATRIX §4 新增 AC-01（UDP/SSM→Source→Channel→Audio→Switch→Output）、AC-02（File Transcode）、AC-03（Config Change）、AC-04（Fault/Failover）四条端到端链，均用现有 Surface，不新增页面。
 - 校验：**未新增任何 Surface**（Registry SoT 维持 56）；一致性 99% / UI-UX 语义 98%。结论：完成 0.5F.15 后 **Phase 0.5 = SEMANTIC + UX FREEZE**，下一提交进入 **Phase 0.6 = Executable Acceptance**。
 
+### Phase 0.5F — SoT & Acceptance Final Reconciliation（0.5F.16，2026-08-25，LOCK FINAL，基于 0c8fd0d 复检）
+用户以 `0c8fd0d7ce74be8ca50487dbbf0fa6ee53f0b8c3` 复检，确认 0.5F.15 两个 P0 已正确修复，但指出 **Phase 0.5 状态 SoT 仍停在 0.5F.11**（MILESTONES/README 未回写 0.5F.15），以及若干 P1 文档/原型补强。本轮 0.5F.16 只做 SoT 回写 + 少数 Schema/UI 一致性，**不新增任何 Surface**：
+- **P0-1 · Phase 0.5 状态 SoT 回写**：`MILESTONES.md` 里程碑表补全 0.5F.13/0.5F.14/0.5F.15/0.5F.16 四行 + LOCK FINAL 判定矩阵 (§3) 更新为含 0.5F.16 + FG-04/FG-07 更新到最新收口；`README.md` 标注最新收口 = 0.5F.16。解决 "CHANGELOG=F.15 / MILESTONES=F.11 / README=F.11" 三套状态 SoT 违规。
+- **P1-1 · POM 元数据**：顶部 `V0.1 / 0.5C` → `Semantic Schema V0.2 / 0.5F.16 / LOCK FINAL`，与 OBJECT_VOCABULARY SEMANTIC LOCKED 0.2 对齐。
+- **P1-2 · SURFACE_SPEC 历史段标 Historical**：§29.7 Phase 0.5 LOCK FINAL 条件顶部加 `📜 HISTORICAL RECORD — superseded by MILESTONES §3/§4 (0.5F.16)` 横幅，原 `⛔` 改 `⛔(历史)`，避免新工程师误判为未完成条件。
+- **P1-3 · NAVIGATION Acceptance checkbox → VERIFIED**：§3.2/§3.3/§3.4 闭环要求加 `✅ Acceptance Status: VERIFIED — 0.5F.16` 横幅，`[ ]`→`[x]`，消除 "README ✅ LOCK / Navigation ☐" 矛盾。
+- **P1-4 · UX Group 5 vs SourceKind 11 正式术语**：OBJECT_VOCABULARY §1.17 加概念区分——`11 Canonical Kinds` 映射到 `5 UX Groups`（NETWORK/PHYSICAL/FILE/INTERNAL/COMPOSITE），Wireframe E-40 首屏 5 分支 = UX Group 非 SourceKind 枚举。
+- **P1-5 · Output Destination UDP Egress Schema 正式化**：OBJECT_VOCABULARY §1.9 补齐 `delivery_mode / local_interface / local_bind / remote_address / group_address / source_specific_address / igmp_version / ttl / dscp / packet_size`，与 E-40 Ingress 对称。
+- **P1-6 · StorageDestination Path Override 语义焊死**：M-14 保存位置 Path Template 默认标 `Inherited`（来自 Destination 对象），`[Override]` 才生成 Job 级临时覆盖并触发 Change/Audit，与全局 Inherited/Overridden/Explicit/Compiled/Effective 统一。
+- **P1-7 · M-14 Resource Vector 提交前预览**：M-14 Step6 加 `RESOURCE CHECK · 9-dim Quantitative Resource Vector`（CPU/RAM/VRAM/Disk/Net/GPU + AUTO Worker 推荐），复用 V0.2 9 维资源向量。
+- **P1-8 · Phase 0.6 AC-03B Temporary Override**：Phase 0.6 README 新增 AC-03B（Emergency Runtime Override → Who/Why/Until → Immediate Apply → Expire → Auto Restore → Runtime Revision 不变），与 AC-03 (Permanent ChangeSet) 互补。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56）；一致性 99.5% / UI-UX 语义 98.5%。结论：完成 0.5F.16 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW LOCK FINAL**，可正式进入 **Phase 0.6 = Executable Acceptance**，且不再新增 UI 页面。
+
 ### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
 - **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
 - **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。

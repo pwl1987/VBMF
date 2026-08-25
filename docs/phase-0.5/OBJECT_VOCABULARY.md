@@ -147,8 +147,24 @@
 | **kind 值** | `DESTINATION` |
 | **DB 表** | `output_destinations` |
 | **UI 入口** | P-22 Output Profile / Detail / 06 Output (operator) |
-| **核心字段** | `destination_id, host, port, path, protocol, auth_ref, status, health, edge_policy_ref` |
+| **核心字段** | `destination_id, host, port, path, protocol, auth_ref, status, health, edge_policy_ref` + **UDP Egress 网络端点 schema** (见下, 0.5F.16 P1-5 补齐, 与 E-40 Ingress 对称) |
 | **绝不允许混用** | ❌ 不是 "Endpoint" (那是协议术语) / "URL" (那是字符串) |
+
+> 🆕 **0.5F.16 P1-5 · Output Destination UDP Egress Schema (与 Source Ingress 对称)**: 当 `protocol ∈ {UDP, RTP}` 时, 核心字段须扩展网络端点属性, 与 E-40 字段一一对应:
+> ```yaml
+> delivery_mode: UNICAST | MULTICAST_ASM | MULTICAST_SSM
+> local_interface: eno2
+> local_bind: eno2:5000
+> remote_address: 10.30.20.60        # UNICAST
+> remote_port: 5000
+> group_address: 239.10.20.10        # MULTICAST
+> source_specific_address: 10.30.20.5 # SSM
+> igmp_version: v3
+> ttl: 32
+> dscp: CS4 (32)
+> packet_size: 1316
+> ```
+> 06 Output wireframe 已展示上述字段 (Mode/IGMP/ASM-SSM/TTL/DSCP), 对象层由此正式化, 杜绝 "UI Egress schema > Object Vocabulary" 的缺口。
 
 ### 1.10 Adapter 适配器 (真正执行协议)
 
@@ -461,6 +477,16 @@ Create Source
 
 > ⛔ **0.5F.15 P0-2 · SourceKind = 11 (非 12)**: `SDI / SRT / RTMP / HLS / WebRTC / RTP / UDP / RTSP / FILE / INTERNAL / COMPOSITE`。未来协议 (V0.3: RIST / Zixi / NDI) 通过独立 **Source Adapter Capability Registry** 注册能力, **不**修改 `SourceKind` 枚举——`SourceKind` 数量与 `Source Adapter` 数量概念上不必相等。
 > 不产生新 Surface; 复用 02 Sources + E-40 + E-42。状态流转即 Source 业务生命周期 (§1.6)。
+>
+> 🆕 **0.5F.16 P1-4 · UX Group vs Canonical SourceKind 是两个概念**: 对象层 `SourceKind = 11` 是协议规范真相; UX 一级分支只有 **5 类 UX Group** (对应 Wizard 首屏分组), 二者不可混淆:
+> ```text
+> UX Group: NETWORK     → SDI? NO · UDP/RTP/SRT/RTMP/HLS/RTSP/WebRTC
+> UX Group: PHYSICAL    → SDI
+> UX Group: FILE        → FILE
+> UX Group: INTERNAL    → INTERNAL (BLACK/BARS/FILLER)
+> UX Group: COMPOSITE   → COMPOSITE
+> ```
+> 即 `11 Canonical Kinds` 映射到 `5 UX Groups` (1:多)。Wireframe E-40 的 5 首屏分支 = UX Group, 不是 SourceKind 枚举。
 
 ### 1.18 两条对象链: FILE_TRANSCODE vs REALTIME SESSION (0.5F.14 P1-3 焊死)
 

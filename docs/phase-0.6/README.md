@@ -367,6 +367,31 @@ M-17 Realtime Session (REALTIME_PROFILE)
 - [ ] 06 Output → 09 Health Tree 经 `[Open Health]` 闭环
 - [ ] FILE_TRANSCODE（UI-E2E-02）与 REALTIME_ENCODE（本链）完全分离，不共用同一 UI 入口
 
+### AC-03B: Emergency Runtime Override → Expire → Auto Restore (临时覆盖验收, 0.5F.16 P1-8 新增)
+
+AC-03 验证的是 **Permanent Configuration Change** (ChangeSet→Cutover)。广播系统还必须验证 **Emergency Runtime Override** (不进 ChangeSet, 运行态临时覆盖, 到期自动回滚)：
+
+```
+Current Effective (Runtime Revision N)
+  ↓ Temporary Override
+Who (Operator L3) / Why (Incident ref) / Until (TTL)
+  ↓ Immediate Apply
+Runtime Changed (Override active, 标红, 审计留痕)
+  ↓ ... 持续 ...
+Until 到期 (或 Manual Clear)
+  ↓ Auto Rollback
+Original Effective Restored (Runtime Revision N 不变, 无 ChangeSet)
+```
+
+**验收项**：
+
+- [ ] Override 走独立 Runtime Action 通道, **不**生成 ChangeSet / 不 bump Runtime Revision
+- [ ] Override 必须带 Who / Why / Until, 三者缺一则拒绝 (POM Temporary Override 约束)
+- [ ] Override 活跃期 UI 显式标红 + Audit 事件留痕 (operator / timestamp / reason)
+- [ ] Until 到期触发 Auto Rollback, Original Effective 自动恢复, 无人工介入
+- [ ] Rollback 后 Runtime Revision 编号不变 (证明是临时覆盖而非新配置)
+- [ ] Override 与 ChangeSet 在 E-50 Impact Preview / D7 ChangeSet Review 中互不污染
+
 ## 部署环境
 
 - 服务器：10.30.15.10（Ubuntu 26.04，32 核 / 30 GB / 546 GB / 3 张 BMD DeckLink）

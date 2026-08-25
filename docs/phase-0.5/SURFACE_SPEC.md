@@ -3417,14 +3417,16 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 
 ## 29.7 Phase 0.5 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
 
+> 📜 **HISTORICAL RECORD — superseded by MILESTONES.md §3/§4 (0.5F.16 状态回写).** 以下为 0.5C/0.5D/0.5E 时期的 LOCK 判定记录, 仅作历史追溯; **当前最新收口 = 0.5F.16**, 权威阶段状态 (SoT) 以 `MILESTONES.md` 为准。其中的 `⛔` 标记表示当时未达成条件, 现已全部达成 (FG-01..FG-07)。
+
 完整判定见 [`MILESTONES.md` §3（LOCK FINAL 判定矩阵）](MILESTONES.md#3-phase-05-lock-final-判定矩阵)。
 
-简版:
-- ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
-- ⛔ **0.5D LOCK FINAL** (5 个新表面 M-17/M-18/P-20/P-28/E-38 + E-37 升级 + M-14 重画)
-- ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
-- ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
-- ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
+简版 (历史):
+- ⛔(历史) **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
+- ⛔(历史) **0.5D LOCK FINAL** (5 个新表面 M-17/M-18/P-20/P-28/E-38 + E-37 升级 + M-14 重画)
+- ⛔(历史) **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
+- ⛔(历史) **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
+- ⛔(历史) **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
 
 ## 29.8 实施文件清单 (本轮 + 0.5D)
 

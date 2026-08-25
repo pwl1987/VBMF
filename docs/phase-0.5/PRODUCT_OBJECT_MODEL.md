@@ -1,15 +1,15 @@
-# VBMF Product Object Model (V0.1 · LOCK FINAL)
+# VBMF Product Object Model (Semantic Schema V0.2 · LOCK FINAL · 0.5F.16)
 
-> **目的:** Phase 0.5C Information Architecture Closure 的核心交付。
+> **目的:** Phase 0.5C Information Architecture Closure 的核心交付, 经 0.5F.13/0.5F.14/0.5F.15/0.5F.16 多轮语义收口。
 > 锁定 **产品对象之间的"组合关系"**, 不再让 UI 表面各管各的孤立存在。
 >
-> **本阶段:** 0.5C Information Architecture Closure
+> **当前收口:** 0.5F.16 SoT & Acceptance Final Reconciliation (最新)
 >
-> **状态:** 🟢 **LOCK FINAL** (文档级, 0.5C Info Arch Closure) · **Semantic Schema Version:** 0.1 (PIA Schema; 与 OBJECT_VOCABULARY / EXECUTION_MODEL 同状态语言同步)
+> **状态:** 🟢 **LOCK FINAL** · **Semantic Schema Version:** 0.2 (与 OBJECT_VOCABULARY SEMANTIC LOCKED 0.2 / EXECUTION_MODEL 状态语言同步, 0.5F.16 P1-1 校正 V0.1→V0.2)
 >
-> **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 锁定的 15 个对象
+> **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 锁定的 15 个对象 (SEMANTIC LOCKED 0.2)
 >
-> **关联:** [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md)
+> **关联:** [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`EXECUTION_MODEL.md`](EXECUTION_MODEL.md) · [`ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md)
 
 ---
 

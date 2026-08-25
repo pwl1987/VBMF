@@ -205,7 +205,8 @@
     </div>
     <div class="form-row">
       <label>Path Template</label>
-      <input type="text" value="/mnt/storage/news/{date}/{version}/">
+      <input type="text" value="/mnt/storage/news/{date}/{version}/" readonly title="Inherited from StorageDestination NAS-01">
+      <div style="font-size:9px;color:var(--fgdim)">ⓘ Inherited: /mnt/storage/news/{date}/{version}/  (来自 StorageDestination NAS-01) · <a href="#" style="color:var(--purple)">[Override]</a></div>
     </div>
     <div class="form-row">
       <label>Retention / Access</label>
@@ -213,6 +214,7 @@
     </div>
   </div>
   <div style="font-size:10px;color:var(--fgdim);margin-top:4px">⚑ 0.5F.15: 保存位置绑定到 <b>StorageDestination</b> 对象 (Local NVMe / NAS-01 / RustFS / NFS-Archive / S3-Compatible), 含 Retention / Access Policy / Capacity / Write Speed / Availability, 非裸路径字符串 (OBJECT_VOCABULARY §1.21)。</div>
+  <div style="font-size:10px;color:var(--purple);margin-top:3px">⚑ 0.5F.16 P1-6: <b>Path Template 默认 = Destination 对象属性 (Inherited)</b>; 点 <b>[Override]</b> 才生成 Job 级临时覆盖, 触发 Change/Audit (与全局 Inherited/Overridden/Explicit/Compiled/Effective 语义统一), 不改变 Destination 对象本身。</div>
 </div>
 
 <!-- Step 3 Profile: Encoding / Packaging / Job Policy 三职责区块 (0.5F.12) -->
@@ -460,6 +462,17 @@
         任一 FAIL → 按钮变 L3 阻塞 + 原因.
       </div>
     </div>
+  </div>
+  <div class="box-title" style="margin-top:12px">RESOURCE CHECK · 9-dim Quantitative Resource Vector (V0.2 复用 · 0.5F.16 P1-7)</div>
+  <div class="diag" style="border-left:3px solid var(--green,#3fb950);padding:6px 10px;margin-bottom:8px">
+    <b>Input:</b> 1920×1080 / 50p / HEVC 10-bit &nbsp;|&nbsp; <b>Outputs:</b> Master HEVC + Proxy H.264
+    <table style="width:100%;margin-top:6px;font-size:10px">
+      <tbody>
+        <tr><td>CPU</td><td><span class="v">4.2 cores</span></td><td>RAM</td><td><span class="v">820 MB</span></td><td>VRAM</td><td><span class="v">1.8 GB</span></td></tr>
+        <tr><td>Disk</td><td><span class="v">14 MB/s write</span></td><td>Net</td><td><span class="v">—</span></td><td>GPU</td><td><span class="v">0%</span></td></tr>
+      </tbody>
+    </table>
+    <b>Selected Worker:</b> AUTO → Recommended: GPU-01 (GPU avail 92%, CPU 68%, ETA 17m) &nbsp; <span class="pill pill-green" style="font-size:9px">PASS</span>
   </div>
   <div class="box-title" style="margin-top:12px">Impact Preview (修改前 8 横切能力 #1)</div>
   <div class="checklist">

@@ -136,25 +136,31 @@ Effective Runtime
 每屏显示派生值，必须可展开：
 `Inherited`（灰）/ `Overridden`（橙）/ `Explicit` / `Compiled` / `Effective`（主显示加粗）。
 
-### 3.2 闭环要求（Acceptance 0.5F.13 + 0.5F.14）
+### 3.2 闭环要求（Acceptance 0.5F.13 + 0.5F.14 + 0.5F.15）
 
-- [ ] P-28 / CD-01 / P-21 / P-22 / M-14 / M-17 任一 Profile 派生值，点击可见完整来源链（统一 Configuration Source Panel）
-- [ ] Variant 的 `packaging_profile_ref` 显式标注「继承 Bundle」或「Variant Override」
-- [ ] `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override` 计算路径可回溯
-- [ ] 改 Bundle Default 时，Impact Preview 明确区分「受影响 Variant（未指定）」与「不受影响 Variant（已 Override）」
-- [ ] M-14 跳转携带 `asset_id` / `asset_version_id` / `job_id`，**不**出现 Output Variant / Output Profile 选择（0.5F.14 两条链分离）
+> ✅ **Acceptance Status: VERIFIED — 0.5F.16** · 下列闭环已于 0.5F.15/0.5F.16 完成验收，非待办。
 
-### 3.3 Source Workspace 连续闭环（0.5F.14 P2-9）
+- [x] P-28 / CD-01 / P-21 / P-22 / M-14 / M-17 任一 Profile 派生值，点击可见完整来源链（统一 Configuration Source Panel）
+- [x] Variant 的 `packaging_profile_ref` 显式标注「继承 Bundle」或「Variant Override」
+- [x] `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override` 计算路径可回溯
+- [x] 改 Bundle Default 时，Impact Preview 明确区分「受影响 Variant（未指定）」与「不受影响 Variant（已 Override）」
+- [x] M-14 跳转携带 `asset_id` / `asset_version_id` / `job_id`，**不**出现 Output Variant / Output Profile 选择（0.5F.14 两条链分离）
 
-- [ ] 02 Sources 入口：Create → Source Type（Physical/Network/File/Internal）→ Endpoint 配置 → TEST → VERIFY → ASSIGN → ACTIVE/STANDBY
-- [ ] 选 UDP 后展开 Unicast/ASM/SSM + Interface/VLAN/Bind/Group/IGMP/DSCP/TTL
-- [ ] 复用 E-40 + E-42，不新增 Surface；状态流转 = Source 业务生命周期（OBJECT_VOCABULARY §1.6/§1.17）
+### 3.3 Source Workspace 连续闭环（0.5F.14 P2-9 + 0.5F.15 §1.17）
 
-### 3.4 Channel Workspace 驾驶舱闭环（0.5F.14 P2-10）
+> ✅ **Acceptance Status: VERIFIED — 0.5F.16**
 
-- [ ] CD-01 同上下文呈现 Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 协作区
-- [ ] 点击 Audio → P-23 / Switch → 03 / Output → 06（深页），携带 `channel_id`
-- [ ] 不新增 Surface；驾驶舱 + 深页结构（OBJECT_VOCABULARY §1.19）
+- [x] 02 Sources 入口：Create → Source Type（Physical/Network/File/Internal）→ Endpoint 配置 → TEST → VERIFY → ASSIGN → ACTIVE/STANDBY
+- [x] 选 UDP 后展开 Unicast/ASM/SSM + Interface/VLAN/Bind/Group/IGMP/DSCP/TTL（E-40 已落地）
+- [x] 复用 E-40 + E-42，不新增 Surface；状态流转 = Source 业务生命周期（OBJECT_VOCABULARY §1.6/§1.17）
+
+### 3.4 Channel Workspace 驾驶舱闭环（0.5F.14 P2-10 + 0.5F.15 §1.19）
+
+> ✅ **Acceptance Status: VERIFIED — 0.5F.16**
+
+- [x] CD-01-WS 同上下文呈现 Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 协作区
+- [x] 点击 Audio → P-23 / Switch → 03 / Output → 06（深页），携带 `channel_id`
+- [x] 不新增 Surface；驾驶舱 + 深页结构（OBJECT_VOCABULARY §1.19）
 
 ---
 
