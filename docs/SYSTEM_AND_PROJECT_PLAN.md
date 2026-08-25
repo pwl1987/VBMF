@@ -5,6 +5,12 @@
 > **目标用户**: 风从平地起
 > **会话**: mvs_6ba8f6b9e66e4ea3b89036e75f929fab
 
+> **📌 SoT 分层声明 (2026-08-25 追加)**: VBMF 存在三套互相独立、互不冲突的 SoT, 审核时须区分:
+> 1. **产品实施技术栈 SoT** = 本文档 (§2.2, V0.2 Technical Stack Baseline 冻结): Fastify + PostgreSQL + Drizzle + React 19 + Vite + shadcn/ui + Tailwind + Valkey + RustFS + BullMQ + MediaMTX/SRS + Better Auth/CASL。
+> 2. **媒体运行时/架构 SoT** = `docs/architecture/ARCHITECTURE_V0.2.md`: Rust Media Agent / FFmpeg / GStreamer / BMD DeckLink / JSON-RPC / SDI·SRT·UDP / RTMP·HLS·WHEP。
+> 3. **验收 Harness SoT** = `docs/phase-0.6/` (Python + YAML + Playwright)。
+> 另: Phase 0.5 的 HTML/CSS/JS 是 **UX 原型** (验证 IA/Workflow/Surface/Design System), 其结论在 **Phase 4** 由本表 React 19 + shadcn/ui 真正落地; 当前仓库**尚无正式业务代码**, 故本次为一次性技术栈冻结, 后续变更须走 V0.2 Architecture Change Review。
+
 ---
 
 ## 目录
@@ -224,44 +230,84 @@ srt tls dtls http https
 2. **文件离线转码** — 上传视频文件 → 多码率 HLS 切片 → 浏览器播放
 3. **Web 端管理** — 任务管理、推流控制、录制回放、用户/权限
 
-### 2.2 选型栈（用户确认）
+### 2.2 选型栈（用户确认 · V0.2 Technical Stack Baseline 冻结）
+
+> **冻结声明 (2026-08-25)**: 本节为 VBMF **产品实施技术栈 SoT**。当前仓库尚无正式业务代码, 本次一次性冻结, 后续变更须走 V0.2 Architecture Change Review。
+> **分层关系**: 本表是「产品实施栈」; 媒体运行时/架构技术 (Rust Media Agent / FFmpeg / GStreamer / BMD DeckLink / MediaMTX·SRS / JSON-RPC / SDI·SRT·UDP / RTMP·HLS·WHEP) 见 `docs/architecture/ARCHITECTURE_V0.2.md`; Phase 0.5 的 HTML/CSS/JS 是 **UX 原型** (验证 IA/Workflow/Surface/Design System), 其结论在 **Phase 4 由本表的 React 19 + shadcn/ui 真正落地**, 二者不冲突。Phase 0.6 验收 Harness (Python+YAML+Playwright) 见 `docs/phase-0.6/`。
+
+#### Control Plane / Web Console
 
 | 层 | 选型 | 角色 |
 |---|---|---|
-| 后端 HTTP | **Fastify** | 高性能 Node 框架 |
-| 数据库 | **PostgreSQL** | 主数据（用户/任务/录制元数据/权限） |
+| 前端框架 | **React 19** | UI (已确认; 不切换 Vue) |
+| 语言 | **TypeScript** | 全栈类型安全 |
+| 构建 | **Vite** | dev server / 生产构建 (SPA, 不需 SSR/Next.js) |
+| UI 库 | **shadcn/ui + Tailwind CSS** | ⚠️ 由 Ant Design Pro 改为 shadcn/ui — VBMF 是广播级媒体操作控制台, 需自建 Broadcast Design System, shadcn 的 Open Code + Composition 模型更适配 |
+| 图标 | **Lucide** | 与 shadcn 同源 |
+| Client State | **Zustand** | PGM/PVW、当前 Channel、Operator Mode、Runtime Status、Multiview 选择 (不塞 Context) |
+| Server State | **TanStack Query** | API cache / polling / mutation / invalidation |
+| 表单 | **React Hook Form** | Profile/Bundle/Source/Output/Channel/ChangeSet/Override |
+| 校验 | **Zod + drizzle-zod** | 前后端共享 schema, 减少 Frontend≠Backend≠DB 漂移 |
+| 图表 | **ECharts** | bitrate/FPS/latency/health trend 等 |
+| 高频实时图形 | **Canvas / WebGL** | waveform / VU meter / spectrogram / timeline / multiview overlay |
+| HLS 播放 | **hls.js** | Preview / Program / Output 播放 |
+| 低延迟 | **WHEP** | 低延迟 preview / monitoring (≠ 完整 WebRTC Control Plane) |
+| 高级浏览器视频 | **WebCodecs** | 仅 frame-level 处理/thumbnail/分析, 非默认 `<video>` 路径 |
+| 实时通信 | **WebSocket + SSE** | 高频运行态用 WS; 任务进度优先 SSE |
+| E2E 测试 | **Playwright** | 浏览器点击验收 (UI-E2E-01~04) |
+| 单元测试 | **Vitest** | 前端/逻辑单测 |
+
+#### Backend / Data / Media Gateway
+
+| 层 | 选型 | 角色 |
+|---|---|---|
+| 后端 HTTP | **Fastify** | 高性能 Node 框架 (REST/WS/SSE/Auth/Job Orchestration) |
+| 语言 | **TypeScript** | 与前端共享类型 |
+| 数据库 | **PostgreSQL** | 主数据（用户/任务/录制元数据/权限/配置/审计） |
 | ORM | **Drizzle** | TS 类型安全 + SQL 优先 |
-| 前端框架 | **React 19** | UI |
-| 构建 | **Vite** | dev server / 生产构建 |
-| UI 库 | **Ant Design Pro** | 企业级后台 |
-| 缓存/队列 | **Valkey** | Redis 兼容，Linux Foundation 治理 |
-| 对象存储 | **RustFS** | S3 兼容，自部署 |
+| 缓存 | **Valkey** | Redis 兼容, runtime cache / session / locks / rate limit |
+| 队列 | **BullMQ** | Valkey 驱动的任务队列 (转码/缩略图/打包/分析) |
+| 对象存储 | **RustFS** | S3 兼容, 原片/Proxy/Thumbnail/HLS assets (生产可 MinIO) |
+| 流媒体网关(默认) | **MediaMTX** | RTMP/SRT/WebRTC(WHEP)/HLS 实时媒体路由 |
+| 网关兼容 | **SRS** | 特定场景/兼容 Gateway |
+| 鉴权 | **Better Auth** | 用户/会话 |
+| 授权 | **CASL** | RBAC: User→Role→Permission→Capability→Action (TAKE/Override/Failover/Restart…) |
+| 可观测 | **OpenTelemetry + Prometheus + Grafana + Sentry** | tracing / metrics / dashboard / error tracking |
+| 包管理 | **pnpm** | workspace monorepo |
 
 **优势：**
 - 全部开源 + 真·自由协议（避 Redis/MinIO license 风险）
-- 现代化但成熟（Fastify 4.x, Drizzle, AntD Pro 5.x 都有大规模生产案例）
+- 现代化但成熟（Fastify 4.x, Drizzle, React 19, shadcn/ui 均有生产案例）
 - Drizzle + Fastify + Zod 共享 schema 减少代码重复
+- **前端 UI 与媒体引擎解耦**: React 负责 Control/State/UI; FFmpeg/GStreamer/Rust 负责 Media Plane; `<video>`/MSE/WHEP/WebCodecs 经独立 Media Controller 管理, 不触发 React render 承担解码
 
 ### 2.3 必须补的组件
 
 | 优先级 | 组件 | 用途 |
 |---|---|---|
 | 🔴 必须 | `bullmq` | Valkey 驱动的任务队列 |
-| 🔴 必须 | 转码 worker (独立进程) | spawn ffmpeg 转码任务 |
-| 🔴 必须 | `MediaMTX` 或 `SRS` | 流媒体服务器（ffmpeg 不能裸 RTMP 派发） |
-| 🔴 必须 | `hls.js` + `flv.js` (前端) | 浏览器播放 |
+| 🔴 必须 | 转码 worker (独立进程) | spawn ffmpeg 转码任务 (Fastify 不直接跑长时 ffmpeg) |
+| 🔴 必须 | `MediaMTX` (默认) 或 `SRS` (兼容) | 流媒体服务器（ffmpeg 不能裸 RTMP 派发） |
+| 🔴 必须 | `hls.js` (前端) | 浏览器 HLS 播放 |
 | 🔴 必须 | `@aws-sdk/client-s3` (Node) | RustFS SDK |
-| 🟡 高 | `better-auth` 或 `lucia-auth` | 用户/会话 |
-| 🟡 高 | `@casl/ability` | RBAC 权限 |
-| 🟡 高 | `@fastify/sse` 或 `socket.io` | 编码进度推送 |
+| 🔴 必须 | `better-auth` | 用户/会话 (2.2 已确认) |
+| 🔴 必须 | `@casl/ability` | RBAC 权限 (2.2 已确认) |
+| 🔴 必须 | `zustand` | 前端 Client/Runtime State (2.2 已确认) |
+| 🔴 必须 | `@tanstack/react-query` | 前端 Server State (2.2 已确认) |
+| 🔴 必须 | `react-hook-form` + `zod` + `drizzle-zod` | 表单 + 前后端共享 schema (2.2 已确认) |
+| 🔴 必须 | `shadcn/ui` + `tailwindcss` + `lucide-react` | 前端 UI 基线 (2.2 已确认, 替代 AntD Pro) |
+| 🟡 高 | `@fastify/sse` 或 `socket.io` | 编码进度推送 (任务进度优先 SSE) |
+| 🟡 高 | `ws` / `@fastify/websocket` | 高频运行态 (Channel health / PGM-PVW / metrics) |
 | 🟡 高 | `tus-js-client` + `@fastify/multipart` | 大文件断点续传 |
 | 🟡 高 | `fluent-ffmpeg` | Node 调 ffmpeg 封装 |
-| 🟡 高 | `drizzle-zod` + `zod` | schema 复用 |
 | 🟡 高 | `@fastify/swagger` + `@fastify/swagger-ui` | API 文档 |
 | 🟡 高 | `drizzle-kit` | migrations |
 | 🟡 高 | `@fastify/cors` `@fastify/helmet` `@fastify/rate-limit` | 基础安全 |
+| 🟡 高 | `echarts` / `echarts-for-react` | 图表 (2.2 已确认) |
+| 🟡 高 | `whep` 客户端 (WebRTC/WHEP) | 低延迟预览 (2.2 已确认, ≠ 完整 WebRTC) |
+| 🟡 高 | `webcodecs` (按需) | frame-level 处理/thumbnail/分析 |
 | 🟢 中 | `biome` | 替代 ESLint+Prettier |
-| 🟢 中 | `vitest` + `playwright` | 测试 |
+| 🟢 中 | `vitest` + `playwright` | 测试 (前端单测 + 浏览器 E2E; Phase 0.6 另有 Python+YAML Acceptance Harness) |
 | 🟢 中 | `@sentry/node` + `@sentry/react` | 错误追踪 |
 | 🟢 中 | OpenTelemetry | 链路追踪 |
 | 🟢 中 | `prom-client` + Grafana | 监控指标 |
@@ -317,11 +363,11 @@ srt tls dtls http https
 │       ┌─[Valkey]── 推送状态/进度 Pub-Sub
 │       │
 │       ▼
-│  ┌─ Web 前端 (React 19 + Vite + AntD Pro) ─┐
-│  │  实时进度 (SSE)                        │
-│  │  播放器 (hls.js)                        │
-│  │  任务管理 (ProTable)                    │
-│  └─────────────────────────────────────────┘
+│  ┌─ Web 前端 (React 19 + Vite + shadcn/ui + Tailwind) ─┐
+│  │  实时进度 (SSE)                                    │
+│  │  播放器 (hls.js / WHEP)                            │
+│  │  任务管理 / Broadcast Components (VBMF Design System) │
+│  └─────────────────────────────────────────────────────┘
 │
 └──────────────────────────────────────────┘
 ```
@@ -345,7 +391,7 @@ spawn ffmpeg 多码率 HLS 切片
   ↓
 DB 标记完成，状态推 SSE
   ↓
-前端 ProTable 看到 100%，点播放（hls.js）
+前端任务列表看到 100%，点播放（hls.js）
 ```
 
 ### 2.6 实施路线图
@@ -359,7 +405,7 @@ DB 标记完成，状态推 SSE
 - [ ] pnpm monorepo 初始化
 - [ ] docker-compose.yml: api + web + valkey + rustfs + mediamtx
 - [ ] Fastify + Drizzle + PostgreSQL 骨架
-- [ ] React 19 + Vite + AntD Pro 骨架
+- [ ] React 19 + Vite + shadcn/ui + Tailwind 骨架 (VBMF Design System 起步)
 - [ ] 健康检查 + Swagger UI
 
 **Phase 2: 转码核心**（~5 天）
