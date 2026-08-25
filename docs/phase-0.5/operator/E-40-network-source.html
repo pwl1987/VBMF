@@ -201,6 +201,27 @@
   </div>
 </div>
 
+<!-- Network Path Compact Summary (0.5F.8 P1-3) -->
+<div class="panel" style="border-color:var(--orange)">
+  <h3>🌐 Network Path (compact) <span class="pill pill-gray" style="float:right">SSM</span></h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="font-family:Menlo,Consolas,monospace;font-size:11px;color:var(--fg);line-height:1.7">
+<span style="color:var(--fgdim)">Interface</span>  eno1 (10GbE)<br>
+<span style="color:var(--fgdim)">VLAN</span>       100<br>
+<span style="color:var(--fgdim)">IGMP</span>       v3 (SSM)<br>
+<span style="color:var(--fgdim)">Group</span>      239.20.10.10:5000
+    </div>
+    <div style="font-family:Menlo,Consolas,monospace;font-size:11px;color:var(--fg);line-height:1.7">
+<span style="color:var(--fgdim)">Receive</span>    8.2 Mbps<br>
+<span style="color:var(--fgdim)">Loss</span>       0.00%<br>
+<span style="color:var(--fgdim)">Jitter</span>     1.8 ms<br>
+<span style="color:var(--green)">✓ data flowing</span>
+    </div>
+  </div>
+  <div style="margin-top:8px"><a href="E-41-NETWORK_PATH_INSPECTOR.md" class="btn">🔬 E-41 查看完整路径 →</a></div>
+  <div class="diag">配置层 (Group/Port/IGMP) + 实时 Receive 指标 compact 合并; 完整路径诊断在 E-41 Network Path Inspector (0.5F.8 P1-3)。</div>
+</div>
+
 <!-- Signal Path Diagnostics (0.5F F3) -->
 <div class="panel" style="border-color:var(--accent)">
   <h3>📡 Signal Path Diagnostics (0.5F F3) <span class="pill pill-blue" style="float:right">配置 → 验证 连续流程</span></h3>

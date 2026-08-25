@@ -975,3 +975,47 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 - **3 P0 + 5 P1 (+2 🟡) 全部落实, 零非法残留**; 五条 E2E 工作流端到端通过。
 - **P0-1 特别说明:** `APPROVED` 经核验属 canonical ChangeSetStatus (0.5D.1 三层), **非 Phase-0.5 泄漏** — 故未删除, 加澄清注; 是否回退 4 值模型待用户决策 (属 V0.2 词汇变更)。
 - **建议正式宣布**: **Phase 0.5 UX BASELINE = LOCK FINAL**; **Phase 0.6 = Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收**。0.5D LOCK + 0.5E LOCK 声明即写入判定矩阵即 FINAL。
+
+---
+
+## Z. 0.5F.8 Final Semantic + UX Gate — 2 P0 + 4 P1 (用户第 20 轮反向审计 cc94542, 2026-08-25)
+
+> 用户以 `cc94542` 重新交叉核对 (Architecture → Object Vocabulary → Execution Model → Channel Model → 5 条 E2E → 实际 HTML)。上轮 8 项确认全部真实落地 (撤回 P0-1 APPROVED 的 "Enum Leak" 误判)。本轮要求最后一轮 **0.5F.8 Final Semantic + UX Gate**: 2 P0 + 4 P1, 然后执行 0.5D LOCK + 0.5E LOCK + 0.5F.8 ACCEPTED → **Phase 0.5 LOCK FINAL → Phase 0.6**。
+
+### Z.1 P0-1 — EXECUTION_MODEL §4 旧 `READY_TO_TAKE → RUNNING` 清除
+- 第 121 行 "Start vs Take" 注原写 `Start = STARTING→READY_TO_TAKE; Take = READY_TO_TAKE→RUNNING` (与同文件已修三轴矛盾, 易诱使工程师写 `readiness=RUNNING`)。
+- 修正为: Start = `lifecycle STARTING→RUNNING` + `readiness NOT_READY→READY_TO_TAKE`; Take = **lifecycle 不变=RUNNING** · **readiness 不变=READY_TO_TAKE** · `active_source B→A` · Reservation `RESERVED→IN_USE` · emit `TAKE_RECORD`; **TAKE 永不变更 lifecycle/readiness**。
+
+### Z.2 P0-2 — ChangeSet UI 三轴视觉分离 (D7)
+- D7-changeset-review.html 原仅单 Status 列 + 文本注。新增三张卡片: ① Business Status (ChangeSetStatus) ② Approval (ReviewState) ③ Transaction (TransactionPhase), 视觉分离, 防止 Phase 4 重混为一 enum。模型本身正确, 仅 UI 表达需显式三轴。
+
+### Z.3 P1-3 — E-40 Network Path compact summary
+- E-40 新增 "Network Path (compact)" 面板: Interface/VLAN/IGMP/Group + Receive/Loss/Jitter + `[E-41 查看完整路径]` (E-41-NETWORK_PATH_INSPECTOR.md)。配置层 + 实时 Receive 指标 compact 合并, 不必跳 E-41 即知"有没有数据"。
+
+### Z.4 P1-4 — P-21 Used By / 影响入口
+- P-21 Encoding Profile 的 Used By 区新增: Affected Channels: 3 / Running: 3 + 频道名角色 (CH01 新闻综合 LIVE / CH03 民生频道 LIVE / CH07 专题频道 STANDBY) + `[查看影响范围 →]` (E-50-impact-preview.html)。修改 Profile 前先见"被哪些 Channel 引用"。
+
+### Z.5 P1-5 — CH-02 Apply 前 Configuration Summary
+- CH-02 STEP 7 末 (wizard-nav 前) 新增 "📋 上线总览 / CHANNEL SUMMARY" 全宽面板: Input / Profile Bundle / Output / Clock / Switch / Hot Standby / Resources / Preflight / ChangeSet + `[查看 Diff →]` (E-51) / `[查看 ChangeSet →]` (D7)。Apply 前完整"我到底要上线什么"总览。
+
+### Z.6 P1-6 — M-17 Resource Reservation Explain Breakdown
+- M-17 Reservation vs Usage 面板新增 "Reservation Explanation · 数字从哪里来" (Graph Compiler 产物): CPU +8.4 threads (Decode×2/Normalize/Compose/QC) · GPU Composition 1 session · NIC 8 Mbps 拆解 · RAM 4 GB 拆解。Gauge 不只显数字, 还能解释来源。
+
+### Z.7 🟡 本轮未做项 (用户明确"只处理 2 P0 + 4 P1", 不扩页面)
+- CD-01 Current/Target/Backup 全局术语统一 · WHIP/Runtime Adapter 层级强化 · File Transcode / Realtime Encode 产品命名 — 均 🟡 建议, 留待 Phase 4 实施或单独小改, 不在 0.5F.8 范围。
+
+### Z.8 五条 E2E 工作流复验 (A 网络源 / B 物理源 / C 建频道 / D 实时编码 / E 开播+故障)
+- 0.5F.7 验收链仍全 ✅; 本轮 P0-1 残句清除使 EXECUTION_MODEL 内部零矛盾; P0-2 三轴 UI 使 ChangeSet 不再可能视觉揉合。
+
+### Z.9 残留扫描
+- `READY_TO_TAKE → RUNNING` 在 EXECUTION_MODEL **全清零** (原仅 §4 第 121 行残句)。`全 PASS` 仅存 canonical TakePreflightResult 定义 / 配置预检 gate / 历史 Reconciliation / Source E-42, 均合法。`check_docs.py PASS`。
+
+### Z.10 里程碑 Gate 正式执行 (方案 A)
+- **0.5D = LOCK · 0.5E = LOCK · 0.5F.8 = ACCEPTED**
+- **→ Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25)
+- **→ Phase 0.6 Executable Acceptance Specification** (Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收)
+- README / MILESTONES / 本判定矩阵三处状态统一写入 LOCK FINAL, 不再出现两套口径 (方案 B 的歧义已规避)。
+
+### Z.11 结论
+- **2 P0 + 4 P1 全部落实, 零非法残留**; 五条 E2E 工作流端到端通过; 0.5D+0.5E+0.5F.1-.8 全 LOCK/完成。
+- **Phase 0.5 UX BASELINE = LOCK FINAL 正式达成**; 下一步进入 **Phase 0.6 Executable Acceptance** (不再新增页面/设计, 转为可执行验收规范)。

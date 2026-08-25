@@ -118,7 +118,7 @@ Output Asset Version (ENC-v12 / ENC-v22 ...) ──► QC (可选) ──► 发
 - **Desired → Compiled:** 配置修改后由 Graph Runtime 编译 (相容性/资源校验)。
 - **Compiled → Effective:** Apply 后运行态采用 (3-Layer 一致才算生效)。
 - **Provision vs Reserve:** Provision = 预算/计划 (PROVISIONED); Reserve = 实际锁定 (RESERVED, 锁 9-dim vector + device_tokens)。HOT 备机必须同为 RESERVED 才算真锁。
-- **Start vs Take:** Start = Session 拉起 (STARTING→READY_TO_TAKE); Take = Operator 切出 (READY_TO_TAKE→RUNNING)。Start 后可停在 READY_TO_TAKE 等指令。
+- **Start vs Take (三轴, 0.5F.3/0.5F.8):** Start = Session 拉起 → `lifecycle: STARTING→RUNNING` · `readiness: NOT_READY→READY_TO_TAKE` · Reservation 保持 RESERVED。Take = Operator 切出 → **`lifecycle: RUNNING→RUNNING` (不变)** · **`readiness: READY_TO_TAKE→READY_TO_TAKE` (不变)** · `active_source: B→A` · Reservation `RESERVED→IN_USE` · emit `TAKE_RECORD`。Start 后可停在 READY_TO_TAKE 等指令; **TAKE 永不变更 lifecycle / readiness** (杜绝 `readiness=RUNNING` 退化三轴)。
 - **Release:** STOP / 故障切换完成后 → RELEASED → 触发 PENDING 仲裁 (抢占走 PREEMPT_PENDING→DRAINING→RELEASED, 不直接 FAILED)。
 
 ---

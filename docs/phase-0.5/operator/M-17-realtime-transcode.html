@@ -267,7 +267,21 @@
             <tr><td>PCIe</td><td>0.4 GB/s</td><td>0.21 GB/s</td><td style="color:var(--green)">48%</td></tr>
           </tbody>
         </table>
-        <div class="diag">Resource Vector → Reservation (CH-02 预占) → Runtime Telemetry 闭环. Reservation HEALTHY; Headroom 充裕 (0.5F.7 P1-5).</div>
+        <div style="margin-top:8px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px">
+          <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Reservation Explanation · 数字从哪里来 (Graph Compiler 产物)</div>
+          <div style="font-size:11px;font-family:Menlo,Consolas,monospace;color:var(--fg);line-height:1.7">
+<span style="color:var(--fgdim)">CPU +8.4 threads</span><br>
+&nbsp;&nbsp;├─ Decode ×2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+4.0<br>
+&nbsp;&nbsp;├─ Normalize&nbsp;&nbsp;&nbsp;&nbsp;+1.2<br>
+&nbsp;&nbsp;├─ Compose&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+2.0<br>
+&nbsp;&nbsp;└─ QC&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+1.2<br>
+<span style="color:var(--fgdim)">GPU</span><br>
+&nbsp;&nbsp;└─ Composition&nbsp;&nbsp;1 session<br>
+<span style="color:var(--fgdim)">NIC 8 Mbps</span> = HLS 4.0 + RTMP 2.5 + WebRTC 1.7 (WebRTC AUX 未计入预留)<br>
+<span style="color:var(--fgdim)">RAM 4 GB</span> = Decode 1.5 + Compose 1.2 + Buffer 1.3
+          </div>
+        </div>
+        <div class="diag">Resource Vector → Reservation (CH-02 预占) → Runtime Telemetry 闭环. Reservation HEALTHY; Headroom 充裕 (0.5F.7 P1-5 + 0.5F.8 Explain Breakdown).</div>
       </div>
     <div class="panel" style="border-color:var(--accent)">
       <h3>🎙 一屏判断「能不能播」 (0.5F F4) <span class="pill pill-blue" style="float:right">Session 联动摘要</span></h3>

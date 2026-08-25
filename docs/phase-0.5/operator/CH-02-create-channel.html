@@ -586,6 +586,27 @@ atomic  : true</div>
       <div class="gap ok">📦 <b>CREATE 将生成 (对象映射 · 0.5F.2):</b> ① `channels` (Channel DRAFT) → ② `profile_bundles` (B-v2 快照, 7 Profile @rev 引用) → ③ `sources` ASSIGNED (PRIMARY/BACKUP) → ④ `output_variants` (引用 P-22 + Destination) → ⑤ ChangeSet → Apply 后 → ⑥ `reservations` (PROVISIONED→RESERVED) → ⑦ `media_sessions` (READY_TO_TAKE)。每步对应 DB Object, 不产生模型外对象.</div>
     </div>
   </div>
+
+  <!-- Configuration Summary before Apply (0.5F.8 P1-5) -->
+  <div class="panel" style="border-color:var(--green);margin-bottom:12px">
+    <h3>📋 上线总览 / CHANNEL SUMMARY (Apply 前确认) <span class="pill pill-green" style="float:right">8 PASS · 1 WARN</span></h3>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:11px">
+      <div><div class="k">Input</div><div class="v">SDI-A (PRIMARY) · UDP-MC 239.10.20.10 (BACKUP)</div></div>
+      <div><div class="k">Profile Bundle</div><div class="v">CH02-News-Live-v3 (7 引用)</div></div>
+      <div><div class="k">Output</div><div class="v">HLS (REQ) · RTMP (REQ) · UDP-MC (OPT) · WebRTC (AUX)</div></div>
+      <div><div class="k">Clock</div><div class="v">PTP / ptp0</div></div>
+      <div><div class="k">Switch</div><div class="v">FRAME_SWITCH</div></div>
+      <div><div class="k">Hot Standby</div><div class="v">HOT</div></div>
+      <div><div class="k">Resources</div><div class="v">CPU 42% · RAM 38% · NIC 22%</div></div>
+      <div><div class="k">Preflight</div><div class="v green">8 PASS · 1 WARN</div></div>
+      <div><div class="k">ChangeSet</div><div class="v">CS-20260825-001 (E-33)</div></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <a href="E-51-config-diff.html" class="btn">查看 Diff →</a>
+      <a href="D7-changeset-review.html" class="btn">查看 ChangeSet →</a>
+    </div>
+  </div>
+
   <div class="wizard-nav">
     <button class="btn btn-ghost" onclick="go(6)">← 上一步</button>
     <button class="btn-primary" id="submitBtn">✓ 创建 Channel (生成 ChangeSet → STARTING)</button>

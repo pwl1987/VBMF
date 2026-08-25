@@ -607,12 +607,19 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       </div>
       <div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px">
-          <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Used By (Dependency Preview)</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px">Used By (Dependency Preview)</div>
+            <a href="E-50-impact-preview.html" class="btn" style="padding:2px 8px;font-size:10px">查看影响范围 →</a>
+          </div>
+          <div style="font-size:11px;margin-bottom:8px;padding:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px">
+            <div style="color:var(--fg)"><b>Affected Channels: 3</b> · Running: 3</div>
+            <div style="color:var(--fgdim);font-size:10px;margin-top:2px">CH01 新闻综合 · LIVE&nbsp;&nbsp;|&nbsp;&nbsp; CH03 民生频道 · LIVE&nbsp;&nbsp;|&nbsp;&nbsp; CH07 专题频道 · STANDBY</div>
+          </div>
           <div class="usedby">
             <div class="item">
               <div class="label">Channels</div>
-              <div class="name">CH01 · CH03</div>
-              <div class="state">2 ACTIVE</div>
+              <div class="name">CH01 · CH03 · CH07</div>
+              <div class="state">3 (2 LIVE / 1 STANDBY)</div>
             </div>
             <div class="item">
               <div class="label">Graphs</div>

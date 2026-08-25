@@ -115,6 +115,24 @@
 <!-- Review Detail (selected: cs-output-ch01-004) -->
 <div class="panel" style="border-left:3px solid var(--purple)">
   <h3>审阅 / REVIEW · cs-output-ch01-004 <span class="pill pill-yellow" style="float:right">PENDING_REVIEW</span></h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+    <div class="panel" style="margin:0;border-color:var(--blue)">
+      <div class="k" style="text-transform:uppercase;letter-spacing:1px;font-size:10px;color:var(--fgdim)">① Business Status · ChangeSetStatus</div>
+      <div class="v yellow" style="font-size:15px;margin-top:4px">PENDING_REVIEW</div>
+      <div class="k" style="font-size:10px;margin-top:2px">DRAFT→VALIDATED→APPROVED→SCHEDULED→APPLIED→ROLLED_BACK</div>
+    </div>
+    <div class="panel" style="margin:0;border-color:var(--green)">
+      <div class="k" style="text-transform:uppercase;letter-spacing:1px;font-size:10px;color:var(--fgdim)">② Approval · ReviewState</div>
+      <div class="v" style="font-size:15px;margin-top:4px">PENDING</div>
+      <div class="k" style="font-size:10px;margin-top:2px">awaiting L2 reviewer · NOT_REQUIRED/PENDING/APPROVED/REJECTED</div>
+    </div>
+    <div class="panel" style="margin:0;border-color:var(--purple)">
+      <div class="k" style="text-transform:uppercase;letter-spacing:1px;font-size:10px;color:var(--fgdim)">③ Transaction · TransactionPhase</div>
+      <div class="v purple" style="font-size:15px;margin-top:4px">NOT_STARTED</div>
+      <div class="k" style="font-size:10px;margin-top:2px">PREPARING→APPLYING→COMMITTED→ABORTED</div>
+    </div>
+  </div>
+  <div class="diag" style="border-left-color:var(--blue)"><b>三轴分离 (P0-2, 0.5F.8):</b> 三者为<b>独立维度</b>, 不能揉成一个 Status 下拉的 10 个值。Business Status 走 ChangeSetStatus 链; Approval 独立 ReviewState; Transaction 独立 TransactionPhase。UI 三卡片视觉分离, 防止 Phase 4 重混为一 enum。</div>
   <div class="row">
     <div class="col-6">
       <div class="panel" style="margin-bottom:0">
