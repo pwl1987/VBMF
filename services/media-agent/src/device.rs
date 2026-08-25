@@ -3,6 +3,7 @@
 #![allow(dead_code)] // Gate 2.x: 部分接口尚未被上层调用, 编译期静音。
 
 use serde::{Deserialize, Serialize};
+use std::os::unix::fs::FileTypeExt;
 use uuid::Uuid;
 
 /// Blackmagic 设备节点目录(宿主机由 DesktopVideoHelper 创建 dv0/dv1/io0)。
@@ -84,9 +85,12 @@ impl DeviceManager for FilesystemDeviceManager {
         };
         for entry in dir.flatten() {
             let path = entry.path();
-            // dv0/dv1/io0 是目录节点; 跳过其中的子文件(如 DV 内部的设备文件)。
-            if !path.is_dir() {
-                continue;
+            // DeckLink 节点是字符设备(crw, e.g. dv0/dv1/io0, 主设备号 10),
+            // 不是目录 —— 实测 BMD 上 /dev/blackmagic/{dv0,dv1,io0} 均为 crw。
+            // 只认字符设备, 排除可能的普通文件/目录噪音。
+            match entry.file_type() {
+                Ok(ft) if ft.is_char_device() => {}
+                _ => continue,
             }
             let node = path.to_string_lossy().to_string();
             devices.push(DeviceInfo {
