@@ -1,0 +1,28 @@
+id: HA-01-001
+title: HA-01 Controller failover (no Override loss)
+gate: G-RUNTIME
+reference: HA
+fixture_id: F-HA-CONTROLLER-FAIL
+env_prereq_id: ENV-LAB-01
+runner: runners/run_fi_matrix.py
+depends_on: [AC-03B-001]
+timeout: 300
+preconditions:
+  - "Active/Standby controller pair"
+actions:
+  - step: 1
+    do: "Kill active controller"
+expected:
+  standby_promoted: true
+  active_override_preserved: true
+  no_output_gap: true
+pass_rule: "standby_promoted == true AND active_override_preserved == true AND no_output_gap == true"
+negative_case:
+  id: HA-01-001-NEG
+  do: "Kill both controllers"
+  expect_fail: "service unavailable, manual intervention"
+evidence:
+  - "evidence/{id}_{run_ts}_ha_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 0, backoff_s: 0}
+abort_rule: {consecutive_fail: 1}

@@ -1,0 +1,37 @@
+id: AC-03B-001
+title: Temporary Override + Controller Restart persistence
+gate: G-RUNTIME
+reference: AC-03B
+fixture_id: F-AC03B-OVERRIDE
+env_prereq_id: ENV-LAB-01
+runner: runners/run_reference_a1.py
+depends_on: [AC-01-001]
+timeout: 300
+preconditions:
+  - "Override L3 active with Who/Why/Until"
+actions:
+  - step: 1
+    do: "Restart Media Agent (simulate crash)"
+  - step: 2
+    do: "Restart Controller (no clear override)"
+  - step: 3
+    do: "Wait TTL window, observe auto rollback"
+expected:
+  override_persisted_after_agent_restart: true
+  override_persisted_after_controller_restart: true
+  ttl_not_reset_on_restart: true
+  runtime_revision_unchanged: true
+  auto_rollback_on_expiry: true
+pass_rule: "override_persisted_after_agent_restart == true AND override_persisted_after_controller_restart == true AND ttl_not_reset_on_restart == true AND runtime_revision_unchanged == true AND auto_rollback_on_expiry == true"
+negative_case:
+  id: AC-03B-001-NEG
+  do: "Override without Who/Why/Until"
+  expect_fail: "rejected MISSING_OVERRIDE_CONTEXT"
+evidence:
+  - "evidence/{id}_{run_ts}_audit_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule:
+  max: 0
+  backoff_s: 0
+abort_rule:
+  consecutive_fail: 1

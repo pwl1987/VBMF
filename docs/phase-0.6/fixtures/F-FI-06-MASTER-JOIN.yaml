@@ -1,0 +1,11 @@
+id: F-FI-06-MASTER-JOIN
+title: FI-06 Audio Master Join failure injection
+reference: FI
+injection_point:
+  node: "Master Join"
+  domain: "MASTER"
+params:
+  join_failure: true
+expected_recovery: "FILLER_OR_EMERGENCY (target: emergency asset)"
+channel_health_after: "DEGRADED"
+must_not: ["SOURCE_FAILOVER", "OUTPUT_FAILOVER"]

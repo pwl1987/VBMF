@@ -1,0 +1,25 @@
+id: FI-06-001
+title: FI-06 Audio Master Join failure → FILLER (no source failover)
+gate: G-RUNTIME
+reference: FI
+fixture_id: F-FI-06-MASTER-JOIN
+env_prereq_id: ENV-LAB-01
+runner: runners/run_fi_matrix.py
+depends_on: [B-001]
+timeout: 120
+preconditions:
+  - "Master Join active, Reference B chain up"
+actions:
+  - step: 1
+    do: "Inject FI-06: Master Join failure"
+expected:
+  filler_active: true
+  source_failover: false
+  output_failover: false
+  channel_health_after: "DEGRADED"
+pass_rule: "filler_active == true AND source_failover == false AND output_failover == false AND channel_health_after == 'DEGRADED'"
+evidence:
+  - "evidence/{id}_{run_ts}_fi_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 1, backoff_s: 30}
+abort_rule: {consecutive_fail: 3}

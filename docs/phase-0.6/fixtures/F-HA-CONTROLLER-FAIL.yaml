@@ -1,0 +1,7 @@
+id: F-HA-CONTROLLER-FAIL
+title: HA controller failover fixture
+reference: HA
+params:
+  kill: "active_controller"
+expected_recovery: "standby_promoted"
+must_not: ["override_lost", "output_gap"]

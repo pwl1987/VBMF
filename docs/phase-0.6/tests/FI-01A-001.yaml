@@ -1,0 +1,32 @@
+id: FI-01A-001
+title: FI-01A Primary SDI freeze 5s + Backup READY → FAILOVER
+gate: G-RUNTIME
+reference: FI
+fixture_id: F-FI-01A-SDI-FREEZE
+env_prereq_id: ENV-LAB-01
+runner: runners/run_fi_matrix.py
+depends_on: [AC-01-001]
+timeout: 120
+preconditions:
+  - "Primary SDI ACTIVE, Backup SDI READY"
+actions:
+  - step: 1
+    do: "Inject FI-01A: freeze primary SDI input >=5s"
+expected:
+  failover_triggered: true
+  backup_active: true
+  channel_health_after: "HEALTHY"
+  detection_latency_s: 5
+pass_rule: "failover_triggered == true AND backup_active == true AND channel_health_after == 'HEALTHY' AND detection_latency_s <= 6"
+negative_case:
+  id: FI-01A-001-NEG
+  do: "FI-01A with Backup NOT_READY (see FI-01B)"
+  expect_fail: "n/a (covered by FI-01B-001)"
+evidence:
+  - "evidence/{id}_{run_ts}_fi_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule:
+  max: 1
+  backoff_s: 30
+abort_rule:
+  consecutive_fail: 3

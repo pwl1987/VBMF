@@ -1,0 +1,12 @@
+id: F-FI-01B-SDI-FREEZE-NOTREADY
+title: FI-01B primary SDI freeze + backup NOT_READY
+reference: FI
+injection_point:
+  node: "SDI Input"
+  domain: "SOURCE"
+params:
+  freeze_duration_s: 5
+  backup_state: "NOT_READY"
+expected_recovery: "FAILOVER attempted -> FILLER"
+channel_health_after: "DEGRADED"
+must_not: ["source_failover_success"]

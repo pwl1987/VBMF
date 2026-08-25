@@ -1,0 +1,10 @@
+id: F-FI-02-AUDIO-MUTE
+title: FI-02 audio mute injection
+reference: FI
+injection_point:
+  node: "Audio Mixer"
+  domain: "PIPELINE"
+params:
+  mute_duration_s: 8
+expected_recovery: "RESTART audio node"
+channel_health_after: "HEALTHY"

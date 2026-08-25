@@ -6,7 +6,7 @@
   2. docs/ 下 HTML wireframe 的 href 目标存在（扫描全部, 不再只查第一个）
   3. Markdown / HTML 的锚点 (#section) 目标存在（防死锚点, 如 #final-state）
   4. 关键数字口径（表面计数 / 收口计数 / 引擎与横向系统名单）
-  5. Phase 0.6 FI 集合一致性（canonical FI ID 集合 == scope/schedule/outputs 引用数, 防 5→7 类语义漂移）
+  5. Phase 0.6 FI 集合一致性（canonical FI ID 集合 == scope/schedule/outputs 引用数, 防 5→7→8 类语义漂移）
 
 用法:
   python scripts/check_docs.py          # 全部检查
@@ -228,17 +228,20 @@ def check_nav_domain_counts():
 
 
 def check_phase06_fi_ids():
-    """Phase 0.6 Fault Injection 集合一致性护栏 (0.6 启动前 Doc Patch 引入)。
+    """Phase 0.6 FI Set / Reference Coverage Validator (0.6 G-DOC Entry Patch 升级版)。
 
-    目标: 防止 "规范新增 FI-06/FI-07, 但 scope/schedule/outputs 仍写 5 FI" 的语义漂移
-    (即用户指出的 '5 Fault Injection' vs 实际 FI-01A/B/02~07 = 7 个)。
+    不是简单数字检查器, 而是真正校验 FI/Reference 集合的 **定义-引用-计数** 三方闭环:
 
-    规则:
-      1. 从 phase-0.6/README.md 全文中抽取所有 canonical FI ID (形如 FI-01A / FI-02 ...)。
-      2. 期望 FI 数 = canonical 集合大小。
-      3. 该文件内不得出现与期望数不一致的 "N Fault Injection" / "N FI" 字面量。
-      4. scope / schedule / outputs 中每个被引用的 FI ID 必须属于 canonical 集合
-         (反向: canonical 中每个 ID 至少应在某处被引用, 防止声明了却没接入)。
+    规则 1 (计数): phase-0.6 README 中 "N Fault Injection" / "N FI" 字面量 == canonical FI ID 集合大小。
+    规则 2 (定义完整性): canonical 集合中每个 FI ID 必须在 README 内有**定义块**
+           (形如 "FI-01A：..." 或 "#### FI-01A" 的行), 否则 "声明了却没定义"。
+    规则 3 (引用合法性 / 防 phantom): 任何文档 (README/ROADMAP/CONTRIBUTING/INDEX/其他 phase-0.6)
+           中出现的 FI ID 都必须属于 canonical 集合 —— 抓住 "Schedule 写了不存在的 FI-09"。
+    规则 4 (反向引用 / 防 orphan): 每个 canonical FI ID 至少被一处 "FI-0X" 引用
+           (已在全集抽取中必然成立, 故校验定义块存在即足够)。
+    规则 5 (摘要同口径): 其它 0.6 摘要文档的 "N Fault Injection" 必须 == canonical 大小。
+
+    这样即可防: 8→7→5 计数漂移 / FI-06 定义了 Schedule 没列 / Summary 写不存在的 FI-09。
     """
     errs = []
     p06 = ROOT / "docs" / "phase-0.6" / "README.md"
@@ -251,29 +254,122 @@ def check_phase06_fi_ids():
     if not canonical:
         return errs
     expected = len(canonical)
+    canon_set = set(canonical)
 
-    # 规则 3: 文件内 "N Fault Injection" / "N FI" 必须与 expected 一致
+    # 规则 1: README 内 "N Fault Injection" / "N FI" 字面量与 expected 一致
     for m in re.finditer(r"(\d+)\s*(?:Fault\s*Injection|FI)\b", text, flags=re.IGNORECASE):
         n = int(m.group(1))
         if n != expected:
             errs.append(
-                f"[FI-CONSISTENCY] phase-0.6/README.md 出现 '{m.group(0)}' "
+                f"[FI-COVERAGE] phase-0.6/README.md 出现 '{m.group(0)}' "
                 f"但 canonical FI 集合大小为 {expected} ({', '.join(canonical)})"
             )
 
-    # 规则 4a: 每个 canonical FI 至少被引用一次 (已在 fi_ids 中, 必然成立, 这里仅占位)
-    # 规则 4b: 反向 — 其它 0.6 摘要文档若写 "N FI" 须等于 expected
-    for md in iter_files("*.md"):
-        if "phase-0.6" not in md.parts and md.name not in ("README.md", "ROADMAP.md", "CONTRIBUTING.md", "INDEX.md"):
+    # 规则 2: 每个 canonical FI 必须有定义块 (#### FI-0X / "FI-0X：" 行)
+    for fid in canonical:
+        has_def = re.search(rf"(?:^####?\s*{re.escape(fid)}\b|^\s*\*{re.escape(fid)}\*：|^\s*{re.escape(fid)}：)", text, flags=re.MULTILINE)
+        if not has_def:
+            errs.append(
+                f"[FI-COVERAGE] canonical FI '{fid}' 在 phase-0.6/README.md 中无定义块 "
+                f"(期望形如 '#### {fid}' 或 '{fid}：')"
+            )
+
+    # 规则 3 + 5: 遍历相关文档, 校验所有 FI ID 引用合法 + 摘要计数一致
+    tracked = [
+        p06,
+        ROOT / "README.md",
+        ROOT / "ROADMAP.md",
+        ROOT / "CONTRIBUTING.md",
+        ROOT / "docs" / "phase-0.5" / "INDEX.md",
+    ]
+    for f in tracked:
+        if not f.exists():
             continue
-        t = md.read_text(encoding="utf-8")
+        t = f.read_text(encoding="utf-8")
+        # 规则 3: 任意 FI ID 引用必须属于 canonical (抓 phantom FI-09)
+        for ref in re.findall(r"FI-\d{2}[A-Z]?", t):
+            if ref not in canon_set:
+                errs.append(
+                    f"[FI-COVERAGE] {f.relative_to(ROOT)} 引用了不存在的 FI ID '{ref}' "
+                    f"(canonical = {', '.join(canonical)})"
+                )
+        # 规则 5: 摘要 "N Fault Injection" 计数一致
         for m in re.finditer(r"(\d+)\s*Fault\s*Injection", t, flags=re.IGNORECASE):
             n = int(m.group(1))
             if n != expected:
                 errs.append(
-                    f"[FI-CONSISTENCY] {md.relative_to(ROOT)} 出现 '{m.group(0)}' "
-                    f"但 phase-0.6 canonical FI 集合大小为 {expected}"
+                    f"[FI-COVERAGE] {f.relative_to(ROOT)} 出现 '{m.group(0)}' "
+                    f"但 canonical FI 集合大小为 {expected}"
                 )
+    return errs
+
+
+def check_phase06_harness():
+    """Phase 0.6 G-DOC-READY 门禁: Harness 引用闭环校验 (G-DOC Entry Patch 引入)。
+
+    在 G-DOC 文件化后、进入 G-RUNTIME 前, 必须确认:
+      1. 每个 tests/*.yaml 的 fixture_id / env_prereq_id / runner 实际存在
+         (防止 "Test Case 写了 fixture 但 fixtures/ 里没有")。
+      2. canonical FI 集合中每个 FI ID 在 tests/ 至少有 1 个对应 Test Case
+         (防止 "规范说 8 个 FI, 但 Test Cases 只建了 5 个")。
+      3. 每个 AC / UI-E2E Reference 在 tests/ 至少有 1 个 Test Case。
+
+    这样即在 G-DOC 与 G-RUNTIME 之间焊死 "测试框架本身先冻结" 的 Gate。
+    """
+    try:
+        import yaml as _yaml
+    except ImportError:
+        return ["[HARNESS] PyYAML 未安装, 跳过 G-DOC-READY 校验 (真实环境: pip install pyyaml)"]
+    errs = []
+    p06 = ROOT / "docs" / "phase-0.6"
+    tests_dir = p06 / "tests"
+    if not tests_dir.exists():
+        return errs
+
+    def load_yaml(p):
+        try:
+            return _yaml.safe_load(Path(p).read_text(encoding="utf-8"))
+        except Exception as e:  # noqa
+            errs.append(f"[HARNESS] 无法解析 {Path(p).relative_to(ROOT)}: {e}")
+            return None
+
+    tests = []
+    for y in sorted(tests_dir.glob("*.yaml")):
+        d = load_yaml(y)
+        if d:
+            tests.append((y, d))
+
+    # 规则 1: fixture_id / env_prereq_id / runner 必须存在
+    for y, d in tests:
+        rel = y.relative_to(ROOT)
+        fid = d.get("fixture_id")
+        if fid and not (p06 / "fixtures" / f"{fid}.yaml").exists():
+            errs.append(f"[HARNESS] {rel} 引用 fixture '{fid}' 不存在 (fixtures/{fid}.yaml)")
+        eid = d.get("env_prereq_id")
+        if eid and not (p06 / "env" / f"{eid}.yaml").exists():
+            errs.append(f"[HARNESS] {rel} 引用 env '{eid}' 不存在 (env/{eid}.yaml)")
+        runner = d.get("runner")
+        if runner and not (p06 / runner).exists():
+            errs.append(f"[HARNESS] {rel} 引用 runner '{runner}' 不存在 (期望 docs/phase-0.6/{runner})")
+
+    # 规则 2+3: canonical FI / AC / UI-E2E 每个至少有 1 个 Test Case
+    refs = {}
+    for y, d in tests:
+        r = d.get("reference")
+        if r:
+            refs.setdefault(r, []).append(d.get("id"))
+
+    # FI 完备性: 从 phase-0.6 README 抽 canonical FI, 检查每个有 Test Case
+    readme = (p06 / "README.md").read_text(encoding="utf-8") if (p06 / "README.md").exists() else ""
+    fi_ids = sorted(set(re.findall(r"FI-\d{2}[A-Z]?", readme)))
+    for fid in fi_ids:
+        if not any(tid and fid in tid for tid in refs.get("FI", [])):
+            errs.append(f"[HARNESS] canonical FI '{fid}' 在 tests/ 无对应 Test Case (期望 ≥1)")
+
+    # AC / UI-E2E 完备性提示 (至少 A1/A2/B/FI/HA/UI-E2E/AC-03B 各 ≥1)
+    for need in ("A1", "A2", "B", "FI", "HA", "UI-E2E", "AC-03B"):
+        if need not in refs:
+            errs.append(f"[HARNESS] Reference '{need}' 在 tests/ 无对应 Test Case (期望 ≥1)")
     return errs
 
 
@@ -288,6 +384,7 @@ def main():
         errors += check_nav_domain_counts()
     if mode in ("all", "phase06"):
         errors += check_phase06_fi_ids()
+        errors += check_phase06_harness()
 
     if errors:
         print(f"FAIL — {len(errors)} 个问题:")

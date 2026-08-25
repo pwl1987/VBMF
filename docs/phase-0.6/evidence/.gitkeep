@@ -1,0 +1,2 @@
+# Evidence artifacts land here (gitignored in practice, kept as dir anchor).
+# Naming: {test_id}_{run_ts}_{pass|fail}.json

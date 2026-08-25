@@ -1,0 +1,11 @@
+id: F-FI-01A-SDI-FREEZE
+title: FI-01A primary SDI freeze injection
+reference: FI
+injection_point:
+  node: "SDI Input"
+  domain: "SOURCE"
+params:
+  freeze_duration_s: 5
+  backup_state: "READY"
+expected_recovery: "FAILOVER -> Backup ACTIVE"
+channel_health_after: "HEALTHY"

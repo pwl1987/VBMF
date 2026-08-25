@@ -1,0 +1,11 @@
+id: F-B-HETEROGENEOUS
+title: B heterogeneous source fixture
+reference: B
+inputs:
+  sources: ["SDI", "SRT", "FILE"]
+  normalize: true
+  master_switch: true
+  variants: {required: ["HLS"], optional: ["RTMP", "WHEP"]}
+expectations:
+  program_master_health: "HEALTHY"
+  required_variant_present: true

@@ -1,0 +1,42 @@
+id: UI-E2E-01-001
+title: Profile → Bundle → Channel → Apply → Runtime → Output (browser click)
+gate: G-UIUX
+reference: UI-E2E
+fixture_id: F-UI-PROFILE-FLOW
+env_prereq_id: ENV-LAB-01
+runner: runners/run_ui_e2e.py
+depends_on: [AC-01-001]
+timeout: 600
+preconditions:
+  - "Engineer session authenticated"
+  - "At least one Encoding + Packaging + Output Profile exists"
+actions:
+  - step: 1
+    do: "Browser: create Bundle from profiles"
+  - step: 2
+    do: "Browser: create Channel, attach Bundle"
+  - step: 3
+    do: "Browser: Apply ChangeSet → Runtime"
+  - step: 4
+    do: "Browser: verify Output HEALTHY"
+expected:
+  changeset_applied: true
+  runtime_active: true
+  output_health: "HEALTHY"
+  # 高风险操作确认: TAKE 使用 EFFECTIVE revision, 非 Pending
+  take_uses_effective_revision: true
+pass_rule: "changeset_applied == true AND runtime_active == true AND output_health == 'HEALTHY' AND take_uses_effective_revision == true"
+negative_case:
+  id: UI-E2E-01-001-NEG
+  do: "Apply with conflicting Profile (Encoding+Packing incompat)"
+  expect_fail: "Preflight BLOCKED with impact preview"
+evidence:
+  - "evidence/{id}_{run_ts}_playwright_trace.zip"
+  - "evidence/{id}_{run_ts}_dom_snapshot.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule:
+  max: 2
+  backoff_s: 60
+abort_rule:
+  consecutive_fail: 3
+note: "Runtime 层可由 JSON-RPC/CLI 旁路; UI 行为不可旁路 UI (Playwright unstable → 仍可渲染校验, 但 click 路径须保留)"

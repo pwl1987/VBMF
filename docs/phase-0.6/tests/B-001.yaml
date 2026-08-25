@@ -1,0 +1,30 @@
+id: B-001
+title: B Heterogeneous Source (SDI+SRT+Normalize+MASTER_SWITCH+Multi-Variant)
+gate: G-RUNTIME
+reference: B
+fixture_id: F-B-HETEROGENEOUS
+env_prereq_id: ENV-LAB-01
+runner: runners/run_reference_a1.py
+depends_on: [A2-001, FI-01A-001]
+timeout: 600
+preconditions:
+  - "Reference B full chain provisioned (highest exec complexity, see ARCH-01)"
+actions:
+  - step: 1
+    do: "Take with heterogeneous sources + composition + multi Output Variant"
+expected:
+  program_master_health: "HEALTHY"
+  required_variant_present: true
+  optional_variant_graceful: true
+  no_source_failover_on_player_cache: true
+pass_rule: "program_master_health == 'HEALTHY' AND required_variant_present == true AND no_source_failover_on_player_cache == true"
+negative_case:
+  id: B-001-NEG
+  do: "Required variant missing"
+  expect_fail: "Preflight BLOCKED"
+evidence:
+  - "evidence/{id}_{run_ts}_chain_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 1, backoff_s: 60}
+abort_rule: {consecutive_fail: 2}
+note: "ARCH-01: Reference B 复杂度最高, 置于 A1/A2/FI 之后执行"

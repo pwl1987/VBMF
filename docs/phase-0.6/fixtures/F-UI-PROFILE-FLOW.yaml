@@ -1,0 +1,12 @@
+id: F-UI-PROFILE-FLOW
+title: UI-E2E-01 profile→bundle→channel→apply→output fixture
+reference: UI-E2E
+seed:
+  encoding_profile: "ENC-1080P-H264"
+  packaging_profile: "PKG-HLS"
+  output_profile: "OUT-RTMP"
+  channel: "CH01"
+expectations:
+  preflight_pass: true
+  runtime_active: true
+  output_health: "HEALTHY"

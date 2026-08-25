@@ -70,11 +70,14 @@ V1.0       完整 IP 播控                   📋
 - **Reference A2**（SDI 主备走 FRAME/MASTER）：SDI-A/B → Normalize → Encode → FRAME/MASTER → SRS → HLS
 - **Reference B**（异构源 + 图文 + 多 Master）：SDI + SRT + Composition + Audio Mixer → MASTER_SWITCH → Program Master → SRS
 - **8 Fault Injection / Failure-Domain Tests (FI-01A/B/02~07)**：
-  - FI-01：SDI 冻结 5s → SOURCE → FAILOVER
-  - FI-02：音频静音 8s → PIPELINE → RESTART
+  - FI-01A：Primary SDI 冻结 5s → SOURCE → FAILOVER to Backup
+  - FI-01B：Backup SDI 缺失/异常 → SOURCE → READY_TO_TAKE 门禁
+  - FI-02：音频静音 8s → PIPELINE → RESTART audio node
   - FI-03：Primary FFmpeg 进程崩溃 → PIPELINE → RESTART
-  - FI-04：Clock Drift +5ms/min → CLOCK → FALLBACK
-  - FI-05：HLS 切片失败 → OUTPUT → RESTART_ADAPTER
+  - FI-04：Clock Drift +5ms/min → CLOCK → FALLBACK to TIMECODE
+  - FI-05：HLS 切片失败 → OUTPUT → RESTART_ADAPTER → alternate
+  - FI-06：Audio Master Join 失败 → MASTER → FILLER_OR_EMERGENCY (target: emergency asset; 不切源)
+  - FI-07：录制盘满/故障 → RECORDING → BACKUP_DISK (target: alternate disk)
 - **7 Health Invariants** → executable test cases
   - HA-01..HA-07 from `docs/phase-0.5/operator/09-health-tree.html`
 - 端到端：在 10.30.15.10 服务器上跑通

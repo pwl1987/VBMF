@@ -29,7 +29,44 @@ V0.2 Architecture   ──┐
 Phase 0.5 Workflow   ──┤
                       ├──→ Executable Acceptance Spec ──→ V0.2 Architecture ACCEPTED
 Phase 0.6 References ─┘
+
+## Gate 流程 (G-DOC → G-DOC-READY → G-RUNTIME → G-UIUX)
+
+  G-DOC
+    ├─ tests/  (Test Case YAML, schema = SCHEMA.md)
+    ├─ fixtures/  (Fixture YAML)
+    ├─ env/  (Environment Prereq YAML)
+    ├─ runners/  (可执行 runner 脚本)
+    └─ evidence/  (证据落地)
+        ↓  scripts/check_docs.py phase06  (引用闭环 + FI 完备性 + G-DOC-READY)
+  G-DOC-READY   ← 测试框架本身先冻结, 再跑实体测试
+        ↓
+  G-RUNTIME  (A1 → A2 → B → FI-01A/B/02~07 → HA-01~07, 先 Runtime 再 UI)
+        ↓
+  G-UIUX  (UI-E2E-01~04 + TAKE revision 验证)
+        ↓
+  PHASE 0.6 ACCEPTED   (任意 Gate FAIL = NOT ACCEPTED)
+
+> **G-DOC-READY 原则 (FLOW-01)**: 不能出现 "测试跑了 20 次才发现 Evidence/Test ID/Fixture ID/Pass Rule 不统一"。
+> 先把 Harness 结构 + 引用闭环冻结 (check_docs.py phase06 全绿), 再开始实体测试。
+
+## Harness Layout (G-DOC 落地, GDOC-02)
+
+```text
+docs/phase-0.6/
+├── README.md
+├── SCHEMA.md            # Test Case YAML SoT
+├── ACCEPTANCE_REPORT.md # Gate 结果 + 覆盖矩阵
+├── tests/               # AC-01-001.yaml / A2-001 / B-001 / FI-01A-001 / HA-01-001 / AC-03B-001 / UI-E2E-01-001 ...
+├── fixtures/            # F-A1-PASS / F-FI-01A-SDI-FREEZE / F-FI-06-MASTER-JOIN / F-FI-07-RECORDING ...
+├── env/                 # ENV-LAB-01.yaml (真实地址 <LAB_HOST> 占位, 私有 manifest)
+├── runners/             # run_reference_a1.py / run_fi_matrix.py / run_ui_e2e.py
+└── evidence/            # {test_id}_{run_ts}_{pass|fail}.json
 ```
+
+闭环: **Test Case → Fixture → Environment → Runner → Evidence → Pass Rule** (machine-decidable)。
+Runtime 层 (AC-*) 可由 JSON-RPC/CLI 旁路; **UI 行为 (UI-E2E-*) 不可旁路 UI** (Playwright 不稳定时仍可渲染校验, 但 click 路径须保留 — UX-02)。
+
 
 ## 0.5 · 验收闭合度治理 (0.5F.19 补, 关闭 EXEC-01 / UX-01 / DOC 缺口)
 
@@ -190,7 +227,7 @@ Audio Mixer / Loudness / Delay ─────┘
 - [ ] Variant Scope Composition 仅作用于目标 Variant（e.g. 平台水印只出现在 Variant A、区域版权贴片只出现在 Variant B）
 - [ ] Acceptance: 共享 Logo 在所有 Variant 一致；平台水印仅目标 Variant 出现（**禁止**把 Composition 全部提前到 Program Master）
 
-### 8 Fault Injection 故障注入 (FI-01A/B/02~07, 0.5F.19 补 FI-06 MASTER / FI-07 RECORDING; 0.6 启动前 Doc Patch 统一 5→7)
+### 8 Fault Injection 故障注入 (FI-01A/B/02~07, 0.5F.19 补 FI-06 MASTER / FI-07 RECORDING; 0.6 启动前 Doc Patch 统一 5→7→8 / 8 FI canonicalization)
 
 | # | 故障 | Failure Domain | 期望恢复 | 期望 Channel Health |
 |---|---|---|---|---|
@@ -200,6 +237,54 @@ Audio Mixer / Loudness / Delay ─────┘
 | **FI-03** | Primary FFmpeg 进程崩溃 | PIPELINE 管道 | RESTART + RESUME | DEGRADED → HEALTHY |
 | **FI-04** | Clock Drift +5ms/min | CLOCK 时钟 | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
 | **FI-05** | HLS 切片失败 | OUTPUT 输出 | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
+
+#### FI-01A · Primary SDI 冻结 + Backup READY（SOURCE 源）
+- **injection**：Primary SDI 输入冻结 ≥5s（injection_point: SDI Input / SOURCE）
+- **期望恢复**：FAILOVER → Backup ACTIVE
+- **期望 Channel Health**：HEALTHY (after failover)
+- **deterministic**：冻结 detection ≥5s → 触发 FAILOVER；Backup READY 前提下切换成功；退出 DEGRADED = Channel Health = HEALTHY 且稳定 ≥30s
+
+#### FI-01B · Primary SDI 冻结 + Backup NOT_READY（SOURCE 源）
+- **injection**：Primary SDI 输入冻结 ≥5s（injection_point: SDI Input / SOURCE）+ Backup NOT_READY
+- **期望恢复**：FAILOVER attempted → FILLER（emergency asset）
+- **期望 Channel Health**：DEGRADED / SAFE（Filler；非 HEALTHY）
+- **deterministic**：冻结 detection ≥5s → 尝试 FAILOVER；Backup NOT_READY 时不得切源、须落 FILLER；TAKE/B-13 门禁保持 BLOCKED
+
+#### FI-02 · 音频静音（PIPELINE 管道）
+- **injection**：Audio Mixer 输出静音 ≥8s（injection_point: Audio Mixer / PIPELINE）
+- **期望恢复**：RESTART audio node
+- **期望 Channel Health**：DEGRADED → HEALTHY
+- **deterministic**：静音 detection ≥8s → RESTART audio node；退出 DEGRADED = Audio Health = HEALTHY 且持续 ≥30s
+
+#### FI-03 · Primary FFmpeg 进程崩溃（PIPELINE 管道）
+- **injection**：Primary FFmpeg 进程 SIGKILL（injection_point: FFmpeg / PIPELINE）
+- **期望恢复**：RESTART + RESUME
+- **期望 Channel Health**：DEGRADED → HEALTHY
+- **deterministic**：进程丢失 detection ≤5s → RESTART；RESUME 后无 PTS discontinuity；退出 DEGRADED = Pipeline Health = HEALTHY 且持续 ≥30s
+
+#### FI-04 · Clock Drift（CLOCK 时钟）
+- **injection**：Clock Drift +5ms/min，注入 ≥10min 累积 +50ms（injection_point: PTP/系统时钟 / CLOCK）
+- **期望恢复**：FALLBACK to TIMECODE
+- **期望 Channel Health**：DEGRADED（CLOCK_DEGRADED event）
+- **deterministic**：drift > 50ms → FALLBACK to TIMECODE event；退出 DEGRADED = Clock Domain = LOCKED 且 drift < 10ms 持续 ≥60s
+
+#### FI-05 · HLS 切片失败（OUTPUT 输出）
+- **injection**：HLS 切片连续失败 ≥3 次（injection_point: HLS Adapter / OUTPUT）
+- **期望恢复**：RESTART_ADAPTER → alternate destination
+- **期望 Channel Health**：DEGRADED → HEALTHY
+- **deterministic**：连续 3 次 segment gen 失败 → RESTART_ADAPTER；alternate 接管且首片成功；退出 DEGRADED = OUTPUT Health = HEALTHY 且连续 ≥5 切片成功
+
+#### FI-06 · Audio Master Join 失败（MASTER 主母版）
+- **injection**：Audio Master Join 失败（injection_point: Master Join / MASTER）
+- **期望恢复**：FILLER_OR_EMERGENCY（target: emergency asset）
+- **期望 Channel Health**：DEGRADED（**不得切源**）
+- **deterministic**：Join failure event → 落 FILLER；不得触发 SOURCE/OUTPUT FAILOVER；退出 DEGRADED = Master Join 恢复且无 black frame ≥30s
+
+#### FI-07 · 录制盘故障（RECORDING 录制）
+- **injection**：录制盘满/不可写（injection_point: Recorder / RECORDING）
+- **期望恢复**：BACKUP_DISK（target: alternate disk）
+- **期望 Channel Health**：unaffected（录制独立域）
+- **deterministic**：写入失败 event → BACKUP_DISK 接管；Output/Source 不受影响；退出 = Recorder Health = HEALTHY 且连续 ≥5 段写入成功
 
 > **FI 注入点锁定（P1）**：每条 FI 必须写明 `injection_point: {node, domain}`，否则 Phase 0.6 实测时两人会做出不同恢复动作。当前已锁定：FI-02 = Audio Mixer / PIPELINE。以下为**不同 Failure Domain**，须各自独立 FI，不得并入 FI-02：Source embedded_audio（SOURCE）、Loudness node（PIPELINE）、Audio Master Join（MASTER）。
 

@@ -1,0 +1,10 @@
+id: F-A2-SDI-FRAME
+title: A2 SDI FRAME switch fixture
+reference: A2
+inputs:
+  primary_source: "SDI-IN-1"
+  backup_source: "SDI-IN-2"
+  switch_mode: "FRAME"
+  genlock: true
+expectations:
+  frame_accurate: true

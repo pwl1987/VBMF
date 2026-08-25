@@ -1,0 +1,10 @@
+id: F-FI-03-FFMPEG-CRASH
+title: FI-03 FFmpeg crash injection
+reference: FI
+injection_point:
+  node: "FFmpeg"
+  domain: "PIPELINE"
+params:
+  signal: "SIGKILL"
+expected_recovery: "RESTART + RESUME"
+channel_health_after: "HEALTHY"

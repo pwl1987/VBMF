@@ -1,0 +1,11 @@
+id: ENV-LAB-01
+title: Primary 0.6 acceptance lab (private manifest — 真实地址不入库)
+lab_host: "<LAB_HOST>"            # 私有 manifest 映射, 不提交真实 IP
+controller: "<CONTROLLER_HOST>"
+media_agent: "<MEDIA_AGENT_HOST>"
+bmd_deck_count: 2
+ffmpeg_path: "<FFMPEG_PATH>"
+ptp_domain: 0
+notes:
+  - "Public repo 仅保留 <LAB_HOST> 占位; 真实拓扑在私有 acceptance env manifest"
+  - "Reference B 复杂度高, 须独立环境隔离 (见 ARCH-01)"

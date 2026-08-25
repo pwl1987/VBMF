@@ -1,0 +1,11 @@
+id: F-FI-07-RECORDING
+title: FI-07 recorder disk failure injection
+reference: FI
+injection_point:
+  node: "Recorder"
+  domain: "RECORDING"
+params:
+  disk: "full"
+expected_recovery: "BACKUP_DISK (target: alternate disk)"
+channel_health_after: "unaffected"
+must_not: ["SOURCE_FAILOVER", "OUTPUT_FAILOVER", "black_frame"]

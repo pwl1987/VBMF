@@ -1,0 +1,29 @@
+id: FI-01B-001
+title: FI-01B Primary SDI freeze + Backup NOT_READY → FILLER
+gate: G-RUNTIME
+reference: FI
+fixture_id: F-FI-01B-SDI-FREEZE-NOTREADY
+env_prereq_id: ENV-LAB-01
+runner: runners/run_fi_matrix.py
+depends_on: [AC-01-001]
+timeout: 120
+preconditions:
+  - "Primary SDI ACTIVE, Backup SDI NOT_READY"
+actions:
+  - step: 1
+    do: "Inject FI-01B: freeze primary SDI input >=5s"
+expected:
+  failover_attempted: true
+  filler_active: true
+  channel_health_after: "DEGRADED"
+  take_blocked: true
+pass_rule: "failover_attempted == true AND filler_active == true AND channel_health_after == 'DEGRADED' AND take_blocked == true"
+negative_case:
+  id: FI-01B-001-NEG
+  do: "n/a (covered by FI-01A-001 positive)"
+  expect_fail: "n/a"
+evidence:
+  - "evidence/{id}_{run_ts}_fi_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 1, backoff_s: 30}
+abort_rule: {consecutive_fail: 3}

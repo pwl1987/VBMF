@@ -1,0 +1,28 @@
+id: A2-001
+title: A2 SDI FRAME/MASTER switch (frame-accurate)
+gate: G-RUNTIME
+reference: A2
+fixture_id: F-A2-SDI-FRAME
+env_prereq_id: ENV-LAB-01
+runner: runners/run_reference_a1.py
+depends_on: [AC-01-001]
+timeout: 300
+preconditions:
+  - "Two SDI sources genlocked (same reference)"
+actions:
+  - step: 1
+    do: "JSON-RPC switch.take({source:'PRIMARY', mode:'FRAME'})"
+expected:
+  frame_accurate: true
+  active_source_id: "PRIMARY"
+  no_black_frame: true
+pass_rule: "frame_accurate == true AND active_source_id == 'PRIMARY' AND no_black_frame == true"
+negative_case:
+  id: A2-001-NEG
+  do: "FRAME switch without genlock"
+  expect_fail: "rejected NO_GENLOCK"
+evidence:
+  - "evidence/{id}_{run_ts}_switch_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 1, backoff_s: 30}
+abort_rule: {consecutive_fail: 3}

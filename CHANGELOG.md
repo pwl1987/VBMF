@@ -156,6 +156,18 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-E2E**：新增 E2E Acceptance: Profile→Bundle→ChangeSet→Runtime→Output 完整配置生命周期（Impact Preview 选择性 Apply / Preflight WARN≠PASS / Runtime Revision 单调+1 可回滚 / Apply 期间 Output HEALTHY）。
 - 校验：`scripts/check_docs.py` **PASS**。结论：Phase 0.5 维持 LOCK FINAL；本清理为进入 Phase 0.6 Executable Acceptance 前的最后一组一致性/契约收口，不做任何新增页面或架构改动。
 
+### Phase 0.6 · G-DOC Entry Patch + Executable Acceptance Harness（2026-08-25，基于 7d12f10 复检，GO Phase 0.6 G-DOC）
+用户以 `7d12f107fc72799995aae374c1403ec304756746` 回归, **正式判定: Phase 0.5 保持冻结 / Phase 0.6 = GO, 立即启动 G-DOC, 不再做一轮 0.5 全面复检**。给出 4 个 G-DOC Entry Patch + 落地 `tests/fixtures/env/runners/evidence` 骨架:
+- **DOC-01 (P1, 不阻塞 G-DOC) · ROADMAP FI 枚举补全**: `ROADMAP.md` 顶部已写 8 FI, 但明细只列 FI-01~05; 已补全 **FI-01A / FI-01B / FI-02 / FI-03 / FI-04 / FI-05 / FI-06 / FI-07** 八项 (含 injection_point / domain / 期望恢复 / Channel Health)。
+- **DOC-02 (P1) · check_docs.py FI 护栏升级为 FI Set / Reference Coverage Validator**: `check_phase06_fi_ids()` 重写 — (1) 计数一致; (2) 每个 canonical FI 必须有 `#### FI-0X` 定义块 (抓 "声明无定义"); (3) 任意文档引用的 FI ID 必须属于 canonical (抓 phantom FI-09); (4) 反向引用; (5) 摘要同口径。新增 `check_phase06_harness()`: **G-DOC-READY 门禁** — 每个 Test Case 的 fixture_id/env_prereq_id/runner 必须实际存在, 且每 FI/AC/UI-E2E/HA Reference 在 `tests/` 至少 1 个 Test Case。首次运行即抓出 "canonical 含裸 FI-01 (phantom)" 与 "FI-02~07 无 Test Case"。
+- **DOC-03 (🟡) · check_docs 注释口径**: `7 个`/`5→7` 旧注释 → `8`/`5→7→8` (与 0.6 README 顶部标题 `统一 5→7→8 / 8 FI canonicalization` 一致)。
+- **DOC-04 (🟡) · 0.6 README 历史标题残留**: `统一 5→7` → `统一 5→7→8 / 8 FI canonicalization`。
+- **GDOC-02 · 真正可执行 Harness 落地 (非仅 Markdown)**: 新增 `docs/phase-0.6/` 结构 — `SCHEMA.md` (Test Case YAML SoT) + `ACCEPTANCE_REPORT.md` + `tests/` (AC-01-001 / AC-03B-001 / A2-001 / B-001 / HA-01-001 / FI-01A-001 / FI-01B-001 / FI-02~07-001 / UI-E2E-01-001, 共 13 个 Test Case) + `fixtures/` (F-A1-PASS / F-A2-SDI-FRAME / F-B-HETEROGENEOUS / F-AC03B-OVERRIDE / F-UI-PROFILE-FLOW / F-FI-01A/01B/02/03/04/05/06-MASTER-JOIN/07-RECORDING, 共 13 个) + `env/ENV-LAB-01.yaml` (真实地址 `<LAB_HOST>` 占位, 私有 manifest) + `runners/run_reference_a1.py`/`run_fi_matrix.py`/`run_ui_e2e.py` (真实可执行 Python 骨架, 加载 YAML+产出 evidence) + `evidence/.gitkeep`。闭环: Test Case → Fixture → Env → Runner → Evidence → Pass Rule (机器可判定)。
+- **FLOW-01 · G-DOC 与 G-RUNTIME 之间加 G-DOC-READY Gate**: `docs/phase-0.6/README.md` Gate 流程改为 `G-DOC → G-DOC-READY → G-RUNTIME → G-UIUX`; 原则 "先把测试框架本身冻结, 再跑实体测试", 防止 Evidence/Test ID/Fixture ID/Pass Rule 不统一。
+- **ARCH-01 · Reference B 执行风险**: 明确 Reference B (SDI/SRT/Normalize/MASTER_SWITCH/Composition/Audio Mixer/Loudness/Delay/Multi-Variant/HLS/RTMP/WHEP) 复杂度最高, 置于 A1/A2/FI 之后; 落地顺序严格执行 A1→A2→B→FI-01~07→HA-01~07。
+- **UX-01/UX-02 · TAKE revision + Playwright**: TAKE 必须只使用 EFFECTIVE revision (r17), 不取 Pending (r18) → 落成 G-UIUX/TAKE-REVISION-001; Runtime 层 (AC-*) 可 JSON-RPC/CLI 旁路, **UI 行为 (UI-E2E-*) 不可旁路 UI** (Playwright 不稳定可降级渲染校验, 但 click 路径保留)。
+- 校验：`scripts/check_docs.py` **PASS** (含 `phase06` = FI 集合一致性 + G-DOC-READY 全绿); 3 个 runner 实测可执行并产出 evidence JSON (PyYAML 环境下)。结论：**Phase 0.5 = LOCK FINAL (冻结)**; **Phase 0.6 Specification = READY FOR IMPLEMENTATION**; **G-DOC Harness 结构已落地并通过 G-DOC-READY 门禁**; 下一步进入 G-RUNTIME (A1→A2→B→FI→HA, 先 Runtime 再 UI) 实体测试。
+
 ### Phase 0.5C — Information Architecture Closure（2026-08-25，DRAFT 0.1 待审）
 - 目录归并：`docs/phase-0.5b/` 并入 `docs/phase-0.5/`（git mv 保留 history；wireframes 拆为 `operator/` 10 张 + `product/` 5 张）
 - 新增 `OBJECT_VOCABULARY.md`（14 对象权威定义）/ `PRODUCT_OBJECT_MODEL.md`（Profile/Bundle/Variant 3 层）/ `NAVIGATION.md` / `MILESTONES.md` + `milestones/` 历史归档

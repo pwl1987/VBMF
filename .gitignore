@@ -1,6 +1,3 @@
-# 所有 Python 脚本不入库
-*.py
-
 # IDE / 工具数据目录不入库
 .zcode/
 .codebuddy/

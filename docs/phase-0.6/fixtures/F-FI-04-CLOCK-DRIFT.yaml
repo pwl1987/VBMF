@@ -1,0 +1,11 @@
+id: F-FI-04-CLOCK-DRIFT
+title: FI-04 clock drift injection
+reference: FI
+injection_point:
+  node: "PTP/系统时钟"
+  domain: "CLOCK"
+params:
+  drift_per_min_ms: 5
+  duration_min: 10
+expected_recovery: "FALLBACK to TIMECODE"
+channel_health_after: "DEGRADED"

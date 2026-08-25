@@ -1,0 +1,12 @@
+id: F-A1-PASS
+title: A1 PACKET switch happy-path fixture
+reference: A1
+description: "Primary SDI active, Backup ready, Program Master HEALTHY"
+inputs:
+  primary_source: "SDI-IN-1"
+  backup_source: "SDI-IN-2"
+  switch_mode: "PACKET"
+  program_master: "PM-CH01"
+expectations:
+  pre_switch_health: "HEALTHY"
+  valid_sources: ["SDI-IN-1", "SDI-IN-2"]

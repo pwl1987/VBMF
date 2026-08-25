@@ -1,0 +1,10 @@
+id: F-FI-05-HLS-FAIL
+title: FI-05 HLS segment failure injection
+reference: FI
+injection_point:
+  node: "HLS Adapter"
+  domain: "OUTPUT"
+params:
+  consecutive_failures: 3
+expected_recovery: "RESTART_ADAPTER -> alternate"
+channel_health_after: "HEALTHY"

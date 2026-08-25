@@ -1,0 +1,24 @@
+id: FI-02-001
+title: FI-02 Audio mute 8s → RESTART audio node
+gate: G-RUNTIME
+reference: FI
+fixture_id: F-FI-02-AUDIO-MUTE
+env_prereq_id: ENV-LAB-01
+runner: runners/run_fi_matrix.py
+depends_on: [AC-01-001]
+timeout: 120
+preconditions:
+  - "Audio Mixer active"
+actions:
+  - step: 1
+    do: "Inject FI-02: mute audio output >=8s"
+expected:
+  restart_triggered: true
+  audio_health_after: "HEALTHY"
+  detection_latency_s: 8
+pass_rule: "restart_triggered == true AND audio_health_after == 'HEALTHY' AND detection_latency_s <= 9"
+evidence:
+  - "evidence/{id}_{run_ts}_fi_log.json"
+artifact_naming: "{id}_{run_ts}_{pass|fail}.json"
+retry_rule: {max: 1, backoff_s: 30}
+abort_rule: {consecutive_fail: 3}
