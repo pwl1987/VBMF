@@ -134,32 +134,33 @@ Source.B (COMPRESSED) ─┘
 
 **架构链路 (FRAME_SWITCH = RAW → Switch → RAW；MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 是 Program-scope Master 的 delivery boundary，位于 Switcher 之后，不在切换输入侧)**：
 
-FRAME_SWITCH：
+FRAME_SWITCH（含真实 SDI ingest 层）：
 ```
-SDI-A ─→ Normalize ─→ RAW ┐
-                           ├── FRAME_SWITCH ──→ RAW
-SDI-B ─→ Normalize ─→ RAW ┘
-                           ↓
-                   Program Master
-                           ↓
-                         Encode
-                           ↓
-                           SRS
-                           ↓
-                           HLS
+BMD DeckLink SDI-A ─→ GStreamer ingest ─→ RAW ─→ Normalize ─→ RAW ┐
+                                                                     ├── FRAME_SWITCH ──→ RAW
+BMD DeckLink SDI-B ─→ GStreamer ingest ─→ RAW ─→ Normalize ─→ RAW ┘
+                                                                     ↓
+                                                           Program Master
+                                                                     ↓
+                                                                   Encode
+                                                                     ↓
+                                                                     SRS
+                                                                     ↓
+                                                                     HLS
 ```
+> **SDI ingest 落点**：`BMD DeckLink → GStreamer → RAW` 由 **Rust Media Agent** 拥有生命周期（见 `docs/architecture/TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md` GSTR-01 / F4）。GStreamer 是 Media Pipeline Execution Technology，非独立服务。Fixture（真实硬件）须覆盖 `DeckLink → GStreamer → RAW` 全链路，文件级 fixture 与真实硬件 fixture 不得出现两套 SDI 语义。
 
-MASTER_SWITCH：
+MASTER_SWITCH（含真实 SDI ingest 层）：
 ```
-SDI-A ─→ Normalize ─┐
-                     ├─→ MASTER_SWITCH
-SDI-B ─→ Normalize ─┘
-                     ↓
-             Program Master
-                     ↓
-                   Encode
-                     ↓
-                    SRS
+BMD DeckLink SDI-A ─→ GStreamer ingest ─→ RAW ─→ Normalize ─┐
+                                                             ├─→ MASTER_SWITCH
+BMD DeckLink SDI-B ─→ GStreamer ingest ─→ RAW ─→ Normalize ─┘
+                                                             ↓
+                                                   Program Master
+                                                             ↓
+                                                           Encode
+                                                             ↓
+                                                            SRS
 ```
 
 **关键点**：

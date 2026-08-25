@@ -10,6 +10,7 @@
 > 2. **媒体运行时/架构 SoT** = `docs/architecture/ARCHITECTURE_V0.2.md`: Rust Media Agent / FFmpeg / GStreamer / BMD DeckLink / JSON-RPC / SDI·SRT·UDP / RTMP·HLS·WHEP。
 > 3. **验收 Harness SoT** = `docs/phase-0.6/` (Python + YAML + Playwright)。
 > 另: Phase 0.5 的 HTML/CSS/JS 是 **UX 原型** (验证 IA/Workflow/Surface/Design System), 其结论在 **Phase 4** 由本表 React 19 + shadcn/ui 真正落地; 当前仓库**尚无正式业务代码**, 故本次为一次性技术栈冻结, 后续变更须走 V0.2 Architecture Change Review。
+> **📌 本文档身份 (2026-08-25 追加)**: **V0.1 初始系统 + 项目计划**（服务器基线 / 基础设施 / 实施路线）。当前 **implementation authority = `docs/architecture/ARCHITECTURE_V0.2.md`**；**运行时所有权契约 = `docs/architecture/TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md`**。本文件技术栈章节须与 V0.2 及该契约一致；冲突以 V0.2 为准。关键落点：GStreamer ingest / Live FFmpeg / Live Recording **归属 Rust Media Agent**；File FFmpeg / Post-processing **归属 BullMQ Node Worker**；SRS = Canonical Stream Gateway（**MediaMTX 不纳入**）；React UI = **shadcn/ui**（**非 Ant Design Pro**）。
 
 ---
 
@@ -417,9 +418,10 @@ DB 标记完成，状态推 SSE
 
 **Phase 3: 实时流**（~3 天）
 - [ ] SRS 集成
-- [ ] SDI → ffmpeg → SRS
+- [ ] **SDI ingest 由 Rust Media Agent 拥有**：BMD DeckLink → GStreamer ingest → RAW → (Normalize) → FFmpeg Live Encode → SRS（Fastify/BullMQ 不得直接拥有实时媒体生命周期，见运行时所有权契约）
 - [ ] HLS 播放
 - [ ] 实时预览页
+- [ ] Live Recording 归属 Media Agent（Post-processing 转码/剪辑归 BullMQ Worker）
 
 **Phase 4: 用户 & 权限**（~2 天）
 - [ ] better-auth 集成
