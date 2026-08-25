@@ -109,7 +109,7 @@ VBMF 是从 **V0.1 Web 视频编码器** 演进而来的，**V0.1 的所有基�
 | **V0.2** VBMF | ✅ LOCK FINAL | 12 Engines + 5 横向系统 + 6 横切能力 + 22 轮 review + 57 决策 |
 | **Phase 0.5A** Operator Semantics | ✅ **LOCK FINAL** | 9 Core + 1 Validation（中英双语） + 4 关键操作链 + 20 项 UI 语义修复 — [ERRATA](docs/phase-0.5/ERRATA.md) |
 | **Phase 0.5B** Product Surface + 0.5B.1 P0 Wireframes + 0.5B.2 Product UX Closure | ✅ **UX BASELINE LOCK FINAL** | 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml；0.5C 起归并为 4 域）+ 5 P0 wireframes + 36 项语义收口（31 P0 + 5 P1）+ Design System + i18n — [SURFACE_SPEC](docs/phase-0.5/SURFACE_SPEC.md) + [DESIGN_SYSTEM](docs/phase-0.5/DESIGN_SYSTEM.md) + [I18N_SPEC](docs/phase-0.5/I18N_SPEC.md) + [MILESTONES](docs/phase-0.5/MILESTONES.md) |
-| **Phase 0.5C** Info Arch Closure | 🟡 **DRAFT 0.1** (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
+| **Phase 0.5C** Info Arch Closure | 🟢 **LOCK FINAL** | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
 | **Phase 0.5D** P0 Product Surfaces | ✅ 已完成 (LOCK FINAL) | M-17 Realtime Session / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
 | **Phase 0.6** Reference + FI | 📋 (前置: Phase 0.5 LOCK FINAL) | Reference A1/A2/B + 5 Fault Injection = Executable Acceptance Spec |
 | **Phase 1** Media Agent (Rust) | 📋 | JSON-RPC + Session Manager + FfmpegCommandBuilder + 24h 稳定性 |

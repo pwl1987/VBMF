@@ -244,16 +244,18 @@
       </div>
     </div>
     <div class="panel">
-      <h3>📦 Backup Output (CDN Failover) <span class="pill pill-orange" style="float:right">G4 触点</span></h3>
+      <h3>🔗 Output Runtime Link <span class="pill pill-orange" style="float:right">G4 触点 · Owner: Output Session</span></h3>
       <table>
         <tbody>
+          <tr><td>output_variant</td><td>V-CH01-HLS (owner: Output Session)</td></tr>
+          <tr><td>status</td><td>HEALTHY</td></tr>
           <tr><td>primary</td><td>CDN-A (● live)</td></tr>
           <tr><td>backup</td><td>CDN-B (○ standby)</td></tr>
-          <tr><td>edge_policy</td><td>LIVE_EDGE_DEFAULT</td></tr>
-          <tr><td>retry</td><td style="color:var(--orange)">3x backoff 1s</td></tr>
+          <tr><td>retry_policy</td><td style="color:var(--orange)">3x backoff 1s · defined in 06-output</td></tr>
+          <tr><td>runtime_link</td><td><a href="#" style="color:var(--accent);text-decoration:none">[Open Output]</a> → 06-output / D7</td></tr>
         </tbody>
       </table>
-      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 已建模为独立对象 (06-output + D6/B-13: 重连策略/心跳/退避/zombie 判定). M-17 Backup Output retry 3x 为该对象在编码面的触点, 决策留在 06-output 而非 M-17. 此处仅展示, 不编辑.</div>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 已建模为独立对象 (06-output + D6/B-13: 重连策略/心跳/退避/zombie 判定). M-17 Output Runtime Link retry 3x 为该对象在编码面的触点, 决策留在 06-output 而非 M-17. 此处仅展示运行态链接, 不编辑 (Encoder ≠ Output).</div>
     </div>
     <div class="panel" style="border-color:var(--purple)">
         <h3>📐 Reservation vs Runtime Usage (0.5F.7 P1-5)</h3>

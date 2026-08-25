@@ -104,6 +104,23 @@ SDI-B ─→ Normalize ─┘
 - [ ] `target_failover_time_ms` 来自 `hot_standby_levels`（V0.2 锁定，**非协议保证**），由 `failover_benchmarks` 独立实测 p50/p95/p99
 - [ ] 24h 稳定
 
+### Network Source Acceptance (UDP UNI / ASM / SSM)
+
+UDP 网络源必须按三种模式各自独立验收（**不能**合并成单一 "Multicast Address" 字段）：
+
+| Fixture | 必填字段 | 验收点 |
+|---|---|---|
+| **UDP-UNI** | Remote IP / Remote Port / Interface | 单播可达；Interface 绑定正确 |
+| **UDP-ASM** | Group / Port / Interface / IGMP Join | IGMPv2 加入组；多接收者 |
+| **UDP-SSM** | **Source IP** / Group / Port / Interface / IGMPv3 | **Source IP 不可丢**（SSM = (S,G)）；IGMPv3 仅收指定源 |
+
+**验证项**：
+
+- [ ] E-40 Source Wizard 按 Source Kind = Network 动态渲染上述三套 schema（非单一 Multicast 字段）
+- [ ] SSM 校验 **Source IP 必填**，缺省拒绝（否则 ASM/SSM 混淆）
+- [ ] IGMP 版本随模式切换（ASM → IGMPv2 / SSM → IGMPv3）
+- [ ] 三模式各自独立 Fixture，实测可达后进入 A2/B 切换链
+
 ### Reference B — 异构源 + 图文 + 多 Master
 
 **架构链路**：
@@ -136,6 +153,9 @@ Audio Mixer / Loudness / Delay ─────┘
 - [ ] 多路 Output Variant 同步
 - [ ] 多路 Output Variant 故障隔离：Program Master HEALTHY + {HLS HEALTHY, RTMP HEALTHY, **WHEP DEGRADED**} → Channel = **DEGRADED**（WHEP=Required）或 **HEALTHY**（WHEP=Optional）
 - [ ] Variant failure ≠ Program Master failure（Failure Domain = OUTPUT，按 variant 独立判定；Required/Optional 影响 Channel 总判定）
+- [ ] Program Scope Composition 跨所有 Variant 共享（e.g. 全台 Logo 出现在每一个 Variant）
+- [ ] Variant Scope Composition 仅作用于目标 Variant（e.g. 平台水印只出现在 Variant A、区域版权贴片只出现在 Variant B）
+- [ ] Acceptance: 共享 Logo 在所有 Variant 一致；平台水印仅目标 Variant 出现（**禁止**把 Composition 全部提前到 Program Master）
 
 ### 5 Fault Injection 故障注入
 
@@ -215,6 +235,36 @@ P-20 Profile Center / P-21 Encoding Profile 的责任边界必须锁死，防止
 - **Packaging Profile**：`container(MP4|TS) / segment(HLS|DASH) / segment-duration / playlist / manifest / DRM`。
 - 两者为**独立 Profile 类型**，共享引用但运行时对象 / 状态机 / 失败恢复 / UI 分离（与 M-14 File Transcode / M-17 Realtime Session 的 Encoding↔Packaging 分离一致）。
 - **禁止**：P-21 Encoding Profile 承担 container / segment / manifest / DRM；DRM 属 Packaging / Distribution 边界。
+
+### E2E Acceptance: Profile → Bundle → ChangeSet → Runtime → Output
+
+完整配置生命周期必须在 Phase 0.6 以真实案例跑通一次（不是 happy path，而是 Preflight + Transactional Cutover）：
+
+```
+P-21 v3 (Encoding Profile)
+  ↓ Create v4
+CD-01 Channel Detail → Bundle v2 → v3 (引用新 Profile)
+  ↓ Impact Preview
+CH01 / CH03 / CH08 affected
+  ↓ select CH01 only (不强制全量)
+Bundle v2 → v3
+  ↓ Preflight (Capability / Runtime Alignment ALL PASS)
+ChangeSet: APPLYING → APPLIED (Logical Atomic / Transactional Cutover)
+  ↓
+Runtime Revision N+1 (session.apply_revision)
+  ↓
+Effective config changed
+Output still HEALTHY (Variant 全同步: HLS / RTMP / WHEP)
+```
+
+**验收项**：
+
+- [ ] Impact Preview 准确列出受影响 Channel（CH01 / CH03 / CH08）
+- [ ] 选择性 Apply（仅 CH01）不污染 CH03 / CH08
+- [ ] Preflight 失败则 ChangeSet 不进入 APPLYING（WARN ≠ PASS）
+- [ ] Apply 后 Runtime Revision 单调 +1，旧 Revision 可回滚
+- [ ] Apply 期间 Output 持续 HEALTHY（零黑场 / 零中断）
+- [ ] 回滚路径：Rollback → 上一 Runtime Revision
 
 ## 部署环境
 

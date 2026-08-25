@@ -82,7 +82,7 @@ docs/
 | **0.5B-Closure-1** | 2026-08 | 🟢 LOCK FINAL | 10 项产品化收口 (3-Layer / 4-Tuple / 3-Tier / 9D / H1-H7 / Dependency) | `270daa3` |
 | **0.5B.1 P0 Wireframes** | 2026-08 | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) | `3ef6a30` |
 | **0.5B.2 Product UX Closure** | 2026-08 | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL | `cec7407` |
-| **0.5C Info Arch Closure** | 2026-08 | 🟢 RECONCILED | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (0.5C 已完成) |
+| **0.5C Info Arch Closure** | 2026-08 | 🟢 LOCK FINAL | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (0.5C 已完成) |
 | **0.5D P0 Product Surfaces** | 2026-08 | 🟢 LOCK FINAL | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` |
 | **0.5E Global UX Layer** | 2026-08 | 🟢 LOCK FINAL | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
 | **0.5F Final UX Reconciliation** | 2026-08 | 🟢 完成 | 0.5F.1-.8 + 0.5F.9 (2P0+5P1) + 0.5F.10 (2P0+7P1) + 0.5F.11 (2P0+4P1): 状态统一 / Channel Workspace / Network / Transcode / Config vs Runtime / Global Components / Source Wizard 动态 / E-42 per-Kind Verification / Composite GraphSpec / REQUIRED→TAKE Safety / Phase Status SoT | `22f2245` + 本轮 |

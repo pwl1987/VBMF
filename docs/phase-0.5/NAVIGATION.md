@@ -5,7 +5,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure (0.5E Cross-Domain Capabilities 已 Spec 锁)
 >
-> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 55 wireframe + 1 Spec（唯一权威: `SURFACE_REGISTRY.yaml`, 展示见 §2.5）· 0.5D.6 Semantic/Execution Closure 完成 + 0.5E wireframes (E-50/51/52) 已建 + 0.5F.3 状态派生
+> **状态:** 🟢 **LOCK FINAL** (0.5C IA + 0.5F 对账；Historical: RECONCILED) · 55 wireframe + 1 Spec（唯一权威: `SURFACE_REGISTRY.yaml`, 展示见 §2.5）· 0.5D.6 Semantic/Execution Closure 完成 + 0.5E wireframes (E-50/51/52) 已建 + 0.5F.3 状态派生
 >
 > **状态权威 (0.5F.3 P1-7):** 各 surface 的 **status 唯一事实源 = `SURFACE_REGISTRY.yaml`**。下方各域表格中的状态列为**展示快照** (以 Registry 为准, 已同步 0.5F.3), 本文件**不维护 status** — 新增 surface / 状态变更一律先改 Registry。
 >
@@ -246,7 +246,7 @@ V0.2 12 Engines 不变, 本 Navigation 4 域是**产品 UX 层**对应, 不动 V
 
 ---
 
-## 7. Phase 0.5C RECONCILED 验证清单
+## 7. Phase 0.5C LOCK FINAL 验证清单
 
 - [ ] Top Nav 显示 4 域: **BROADCAST / MEDIA / ENGINEERING / ADMIN** (中文: 直播/媒体/工程/管理)
 - [ ] 每个域显示主对象图标, 不用数字

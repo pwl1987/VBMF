@@ -41,6 +41,15 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-Profile**：新增 Encoding/Packaging Profile 责任边界写死（Encoding 仅 codec/resolution/bitrate/GOP/rate-control；Packaging 负责 container/segment/manifest/DRM；P-21 Encoding Profile 禁止承担 Packaging 职责）。
 - 校验：`scripts/check_docs.py` **PASS**。结论：Phase 0.5 维持 LOCK FINAL；Phase 0.6 进入 Executable Acceptance 前的关键语义/一致性缺口已闭环。
 
+### Phase 0.6 Final Preflight Cleanup（2026-08-25，基于 b5c47fa）
+- **P0-Contract**：`PRODUCT_OBJECT_MODEL.md` 删除 `SIGUSR1 = V0.2 协议` 的错误产品契约表述，改为正式 Runtime Apply Contract `Session Apply Runtime Revision`（JSON-RPC `session.apply_revision`, V0.2 §3.x Runtime Contract）；SIGUSR1 仅标为 Implementation Detail，禁止写入产品/运行时契约（防止进程信号偷偷变成架构事实）。
+- **P1-Status**：统一 0.5C 状态文本 DRAFT/RECONCILED → LOCK FINAL——Root README Evolution 表 `🟡 DRAFT 0.1` → `🟢 LOCK FINAL`；MILESTONES `🟢 RECONCILED` → `🟢 LOCK FINAL`；NAVIGATION `🟡 RECONCILED` → `🟢 LOCK FINAL`（保留 `Historical: RECONCILED`），章节标题 `Phase 0.5C RECONCILED 验证清单` → `LOCK FINAL 验证清单`。
+- **P1-M17-OutputLink**：M-17 `Backup Output (CDN Failover)` 区块改名 `Output Runtime Link`，表内容改为 `output_variant / status / primary / backup / retry_policy(defined in 06-output) / runtime_link [Open Output] → 06-output / D7`，明确 `Owner: Output Session`，消除 "Encoder 管 Output" 的视觉误导（Encoder ≠ Output 语义化）。
+- **P1-RefB-Composition**：Reference B 新增 Program/Variant Composition 双层验收——Program Scope 跨 Variant 共享（全台 Logo）、Variant Scope 仅目标 Variant（平台水印/区域贴片）、Acceptance 禁止把 Composition 全提前到 Program Master。
+- **P1-Network-UDP**：新增 Network Source Acceptance (UDP UNI/ASM/SSM)——三模式独立 schema 与必填字段（SSM 的 Source IP 不可丢）、IGMP 版本随模式切换 (ASM→IGMPv2 / SSM→IGMPv3)、E-40 动态渲染。
+- **P1-E2E**：新增 E2E Acceptance: Profile→Bundle→ChangeSet→Runtime→Output 完整配置生命周期（Impact Preview 选择性 Apply / Preflight WARN≠PASS / Runtime Revision 单调+1 可回滚 / Apply 期间 Output HEALTHY）。
+- 校验：`scripts/check_docs.py` **PASS**。结论：Phase 0.5 维持 LOCK FINAL；本清理为进入 Phase 0.6 Executable Acceptance 前的最后一组一致性/契约收口，不做任何新增页面或架构改动。
+
 ### Phase 0.5C — Information Architecture Closure（2026-08-25，DRAFT 0.1 待审）
 - 目录归并：`docs/phase-0.5b/` 并入 `docs/phase-0.5/`（git mv 保留 history；wireframes 拆为 `operator/` 10 张 + `product/` 5 张）
 - 新增 `OBJECT_VOCABULARY.md`（14 对象权威定义）/ `PRODUCT_OBJECT_MODEL.md`（Profile/Bundle/Variant 3 层）/ `NAVIGATION.md` / `MILESTONES.md` + `milestones/` 历史归档

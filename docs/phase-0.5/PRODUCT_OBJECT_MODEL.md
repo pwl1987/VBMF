@@ -202,7 +202,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 5. 创建 ChangeSet (单 item)
 6. 立即应用 (不调度, 因为该 Channel 在用 v2 但 Preflight 已过)
 7. ChangeSet 走 APPLYING → APPLIED
-8. Variant 重新派生, Session 收到 SIGUSR1 重载 (V0.2 协议)
+8. Variant 重新派生 → Session 收到 `Apply Runtime Revision` 指令 (JSON-RPC `session.apply_revision`, V0.2 §3.x Runtime Contract)；SIGUSR1 仅作为某实现内部的进程信号 (**Implementation Detail**)，**不**写入产品/运行时契约。
 ```
 
 ### 3.4 Workflow: 临时 Override (紧急切到备用 Profile)
