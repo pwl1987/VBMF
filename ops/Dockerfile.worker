@@ -1,0 +1,8 @@
+# BullMQ Job Worker (Node.js) - async jobs, SRS recorder handoff
+# TODO(Phase 1): wire real build context once worker/src exists.
+FROM node:20-alpine
+WORKDIR /app
+# COPY package*.json ./
+# RUN npm ci
+# COPY . .
+# CMD ["npm", "run", "worker"]

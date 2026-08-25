@@ -1,0 +1,9 @@
+# Rust Media Agent - DeckLink/GStreamer/Live FFmpeg sole owner
+# gVisor (runsc) + cap_sys_admin + /dev/blackmagic passthrough (Deployment SoT §2/F11).
+# TODO(Phase 1): wire real build context once media-agent/ (Rust) exists.
+# DeckLink SDK must be available at build/runtime for GStreamer decklink plugin.
+FROM rust:1-alpine
+WORKDIR /app
+# COPY . .
+# RUN cargo build --release
+# CMD ["./target/release/media-agent"]

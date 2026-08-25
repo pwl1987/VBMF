@@ -1,0 +1,9 @@
+# Fastify (Node.js) - VBMF Public/Ops/Admin API
+# TODO(Phase 1): wire real build context once backend/src exists.
+# Build contract (Deployment SoT §4 hot-reload): tsx/node --watch, bind-mount in dev.
+FROM node:20-alpine
+WORKDIR /app
+# COPY package*.json ./
+# RUN npm ci
+# COPY . .
+# CMD ["npm", "run", "dev"]

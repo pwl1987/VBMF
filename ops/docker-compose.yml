@@ -1,0 +1,197 @@
+# VBMF V0.2 - Development / On-Prem Deployment Compose
+# Source of Truth: docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md
+#
+# Conventions (from Deployment SoT):
+#   - PostgreSQL host = "db", Valkey host = "cache", RustFS host = "rustfs"
+#   - Media Agent = DeckLink/GStreamer/Live FFmpeg sole owner (Ownership SoT F2/F4/F11)
+#   - Readiness wait: Fastify/Worker MUST wait for dependency *health* (not just container start)
+#   - Health Tree exposes Recovery State (NONE/RESTARTING/RECOVERED/RETRYING/BACKOFF/ESCALATED/MANUAL_REQUIRED)
+#   - Self-Healing: restart policy + budget + backoff + circuit break (L1-L4)
+#   - gVisor (runsc) for Media Agent; Host-side ffmpeg MUST NOT hold DeckLink
+#
+# NOTE: gVisor (runsc) + character device passthrough (/dev/blackmagic) has known
+#       limitations on real runsc; verify on BMD server during G-RUNTIME Remote Acceptance.
+
+services:
+  # ---------- Infra ----------
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vbmf
+      POSTGRES_PASSWORD: vbmf_dev
+      POSTGRES_DB: vbmf
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vbmf -d vbmf"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  cache:
+    image: valkey/valkey:7-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: vbmf
+      MINIO_ROOT_PASSWORD: vbmf_dev_password_change_me
+    volumes:
+      - rustfsdata:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  srs:
+    image: ossrs/srs:5
+    ports:
+      - "1935:1935"   # RTMP
+      - "1985:1985"   # SRS HTTP API
+      - "8080:8080"   # HLS/HTTP-FLV
+      - "8000:8000"   # SRT
+      - "1989:1989"   # WHEP/WebRTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1985/api/v1/versions"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------- App ----------
+  fastify:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.fastify
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_USER: vbmf
+      DATABASE_PASSWORD: vbmf_dev
+      DATABASE_NAME: vbmf
+      REDIS_HOST: cache
+      REDIS_PORT: "6379"
+      RUSTFS_ENDPOINT: http://rustfs:9000
+      RUSTFS_ACCESS: vbmf
+      RUSTFS_SECRET: vbmf_dev_password_change_me
+      SRS_API: http://srs:1985
+      MEDIA_AGENT_RPC: http://media-agent:8080
+      TRUST_PROXY: "true"   # Nginx upstream
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      srs:
+        condition: service_healthy
+      media-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.worker
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_USER: vbmf
+      DATABASE_PASSWORD: vbmf_dev
+      DATABASE_NAME: vbmf
+      REDIS_HOST: cache
+      REDIS_PORT: "6379"
+      RUSTFS_ENDPOINT: http://rustfs:9000
+      RUSTFS_ACCESS: vbmf
+      RUSTFS_SECRET: vbmf_dev_password_change_me
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/worker"]  # if worker exposes health
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.web
+    environment:
+      VITE_API_BASE: http://localhost:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      fastify:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------- Media Runtime (Sole DeckLink/GStreamer/Live FFmpeg owner) ----------
+  media-agent:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.media-agent
+    runtime: runsc            # gVisor - isolated media runtime (Deployment SoT §2)
+    cap_add:
+      - SYS_ADMIN             # required for GStreamer/DeckLink device ops under gVisor
+    devices:
+      - /dev/blackmagic:/dev/blackmagic   # DeckLink passthrough (F11); Host ffmpeg MUST NOT hold it
+    environment:
+      RUST_LOG: info
+      DECKLINK_DEVICE_PATH: /dev/blackmagic
+    ports:
+      - "8080:8080"           # JSON-RPC control plane
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped   # L2 Runtime Self-Heal; Budget/Backoff enforced externally
+
+volumes:
+  pgdata:
+  rustfsdata:
