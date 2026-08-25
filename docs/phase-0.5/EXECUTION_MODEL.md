@@ -4,7 +4,7 @@
 >
 > **关联:** `OBJECT_VOCABULARY.md` (15 对象) · `PRODUCT_OBJECT_MODEL.md` (3 层组合) · `RESOURCE_RESERVATION_SPEC.md` (Reservation 生命周期) · `ENCODE_MODEL_SPEC.md` (FILE/REALTIME) · `B-13-take-preflight.html` (Preflight 门禁)
 >
-> **状态:** 🟢 **LOCKED** (0.5D.3 + §5 0.5D.4) — 与 §J/§K 对账一致
+> **状态:** 🟢 **SEMANTIC LOCKED** (0.5D.3 + §5 0.5D.4 + §5 0.5D.5 补强) — 与 §J/§K/§M 对账一致
 
 ---
 

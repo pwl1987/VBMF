@@ -289,6 +289,12 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" checked> MASTER_SWITCH</label>
         <label style="display:flex;align-items:center;gap:4px"><input type="checkbox"> PACKET_SWITCH</label>
       </div>
+      <div style="font-size:10px;color:var(--fgdim);line-height:1.7;margin-bottom:4px">
+        <b style="color:var(--accent)">Why (Compiler 可解释性 · 0.5D.5):</b><br>
+        FRAME_SWITCH — Codec/profile match = PASS · GOP/IDR 对齐 = 运行时对齐后可用<br>
+        MASTER_SWITCH — 支持 (MASTER 允许降级到 FRAME)<br>
+        PACKET_SWITCH — 当前 encoder/profile 无法保证 PACKET 兼容性 → 不勾选
+      </div>
       <div class="field-hint">Encoding Profile 只声明 <b>兼容哪些 Switch Mode</b> (可多选, ENCODE_MODEL_SPEC §3 failover_compatibility); 实际 <b>Effective Switch Mode</b> 由 Graph Compiler Decision Tree (Capability + Runtime Alignment + Channel Target + Clock) 决定. 本例 effective = FRAME_SWITCH.</div>
     </div>
     <div class="form-row"><label>Worker Constraints</label><input type="text" value="realtime-pool · cpu-pinning"></div>
@@ -410,6 +416,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <summary style="color:var(--fgdim);font-size:11px;cursor:pointer">▸ Section 8 Resource (9-Dim Resource Vector + Required/Available/Delta/Headroom)</summary>
   <div class="section-content" style="margin-top:8px">
     <h3 class="section-h">8. Resource 资源预估 (9-Dim · Required / Available / Delta / Headroom)</h3>
+    <div class="diag">📐 <b>Profile Requirement ≠ Current Host Capacity</b> (0.5D.5): 本页只表达 Profile 的资源<b>需求</b> (Required); Available / Delta / Headroom 来自 E-36 Resource / E-38 Hardware Discovery (只读反射); 设备实例详情 (DeckLink 等) 下钻 E-35 Device Registry, 不在 Profile 页重复管理.</div>
     <div class="resource-9d">
       <div class="resource-row">
         <div class="name">CPU_THREADS</div>

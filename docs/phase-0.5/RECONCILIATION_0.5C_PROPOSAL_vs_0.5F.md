@@ -547,3 +547,40 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### L.16 剩余 (0.5E/0.5G, 全仓一致性扫描后 Freeze)
 - E-40 Media Contract 屏 / Network-Media Path 双视图 / P-22 未来 O-xx Destination 独立页 / Player Capability 由 Capability Registry 动态计算 / 全仓 Canonical Vocabulary + Surface Registry + Workflow 一致性扫描。
 - 用户建议下一轮做 **全仓一致性扫描**, 确认无 "两个模型之间来回渗透" 后, 再进入 **Phase 0.5 Freeze**。
+
+---
+
+## M. 0.5D.5 Object/Execution Closure — 对象关系焊死 + TAKE 剥离 + 状态统一 (2026-08-25 末 · 用户第 9 轮全仓反向检修 9036525)
+
+> 用户以 `9036525` 做全仓反向检修 (跨 SURFACE_SPEC/PIA/OBJECT_VOCABULARY/PRODUCT_OBJECT_MODEL/EXECUTION_MODEL/Reservation/P-21/P-22/E-40/M-17/B-13/CD-01/06-output): 上轮 P0 修复全部落地, 但进入 "对象模型已对、页面/文档未完全服从模型" 阶段。**仍不建议 Freeze**, 建议本轮 `0.5D.5 Object/Execution Closure` 只做四件事 (焊死对象关系 / TAKE 剥离 / 单一创建入口 / 状态统一)。本轮 4 P0 + 7 P1 (轻量) + 状态回写。
+
+### M.1 P0-1 B-13 TAKE 彻底剥离 ChangeSet
+- B-13 提交物 `ChangeSet (E-33)` → **Runtime Event (Audit/Incident Timeline)**; G6 面板改 **TAKE = Runtime Event ≠ ChangeSet** (引用 Current Runtime Revision/Config Revision/Reservation/Readiness/Effective Switch Mode; ChangeSet 仅当修改 Bundle/Profile/Route/Output/Runtime Config 进入 E-33 L2 Review/Approve/回滚); 决策区/按钮/note 三处同步。
+
+### M.2 P0-2 Variant/Destination/Adapter 唯一对象关系 (Adapter 可共享)
+- 采用第三种模型: **Destination 保存 `adapter_ref`; Adapter 是运行时执行资源, 可被多个 Destination 共享** (1 个 SRS 实例服务 N 个输出 Destination, 不误建模为 N 个 Adapter)。
+- 落点: P-22 4-Tuple `1 Destination → 1 Adapter` → `adapter_ref (Adapter 可共享)` + note; PRODUCT_OBJECT_MODEL §1.3 yaml 改 per-Destination `adapter_ref`、去 variant 级 adapter 字段; OBJECT_VOCABULARY 1.10 Adapter 加共享语义行 + 305 行补充。
+
+### M.3 P0-3 CD-01 Add Output 单一创建入口 (禁自由 URL)
+- CD-01 `＋ 添加网络输出 [Protocol + URL 自由文本]` → `＋ 添加 Output Variant [选 P-22 Profile + 选已建 Destination + Criticality]`; JS addNet() 同步。Destination 统一由 **06-output Destination Wizard** 创建 (协议→Delivery Mode→Endpoint Schema), 消灭 "第二套 destination 创建逻辑"。
+
+### M.4 P0-4 OBJECT_VOCABULARY status 原则修正
+- "对象没有 status" 绝对表述 → **Runtime execution objects 不用通用 status (lifecycle/readiness/health 三轴); Business objects 可定义领域状态机** (Job→JobState / ChangeSet→ChangeSetStatus·ReviewState·TransactionPhase / Source→SourceLifecycle / Asset→MediaAssetStatus / Adapter→3-Tier)。
+
+### M.5 状态语言统一 + 三份模型文档同步 SEMANTIC LOCKED
+- 统一状态语言: `DRAFT / REVIEW / SEMANTIC_LOCKED / UI_LOCKED / IMPLEMENTATION_READY / DEPRECATED`。
+- `OBJECT_VOCABULARY` DRAFT 0.2 → **SEMANTIC LOCKED 0.2**; `PRODUCT_OBJECT_MODEL` DRAFT 0.1 → **SEMANTIC LOCKED 0.1**; `EXECUTION_MODEL` 状态补 0.5D.5。消除 LOCKED/DRAFT/SEMANTIC LOCKED/IN PROGRESS 混用。
+
+### M.6 P1 轻量增强 (每项一处小编辑)
+- P-21 Failover Compatibility 加 **Why (Compiler 可解释性)**: FRAME=Codec PASS·GOP runtime dependent · PACKET=conditional → 不勾。
+- P-21 Resource 区标注 **Profile Requirement ≠ Current Host Capacity**, 设备详情下钻 E-35/E-36 (只读反射)。
+- E-40 Verification Result 重组三块 **NETWORK / MEDIA (Media Contract) / CLOCK** → SOURCE VERIFIED。
+- 02-sources Local Device Source → **SOURCE 三类: PHYSICAL (SDI) / LOCAL LOGICAL (FILE·INTERNAL·COMPOSITE) / NETWORK (走 E-40)**。
+- CD-01 Detail Graph 2 graphs → **3 graphs (Video / Audio / Metadata 独立 + Master Join)**, Metadata minimal state (Timecode/SCTE-35/Captions/KLV)。
+- CD-01 Detail H1-H7 定位为 **Diagnostic Invariants** on Health Tree Aggregation (非第二套 Channel Health 算法; STANDBY FAILED→DEGRADED / OFFLINE FAILED→absorbed)。
+
+### M.7 P2 (后续, 不 blocker)
+- Player Capability 由 Capability Registry 动态推导 (COMPATIBLE/WARN/INCOMPATIBLE) · M-17 Target/Benchmark 视觉增强 · Output Destination Wizard 与 E-40 对称 (06-output 演进)。
+
+### M.8 剩余 (下一轮: 从用户实际点击路径反推 DB Object / Revision / Runtime Session / Audit Event 闭环审计)
+- 用户要求完成四项后做 **"从用户实际点击路径反推 DB Object / Revision / Runtime Session / Audit Event"** 闭环审计; 通过后才考虑 Phase 0.5 Freeze。仓库仍 0.5D IN PROGRESS · 0.5E SPEC, 不宣布 FINAL。

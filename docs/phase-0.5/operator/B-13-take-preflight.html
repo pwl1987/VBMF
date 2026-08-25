@@ -116,9 +116,9 @@
       <div class="diag">源来自 E-40 创建 + E-42 7 层验证 (D5 闭合 G2); 输出来自 D1 第⑤步 criticality (D3 反射).</div>
     </div>
     <div class="col-4">
-      <div class="k">提交物</div>
-      <div class="v" style="margin:4px 0">ChangeSet (E-33) <span class="pill pill-purple">L2</span></div>
-      <div class="diag">全 PASS → 提交 ChangeSet, 经 Review/Approve/回滚闭环 (D6 闭合 G6).</div>
+      <div class="k">产物</div>
+      <div class="v" style="margin:4px 0">Runtime Event <span class="pill pill-blue">Audit</span></div>
+      <div class="diag">9/9 PASS → Operator Intent → TAKE → Runtime Event → Audit / Incident Timeline. <b>TAKE ≠ ChangeSet</b> (EXECUTION_MODEL §5 · 0.5D.5).</div>
     </div>
   </div>
 </div>
@@ -194,33 +194,33 @@
   <div class="gap ok">✅ G8 (P1) 闭合: 资源预览不再仅数值——显式 Reservation/Quota 对象 + HOT 独占扣减/释放时机 + 跨 Channel 仲裁, 与 REALTIME_PROFILE.resource_reservation=REQUIRED 一致.</div>
 </div>
 
-<!-- G6 CHANGESET (闭合 G6) -->
+<!-- TAKE = RUNTIME EVENT ≠ CHANGESET (0.5D.5) -->
 <div class="panel">
-  <h3>📝 ChangeSet 提交 + 审批闭环 (G6 闭合 · E-33) <span class="pill pill-green" style="float:right">✅ resolved</span></h3>
+  <h3>🎯 TAKE = Runtime Event · ChangeSet ≠ TAKE <span class="pill pill-blue" style="float:right">EXECUTION_MODEL §5</span></h3>
   <div class="subblk">
-    <div class="sh"><span class="dot green"></span> 9/9 PASS → 提交 ChangeSet (E-33) → L2 Review/Approve/回滚</div>
+    <div class="sh"><span class="dot green"></span> 9/9 PASS → Operator Intent → TAKE → Runtime Event → Audit / Incident Timeline</div>
     <table class="mini">
-      <tr><td class="l">ChangeSet ID</td><td>cs-take-ch01-20260825-001</td></tr>
-      <tr><td class="l">Affected</td><td>CH01 · Variant HLS/RTMP/SDI (TAKE Source B→PGM) · Risk MEDIUM</td></tr>
-      <tr><td class="l">Review</td><td>Who/Why 必填 (L2) · Approve 后生效 · 可回滚至 cs-prev</td></tr>
+      <tr><td class="l">Runtime Event</td><td>evt-take-ch01-20260825-001 (Source / Clock / Output / Reservation / Effective Switch Mode)</td></tr>
+      <tr><td class="l">引用 (非生成)</td><td>Current Runtime Revision · Config Revision · Reservation (RESERVED) · Readiness · Effective Switch Mode</td></tr>
+      <tr><td class="l">ChangeSet 何时进入</td><td>仅当修改 Bundle / Profile / Route / Output / Runtime Config → E-33 L2 Review/Approve/回滚 (Logical Atomic)</td></tr>
     </table>
   </div>
-  <div class="gap ok">✅ G6 (P0) 闭合: E-33 原仅定义结构, 缺审批界面——B-13 提交 ChangeSet 带 L2 Review/Approve/回滚闭环 (原子提交 + 审阅). 注: 若后续需独立审阅 surface, 可拆 <b>D7 ChangeSet Review</b> (见 F.4 建议), 本链 D6 已内联闭合.</div>
+  <div class="gap ok">✅ <b>TAKE 剥离 ChangeSet (0.5D.5):</b> TAKE 是运行时事件, <b>不生成 ChangeSet</b>; 配置变更才走 E-33 L2 Review/Approve/回滚闭环 (G6 审批界面归 Configuration Change, 独立面 D7 可选).</div>
 </div>
 
 <!-- ACTIONS -->
 <div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--green)">
   <h3>🎬 决策 / 阻断 <span class="pill pill-green" style="float:right">TAKE 可用</span></h3>
-  <div class="diag"><b>最终结果闭集 TakePreflightResult (0.5D.3):</b> `READY` (全 PASS) · `CONDITIONAL` (仅允许的 WARNING + Reservation 满足 + REQUIRED 全 PASS) · `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). READY / CONDITIONAL → TAKE ENABLED; BLOCKED → TAKE DISABLED. #7 OPTIONAL/AUX FAIL → WARNING 不阻断 (不误切源). + ChangeSet 审批后放行.</div>
+  <div class="diag"><b>最终结果闭集 TakePreflightResult (0.5D.3):</b> `READY` (全 PASS) · `CONDITIONAL` (仅允许的 WARNING + Reservation 满足 + REQUIRED 全 PASS) · `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). READY / CONDITIONAL → TAKE ENABLED; BLOCKED → TAKE DISABLED. #7 OPTIONAL/AUX FAIL → WARNING 不阻断 (不误切源). + TAKE = Runtime Event (Audit, 非 ChangeSet).</div>
   <div class="actions">
     <a href="CD-01-channel-workspace.html" class="btn">← CANCEL</a>
-    <button class="btn l2">🔍 Review ChangeSet (L2)</button>
-    <button class="btn take">▶ TAKE (提交 ChangeSet)</button>
+    <button class="btn l2">🔍 Review Runtime Revision</button>
+    <button class="btn take">▶ TAKE (Runtime Event)</button>
   </div>
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1, 拆 Configuration Preflight / Runtime Take Readiness, 结果闭集 READY/CONDITIONAL/BLOCKED), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (E-33 带 L2 Review/Approve/回滚, 独立面 D7). G3 (SDI 基带输出变体 — 0.5D.1 已以 RESERVED 落 06-output, commit 6367cd8) / G7 (时钟域联动 — 0.5D.1 已落 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4, PARTIAL) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
+  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1, 拆 Configuration Preflight / Runtime Take Readiness, 结果闭集 READY/CONDITIONAL/BLOCKED), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (仅 Configuration Change 走 E-33 L2 Review/Approve/回滚; TAKE 为 Runtime Event, 0.5D.5 剥离, 独立面 D7 可选). G3 (SDI 基带输出变体 — 0.5D.1 已以 RESERVED 落 06-output, commit 6367cd8) / G7 (时钟域联动 — 0.5D.1 已落 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4, PARTIAL) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
 </div>
 
 <script>

@@ -156,21 +156,30 @@
       <div class="v" style="margin:4px 0">UDP-MULTICAST-001 <span class="pill pill-purple">DRAFT</span></div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:10px;margin-top:6px">
         <div style="color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;font-size:9px;margin-bottom:4px">Verification Result (E-42 → 回写本页)</div>
+        <div style="color:var(--accent);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin:4px 0 2px">NETWORK</div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px">
-          <span>Carrier</span><span style="color:var(--green)">✓</span>
-          <span>Packets</span><span style="color:var(--green)">✓</span>
+          <span>Interface / Route</span><span style="color:var(--green)">✓</span>
+          <span>IGMP</span><span style="color:var(--green)">✓</span>
+          <span>Packet receive</span><span style="color:var(--green)">✓</span>
+          <span>Loss</span><span style="color:var(--green)">0.02%</span>
+          <span>Jitter</span><span style="color:var(--green)">3.1 ms</span>
+          <span>Bitrate</span><span style="color:var(--green)">8.2 Mbps</span>
+        </div>
+        <div style="color:var(--accent);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin:4px 0 2px">MEDIA (Media Contract)</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px">
+          <span>MPEG-TS</span><span style="color:var(--green)">✓</span>
           <span>Continuity Counter</span><span style="color:var(--green)">✓</span>
           <span>PAT / PMT</span><span style="color:var(--green)">✓</span>
           <span>Video</span><span style="color:var(--green)">H.264 1080p25</span>
           <span>Audio</span><span style="color:var(--green)">AAC 48k 2ch</span>
           <span>PTS / DTS</span><span style="color:var(--green)">✓</span>
           <span>PCR</span><span style="color:var(--green)">✓</span>
-          <span>Bitrate</span><span style="color:var(--green)">8.2 Mbps</span>
-          <span>Jitter</span><span style="color:var(--green)">3.1 ms</span>
-          <span>Loss</span><span style="color:var(--green)">0.02%</span>
-          <span>Clock</span><span style="color:var(--green)">LOCKED</span>
         </div>
-        <div style="margin-top:6px;color:var(--green);font-weight:600">SOURCE READY ✓</div>
+        <div style="color:var(--accent);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin:4px 0 2px">CLOCK</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px">
+          <span>Lock</span><span style="color:var(--green)">LOCKED</span>
+        </div>
+        <div style="margin-top:6px;color:var(--green);font-weight:600">SOURCE VERIFIED ✓ (Endpoint + Media Contract + Clock)</div>
       </div>
       <div class="diag">创建后必须跑 E-42 7 层验证; 未验证源不可存 VERIFIED, 不可用于 ON AIR. 验证结果 compact 回写本页, 再允许 SAVE VERIFIED / ASSIGN.</div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">

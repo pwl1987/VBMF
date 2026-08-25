@@ -6,7 +6,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure
 >
-> **状态:** 🟡 **DRAFT 0.2** — 0.5D.1 Semantic Closure: 15 核心对象 (新增 Channel Template) · ChangeSet 三层状态 · 4 域映射
+> **状态:** 🟢 **SEMANTIC LOCKED 0.2** (0.5D.5) — 15 核心对象 · ChangeSet 三层状态 · 4 域映射 · 状态语言统一 (DRAFT/REVIEW/SEMANTIC_LOCKED/UI_LOCKED/IMPLEMENTATION_READY/DEPRECATED)
 
 ---
 
@@ -14,7 +14,7 @@
 
 1. **每个对象只有一个正式名字。** 在所有 wireframe / Surface Spec / Architecture / code / DB schema 中, 同一个概念必须用同一个术语。
 2. **对象有 `kind` 属性。** 任何引用 / 引用计数 / 关系图, 都必须显示 `kind`, 防止"Variant"混用。
-3. **对象有 `lifecycle` 与 `state`, 没有 `status` 字段。** 状态走 `lifecycle` (STOPPED/STARTING/RUNNING/STOPPING) + `readiness` (NOT_READY/READY_TO_TAKE) + `health` (HEALTHY/DEGRADED/FAILED/UNKNOWN) 三轴分离 (V0.2 §1.5)。
+3. **Runtime execution objects 不用通用 `status` 字段 (0.5D.5 修正)。** 运行态对象 (Session / Output / Source runtime) 状态走 `lifecycle` (STOPPED/STARTING/RUNNING/STOPPING) + `readiness` (NOT_READY/READY_TO_TAKE) + `health` (HEALTHY/DEGRADED/FAILED/UNKNOWN) 三轴分离 (V0.2 §1.5); **Business objects 可定义领域状态机**: Job → `JobState` (PENDING/QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED) · ChangeSet → `ChangeSetStatus`/`ReviewState`/`TransactionPhase` 三层 · Source → `SourceLifecycle` (DRAFT→TESTING→VERIFIED→ASSIGNED→ACTIVE→STANDBY→OFFLINE) · Asset → `MediaAssetStatus` · Adapter → 3-Tier `AVAILABLE/RESERVED/UNAVAILABLE`。
 
 ---
 
@@ -155,6 +155,7 @@
 | **UI 入口** | P-22 Output Profile / 3-Tier Protocol 状态 |
 | **核心字段** | `adapter_id, kind (SRSAdapter/UDPAdapter/RTPAdapter/FileAdapter/...), version, status, health` |
 | **3-Tier 状态** | `AVAILABLE / RESERVED / UNAVAILABLE` (V0.2 锁定) |
+| **共享语义 (0.5D.5)** | Adapter 是**运行时执行资源, 可被多个 Destination 共享**; `adapter_ref` 归属 Destination (1 个 SRS 实例服务 N 个输出 Destination, 不误建模为 N 个 Adapter) |
 | **绝不允许混用** | ❌ 不是 "Protocol" / "Encoder" / "Output" |
 
 ### 1.11 Job 任务 (一次性)
@@ -302,7 +303,7 @@
    └──────────────────────────┘
 ```
 
-> ⛔ **Adapter ≠ P-22 (0.5D.3 修正):** ER 中 `ADAPTER (Runtime)` — Output Adapter 来自 **Runtime / Capability Registry (E-34) / Device Registry (E-35/E-38)**，不是 Output Profile (P-22)。四层边界: **Output Profile (P-22) → Output Variant → Destination → Output Adapter** (V0.2 §3.10 Adapter 3-Tier AVAILABLE/RESERVED/UNAVAILABLE)。
+> ⛔ **Adapter ≠ P-22 (0.5D.3 修正):** ER 中 `ADAPTER (Runtime)` — Output Adapter 来自 **Runtime / Capability Registry (E-34) / Device Registry (E-35/E-38)**，不是 Output Profile (P-22)。四层边界: **Output Profile (P-22) → Output Variant → Destination → Output Adapter** (V0.2 §3.10 Adapter 3-Tier AVAILABLE/RESERVED/UNAVAILABLE)。**Adapter 可共享 (0.5D.5):** `adapter_ref` 归属 Destination — Variant 不持有 variant 级 adapter 字段; 1 个 Adapter 实例可被同 Variant 或多个 Variant 的多个 Destination 引用。
 
 ---
 

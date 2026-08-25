@@ -476,12 +476,12 @@
 
       <div class="net-outputs"></div>
       <div class="addout">
-        <label>＋ 添加网络输出</label>
-        <select id="ntProto-tv"><option>RTMP</option><option>HLS</option><option>SRT</option><option>UDP-MC</option><option>WebRTC</option></select>
-        <input id="ntDest-tv" placeholder="rtmp:// 或 wss:// 或 srt:// ...">
+        <label>＋ 添加 Output Variant (选 Profile + 选已建 Destination)</label>
+        <select id="ntProto-tv"><option>HLS-LIVE-01 (P-22)</option><option>RTMP-PUSH-01 (P-22)</option><option>UDP-MC-OUT (P-22)</option><option>ARCHIVE-01 (P-22)</option></select>
+        <select id="ntDest-tv"><option>CDN-A · SRSAdapter-01</option><option>CDN-B · SRSAdapter-01</option><option>NFS-01 · FileAdapter-01</option><option>＋ 新建 Destination → 06-output Wizard</option></select>
         <select id="ntCrit-tv"><option value="required">REQUIRED</option><option value="optional" selected>OPTIONAL</option><option value="aux">AUXILIARY</option></select>
         <button class="btn" onclick="addNet('tv')">＋ 添加</button>
-        <span class="diag" style="margin:0">网络输出可无限添加 — 只要资源预览三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
+        <span class="diag" style="margin:0">⛔ 无自由 URL — Destination 统一由 <b>06-output Wizard</b> 创建 (单一创建入口 0.5D.5); 网络输出可无限添加 — 资源三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
       </div>
 
       </div>
@@ -499,12 +499,12 @@
         </div>
       <div class="net-outputs"></div>
       <div class="addout">
-        <label>＋ 添加网络音频输出</label>
-        <select id="ntProto-radio"><option>RTMP</option><option>SRT</option><option>UDP</option><option>Icecast</option><option>DAB+</option></select>
-        <input id="ntDest-radio" placeholder="rtmp:// 或 srt:// 或 icecast:// ...">
+        <label>＋ 添加音频 Output Variant (选 Profile + 选已建 Destination)</label>
+        <select id="ntProto-radio"><option>AUDIO-ICE (P-22)</option><option>AUDIO-RTMP (P-22)</option><option>AUDIO-SRT (P-22)</option><option>AUDIO-UDP (P-22)</option></select>
+        <select id="ntDest-radio"><option>icecast://stream-a · SRSAdapter-01</option><option>edge-rtmp · SRSAdapter-01</option><option>239.20.30.40:8002 · UDPAdapter-01</option><option>＋ 新建 Destination → 06-output Wizard</option></select>
         <select id="ntCrit-radio"><option value="required">REQUIRED</option><option value="optional" selected>OPTIONAL</option><option value="aux">AUXILIARY</option></select>
         <button class="btn" onclick="addNet('radio')">＋ 添加</button>
-        <span class="diag" style="margin:0">网络音频输出可无限添加 — 只要资源预览三档规则校验通过即可.</span>
+        <span class="diag" style="margin:0">⛔ 无自由 URL — Destination 统一由 <b>06-output Wizard</b> 创建 (单一创建入口 0.5D.5); 网络音频输出可无限添加 — 资源三档规则校验通过即可.</span>
       </div>
       </div>
       <div class="diag"><b>Criticality 层级 (0.5D.1 焊死):</b> Template 提供<b>默认 Criticality</b> → Channel 实例化后为 <b>Variant Instance Criticality</b> → Preflight 按<b>实例值</b>判定 (REQUIRED 必须 HEALTHY 否则 TAKE 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略). 模板默认改动 <b>不回灌</b>已实例化 Channel (D3 Bundle 快照不变). 见 B-13 §P0-4.</div>
@@ -668,19 +668,18 @@ atomic  : true</div>
     const pl=document.getElementById('csPlaylist');
     if(pl) pl.style.display=(t==='virtual')?'inline':'none';
   }
-  // 网络输出可无限添加 (性能合适即可)
+  // 输出变体添加: 选 Profile + 选已建 Destination (单一创建入口, 0.5D.5)
   function addNet(type){
-    const p=document.getElementById('ntProto-'+type).value;
-    const dest=document.getElementById('ntDest-'+type).value.trim();
+    const p=document.getElementById('ntProto-'+type).value.replace(/\s*\(P-22\)$/,'');
+    const dest=document.getElementById('ntDest-'+type).value;
     const crit=document.getElementById('ntCrit-'+type).value;
     const critLabel={required:'REQUIRED',optional:'OPTIONAL',aux:'AUXILIARY'}[crit];
     const row=document.createElement('div');
     row.className='output-row';
-    row.title='用户自定义网络输出 · 性能合适即可无限添加 (运行态按 delivery_criticality 处理)';
-    row.innerHTML='<span class="proto">'+p+'</span><span class="dest">'+(dest||(p.toLowerCase()+'://'))+'</span><span class="crit '+crit+'">'+critLabel+'</span><a class="btn">配置</a>';
+    row.title='Output Variant · Destination 由 06-output Wizard 创建 (运行态按 delivery_criticality 处理)';
+    row.innerHTML='<span class="proto">'+p+'</span><span class="dest">'+dest+'</span><span class="crit '+crit+'">'+critLabel+'</span><a class="btn">配置</a>';
     const box=document.querySelector('#step5 .'+type+'-only .net-outputs');
     if(box) box.appendChild(row);
-    document.getElementById('ntDest-'+type).value='';
   }
   render();
 </script>

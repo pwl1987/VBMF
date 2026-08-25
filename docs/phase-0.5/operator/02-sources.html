@@ -79,12 +79,12 @@
 
 <!-- ============== Local Device Source Tab ============== -->
 <div class="panel">
-  <h3><span class="cn">本地设备源</span> / LOCAL DEVICE SOURCE (SDI / File / Internal · 0.5F PIA §4 锁)
+  <h3><span class="cn">本地源 (PHYSICAL + LOCAL LOGICAL)</span> / LOCAL SOURCE (SDI · FILE · INTERNAL · 0.5F PIA §4 锁)
     <span class="pill pill-green" style="float:right">4 Sources · 3/3 ACTIVE</span>
   </h3>
   <div class="diag" style="margin-top:0;margin-bottom:8px">
-    <b>Local Device Source</b> = 物理本地硬件源 (SDI DeckLink / 本地文件 / 内部合成).
-    6 字段分解: Identity / Adapter / Endpoint / Contract / Runtime / QC (PIA §2 锁).
+    <b>SOURCE 三类 (0.5D.5 分类):</b> 🟢 <b>PHYSICAL</b> = SDI / DeckLink (物理本地硬件) · 🟡 <b>LOCAL LOGICAL</b> = FILE / INTERNAL / COMPOSITE (逻辑本地) · 🌐 <b>NETWORK</b> = UDP / RTP / SRT / RTMP / HLS / WebRTC Pull / RTSP (外部网络, 创建走 E-40).
+    分类决定筛选 / 权限 / 设备分配 / Endpoint 页面. 6 字段分解: Identity / Adapter / Endpoint / Contract / Runtime / QC (PIA §2 锁).
   </div>
   <table>
     <thead>

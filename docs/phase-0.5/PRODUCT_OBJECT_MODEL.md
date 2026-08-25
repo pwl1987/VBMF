@@ -5,7 +5,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure
 >
-> **状态:** 🟡 **DRAFT 0.1** — 等待 0.5C LOCK FINAL
+> **状态:** 🟢 **SEMANTIC LOCKED 0.1** (0.5D.5) — 与 OBJECT_VOCABULARY / EXECUTION_MODEL 同状态语言同步
 >
 > **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) 锁定的 15 个对象
 >
@@ -88,7 +88,7 @@ profile_bundles:
 
 ### 1.3 第 3 层: Output Variant (Instance / 1 个 Channel N 个 Variant)
 
-**关键创新:** **1 个 Channel N 个 Output Variant**, 每个 Variant = 1 个 Profile 引用 + N 个 Destination 引用 + 1 个 Adapter 实例。
+**关键创新:** **1 个 Channel N 个 Output Variant**, 每个 Variant = 1 个 Profile 引用 + N 个 Destination 引用; **每个 Destination 保存 `adapter_ref` (Adapter 是运行时执行资源, 可被多个 Destination 共享 — 1 个 SRS 实例服务 N 个输出 Destination, 不误建模为 N 个 Adapter)** (0.5D.5 焊死)。
 
 ```yaml
 # DB schema
@@ -98,8 +98,10 @@ output_variants:
   profile_ref: HLS-LIVE-MAIN@v2  # 引用 P-22, 不是副本
   destinations:
     - dest_id: CDN-A (primary)
+      adapter_ref: SRSAdapter-01   # 运行时执行资源, 可共享
     - dest_id: CDN-B (备用)
-  adapter: SRSAdapter
+      adapter_ref: SRSAdapter-01
+  # 无 variant 级 adapter 字段 — Adapter 归属 Destination
   effective_state: # runtime
     lifecycle: RUNNING
     readiness: READY_TO_TAKE

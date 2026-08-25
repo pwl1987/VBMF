@@ -290,12 +290,12 @@
       <div class="output-row"><span class="proto">WebRTC</span><span class="dest">wss://edge.example.com/ch01</span><span class="crit aux">AUXILIARY</span><a class="btn">配置</a></div>
       <div class="net-outputs"></div>
       <div class="addout">
-        <label>＋ 添加网络输出</label>
-        <select id="ntProto"><option>RTMP</option><option>HLS</option><option>SRT</option><option>UDP-MC</option><option>WebRTC</option></select>
-        <input id="ntDest" placeholder="rtmp:// 或 wss:// 或 srt:// ...">
+        <label>＋ 添加 Output Variant (单一入口: 选 Profile → 选已建 Destination)</label>
+        <select id="ntProfile"><option>HLS-LIVE-01 (P-22)</option><option>RTMP-PUSH-01 (P-22)</option><option>UDP-MC-OUT (P-22)</option><option>ARCHIVE-01 (P-22)</option></select>
+        <select id="ntDest"><option>CDN-A · SRSAdapter-01</option><option>CDN-B · SRSAdapter-01</option><option>NFS-01 · FileAdapter-01</option><option>＋ 新建 Destination → 06-output Wizard</option></select>
         <select id="ntCrit"><option value="required">REQUIRED</option><option value="optional" selected>OPTIONAL</option><option value="aux">AUXILIARY</option></select>
         <button class="btn" onclick="addNet()">＋ 添加</button>
-        <span class="diag" style="margin:0">同 D1 第⑤步口径: 网络输出可无限添加, 资源预览三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
+        <span class="diag" style="margin:0">⛔ 无自由 URL 输入 — Destination 统一由 <b>06-output Destination Wizard</b> 创建 (协议 → Delivery Mode → Endpoint Schema), 本页只选 Output Profile + 选已建 Destination (单一创建入口原则 0.5D.5). 资源三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
       </div>
       <div class="diag">REQUIRED 必须 HEALTHY 否则 Take 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4.</div>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 独立对象 (重连策略·指数退避 / 心跳 / zombie 判定 / Test Send 联动) 落 06-output + D6/B-13. ✅ G3 (P0) 已闭合: SDI 基带输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema, 不参与运行态.</div>
@@ -350,17 +350,16 @@
   document.querySelectorAll('#typo button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
   var saved=null; try{saved=localStorage.getItem('cd01v2-mode');}catch(e){}
   setMode(saved||'standard');
-  // 网络输出可无限添加 (性能合适即可) — 同 D1 口径
+  // 输出变体添加: 选 Profile + 选已建 Destination (单一创建入口, 0.5D.5)
   function addNet(){
-    const p=document.getElementById('ntProto').value;
-    const dest=document.getElementById('ntDest').value.trim();
+    const p=document.getElementById('ntProfile').value.replace(/\s*\(P-22\)$/,'');
+    const dest=document.getElementById('ntDest').value;
     const crit=document.getElementById('ntCrit').value;
     const critLabel={required:'REQUIRED',optional:'OPTIONAL',aux:'AUXILIARY'}[crit];
     const row=document.createElement('div');
     row.className='output-row';
-    row.innerHTML='<span class="proto">'+p+'</span><span class="dest">'+(dest||(p.toLowerCase()+'://'))+'</span><span class="crit '+crit+'">'+critLabel+'</span><a class="btn">配置</a>';
+    row.innerHTML='<span class="proto">'+p+'</span><span class="dest">'+dest+'</span><span class="crit '+crit+'">'+critLabel+'</span><a class="btn">配置</a>';
     document.querySelector('.net-outputs').appendChild(row);
-    document.getElementById('ntDest').value='';
   }
 </script>
 </body>

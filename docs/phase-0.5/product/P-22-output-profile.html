@@ -121,16 +121,16 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div class="label">Output Destination</div>
       <div class="targets">实际 endpoint</div>
       <div class="example">CDN-A · CDN-B · NFS-01<br>(主备 + 归档)</div>
-      <div class="arrow">↓ 1 Destination → 1 Adapter</div>
+      <div class="arrow">↓ 1 Destination → adapter_ref (Adapter 可共享)</div>
     </div>
     <div class="box">
       <div class="label">Output Adapter</div>
-      <div class="executes">执行协议 Plugin</div>
+      <div class="executes">运行时执行资源 (可共享)</div>
       <div class="example">SRSAdapter <span style="color:var(--fgdim);font-size:9px">(HLS·RTMP·SRT·WebRTC)</span><br>UDPAdapter · FileAdapter</div>
     </div>
   </div>
   <div style="margin-top:10px;font-size:11px;color:var(--fgdim)">
-    ⚠ V0.2 约束: Output Profile ≠ Variant ≠ Destination ≠ Adapter. P-22 页面**只**配置 Profile; Variant/Destination 在 CD-01 Channel Detail; Adapter 在 E-35 Device Registry.
+    ⚠ V0.2 约束: Output Profile ≠ Variant ≠ Destination ≠ Adapter. P-22 页面**只**配置 Profile; Variant/Destination 在 CD-01 Channel Detail; Adapter 在 E-35 Device Registry. <b>Adapter 是运行时执行资源, 可被多个 Destination 共享</b> (Destination 保存 adapter_ref): 1 个 SRS 实例服务 N 个输出 Destination, 不误建模为 N 个 Adapter (0.5D.5 焊死).
   </div>
 </div>
 
