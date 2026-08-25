@@ -42,7 +42,7 @@ jobs:
 
       # Hard gate: skeleton MUST compile. This closes the "unverified skeleton"
       # gap (local/BMD have no Rust toolchain; crates.io egress blocked on BMD).
-      - name: Build (Gate: skeleton must compile)
+      - name: "Build (Gate - skeleton must compile)"
         run: cargo build --release
 
       # Informational for now (skeleton has intentionally-unused decls).
