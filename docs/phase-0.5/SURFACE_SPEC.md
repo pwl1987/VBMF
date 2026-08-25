@@ -4,7 +4,7 @@
 >
 > **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5A LOCK FINAL + Phase 0.5B-Closure-1 + 0.5B.1 + 0.5B.2 LOCK FINAL + 0.5C DRAFT 0.1
 >
-> **Phase 0.5C 锁定:** UI 顶层导航从 6 编号域 (01..06) 改为 4 业务域 (BROADCAST / MEDIA / ENGINEERING / ADMIN). 详见 [`NAVIGATION.md`](../NAVIGATION.md) §1 与本节 §29.2.
+> **Phase 0.5C 锁定:** UI 顶层导航从 6 编号域 (01..06) 改为 4 业务域 (BROADCAST / MEDIA / ENGINEERING / ADMIN). 详见 [`NAVIGATION.md`](NAVIGATION.md) §1 与本节 §29.2.
 >
 > **Baseline Metadata (强制对齐 — 与 GitHub `master` 一致):**
 >
@@ -26,14 +26,14 @@
 > **关联文档 (Phase 0.5C 归并后):**
 > - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (192KB / 4020 行 / 22 轮 review)
 > - [`docs/phase-0.5/README.md`](../README.md) — Phase 0.5 顶层入口 (4 域导航)
-> - [`docs/phase-0.5/OBJECT_VOCABULARY.md`](../OBJECT_VOCABULARY.md) — 0.5C 14 对象权威定义
-> - [`docs/phase-0.5/PRODUCT_OBJECT_MODEL.md`](../PRODUCT_OBJECT_MODEL.md) — 0.5C 3 层组合关系
-> - [`docs/phase-0.5/NAVIGATION.md`](../NAVIGATION.md) — 0.5C 4 域顶层导航
-> - [`docs/phase-0.5/MILESTONES.md`](../MILESTONES.md) — 0.5C 历史 milestone 归档
-> - [`docs/phase-0.5/ERRATA.md`](../ERRATA.md) — Phase 0.5A 20 项修复归档
+> - [`docs/phase-0.5/OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) — 0.5C 14 对象权威定义
+> - [`docs/phase-0.5/PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) — 0.5C 3 层组合关系
+> - [`docs/phase-0.5/NAVIGATION.md`](NAVIGATION.md) — 0.5C 4 域顶层导航
+> - [`docs/phase-0.5/MILESTONES.md`](MILESTONES.md) — 0.5C 历史 milestone 归档
+> - [`docs/phase-0.5/ERRATA.md`](ERRATA.md) — Phase 0.5A 20 项修复归档
 > - [`docs/phase-0.6/README.md`](../phase-0.6/README.md) — Executable Acceptance Specification (前置: Phase 0.5 LOCK FINAL)
-> - [`docs/phase-0.5/DESIGN_SYSTEM.md`](../DESIGN_SYSTEM.md) — V0.1 Design System
-> - [`docs/phase-0.5/I18N_SPEC.md`](../I18N_SPEC.md) — V0.1 i18n Contract
+> - [`docs/phase-0.5/DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) — V0.1 Design System
+> - [`docs/phase-0.5/I18N_SPEC.md`](I18N_SPEC.md) — V0.1 i18n Contract
 
 ---
 
@@ -57,7 +57,7 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 
 ## 1. 工作域 (Work Domains) — 计数口径统一
 
-> **Phase 0.5C 起顶层导航为 4 业务域** (BROADCAST / MEDIA / ENGINEERING / ADMIN, 见 §29.2 与 [`NAVIGATION.md`](../NAVIGATION.md))。
+> **Phase 0.5C 起顶层导航为 4 业务域** (BROADCAST / MEDIA / ENGINEERING / ADMIN, 见 §29.2 与 [`NAVIGATION.md`](NAVIGATION.md))。
 > 下表 6 编号域保留为**表面编号体系与历史口径**, 不再是 UI 顶层导航。
 
 | # | 工作域 | 角色 | UI 表面数 | 来源 | 状态 (0.5C.1 回写) |
@@ -923,7 +923,7 @@ Engineering
 
 ## E-31 · Graph Designer 图设计 *(= 0.5A #08)*
 
-**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`phase-0.5/operator/08-graph-designer.html`](../phase-0.5/operator/08-graph-designer.html)
+**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`operator/08-graph-designer.html`](operator/08-graph-designer.html)
 
 ---
 
@@ -1218,7 +1218,7 @@ Operations
 
 ## O-41 · Health Tree 健康树 *(= 0.5A #09)*
 
-**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`phase-0.5/operator/09-health-tree.html`](../phase-0.5/operator/09-health-tree.html)
+**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`operator/09-health-tree.html`](operator/09-health-tree.html)
 
 ---
 
@@ -3362,7 +3362,7 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 8. **Output Variant** (1 Channel N Variant) — CD-01 Tab 6
 9. **Output Destination** (host:port) — 06 Output
 10. **Output Adapter** (SRSAdapter/UDPAdapter/RTPAdapter/FileAdapter) — P-22
-11. **Job** (6 kinds: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE; REALTIME_ENCODE 由 Session 包装 — 见 §29.3 与 [`OBJECT_VOCABULARY.md` §1.11](../OBJECT_VOCABULARY.md)) — M-14 / M-15 / M-18
+11. **Job** (6 kinds: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE; REALTIME_ENCODE 由 Session 包装 — 见 §29.3 与 [`OBJECT_VOCABULARY.md` §1.11](OBJECT_VOCABULARY.md)) — M-14 / M-15 / M-18
 12. **Session** (2 kinds: MEDIA_SESSION / OUTPUT_SESSION, 三轴状态) — M-17 / CD-01
 13. **Revision** (不可变快照) — P-21 §10 / P-22 / CD-01
 14. **Change Set** (Logical Atomic Apply) — E-33
@@ -3395,7 +3395,7 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 
 ## 29.7 Phase 0.5 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
 
-完整判定见 [`MILESTONES.md` §4](../MILESTONES.md#4-phase-05-lock-final-判定矩阵)。
+完整判定见 [`MILESTONES.md` §4](MILESTONES.md#4-phase-05-lock-final-判定矩阵)。
 
 简版:
 - ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)

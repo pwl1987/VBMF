@@ -68,7 +68,7 @@ V0.2 已完成 22 轮 review，状态为 **LOCK FINAL**：
 
 1. 开 PR + 清晰描述
 2. Maintainer review V0.2 对齐
-3. 本地检查通过（markdownlint / 相对链接可达；CI 配置后自动执行）
+3. 本地检查通过：`python scripts/check_docs.py`（链接可达 + 关键数字口径；markdownlint 可选；CI 配置后自动执行）
 4. Approve → merge
 
 ### 3. 文档规范

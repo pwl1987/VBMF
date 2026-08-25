@@ -7,7 +7,7 @@
 > **关联文档:**
 > - [`SURFACE_SPEC.md`](SURFACE_SPEC.md) — V0.2 架构对象 → UI 表面
 > - [`I18N_SPEC.md`](I18N_SPEC.md) — i18n Contract
-> - [`../phase-0.5/ERRATA.md`](../phase-0.5/ERRATA.md) — Phase 0.5A 20 项修复归档
+> - [`../phase-0.5/ERRATA.md`](ERRATA.md) — Phase 0.5A 20 项修复归档
 
 ---
 
@@ -530,7 +530,23 @@ V0.1 仅支持 Dark Mode (24/7 广播机房需要)。Light Mode 留作 V0.4+。
 
 ---
 
-## 10. 与其他 Phase 文档关系
+## 10. 可访问性验收项 (Phase 4 — 0.5C.1 补)
+
+> wireframe 阶段为静态稿, 不作硬性要求; 但 Phase 4 **不得照抄** wireframe 的 div 化交互模式（0.5A/0.5B wireframe 的 Tab/行均为非可聚焦 div, 无 aria/焦点样式 — 这是已知债务, 见 ERRATA §8）。
+
+Phase 4 实施验收:
+- 所有可交互元素用原生 `button` / `a` / 表单控件（禁止纯 `div` + onclick）
+- `:focus-visible` 焦点环: `2px solid var(--accent)`, 禁止 `outline: none` 裸奔
+- 图标按钮必须 `aria-label`; 状态色不得作为唯一信息载体（色 + 文字/badge 双通道）
+- Tab 组件: `role=tablist / tab / tabpanel` + 左右方向键导航
+- 表格行 / 列表项操作键盘可达（`Enter` / `Space`）
+- 对比度: 正文 ≥ 4.5:1, 大字号与图形 ≥ 3:1（WCAG AA; `--fgdim` 次要文本亦须达标）
+- `prefers-reduced-motion: reduce` 时关闭 pulse / skeleton 动画
+- 快捷键体系（§8）全程可用, 无需鼠标可完成 On-Air / Failure / Playout / Engineering 4 链
+
+---
+
+## 11. 与其他 Phase 文档关系
 
 | 文档 | 关系 |
 |---|---|

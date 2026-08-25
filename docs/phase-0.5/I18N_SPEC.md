@@ -6,7 +6,7 @@
 >
 > **关联文档:**
 > - [`SURFACE_SPEC.md`](SURFACE_SPEC.md) — V0.2 架构对象 → UI 表面
-> - [`docs/phase-0.5/README.md`](../phase-0.5/README.md) — Phase 0.5A Operator Semantics
+> - [`README.md`](README.md) — Phase 0.5 顶层入口 (0.5A Operator + 0.5B Product + 0.5C Info Arch)
 > - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (Canonical Vocabulary SoT)
 
 ---

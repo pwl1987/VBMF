@@ -16,7 +16,7 @@
 
 ## 阅读顺序（推荐）
 
-1. **[../../README.md](../../README.md)** — 项目门面
+1. **[../../README.md](../README.md)** — 项目门面
 2. **[architecture/ARCHITECTURE_V0.2.md](architecture/ARCHITECTURE_V0.2.md)** — V0.2 架构基线（1-2 小时通读）
 3. **[phase-0.5/README.md](phase-0.5/README.md)** — Phase 0.5 总览（4 域导航）
 4. **[phase-0.5/operator/](phase-0.5/operator/)** — 10 张 Operator 线框（中英双语，任意浏览器打开）
@@ -89,7 +89,7 @@ v0_2_runtime_semantics:
 | §8.11 三轴状态机 | 状态机 | 同上 |
 | §9 部署 | Host + Docker 边界 | 同上 |
 | §10 UX | 9 页面 + 4 链 | [`phase-0.5/`](phase-0.5/) |
-| §11 路线图 | Phase 0/0.5/0.6/1/... | [`../../ROADMAP.md`](../../ROADMAP.md) |
+| §11 路线图 | Phase 0/0.5/0.6/1/... | [`../../ROADMAP.md`](../ROADMAP.md) |
 | 附录 A 术语表 | Canonical Vocabulary | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) |
 | 附录 C 审查记录 | C.1 - C.26 | 同上 |
 | 附录 D 终态 | LOCK FINAL 状态 | 同上 |
