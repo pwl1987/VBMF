@@ -1,4 +1,4 @@
-# Deployment & Development Runtime Contract (V0.2)
+﻿# Deployment & Development Runtime Contract (V0.2)
 
 > **文档身份**: VBMF 部署 / 开发运行时 **Deployment SoT**。
 > **生成**: 2026-08-25（基于基线 `a6eca1f`，第 44 轮审查结论；commit `3888980` 复核后落地）。
@@ -308,18 +308,23 @@ Node (Control / Async Plane)          Rust (Media Runtime Plane)
 
 > **硬环境风险项**：`gVisor (runsc) + /dev/blackmagic + SYS_ADMIN` 的真实硬件兼容性**须 BMD 真机测试决定**。
 
-**实机进度（2026-08-25，证据 `evidence/bmd-10.30.15.10/2026-08-25-media-sec-01-runsc.md`）**：
-- ✅ runsc 已安装并注册进 Docker（`Runtimes` 含 `runsc`，Default=`runc`）。
-- ✅ **Step 2 PASS**：runsc 容器内 `--device=/dev/blackmagic` 透传 `dv0/dv1/io0` 完整可见（主从次 10,263/264/265），与 runc baseline 一致；不挂 `--device` 时 runsc 不可见设备（无泄漏）。
-- ⏳ **Step 3 待定**：GStreamer DeckLink `open`/capture 最小 probe，需含 gstreamer + Blackmagic SDK 的媒体镜像（较重，自建）。
+**实机进度**：
+- ✅ Step 1（2026-08-25，证据 `2026-08-25-media-sec-01-runsc.md`）：runsc 安装注册、`--device` 透传 `dv0/dv1/io0` 完整可见、无泄漏。Step 2 PASS。
+- ✅ **Step 3 runc PASS**（2026-08-26，证据 `2026-08-26-media-sec-01-step3.md`）：runc 容器（bind `/dev/blackmagic` + `/dev/shm/com_blackmagicdesign_*` + `--ipc=host`）内 `gst-launch decklinkvideosrc ! fakesink` → **Detected 3 devices + Pipeline is live/PREROLLED**（SDK open 成功）。
+- ❌ **Step 3 runsc FAIL**（同证据）：runsc 下（含 bind 代替 --device、--cap-add=ALL、seccomp=unconfined 三种抢救）均 `Detected 0 devices` → gVisor 对 `libDeckLinkAPI` 枚举所需的底层 syscall/共享内存/ioctl 支持不完整。
 
-**Option A**（当前倾向，Step 2 已支持）：gVisor `runsc`，Step 3 通过后正式敲定 `compose.acceptance.yml` 的 `runtime: runsc`。
-**Option B**（备选，倾向广播稳定性优先）：Media Agent 改用 `runc` + 其他隔离：
-- `seccomp` profile（专用 `ops/nginx/seccomp-media.json` 占位）
-- `AppArmor` / `cgroup` / `capabilities` 收敛 / `read_only` rootfs + 特定 `tmpfs`
+**裁决：MEDIA-SEC-01 → Option B（runc）**。
+理由（用户决策原则）：**稳定采集 > 容器隔离**。广播系统第一优先级是可靠访问 DeckLink，gVisor 兼容缺口不可接受。
+
+**Option B 正式采用**：Media Agent 用 `runc` + 其他隔离（而非 gVisor）：
+- `seccomp` profile（专用 `ops/nginx/seccomp-media.json`）
+- `AppArmor` / `cgroup` / `capabilities` 收敛（仅留 `SYS_ADMIN` 等 DeckLink 必需项）/ `read_only` rootfs + 特定 `tmpfs`
+- `/dev/blackmagic` device allowlist（dv0/dv1/io0）+ 必要时 bind `/dev/shm/com_blackmagicdesign_*`
 - 可靠访问 DeckLink 优先于通用 gVisor 隔离。
 
-**决策权**：最终由 G-RUNTIME Remote Acceptance（§9）Step 3 真机结果裁定，不在文档阶段定死。
+**compose 分层（DEPLOY-04）更新为**：dev=runc / acceptance=**runc** / prod=**runc + Option B 隔离加固**（原 acceptance 的 `runtime: runsc` 候选已撤销）。runsc 不再进入生产/验收媒体栈。
+
+> 注：Step 3 的 "first frame"（真实 SDI 信号下 buffer 产生）留待 Gate 2 媒体 agent 骨架就绪后在 acceptance 复测；open+live 已证明 runc 链路打通。
 
 ---
 

@@ -1,4 +1,4 @@
-# VBMF ACCEPTANCE overlay (§9 Level 2 / §11 ACCEPTANCE profile)
+﻿# VBMF ACCEPTANCE overlay (§9 Level 2 / §11 ACCEPTANCE profile)
 # Usage: docker compose -f docker-compose.yml -f compose.acceptance.yml up --build
 # Pinned commit + real BMD + evidence capture. Publish Nginx 443 + SRS media ports
 # (external encoders/players need RTMP/SRT/WHEP). Secrets from .env.acceptance.
@@ -18,10 +18,16 @@ services:
       - "8000:8000"   # SRT
       - "1989:1989"   # WHEP/WebRTC
 
-  # ACCEPTANCE: media-agent runtime = MEDIA-SEC-01 candidate.
-  # Set to runsc IF smoke test (Step 2/3) PASSES; else runc + seccomp (Option B).
-  # This field is finalized by the MEDIA-SEC-01 acceptance result, not by default.
+  # ACCEPTANCE: media-agent runtime = runc (MEDIA-SEC-01裁决: Option B).
+  # Step 3 实测 runsc 下 libDeckLinkAPI 枚举 0 设备(gVisor 不兼容 DeckLink SDK),
+  # runc 下 Detected 3 devices + Pipeline live. 故验收/生产统一 runc + Option B 隔离.
+  # 详见 evidence/bmd-10.30.15.10/2026-08-26-media-sec-01-step3.md 与 SoT §15.
   media-agent:
-    runtime: runsc
+    runtime: runc
     cap_add:
       - SYS_ADMIN
+    security_opt:
+      - "seccomp:unconfined"   # placeholder; 替换为 ops/nginx/seccomp-media.json (Option B 加固)
+    # DeckLink 设备发现依赖 DesktopVideoHelper IPC:
+    # 运行时需 bind /dev/shm/com_blackmagicdesign_DeckLinkDiscoveryNotifier + --ipc=host
+    # (compose 不支持 inline shm bind, 由部署脚本/daemon 保证; 见 ops/README MEDIA-SEC-01)

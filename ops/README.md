@@ -1,4 +1,4 @@
-# ops/ — VBMF V0.2 Deployment Artefacts
+﻿# ops/ — VBMF V0.2 Deployment Artefacts
 
 > **Scope discipline (Deployment SoT §0)**: This dir holds only static, no-code,
 > self-hosted deployment contracts. **No auto-deploy / no cloud / no CI push to prod**.
@@ -17,8 +17,10 @@
 ## Key contracts encoded (Deployment SoT)
 1. **Readiness wait (INFRA-01)**: `depends_on: condition: service_healthy` on deps — not mere start.
 2. **Health Tree (§5)**: every service has `healthcheck`; Nginx adds `/health/nginx`.
-3. **Media Agent ownership (F2/F4/F11)**: `runtime: runsc`, `cap_add: SYS_ADMIN`, `/dev/blackmagic`;
-   Host ffmpeg MUST NOT hold DeckLink. runc+seccomp alt pending BMD test (MEDIA-SEC-01).
+3. **Media Agent ownership (F2/F4/F11)**: `runtime: runc` (MEDIA-SEC-01 裁决 Option B) + `cap_add: SYS_ADMIN` + `/dev/blackmagic`.
+   DeckLink 设备发现依赖宿主 `DesktopVideoHelper` IPC：部署须 bind `/dev/shm/com_blackmagicdesign_DeckLinkDiscoveryNotifier` + `--ipc=host`
+   （compose 不支持 inline shm bind，由部署脚本/daemon 保证）。Host ffmpeg MUST NOT hold DeckLink。
+   gVisor `runsc` 因 Step 3 实测枚举失败已否决（证据 2026-08-26-media-sec-01-step3.md）。
 4. **Nginx = sole ingress (§8)**: internal services use `expose`, NOT host `ports` (DEPLOY-02).
    SRS owns media protocol plane (RTMP/SRT/HLS/WHEP), published only via profile overlays.
 5. **Web same-origin (DEPLOY-UI-01)**: `VITE_API_BASE=/api` — never `localhost` (breaks remote browser).
