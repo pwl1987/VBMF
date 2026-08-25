@@ -1,7 +1,7 @@
 # React Web UI (Vite + shadcn/ui) - dev server with HMR
 # TODO(Phase 1): wire real build context once web/src exists.
 # Build contract (Deployment SoT §4): Vite dev server + source bind mount + HMR.
-FROM node:20-alpine
+FROM node:24-alpine   # DEPLOY-BASELINE: Node 24 Active LTS
 WORKDIR /app
 # COPY package*.json ./
 # RUN npm ci

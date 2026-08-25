@@ -15,7 +15,7 @@
 services:
   # ---------- Infra ----------
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: vbmf
       POSTGRES_PASSWORD: vbmf_dev
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
 
   cache:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:8-alpine
     command: ["valkey-server", "--save", "", "--appendonly", "no"]
     ports:
       - "6379:6379"
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
 
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:2026.8.1   # pin release tag; NEVER latest (DEPLOY-BASELINE-01)
     command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: vbmf
@@ -65,7 +65,7 @@ services:
     restart: unless-stopped
 
   srs:
-    image: ossrs/srs:5
+    image: ossrs/srs:6
     ports:
       - "1935:1935"   # RTMP
       - "1985:1985"   # SRS HTTP API

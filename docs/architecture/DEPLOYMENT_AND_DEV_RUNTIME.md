@@ -240,3 +240,26 @@ Channel → Runtime → Media Agent(Host/Container/Session/Recovery)
                   → SRS(Output)
 ```
 且 Health Tree 暴露 Recovery State（`NONE/RESTARTING/RECOVERED/RETRYING/BACKOFF/ESCALATED/MANUAL_REQUIRED`），使 FI-08 自动恢复对现场可见（不仅 HEALTHY）。
+
+---
+
+## 13. Image Version Baseline（DEPLOY-BASELINE，可复现部署真源）
+
+> **原则**：生产部署须可复现、可审计。禁止 `latest`（RustFS 尤甚）；一律锁具体 minor/patch。
+> 版本基线以本章为准，`ops/docker-compose.yml` 须与下表一致。升级须走变更评审，不得悄悄 bump。
+
+| 组件 | 基线版本 | 说明 |
+|---|---|---|
+| PostgreSQL | `17` (alpine) | 当前 LTS 线；非 16/18（18 已过新但非必要追） |
+| Valkey | `8` (alpine) | 替代 Redis；8 当前稳定线 |
+| RustFS | 锁具体发布版本（如 `2026.x.x`） | **禁止 `latest`**；RustFS 快速演进，须 pin 发布 tag |
+| SRS | `6` | SRS 6 稳定线（非 5） |
+| Node.js (Fastify/Worker/Web) | `24` (alpine) | 当前 Active LTS（2026-04 起 LTS） |
+| Rust (Media Agent) | 锁具体 `1.8x` | 滚动版须 pin minor，不得 `rust:latest` |
+| Nginx | `1.27` (alpine) 或 distro stable | 反代契约见 §8 |
+| Docker Compose | v2 (`compose` spec) | gVisor 用 `runsc` runtime |
+
+**约束**：
+- `docker-compose.yml` 中所有 `image:` 必须显式带版本，CI 门禁应校验"无 `latest` / 无未 pin 版本"（DEPLOY-BASELINE-01）。
+- 升级任一组件须更新本表 + compose + 在 CHANGELOG 记录 + Remote Acceptance 复测（§9）。
+
