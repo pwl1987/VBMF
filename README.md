@@ -8,7 +8,7 @@
 >
 > **Phase 0.5B Product UI Surface ✅ UX BASELINE LOCK FINAL · 56 surfaces（32 LOCK + 24 SPEC (语义契约锁定, Phase 4 实施)，SoT: SURFACE_REGISTRY.yaml）+ 5 P0 wireframes + 8 横切能力 + 36 项语义收口（31 P0 + 5 P1）**
 >
-> **Phase 0.5 = 🟢 LOCK FINAL (2026-08-25)** · 权威阶段状态 (SoT) 见 [`docs/phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md) · 子模块 0.5A/0.5B/0.5C/0.5D/0.5E/0.5F 全部收口 · **最新收口 = 0.5F.17 Lock Semantics Reconciliation (0.5F.18 Documentation Reconciliation 焊死计数 32/24)**
+> **Phase 0.5 = 🟢 LOCK FINAL (2026-08-25)** · 权威阶段状态 (SoT) 见 [`docs/phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md) · 子模块 0.5A/0.5B/0.5C/0.5D/0.5E/0.5F 全部收口 · **Latest Semantic Milestone = 0.5F.17 Lock Semantics Reconciliation** · **Latest Documentation Reconciliation = 0.5F.18 / 0.5F.19 (计数 32/24 + 15 对象焊死)** (0.5F.19 DOC-01 纠错 14→15 对象)
 >
 > **⚠️ 历史分组 ≠ 当前 surface 计数**: 上方 "9 Core + 1 Validation" / "5 P0 wireframes" 等是 **Phase 0.5A/0.5B 历史文档分组**, 不是总数; 当前权威 surface 计数 = **56 (32 LOCK + 24 SPEC (语义契约锁定, Phase 4 实施), 归并 4 域)**, 唯一事实源 (SoT) 是 [`docs/phase-0.5/SURFACE_REGISTRY.yaml`](docs/phase-0.5/SURFACE_REGISTRY.yaml) + [`docs/phase-0.5/NAVIGATION.md`](docs/phase-0.5/NAVIGATION.md)。请勿用历史分组相加 (如 10 + 5) 反推总数。
 
@@ -80,7 +80,7 @@ docs/
 │   └── ARCHITECTURE_V0.2.md            ← 22 轮 review LOCK FINAL 架构基线 (192KB)
 ├── phase-0.5/                          ← Phase 0.5 顶层入口 (0.5A + 0.5B + 0.5C 统一目录)
 │   ├── README.md                       ← Phase 0.5 总览 + 4 域导航
-│   ├── OBJECT_VOCABULARY.md            ← 0.5C: 14 个对象权威定义
+│   ├── OBJECT_VOCABULARY.md            ← 0.5C: 15 个 Canonical Object 权威定义 (0.5F.19 DOC-01 纠错 14→15)
 │   ├── PRODUCT_OBJECT_MODEL.md         ← 0.5C: 3 层组合关系 (Profile / Bundle / Variant)
 │   ├── NAVIGATION.md                   ← 0.5C: 4 顶层域 (BROADCAST/MEDIA/ENGINEERING/ADMIN)
 │   ├── MILESTONES.md                   ← 0.5C: 历史 milestone 归档 (0.5A/0.5B/0.5B.1/0.5B.2/0.5C)

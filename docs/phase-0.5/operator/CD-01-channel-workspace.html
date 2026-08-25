@@ -203,7 +203,7 @@
       <span>Preflight (B-13) <b style="color:var(--green)">✓ PASS</b></span>
       <span>Health Tree <b style="color:var(--green)">✓ ALL_GREEN</b></span>
     </div>
-    <div style="margin-top:5px"><button class="btn-primary">▶ TAKE</button></div>
+    <div style="margin-top:5px"><a href="#take-action" style="text-decoration:none"><button class="btn" style="border-color:var(--green);color:var(--green)">定位唯一 TAKE 操作区 ↓</button></a></div>
   </div>
   <!-- ON-AIR SAFETY STRIP — BLOCKED 异常态 (同源复用, 仅当任一信号红时替换上方绿条) -->
   <div style="background:rgba(248,81,73,.10);border:1px solid var(--red);border-radius:3px;padding:6px 10px;margin-bottom:6px">
@@ -212,7 +212,7 @@
       <div>❌ Backup <b>NOT_READY</b> · ❌ Audio <b>DEGRADED</b></div>
       <div style="margin-top:3px">
         <button class="btn" style="border-color:var(--red);color:var(--red)">查看原因</button>
-        <button class="btn" style="border-color:var(--yellow);color:var(--yellow)">Emergency Override (L3)</button>
+        <a href="#override-confirm" style="text-decoration:none"><button class="btn" style="border-color:var(--yellow);color:var(--yellow)">Emergency Override (L3) → 确认</button></a>
       </div>
     </div>
   </div>
@@ -224,7 +224,7 @@
       <span>PVW <b>UDP-MC</b></span>
       <span>NEXT <b>Source B</b></span>
       <span>MODE <b>FRAME_SWITCH</b></span>
-      <span style="margin-left:auto"><button class="btn-primary">▶ TAKE</button> <button class="btn" style="border-color:var(--yellow);color:var(--yellow)">FAILOVER</button></span>
+      <span style="margin-left:auto"><a href="#take-action" style="text-decoration:none"><button class="btn" style="border-color:var(--green);color:var(--green)">定位 TAKE ↓</button></a> <button class="btn" style="border-color:var(--yellow);color:var(--yellow)">FAILOVER</button></span>
     </div>
   </div>
   <!-- 第二层 READINESS ZONE: 判断能不能切 -->
@@ -400,11 +400,20 @@
             <div>Effect: 必选输出丢失 · <span style="color:var(--red);font-weight:600">TAKE = BLOCKED</span></div>
             <div>Confirm: L2 二次确认 (Who/Why) · 仅记录意图</div>
           </div>
-          <div style="margin-top:6px;background:#161b22;border:1px solid var(--border);border-radius:3px;padding:6px">
-            <div style="font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Emergency Override (仅极端场景)</div>
+          <div id="override-confirm" style="margin-top:6px;background:#161b22;border:1px solid var(--border);border-radius:3px;padding:6px">
+            <div style="font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Emergency Override (仅极端场景 · 点击前必须展示完整上下文 · 0.5F.19 P1-8)</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">
               <div>Level: <span class="pill pill-red">L3</span> + Audit + Who/Why</div>
               <div>Effect: 临时 Take 放行 · Channel 仍 DEGRADED · 全量告警</div>
+            </div>
+            <div style="font-size:10px;margin-top:5px;color:var(--yellow)">
+              ⚠ 确认前必填上下文 (缺一不可):<br>
+              · <b>Reason</b> required (操作原因)<br>
+              · <b>Incident</b> required (关联事件单)<br>
+              · <b>Expire At / TTL</b> required (到期时刻, wall-clock 不重置)<br>
+              · <b>Effective impact</b> 预览 (哪些 REQUIRED 被强制放行)<br>
+              · <b>Channel remains DEGRADED</b> 明示 (不自动恢复)<br>
+              · <b>Audit will be generated</b> (Who/Why/Until/L3 全留痕)
             </div>
           </div>
           <div class="diag" style="margin-top:6px">Delivery Criticality → Safety Consequence → Confirmation 必须连起来: Disable REQUIRED → Impact Preview + L2 确认 → <span style="color:var(--red)">TAKE BLOCKED</span>; 除非显式 <b>Emergency Override (L3 + Audit + Who/Why)</b>. 与 B-13 "REQUIRED 全 HEALTHY → Take 放行" 一致: REQUIRED 不健康即阻断. OPTIONAL/AUX 仅 WARNING (0.5F.11 P0-1).</div>
@@ -425,7 +434,7 @@
     </div>
     <!-- TAKE -->
     <div class="panel">
-      <h3>🎬 TAKE / 状态</h3>
+      <h3 id="take-action">🎬 TAKE / 状态 (全页唯一 Primary TAKE 操作区 · 0.5F.19 P1-7 收敛)</h3>
       <div class="takeover">
         <button class="btn-primary">▶ TAKE (NEXT → PGM)</button>
         <button class="btn" style="border-color:var(--yellow);color:var(--yellow)">⚡ AUTO FAILOVER ARM</button>

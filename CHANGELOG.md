@@ -122,6 +122,16 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-Profile**：新增 Encoding/Packaging Profile 责任边界写死（Encoding 仅 codec/resolution/bitrate/GOP/rate-control；Packaging 负责 container/segment/manifest/DRM；P-21 Encoding Profile 禁止承担 Packaging 职责）。
 - 校验：`scripts/check_docs.py` **PASS**。结论：Phase 0.5 维持 LOCK FINAL；Phase 0.6 进入 Executable Acceptance 前的关键语义/一致性缺口已闭环。
 
+### Phase 0.5F — Final Documentation Coherence Sweep（0.5F.19，2026-08-25，LOCK FINAL，基于 ad3bc6c 复检）
+用户以 `ad3bc6c27067e6408411977dc53f7da1fb5355c6` 复检, 确认 0.5F.18 的 P0/P1 基本闭合 (计数 SoT / 三轴语义 / TAKE Readiness / Override 重启 / Clock adjustment), 但指出 1 个硬错误 + 1 个状态歧义 + 6 个验收闭合度/UI 细节。本轮 **Final Documentation Coherence Sweep** (窄范围: 不重开 V0.2、不增 Surface、不改架构):
+- **DOC-01 (P0 硬错误) · 14 vs 15 对象**: 根 README 第 83 行 `OBJECT_VOCABULARY.md ← 0.5C: 14 个对象` → **`15 个 Canonical Object`** (与 OBJECT_VOCABULARY §1 "15 个核心对象 (0.5D.1 锁定)" + OBJECT_NAVIGATION_MATRIX/PRODUCT_OBJECT_MODEL 对齐)。
+- **DOC-02 (P0) · F17/F18 状态歧义**: 全仓焊死 **Latest Semantic Milestone = 0.5F.17** (语义/锁定义终态) · **Latest Documentation Reconciliation = 0.5F.18/0.5F.19** (文档一致性补丁, 不改语义)。根 README / phase-0.5/README / MILESTONES 顶部均补该区分说明。
+- **P1-6 · WHEP/WebRTC 术语边界**: `06-output.html` 的 "WebRTC-LowLatency / WebRTC / wss:// / ICE / DTLS" 误导 UI 改为 **WHEP egress** 标签 + 范围边界声明 ("本 Variant 验证 WHEP 输出路径 + 浏览器播放验收; 完整 WebRTC 双向功能不在 Phase 0.6 范围")。
+- **P1-7 · CD-01 重复 TAKE 入口收敛**: 全页原 3 处 `▶ TAKE` primary; 收敛为 **唯一 Primary TAKE** (底部 "TAKE / 状态" 面板, 加 `id=take-action`); Readiness Strip 与 Decision Zone 的 TAKE 改为 "定位 TAKE 操作区 ↓" 锚点链接 (仅展示 readiness/scroll, 不重复 action)。
+- **P1-8 · Emergency Override 确认上下文**: BLOCKED Strip 的 Override 按钮改为滚动到确认块; 确认块 (`id=override-confirm`) 补 **点击前必填上下文**: Reason required / Incident required / Expire At·TTL required / Effective impact / Channel remains DEGRADED / Audit will be generated。
+- **P1-3/4/5/9 · Phase 0.6 验收闭合度 (0.5F.19 补, 属 0.6 启动首务, 不阻塞 0.5 冻结)**: `docs/phase-0.6/README.md` 新增 §0.5 验收闭合度治理: (P1-3) Surface→E2E→Acceptance 覆盖矩阵 + UI-E2E-04 Nav Closure 要求逐 Surface 声明 Covered/NotCovered; (P1-4) Failure Domain→FI/Reference 归属映射 (MASTER→FI-06 / RECORDING→FI-07, 关闭 "6 域矩阵只测 4 域"); (P1-5) FI-02/04/05 deterministic 验收标准 (注入持续/检测阈值/恢复判定/退出 DEGRADED 条件); (P1-9) Executable Harness 字段规范 (Test ID/Fixture ID/Env Prereq/Runner/Expected/Evidence/Pass/Retry/Abort/Artifact Naming)。
+- 校验：**未新增任何 Surface** (Registry SoT 维持 56 = 32 LOCK + 24 SPEC); CD-01/06-output 仅页内补强。结论：完成 0.5F.19 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT / DOCUMENT COHERENCE 全部 LOCK FINAL**; 可正式冻结并进入 **Phase 0.6 = Executable Acceptance** (三 Gate: G-RUNTIME/G-UIUX/G-DOC, 任意 FAIL=NOT ACCEPTED), 启动首务为 §0.5 的 Harness 字段落地。
+
 ### Phase 0.6 Consistency Gate（2026-08-25，基于 909d88e）
 - **P0-WHEP-Scope**：Phase 0.6 `不在本阶段范围` 与 Reference B 已验收 WHEP 矛盾。改为：RIST / Zixi / NDI 完整功能开发不在 0.6；**WHEP 作为 Output Variant / Browser Playback 的 Acceptance 验证 = IN SCOPE**（实现深度：SRS Adapter 路径校验）。「WebRTC 全功能开发」≠「WHEP 输出路径 Acceptance」。
 - **P1-EngCount**：NAVIGATION ENGINEERING 域 `26 表面` → `29 表面 · 数量由 SURFACE_REGISTRY.yaml 派生`（与 Registry SoT / NAVIGATION 域汇总表一致）；并新增 `check_docs.py` 规则 `check_nav_domain_counts`：NAVIGATION ENGINEERING 计数必须与 Registry 一致，禁止手写漂移。

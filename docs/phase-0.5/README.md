@@ -1,6 +1,8 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态 (派生自 [`MILESTONES.md`](MILESTONES.md) SoT, 最新收口 = 0.5F.17)**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **0.5F.11 Final Consistency & Safety Closure (2 P0 + 4 P1)** · **0.5F.13/0.5F.14/0.5F.15/0.5F.16/0.5F.17 Lock Semantics Reconciliation** · **→ Phase 0.6 Executable Acceptance**
+> **状态 (派生自 [`MILESTONES.md`](MILESTONES.md) SoT)**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **0.5F.11 Final Consistency & Safety Closure (2 P0 + 4 P1)** · **0.5F.13/0.5F.14/0.5F.15/0.5F.16/0.5F.17 Lock Semantics Reconciliation** · **0.5F.18/0.5F.19 Documentation Coherence Sweep (计数 32/24 + 15 对象焊死)** · **→ Phase 0.6 Executable Acceptance**
+>
+> **收口口径区分 (0.5F.19 焊死)**: **Latest Semantic Milestone = 0.5F.17** (语义/锁定义终态) · **Latest Documentation Reconciliation = 0.5F.18 / 0.5F.19** (文档一致性补丁, 不改变语义)。两者不互斥: F17 封语义, F18/F19 封文档自洽。
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >

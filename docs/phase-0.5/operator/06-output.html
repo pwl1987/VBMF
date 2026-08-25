@@ -57,7 +57,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <div class="tabs">
   <div class="tab active" data-view="list">📋 [ OUTPUT LIST 输出列表 ]</div>
   <div class="tab" data-view="hls">📺 [ HLS DETAIL HLS 详情 ]</div>
-  <div class="tab" data-view="webrtc">🌐 [ WEBRTC DETAIL WebRTC 详情 ]</div>
+  <div class="tab" data-view="webrtc">🌐 [ WHEP DETAIL WHEP 低延迟输出详情 ]</div>
   <div class="tab" data-view="udp">📡 [ UDP OUTPUT UDP 输出 (对称 E-40) ]</div>
   <div class="tab" data-view="recovery">🛟 [ FAILURE RECOVERY 故障引导恢复 ]</div>
   <div class="tab" data-view="sdi">🎞 [ SDI OUTPUT 基带输出 (G3) ]</div>
@@ -111,9 +111,9 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <td><button class="btn">详情 Detail</button><button class="btn danger">重启 Restart</button></td>
       </tr>
       <tr>
-        <td><b>CH01-WebRTC-LowLatency 低延迟</b></td>
-        <td>WebRTC</td>
-        <td><span class="url">wss://rtc.example.com/ch01</span></td>
+        <td><b>CH01-WHEP-LowLatency 低延迟</b></td>
+        <td>WHEP <span style="font-size:9px;color:var(--fgdim)">(egress)</span></td>
+        <td><span class="url">https://rtc.example.com/ch01/whep</span></td>
         <td><i class="dot yellow"></i>DEGRADED</td>
         <td>3.5 Mbps</td>
         <td>14</td>
@@ -234,10 +234,11 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 </div>
 
-<!-- WEBRTC DETAIL -->
+<!-- WHEP DETAIL (低延迟 egress 路径; Phase 0.6 验收范围 = WHEP output path / browser playback acceptance, 非完整 WebRTC P2P 功能开发) -->
 <div class="view" id="webrtc">
   <div class="detail">
-    <h4>CH01-WebRTC-LowLatency 低延迟 <span class="badge">WebRTC</span> <span style="color:var(--yellow)">● DEGRADED</span></h4>
+    <h4>CH01-WHEP-LowLatency 低延迟 <span class="badge" style="background:rgba(66,153,225,.15);color:var(--accent)">WHEP egress</span> <span style="color:var(--yellow)">● DEGRADED</span></h4>
+    <div style="font-size:9px;color:var(--fgdim);margin-bottom:6px">⚠️ 范围边界: 本 Variant 验证 <b>WHEP 输出路径 + 浏览器播放验收</b>; 完整 WebRTC 双向/信令功能开发不在 Phase 0.6 范围 (见 phase-0.6/README AC 边界)。</div>
     <div class="grid">
       <div class="field">
         <div class="k">URL</div>

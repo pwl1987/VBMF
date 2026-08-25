@@ -31,6 +31,39 @@ Phase 0.5 Workflow   ──┤
 Phase 0.6 References ─┘
 ```
 
+## 0.5 · 验收闭合度治理 (0.5F.19 补, 关闭 EXEC-01 / UX-01 / DOC 缺口)
+
+### P1-3 · Surface → E2E Chain → Acceptance 覆盖矩阵
+Registry 已区分 **Surface Contract Count (56) / Implemented Wireframe Count / Spec-only Count**, 但 Phase 0.6 不能只用 3 条 E2E 链 (UI-E2E-01/02/03) 反推 "全部 32 LOCK Surface 导航闭环"。必须显式声明覆盖关系:
+
+| E2E Chain | 覆盖 Surface 域 | Acceptance ID | LOCK 覆盖 | 说明 |
+|---|---|---|---|---|
+| UI-E2E-01 Profile→Bundle→Channel→Apply→Runtime→Output | ENGINEERING (P-21/22/23...) + BROADCAST (CD-01) | AC-01/AC-02/AC-03 | Partial | 主配置闭环, 非全 LOCK |
+| UI-E2E-02 Asset→Transcode→Asset Version→QC | MEDIA (M-11/12/13/15/16) | AC-02 | Partial | File 转码闭环 |
+| UI-E2E-03 Channel→Session→Output→Health | BROADCAST (CD-01) + M-17 Realtime Session | AC-03B/HA-01~07 | Partial | Runtime 闭环 |
+| **Navigation Closure (新增 Reference)** | 全部 32 LOCK Surface | **UI-E2E-04 Nav Closure** | **Full (claim)** | 必须在 Acceptance Report 逐 Surface 声明 Covered/NotCovered, 不得用 3 链通过 ≡ 56 导航通过 |
+
+> 规则: **"E2E 三条链通过" ≠ "所有 LOCK Surface 导航闭环通过"**。UI-E2E-04 须在报告中以 `Surface ID → Covered(Y/N) → Evidence` 逐条列出。
+
+### P1-9 · Executable Harness 字段规范 (从 Markdown checklist 推进一层)
+每条 Test Case 必须含以下机器可读字段 (0.5F.19 起, 关闭 "Phase 0.6 已可执行" 误判):
+
+```yaml
+test_case:
+  id: AC-01-001              # 唯一 Test ID
+  fixture_id: F-A1-PASS      # 关联夹具 (见 Switch Test Matrix)
+  env_prereq_id: ENV-LAB-01  # 环境前置 (见部署环境)
+  runner: <command/script>   # 执行命令或 harness 入口
+  expected: <machine_result> # 确定性期望 (含 p50/p95/p99 阈值)
+  evidence_path: <artifact>  # 证据路径 (log/screenshot/metric dump)
+  pass_rule: <bool expr>     # 判定式
+  retry_rule: max=1, backoff=30s
+  abort_rule: consecutive_fail>=3 → HALT Gate
+  artifact_naming: "{test_id}_{run_ts}_{pass|fail}.json"
+```
+
+> 当前 `docs/phase-0.6/README.md` 为 **Acceptance Specification** (已成型); 升级为 **Executable Acceptance Harness** 须补上述字段 + 统一 runner, 列为 Phase 0.6 启动首务 (不阻塞 0.5 冻结)。
+
 ## 交付物
 
 ### Reference A1 — PACKET_SWITCH 基础能力
@@ -169,6 +202,28 @@ Audio Mixer / Loudness / Delay ─────┘
 | **FI-05** | HLS 切片失败 | OUTPUT 输出 | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
 
 > **FI 注入点锁定（P1）**：每条 FI 必须写明 `injection_point: {node, domain}`，否则 Phase 0.6 实测时两人会做出不同恢复动作。当前已锁定：FI-02 = Audio Mixer / PIPELINE。以下为**不同 Failure Domain**，须各自独立 FI，不得并入 FI-02：Source embedded_audio（SOURCE）、Loudness node（PIPELINE）、Audio Master Join（MASTER）。
+
+#### P1-4 · Failure Domain → FI/Reference 归属映射 (0.5F.19 补, 关闭 "6 域矩阵但只测 4 域" 缺口)
+Failure Domain Matrix 定义 6+ 域, 但 FI Suite 当前只显式覆盖 SOURCE/PIPELINE/CLOCK/OUTPUT。**MASTER 与 RECORDING 必须有明确验收归属, 否则 0.6 会出现"架构写 6 域, 验收只测 4 域"**:
+| Failure Domain | 独立 FI / Reference | 覆盖说明 |
+|---|---|---|
+| SOURCE 源 | FI-01A / FI-01B | Primary SDI 冻结 + Backup 状态分支 |
+| PIPELINE 管道 | FI-02 / FI-03 | 音频静音 / FFmpeg 崩溃 |
+| MASTER 主母版 | **FI-06 (新增 Reference)** | Audio Master Join 失败 → FILLER_OR_EMERGENCY (target: emergency asset); 不得并入 FI-02, 不得切源 |
+| OUTPUT 输出 | FI-05 | HLS 切片失败 → RESTART_ADAPTER → alternate |
+| RECORDING 录制 | **FI-07 (新增 Reference)** | 录制盘满/故障 → BACKUP_DISK (target: alternate disk); 独立于 OUTPUT |
+| CLOCK 时钟 | FI-04 | Clock Drift → FALLBACK_CLOCK |
+
+> 注: FI-06/FI-07 为 **Reference 级验收** (非独立注入脚本), 可由 HA Matrix + Failure Domain Matrix 推导; 若实测资源有限, 至少须在 Acceptance Report 显式声明 MASTER/RECORDING 由哪个 HA/Reference 覆盖, 不得留白。
+
+#### P1-5 · FI 确定性验收标准 (0.5F.19 补, 关闭 "注入→检测→恢复" 不够机械化)
+每条 FI 必须补充 deterministic 字段, 否则两工程师无法做出相同测试:
+| FI | 注入持续 | 检测阈值/触发 | 恢复判定 | 退出 DEGRADED 条件 |
+|---|---|---|---|---|
+| FI-02 音频静音 8s | 持续 ≥8s, 随后恢复音频 | 静音 detection ≥ 阈值 (默认 8s) → 触发 RESTART audio node | 节点重启且音频流恢复 | Audio Health = HEALTHY 且持续 ≥30s |
+| FI-04 Clock Drift +5ms/min | 注入 ≥10min 累积 +50ms | drift > 50ms → FALLBACK to TIMECODE event | CLOCK_DEGRADED event 产生且 PTP/系统时钟回稳 | Clock Domain = LOCKED 且 drift < 10ms 持续 ≥60s |
+| FI-05 HLS 切片失败 | 持续至切片连续失败 ≥3 次 | 连续 3 次 segment gen 失败 → RESTART_ADAPTER | alternate destination 接管且首片成功 | OUTPUT Health = HEALTHY 且连续 ≥5 切片成功 |
+| FI-01A/B, FI-03, FI-06, FI-07 | 见各自 Reference | 见 Failure Domain Matrix `action` 触发条件 | 见 Matrix `action` | 见 Matrix 期望 Channel Health 达成并稳定 ≥ 判定窗口 |
 
 **关键禁忌**：
 
