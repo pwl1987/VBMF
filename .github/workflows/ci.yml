@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -42,10 +42,15 @@ jobs:
 
       # Hard gate: skeleton MUST compile. This closes the "unverified skeleton"
       # gap (local/BMD have no Rust toolchain; crates.io egress blocked on BMD).
+      # Debug build is sufficient as the compile gate for the skeleton; release+lto
+      # is deferred until Gate 2 logic lands (keeps CI fast + avoids OOM on runners).
       - name: "Build (Gate - skeleton must compile)"
-        run: cargo build --release
+        env:
+          CARGO_TERM_COLOR: always
+        run: cargo build
 
       # Informational for now (skeleton has intentionally-unused decls).
-      # Promote to -D warnings once Gate 2 logic lands.
+      # Promote to -D warnings once Gate 2 logic lands. Never blocks the gate.
       - name: Clippy (advisory)
+        continue-on-error: true
         run: cargo clippy --all-targets -- -W warnings
