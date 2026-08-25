@@ -83,18 +83,23 @@ docs/phase-0.5/
 
 ⛔ **`phase-0.5b/` 目录已删除** — 之前叫 `phase-0.5b` 是因为它晚于 `phase-0.5` 创建, 但 Git commit 才是版本管理, 目录应该表达 `phase / domain / role`, 不应承担版本职责。
 
-## 5. 页面架构 (0.5D.1 起 · 由 SURFACE_REGISTRY.yaml 派生)
+## 5. 页面架构 (唯一权威: SURFACE_REGISTRY.yaml · 0.5F F1 — README 不再手写计数)
 
-| 域 | wireframe | Spec-only | 路径 |
-|---|---|---|---|
-| **BROADCAST** | 13 | 0 | `operator/` (01-07 + CH-01/02/02B + CD-01 + B-13) |
-| **MEDIA** | 8 | 0 | `operator/` (M-11..M-18, 含 M-17 Realtime Encode) |
-| **ENGINEERING** | 25 | 1 (E-41) | `operator/` (P-20..28 + E-31..42 + O-41..45 + D7) |
-| **ADMIN** | 5 | 0 | `operator/` (A-51..55) |
-| **域合计** | **51** | **1** | — |
-| 全局 (10-states Validation) | 1 | 0 | `operator/10-states.html` |
-| **TOTAL** | **52** | **1** | — |
-| **Phase 0.5 总计** | **56** (55 wireframe + 1 Spec E-41) | | |
+> **页面计数由 `SURFACE_REGISTRY.yaml` 唯一派生**。README 不维护任何手写数字 (51/52/53/55/56 一律废止, 只引用注册表)。
+>
+> ```yaml
+> surface_count:
+>   source: SURFACE_REGISTRY.yaml
+>   derived_at: 2026-08-25 (0.5D.6 终扫 + 0.5E + 0.5F)
+>   domains:  {BROADCAST: 13, MEDIA: 8, ENGINEERING: 29, ADMIN: 5}
+>   domain_total: 55        # 54 wireframe + 1 Spec (E-41)
+>   global_validation: 1
+>   total: 56               # 55 wireframe + 1 Spec (E-41) + 全局 Validation
+> ```
+
+- 逐条清单: [`SURFACE_REGISTRY.yaml`](SURFACE_REGISTRY.yaml) (id / domain / kind / status / milestone)
+- 展示视图: [`NAVIGATION.md`](NAVIGATION.md) §2.5 (域计数表, 与 Registry 派生值一致)
+- 域路径: `operator/` (01-07 + CH-01/02/02B + CD-01 + B-13 + M-11..18 + P-20..28 + E-31..52 + O-41..45 + D7 + A-51..55 + 10-states)
 
 ## 6. 与 V0.2 / Phase 0.6 / Phase 1 / Phase 4 关系
 

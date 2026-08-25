@@ -237,4 +237,36 @@ Draft → Validate → ChangeSet       Prepared Session → Readiness
 
 ---
 
+## 7. UI 双动作管线 — Configuration Pipeline vs Runtime Operation Pipeline (0.5F F3 焊死)
+
+```text
+A. CONFIGURATION PIPELINE (对象配置变更)
+   Edit → Desired → Impact Preview (E-50) → Diff (E-51)
+   → Preflight → ChangeSet (E-33) → Approve → Transactional Cutover
+   → Compiled → Effective
+   Runtime Actions 绝不进入本管线。
+
+B. RUNTIME OPERATION PIPELINE (运行操作)
+   Observe → Preflight / Readiness (B-13) → Operator Intent
+   → TAKE / FAILOVER / RESTART / RETRY / OUTPUT RECOVERY
+   → Runtime Event → Audit (A-54) → Incident Timeline
+   不生成 ChangeSet (仅引用 Runtime Revision / Config Revision)。
+```
+
+| Runtime Action | 是否进 ChangeSet | 走哪条链 | Audit Event |
+|---|---|---|---|
+| TAKE | ❌ 否 | B | `TAKE_RECORD` (Runtime Event) |
+| FAILOVER | ❌ 否 | B | `FAILOVER_TRIGGER` |
+| RESTART | ❌ 否 | B | `SESSION_RESTART` |
+| RETRY | ❌ 否 | B | `JOB_RETRY` / `OUTPUT_RETRY` |
+| OUTPUT RECOVERY | ❌ 否 | B | `OUTPUT_RECOVERY` (retry/backoff/zombie) |
+
+**UI 边界 (0.5F):**
+- **E-50 / E-51** = Configuration Pipeline 的确认面 (Continue to Diff → ChangeSet); 展示 Operational Consequence, 但不执行 Runtime 操作。
+- **E-52 Command Palette**: L2/L3 Action 一律**跳转**到对应确认入口 (TAKE → CD-01 + B-13), 不在 Palette 内直接执行; 命令必须携带 Context (surface/object/channel/session, 0.5F F5)。
+- **B-13** = Runtime Pipeline 的 TAKE 门禁 (9 项 Preflight + Operator Intent → Runtime Event)。
+- 两条链共享 **Audit (A-54)** 与 **Incident Timeline**, 但对象不同: **ChangeSet** (配置链) vs **Runtime Event** (运行链), 绝不复用同一抽象 (0.5D.5 §5 延续)。
+
+---
+
 **VBMF Contributors** · Execution Model V0.1 · Phase 0.5D.3 Object/State/Execution Closure

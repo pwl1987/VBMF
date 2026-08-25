@@ -561,4 +561,26 @@ Phase 4 实施验收:
 
 ---
 
+## 12. Global UX Component Closure (0.5F F6)
+
+> **目的:** 0.5E (E-50/51/52) 与既有 0.5D 页面共享**同一套组件语义**, 避免 Phase 4 各自实现三套 React 组件。wireframe 可内联样式, 但**类名/语义以本表为准**, Phase 4 按本表实现单一组件库。
+
+| 组件 | 语义 | 来源 |
+|---|---|---|
+| **StatusBadge** | 生命周期/健康/就绪徽章 | §6.3 (已有) |
+| **HealthDot** | 健康点 | §6.4 (已有) |
+| **RiskBadge** | LOW/MEDIUM/HIGH/CRITICAL 4 级风险徽章 | E-50 (0.5F 统一) |
+| **ImpactPanel** | 4-Layer (Desired/Compiled/Effective🔒/Impact) + 4 维影响 | §6.17 (已有, E-50 扩展: Operational Consequence) |
+| **DiffViewer / DiffRow** | 3 视图 + Value/Structure/Semantic + **Why** + **Action (BLOCK/REVALIDATE/WARN/SAFE)** | §6.14 (已有, E-51 扩展) |
+| **CommandRow** | Command Palette 行 (name/meta/shortcut/context) | E-52 (0.5F 统一) |
+| **ObjectContext** | surface/object/channel/session 上下文头 (0.5F F5) | E-52 (0.5F 统一) |
+| **EffectiveLock** | Effective 字段 🔒 只读标记 | PIA §6 (已有语义) |
+| **PreflightGate** | TAKE/Apply 前门禁 (B-13 / E-32) | §6.18 (已有) |
+| **ReservationSummary** | Reservation 状态摘要 (RESERVED/IN_USE/RELEASED + 9-dim) | RESOURCE_RESERVATION_SPEC (0.5F 统一) |
+| **DangerActions** | L1/L2/L3 危险操作统一 | §6.15 (已有) |
+
+**强制:** E-50/E-51/E-52 引用同一 token 集 (§2) 与上表组件语义; 新增组件先入本表再入 wireframe。
+
+---
+
 **VBMF Contributors** · VBMF Design System V0.1 · 锁定 Phase 4 实施

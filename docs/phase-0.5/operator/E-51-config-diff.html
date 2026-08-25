@@ -92,11 +92,13 @@
         <span><i style="background:rgba(163,113,247,.5);border:1px solid var(--purple)"></i> Semantic Change (紫) — 必阻断 Apply</span>
       </div>
       <table>
-        <tr><th>分类</th><th>含义</th><th>阻断</th></tr>
-        <tr><td class="val"><b>Value Change</b></td><td>同字段值不同 (5000→5500 kbps)</td><td>否</td></tr>
-        <tr><td class="struct"><b>Structure Change</b></td><td>字段新增/删除/类型变</td><td>必阻断 (Schema Migration)</td></tr>
-        <tr><td class="sem"><b>Semantic Change</b></td><td>值同但语义不同 (Main→High)</td><td>必阻断 (需重新 QC)</td></tr>
+        <tr><th>分类</th><th>含义</th><th>Action (0.5F F4)</th></tr>
+        <tr><td class="struct"><b>Structure Change</b></td><td>字段新增/删除/类型变</td><td>🔴 <b>BLOCK</b> (Schema Migration)</td></tr>
+        <tr><td class="sem"><b>Semantic Change</b></td><td>值同但语义不同 (Main→High)</td><td>🟣 <b>REVALIDATE</b> (需重新 QC)</td></tr>
+        <tr><td class="val"><b>Value Change</b></td><td>同字段值不同 (5000→5500 kbps)</td><td>🟡 <b>WARN</b> (Bitrate 等)</td></tr>
+        <tr><td><b>No-op / Label</b></td><td>值相同 / 仅显示名改</td><td>🟢 <b>SAFE</b></td></tr>
       </table>
+      <div class="diag"><b>Action 4 级 (0.5F F4):</b> <b>BLOCK</b> (Schema/Identity — 不能 Apply) · <b>REVALIDATE</b> (Capability/Timebase — 可以改, 但必须重新 Preflight/QC/Benchmark) · <b>WARN</b> (Bitrate 等普通值) · <b>SAFE</b> (Label/无变化)。减少「我为什么不能保存？」。</div>
     </div>
   </div>
 </div>
@@ -149,12 +151,12 @@
     <div class="panel">
       <h3>⑤ Source Diff — Side-by-side (字段 ≤ 30)</h3>
       <table>
-        <tr><th>字段</th><th>v1 (current)</th><th>v2 (draft)</th><th>Change</th></tr>
-        <tr><td>endpoint.group</td><td>239.20.10.10</td><td>239.20.10.10</td><td>=</td></tr>
-        <tr><td>endpoint.source_ip</td><td>10.30.20.100</td><td>10.30.20.101</td><td class="val">changed</td></tr>
-        <tr><td>adapter.type</td><td>UDP</td><td>UDP</td><td>=</td></tr>
-        <tr><td>contract.video</td><td>H264</td><td>HEVC</td><td class="sem">🟣 Semantic (需重新 QC)</td></tr>
-        <tr><td>security.ssm_validation</td><td>SSM (IGMPv3)</td><td>ASM (IGMPv2)</td><td class="struct">🔴 Structure (Security 字段)</td></tr>
+        <tr><th>字段</th><th>v1 (current)</th><th>v2 (draft)</th><th>Change</th><th>Why (0.5F F4)</th><th>Action</th></tr>
+        <tr><td>endpoint.group</td><td>239.20.10.10</td><td>239.20.10.11</td><td class="val">changed</td><td>组变更 → 会话重建 + 备份路径失效</td><td>🟡 WARN</td></tr>
+        <tr><td>endpoint.source_ip</td><td>10.30.20.100</td><td>10.30.20.100</td><td>=</td><td>—</td><td>🟢 SAFE</td></tr>
+        <tr><td>adapter.type</td><td>UDP</td><td>UDP</td><td>=</td><td>—</td><td>🟢 SAFE</td></tr>
+        <tr><td>contract.video</td><td>H264</td><td>HEVC</td><td class="sem">🟣 Semantic</td><td>codec 变更 → Capability Contract 失效 + 需重新 QC</td><td>🟣 REVALIDATE</td></tr>
+        <tr><td>security.ssm_validation</td><td>SSM (IGMPv3)</td><td>ASM (IGMPv2)</td><td class="struct">🔴 Structure</td><td>Security 字段违反 8 字段约束</td><td>🔴 BLOCK</td></tr>
       </table>
       <div class="gap">⛔ `security.ssm_validation` 是 <b>Security 关键字段</b>, 改动直接 BLOCKED。</div>
     </div>
@@ -163,12 +165,12 @@
     <div class="panel" style="border-color:var(--red)">
       <h3>⑥ Critical 字段阻断 <span class="pill pill-red" style="float:right">BLOCKED MODAL</span></h3>
       <table>
-        <tr><th>字段类型</th><th>例子</th><th>阻断原因</th></tr>
-        <tr><td>Schema</td><td>Profile 增/删字段</td><td>数据迁移未做</td></tr>
-        <tr><td>Identity</td><td>Channel ID / Bundle ID</td><td>引用关系会断</td></tr>
-        <tr><td>Capability</td><td>Video Codec H264→HEVC</td><td>需重新 QC + Contract</td></tr>
-        <tr><td>Timebase</td><td>Frame Rate 25→30</td><td>SignalContract 不兼容</td></tr>
-        <tr><td>Security</td><td>SSM→ASM</td><td>违反 Security 8 字段</td></tr>
+        <tr><th>字段类型</th><th>例子</th><th>Action (0.5F F4)</th><th>阻断原因</th></tr>
+        <tr><td>Schema</td><td>Profile 增/删字段</td><td>🔴 <b>BLOCK</b></td><td>数据迁移未做</td></tr>
+        <tr><td>Identity</td><td>Channel ID / Bundle ID</td><td>🔴 <b>BLOCK</b></td><td>引用关系会断</td></tr>
+        <tr><td>Capability</td><td>Video Codec H264→HEVC</td><td>🟣 <b>REVALIDATE</b></td><td>需重新 QC + Contract</td></tr>
+        <tr><td>Timebase</td><td>Frame Rate 25→30</td><td>🟣 <b>REVALIDATE</b></td><td>SignalContract 不兼容</td></tr>
+        <tr><td>Security</td><td>SSM→ASM</td><td>🔴 <b>BLOCK</b></td><td>违反 Security 8 字段</td></tr>
       </table>
       <div class="gap" style="margin-top:10px">
         <b>BLOCKED:</b> 改动被拒绝。<br>Reason: Security 字段 SSM → ASM 违反 Network Source Security 8 字段。<br>Action: 人工 Override (L3 · 输入对象 ID 确认) 或取消。
@@ -182,7 +184,7 @@
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--purple)">
-  🧭 这是 0.5E 跨域能力第 2 张 wireframe (E-51, Configuration Diff)。对应规范 Part 2 锁 5-8。Revision 是不可变快照 (自身即 diff 基线), 不做自身 Diff。Graph diff (Route) / 5 维 (+Cost) 推 V0.3。完整链: <b>E-50 Impact Preview → E-51 Configuration Diff → E-52 Command Palette</b>。
+  🧭 这是 0.5E 跨域能力第 2 张 wireframe (E-51, Configuration Diff)。对应规范 Part 2 锁 5-8 + 0.5F F4 (Why 列 + BLOCK/REVALIDATE/WARN/SAFE Action 级)。Revision 是不可变快照 (自身即 diff 基线), 不做自身 Diff (15 canonical = 14 diffable + 1 revision meta)。Graph diff (Route) / 5 维 (+Cost) 推 V0.3。完整链: <b>E-50 Impact Preview → E-51 Configuration Diff → E-52 Command Palette</b>。
 </div>
 
 </body>

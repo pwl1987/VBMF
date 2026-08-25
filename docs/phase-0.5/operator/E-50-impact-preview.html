@@ -99,21 +99,25 @@
 
 <!-- 主演示: Source 4-Layer + 4 维影响 -->
 <div class="panel" style="border-color:var(--purple)">
-  <h3>② 主演示 — Source UDP-MULTICAST-001 <span class="pill pill-yellow">修改 v1 → v2</span>
-    <span class="risk med" style="float:right">⚠ MEDIUM — Schedule at next boundary</span>
+  <h3>② 主演示 — Source UDP-MULTICAST-001 <span class="pill pill-yellow">v1 → v2 · 真实配置变更</span>
+    <span class="risk high" style="float:right">⚠⚠ HIGH — Requires ChangeSet</span>
   </h3>
-  <div class="pre">Impact Preview — Source UDP-MULTICAST-001
+  <div class="pre">Impact Preview — Source UDP-MULTICAST-001 (改 endpoint.group 239.20.10.10 → 239.20.10.11)
 ═══════════════════════════════════════════════════════════
+WHAT CHANGES                                          | 239.20.10.10 → 239.20.10.11
+────────────────────────────────────────────────────────────────────────────────────
 Field                  | Desired          | Compiled         | Effective (🔒)    | Impact
 ───────────────────────┼──────────────────┼──────────────────┼───────────────────┼────────
-endpoint.group         | 239.20.10.10     | 239.20.10.10     | 239.20.10.10      | 0
+endpoint.group         | 239.20.10.11 ⚠   | 239.20.10.11     | 239.20.10.10      | Source+Channel+Session+Network
 endpoint.source_ip     | 10.30.20.100     | 10.30.20.100     | 10.30.20.100      | 0
 adapter.type           | UDP              | UDP              | UDP               | 0
 contract.video         | H264             | H264             | H264              | 0
-runtime.lock           | —                | —                | LOCKED (🔒)        | 0
-runtime.packet_loss    | —                | —                | 0.003% (🔒)        | 0
-runtime.jitter         | —                | —                | 0.9ms (🔒)         | 0</div>
-  <div class="diag"><b>PIA §6 锁 6:</b> <b>Effective 列用户不能编辑</b> (🔒 read-only); 任何修改只能改 Desired 列, 修改后触发 Recompile → 新 Effective。</div>
+runtime.lock           | —                | —                | LOCKED (🔒)        | —
+runtime.packet_loss    | —                | —                | 0.003% (🔒)        | —
+runtime.jitter         | —                | —                | 0.9ms (🔒)         | —
+───────────────────────┴──────────────────┴──────────────────┴───────────────────┴────────
+WHAT WILL HAPPEN (Runtime Effect)                     | Reconnect · Re-negotiate · Re-verify · Possible failover</div>
+  <div class="diag"><b>PIA §6 锁 6:</b> <b>Effective 列用户不能编辑</b> (🔒 read-only); 任何修改只能改 Desired 列, 修改后触发 Recompile → 新 Effective。Impact Preview 是因为 <b>「我要改变什么」</b>, 不是因为「这个对象目前很重要」— <b>Desired ≠ Effective 才是有效 delta</b> (0.5F F4 修正)。</div>
 
   <h3 style="margin-top:14px">③ 4 维影响 (Channels / Sessions / Variants / Audit) <span class="pill pill-purple" style="float:right">必显示</span></h3>
   <div class="row">
@@ -139,12 +143,25 @@ runtime.jitter         | —                | —                | 0.9ms (🔒) 
     </div>
   </div>
   <div style="margin-top:8px">
-    <span class="risk med">⚠ MEDIUM</span>
-    <span class="muted" style="margin-left:8px">Recommendation: Schedule Apply at next event boundary (2 Channels ON_AIR + 5 Sessions ACTIVE)</span>
+    <span class="risk high">⚠⚠ HIGH</span>
+    <span class="muted" style="margin-left:8px">Recommendation: Requires ChangeSet + schedule at next event boundary (2 Channels ON_AIR + 5 Sessions ACTIVE)</span>
   </div>
+  <div class="panel" style="margin-top:10px;border-color:var(--orange)">
+    <h3>④ Operational Consequence (0.5F F4) — 广播级决策辅助</h3>
+    <table>
+      <tr><th>维度</th><th>值</th><th>含义</th></tr>
+      <tr><td>ON-AIR Impact</td><td><span class="risk high">HIGH</span></td><td>2 Channels ON_AIR 受影响</td></tr>
+      <tr><td>Reservation</td><td>2 sessions</td><td>re-lock required (endpoint 变更)</td></tr>
+      <tr><td>Backup</td><td>REVALIDATE</td><td>备份路径 (E-41) 需重新验证</td></tr>
+      <tr><td>Failover Mode</td><td>FRAME_SWITCH unchanged</td><td>Effective Switch Mode 不变</td></tr>
+      <tr><td>Source Verify</td><td>REQUIRED</td><td>E-42 重新 7 层验证</td></tr>
+      <tr><td>Benchmark</td><td>INVALIDATED</td><td>failover benchmark 需重跑</td></tr>
+    </table>
+  </div>
+  <div class="gap">⛔ 本管线 = <b>Configuration Pipeline</b> (Edit→Desired→Impact→Diff→Preflight→ChangeSet→Approve→Cutover, EXECUTION_MODEL §7)。<b>Runtime Actions (TAKE/FAILOVER/RESTART/RETRY) 绝不进 ChangeSet</b> (0.5F F3)。</div>
   <div style="margin-top:12px;text-align:right">
     <button class="btn">Cancel</button>
-    <button class="btn primary">Continue to ChangeSet (E-33) →</button>
+    <button class="btn primary">Continue to Diff (E-51) → ChangeSet (E-33)</button>
   </div>
 </div>
 
@@ -152,7 +169,7 @@ runtime.jitter         | —                | —                | 0.9ms (🔒) 
 <div class="row">
   <div class="col-6">
     <div class="panel">
-      <h3>④ 实施模式 (3 选 1)</h3>
+      <h3>⑤ 实施模式 (3 选 1)</h3>
       <table>
         <tr><th>模式</th><th>适用</th><th>触发</th></tr>
         <tr><td><b>Modal</b> (全屏覆盖)</td><td>高风险 L3</td><td>任何保存, 必须 Explicit 确认</td></tr>
@@ -164,7 +181,7 @@ runtime.jitter         | —                | —                | 0.9ms (🔒) 
   </div>
   <div class="col-6">
     <div class="panel">
-      <h3>⑤ 风险评级 (4 级 · 算法)</h3>
+      <h3>⑥ 风险评级 (4 级 · 算法)</h3>
       <table>
         <tr><th>等级</th><th>触发条件</th><th>阻断</th></tr>
         <tr><td><span class="risk low">✓ LOW</span></td><td>0 Channels ON_AIR + 0 Sessions</td><td>不阻断</td></tr>

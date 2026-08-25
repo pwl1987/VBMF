@@ -6,7 +6,9 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure
 >
-> **状态:** 🟢 **SEMANTIC LOCKED 0.2** (0.5D.5) — 15 核心对象 · ChangeSet 三层状态 · 4 域映射 · 状态语言统一 (DRAFT/REVIEW/SEMANTIC_LOCKED/UI_LOCKED/IMPLEMENTATION_READY/DEPRECATED)
+> **状态:** 🟢 **SEMANTIC LOCKED 0.2** (0.5D.5 + 0.5F F2) — 15 核心对象 · ChangeSet 三层状态 · 4 域映射 · 状态语言统一 (DRAFT/REVIEW/SEMANTIC_LOCKED/UI_LOCKED/IMPLEMENTATION_READY/DEPRECATED)
+>
+> **对象计数口径 (0.5F F2 焊死):** **15 canonical product objects** = **14 diffable objects** (Configuration Diff 适用, 0.5E Part 2) + **1 revision meta-object**。Revision 是不可变快照, 自身即 diff 基线, 不做对象级 Diff — Diff 目标是 **Revision 对**, 不是对象体。15 与 14 不冲突, 差异仅在此。
 
 ---
 

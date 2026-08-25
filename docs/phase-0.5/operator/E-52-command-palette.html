@@ -158,8 +158,44 @@ commands:
   </div>
 </div>
 
+<!-- Command Context 绑定 (0.5F F5) -->
+<div class="panel" style="border-color:var(--purple)">
+  <h3>⑥ Command Context 绑定 (0.5F F5) — 命令必须携带上下文</h3>
+  <div class="pre"># command_schema 增加 context (0.5F F5)
+context:
+  surface_id: "CD-01-WS"
+  object_type: CHANNEL
+  object_id: CH01
+  channel_id: CH01
+  session_id: s-CH01-ENCODE-001</div>
+  <div class="row">
+    <div class="col-6">
+      <div class="panel" style="margin-bottom:6px">
+        <b>E-40 (Network Source) · Ctrl+K</b>
+        <div class="muted" style="margin-top:4px">→ Verify source<br>→ Open Test Bench (E-42)<br>→ Open Network Path (E-41)<br>→ Assign Primary</div>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="panel" style="margin-bottom:6px">
+        <b>CD-01 (CH01 Take Desk) · Ctrl+K</b>
+        <div class="muted" style="margin-top:4px">→ Take CH01<br>→ Open Audio<br>→ Open Output<br>→ Open Health<br>→ Failover</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:6px;border-color:var(--yellow)">
+    <b>Take CH01 — 上下文动作 (L2 · 跳转确认, 不在 Palette 执行)</b>
+    <div class="pre">Current PGM:    CH01 PGM (Source A)
+PVW:            Source B (READY)
+Effective Mode: FRAME_SWITCH
+Readiness:      READY_TO_TAKE
+Reservation:    RESERVED ✓
+→ [跳转 CD-01 TAKE · B-13 9 项 Preflight 后确认]</div>
+  </div>
+  <div class="gap">⛔ 无上下文的模糊命令 (如裸 "Retry") 不显示 — 命令必须绑定 surface / object / channel / session (0.5F F5), 否则 Command Palette 会成为危险操作的「全局快捷键入口」而非广播控制台。</div>
+</div>
+
 <div class="note" style="margin-top:8px;border-left-color:var(--purple)">
-  🧭 这是 0.5E 跨域能力第 3 张 wireframe (E-52, Command Palette)。对应规范 Part 3 锁 9-14。V0.3 后续: `/` 快捷键 GitHub-style · Hot-reload · 全文+OCR · 跨设备同步 · L4 (Irreversible)。完整链: <b>E-50 Impact Preview → E-51 Configuration Diff → E-52 Command Palette</b> → 0.5E LOCK。Keyboard Shortcuts 全表见 <a href="../DESIGN_SYSTEM.md" style="color:var(--accent)">DESIGN_SYSTEM §8</a>。
+  🧭 这是 0.5E 跨域能力第 3 张 wireframe (E-52, Command Palette)。对应规范 Part 3 锁 9-14 + 0.5F F5 (Command Context)。V0.3 后续: `/` 快捷键 GitHub-style · Hot-reload · 全文+OCR · 跨设备同步 · L4 (Irreversible)。完整链: <b>E-50 Impact Preview → E-51 Configuration Diff → E-52 Command Palette</b> → 0.5E LOCK。Keyboard Shortcuts 全表见 <a href="../DESIGN_SYSTEM.md" style="color:var(--accent)">DESIGN_SYSTEM §8</a>。
 </div>
 
 </body>

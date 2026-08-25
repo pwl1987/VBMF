@@ -655,3 +655,34 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### P.3 0.5E 收口结论
 - 0.5E 三大能力已从 Spec 提升为 **SEMANTIC LOCKED + wireframe 可验收**; 剩余为 **Phase 4 实施** (V0.2/V0.3 边界见规范 Part 4 §4.4)。
 - **Phase 0.5 Freeze 前置三条件**: 0.5C ✅ RECONCILED · 0.5D 🟡 IN PROGRESS (0.5D.1-.6 闭环, 待 0.5D LOCK) · 0.5E 🟢 SEMANTIC LOCKED。待用户确认 0.5D LOCK + 0.5E LOCK 后 → Phase 0.5 LOCK FINAL → Phase 0.6 Executable Acceptance。
+
+---
+
+## Q. 0.5F Final Cross-Domain Reconciliation — 六项收口 (2026-08-25 末 · 用户第 11 轮全链路审查 cffaaca)
+
+> 用户以 `cffaaca` 做"当前版本全链路一致性审查": 0.5E 三大能力方向正确, 但发现 **2 个 P0 (E-50 无 delta 却报 MEDIUM / 配置与运行双管线未分离) + 4 个 P1**。用户明确建议**不再加页面**, 做 `Phase 0.5F — Final Cross-Domain Reconciliation` 六项。
+
+### Q.1 F1 — Surface Registry 唯一计数 (P1-1 修复)
+- README §5 手写计数表 (ENGINEERING 25 / 域合计 51 / TOTAL 52) 删除 → 改为 **`surface_count: source: SURFACE_REGISTRY.yaml`** 引用块 + 派生摘要 (BROADCAST 13/MEDIA 8/ENGINEERING 29/ADMIN 5 = 域合计 55 · +全局 1 = 56)。README 不再手写数字。
+- 计数措辞统一: "4 domains × 55 domain surfaces + 1 global validation = 56 total" (0.5E §3.2.1 / §4.2)。
+
+### Q.2 F2 — Object Vocabulary Closure (P1-3 修复)
+- **15 canonical = 14 diffable + 1 revision meta** 显式焊死 (OBJECT_VOCABULARY 头部 + 0.5E 范围行 + Part 2 注): Revision 是不可变快照, 自身即 diff 基线, Diff 目标是 Revision 对而非对象体。15/14 不冲突。
+
+### Q.3 F3 — Runtime vs Configuration Action Closure (P0-2 修复)
+- EXECUTION_MODEL 新增 **§7 UI 双动作管线**: A. Configuration Pipeline (Edit→Desired→Impact→Diff→Preflight→ChangeSet→Approve→Cutover→Compiled→Effective) · B. Runtime Operation Pipeline (Observe→Readiness→Intent→TAKE/FAILOVER/RESTART/RETRY/OUTPUT RECOVERY→Runtime Event→Audit→Incident)。5 个 Runtime Action 全部 **不进 ChangeSet**。
+- E-50/E-51 按钮语义保留 (配置变更走 ChangeSet), 但加双管线边界注; E-52 L2/L3 Action 一律跳转确认入口。
+
+### Q.4 F4 — E-50/E-51 Operational Consequence + Why + Action 级 (P0-1/P1-4/P1-5 修复)
+- **E-50 P0-1 修复**: 主案例改为**真实 delta** (endpoint.group 239.20.10.10 → 239.20.10.11): Desired≠Effective, Impact = Source+Channel+Session+Network, Risk **HIGH**; 明确 "Impact Preview 是因为我要改变什么, 不是因为对象目前很重要"。加 **Operational Consequence** 表 (ON-AIR Impact/Reservation/Backup/Failover Mode/Source Verify/Benchmark)。
+- **E-51**: 字段分类加 **Action 4 级** (Structure→BLOCK · Semantic→REVALIDATE · Value→WARN · No-op→SAFE); Side-by-side Diff 加 **Why/Reason** 列; Critical 表加 Action 级 (Schema/Identity/Security→BLOCK · Capability/Timebase→REVALIDATE)。
+
+### Q.5 F5 — Command Palette Context Closure (P1-6/P1-7 修复)
+- E-52 加 **Command Context 绑定**: command_schema 增加 `context: surface_id/object_type/object_id/channel_id/session_id`; 展示 E-40 上下文动作 (Verify/Test Bench/Network Path/Assign Primary) 与 CD-01 上下文动作 (Take/Audio/Output/Health/Failover); **Take CH01** 显示 PGM/PVW/Effective Mode/Readiness/Reservation。无上下文的模糊命令 (裸 "Retry") 不显示。
+- 0.5E 规范 Part 3 新增 §3.2.4 Context-Bound Commands。
+
+### Q.6 F6 — Global Component Closure
+- DESIGN_SYSTEM 新增 **§12 Global UX Component Closure**: StatusBadge/HealthDot/RiskBadge/ImpactPanel/DiffViewer/DiffRow/CommandRow/ObjectContext/EffectiveLock/PreflightGate/ReservationSummary/DangerActions 统一语义表, Phase 4 按此实现单一组件库。
+
+### Q.7 结论
+- 0.5F 六项全部落盘; 0.5E 与 0.5D 语义/执行模型反向对账无冲突。**仍不宣布 FINAL** (0.5D LOCK + 0.5E LOCK 待用户确认)。剩余 P2: Command Palette `/` 快捷键 (V0.3) · Impact 5 维 (+Cost) · Diff Graph diff · Player Capability 由 Capability Registry 推导。
