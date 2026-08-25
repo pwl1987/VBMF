@@ -29,6 +29,18 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - 校验：`scripts/check_docs.py` **PASS**（链接可达 + 数字口径一致，SoT 取自 SURFACE_REGISTRY.yaml）。
 - 结论：Phase 0.5 = 真正 LOCK FINAL；Phase 0.6 可正式进入 Executable Acceptance / Reference Implementation。
 
+### Phase 0.6 Preflight Fix（2026-08-25，基于 8fd4d94）
+- **P0-WebRTC**：M-17 ADAPTERS / 客户端计数 / OUTPUT VARIANTS 修正 WebRTC 方向——WHIP = Ingress/Publish（Source/Network），WHEP = Egress/Play（Browser Delivery）。M-17 原 "SRS · WHIP (Browser Delivery/Player Adapter)" 方向错误，改为 "SRS · WHEP (Browser Play/Egress Adapter)"；P-22 Output Profile 与 SURFACE_SPEC 的 WebRTC 输出协议标注为双腿 `VBMF→SRS WHIP publish / SRS→Player WHEP play`（VBMF 侧 publish 用 WHIP 正确，仅澄清播放腿为 WHEP）。
+- **P0-H1-H7**：M-17 局部检查 `HEALTH INVARIANTS (H1-H7)` 改名为 `SESSION READINESS CHECKS`（Source/Node/Clock/Switch/Output Readiness + Freshness + API-UI Consistency），去掉 H1-H7 编号，避免与 Health Tree / Aggregation SoT 的 H1-H7 冲突。
+- **P1-FI-01**：拆为 FI-01A（Primary 故障 + Backup READY → FAILOVER → Backup ACTIVE → HEALTHY）与 FI-01B（Primary 故障 + Backup NOT_READY → FILLER → DEGRADED/SAFE），真正验证 READY_TO_TAKE 而非简单出 Filler。
+- **P1-FI-02**：锁定 `injection_point: Audio Mixer / PIPELINE`；新增 FI 注入点锁定说明，区分 Source embedded_audio（SOURCE）/ Loudness node（PIPELINE）/ Audio Master Join（MASTER）为不同 Failure Domain。
+- **P1-HA**：HA-03 保留（全不可用 → FAILED），HA-04 去重改为 `ACTIVE=DEGRADED, STANDBY=OFFLINE+FAILED → DEGRADED`，避免与 HA-03 重复。
+- **P1-UI**：09-health-tree `--blue` → `--accent`（页面 :root 未定义 `--blue`，ACTIVE role 背景实际不渲染）。
+- **P1-DOC**：README 目录树 operator/=全部当前 HTML Prototype、product/=历史 B 轮保留目录（M-14 已并入 operator）；MILESTONES 标题 "5 个 Milestone" → "Phase 0.5 Milestone History"。
+- **P1-Reference B**：新增多路 Output Variant 故障隔离测试（Program Master HEALTHY + HLS/RTMP HEALTHY + WHEP DEGRADED → Channel DEGRADED/HEALTHY 取决于 Required/Optional）+ Variant failure ≠ Program Master failure 断言。
+- **P1-Profile**：新增 Encoding/Packaging Profile 责任边界写死（Encoding 仅 codec/resolution/bitrate/GOP/rate-control；Packaging 负责 container/segment/manifest/DRM；P-21 Encoding Profile 禁止承担 Packaging 职责）。
+- 校验：`scripts/check_docs.py` **PASS**。结论：Phase 0.5 维持 LOCK FINAL；Phase 0.6 进入 Executable Acceptance 前的关键语义/一致性缺口已闭环。
+
 ### Phase 0.5C — Information Architecture Closure（2026-08-25，DRAFT 0.1 待审）
 - 目录归并：`docs/phase-0.5b/` 并入 `docs/phase-0.5/`（git mv 保留 history；wireframes 拆为 `operator/` 10 张 + `product/` 5 张）
 - 新增 `OBJECT_VOCABULARY.md`（14 对象权威定义）/ `PRODUCT_OBJECT_MODEL.md`（Profile/Bundle/Variant 3 层）/ `NAVIGATION.md` / `MILESTONES.md` + `milestones/` 历史归档

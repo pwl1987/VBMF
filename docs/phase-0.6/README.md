@@ -134,16 +134,21 @@ Audio Mixer / Loudness / Delay ─────┘
 - [ ] Encode = delivery boundary
 - [ ] Audio 三独立 graph 同步
 - [ ] 多路 Output Variant 同步
+- [ ] 多路 Output Variant 故障隔离：Program Master HEALTHY + {HLS HEALTHY, RTMP HEALTHY, **WHEP DEGRADED**} → Channel = **DEGRADED**（WHEP=Required）或 **HEALTHY**（WHEP=Optional）
+- [ ] Variant failure ≠ Program Master failure（Failure Domain = OUTPUT，按 variant 独立判定；Required/Optional 影响 Channel 总判定）
 
 ### 5 Fault Injection 故障注入
 
 | # | 故障 | Failure Domain | 期望恢复 | 期望 Channel Health |
 |---|---|---|---|---|
-| **FI-01** | SDI 冻结 5s | SOURCE 源 | FRAME_SWITCH + Filler | DEGRADED → HEALTHY (after failover) |
-| **FI-02** | 音频静音 8s | PIPELINE 管道 | RESTART audio node | DEGRADED → HEALTHY |
+| **FI-01A** | Primary SDI 冻结 5s + Backup READY | SOURCE 源 | FAILOVER → Backup ACTIVE | HEALTHY (after failover) |
+| **FI-01B** | Primary SDI 冻结 5s + Backup NOT_READY | SOURCE 源 | FAILOVER attempted → FILLER | DEGRADED / SAFE (Filler；非 HEALTHY) |
+| **FI-02** | 音频静音 8s（injection_point: Audio Mixer / PIPELINE）| PIPELINE 管道 | RESTART audio node | DEGRADED → HEALTHY |
 | **FI-03** | Primary FFmpeg 进程崩溃 | PIPELINE 管道 | RESTART + RESUME | DEGRADED → HEALTHY |
 | **FI-04** | Clock Drift +5ms/min | CLOCK 时钟 | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
 | **FI-05** | HLS 切片失败 | OUTPUT 输出 | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
+
+> **FI 注入点锁定（P1）**：每条 FI 必须写明 `injection_point: {node, domain}`，否则 Phase 0.6 实测时两人会做出不同恢复动作。当前已锁定：FI-02 = Audio Mixer / PIPELINE。以下为**不同 Failure Domain**，须各自独立 FI，不得并入 FI-02：Source embedded_audio（SOURCE）、Loudness node（PIPELINE）、Audio Master Join（MASTER）。
 
 **关键禁忌**：
 
@@ -161,7 +166,7 @@ Audio Mixer / Loudness / Delay ─────┘
 | **HA-01** | Primary=OFFLINE+FAILED, Backup=ACTIVE+HEALTHY | **HEALTHY** (Rule 5) |
 | **HA-02** | Primary=OFFLINE+FAILED, Backup=STANDBY+HEALTHY | **DEGRADED** (Rule 4: pending takeover) |
 | **HA-03** | Primary=OFFLINE+FAILED, Backup=OFFLINE+FAILED | **FAILED** (Rule 3: Source RG all unavailable) |
-| **HA-04** | Primary=OFFLINE+FAILED, Backup=OFFLINE+FAILED (no ACTIVE/STANDBY) | **FAILED** (Rule 3) |
+| **HA-04** | ACTIVE=DEGRADED, STANDBY=OFFLINE+FAILED | **DEGRADED** (Rule: ACTIVE DEGRADED + STANDBY(FAILED\|OFFLINE) → DEGRADED；与 HA-03 全不可用区分) |
 | **HA-05** | ACTIVE=UNKNOWN, STANDBY=HEALTHY | **UNKNOWN** (Rule 6 拒收，fall to UNKNOWN) |
 | **HA-06** | ACTIVE=HEALTHY, STANDBY=FAILED | **DEGRADED** (Rule 5: STANDBY+(DEGRADED\|FAILED)) |
 | **HA-07** | ACTIVE=HEALTHY, OFFLINE+FAILED | **HEALTHY** (H5: 系统已吸收) |
@@ -201,6 +206,15 @@ UNKNOWN 未知:     { action: SAFE_DEGRADE,        alert: true }        # Diagno
 - Recovery 夹具：Failover → Filler / FRAME_SWITCH → DEGRADED → HEALTHY(after failover)；Failback 须满足 `min_hold` 后才回切
 
 **TAKE 语义锁定（Acceptance Assertion）**：TAKE = Operator Intent → TakePreflightResult → Switch Command → Media Session Runtime → `active_source_id` 更新；`effective_switch_mode` 由 Decision Tree 决定。**TAKE 不是 Configuration Apply，也不是 ChangeSet Apply。**
+
+### Profile Responsibility Boundary (Acceptance Assertion)
+
+P-20 Profile Center / P-21 Encoding Profile 的责任边界必须锁死，防止 Packaging 职责偷偷渗入 Encoding Profile：
+
+- **Encoding Profile**：仅 `codec / resolution / framerate / bitrate / GOP / rate-control(CRF|CBR|VBR) / 2-pass`。
+- **Packaging Profile**：`container(MP4|TS) / segment(HLS|DASH) / segment-duration / playlist / manifest / DRM`。
+- 两者为**独立 Profile 类型**，共享引用但运行时对象 / 状态机 / 失败恢复 / UI 分离（与 M-14 File Transcode / M-17 Realtime Session 的 Encoding↔Packaging 分离一致）。
+- **禁止**：P-21 Encoding Profile 承担 container / segment / manifest / DRM；DRM 属 Packaging / Distribution 边界。
 
 ## 部署环境
 

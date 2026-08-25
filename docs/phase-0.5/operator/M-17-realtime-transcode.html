@@ -162,9 +162,9 @@
       <div class="arrow">→</div>
       <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">P-21 REALTIME · H.264</div><div class="detail" style="color:var(--green)">GOP 50 · CBR · ENC-v3</div></div>
       <div class="arrow">→</div>
-      <div class="stage active"><div class="ico">📦</div><div class="name">OUTPUT VARIANTS</div><div class="detail">HLS · WebRTC</div><div class="detail" style="color:var(--green)">P-22 派生</div></div>
+      <div class="stage active"><div class="ico">📦</div><div class="name">OUTPUT VARIANTS</div><div class="detail">HLS · WebRTC <span style="color:var(--orange)">(VBMF→SRS 用 WHIP publish；SRS→Player 用 WHEP play)</span></div><div class="detail" style="color:var(--green)">P-22 派生</div></div>
       <div class="arrow">→</div>
-      <div class="stage"><div class="ico">🔌</div><div class="name">ADAPTERS</div><div class="detail">SRS · WHIP <span style="color:var(--orange)">(Browser Delivery/Player Adapter, 非 V0.2 Runtime Output Adapter)</span></div></div>
+      <div class="stage"><div class="ico">🔌</div><div class="name">ADAPTERS</div><div class="detail">SRS · WHEP <span style="color:var(--orange)">(Browser Play/Egress Adapter；WHIP 属 Source/Network Ingress，非 V0.2 Runtime Output Adapter)</span></div></div>
     </div>
   </div>
   <div class="row" style="margin-top:8px">
@@ -216,9 +216,9 @@
         <div class="col-3 metric"><div class="label">Bitrate</div><div class="val green">4.92 Mbps</div><div class="sub">CBR 5.0</div></div>
         <div class="col-3 metric"><div class="label">GOP</div><div class="val green">50</div><div class="sub">closed IDR 2s</div></div>
         <div class="col-3 metric"><div class="label">AV Offset</div><div class="val green">+12 ms</div><div class="sub">&lt;40ms</div></div>
-        <div class="col-3 metric"><div class="label">Clients</div><div class="val blue">1,247 HLS</div><div class="sub">+312 RTMP +89 WHIP</div></div>
+        <div class="col-3 metric"><div class="label">Clients</div><div class="val blue">1,247 HLS</div><div class="sub">+312 RTMP +89 WHEP</div></div>
       </div>
-      <div class="diag">数据: E-38 Hardware + E-36 Resource · FRESH age 1s (0.5B.2 P0-2). H1-H7 全 PASS.</div>
+      <div class="diag">数据: E-38 Hardware + E-36 Resource · FRESH age 1s (0.5B.2 P0-2). Session Readiness + Health Invariants (H1-H7, SoT) 全 PASS.</div>
       <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;font-size:11px">
         <div style="font-size:10px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">异常 → 恢复动作 (监控必须可下钻到操作, 否则只是漂亮监控页)</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
@@ -232,15 +232,15 @@
   </div>
   <div class="col-4">
     <div class="panel">
-      <h3>🩺 HEALTH INVARIANTS (H1-H7)</h3>
+      <h3>🩺 SESSION READINESS CHECKS</h3>
       <div style="font-size:11px;line-height:1.9">
-        <div><span style="color:var(--green)">✓ H1</span> ≥1 ACTIVE Source HEALTHY</div>
-        <div><span style="color:var(--green)">✓ H2</span> All ACTIVE Nodes HEALTHY</div>
-        <div><span style="color:var(--green)">✓ H3</span> PTP LOCKED</div>
-        <div><span style="color:var(--green)">✓ H4</span> READY_TO_TAKE</div>
-        <div><span style="color:var(--green)">✓ H5</span> Output 状态匹配 3-Tier</div>
-        <div><span style="color:var(--green)">✓ H6</span> Freshness FRESH</div>
-        <div><span style="color:var(--green)">✓ H7</span> UI/API 一致性</div>
+        <div><span style="color:var(--green)">✓</span> Source Readiness — ≥1 ACTIVE Source HEALTHY</div>
+        <div><span style="color:var(--green)">✓</span> Node Readiness — All ACTIVE Nodes HEALTHY</div>
+        <div><span style="color:var(--green)">✓</span> Clock Readiness — PTP LOCKED</div>
+        <div><span style="color:var(--green)">✓</span> Switch Readiness — READY_TO_TAKE</div>
+        <div><span style="color:var(--green)">✓</span> Output Readiness — Output 状态匹配 3-Tier</div>
+        <div><span style="color:var(--green)">✓</span> Freshness — FRESH</div>
+        <div><span style="color:var(--green)">✓</span> API/UI Consistency — UI/API 一致性</div>
       </div>
     </div>
     <div class="panel">

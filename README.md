@@ -89,8 +89,8 @@ docs/
 │   ├── ERRATA.md                       ← Phase 0.5A 变更归档（20 项 UI 语义修复）
 │   ├── INDEX.md
 │   ├── milestones/                     (5 历史 milestone 文档)
-│   ├── operator/                       (9 Core + 1 Validation HTML · 中英双语 · Dark Mode 24/7)
-│   ├── product/                        (5 P0 wireframes: M-11 / M-12 / M-14 / P-21 / P-22 · 0.5D 加 M-17/M-18/P-20/P-28/E-38)
+│   ├── operator/                       (全部当前 HTML Prototype / Surface · 中英双语 · Dark Mode 24/7 · 含 0.5A 9 Core+1 Validation 与 0.5D/0.5F 页面)
+│   ├── product/                        (历史 B 轮 Product Wireframe 保留目录 · M-11 / M-12 / P-21 / P-22 · M-14 已并入 operator)
 │   └── chains/                         (4 链：On-Air / Failure / Playout / Engineering)
 ├── phase-0.6/                          ← Executable Acceptance Specification 计划 (前置: Phase 0.5 LOCK FINAL)
 │   └── README.md

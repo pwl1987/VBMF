@@ -554,7 +554,7 @@ Codec → Encoder → Capability → Resource Estimate
 |---|---|---|---|
 | **HLS** (SRS) | SRS endpoint | Stream path | HTTP/HTTPS |
 | **RTMP** (SRS) | SRS endpoint | Stream key | TCP |
-| **WebRTC** (SRS) | SRS WHIP endpoint | Stream path | UDP/QUIC |
+| **WebRTC** (SRS) | SRS WHIP endpoint (VBMF→SRS publish / SRS→Player WHEP play) | Stream path | UDP/QUIC |
 | **SRT** | Host:Port | Stream ID | UDP |
 | **UDP MPEG-TS** | Host:Port | Multicast group | UDP |
 | **RTP** (RTP over UDP) | Host:Port | SSRC / Stream ID | UDP |
@@ -596,7 +596,7 @@ Codec → Encoder → Capability → Resource Estimate
 
 #### WebRTC Specific
 - ICE Servers (STUN / TURN)
-- Signaling URL (SRS WHIP API)
+- Signaling URL (SRS: WHIP publish API for VBMF→SRS / WHEP play API for SRS→Player)
 - DTLS / SRTP enabled
 - Bitrate cap
 
@@ -2455,7 +2455,7 @@ V0.2 完整 3-Tier:
 |---|---|---|
 | HLS | ● Available | ✓ |
 | RTMP | ● Available | ✓ |
-| WebRTC | ● Available | ✓ (SRS WHIP) |
+| WebRTC | ● Available | ✓ (SRS: VBMF→SRS WHIP publish / SRS→Player WHEP play) |
 | SRT | ● Available | ✓ |
 | UDP MPEG-TS | ● Available | ✓ |
 | RTP | ● Available | ✓ (RTP over UDP · 0.5B.2 P0-6 加入, 与 RTPAdapter 对齐) |

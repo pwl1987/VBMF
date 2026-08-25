@@ -72,7 +72,7 @@ docs/
 │       └── chain-4-engineering.md
 ```
 
-## 2. 5 个 Milestone (历史阶段)
+## 2. Phase 0.5 Milestone History
 
 | Milestone | 时间 | 状态 | 交付物 | Git commit |
 |---|---|---|---|---|
