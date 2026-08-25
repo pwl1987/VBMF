@@ -3463,19 +3463,30 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 | **E-42 Source Test Bench Spec** | ENGINEERING | Spec 锁 | Source 入网验证台 7 层（Network/Transport/Container/Video/Audio/Clock/QC）; 挂接 02-sources / E-40 |
 | **B-13 Take Preflight Spec** | BROADCAST | Spec 锁 | CD-01 TAKE 前置联合检查 9 项（Source/Video/Audio/Clock/Switcher/Backup/Master/Output/Latency）; 挂接 CD-01 |
 
-### 29.9.4 0.5F 计数表 (PIA Batch 1+2+3+4)
+### 29.9.5 Batch 5 (0.5D 原型, 验收链 D1-D6)
+
+| 表面 | 域 | 类型 | 关键交付 |
+|---|---|---|---|
+| **CH-02 Create Channel Wizard** | BROADCAST | 新增 (D1) | 6 步向导: 模板→源(SDI主+UDP-MC备+E-42验证)→编码(7 Profile)→输出(分级)→资源预览→B-13预检; 生成 ChangeSet 落 Channel/Source/Bundle |
+| **CH-02B Channel Template Center** | BROADCAST | 新增 (D2) | 模板工厂 (Template≠Bundle, 不进运行态); 实例化出 Profile Bundle(7 Profile 引用)+Channel(DRAFT); 覆盖 TV/Radio/Virtual; 文件 operator/CH-02b-channel-template-center.html |
+| *D3 CD-01 v2* | BROADCAST | 待建 | Channel Workspace 升级 |
+| *D4 M-17 Realtime Encode v2* | MEDIA | 待建 | Realtime Encode 升级 |
+| *D5 E-40/E-42 Source Wizard+Test Bench* | ENGINEERING | 待建 | 源向导+7层验证台 |
+| *D6 B-13 Take Preflight v2* | BROADCAST | 待建 | TAKE 前置联合预检 wireframe |
+
+### 29.9.4 0.5F 计数表 (PIA Batch 1+2+3+4 · 历史 as-of, 权威计数见 NAVIGATION §2.5)
 
 | 域 | 0.5D 已锁定 | 0.5F 新增 | 0.5F 域内合计 |
 |---|---|---|---|
-| BROADCAST | 9 (01-07 Core + CD-01 + M-17) | +3 (**CH-01** + **CD-01 Channel Workspace** + **CD-01 Detail 升 wireframe**) | 12 |
+| BROADCAST | 9 (01-07 Core + CD-01 + M-17) | +3 (**CH-01** + **CD-01 Channel Workspace** + **CD-01 Detail 升 wireframe**) +1 (**CH-02** 0.5D) | 13 |
 | MEDIA | 8 (M-11~18) | 0 | 8 |
 | ENGINEERING | 22 (E-31~38 + O-41~45 + P-20~28) | +1 (**E-40 Network Source**); E-41 Spec 锁 (不计为表面) | 23 |
 | ADMIN | 5 (A-51~55) | 0 | 5 |
 | 全局 | 1 (10-states Validation, 不属任何域) | 0 | 1 |
-| **TOTAL wireframe** | **44** | **+4** | **48** |
+| **TOTAL wireframe (历史 48; 当前权威 53, 见 NAVIGATION §2.5)** | 44 | +4 | 48 |
 | E-41 Network Path (Spec only) | - | +1 (0.5G 实施后 +1) | 1 Spec |
 
-> **0.5F 后 Phase 0.5 UI 表面 = 48 个 wireframe 完成** (44 + CH-01 + CD-01 WS + CD-01 Detail 升 wireframe + E-40)
+> **0.5F 后 Phase 0.5 UI 表面以 NAVIGATION.md §2.5 为权威计数（52 wireframe + 1 spec）**; 本处 44 / 48 为历史 as-of 计数, 废止（统一见 NAVIGATION §2.5）
 > 02-sources.html 重画不计为新增。
 > E-41 Network Path 仅 Spec 锁, 0.5G 实施后总计 49。
 > [变更登记] 0.5F 后新增 3 份 Spec（ENCODE_MODEL_SPEC / E-42 / B-13），均为 Spec-only；其中 E-42 / B-13 为表面，0.5G 实施 wireframe 后计数 +2；ENCODE_MODEL_SPEC 为模型文档，不计入表面计数。

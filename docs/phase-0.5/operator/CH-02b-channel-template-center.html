@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CH-02B · Channel Template Center 模板工厂 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--purple);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-purple{background:rgba(163,113,247,.15);color:var(--purple);border:1px solid var(--purple)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .bundle-slot{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;position:relative;min-height:90px}
+  .bundle-slot.required{border-left:3px solid var(--accent)}
+  .bundle-slot.optional{border-left:3px solid var(--gray)}
+  .bundle-slot .slot-name{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fgdim);margin-bottom:4px}
+  .bundle-slot .profile-name{font-size:13px;font-weight:600;color:var(--fg);margin-bottom:4px}
+  .bundle-slot .profile-meta{font-size:10px;color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  details{margin-bottom:8px}
+  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:20px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.purple{color:var(--purple)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .diag.gap{background:rgba(219,109,40,.06);border-left:2px solid var(--orange)}
+  .diag.gap b{color:var(--orange)}
+  .hint{background:rgba(163,113,247,.06);border-left:2px solid var(--purple);padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--fgdim)}
+  .hint b{color:var(--purple)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+  /* D2-specific */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
+  .tmpl-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;cursor:pointer;border-top:3px solid var(--gray)}
+  .tmpl-card:hover{background:var(--bg4)}
+  .tmpl-card.sel{outline:2px solid var(--accent);background:rgba(88,166,255,.08)}
+  .tmpl-card.tv{border-top-color:var(--blue)}
+  .tmpl-card.radio{border-top-color:var(--green)}
+  .tmpl-card.virtual{border-top-color:var(--purple)}
+  .tmpl-card .tname{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .tmpl-card .tmeta{font-size:10px;color:var(--fgdim);font-family:Menlo,Consolas,monospace;margin:4px 0}
+  .prof-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+  .prof-chip{font-size:9px;font-family:Menlo,Consolas,monospace;padding:1px 6px;border-radius:8px;background:var(--bg2);border:1px solid var(--border);color:var(--fgdim)}
+  .prof-chip b{color:var(--fg)}
+  .tmpl-card .tactions{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+  .out-row{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;font-size:11px;margin-bottom:4px;font-family:Menlo,Consolas,monospace}
+  .out-row .proto{color:var(--accent);font-weight:600;min-width:62px}
+  .out-row .crit{margin-left:auto;font-size:9px;padding:1px 6px;border-radius:8px;text-transform:uppercase}
+  .crit.required{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .crit.optional{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .crit.aux{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .create-form label{display:block;font-size:11px;color:var(--fgdim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:.5px}
+  .create-form input,.create-form select,.create-form textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:6px 8px;border-radius:3px;font-size:12px;font-family:Menlo,Consolas,monospace}
+  .create-form .c2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .create-form .chks{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .create-form .chks label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fg);text-transform:none;letter-spacing:0;font-family:Menlo,Consolas,monospace}
+  .hier{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;margin-top:6px}
+  .hier .node{padding:3px 9px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);font-family:Menlo,Consolas,monospace}
+  .hier .node.t{color:var(--purple);border-color:var(--purple)}
+  .hier .node.b{color:var(--accent)}
+  .hier .node.p{color:var(--green)}
+  .hier .node.v{color:var(--yellow)}
+  .hier .arrow{color:var(--fgdim)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CH-02-create-channel.html">CH-02 Create Channel</a> › <b>Channel Template Center</b></div>
+  <h1><span class="cn">CH-02B · 频道模板工厂</span> <span class="en">CHANNEL TEMPLATE CENTER (不进运行态 · 一键带出 6/7 Profile Bundle · Template≠Bundle≠Profile≠Variant)</span></h1>
+</div>
+
+<div class="hint">
+  <b>核心定位:</b> Channel Template 是<b>创建工厂</b>, 本身<b>不进入运行态</b>。在 <a href="CH-02-create-channel.html" style="color:var(--accent)">CH-02 新建频道</a> Step 1 选一个模板 → 实例化出 1 个 <b>Profile Bundle</b> (7 Profile 引用) + 1 个 <b>Channel (DRAFT)</b>。对模板的修改<b>不会回灌</b>已实例化的 Bundle / Channel (immutable)。
+  <div class="hier">
+    <span class="node t">Channel Template (工厂)</span><span class="arrow">──实例化──▶</span>
+    <span class="node b">Profile Bundle (7 Profile 引用)</span><span class="arrow">+</span>
+    <span class="node">Channel DRAFT</span><span class="arrow">·</span>
+    <span class="node p">Profile (可复用策略)</span><span class="arrow">→</span>
+    <span class="node v">Output Variant (交付实例)</span>
+  </div>
+</div>
+
+<!-- 指标 -->
+<div class="row" style="margin-bottom:12px">
+  <div class="col-3"><div class="metric"><div class="label">模板总数 Templates</div><div class="val purple" id="mTotal">–</div><div class="sub" id="mTypes">–</div></div></div>
+  <div class="col-3"><div class="metric"><div class="label">覆盖频道类型</div><div class="val" id="mCovered">–</div><div class="sub">TV / Radio / Virtual</div></div></div>
+  <div class="col-3"><div class="metric"><div class="label">累计实例化 Used By</div><div class="val green" id="mUsed">–</div><div class="sub">成功带出的 Channel 数</div></div></div>
+  <div class="col-3"><div class="metric"><div class="label">DRAFT 模板</div><div class="val yellow" id="mDraft">–</div><div class="sub">待完善 / 未发布</div></div></div>
+</div>
+
+<!-- 模板注册表 -->
+<div class="panel">
+  <h3><span class="cn">模板注册表</span> / TEMPLATE REGISTRY
+    <span class="pill pill-purple" style="margin-left:auto">Template = Blueprint (no runtime)</span>
+  </h3>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- 选中模板详情 -->
+<div class="panel" id="detail">
+  <h3><span class="cn">模板详情</span> / TEMPLATE DEFAULTS
+    <span class="pill pill-blue" id="dStatus" style="margin-left:auto">–</span>
+  </h3>
+  <div class="row" id="dProfiles"></div>
+  <div class="row" style="margin-top:10px">
+    <div class="col-4">
+      <div class="box-title" style="font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">默认源 / Default Source</div>
+      <table>
+        <tbody>
+          <tr><td class="k">主源 Primary</td><td class="v" id="dSrcP">–</td></tr>
+          <tr><td class="k">备源 Backup</td><td class="v" id="dSrcB">–</td></tr>
+          <tr><td class="k">频道类型</td><td class="v" id="dType">–</td></tr>
+          <tr><td class="k">切换模式</td><td class="v" id="dSwitch">–</td></tr>
+        </tbody>
+      </table>
+      <div class="diag gap" style="margin-top:8px"><b>设计缺口 G2:</b> Source 内联创建 (现场建 Source) 在 P-21/P-23 待定; 模板默认源当前仅引用已有 Source 种类, 待补内联创建能力.</div>
+    </div>
+    <div class="col-8">
+      <div class="box-title" style="font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">默认输出 / Default Output Variants (实例化后出现在 CH-02 Step 5)</div>
+      <div id="dOutputs"></div>
+      <div class="diag gap" style="margin-top:8px"><b>设计缺口 G3:</b> 06-output 基带输出 (SDI) 待补 — 模板默认输出当前仅<b>网络型</b> (HLS/RTMP/SRT/UDP-MC/WebRTC/Icecast/DAB+), 基带 SDI 待 06-output 升稿后接入.<br><b>设计缺口 G4:</b> Output Resilience 待补 — 模板默认输出的韧性 (主备 / 多 CDN / failover 策略) 在 06-output 升稿后接入.</div>
+    </div>
+  </div>
+  <div class="diag" style="margin-top:10px">
+    <b>不可变原则:</b> 模板一旦被实例化, 对模板后续 Rev 的修改<b>不回灌</b>已实例化的 Bundle / Channel。升级走 ChangeSet (E-33) → Impact Preview → Logical Atomic Apply。模板删除须检查 Used By (D3 CD-01 反向追溯)。
+  </div>
+</div>
+
+<!-- 创建模板 -->
+<div class="panel">
+  <h3><span class="cn">从零创建频道模板</span> / CREATE CHANNEL TEMPLATE (DRAFT)
+    <span class="pill pill-orange" style="margin-left:auto">工厂产出 · 不进运行态</span>
+  </h3>
+  <div class="row">
+    <div class="col-6">
+      <div class="create-form">
+        <label>模板名称 Name</label>
+        <input id="cName" placeholder="e.g. CH09-Election-Special">
+        <div class="c2">
+          <div><label>频道类型 Type</label><select id="cType"><option>TV_LIVE</option><option>RADIO_LIVE</option><option>VIRTUAL_PLAYOUT</option></select></div>
+          <div><label>默认切换模式 Switch</label><select id="cSwitch"><option>AUTO</option><option>MANUAL</option><option>N/A (Virtual)</option></select></div>
+        </div>
+        <div class="c2">
+          <div><label>默认主源 Primary</label><select id="cSrcP"><option>VIDEO_SOURCE</option><option>EXTERNAL_NETWORK</option><option>LOCAL_ASSET</option><option>PLAYLIST (节目单)</option></select></div>
+          <div><label>默认备源 Backup</label><select id="cSrcB"><option>VIDEO_SOURCE</option><option>EXTERNAL_NETWORK</option><option>LOCAL_ASSET</option><option>PLAYLIST (节目单)</option></select></div>
+        </div>
+        <label>备注 Notes</label>
+        <textarea id="cNote" rows="2" placeholder="模板用途说明 (可选)"></textarea>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="create-form">
+        <label>默认 7 Profile 引用 (实例化进 Bundle)</label>
+        <div id="profSelects"></div>
+        <label>默认输出 Variants (网络型)</label>
+        <div class="chks" id="cOuts">
+          <label><input type="checkbox" value="HLS" checked> HLS</label>
+          <label><input type="checkbox" value="RTMP" checked> RTMP</label>
+          <label><input type="checkbox" value="SRT"> SRT</label>
+          <label><input type="checkbox" value="UDP-MC"> UDP-MC</label>
+          <label><input type="checkbox" value="WebRTC"> WebRTC</label>
+          <label><input type="checkbox" value="Icecast"> Icecast</label>
+          <label><input type="checkbox" value="DAB+"> DAB+</label>
+          <label><input type="checkbox" value="SDI"> SDI (G3 待补)</label>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn primary" onclick="createTmpl()">＋ 创建模板 (L1 → DRAFT)</button>
+          <button class="btn" onclick="resetForm()">清空</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 6 状态样例 -->
+<details>
+  <summary>▸ 6 状态样例 (CH-02B Channel Template Center) — 完整 Spec 收口</summary>
+  <div class="panel" style="margin-top:8px">
+    <table>
+      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
+      <tbody>
+        <tr><td><b>● NORMAL</b></td><td>模板注册表非空 + 至少一个 ACTIVE 模板被引用</td><td>指标全绿 + 模板卡带 7 Profile 引用 chip + 详情可读</td></tr>
+        <tr><td><b>◌ LOADING</b></td><td>模板列表异步加载</td><td>卡 skeleton + spinner</td></tr>
+        <tr><td><b>○ EMPTY</b></td><td>0 模板 (新部署)</td><td>中央引导 "从零创建第一个频道模板" + 主按钮</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>某模板默认引用的 Profile 被 DEPRECATED</td><td>黄色 Banner + 该 Profile chip 标黄 + 建议升 Rev</td></tr>
+        <tr><td><b>✗ ERROR</b></td><td>模板引用的 Profile 不存在 / 校验失败</td><td>红色 Banner + 引用标红 + 选备用 Profile (L2)</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>模板被删除但仍有 Used By Channel 在运行</td><td>顶部红条 + 阻断删除 + 通知 Admin + 显示 Used By 列表</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<!-- Actions -->
+<div class="panel" style="display:flex;gap:6px;flex-wrap:wrap">
+  <a class="btn primary" href="CH-02-create-channel.html">➕ Use in New Channel (→ CH-02 Step 1)</a>
+  <button class="btn" onclick="exportTmpl()">📤 Export Template JSON</button>
+  <button class="btn l2">⏸ Mark DEPRECATED (L2)</button>
+  <button class="btn l3">Delete Template (L3 · 检查 Used By)</button>
+</div>
+
+<footer>
+  VBMF Operator Console · CH-02B Channel Template Center · BROADCAST 域 · Phase 0.5D 验收链 D2 · 设计稿 v0.1
+  · 关联: <a href="CH-02-create-channel.html" style="color:var(--accent)">CH-02 (D1)</a> / P-28 Profile Bundle / P-20..P-27 Profiles / CD-01 (D3)
+  · 对象: Channel Template (工厂, 不进运行态) → 实例化 Profile Bundle (7 Profile 引用) + Channel
+  · <b>验收链:</b> D1 创建 (CH-02) → <b>D2 模板工厂 (本页)</b> → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2
+</footer>
+
+<script>
+// ---------- 数据 ----------
+var P = {
+  ec:[['H264-LIVE-1080P25-5M','v3'],['H264-LIVE-720P30-3M','v2'],['HEVC-LIVE-1080P25-8M','v1']],
+  ac:[['NEWS-STEREO-R128','v1'],['SPORTS-SURROUND','v1'],['RADIO-MONO-OPUS','v1']],
+  oc:[['HLS-LIVE-MAIN','v2'],['HLS-LL-LOW','v1'],['RTMP-PUSH','v3'],['ICECAST-AAC','v1']],
+  qc:[['NEWS-QC','v1'],['SPORTS-QC','v1'],['BASIC-QC','v1']],
+  rg:[['NEWS-DOMESTIC','v4'],['SPORTS-DOMESTIC','v3'],['RADIO-LICENSE','v2']],
+  eg:[['LIVE-DEFAULT','v2'],['LOW_LATENCY_EDGE','v1']],
+  gc:[['NEWS-GFX','v1'],['SPORTS-GFX','v1'],['NONE','v0']]
+};
+var PLABEL={ec:'Encoding P-21',ac:'Audio P-23',oc:'Output P-22',qc:'QC P-25',rg:'Rights P-26',eg:'Edge P-27',gc:'Graphic P-24'};
+var templates=[
+  {id:'tpl-news',name:'CH01-News-Live',type:'TV_LIVE',rev:'v3',status:'ACTIVE',usedBy:12,
+    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'NEWS-STEREO-R128 v1',oc:'HLS-LIVE-MAIN v2',qc:'NEWS-QC v1',rg:'NEWS-DOMESTIC v4',eg:'LIVE-DEFAULT v2',gc:'NEWS-GFX v1'},
+    srcP:'VIDEO_SOURCE (CAM-A)',srcB:'VIDEO_SOURCE (CAM-B)',switchMode:'AUTO',
+    outs:[{proto:'HLS',crit:'required'},{proto:'RTMP',crit:'optional'},{proto:'UDP-MC',crit:'optional'},{proto:'WebRTC',crit:'aux'}],
+    note:'新闻直播标准蓝图, 实例化 12 个频道'},
+  {id:'tpl-sports',name:'CH02-Sports-Live',type:'TV_LIVE',rev:'v2',status:'ACTIVE',usedBy:8,
+    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'SPORTS-SURROUND v1',oc:'HLS-LL-LOW v1',qc:'SPORTS-QC v1',rg:'SPORTS-DOMESTIC v3',eg:'LOW_LATENCY_EDGE v1',gc:'SPORTS-GFX v1'},
+    srcP:'VIDEO_SOURCE (CAM-MAIN)',srcB:'VIDEO_SOURCE (CAM-2)',switchMode:'AUTO',
+    outs:[{proto:'HLS',crit:'required'},{proto:'RTMP',crit:'optional'},{proto:'SRT',crit:'optional'}],
+    note:'体育低延迟蓝图'},
+  {id:'tpl-radio',name:'CH05-Radio-News',type:'RADIO_LIVE',rev:'v1',status:'ACTIVE',usedBy:5,
+    p:{ec:'RADIO-MONO-OPUS v1',ac:'RADIO-MONO-OPUS v1',oc:'ICECAST-AAC v1',qc:'BASIC-QC v1',rg:'RADIO-LICENSE v2',eg:'LIVE-DEFAULT v2',gc:'NONE v0'},
+    srcP:'EXTERNAL_NETWORK (Studio-IP)',srcB:'LOCAL_ASSET (Backup File)',switchMode:'AUTO',
+    outs:[{proto:'RTMP',crit:'required'},{proto:'SRT',crit:'optional'},{proto:'UDP',crit:'optional'},{proto:'Icecast',crit:'optional'}],
+    note:'广播新闻音频蓝图, 仅音频无视频'},
+  {id:'tpl-vt',name:'VT-Playout-Default',type:'VIRTUAL_PLAYOUT',rev:'v1',status:'DRAFT',usedBy:0,
+    p:{ec:'H264-LIVE-1080P25-5M v3',ac:'NEWS-STEREO-R128 v1',oc:'HLS-LIVE-MAIN v2',qc:'NEWS-QC v1',rg:'NEWS-DOMESTIC v4',eg:'LIVE-DEFAULT v2',gc:'NONE v0'},
+    srcP:'PLAYLIST (节目单)',srcB:'PLAYLIST (节目单)',switchMode:'N/A',
+    outs:[{proto:'HLS',crit:'required'},{proto:'RTMP',crit:'optional'}],
+    note:'虚拟编排播出蓝图 — 信号源=节目单, 无独立信号源步 (见 D1)'}
+];
+var selId=null;
+
+// ---------- 渲染 ----------
+function chip(k,v){return '<span class="prof-chip">'+k+'·<b>'+v+'</b></span>';}
+function statusPill(s){var m={ACTIVE:['pill-green','● ACTIVE'],DRAFT:['pill-yellow','⚠ DRAFT'],DEPRECATED:['pill-gray','○ DEPRECATED']};var x=m[s]||m.DRAFT;return '<span class="pill '+x[0]+'">'+x[1]+'</span>';}
+function typeClass(t){return t==='TV_LIVE'?'tv':(t==='RADIO_LIVE'?'radio':'virtual');}
+function typeIcon(t){return t==='TV_LIVE'?'📺':(t==='RADIO_LIVE'?'📻':'🎞');}
+
+function renderGrid(){
+  var g=document.getElementById('grid');g.innerHTML='';
+  templates.forEach(function(t){
+    var div=document.createElement('div');
+    div.className='tmpl-card '+typeClass(t.type)+(t.id===selId?' sel':'');
+    var chips='';Object.keys(t.p).forEach(function(k){chips+=chip(k,t.p[k].split(' ')[0]);});
+    div.innerHTML='<div class="tname">'+typeIcon(t.type)+' '+t.name+' '+statusPill(t.status)+'</div>'+
+      '<div class="tmeta">'+t.type+' · '+t.rev+' · Used By '+t.usedBy+' · 切换 '+t.switchMode+'</div>'+
+      '<div class="prof-chips">'+chips+'</div>'+
+      '<div class="tactions"><a class="btn primary" href="CH-02-create-channel.html">Use →</a>'+
+      '<button class="btn" onclick="event.stopPropagation();cloneTmpl(\''+t.id+'\')">Clone</button>'+
+      '<button class="btn l2" onclick="event.stopPropagation();deprecateTmpl(\''+t.id+'\')">Deprecate</button></div>';
+    div.onclick=function(){selId=t.id;renderGrid();renderDetail();};
+    g.appendChild(div);
+  });
+}
+function renderDetail(){
+  var t=templates.filter(function(x){return x.id===selId;})[0];if(!t)return;
+  document.getElementById('dStatus').outerHTML='<span class="pill pill-blue" id="dStatus" style="margin-left:auto">'+t.name+' · '+t.rev+'</span>';
+  var pc=document.getElementById('dProfiles');pc.innerHTML='';
+  Object.keys(t.p).forEach(function(k){
+    var d=document.createElement('div');d.className='col-4';
+    d.innerHTML='<div class="bundle-slot required"><div class="slot-name">'+PLABEL[k]+' (DEFAULT)</div>'+
+      '<div class="profile-name">'+t.p[k]+'</div>'+
+      '<div class="profile-meta">实例化进 Bundle (P-28) · 引用不复制</div></div>';
+    pc.appendChild(d);
+  });
+  document.getElementById('dSrcP').textContent=t.srcP;
+  document.getElementById('dSrcB').textContent=t.srcB;
+  document.getElementById('dType').textContent=t.type;
+  document.getElementById('dSwitch').textContent=t.switchMode;
+  var o=document.getElementById('dOutputs');o.innerHTML='';
+  t.outs.forEach(function(x){
+    o.innerHTML+='<div class="out-row"><span class="proto">'+x.proto+'</span><span>'+x.proto.toLowerCase()+'://'+(t.type==='RADIO_LIVE'?'audio':'stream')+'</span><span class="crit '+x.crit+'">'+x.crit+'</span></div>';
+  });
+}
+function renderMetrics(){
+  document.getElementById('mTotal').textContent=templates.length;
+  var cov={};templates.forEach(function(t){cov[t.type]=1;});
+  document.getElementById('mTypes').textContent=Object.keys(cov).length+' 类覆盖';
+  var used=templates.reduce(function(a,t){return a+t.usedBy;},0);
+  document.getElementById('mUsed').textContent=used;
+  var dr=templates.filter(function(t){return t.status==='DRAFT';}).length;
+  document.getElementById('mDraft').textContent=dr;
+}
+
+// ---------- 创建 / 操作 ----------
+function buildProfSelects(){
+  var c=document.getElementById('profSelects');c.innerHTML='';
+  Object.keys(P).forEach(function(k){
+    var s='<select id="pf_'+k+'"><option value="">— '+PLABEL[k]+' —</option>';
+    P[k].forEach(function(o){s+='<option value="'+o[0]+' '+o[1]+'">'+o[0]+' '+o[1]+'</option>';});
+    s+='</select><div style="height:4px"></div>';
+    c.innerHTML+=s;
+  });
+}
+function createTmpl(){
+  var name=document.getElementById('cName').value.trim();
+  if(!name){alert('请填写模板名称');return;}
+  var type=document.getElementById('cType').value;
+  var p={};
+  Object.keys(P).forEach(function(k){
+    var v=document.getElementById('pf_'+k).value;
+    p[k]=v||(P[k][0][0]+' '+P[k][0][1]);
+  });
+  var outs=[];document.querySelectorAll('#cOuts input:checked').forEach(function(c){
+    var proto=c.value;var crit=(proto==='HLS'||proto==='RTMP')?'required':'optional';
+    outs.push({proto:proto,crit:crit});
+  });
+  var t={id:'tpl-'+Date.now(),name:name,type:type,rev:'v1',status:'DRAFT',usedBy:0,
+    p:p,srcP:document.getElementById('cSrcP').value,srcB:document.getElementById('cSrcB').value,
+    switchMode:document.getElementById('cSwitch').value,outs:outs,note:document.getElementById('cNote').value||'(无备注)'};
+  templates.unshift(t);selId=t.id;renderGrid();renderDetail();renderMetrics();
+}
+function resetForm(){document.getElementById('cName').value='';document.getElementById('cNote').value='';}
+function cloneTmpl(id){var t=templates.filter(function(x){return x.id===id;})[0];if(!t)return;
+  var c=JSON.parse(JSON.stringify(t));c.id='tpl-'+Date.now();c.name=t.name+'-COPY';c.status='DRAFT';c.usedBy=0;c.rev='v1';
+  templates.unshift(c);selId=c.id;renderGrid();renderDetail();renderMetrics();}
+function deprecateTmpl(id){var t=templates.filter(function(x){return x.id===id;})[0];if(!t)return;
+  t.status='DEPRECATED';renderGrid();renderDetail();}
+function exportTmpl(){var t=templates.filter(function(x){return x.id===selId;})[0];if(!t)return;
+  var j={channel_template:t,model_note:'Template≠Bundle≠Profile≠Variant; 不进运行态; 实例化出 Profile Bundle + Channel(DRAFT)',criticality_legend:{required:'FAIL 阻断 ON AIR',optional:'降质',aux:'旁路'}};
+  console.log(JSON.stringify(j,null,2));alert('已打印 Template JSON 到 Console (F12).');}
+
+// ---------- 初始化 ----------
+buildProfSelects();selId=templates[0].id;renderGrid();renderDetail();renderMetrics();
+
+// ---------- 字号切换 (精致/标准) ----------
+(function(){var k='vt-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+</script>
+</body>
+</html>

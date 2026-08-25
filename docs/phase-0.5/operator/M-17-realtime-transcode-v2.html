@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>M-17 v2 · Realtime Encode (Profile Bundle 反射) — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600;color:var(--fg)}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel h3 .pill{float:right}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:22px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.blue{color:var(--accent)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .pipeline{display:flex;align-items:stretch;gap:6px;margin:8px 0;padding:8px;background:var(--bg3);border-radius:3px}
+  .pipeline .stage{flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;text-align:center}
+  .pipeline .stage .ico{font-size:14px;margin-bottom:4px}
+  .pipeline .stage .name{font-size:11px;font-weight:600;color:var(--fg)}
+  .pipeline .stage .detail{font-size:10px;color:var(--fgdim);margin-top:2px;font-family:Menlo,Consolas,monospace}
+  .pipeline .stage.active{border-color:var(--accent);background:rgba(88,166,255,.05)}
+  .pipeline .arrow{display:flex;align-items:center;color:var(--fgdim);font-size:16px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{border-color:var(--accent)}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green)}.dot.blue{background:var(--accent)}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  /* Provenance / Profile Bundle (v2 新增) */
+  .provenance{background:linear-gradient(135deg,#1a1320 0%,#161b22 100%);border:1px solid var(--purple)}
+  .provenance h3{color:var(--purple)}
+  .pbundle{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+  .pchip{font-size:11px;padding:5px 10px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+  .pchip.on{background:rgba(63,185,80,.18);border-color:var(--green);color:var(--green);font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="M-17-realtime-transcode.html">M-17 Realtime Encode</a> › <b>v2 (Profile Bundle 反射)</b></div>
+    <h1><span>⚙️ M-17 v2 · 实时编码</span> <span class="en">REALTIME ENCODE · Profile Bundle 反射</span></h1>
+  </div>
+  <div style="margin-left:auto;text-align:right">
+    <span class="pill pill-green">0.5D 原型 · D4</span><br>
+    <span class="pill pill-blue" style="margin-top:4px">验收链 Step 4/6</span><br>
+    <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>RUNNING · READY_TO_TAKE · HEALTHY</span>
+  </div>
+</div>
+
+<!-- PROVENANCE: 本 RT Encoder Session 属于 Channel CH01 (源自模板→Bundle), Realtime Profile P-22 激活 -->
+<div class="panel provenance">
+  <h3>⛓ 实例来源 Provenance (Channel → Bundle → Realtime Profile)</h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="k">所属 Channel (运行态)</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace-v2.html" class="btn">CH01</a> <span class="pill pill-green">ON-AIR</span></div>
+      <div class="diag">CH01 由 Template <b>CH01-News-Live</b> Rev v3 实例化 (见 <a href="CH-02b-channel-template-center.html" style="color:var(--accent)">D2</a> / <a href="CD-01-channel-workspace-v2.html" style="color:var(--accent)">D3</a>)。</div>
+    </div>
+    <div class="col-4">
+      <div class="k">Profile Bundle (7 Profile 引用)</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace-v2.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
+      <div class="diag">本 Session 的编码参数来自 Bundle 中 <b>Realtime Profile (P-22)</b> 的快照 (immutable)。</div>
+    </div>
+    <div class="col-4">
+      <div class="k">Realtime Profile 激活</div>
+      <div class="v green" style="margin:4px 0;font-size:14px">● P-22 @ v3</div>
+      <div class="diag">DESIRED = Realtime Profile P-22 rev v3 → COMPILED → EFFECTIVE 一致 (无降级)。</div>
+    </div>
+  </div>
+  <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 本 Session 在 <a href="CD-01-channel-workspace-v2.html">D3 CD-01 v2</a> 的 Profile Bundle 条 (P-22 高亮) 与 <a href="CH-02b-channel-template-center.html">D2 模板</a> 的默认 7 Profile 引用互相印证。</div>
+</div>
+
+<!-- PROFILE BUNDLE 7 引用 -->
+<div class="panel">
+  <h3>📦 Profile Bundle · 7 Profile 引用 (P-28) <span class="pill pill-purple">REALTIME = 本页激活 Profile</span></h3>
+  <div class="pbundle">
+    <span class="pchip">Video Profile (P-21)</span>
+    <span class="pchip on">Realtime Profile (P-22) ● active</span>
+    <span class="pchip">Audio Profile (P-23)</span>
+    <span class="pchip">QC Profile (P-24)</span>
+    <span class="pchip">Rights Profile (P-25)</span>
+    <span class="pchip">Edge Policy (P-26)</span>
+    <span class="pchip">Graphic Profile (P-27)</span>
+  </div>
+  <div class="diag">7 Profile 是可复用策略引用 (POM §4.2). 本页 Session 仅消费 <b>Realtime Profile (P-22)</b>; 其余 6 由 D3(CD-01)/M-14/QC 等各自消费. 与 D1④ / D2 / D3 完全一致.</div>
+</div>
+
+<!-- 3-LAYER 配置态 -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--accent)">
+  <h3>⚙️ 配置态 3-Layer (DESIRED → COMPILED → EFFECTIVE) <span class="pill pill-blue" style="float:right">绑定 Realtime Profile P-22</span></h3>
+  <div class="row">
+    <div class="col-3 metric">
+      <div class="label">Session ID</div>
+      <div class="val blue" style="font-size:13px">sess-rt01-2026-08-25-001</div>
+      <div class="sub">Encoder-RT-01 · 1h 17m uptime</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">DESIRED (Profile)</div>
+      <div class="val green" style="font-size:13px">P-22 v3</div>
+      <div class="sub">Realtime Profile (GOP 50 · CBR 5M · 1080p25)</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">COMPILED</div>
+      <div class="val blue" style="font-size:13px">libx264 · w-02</div>
+      <div class="sub">worker-02 (scheduler 选中)</div>
+    </div>
+    <div class="col-3 metric">
+      <div class="label">EFFECTIVE</div>
+      <div class="val green" style="font-size:13px">v3 ACTIVE</div>
+      <div class="sub">Δ COMPILED==EFFECTIVE · 无降级</div>
+    </div>
+  </div>
+  <div class="diag" style="margin-top:10px"><b>为什么绑定 Profile 而非自由填参:</b> 运行态编码参数来自 Bundle 快照 (immutable), 修改需经 ChangeSet (L2) 升 P-22 rev, 不污染模板默认. 详见 M-17 "Impact Preview / Apply ChangeSet".</div>
+</div>
+
+<!-- PIPELINE (沿用 M-17 0.5D LOCK 结构) -->
+<div class="panel">
+  <h3>🔀 实时编码管线 / PIPELINE (Source → Normalize → Encode → Output)</h3>
+  <div class="pipeline">
+    <div class="stage active"><div class="ico">📡</div><div class="name">SOURCE</div><div class="detail">SDI-01 (Primary)</div><div class="detail" style="color:var(--green)">1080i25 · LOCKED</div></div>
+    <div class="arrow">→</div>
+    <div class="stage active"><div class="ico">🔄</div><div class="name">NORMALIZE</div><div class="detail">1080p25 · UYVY422</div><div class="detail" style="color:var(--green)">BT.709</div></div>
+    <div class="arrow">→</div>
+    <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">H.264 · 5 Mbps</div><div class="detail" style="color:var(--green)">GOP 50 · CBR</div></div>
+    <div class="arrow">→</div>
+    <div class="stage active"><div class="ico">📤</div><div class="name">OUTPUT</div><div class="detail">SRS · HLS + WebRTC</div><div class="detail" style="color:var(--green)">3 destinations</div></div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="col-6">
+      <div class="k" style="margin-bottom:4px">Primary / Backup (redundancy_group = rg-sdi-rt01)</div>
+      <table>
+        <thead><tr><th>Role</th><th>Source</th><th>Status</th><th>Switch</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill pill-green">ACTIVE</span></td><td>SDI-01</td><td>ON-AIR</td><td>—</td></tr>
+          <tr><td><span class="pill pill-blue">STANDBY</span></td><td>SDI-02</td><td>HOT</td><td>FRAME_SWITCH 40ms</td></tr>
+          <tr><td><span class="pill pill-gray">OFFLINE</span></td><td>SDI-03</td><td>COLD</td><td>MASTER_SWITCH 2s</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col-6">
+      <div class="k" style="margin-bottom:4px">Effective Switch Mode (V0.2 §3.4 锁)</div>
+      <table>
+        <thead><tr><th>属性</th><th>值</th></tr></thead>
+        <tbody>
+          <tr><td>effective_switch_mode</td><td><span class="pill pill-blue">FRAME_SWITCH</span></td></tr>
+          <tr><td>target_failover_time_ms</td><td>100 (HOT)</td></tr>
+          <tr><td>measured_failover_ms p95</td><td>87</td></tr>
+          <tr><td>filler_if_gt_1s</td><td><span class="pill pill-green">FILLER (snow+tone)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 实时指标 -->
+<div class="row">
+  <div class="col-8">
+    <div class="panel">
+      <h3>📊 实时编码指标 / METRICS <span class="pill pill-green" style="float:right">FRESH · age 1s</span></h3>
+      <div class="row">
+        <div class="col-3 metric"><div class="label">FPS</div><div class="val green">25.00</div><div class="sub">drift 0.0</div></div>
+        <div class="col-3 metric"><div class="label">Speed</div><div class="val blue">1.02x</div><div class="sub">realtime</div></div>
+        <div class="col-3 metric"><div class="label">CPU</div><div class="val green">71%</div><div class="sub">14.5/32 th</div></div>
+        <div class="col-3 metric"><div class="label">PTS Drift</div><div class="val green">+0.4ms/min</div><div class="sub">PTP LOCKED</div></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="col-3 metric"><div class="label">Bitrate</div><div class="val green">4.92 Mbps</div><div class="sub">CBR 5.0</div></div>
+        <div class="col-3 metric"><div class="label">GOP</div><div class="val green">50</div><div class="sub">closed IDR 2s</div></div>
+        <div class="col-3 metric"><div class="label">AV Offset</div><div class="val green">+12 ms</div><div class="sub">&lt;40ms</div></div>
+        <div class="col-3 metric"><div class="label">Clients</div><div class="val blue">1,247 HLS</div><div class="sub">+312 RTMP +89 WHIP</div></div>
+      </div>
+      <div class="diag">数据: E-38 Hardware + E-36 Resource · FRESH age 1s (0.5B.2 P0-2). H1-H7 全 PASS.</div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="panel">
+      <h3>🩺 HEALTH INVARIANTS (H1-H7)</h3>
+      <div style="font-size:11px;line-height:1.9">
+        <div><span style="color:var(--green)">✓ H1</span> ≥1 ACTIVE Source HEALTHY</div>
+        <div><span style="color:var(--green)">✓ H2</span> All ACTIVE Nodes HEALTHY</div>
+        <div><span style="color:var(--green)">✓ H3</span> PTP LOCKED</div>
+        <div><span style="color:var(--green)">✓ H4</span> READY_TO_TAKE</div>
+        <div><span style="color:var(--green)">✓ H5</span> Output 状态匹配 3-Tier</div>
+        <div><span style="color:var(--green)">✓ H6</span> Freshness FRESH</div>
+        <div><span style="color:var(--green)">✓ H7</span> UI/API 一致性</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>📦 Backup Output (CDN Failover) <span class="pill pill-orange" style="float:right">G4 触点</span></h3>
+      <table>
+        <tbody>
+          <tr><td>primary</td><td>CDN-A (● live)</td></tr>
+          <tr><td>backup</td><td>CDN-B (○ standby)</td></tr>
+          <tr><td>edge_policy</td><td>LIVE_EDGE_DEFAULT</td></tr>
+          <tr><td>retry</td><td style="color:var(--orange)">3x backoff 1s</td></tr>
+        </tbody>
+      </table>
+      <div class="gap">⚠ G4 (P0) Output Resilience 在 M-17 已硬编码 retry 3x backoff 1s, 但无独立 <b>OutputResilience</b> 配置对象 (重连策略/心跳/退避/zombie 判定). 决策: 留在 06-output 而非 M-17 → 落 D6 / B-13. 此处仅展示, 不编辑.</div>
+    </div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
+  🧭 这是 0.5D 验收链第 4 张 (D4, M-17 Realtime Encode v2 升级). 本页把 D1/D2/D3 产出的 <b>Profile Bundle → Realtime Profile (P-22)</b> 在编码运行态反射: 顶部 Provenance 条 (Channel CH01 ← 模板 ← Bundle) + 7 Profile 引用 (REALTIME 高亮) + 3-Layer 配置态绑定 P-22 rev + Pipeline/指标/健康检查 (沿用 M-17 0.5D LOCK). 新增 G4 触点: Backup Output retry 硬编码, 待 D6 建模独立 OutputResilience 对象. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b>. 本页为升级原型, 不新增 surface (升级既有 M-17, 不计入 NAVIGATION 计数).
+</div>
+
+<script>
+(function(){var k='m17v2-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+</script>
+</body>
+</html>

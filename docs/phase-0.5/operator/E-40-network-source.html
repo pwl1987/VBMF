@@ -285,21 +285,22 @@
   <h3><span class="cn">网络路径 (Network Path · PIA §10)</span> / PATH
     <span class="pill pill-blue" style="float:right">E-41 Network Path Inspector (Spec 锁, 0.5F 文档化)</span>
   </h3>
+  <div class="label" style="margin-bottom:6px">Network Path（仅网络层 Hop: STAGE 1–4）</div>
   <pre style="background:var(--bg3);padding:12px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:var(--fg)">Source (10.30.20.100:5000)         [STAGE 1: Network Source]
    ↓
 eno1 (10.30.20.10, VLAN 120)         [STAGE 2: Network Adapter]
    ↓
 10G Switch (gateway 10.30.20.1)       [STAGE 3: Network Path]
    ↓
-eno1 (VBMF 10.30.20.10)              [STAGE 4: Worker]
-   ↓
-Worker (process Source)              [STAGE 5: Worker]
+eno1 (VBMF 10.30.20.10)              [STAGE 4: Worker]</pre>
+  <div class="label" style="margin:10px 0 6px">Media Path（媒体处理链, 非网络 Hop: STAGE 5–8）</div>
+  <pre style="background:var(--bg3);padding:12px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:var(--fg)">Worker (process Source)              [STAGE 5: Worker]
    ↓
 Route (Switcher + Composition + Master)   [STAGE 6: Compile]
    ↓
 Worker (process Output)              [STAGE 7: Output]
    ↓
-4 Output Variants (HLS + RTMP + UDP-Multicast + WebRTC)   [STAGE 8: Output]</pre>
+4 Output Variants (HLS + RTMP / UDP-Multicast / WebRTC)   [STAGE 8: Output]</pre>
   <div class="diag">
     <b>E-41 Network Path Inspector (0.5F Spec 锁, wireframe V0.5G 实施):</b>
     自动探测中间路由节点 (traceroute + SNMP) · 显示完整路径 + 关键 hop 状态 + 延迟 + 丢包率.
@@ -319,7 +320,7 @@ Worker (process Output)              [STAGE 7: Output]
         <tr><td><b>○ EMPTY</b></td><td>Source 创建中</td><td>引导 "Fill Adapter / Endpoint / Contract 3 段"</td></tr>
         <tr><td><b>⚠ WARNING</b></td><td>Loss 0.01-0.1% / IGMP v2 / SSM 缺失</td><td>顶部黄条 + 标黄 Diagnostic + Recommend: 升 v3 / 补 SSM source</td></tr>
         <tr><td><b>✗ ERROR</b></td><td>NOT JOINED / RTT &gt; 100ms / Discontinuity &gt; 0</td><td>红色 Banner + 标红 Diagnostic + 一键 Packet Probe</td></tr>
-        <tr><td><b>✗✗ CRITICAL</b></td><td>IGMP failed / Route unreachable / Card DOWN</td><td>顶部红条 + 通知 Admin + 强切备份 Source</td></tr>
+        <tr><td><b>✗✗ CRITICAL</b></td><td>IGMP Join failed / Route unreachable / Card DOWN</td><td>顶部红条 + 通知 Admin + <b>SOURCE TEST FAILED</b>: 不可存为 VERIFIED / 不可用于 ON AIR; 可存 UNVERIFIED / 修复 / 重测; <b>仅当该 Source 已被 Channel 作为 Active Service Path 使用且运行态故障时才进 §8.9 Recovery, 不在此处强切备份</b></td></tr>
       </tbody>
     </table>
   </div>
@@ -349,5 +350,8 @@ Worker (process Output)              [STAGE 7: Output]
   · 0.5F 实装 UDP Unicast + Multicast (SSM/ASM) + SRT; RTP/RTMP/HLS/RTSP/WebRTC/RIST/Zixi/NDI Spec 锁, V0.3 实施
 </footer>
 
+<script>
+(function(){var k='vt-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+</script>
 </body>
 </html>

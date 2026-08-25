@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>B-13 v2 · Take Preflight (TAKE 前置联合检查) — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}.v.purple{color:var(--purple)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.take{background:var(--green);color:#fff;border-color:var(--green);font-weight:600;padding:8px 24px;font-size:13px}
+  .btn.take:disabled{background:var(--bg4);color:var(--gray);border-color:var(--border);cursor:not-allowed}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  .gap.ok{background:rgba(63,185,80,.1);border-left-color:var(--green);color:var(--green)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green);box-shadow:0 0 4px var(--green)}
+  .dot.yellow{background:var(--yellow)}
+  .dot.red{background:var(--red);animation:pulse 1.5s infinite}
+  .dot.gray{background:var(--gray)}
+  .dot.blue{background:var(--accent)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  /* Provenance */
+  .provenance{background:linear-gradient(135deg,#1a1320 0%,#161b22 100%);border:1px solid var(--purple)}
+  .provenance h3{color:var(--purple)}
+  /* 9-item checklist */
+  .chk{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--gray);border-radius:3px;padding:8px 11px;margin-bottom:5px}
+  .chk.pass{border-left-color:var(--green)}
+  .chk.warn{border-left-color:var(--yellow)}
+  .chk.fail{border-left-color:var(--red)}
+  .chk .no{width:22px;height:22px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+  .chk.pass .no{background:rgba(63,185,80,.2);color:var(--green)}
+  .chk.warn .no{background:rgba(210,153,34,.2);color:var(--yellow)}
+  .chk.fail .no{background:rgba(248,81,73,.2);color:var(--red)}
+  .chk .body{flex:1;min-width:0}
+  .chk .name{font-weight:600;font-size:12px}
+  .chk .std{font-size:10px;color:var(--fgdim);margin-top:1px;font-family:Menlo,Consolas,monospace}
+  .chk .st{font-size:10px;font-weight:600;padding:3px 8px;border-radius:8px;flex-shrink:0}
+  .chk .st.pass{background:rgba(63,185,80,.15);color:var(--green)}
+  .chk .st.warn{background:rgba(210,153,34,.15);color:var(--yellow)}
+  .chk .st.fail{background:rgba(248,81,73,.15);color:var(--red)}
+  /* sub blocks */
+  .subblk{background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:9px;margin-top:7px}
+  .subblk .sh{font-size:11px;font-weight:600;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+  .orov{display:flex;align-items:center;gap:8px;font-size:11px;font-family:Menlo,Consolas,monospace;padding:3px 0;border-bottom:1px solid var(--border)}
+  .orov:last-child{border-bottom:none}
+  .orov .nm{flex:1}
+  .orov .tag{padding:1px 6px;border-radius:6px;font-size:9px}
+  .tag.req{background:rgba(248,81,73,.15);color:var(--red)}
+  .tag.opt{background:rgba(210,153,34,.15);color:var(--yellow)}
+  .tag.aux{background:rgba(110,118,129,.15);color:var(--gray)}
+  table.mini{width:100%;border-collapse:collapse;font-size:10px}
+  table.mini td{padding:4px 6px;border-bottom:1px solid var(--border);font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  table.mini td.l{color:var(--fgdim);width:42%}
+  .actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CD-01-channel-workspace-v2.html">D3 CD-01</a> › <b>B-13 Take Preflight (模态)</b></div>
+    <h1>🛡️ B-13 v2 · TAKE 前置联合预检 <span class="en">TAKE PREFLIGHT · 9-ITEM UNION CHECK</span></h1>
+  </div>
+  <div style="margin-left:auto;text-align:right">
+    <span class="pill pill-green">0.5D 原型 · D6</span><br>
+    <span class="pill pill-blue" style="margin-top:4px">验收链 Step 6/6 · 收尾</span><br>
+    <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>9/9 PASS</span>
+  </div>
+</div>
+
+<!-- PROVENANCE: 由 D3 CD-01 TAKE 触发; 检查 D5 VERIFIED 源 + D1/D3 输出 criticality + D4 编码资源 -->
+<div class="panel provenance">
+  <h3>⛓ 触发上下文 (CD-01 TAKE → B-13; 检查链贯穿 D1-D5)</h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="k">触发</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace-v2.html" class="btn">D3 CD-01</a> TAKE (CH01 · READY_TO_TAKE)</div>
+      <div class="diag">替代纯 confirm 弹窗; 全屏模态对 Source B 做 9 项联合检查, 全 PASS 才放 TAKE.</div>
+    </div>
+    <div class="col-4">
+      <div class="k">检查对象</div>
+      <div class="v" style="margin:4px 0">Source B = <a href="E-42-source-test-bench.html" class="btn">E-42 VERIFIED</a> UDP-MC</div>
+      <div class="diag">源来自 E-40 创建 + E-42 7 层验证 (D5 闭合 G2); 输出来自 D1 第⑤步 criticality (D3 反射).</div>
+    </div>
+    <div class="col-4">
+      <div class="k">提交物</div>
+      <div class="v" style="margin:4px 0">ChangeSet (E-33) <span class="pill pill-purple">L2</span></div>
+      <div class="diag">全 PASS → 提交 ChangeSet, 经 Review/Approve/回滚闭环 (D6 闭合 G6).</div>
+    </div>
+  </div>
+</div>
+
+<!-- 9-ITEM CHECKLIST -->
+<div class="panel">
+  <h3>🔬 联合检查 · 9 项 (全部 PASS 放 TAKE) <span class="pill pill-green" style="float:right">9/9 PASS</span></h3>
+  <div class="chk pass"><div class="no">1</div><div class="body"><div class="name">Source</div><div class="std">Source B LOCKED · UDP-MC 239.20.10.10 STREAMING</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video</div><div class="std">1080p25 · H.264 · 匹配 Realtime Profile P-22</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk pass"><div class="no">3</div><div class="body"><div class="name">Audio</div><div class="std">L/R + 16ch embedded · LUFS -23.0 ∈ Profile 范围</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk pass"><div class="no">4</div><div class="body"><div class="name">Clock</div><div class="std">PTP LOCKED · AVSync +12ms · drift +0.4ms/min</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk pass"><div class="no">5</div><div class="body"><div class="name">Switch</div><div class="std">目标 Switch Mode = FRAME_SWITCH · eligible · p95 87ms &lt; 100</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk pass"><div class="no">6</div><div class="body"><div class="name">Backup</div><div class="std">READY_TO_TAKE · Hot Standby 就绪 (SDI-02 HOT)</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk pass"><div class="no">7</div><div class="body"><div class="name">Output (delivery_criticality)</div><div class="std">REQUIRED 全 HEALTHY; OPTIONAL/AUX 仅 WARNING · 按 Failure Domain 不误切源</div></div><div class="st pass">PASS · REQUIRED 阻断</div></div>
+  <div class="chk warn"><div class="no">8</div><div class="body"><div class="name">Latency</div><div class="std">Budget PASS · ≤ max_startup_latency (est 1.8s / 2.0s)</div></div><div class="st pass">PASS · 阻断</div></div>
+  <div class="chk warn"><div class="no">9</div><div class="body"><div class="name">Resource (E-36 Vector)</div><div class="std">编码器 71% / 网络 63% · ≤80% PASS; HOT 独占已计入 Reservation</div></div><div class="st pass">PASS · BLOCK &gt;100%</div></div>
+  <div class="diag">#7 / #9 见下方 <b>OutputResilience (G4)</b> 与 <b>Reservation (G8)</b> 模型; 对齐 Failure Domain Matrix: Output 坏→提示 Rejoin/修 Output, 不误切节目源.</div>
+</div>
+
+<!-- G4 OUTPUT RESILIENCE (闭合 G4) -->
+<div class="panel">
+  <h3>🔁 Output Resilience 对象 (G4 闭合 · 独立配置对象) <span class="pill pill-green" style="float:right">✅ resolved</span></h3>
+  <div class="subblk">
+    <div class="sh"><span class="dot green"></span> 每 REQUIRED Output Variant 携带 OutputResilience 子对象 (P-28 Bundle 子对象 / 06-output)</div>
+    <div class="orov"><span class="nm">HLS (REQUIRED)</span><span class="tag req">REQUIRED</span><span class="std" style="color:var(--fgdim)">retry 3x·exp-backoff 1s / heartbeat 5s / zombie &gt;30s / test-send 联动</span></div>
+    <div class="orov"><span class="nm">RTMP (REQUIRED)</span><span class="tag req">REQUIRED</span><span class="std" style="color:var(--fgdim)">retry 3x·exp-backoff 1s / heartbeat 5s / zombie &gt;30s / test-send 联动</span></div>
+    <div class="orov"><span class="nm">SDI (REQUIRED)</span><span class="tag req">REQUIRED</span><span class="std" style="color:var(--fgdim)">baseband · 无网络依赖 · 重连 N/A (硬连)</span></div>
+    <div class="orov"><span class="nm">UDP-MC (OPTIONAL)</span><span class="tag opt">OPTIONAL</span><span class="std" style="color:var(--fgdim)">retry 2x·1s / heartbeat 10s (失败仅 WARN)</span></div>
+  </div>
+  <div class="gap ok">✅ G4 (P0) 闭合: 原在 D3/D4 标为"无独立 OutputResilience 对象"——现建模为 P-28 Bundle 子对象 (重连策略/心跳/退避/zombie 判定/Test Send 联动), 决策落在 06-output 而非 M-17. 运行态故障按其判定 zombie/重连, 不误切节目源 (Failure Domain).</div>
+</div>
+
+<!-- G8 RESERVATION (闭合 G8) -->
+<div class="panel">
+  <h3>📊 Reservation / Quota 对象 (G8 闭合 · 跨 Channel 仲裁) <span class="pill pill-green" style="float:right">✅ resolved</span></h3>
+  <div class="subblk">
+    <div class="sh"><span class="dot green"></span> Resource 三档规则 (≤80% PASS / 80-100% 仅 reservation 满足则放行 / &gt;100% BLOCK)</div>
+    <table class="mini">
+      <tr><td class="l">Encoder worker-02</td><td>71% · reservation REQUIRED · 已满足 → PASS</td></tr>
+      <tr><td class="l">HOT Standby 独占</td><td>SDI-02 独占扣减中 · 释放时机 = STOP/故障切换后 (模型化)</td></tr>
+      <tr><td class="l">跨 Channel 仲裁</td><td>Reservation/Quota 对象显式记录, 超额 → BLOCK 不开 TAKE</td></tr>
+    </table>
+  </div>
+  <div class="gap ok">✅ G8 (P1) 闭合: 资源预览不再仅数值——显式 Reservation/Quota 对象 + HOT 独占扣减/释放时机 + 跨 Channel 仲裁, 与 REALTIME_PROFILE.resource_reservation=REQUIRED 一致.</div>
+</div>
+
+<!-- G6 CHANGESET (闭合 G6) -->
+<div class="panel">
+  <h3>📝 ChangeSet 提交 + 审批闭环 (G6 闭合 · E-33) <span class="pill pill-green" style="float:right">✅ resolved</span></h3>
+  <div class="subblk">
+    <div class="sh"><span class="dot green"></span> 9/9 PASS → 提交 ChangeSet (E-33) → L2 Review/Approve/回滚</div>
+    <table class="mini">
+      <tr><td class="l">ChangeSet ID</td><td>cs-take-ch01-20260825-001</td></tr>
+      <tr><td class="l">Affected</td><td>CH01 · Variant HLS/RTMP/SDI (TAKE Source B→PGM) · Risk MEDIUM</td></tr>
+      <tr><td class="l">Review</td><td>Who/Why 必填 (L2) · Approve 后生效 · 可回滚至 cs-prev</td></tr>
+    </table>
+  </div>
+  <div class="gap ok">✅ G6 (P0) 闭合: E-33 原仅定义结构, 缺审批界面——B-13 提交 ChangeSet 带 L2 Review/Approve/回滚闭环 (原子提交 + 审阅). 注: 若后续需独立审阅 surface, 可拆 <b>D7 ChangeSet Review</b> (见 F.4 建议), 本链 D6 已内联闭合.</div>
+</div>
+
+<!-- ACTIONS -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--green)">
+  <h3>🎬 决策 / 阻断 <span class="pill pill-green" style="float:right">TAKE 可用</span></h3>
+  <div class="diag">任一项 #1–#8 FAIL → TAKE 禁用; #7 REQUIRED FAIL → 阻断; #7 OPTIONAL/AUX FAIL → 仅 WARNING (不误切源). 全 PASS + ChangeSet 审批 → 启用 TAKE.</div>
+  <div class="actions">
+    <a href="CD-01-channel-workspace-v2.html" class="btn">← CANCEL</a>
+    <button class="btn l2">🔍 Review ChangeSet (L2)</button>
+    <button class="btn take">▶ TAKE (提交 ChangeSet)</button>
+  </div>
+</div>
+
+<div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
+  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight v2) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (E-33 带 L2 Review/Approve/回滚, 可拆 D7). G3 (SDI 基带输出变体仍待 06-output 升级) / G7 (时钟域联动 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
+</div>
+
+<script>
+(function(){var k='b13v2-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+</script>
+</body>
+</html>

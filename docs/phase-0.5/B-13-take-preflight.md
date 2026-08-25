@@ -24,11 +24,29 @@
 | 4 | **Clock** | PTP LOCKED | 🔴 阻断 |
 | 5 | **Switch** | 目标 Switch Mode（FRAME/MASTER/PACKET）eligible | 🔴 阻断 |
 | 6 | **Backup** | READY_TO_TAKE（Hot Standby 就绪） | 🔴 阻断 |
-| 7 | **Output** | HLS / RTMP / UDP 各 Variant HEALTHY | 🔴 阻断（按 Failure Domain，**不误切源**） |
+| 7 | **Output** | REQUIRED Variant 全 HEALTHY；OPTIONAL/AUXILIARY 仅 WARNING（按 `delivery_criticality`） | REQUIRED FAIL → 🔴 阻断；OPTIONAL/AUXILIARY → 🟡 WARNING（按 Failure Domain，**不误切源**） |
 | 8 | **Latency** | Budget PASS（≤ `max_startup_latency`） | 🔴 阻断 |
-| 9 | **Resource** | E-36 预算满足 | 🟡 Warning（可放行） |
+| 9 | **Resource** | E-36 Resource Vector：≤80% PASS；80–100% 仅当 `resource_reservation` 已满足 → 🟡 WARN；>100% → 🔴 BLOCK | 见资源规则 |
 
 ---
+
+## 1.5 Output Criticality（输出关键度，P0-4 采纳）
+
+- 每个 Output Variant 带 `delivery_criticality`:
+  - **REQUIRED** — 直播必交付（如 HLS Domestic / UDP Multicast 主链路）→ Preflight 必须 PASS，否则阻断 TAKE。
+  - **OPTIONAL** — 非关键分发（如 RTMP YouTube / Facebook）→ FAIL 仅 🟡 WARNING，不阻断 TAKE。
+  - **AUXILIARY** — 归档 / 监控旁路 → FAIL 仅记录，不阻断。
+- 对应 P-22 Output Profile 已含 Variant / Destination / Adapter；新增 `delivery_criticality` 字段即可，无需新引擎。
+
+## 1.6 Resource 三档规则（P0-2 采纳，对齐 ENCODE_MODEL_SPEC）
+
+| 占用 | 判定 | TAKE 动作 |
+|---|---|---|
+| ≤ 80% | PASS | 放行 |
+| 80–100% | WARN | 仅当 `resource_reservation` 已满足 → 可放行；否则 BLOCK |
+| > 100% | FAIL | 🔴 BLOCK（不开 TAKE） |
+
+> 与 `REALTIME_PROFILE.resource_reservation = REQUIRED` 一致：reservation 未满足即视为资源不足，阻断 ACTIVE。
 
 ## 2. 决策与阻断
 

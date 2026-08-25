@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>E-42 v2 · Source Test Bench (7 层入网验证) — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:16px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.red{color:var(--red)}.metric .val.yellow{color:var(--yellow)}
+  .metric .sub{font-size:9px;color:var(--fgdim);margin-top:1px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .dot.green{background:var(--green);box-shadow:0 0 4px var(--green)}
+  .dot.yellow{background:var(--yellow)}
+  .dot.red{background:var(--red);animation:pulse 1.5s infinite}
+  .dot.gray{background:var(--gray)}
+  .dot.blue{background:var(--accent)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  /* Provenance */
+  .provenance{background:linear-gradient(135deg,#1a1320 0%,#161b22 100%);border:1px solid var(--purple)}
+  .provenance h3{color:var(--purple)}
+  /* 7-layer */
+  .layer{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--gray);border-radius:3px;padding:9px 11px;margin-bottom:6px}
+  .layer.l-pass{border-left-color:var(--green)}
+  .layer.l-fail{border-left-color:var(--red)}
+  .layer .idx{width:26px;height:26px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+  .layer.l-pass .idx{background:rgba(63,185,80,.2);color:var(--green)}
+  .layer.l-fail .idx{background:rgba(248,81,73,.2);color:var(--red)}
+  .layer .body{flex:1;min-width:0}
+  .layer .name{font-weight:600;font-size:12px}
+  .layer .checks{font-size:10px;color:var(--fgdim);margin-top:2px;font-family:Menlo,Consolas,monospace}
+  .layer .status{font-size:11px;font-weight:600;flex-shrink:0;padding:3px 8px;border-radius:8px}
+  .layer .status.pass{background:rgba(63,185,80,.15);color:var(--green)}
+  .layer .status.fail{background:rgba(248,81,73,.15);color:var(--red)}
+  /* preview */
+  .monitor{height:140px;background:#000;border:1px solid var(--border);border-radius:3px;position:relative;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px;overflow:hidden}
+  .monitor .live{position:absolute;top:5px;left:7px;color:var(--red);font-size:10px;font-weight:700}
+  .monitor .res{position:absolute;bottom:5px;right:7px;color:var(--green);font-size:10px}
+  .audio-preview{display:flex;align-items:stretch;gap:2px;margin-top:6px}
+  .audio-preview .vside{width:13px;display:flex;flex-direction:column;align-items:center}
+  .audio-preview .vside .k{font-size:9px;color:var(--fgdim);margin-bottom:2px}
+  .audio-preview .vside .vbar{flex:1;width:7px;background:var(--bg4);border:1px solid var(--border);border-radius:2px;position:relative;overflow:hidden}
+  .audio-preview .vside .vbar .lvl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--green) 0%,var(--green) 68%,var(--yellow) 86%,var(--red) 100%)}
+  .audio-preview .monitor{flex:1;height:auto;aspect-ratio:16/9}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="02-sources.html">02 Sources</a> › <a href="E-40-network-source.html">E-40 Network Source</a> › <b>E-42 Source Test Bench</b></div>
+    <h1>🔬 E-42 v2 · 源入网验证台 <span class="en">SOURCE TEST BENCH · 7-LAYER VALIDATION</span></h1>
+  </div>
+  <div style="margin-left:auto;text-align:right">
+    <span class="pill pill-green">0.5D 原型 · D5</span><br>
+    <span class="pill pill-blue" style="margin-top:4px">验收链 Step 5/6</span><br>
+    <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>7/7 PASS · VERIFIED</span>
+  </div>
+</div>
+
+<!-- PROVENANCE: 验证的源来自 E-40 (G2 创建面); 通过后进入 VERIFIED 池供 D1 ASSIGN -->
+<div class="panel provenance">
+  <h3>⛓ 验证上下文 (E-40 创建 → E-42 验证 → D1 ASSIGN)</h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="k">待测源 (来自 E-40 创建面)</div>
+      <div class="v" style="margin:4px 0"><a href="E-40-network-source.html" class="btn">UDP-MULTICAST-001</a> <span class="pill pill-purple">DRAFT</span></div>
+      <div class="diag"><b>G2 闭合:</b> 源不在频道向导(D1 第②步)内联创建; 在 E-40 独立创建后经本台验证.</div>
+    </div>
+    <div class="col-4">
+      <div class="k">验证协议</div>
+      <div class="v" style="margin:4px 0">7 层 (Network→Transport→Container→Video→Audio→Clock→QC)</div>
+      <div class="diag">逐层阻断: 任一层 FAIL → 源不可存 VERIFIED, 不可用于 ON AIR (见 E-40 CRITICAL).</div>
+    </div>
+    <div class="col-4">
+      <div class="k">验证后去处</div>
+      <div class="v" style="margin:4px 0">VERIFIED 池 → <a href="CH-02-create-channel.html" class="btn">D1 第②步 ASSIGN</a></div>
+      <div class="diag">仅 VERIFIED 源可被选为 CHANNEL 的 PRIMARY/BACKUP; UNVERIFIED 仅能暂存/修复.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 7-LAYER VALIDATION STACK -->
+<div class="row">
+  <div class="col-7">
+    <div class="panel">
+      <h3>🔬 7 层入网验证 (Network → … → QC) <span class="pill pill-green" style="float:right">7/7 PASS</span></h3>
+      <div class="layer l-pass">
+        <div class="idx">1</div>
+        <div class="body"><div class="name">Network 网络层</div><div class="checks">IGMP v3 JOINED · Route reachable · eno1 UP 10G · SSM 239.20.10.10 · Loss 0.003% · RTT 12ms</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="layer l-pass">
+        <div class="idx">2</div>
+        <div class="body"><div class="name">Transport 传输层</div><div class="checks">RTP seq 连续 · RTCP 收 · Continuity Counter PASS · Discontinuity 0 (24h)</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="layer l-pass">
+        <div class="idx">3</div>
+        <div class="body"><div class="name">Container 容器层</div><div class="checks">MPEG-TS · PID 0x100 present · CC ok · PCR discontinuity 0 · bitrate 4.92 Mbps</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="layer l-pass">
+        <div class="idx">4</div>
+        <div class="body"><div class="name">Video 视频层</div><div class="checks">H.264 · 1080i25 → norm 1080p25 · 25.00 fps · GOP 50 closed · VBV 42%</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="layer l-pass">
+        <div class="idx">5</div>
+        <div class="body"><div class="name">Audio 音频层</div><div class="checks">AAC-LC · 48k · L/R + 16ch embedded · LUFS -23.0 · RMS -26.1 · Silence 0</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="layer l-pass">
+        <div class="idx">6</div>
+        <div class="body"><div class="name">Clock 时钟层</div><div class="checks">PTP LOCKED · AVSync +12ms · PTS drift +0.4ms/min · BT.709</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="layer l-pass">
+        <div class="idx">7</div>
+        <div class="body"><div class="name">QC 质量层</div><div class="checks">Freeze 0 · Black 0 · Slate none · Silence 0 · Bars none · Aspect 16:9</div></div>
+        <div class="status pass">PASS</div>
+      </div>
+      <div class="diag">单层 FAIL 即整体 FAILED; 修复对应层后「重测」从该层起重跑 (增量验证). 阈值见 B-13 §P0-2 / E-40 6 状态.</div>
+    </div>
+  </div>
+  <!-- LIVE PREVIEW (G5 落点) -->
+  <div class="col-5">
+    <div class="panel">
+      <h3>🖥 实时预览 (G5 源预览端点) <span class="pill pill-blue" style="float:right">Preview Stream</span></h3>
+      <div class="monitor"><span class="live">● LIVE</span>1080p25 · 16:9<span class="res">UDP-MC</span></div>
+      <div class="audio-preview">
+        <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:64%"></div></div></div>
+        <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
+        <div class="monitor" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px">LUFS -23.0 · RMS -26.1<br>48k · AAC-LC</div>
+        <div class="vside"><div class="k">1</div><div class="vbar"><div class="lvl" style="height:60%"></div></div></div>
+        <div class="vside"><div class="k">2</div><div class="vbar"><div class="lvl" style="height:54%"></div></div></div>
+      </div>
+      <div class="diag"><b>G5 闭合:</b> 视频缩略流 + 音频 LUFS/RMS 预览端点在此定义 (Source Runtime Preview Stream). D1 第③步/D3 PVW 复用同一端点, 不重复定义. 16ch→输出布局映射见 G10 (D3/D4).</div>
+      <div class="row" style="margin-top:8px">
+        <div class="col-6"><div class="metric"><div class="label">LUFS-I</div><div class="val green">-23.0</div><div class="sub">target EBU R128</div></div></div>
+        <div class="col-6"><div class="metric"><div class="label">AV Offset</div><div class="val green">+12 ms</div><div class="sub">&lt;40ms</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT + ACTIONS -->
+<div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--green)">
+  <h3>✅ 验证结果 / RESULT <span class="pill pill-green" style="float:right">VERIFIED</span></h3>
+  <div class="row">
+    <div class="col-8">
+      <div class="metric" style="margin-bottom:0"><div class="label">判定</div><div class="val green">VERIFIED · 7/7 PASS</div><div class="sub">源现可进入 VERIFIED 池并被 D1 第②步 ASSIGN 为 PRIMARY/BACKUP</div></div>
+      <div class="gap">⚠ 若任一层 FAIL: 结果 = <b>FAILED</b>, 不可存 VERIFIED / 不可用于 ON AIR; 仅可存 UNVERIFIED / 修复 / 重测 (E-40 CRITICAL). 运行态故障才进 §8.9 Recovery, 不在此强切备份.</div>
+    </div>
+    <div class="col-4">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn primary">💾 存为 VERIFIED (L2 · 需 Who/Why)</button>
+        <button class="btn l2">🔧 修复并重测 (增量)</button>
+        <a href="E-40-network-source.html" class="btn">← 返回 E-40 创建面</a>
+        <a href="CH-02-create-channel.html" class="btn">→ 去 D1 ASSIGN</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
+  🧭 这是 0.5D 验收链第 5 张 (D5, E-42 Source Test Bench). 本页**首次真正补模型**而非仅反射: 闭合 G2 (源不在频道向导内联创建, 在 E-40 创建后经本台 7 层验证为 VERIFIED 才进 D1 ASSIGN) 与 G5 (视频缩略流 + 音频 LUFS/RMS 预览端点在此定义, D1③/D3 复用). 7 层: Network/Transport/Container/Video/Audio/Clock/QC; 单层 FAIL → FAILED, 不可存 VERIFIED. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b>. E-42 为既有 Spec-only 表面 (0.5G 实施), 本页补其 wireframe, 不新增 surface 计数.
+</div>
+
+<script>
+(function(){var k='e42-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+</script>
+</body>
+</html>

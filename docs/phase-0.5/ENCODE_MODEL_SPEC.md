@@ -116,7 +116,7 @@ EncodingProfile:
 | `REALTIME_PROFILE` 运行时 | M-17 Realtime Transcode（Session 三轴 + 实时指标） |
 | `FILE_PROFILE` 运行时 | M-14 File Transcode（6 步 Wizard）/ M-18 Job Detail |
 | `Job` / `Session` 包装 | OBJECT_VOCABULARY §1.11（REALTIME_ENCODE 由 Session 包装） |
-| Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 6 Profile） |
+| Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 7 Profile） |
 
 ---
 

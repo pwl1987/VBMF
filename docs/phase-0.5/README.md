@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟡 **0.5C DRAFT 0.1** (本轮)
+> **状态**: 🟡 **0.5C RECONCILED · 0.5D IN PROGRESS** (本轮评审后)
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -23,9 +23,9 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5B-Closure-1** | 🟢 LOCK FINAL | 10 项产品化收口 (3-Layer / 4-Tuple / 3-Tier / 9D / H1-H7 / Dependency) |
 | **0.5B.1** P0 Wireframes | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) |
 | **0.5B.2** Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL |
-| **0.5C** Info Arch Closure | 🟡 DRAFT 0.1 (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
-| **0.5D** P0 Product Surfaces | ⛔ 待开始 | M-17 Realtime / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
-| **0.5E** Global UX Layer | ⛔ 待开始 | Impact Preview 全域 / Configuration Diff / Command Palette |
+| **0.5C** Info Arch Closure | 🟡 RECONCILED | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
+| **0.5D** P0 Product Surfaces | 🟡 IN PROGRESS | M-17 Realtime / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
+| **0.5E** Global UX Layer | 🟡 SPEC | Impact Preview 全域 / Configuration Diff / Command Palette |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 
@@ -37,7 +37,7 @@ UI 顶层导航改为**业务域**, 不用**编号**:
 |---|---|---|
 | **BROADCAST** (直播) | Operator / Director | Channel, Source, Graph, Route, Session, Variant |
 | **MEDIA** (媒体) | Content Manager / Editor | Asset, Asset Version, Job (FILE_TRANSCODE/PROBE/QC/UPLOAD/ARCHIVE) |
-| **ENGINEERING** (工程) | Engineer / SRE | Profile (6), Profile Bundle, ChangeSet, Preflight, Hardware, Clock, Health, Incident |
+| **ENGINEERING** (工程) | Engineer / SRE | Profile (7), Profile Bundle, ChangeSet, Preflight, Hardware, Clock, Health, Incident |
 | **ADMIN** (管理) | Admin | User, Role, Permission, Audit, System Setting |
 
 ⛔ **Profiles / Operations 不再是顶层域** — 全部进 ENGINEERING 域。
@@ -49,7 +49,7 @@ UI 顶层导航改为**业务域**, 不用**编号**:
 ```
 Profile (Policy / 跨 Channel 共享)
    ↓ 1:1 引用
-Profile Bundle (Composition / 1 Channel 1 Bundle, 6 Profile 引用)
+Profile Bundle (Composition / 1 Channel 1 Bundle, 7 Profile 引用)
    ↓ 1:N 派生
 Output Variant (Instance / 1 Channel N Variant, Profile + Destinations + Adapter)
 ```
@@ -66,7 +66,7 @@ docs/phase-0.5/
 ├── PRODUCT_OBJECT_MODEL.md         ← 3 层组合关系
 ├── NAVIGATION.md                   ← 4 域顶层导航
 ├── MILESTONES.md                   ← 历史 milestone 归档
-├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 44 表面)
+├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 52 表面, 以 NAVIGATION §2.5 为权威)
 ├── DESIGN_SYSTEM.md                ← V0.1 Design System
 ├── I18N_SPEC.md                    ← V0.1 i18n Contract
 ├── OPERATOR_WORKFLOW.md            ← 9 Core 操作流
@@ -129,7 +129,7 @@ Phase 1 Media Agent (Rust) + Phase 4 Web Console
 - ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
 - ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 - ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
-- ⛔ **GitHub README** 反映 4 域 + 44 表面, 不再有 "9 Core Pages" "0.5B 只定义" 等历史残留
+- ⛔ **GitHub README** 反映 4 域 + 52 表面, 不再有 "9 Core Pages" "0.5B 只定义" 等历史残留
 
 ---
 

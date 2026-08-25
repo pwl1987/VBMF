@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>M-17 · Realtime Transcode 实时转码 — VBMF Operator Console</title>
+<title>M-17 · Realtime Encode 实时编码 — VBMF Operator Console</title>
 <style>
   :root{
     --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
@@ -88,8 +88,8 @@
 
 <div class="header">
   <div>
-    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>M-17 Realtime Transcode 实时转码</b></div>
-    <h1><span class="cn">M-17 · 实时转码</span> <span class="en">REALTIME TRANSCODE (Live Encoder Runtime)</span></h1>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>M-17 Realtime Encode 实时编码</b></div>
+    <h1><span class="cn">M-17 · 实时编码</span> <span class="en">REALTIME ENCODE (Live Encoder Runtime)</span></h1>
   </div>
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
     <span class="pill pill-green"><span class="dot green"></span>RUNNING</span>
@@ -262,9 +262,9 @@
           <div class="sub">target < 40 ms</div>
         </div>
         <div class="col-3 metric">
-          <div class="label">E2E Latency</div>
+          <div class="label">Stage Latency</div>
           <div class="val green">168 ms</div>
-          <div class="sub">SDI → SRS · target < 200</div>
+          <div class="sub">SDI → SRS (Stage) · target < 200 · 注: E2E = Source → Player</div>
         </div>
       </div>
       <div class="row" style="margin-top:8px">
@@ -375,7 +375,7 @@
 
 <!-- 6 状态样例 -->
 <details>
-  <summary>▸ 6 状态样例 (M-17 Realtime Transcode) — 完整 Spec 收口</summary>
+  <summary>▸ 6 状态样例 (M-17 Realtime Encode) — 完整 Spec 收口</summary>
   <div class="panel" style="margin-top:8px">
     <table>
       <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
@@ -383,7 +383,7 @@
         <tr><td><b>● NORMAL</b></td><td>Session RUNNING + READY_TO_TAKE + HEALTHY + 3-Layer match</td><td>顶部三轴全绿 + Pipeline 主绿 + 9 实时指标全绿 + H1-H7 全 PASS</td></tr>
         <tr><td><b>◌ LOADING</b></td><td>Session STARTING (4-5s 启动期)</td><td>Pipeline 各 stage skeleton + 指标 skeleton + "Initializing encoder..."</td></tr>
         <tr><td><b>○ EMPTY</b></td><td>— (M-17 不应为空, 路由不存在) 改为引导</td><td>无 RT Encoder 时: "Create Realtime Encoder" 引导 + 选 Profile + 选 Source</td></tr>
-        <tr><td><b>⚠ WARNING</b></td><td>DEGRADED (e.g. CPU 90% / AV Offset 35ms / Drift 4ms/min) 或 H3/H6 WARN</td><td>顶部黄条 + 对应 metric 标黄 + Recommend Action: 减码率 / 切备份</td></tr>
+        <tr><td><b>⚠ WARNING</b></td><td>DEGRADED (e.g. CPU 90% / AV Offset 35ms / Drift 4ms/min) 或 H3/H6 WARN</td><td>顶部黄条 + 对应 metric 标黄 + Recommend Action: RESOURCE 域(CPU/Drift)→减码率/暂停后台 Job/查 Resource Vector, <b>不触发源 FAILOVER</b>; 仅 SOURCE 故障才进 FAILOVER（对齐 Failure Domain Matrix）</td></tr>
         <tr><td><b>✗ ERROR</b></td><td>FAILED (e.g. Source 断流 5s+) 或 H1/H2 FAIL</td><td>顶部红条 + Filler 自动接管 + 自动切 FRAME/MASTER</td></tr>
         <tr><td><b>✗✗ CRITICAL</b></td><td>Master Join 失败 / 全 Source 不可达 / Clock LOST</td><td>顶部红条 + Emergency Asset 自动 + 强制 NACK + 通知 Admin</td></tr>
       </tbody>
@@ -452,7 +452,7 @@
   <div class="panel" style="margin-top:8px;text-align:center;padding:32px">
     <div style="font-size:36px;opacity:.3;margin-bottom:12px">📡</div>
     <h3 style="color:var(--fg);justify-content:center">尚无实时编码器</h3>
-    <div style="color:var(--fgdim);margin:8px 0 16px">Realtime Transcode 用于 24/7 直播编码 (SDI 主备 → SRS HLS+WebRTC).<br>需要先创建 Realtime Encoder + 选 Source + 选 Profile Bundle.</div>
+    <div style="color:var(--fgdim);margin:8px 0 16px">Realtime Encode 用于 24/7 直播编码 (SDI 主备 → SRS HLS+WebRTC).<br>需要先创建 Realtime Encoder + 选 Source + 选 Profile Bundle.</div>
     <button class="btn primary" style="margin-right:8px">+ Create Realtime Encoder (L1)</button>
     <button class="btn">从 P-20 Profile Center 选 Bundle →</button>
   </div>
@@ -465,7 +465,7 @@
     <table>
       <thead><tr><th>i18n key</th><th>zh-CN</th><th>en-US</th></tr></thead>
       <tbody>
-        <tr><td>broadcast.realtime_transcode.title</td><td>实时转码</td><td>Realtime Transcode</td></tr>
+        <tr><td>broadcast.realtime_transcode.title</td><td>实时编码</td><td>Realtime Encode</td></tr>
         <tr><td>broadcast.realtime_transcode.runtime</td><td>实时编码器运行态</td><td>Live Encoder Runtime</td></tr>
         <tr><td>broadcast.realtime_transcode.pipeline</td><td>实时编码管线</td><td>Realtime Encode Pipeline</td></tr>
         <tr><td colspan="3" style="color:var(--fgdim);font-size:10px">
@@ -479,10 +479,13 @@
 </details>
 
 <footer>
-  VBMF Operator Console · M-17 Realtime Transcode · BROADCAST 域 · Phase 0.5D · 设计稿 v0.1
+  VBMF Operator Console · M-17 Realtime Encode · BROADCAST 域 · Phase 0.5D · 设计稿 v0.1
   · 关联: P-20 Profile Center / P-28 Profile Bundle / M-15 Transcode Jobs (锁) / E-36 Resource (锁) / E-37 Clock (升级) / E-38 Hardware (0.5D)
   · Object: Session (MEDIA_SESSION) · Vocabulary: 4 State Models (Lifecycle + Readiness + Health + Node Role)
 </footer>
 
+<script>
+(function(){var k='vt-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+</script>
 </body>
 </html>

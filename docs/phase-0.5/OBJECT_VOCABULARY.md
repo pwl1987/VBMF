@@ -93,6 +93,8 @@
 | **核心字段** | `channel_id, name, profile_bundle_ref, source_refs[], output_variant_refs[], redundancy_group_id, hot_standby_level` |
 | **绝不允许混用** | ❌ 不要叫 "Stream" / "Program" — Program 是 Composition 输出层, Channel 是运营单位 |
 
+> **Channel Template ≠ Bundle (提案采纳, 四层分离):** `Channel Template`(创建工厂, **不进运行态**) → 创建 `Profile Bundle`(当前 Channel 配置集合) → 引用 `Profile`(可复用策略) → 实例化 `Output Variant`(当前交付实例). Template 仅用于"新建 Channel"时一键带出 Bundle, 不作为运行模型对象. 详见 `P-28-profile-bundle.html`.
+
 ### 1.6 Source 源
 
 | 字段 | 锁定 |
@@ -104,6 +106,9 @@
 | **唯一 ID** | `source_id` (UUID) |
 | **核心字段** | `source_id, kind (SDI/SRT/RTMP/HLS/WebRTC/RTP/UDP/RTSP/FILE/INTERNAL/COMPOSITE), name, signal_contract, redundancy_group_id, health` |
 | **绝不允许混用** | ❌ 不要叫 "Input" / "Feed" — Input 是 Process 内部术语, Source 是 Operator 可见对象 |
+
+> **Source 业务生命周期 (提案采纳, 区分于 Runtime 三轴):** `DRAFT → TESTING → VERIFIED → ASSIGNED → ACTIVE → STANDBY → OFFLINE`. 这是 Source 对象自身的业务生命周期, **不可** 与 `lifecycle` / `readiness` / `health` 三轴混用 (三轴是运行态, 生命周期是对象创建-上线-退役过程). 详见 `E-42-source-test-bench.md`.
+> **Endpoint 是 Source 的子对象 (提案采纳):** Source 结构 = Adapter + **Endpoint** (mode / local_interface / local_bind / remote_address / remote_port / VLAN / DSCP / TTL / IGMP / SSM) + Contract + Runtime + QC. Endpoint **不**作为独立全局持久化实体, 除非未来需多 Source 共享同一 Network Endpoint. 对应 PIA §3 Network Layer.
 
 ### 1.7 Route 路由 (Graph + 编排)
 

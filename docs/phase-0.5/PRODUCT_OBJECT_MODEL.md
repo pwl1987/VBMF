@@ -32,7 +32,7 @@ UI 必须显式表达这 3 层的"组合关系", 而不是每个对象一个孤�
 
 ## 1. 三个核心组合层 (Phase 0.5C 锁定)
 
-### 1.1 第 1 层: 6 种 Profile (Policy / 跨 Channel 共享)
+### 1.1 第 1 层: 7 种 Profile (Policy / 跨 Channel 共享)
 
 | 子类 | 对象 ID 命名 | 跨多少 Channel 共享? | 由谁管理 |
 |---|---|---|---|
@@ -50,7 +50,7 @@ UI 必须显式表达这 3 层的"组合关系", 而不是每个对象一个孤�
 
 ### 1.2 第 2 层: Profile Bundle (Composition / 1 个 Channel 用 1 个 Bundle)
 
-**关键创新:** **1 个 Channel 1 个 Bundle**, Bundle 内含 6 种 Profile 的引用 (不是副本)。
+**关键创新:** **1 个 Channel 1 个 Bundle**, Bundle 内含 7 种 Profile 的引用 (不是副本)。
 
 ```yaml
 # DB schema
@@ -244,7 +244,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | `media_assets` | Asset (1.1) |
 | `media_asset_versions` | Asset Version (1.2) |
 | `encoding_profiles` / `output_profiles` / `audio_profiles` 等 6 表 | Profile (1.3, 6 kind) |
-| `profile_bundles` (V0.4 规划) | Profile Bundle (1.4, 0.5C 新增) |
+| `profile_bundles` (0.5D 持久化) | Profile Bundle (1.4, 0.5C 新增) |
 | `channels` | Channel (1.5) |
 | `sources` | Source (1.6) |
 | `graph_specs` / `routes` | Graph (设计) + Route (运行时) (1.7) |
@@ -256,14 +256,14 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | `config_revisions` | Revision (1.13) |
 | `change_sets` | Change Set (1.14) |
 
-⛔ V0.2 LOCK FINAL 不开 V0.2.5, 本 Model 是 Product UX 层, 不改 DB schema 字段, 只在 `profile_bundles` 这张**V0.4 规划表**上加文档化声明。
+⛔ V0.2 LOCK FINAL 不开 V0.2.5, 本 Model 是 Product UX 层, 不改 DB schema 字段, 只在 `profile_bundles` 这张**0.5D 持久化对象**上加文档化声明。
 
 ---
 
 ## 6. Phase 0.5C LOCK FINAL 验证清单
 
 - [ ] **导航 4 域** (BROADCAST / MEDIA / PROFILES / ENGINEERING) 顶层无数字
-- [ ] **6 Profile** 全部进 P-20 Profile Center, 不再各自分散
+- [ ] **7 Profile** 全部进 P-20 Profile Center, 不再各自分散
 - [ ] **M-14 / M-17** 显式标 "File Transcode" / "Realtime Transcode", 不再叫 "Transcode Center"
 - [ ] **Variant vs Version** 命名严格分离
 - [ ] **Bundle** 进 SURFACE_SPEC §3.3 (新章节)
