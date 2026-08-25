@@ -18,16 +18,28 @@ services:
       - "8000:8000"   # SRT
       - "1989:1989"   # WHEP/WebRTC
 
-  # ACCEPTANCE: media-agent runtime = runc (MEDIA-SEC-01裁决: Option B).
+  # ACCEPTANCE: media-agent runtime = runc (MEDIA-SEC-01裁决: Option B, secure-runc-first).
   # Step 3 实测 runsc 下 libDeckLinkAPI 枚举 0 设备(gVisor 不兼容 DeckLink SDK),
-  # runc 下 Detected 3 devices + Pipeline live. 故验收/生产统一 runc + Option B 隔离.
-  # 详见 evidence/bmd-10.30.15.10/2026-08-26-media-sec-01-step3.md 与 SoT §15.
+  # runc 下 Detected 3 devices + Pipeline live. 故验收/生产统一 runc + Option B 隔离加固.
+  # 详见 evidence/bmd-10.30.15.10/2026-08-26-media-sec-01-step3.md 与 SoT §15 / §15.1.
   media-agent:
     runtime: runc
+    # ---- Option B: device allowlist (NOT privileged) ----
+    devices:
+      - /dev/blackmagic:/dev/blackmagic
+    device_cgroup_rules:
+      - 'c 10:* rmw'   # Blackmagic 主设备号 10 (dv0/dv1/io0)
+    # ---- capability 最小集 ----
+    cap_drop:
+      - ALL
     cap_add:
-      - SYS_ADMIN
+      - SYS_NICE       # 实时采集线程调度
+      # 若 GStreamer/DeckLink SDK 实测需更多能力, 在此最小增补(禁止直接回 SYS_ADMIN)
+    # ---- 安全加固 ----
     security_opt:
-      - "seccomp:unconfined"   # placeholder; 替换为 ops/nginx/seccomp-media.json (Option B 加固)
-    # DeckLink 设备发现依赖 DesktopVideoHelper IPC:
-    # 运行时需 bind /dev/shm/com_blackmagicdesign_DeckLinkDiscoveryNotifier + --ipc=host
-    # (compose 不支持 inline shm bind, 由部署脚本/daemon 保证; 见 ops/README MEDIA-SEC-01)
+      - no-new-privileges:true
+      # seccomp: 默认 docker default profile 已足够; 如需更紧可引用 ops/nginx/seccomp-media.json
+    # ---- DeckLink 设备发现依赖 DesktopVideoHelper IPC ----
+    ipc: host                       # 共享 /dev/shm/com_blackmagicdesign_* (SDK IPC)
+    shm_size: 1g
+    # 注: compose 不支持 inline bind /dev/shm/com_blackmagicdesign_*, 由 ipc:host 覆盖(见 SoT §15.1)

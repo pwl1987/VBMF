@@ -200,16 +200,29 @@ Level 2 (Remote BMD): SSH → pinned SHA → Docker Compose → ENV Preflight �
 - 不建议让 GitHub CI 经 SSH 直接跑全部硬件验收（避免真实硬件成 CI 脆弱外部依赖）。
 
 ### BMD 出向与镜像源约束（NET-01，实测 2026-08-25）
-> BMD 验收机（10.30.15.10）**出向 HTTPS 受限**：`registry-1.docker.io` 直连 TLS 被 reset，`163`/`dockerpull.org` 等公共 mirror DNS/TCP 不可达。
-> **唯一可用镜像源**：`docker.1ms.run`（毫秒镜像，CDN 智能分发）。已配入 BMD `/etc/docker/daemon.json` 的 `registry-mirrors`。
 
-- **规则**：BMD 上拉取任何公共镜像必须经 `docker.1ms.run`。直连 `docker pull <img>`（不经 mirror）会失败，属环境约束而非配置错误。
-- 配置片段（`/etc/docker/daemon.json`）：
+> BMD 验收机（10.30.15.10）**出向 HTTPS 受限**：`registry-1.docker.io` 直连 TLS 被 reset，`163`/`dockerpull.org` 等部分公共 mirror DNS/TCP 不可达。
+> 镜像拉取须走 **mirror**。已配入 BMD `/etc/docker/daemon.json` 的 `registry-mirrors`。
+
+**Primary mirror（首选，已验证可用）**：
+- `docker.1ms.run`（毫秒镜像，CDN 智能分发，速度极快）
+
+**Fallback mirrors（primary 不可用时回退，未逐一验证）**：
+- `dockerproxy.net`（ghproxy 创建，可用性高但速度慢）
+- `hub-mirror.c.163.com`（DaoCloud/163，老牌企业镜像站）
+- `docker.1panel.live`（1Panel 自用镜像）
+
+**Policy**：
+- BMD bootstrap 优先使用 **primary**；primary 不可达时回退 fallback。
+- **不保证**第三方 mirror 完整同步所有 tag/ digest；关键镜像（媒体 agent / SRS）建议同时缓存至本地私有 registry 或离线 tar（同 §9 离线 SDK 思路）。
+- 直连 `docker pull <img>`（不经 mirror）在 BMD 会失败，属环境约束而非配置错误。
+- 配置片段（`/etc/docker/daemon.json`，mirror 列表可多写）：
   ```json
-  { "registry-mirrors": ["https://docker.1ms.run"],
+  { "registry-mirrors": ["https://docker.1ms.run", "https://dockerproxy.net"],
     "runtimes": { "runsc": { "path": "/usr/local/bin/runsc" } } }
   ```
-- 若后续换镜像站，须同步更新此处 + BMD 实机 daemon.json，并在 `Acceptance Manifest` 记录。
+  > 注：`runsc` runtime 仍保留在 daemon（Step 1 已装），但**不再用于媒体栈**（见 §15 裁决）。
+- 若调整 mirror，须同步更新此处 + BMD 实机 daemon.json，并在 `Acceptance Manifest` 记录。
 - **影响验收脚本**：所有 `docker run/pull` 不应硬编码完整 mirror 路径；依赖 daemon 级 mirror 即可。
 
 ---
@@ -316,15 +329,71 @@ Node (Control / Async Plane)          Rust (Media Runtime Plane)
 **裁决：MEDIA-SEC-01 → Option B（runc）**。
 理由（用户决策原则）：**稳定采集 > 容器隔离**。广播系统第一优先级是可靠访问 DeckLink，gVisor 兼容缺口不可接受。
 
-**Option B 正式采用**：Media Agent 用 `runc` + 其他隔离（而非 gVisor）：
-- `seccomp` profile（专用 `ops/nginx/seccomp-media.json`）
-- `AppArmor` / `cgroup` / `capabilities` 收敛（仅留 `SYS_ADMIN` 等 DeckLink 必需项）/ `read_only` rootfs + 特定 `tmpfs`
-- `/dev/blackmagic` device allowlist（dv0/dv1/io0）+ 必要时 bind `/dev/shm/com_blackmagicdesign_*`
-- 可靠访问 DeckLink 优先于通用 gVisor 隔离。
+**Option B 正式采用**：Media Agent 用 `runc` + 其他隔离（而非 gVisor）。具体配置见 §15.1 与 `ops/compose.*.yml`。
 
-**compose 分层（DEPLOY-04）更新为**：dev=runc / acceptance=**runc** / prod=**runc + Option B 隔离加固**（原 acceptance 的 `runtime: runsc` 候选已撤销）。runsc 不再进入生产/验收媒体栈。
+**compose 分层（DEPLOY-04）更新为**：dev=runc / acceptance=**runc + Option B 隔离** / prod=**runc + Option B 隔离（read_only）**（原 acceptance 的 `runtime: runsc` 候选已撤销）。runsc 仍装在 daemon 但**不再进入媒体栈**。
 
-> 注：Step 3 的 "first frame"（真实 SDI 信号下 buffer 产生）留待 Gate 2 媒体 agent 骨架就绪后在 acceptance 复测；open+live 已证明 runc 链路打通。
+**MEDIA-SEC-01 完成度声明（实测 2026-08-26）**：
+```
+Step 1 Runtime          ✅ PASS   (runsc 安装/注册, 但媒体栈不再使用)
+Step 2 Device Isolation ✅ PASS   (设备透传+无泄漏, Device Isolation Risk CLOSED)
+Step 3 Media Stack      🟡 PARTIAL
+    runc:  ✅ SDK/device enumerate  ✅ Pipeline is live  ❌ first-frame 未证明  ❌ buffer 未证明
+    runsc: ❌ device enumerate failure
+Decision: ✅ Option B selected (runc + 隔离加固)
+MEDIA-SEC-01 COMPLETE:  ❌ 未完成
+```
+> **关键边界**：Step 3 证明"runc 下 DeckLink SDK 可 open + live"，但**未证明**"能产生 frame buffer"（无实时 SDI 信号源 + fakesink 不消费）。这足以**否决 runsc、锁定 Option B、放行 Gate 2**（Gate 2 基于 runc），但**不构成 MEDIA-SEC-01 COMPLETE**。
+
+**first-frame 移至 MEDIA-RT-01（见下）**：避免"媒体输入信号问题"阻塞安全架构决策。MEDIA-SEC-01 的职责（选 runtime）已完成；first-frame 属媒体运行时验证。
+
+### 15.1 Media Runtime Security Model（Option B 具体化）
+
+**Decision**：`secure-runc-first`（非 runsc-first）。
+
+**Runtime**：`runc`。
+
+**Isolation 手段**（已在 `ops/compose.acceptance.yml` / `compose.prod.yml` 落实）：
+- `devices: /dev/blackmagic` + `device_cgroup_rules: 'c 10:* rmw'`（Blackmagic 主设备号 10 的 allowlist）
+- `cap_drop: ALL` + `cap_add: SYS_NICE`（实时线程调度；禁止直接 `SYS_ADMIN`，如需更多能力按最小增补）
+- `security_opt: no-new-privileges:true`
+- `ipc: host` + `shm_size: 1g`（DeckLink SDK 经 `/dev/shm/com_blackmagicdesign_*` 与 `DesktopVideoHelper` IPC 发现设备）
+- prod 额外：`read_only: true` rootfs + 特定 `tmpfs: /tmp`
+
+**Forbidden（红线）**：
+- `privileged: true`
+- 挂载宿主 root filesystem
+- 无限制 device 访问（`devices: /dev` 之类）
+- `cap_add: SYS_ADMIN` 作为默认（除非 MEDIA-RT-01 实测证明必需且记录）
+
+**Reason**：DeckLink SDK / GStreamer 与 runsc（gVisor）不兼容（Step 3 枚举失败）。这是架构不匹配，非 bug。
+
+### 15.2 Gate 2 Entry Criteria & MEDIA-02/03/04
+
+**Gate 2 Entry（已满足，可启动 Rust Media Agent 骨架）**：
+- [x] Docker runtime selected（runc）
+- [x] Media runtime selected（Option B）
+- [x] Device access model frozen（allowlist + ipc:host + cap 最小集）
+- [ ] first frame validation → **MEDIA-RT-01**（媒体 agent 骨架就绪后复测）
+- [ ] Device Lease implementation → **MEDIA-02**
+- [ ] Recovery implementation → **MEDIA-03**
+- [ ] Hotplug / Failure Injection → **MEDIA-04 / FI-08 / FI-09**
+
+**MEDIA-02 Device Lease（🟡 未实现）**：
+- 从文档契约进入代码：`LeaseManager`（acquire/release/health，含 ttl/owner/device_id）。
+- 防 host ffmpeg 与 agent 抢 DeckLink（F2/F4/F11）。
+
+**MEDIA-03 Crash Recovery（🟡 未实现）**：
+- 场景：`gst pipeline crash → agent detect → release device → restart pipeline → recover`。
+- Supervisor 负责进程崩溃 / pipeline hang / device lost 检测与重启。
+
+**MEDIA-04 Device Hotplug（🟡 未实现）**：
+- 广播现场须考虑：DeckLink cable lost / device reset / driver restart。
+- agent 须监听 udev/DesktopVideoHelper 设备上下线事件并安全 re-lease。
+
+**MEDIA-RT-01 Media Runtime Validation（OPEN）**：
+- 目标：真实 SDI 信号下 `decklinkvideosrc ! fakesink` 产生 buffer（first-frame），验证完整采集链路。
+- 归属：媒体 agent 骨架（Gate 2）就绪后在 acceptance 复测，不阻塞 MEDIA-SEC-01 安全决策。
 
 ---
 

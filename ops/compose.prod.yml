@@ -1,4 +1,4 @@
-# VBMF PROD overlay (§11 PRODUCTION profile)
+﻿# VBMF PROD overlay (§11 PRODUCTION profile)
 # Usage: docker compose -f docker-compose.yml -f compose.prod.yml up --build -d
 # Immutable image / no HMR / Nginx 443 only / SRS media ports published.
 # REAL secrets via Docker secrets or SSH provisioning (INFRA-SEC-01). NEVER commit.
@@ -17,13 +17,26 @@ services:
       - "8080:8080"   # HLS/HTTP-FLV delivery
       # 1985 (SRS API) + 8000 (SRT) kept internal unless required
 
-  # PROD: media-agent runtime = the MEDIA-SEC-01 VALIDATED choice (locked after smoke test).
-  # Until validation completes, default runc + seccomp (Option B, broadcast-stability-first).
-  # If runsc smoke PASSES, switch `runtime: runsc` + keep cap_add SYS_ADMIN.
+  # PROD: media-agent runtime = runc (MEDIA-SEC-01裁决: Option B 已定, secure-runc-first).
+  # runsc 路径已因 Step 3 枚举失败正式否决, 不再回退. 见 SoT §15 / §15.1.
   media-agent:
     runtime: runc
+    # ---- Option B: device allowlist (NOT privileged) ----
+    devices:
+      - /dev/blackmagic:/dev/blackmagic
+    device_cgroup_rules:
+      - 'c 10:* rmw'
+    # ---- capability 最小集 ----
+    cap_drop:
+      - ALL
     cap_add:
-      - SYS_ADMIN
+      - SYS_NICE
+    # ---- 安全加固 ----
     security_opt:
-      - "seccomp:unconfined"   # placeholder; replace with ops/nginx/seccomp-media.json (Option B) post-validation
-    read_only: false   # GStreamer/FFmpeg need writable temp; mount specific tmpfs
+      - no-new-privileges:true
+    read_only: true        # PROD 只读 rootfs
+    tmpfs:
+      - /tmp:size=512m,mode=1777   # GStreamer/FFmpeg 可写 temp
+    # ---- DeckLink IPC ----
+    ipc: host
+    shm_size: 1g
