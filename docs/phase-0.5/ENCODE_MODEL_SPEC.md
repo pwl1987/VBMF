@@ -21,7 +21,7 @@
 
 ```
 EncodingProfile
-├── Common      (两类共享: Basic/Video/Audio/Container — 见 P-21 §392-470)
+├── Common      (两类共享: Basic / Video / Audio — Container 仅文件封装, 见 §2 边界; 传输封装归 §8 Packaging)
 ├── Realtime    (仅 REALTIME_PROFILE — 见 §3)
 └── File        (仅 FILE_PROFILE — 见 §4)
 ```
@@ -52,7 +52,8 @@ EncodingProfile:
 - **Video — Bitrate**: Bitrate Mode / Bitrate / VBV / HRD / Min·Max Bitrate / Quality(CRF)
 - **Video — GOP**: GOP Size / Closed·Open GOP / Keyframe·IDR Policy / Reference Frames / B-Frames / Lookahead / Scene Cut
 - **Audio**: Codec / Sample Rate / Channel Layout / Bit Depth / Bitrate / Loudness Reference / AV Sync Offset
-- **Container**: MPEG-TS / fMP4 / MP4 / MOV / MKV / Segment / Index / Metadata / Timecode
+- **Container (文件封装, 仅 FILE_PROFILE 产出)**: MP4 / MOV / MKV
+- ⛔ **传输封装 / 切片 / 清单 / DRM 不在此段**: `Segment` / `Manifest` (HLS / DASH / MPEG-TS / fMP4) / `DRM` 全部归 `PACKAGING_PROFILE` (见 §8)；Encoding Profile 禁止承担。
 
 > 注：Common 段的 `Latency Mode (Normal/Low/Ultra-Low)`（P-21 §455）在 `REALTIME_PROFILE` 下被 §3 的 `latency_class` 取代并强化，不再使用松散的 Mode 表述。
 > **Packaging 边界（0.6 焊死）**：Encoding Profile 的 `Container` 仅指**文件封装**（MP4 / MKV，FILE_PROFILE 产出）；**传输封装（HLS / DASH / MPEG-TS / segment / manifest / DRM）全部归 `PACKAGING_PROFILE`**（见 §8）。Encoding 不承担 Packaging 职责，与 phase-0.6 `Profile Responsibility Boundary` 一致。

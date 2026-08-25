@@ -199,11 +199,23 @@
   </div>
 </div>
 
-<!-- Step 3 Profile (简要) -->
+<!-- Step 3 Profile: Encoding / Packaging / Job Policy 三职责区块 (0.5F.12) -->
 <details>
-  <summary>▸ Step 3 Profile (Encoding + 2-Pass / CRF / Batch Policy)</summary>
+  <summary>▸ Step 3 Profile (Encoding / Packaging / Job Policy — 职责分离)</summary>
   <div class="panel" style="margin-top:8px">
-    <div class="form-grid">
+
+    <!-- ① Encoding Profile -->
+    <div class="box-title" style="color:#58a6ff">① Encoding Profile (P-21 · FILE_PROFILE)</div>
+    <div class="diag" style="margin-top:0">只含编码语义: Codec / Resolution / FPS / Bitrate / GOP / Audio Encode / Quality (CRF / 1-2 pass)。⛔ 不承担 Container / Segment / Manifest / DRM（归 Packaging）。</div>
+    <div class="form-grid" style="margin-top:8px">
+      <div class="form-row">
+        <label>FILE_PROFILE (Encoding Profile)</label>
+        <select>
+          <option selected>ENC-v12 (Master HEVC)</option>
+          <option>ENC-v22 (Proxy H.264)</option>
+          <option>ENC-v07 (Archive)</option>
+        </select>
+      </div>
       <div class="form-row">
         <label>Pass Mode</label>
         <select>
@@ -219,8 +231,30 @@
           <option>VBR (可变码率, 存储)</option>
         </select>
       </div>
+    </div>
+
+    <!-- ② Packaging Profile (显式) -->
+    <div class="box-title" style="color:#a371f7;margin-top:12px">② Packaging Profile (P-20 · PACKAGING_PROFILE) — 显式选择</div>
+    <div class="diag" style="margin-top:0">Delivery Packaging: Container / Segment / Manifest / DRM。⛔ 不承担 codec / resolution / bitrate / GOP（属 Encoding）。</div>
+    <div class="form-grid" style="margin-top:8px">
       <div class="form-row">
-        <label>Segmenting (HLS / DASH)</label>
+        <label>Packaging Profile (显式)</label>
+        <select>
+          <option selected>PKG-HLS-CMAF-v2 (HLS + CMAF)</option>
+          <option>PKG-DASH-AVC-v1 (DASH)</option>
+          <option>PKG-ARCHIVE-MP4-v1 (单一文件)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Container</label>
+        <select>
+          <option selected>CMAF (fMP4)</option>
+          <option>MPEG-TS</option>
+          <option>MP4</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Segment (HLS / DASH)</label>
         <select>
           <option>None (single file)</option>
           <option selected>2s segments (LL-HLS)</option>
@@ -229,6 +263,28 @@
         </select>
       </div>
       <div class="form-row">
+        <label>Manifest</label>
+        <select>
+          <option selected>HLS_M3U8</option>
+          <option>DASH_MPD</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>DRM</label>
+        <select>
+          <option selected>NONE</option>
+          <option>Widevine</option>
+          <option>PlayReady</option>
+          <option>FairPlay</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ③ Job Policy -->
+    <div class="box-title" style="color:#d29922;margin-top:12px">③ Job Policy (Step 5 调度 · 与 Profile 解耦)</div>
+    <div class="diag" style="margin-top:0">Worker / Concurrency / Priority / Retry / Schedule / Storage 属 Job 运行时策略，不混进 Encoding / Packaging Profile (EXECUTION_MODEL §2)。</div>
+    <div class="form-grid" style="margin-top:8px">
+      <div class="form-row">
         <label>Batch Policy</label>
         <select>
           <option selected>Parallel (all at once, max CPU)</option>
@@ -236,12 +292,38 @@
           <option>Throttled (N concurrent)</option>
         </select>
       </div>
+      <div class="form-row">
+        <label>Worker</label>
+        <select>
+          <option selected>AUTO (pool)</option>
+          <option>GPU-01</option>
+          <option>CPU-FARM</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Priority</label>
+        <select>
+          <option selected>Normal</option>
+          <option>High</option>
+          <option>Low</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Retry</label>
+        <select>
+          <option selected>3x (1s backoff)</option>
+          <option>None</option>
+          <option>5x</option>
+        </select>
+      </div>
     </div>
+
     <div class="diag" style="margin-top:8px">
-      <b>Profile / Job Policy 分层 (0.5D.3):</b>
-      ① Encoding Profile (P-21 · <b>FILE_PROFILE</b>) 只含编码语义: Codec / Resolution / FPS / Bitrate / GOP / Audio / Container / Quality (CRF / 1-2 pass)。
-      ② <b>Batch Policy / Concurrency / Priority / Worker / Retry / Schedule / Storage 属 Job Policy (Step 5)</b>, 不混进 Profile (EXECUTION_MODEL §2)。
-      ③ 本 picker 只显示 <b>FILE_PROFILE 分支</b> (ENC-v12 / ENC-v22 ...), <b>严格禁止 REALTIME_PROFILE</b> — 那是 M-17 / Session 的 (ENCODE_MODEL_SPEC §3)。
+      <b>职责边界 (0.5F.12 焊死):</b>
+      ① <b>Encoding Profile</b> (P-21 · FILE_PROFILE): Codec / Resolution / FPS / Bitrate / GOP / Audio Encode / Quality。不含 Container / Segment / Manifest / DRM。
+      ② <b>Packaging Profile</b> (P-20 · PACKAGING_PROFILE): Container / Segment / Manifest / DRM。不含 codec / resolution / bitrate。
+      ③ <b>Job Policy</b>: Worker / Concurrency / Priority / Retry / Schedule / Storage。
+      本 picker 只显示 <b>FILE_PROFILE</b> 分支（严格禁止 REALTIME_PROFILE，那是 M-17 / Session 的 ENCODE_MODEL_SPEC §3）。
     </div>
   </div>
 </details>
@@ -410,7 +492,7 @@
         <tr><td>用户关心</td><td>% Progress/ETA/Output Size/Quality/CRF</td><td>FPS/Speed/CPU/Dropped/AV Offset/Latency</td></tr>
         <tr><td>失败恢复</td><td>1-pass/2-pass/Retry/Cancel</td><td>FRAME/MASTER failover</td></tr>
         <tr><td>UI 步骤</td><td>6 步 Wizard (Source/Output/Profile/QC/Schedule/Submit)</td><td>无 (持续运行)</td></tr>
-        <tr><td>P-21 Profile</td><td>FILE 段 (CRF/1-2 pass/Multi-pass/Segmenting/Batch)</td><td>REALTIME 段 (Latency/GOP/VBV/Warmup)</td></tr>
+        <tr><td>P-21 Profile</td><td>FILE 段 (CRF / 1-2 pass / Multi-pass) · Packaging / Job 独立 (见 Step 3)</td><td>REALTIME 段 (Latency/GOP/VBV/Warmup)</td></tr>
       </tbody>
     </table>
     <div class="diag">

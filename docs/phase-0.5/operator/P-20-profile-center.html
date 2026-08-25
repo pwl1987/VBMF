@@ -75,7 +75,7 @@
 <div class="row">
   <div class="col-3 metric">
     <div class="label">Profile 总数</div>
-    <div class="val blue">87</div>
+    <div class="val blue" id="kpi-profile-total">97</div>
     <div class="sub">across 8 registries</div>
   </div>
   <div class="col-3 metric">
@@ -97,16 +97,26 @@
 
 <!-- 9 Tab 切换 -->
 <div class="tabs">
-  <div class="tab active"><span class="ico">⚙️</span>Encoding <span class="count">18</span></div>
-  <div class="tab"><span class="ico">🔊</span>Audio <span class="count">12</span></div>
-  <div class="tab"><span class="ico">📤</span>Output <span class="count">15</span></div>
-  <div class="tab"><span class="ico">📀</span>Packaging <span class="count">10</span></div>
-  <div class="tab"><span class="ico">🎨</span>Graphic <span class="count">8</span></div>
-  <div class="tab"><span class="ico">🔍</span>QC <span class="count">14</span></div>
-  <div class="tab"><span class="ico">⚖️</span>Rights <span class="count">11</span></div>
-  <div class="tab"><span class="ico">🔌</span>Edge <span class="count">9</span></div>
+  <div class="tab active"><span class="ico">⚙️</span>Encoding <span class="count" data-registry-count>18</span></div>
+  <div class="tab"><span class="ico">🔊</span>Audio <span class="count" data-registry-count>12</span></div>
+  <div class="tab"><span class="ico">📤</span>Output <span class="count" data-registry-count>15</span></div>
+  <div class="tab"><span class="ico">📀</span>Packaging <span class="count" data-registry-count>10</span></div>
+  <div class="tab"><span class="ico">🎨</span>Graphic <span class="count" data-registry-count>8</span></div>
+  <div class="tab"><span class="ico">🔍</span>QC <span class="count" data-registry-count>14</span></div>
+  <div class="tab"><span class="ico">⚖️</span>Rights <span class="count" data-registry-count>11</span></div>
+  <div class="tab"><span class="ico">🔌</span>Edge <span class="count" data-registry-count>9</span></div>
   <div class="tab" style="border-left:1px solid var(--border);background:rgba(88,166,255,.05)"><span class="ico">📦</span>Bundle <span class="count" style="background:var(--accent)">3</span></div>
 </div>
+<script>
+  // P-20 KPI: Profile 总数 = Σ(8 Profile Registry counts)，程序化派生，杜绝 fixture 漂移
+  (function(){
+    var els = document.querySelectorAll('[data-registry-count]');
+    var sum = 0;
+    els.forEach(function(e){ sum += parseInt(e.textContent, 10) || 0; });
+    var t = document.getElementById('kpi-profile-total');
+    if (t) t.textContent = sum;
+  })();
+</script>
 
 <!-- Encoding Profile 列表 (默认 Tab) -->
 <div class="panel">
