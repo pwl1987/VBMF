@@ -133,7 +133,7 @@
 
   <div class="subblk">
     <div class="sh"><span class="dot blue"></span> A · CONFIGURATION PREFLIGHT — "这套配置理论上能不能部署?"</div>
-    <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video (配置兼容)</div><div class="std">1080p25 · H.264 · 匹配 Encoding Profile (P-21) · REALTIME_PROFILE · ENC-v3</div></div><div class="st pass">PASS</div></div>
+    <div class="chk pass"><div class="no">2</div><div class="body"><div class="name">Video / Switch Compatibility (按 Effective Switch Decision 分支)</div><div class="std">FRAME_SWITCH: COMMON_RAW_CONTRACT ✓ (1080p25 UYVY422) · timebase 可对齐 · Normalize 可完成 (非 PACKET 严格 codec match; 0.5F.4 P1-1)</div></div><div class="st pass">PASS</div></div>
     <div class="chk pass"><div class="no">3</div><div class="body"><div class="name">Audio (配置兼容)</div><div class="std">L/R + 16ch embedded · LUFS -23.0 ∈ Profile 范围</div></div><div class="st pass">PASS</div></div>
     <div class="chk pass"><div class="no">8</div><div class="body"><div class="name">Latency (配置 SLA)</div><div class="std">Budget PASS · ≤ max_startup_latency (est 1.8s / 2.0s)</div></div><div class="st pass">PASS</div></div>
     <div class="chk pass"><div class="no">9</div><div class="body"><div class="name">Resource (配置 Vector)</div><div class="std">编码器 71% / 网络 63% · ≤80% PASS · Reservation.state = RESERVED (TAKE 前已预占, 不临时抢占)</div></div><div class="st pass">PASS · BLOCK &gt;100%</div></div>
@@ -142,7 +142,7 @@
   <div class="subblk" style="margin-top:10px">
     <div class="sh"><span class="dot green"></span> B · RUNTIME TAKE READINESS — "现在这一秒能不能切?"</div>
     <div class="chk pass"><div class="no">1</div><div class="body"><div class="name">Source (Primary)</div><div class="std">Source B LOCKED · UDP-MC 239.20.10.10 STREAMING</div></div><div class="st pass">PASS · 阻断</div></div>
-    <div class="chk pass"><div class="no">4</div><div class="body"><div class="name">Clock</div><div class="std">PTP LOCKED · AVSync +12ms · drift +0.4ms/min</div></div><div class="st pass">PASS · 阻断</div></div>
+    <div class="chk pass"><div class="no">4</div><div class="body"><div class="name">Clock (Compatibility / Quality)</div><div class="std">reference=ptp0 · domain=BROADCAST · quality=BROADCAST_GRADE · fallback=PTP→TIMECODE→SYSTEM 有效 · timebase ALIGNABLE · AVSync +12ms (0.5F.4 P0-2: 非 PTP 二元开关)</div></div><div class="st pass">PASS</div></div>
     <div class="chk pass"><div class="no">5</div><div class="body"><div class="name">Switch</div><div class="std">目标 Switch Mode = FRAME_SWITCH · eligible · <b>Policy Target</b> 100ms (HOT) · <b>Measured</b> p95 87ms</div></div><div class="st pass">PASS · 阻断</div></div>
     <div class="chk pass"><div class="no">6</div><div class="body"><div class="name">Backup</div><div class="std">READY_TO_TAKE · Hot Standby 就绪 (SDI-02 HOT)</div></div><div class="st pass">PASS · 阻断</div></div>
     <div class="chk pass"><div class="no">7</div><div class="body"><div class="name">Output (delivery_criticality)</div><div class="std">REQUIRED 全 HEALTHY; OPTIONAL/AUX 仅 WARNING · 按 Failure Domain 不误切源</div></div><div class="st pass">PASS · REQUIRED 阻断</div></div>

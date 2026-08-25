@@ -39,7 +39,7 @@
 | `hot_standby_level` | enum | 必填 | `COLD` / `WARM` / `HOT` (V0.2 Canonical, ⛔ 禁 `NONE`) |
 | `redundancy_enabled` | bool | 默认 true | 不需要备机时置 `false`, **不扩充 HotStandbyLevel enum** (0.5F.1 修正) |
 | `bundle_id` | ref | 必填 | Profile Bundle (7 Profile 引用) |
-| `lifecycle` | enum | 系统写 | `DRAFT→TESTING→VERIFIED→READY_TO_TAKE→RUNNING` |
+| `channel_configuration_status` | enum | 系统写 | `DRAFT → VALIDATED → APPLIED → RETIRED` (Channel 配置生命周期; 0.5F.4 P1-5 更名 — 不叫 `lifecycle`, 避免与 Session Runtime 三轴冲突) |
 | `owner` / `created_by` | string | 必填 | 责任人 |
 | `created_at` / `updated_at` | timestamp | 系统写 | |
 
@@ -60,6 +60,8 @@
 | preview | (运行时) | — | 视频监视器 (16:9) + L/R 音柱 (预览端点 E-42) |
 
 > **0.5F.1 关键约束:** Channel **不拥有** `codec/bitrate/GOP/resolution/latency` — 全部经 `bundle_id` → P-21 REALTIME_PROFILE / P-23 Audio / P-22 Output 引用。修改 Profile 只改一处, 不产生 `Channel.codec` vs `EncodingProfile.codec` 两份真相。
+
+> **0.5F.4 P1-5 更名说明:** Channel 配置生命周期用 `channel_configuration_status` (`DRAFT → VALIDATED → APPLIED → RETIRED`); **Runtime 三轴** (lifecycle `STOPPED/STARTING/RUNNING/STOPPING` · readiness `NOT_READY/READY_TO_TAKE` · health `HEALTHY/DEGRADED/FAILED/UNKNOWN`) 属于 `media_session_runtime`, 不再混用 `lifecycle` 一词。Phase 1 不再出现 `ChannelLifecycleState` / `SessionLifecycleState` 两套 enum。
 
 ---
 

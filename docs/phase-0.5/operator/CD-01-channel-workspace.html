@@ -169,14 +169,19 @@
   <div class="diag">7 种 Profile 是可复用策略引用, 非 UI 组合视图 (POM §4.2 / ENCODE_MODEL_SPEC). 本 Channel 编码走 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> (0.5D.3 修正: 原误标 P-22), Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01 Output 区). 深度配置见 M-17 (D4) / P-21 / P-22.</div>
 </div>
 
+<!-- FIXTURE 快照声明 (0.5F.4 P2 统一) -->
+<div class="panel" style="padding:6px 12px;border-left:3px solid var(--gray)">
+  <span style="font-size:10px;color:var(--fgdim)"><b>fixture:</b> channel=CH01 · runtime_snapshot=<b>RT-2026-08-25-001</b> · config_revision=CFG-v3 · graph_revision=GR-v18 · Program=1080p25 (SDI 1080p50 → Normalize 1080p25) · CD-01/M-17/E-40 共用</span>
+</div>
+
 <!-- ACTION CONTEXT BAR (0.5F F2: Decision / Readiness / Diagnosis 三层视觉层级) -->
 <div class="panel" style="border-left:3px solid var(--accent);padding:10px 12px">
   <div style="display:flex;align-items:center;gap:10px;font-size:11px;margin-bottom:6px;flex-wrap:wrap">
     <b style="font-size:12px">CH01 新闻综合</b>
     <span style="font-size:10px;display:inline-flex;gap:5px;align-items:center">
       <span class="pill pill-blue" title="Configuration Revision">CONFIG · Bundle v3</span>
-      <span class="pill pill-yellow" title="Compiled GraphRuntime">COMPILED · GraphRuntime r18</span>
-      <span class="pill pill-purple" title="Effective (运行时生效)">EFFECTIVE · r17</span>
+      <span class="pill pill-yellow" title="Compiled · 已编译未应用">COMPILED · GraphRuntime r18 <span style="font-size:9px">● PENDING APPLY</span></span>
+      <span class="pill pill-purple" title="Effective (运行时生效)">EFFECTIVE · r17 <span style="font-size:9px">● CURRENT</span></span>
     </span>
     <span style="color:var(--fgdim)">三层: <span style="color:var(--green)">Decision</span> → <span style="color:var(--accent)">Readiness</span> → <span style="color:var(--fgdim)">Diagnosis</span></span>
   </div>
@@ -227,7 +232,7 @@
           <div class="k" style="margin-bottom:3px">PVW 预监</div>
           <div class="preview">
             <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
-            <div class="monitor"><span class="live">● LIVE</span> 1080p50 · 16:9 <span class="res">UDP-MC</span></div>
+            <div class="monitor"><span class="live">● LIVE</span> 1080p25 · 16:9 (Program · normalize) <span class="res">UDP-MC</span></div>
             <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:52%"></div></div></div>
           </div>
           <div class="diag">NEXT (待切): UDP-MC 239.10.20.10 = 模板 BACKUP</div>
@@ -236,7 +241,7 @@
           <div class="k" style="margin-bottom:3px">PGM 主输出</div>
           <div class="preview">
             <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:64%"></div></div></div>
-            <div class="monitor"><span class="live">● LIVE</span> 1080p50 · 16:9 <span class="res">SDI-IN-01</span></div>
+            <div class="monitor"><span class="live">● LIVE</span> 1080p25 · 16:9 (Program · normalize) <span class="res">SDI-IN-01</span></div>
             <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
           </div>
           <div class="diag">ON AIR: SDI-IN-01 = 模板 PRIMARY (srcP)</div>

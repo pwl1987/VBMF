@@ -97,7 +97,7 @@
 - 显示当前 COMPILED_MODE 编译模式（channel_routes.switch_mode）
 - 显示当前 EFFECTIVE_RUNTIME_MODE 运行时模式（media_session_runtime.effective_switch_mode）
 - 显示最近 5 次切换事件
-- **TAKE 切播** 按钮（写入 change_set → apply）
+- **TAKE 切播** 按钮（Runtime Event `evt-take` → Audit / Incident Timeline；0.5F.4 P0-1 修正: **不走 change_set/apply**，配置变更才走 ChangeSet）
 
 ### 3.4 Composition（图文包装）
 

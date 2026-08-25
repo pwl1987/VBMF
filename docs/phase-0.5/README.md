@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F/0.5F.1/0.5F.2 完成 · 0.5F.3 Runtime/Active-Service/Final Gate (本轮)** (2026-08-25)
+> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F/0.5F.1/0.5F.2/0.5F.3 完成 · 0.5F.4 Cross-Surface Consistency (本轮)** (2026-08-25)
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -34,7 +34,8 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5F** Final UX Reconciliation | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components |
 | **0.5F.1** Final Consistency Sweep | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 |
 | **0.5F.2** Runtime/Registry/Final Gate | 🟢 完成 | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path |
-| **0.5F.3** Runtime/Active-Service/Final Gate | 🟡 IN PROGRESS (本轮) | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 |
+| **0.5F.3** Runtime/Active-Service/Final Gate | 🟢 完成 | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 |
+| **0.5F.4** Cross-Surface Consistency | 🟡 IN PROGRESS (本轮) | B-13 TAKE≠ChangeSet · Clock Compatibility / Video Switch 分支 / CH-02 Audio→P-23 / CD-01 PENDING / M-17 Pipeline 拆分 / lifecycle 更名 / Fixture 统一 |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 

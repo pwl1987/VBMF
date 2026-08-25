@@ -826,3 +826,38 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### U.8 结论
 - **3 P0 + 4 P1 全部落实, 零残留** (SDI(REQ) / Session-Start-IN_USE / 未强制校验 清零)。
 - 5 条 Click-Path 仍成立; FINAL 判定标准三项满足。**仍不宣布 FINAL** — 0.5D LOCK + 0.5E LOCK 声明待用户确认 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance**。
+
+---
+
+## V. 0.5F.4 Cross-Surface Consistency — 2 P0 + 4 P1 + 3 P2 (2026-08-25 末 · 用户第 16 轮交叉检修 435842e)
+
+> 用户以 `435842e` 交叉检修: 上轮 3 P0 已真修; 剩余 **2 P0 (B-13 Spec 文档 TAKE→ChangeSet 残留 / B-13 Clock 过死) + 4 P1 + 3 P2**。用户要求逐一实现。
+
+### V.1 P0-1 — B-13 TAKE / ChangeSet boundary (Spec 文档残留)
+- `B-13-take-preflight.md` line 55 "全部 PASS → 提交 Change Set (E-33)" → **Operator Intent → TAKE (Runtime Event evt-take) → Audit / Incident Timeline** (TAKE ≠ ChangeSet, 配置变更才走 E-33)。
+- `OPERATOR_WORKFLOW.md` "TAKE 切播 按钮 (写入 change_set → apply)" → **Runtime Event**。B-13 HTML 产物区已确认正确 (0.5D.5 已修)。
+
+### V.2 P0-2 — B-13 Clock 改 Compatibility / Quality
+- B-13 HTML 第 4 项 `Clock = PTP LOCKED` (二元) → **Clock Compatibility/Quality Preflight**: `reference=ptp0 · domain=BROADCAST · quality=BROADCAST_GRADE · fallback=PTP→TIMECODE→SYSTEM 有效 · timebase ALIGNABLE` → PASS/WARN/FAIL。网络源不天然等价 "必须 PTP"。
+
+### V.3 P1-1 — B-13 Video 按 Switch Mode 分支
+- B-13 HTML 第 2 项 `Video (codec 匹配 Profile)` → **Video / Switch Compatibility**: PACKET=codec/profile/level 严格匹配 · FRAME=COMMON_RAW_CONTRACT + timebase 可对齐 + Normalize 可完成 · MASTER=Normalize 到统一 Program Master Contract。本例 FRAME_SWITCH 分支检查。避免 "架构允许 FRAME_SWITCH 但 B-13 因 codec 不同 BLOCK"。
+
+### V.4 P1-2 — CH-02 Audio 深配置链 P-23
+- CH-02 Radio "音频编码配置 → M-17" → **Audio Profile 深度配置 → P-23 (P-20 Profile Center)**。M-17 仅从 Encoding → Realtime Encode 进入。
+
+### V.5 P1-3 — CD-01 COMPILED/EFFECTIVE PENDING 语义
+- CD-01 Revision badge: **COMPILED · GraphRuntime r18 ● PENDING APPLY** / **EFFECTIVE · r17 ● CURRENT** — Operator 不把 Compiled 误当 Running。
+
+### V.6 P1-4 — M-17 Pipeline 语义拆分
+- M-17 Pipeline: `SOURCE → NORMALIZE → REDUNDANCY/SWITCH [FRAME_SWITCH] → PROGRAM MASTER [RAW] → ENCODE → OUTPUT VARIANTS → ADAPTERS`。FRAME_SWITCH (Effective Runtime Mode) 从 PROGRAM MASTER 节点拆出。
+
+### V.7 P1-5 — Channel lifecycle 更名分离
+- `CHANNEL_TYPE_MODEL.md`: `lifecycle: DRAFT→TESTING→VERIFIED→READY_TO_TAKE→RUNNING` (错乱混合) → **`channel_configuration_status`: DRAFT→VALIDATED→APPLIED→RETIRED** (配置状态机); Runtime 三轴归 `media_session_runtime`。Phase 1 不再出现 ChannelLifecycleState/SessionLifecycleState 两套 enum。
+
+### V.8 P2 — Fixture / Snapshot 统一 + OPERATOR_WORKFLOW
+- CD-01 / M-17 新增 **fixture 声明**: `channel=CH01 · runtime_snapshot=RT-2026-08-25-001 · config_revision=CFG-v3 · graph_revision=GR-v18`; Program 分辨率统一 **1080p25** (SDI 1080p50 → Normalize 1080p25), 消除跨页 fixture 不一致。
+
+### V.9 结论
+- **2 P0 + 4 P1 + 3 P2 全部落实, 零残留** (TAKE→ChangeSet / PTP LOCKED 二元 / Audio→M-17 / lifecycle 混用 清零)。
+- **仍不宣布 FINAL** — 0.5D LOCK + 0.5E LOCK 声明待用户确认 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance**。

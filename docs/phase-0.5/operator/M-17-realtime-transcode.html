@@ -79,6 +79,10 @@
   </div>
 </div>
 
+<div class="diag" style="border-left-color:var(--gray)">
+  <b>fixture (0.5F.4 P2 统一):</b> channel=CH01 · runtime_snapshot=<b>RT-2026-08-25-001</b> · config_revision=CFG-v3 · graph_revision=GR-v18 · Program=1080p25 (SDI 1080p50 → Normalize 1080p25) · CD-01/M-17/E-40 共用此快照.
+</div>
+
 <!-- PROVENANCE: 本 RT Encoder Session 属于 Channel CH01 (源自模板→Bundle), Encoding Profile (P-21) REALTIME_PROFILE 激活 -->
 <div class="panel provenance">
   <h3>⛓ 实例来源 Provenance (Channel → Bundle → Encoding Profile · REALTIME_PROFILE)</h3>
@@ -153,7 +157,9 @@
     <div class="arrow">→</div>
     <div class="stage active"><div class="ico">🔄</div><div class="name">NORMALIZE</div><div class="detail">1080p25 · UYVY422</div><div class="detail" style="color:var(--green)">BT.709</div></div>
     <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">🎬</div><div class="name">PROGRAM MASTER</div><div class="detail">PGM · FRAME_SWITCH</div><div class="detail" style="color:var(--green)">MASTER · ready</div></div>
+    <div class="stage active"><div class="ico">🔀</div><div class="name">REDUNDANCY / SWITCH</div><div class="detail">FRAME_SWITCH (Effective Runtime Mode)</div><div class="detail" style="color:var(--green)">eligible · Decision Tree</div></div>
+    <div class="arrow">→</div>
+    <div class="stage active"><div class="ico">🎬</div><div class="name">PROGRAM MASTER</div><div class="detail">RAW (Program semantic master)</div><div class="detail" style="color:var(--green)">MASTER · ready</div></div>
     <div class="arrow">→</div>
     <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">P-21 REALTIME · H.264</div><div class="detail" style="color:var(--green)">GOP 50 · CBR · ENC-v3</div></div>
     <div class="arrow">→</div>

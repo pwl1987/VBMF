@@ -88,7 +88,8 @@ docs/
 | **0.5F Final UX Reconciliation** | 2026-08 | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components | `22f2245` |
 | **0.5F.1 Final Consistency Sweep** | 2026-08 | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 | `ed41c29` |
 | **0.5F.2 Runtime/Registry/Final Gate** | 2026-08 | 🟢 完成 | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path | `e346f9c` |
-| **0.5F.3 Runtime/Active-Service/Final Gate** | 2026-08 | 🟡 IN PROGRESS (本轮) | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 | (本轮) |
+| **0.5F.3 Runtime/Active-Service/Final Gate** | 2026-08 | 🟢 完成 | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 | `435842e` |
+| **0.5F.4 Cross-Surface Consistency** | 2026-08 | 🟡 IN PROGRESS (本轮) | B-13 TAKE≠ChangeSet · Clock Compatibility / Video Switch 分支 / CH-02 Audio→P-23 / CD-01 PENDING / M-17 Pipeline 拆分 / lifecycle 更名 / Fixture 统一 | (本轮) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 

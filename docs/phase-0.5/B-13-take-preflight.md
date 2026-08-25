@@ -52,7 +52,7 @@
 
 - 任一 #1–#8 FAIL → **TAKE 按钮禁用**，显示失败项 + 原因 + 建议动作
 - 对齐 **Failure Domain Matrix**：Output 坏 → 提示 `Rejoin Multicast` / 修 Output，**不**误切节目源
-- 全部 PASS → 启用 TAKE，提交 Change Set（E-33）
+- 全部 PASS → Operator Intent → TAKE（Runtime Event `evt-take`）→ Audit / Incident Timeline（0.5F.4 P0-1 修正: **TAKE ≠ ChangeSet**；配置变更才走 E-33 ChangeSet）
 
 ---
 
