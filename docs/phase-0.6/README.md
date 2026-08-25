@@ -39,17 +39,18 @@ Phase 0.6 References ─┘
 
 **目的**：验证 Capability Contract / Runtime Alignment / Mandatory Attributes 全部通过
 
-**架构链路**：
+**架构链路 (PACKET_SWITCH: COMPRESSED → Switch → COMPRESSED，V0.2 §3.4 锁死；此路径不插入 Encode)**：
 ```
-Source.A (compressed) ─┐
-                       ├─→ [Switcher] ─→ Encode ─→ SRS ─→ HLS
-Source.B (compressed) ─┘   (PACKET)
+Source.A (COMPRESSED) ─┐
+                        ├── PACKET_SWITCH ──→ SRS ──→ HLS
+Source.B (COMPRESSED) ─┘
 ```
+> Encode 仅在 `RAW → Encode → COMPRESSED` 时出现（见 Reference B / Program Master delivery boundary），**不在 PACKET_SWITCH 路径内**——否则等于把已压缩数据重新编码一次，破坏 PACKET_SWITCH 的验证目标。
 
 **验证项**：
 
-- [ ] Capability Contract 17+ 项 mandatory attributes 全部 PASS
-- [ ] Runtime Alignment（GOP/IDR/PTS/DTS/timebase/SPS/PPS/audio continuity）PASS
+- [ ] Capability Contract: **Mandatory Compatibility Attributes = ALL PASS**（V0.2 §3.4 Canonical；不写固定数字，未来可继续追加 attribute）
+- [ ] Runtime Alignment: **Required attributes = ALL PASS**（GOP/IDR/PTS/DTS/timebase/SPS/PPS/audio continuity）
 - [ ] WARN ≠ PASS（PACKET 严格要求 PASS）
 - [ ] Switch decision tree 选 PACKET_SWITCH
 - [ ] `target_failover_time_ms` 来自 `hot_standby_levels`（V0.2 锁定，**非协议保证**），由 `failover_benchmarks` 独立实测 p50/p95/p99
@@ -58,11 +59,34 @@ Source.B (compressed) ─┘   (PACKET)
 
 ### Reference A2 — 真实 SDI 主备
 
-**架构链路**：
+**架构链路 (FRAME_SWITCH = RAW → Switch → RAW；MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 是 Program-scope Master 的 delivery boundary，位于 Switcher 之后，不在切换输入侧)**：
+
+FRAME_SWITCH：
 ```
-SDI-A ─→ Normalize ─→ Encode ─┐
-                             ├─→ [Switcher] ─→ Program Master ─→ SRS ─→ HLS
-SDI-B ─→ Normalize ─→ Encode ─┘   (FRAME/MASTER)
+SDI-A ─→ Normalize ─→ RAW ┐
+                           ├── FRAME_SWITCH ──→ RAW
+SDI-B ─→ Normalize ─→ RAW ┘
+                           ↓
+                   Program Master
+                           ↓
+                         Encode
+                           ↓
+                           SRS
+                           ↓
+                           HLS
+```
+
+MASTER_SWITCH：
+```
+SDI-A ─→ Normalize ─┐
+                     ├─→ MASTER_SWITCH
+SDI-B ─→ Normalize ─┘
+                     ↓
+             Program Master
+                     ↓
+                   Encode
+                     ↓
+                    SRS
 ```
 
 **关键点**：
@@ -155,6 +179,28 @@ RESOURCE 资源:    { action: DEGRADE_BG_JOBS,     target: lower-priority worker
 PLAYER 播放端:     { action: NOTIFY,              fail_safe: true }    # DiagnosticFailureClass
 UNKNOWN 未知:     { action: SAFE_DEGRADE,        alert: true }        # DiagnosticFailureClass
 ```
+
+### Switch Test Matrix & Negative / Recovery Fixtures
+
+每个 Reference 必须同时具备正向与负向夹具，**不能只验证 happy path**：
+
+| Fixture | Capability | Alignment | 期望决策 |
+|---|---|---|---|
+| A1-PASS | PASS | PASS | PACKET_SWITCH |
+| A1-WARN | WARN | PASS | 不进 PACKET，继续 Decision Tree |
+| A1-FAIL | FAIL | — | 不进 PACKET → FRAME / MASTER / REJECT |
+| A1-RUNTIME-MISALIGN | PASS | GOP mismatch | PACKET invalid |
+| A2-PASS | PASS (RAW) | PASS | FRAME / MASTER_SWITCH |
+| B-PASS | PASS | PASS | MASTER_SWITCH + Composition |
+
+**切换压力矩阵**（不能只测 100 次人工/脚本切换；必须组合）：
+
+- 维度：Cold / Warm / Hot × PACKET / FRAME / MASTER
+- 故障组合：Forward failover · Failback · Repeated flapping · Source loss during switch · Output loss during switch · Clock degradation during switch
+- 稳定性约束：`min_hold` / `hysteresis` 生效（同一切换 100ms 内禁止重试，见关键禁忌）
+- Recovery 夹具：Failover → Filler / FRAME_SWITCH → DEGRADED → HEALTHY(after failover)；Failback 须满足 `min_hold` 后才回切
+
+**TAKE 语义锁定（Acceptance Assertion）**：TAKE = Operator Intent → TakePreflightResult → Switch Command → Media Session Runtime → `active_source_id` 更新；`effective_switch_mode` 由 Decision Tree 决定。**TAKE 不是 Configuration Apply，也不是 ChangeSet Apply。**
 
 ## 部署环境
 

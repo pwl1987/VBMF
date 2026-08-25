@@ -96,7 +96,7 @@
   <div style="margin-left:auto;text-align:right">
     <span class="pill pill-green">0.5D 原型 · D5</span><br>
     <span class="pill pill-blue" style="margin-top:4px">0.5D 验收链 · D5</span><br>
-    <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>7/7 PASS · VERIFIED</span>
+    <span class="pill pill-green" style="margin-top:4px" id="vprofBadge"><span class="dot green"></span>7/7 PASS · VERIFIED</span>
   </div>
 </div>
 
@@ -238,7 +238,7 @@
   <h3>✅ 验证结果 / RESULT <span class="pill pill-green" style="float:right">VERIFIED</span></h3>
   <div class="row">
     <div class="col-8">
-      <div class="metric" style="margin-bottom:0"><div class="label">判定</div><div class="val green">VERIFIED · 7/7 PASS</div><div class="sub">源现可进入 VERIFIED 池并被 D1 第②步 ASSIGN 为 PRIMARY/BACKUP</div></div>
+      <div class="metric" style="margin-bottom:0"><div class="label">判定</div><div class="val green" id="vprofResult">VERIFIED · 7/7 PASS</div><div class="sub">源现可进入 VERIFIED 池并被 D1 第②步 ASSIGN 为 PRIMARY/BACKUP</div></div>
       <div class="gap">⚠ 若任一层 FAIL: 结果 = <b>FAILED</b>, 不可存 VERIFIED / 不可用于 ON AIR; 仅可存 UNVERIFIED / 修复 / 重测 (E-40 CRITICAL). 运行态故障才进 §8.9 Recovery, 不在此强切备份.</div>
     </div>
     <div class="col-4">
@@ -273,7 +273,10 @@
     document.querySelectorAll('#vprofSelector .vtab').forEach(function(t){t.classList.toggle('on',t.dataset.v===v)});
     document.querySelectorAll('.vprof').forEach(function(p){p.classList.toggle('show', p.id==='vprof-'+v)});
     var n=(v==='internal')?5:7;
-    document.getElementById('vprofCount').textContent=n+'/'+n+' PASS';
+    var txt=n+'/'+n+' PASS';
+    document.getElementById('vprofCount').textContent=txt;
+    document.getElementById('vprofResult').textContent='VERIFIED · '+txt;
+    document.getElementById('vprofBadge').innerHTML='<span class="dot green"></span>'+txt+' · VERIFIED';
   }
   document.querySelectorAll('#vprofSelector .vtab').forEach(function(t){t.onclick=function(){showVprof(t.dataset.v)}});
   showVprof('network');

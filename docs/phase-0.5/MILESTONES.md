@@ -96,6 +96,7 @@ docs/
 | **0.5F.8 Final Semantic + UX Gate** | 2026-08 | 🟢 完成 (ACCEPTED) | P0: EXECUTION_MODEL §4 旧 READY_TO_TAKE→RUNNING 清除 / D7 ChangeSet 三轴视觉分离; P1: E-40 Network Path compact / P-21 Used By 影响入口 / CH-02 Apply 前 Summary / M-17 Reservation Explain Breakdown | (本轮) |
 | **0.5F.9 Micro-Closure** | 2026-08 | 🟢 完成 | P0: E-40 统一 Source Ingest Wizard + E-42 Source Verification Bench; OBJECT_VOCAB/ENCODE 清除 REALTIME_ENCODE JobKind. P1: CD-01 Audio/Output 运行控制·恢复 / Source Freshness / Provenance 折叠 / CH-02 Expected Effective / Surface 三计数 | (本轮) |
 | **0.5F.10 Source & Runtime Safety Micro Closure** | 2026-08 | 🟢 完成 | P0: E-40 多 Kind Wizard 视觉 (File/Internal/Composite 分支) + E-42 per-Kind Fixture (5 Kind 验收态). P1: Composite Graph-backed / Freshness Policy / STALE ON AIR / Output Disable Impact Preview / Audio Semantics+L级 / E-42 Capability Inputs / M-17 Realtime Session | (本轮) |
+| **0.5F.11 Final Consistency & Safety Closure** | 2026-08 | 🟢 LOCK FINAL | 2 P0 + 4 P1: CD-01 REQUIRED→TAKE BLOCKED + Emergency Override L3 / Phase Status SoT (MILESTONES=SoT) / E-40 动态 Kind 分支 / E-42 5-Kind Validation Profiles / E-40 Composite GraphSpec→Child→Compile / M-17 Realtime Session 命名统一 | `e9ebe6f` |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 

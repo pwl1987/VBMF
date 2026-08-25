@@ -8,7 +8,7 @@
 ```
 Phase 0    架构冻结                       ✅ V0.2 LOCK FINAL
 Phase 0.5A 操作员语义与线框            ✅ LOCK FINAL（10 中英双语页面 + 4 链 + 20 项修复）
-Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（39 表面（38 + CD-01）+ 5 P0 wireframe + 36 项收口）
+Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml）+ 5 P0 wireframe + 36 项收口）
 Phase 0.5C 信息架构收口                 🟢 LOCK FINAL（目录归并 + 4 域导航 + Object Vocabulary）
 Phase 0.5D P0 产品表面                  🟢 LOCK FINAL（6 新表面 + M-14 重画）
 Phase 0.6  Reference + Fault Injection   📋 前置: Phase 0.5 LOCK FINAL
@@ -49,7 +49,7 @@ V1.0       完整 IP 播控                   📋
 
 **Phase 0.5B（Product UI Surface，UX BASELINE LOCK FINAL）已交付**：
 
-- `SURFACE_SPEC.md` — V0.2 架构对象 → 39 UI 表面完整映射（0.5A 10 + 新增 28 + CD-01；0.5C 起 4 域组织）
+- `SURFACE_SPEC.md` — V0.2 架构对象 → 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml；0.5C 起 4 域组织）完整映射
 - `DESIGN_SYSTEM.md` — token / 组件 / 状态模型 / 键盘规范
 - `I18N_SPEC.md` — zh-CN + en-US 契约 + Canonical Vocabulary + enum 翻译表
 - 5 张 P0 wireframe（`product/`）：M-11 Media Library / M-12 Asset Detail / M-14 Transcode Center / P-21 Encoding Profile / P-22 Output Profile
@@ -131,7 +131,7 @@ X1-X6 横切能力的实施：
 
 ## Phase 4 — Web 控制台 📋
 
-- [ ] 4 域 × 44 UI 表面（按 SURFACE_SPEC + DESIGN_SYSTEM + I18N_SPEC 实施；Phase 0.5 wireframe → 真实现）
+- [ ] 4 域 × 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml；按 SURFACE_SPEC + DESIGN_SYSTEM + I18N_SPEC 实施；Phase 0.5 wireframe → 真实现）
 - [ ] 4 关键操作链验证
 - [ ] Dark Mode First 24/7
 - [ ] i18n 落地（zh-CN 默认 + en-US，按 I18N_SPEC）
@@ -178,7 +178,7 @@ X1-X6 横切能力的实施：
 
 | 阶段 | 社区协作 |
 |---|---|
-| Phase 0.5 | 公开 15 wireframe + 39 表面 Spec + Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
+| Phase 0.5 | 公开 55 wireframes + 1 Spec = 56 surfaces（SoT: SURFACE_REGISTRY.yaml）+ Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
 | Phase 0.6 | 公开 Reference A1/A2/B + 5 Fault Injection 配置，欢迎调参与建议 |
 | Phase 1+ | 接受 Rust / TypeScript 贡献 |
 

@@ -19,6 +19,16 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-4 M-17 命名统一**：全仓库 "Realtime Transcode" 残留文本统一为 "Realtime Session 实时媒体会话"（POM/PIA/ENCODE_MODEL/E-41/M-14/OBJECT_VOCABULARY/SURFACE_REGISTRY/SURFACE_SPEC/ROADMAP/0.5C closure）；RECONCILIATION 历史决策记录保留原 rename 表述。
 - 校验：`scripts/check_docs.py` 链接可达性 + 数字口径一致性 **PASS**。完成后 Phase 0.5 可真正冻结并进入 Phase 0.6 Executable Acceptance。
 
+### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
+- **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
+- **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。
+- **P0-DOC-1**：README / ROADMAP 表面计数统一为 Registry SoT——删除手写 39 / 52 / 44，改为 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml）；校验脚本 `check_docs.py` 改为从 Registry 解析 SoT（不再硬编码 39），SURFACE_SPEC §1 增补当前 SoT 总数 56。
+- **P1**：Phase 0.6 Capability Contract 不再写 "17+"，改为 "Mandatory Compatibility Attributes = ALL PASS"（V0.2 §3.4 Canonical）；新增 Negative / Recovery Fixtures & Switch Test Matrix（PASS/WARN/FAIL/RECOVERY × Cold/Warm/Hot × PACKET/FRAME/MASTER × Failover/Failback/flapping/source loss/output loss/clock degradation）+ TAKE 语义锁定断言（TAKE = Operator Intent → Switch Command → active_source_id，非 Config/ChangeSet Apply）。
+- **P1-UX**：E-42 验证结果摘要改为按当前 Profile 动态显示（NETWORK/PHYSICAL/FILE/COMPOSITE 7/7、INTERNAL 5/5），顶部徽标与结果判定同步；CD-01 Audio Delay 直接显示 L1 危险等级。
+- **P1**：MILESTONES 第 2 节历史表补 0.5F.11 行（2 P0 + 4 P1 · Git e9ebe6f · LOCK FINAL）。
+- 校验：`scripts/check_docs.py` **PASS**（链接可达 + 数字口径一致，SoT 取自 SURFACE_REGISTRY.yaml）。
+- 结论：Phase 0.5 = 真正 LOCK FINAL；Phase 0.6 可正式进入 Executable Acceptance / Reference Implementation。
+
 ### Phase 0.5C — Information Architecture Closure（2026-08-25，DRAFT 0.1 待审）
 - 目录归并：`docs/phase-0.5b/` 并入 `docs/phase-0.5/`（git mv 保留 history；wireframes 拆为 `operator/` 10 张 + `product/` 5 张）
 - 新增 `OBJECT_VOCABULARY.md`（14 对象权威定义）/ `PRODUCT_OBJECT_MODEL.md`（Profile/Bundle/Variant 3 层）/ `NAVIGATION.md` / `MILESTONES.md` + `milestones/` 历史归档
