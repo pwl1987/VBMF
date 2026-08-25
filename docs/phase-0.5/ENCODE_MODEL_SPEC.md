@@ -1,9 +1,10 @@
 # ENCODE_MODEL_SPEC — Encoding Profile 双语义模型（File / Realtime）
 
-> **状态**: 🟡 **0.5F 增补 Spec（锚定 0.5D 实施）**
+> **状态**: 🟢 **SEMANTIC LOCKED 0.1 (Phase 0.5 SoT · 0.5F.1 晋升)** — Encoding Profile Schema 唯一事实源
 > **来源**: 0.5C 提案 §12-§13；对齐 `SURFACE_SPEC.md` §29.3 / §3337（"P-21 schema 分 Common / Realtime / File 3 段，0.5D 实施"）
 > **约束**: 不新增 Engine（PIA §9）；Encoding Profile 仅为配置对象，与 Output Profile（P-22）、Profile Bundle（P-28）解耦
-> **关联**: P-21（9 区 / 10 sections Builder）· M-14（File Transcode）· M-17（Realtime Transcode）· OBJECT_VOCABULARY §1.11（Job/Session）
+> **关联**: P-21（Encoding Profile UI）· M-14（FILE_PROFILE consumer）· M-17（REALTIME_PROFILE consumer）· OBJECT_VOCABULARY §1.11（Job/Session）
+> **权威链 (0.5F.1 SoT 定义)**: **ENCODE_MODEL_SPEC = Encoding Profile Schema SoT** → P-21 = Encoding Profile UI (读写) → M-14 = FILE_PROFILE consumer → M-17 = REALTIME_PROFILE consumer。P-21/M-14/M-17 不得自建 Schema 字段。
 
 ---
 

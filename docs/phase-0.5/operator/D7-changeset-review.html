@@ -90,7 +90,7 @@
     <thead><tr><th>ID</th><th>Title</th><th>Affected</th><th>Risk</th><th>Author</th><th>Created</th><th>Status</th><th></th></tr></thead>
     <tbody>
       <tr>
-        <td>cs-take-ch01-001</td><td>TAKE CH01 Source B→PGM</td><td>CH01 · HLS/RTMP/SDI</td><td><span class="pill pill-yellow">L2</span></td><td>operator1</td><td>2026-08-25 14:30</td><td><span class="v yellow">PENDING_REVIEW</span></td><td><button class="btn primary">Review</button></td>
+        <td>cs-output-ch01-004</td><td>更新 Output Profile (P-22) · HLS REQUIRED</td><td>CH01 · HLS/RTMP</td><td><span class="pill pill-yellow">L2</span></td><td>engineer1</td><td>2026-08-25 14:30</td><td><span class="v yellow">PENDING_REVIEW</span></td><td><button class="btn primary">Review</button></td>
       </tr>
       <tr>
         <td>cs-bundle-p28-002</td><td>更新 Profile Bundle (P-28)</td><td>CH03 · Bundle</td><td><span class="pill pill-yellow">L2</span></td><td>engineer2</td><td>2026-08-25 11:02</td><td><span class="v yellow">PENDING_REVIEW</span></td><td><button class="btn primary">Review</button></td>
@@ -102,32 +102,32 @@
         <td>cs-bundle-p28-001</td><td>创建 Profile Bundle (P-28)</td><td>CH02 · Bundle</td><td><span class="pill pill-yellow">L2</span></td><td>engineer2</td><td>2026-08-23 16:40</td><td><span class="v green">APPROVED</span></td><td><button class="btn">Detail</button></td>
       </tr>
       <tr>
-        <td>cs-take-ch03-004</td><td>TAKE CH03</td><td>CH03 · SRT</td><td><span class="pill pill-yellow">L2</span></td><td>operator3</td><td>2026-08-22 10:05</td><td><span class="v red">REJECTED</span></td><td><button class="btn">Detail</button></td>
+        <td>cs-route-ch03-006</td><td>修改 Switch Policy (FRAME→MASTER)</td><td>CH03 · Route</td><td><span class="pill pill-yellow">L2</span></td><td>engineer2</td><td>2026-08-22 10:05</td><td><span class="v red">REJECTED</span></td><td><button class="btn">Detail</button></td>
       </tr>
       <tr>
         <td>cs-rollback-ch01-005</td><td>ROLLBACK CH01 → prev</td><td>CH01</td><td><span class="pill pill-red">L3</span></td><td>admin1</td><td>2026-08-21 20:11</td><td><span class="v green">APPLIED</span></td><td><button class="btn">Detail</button></td>
       </tr>
     </tbody>
   </table>
+  <div class="diag" style="border-left-color:var(--red)">⛔ <b>TAKE / FAILOVER / RESTART / RETRY / OUTPUT RECOVERY 是 Runtime Operation, 不进 ChangeSet</b> (EXECUTION_MODEL §7 · 0.5F)。TAKE 走 CD-01 + B-13 → <b>Runtime Event → Audit/Incident Timeline</b>。本队列仅 Configuration Change (Edit→Desired→Impact→Diff→Preflight→ChangeSet→Approve→Apply, 0.5F.1 修正)。</div>
 </div>
 
-<!-- Review Detail (selected: cs-take-ch01-001) -->
+<!-- Review Detail (selected: cs-output-ch01-004) -->
 <div class="panel" style="border-left:3px solid var(--purple)">
-  <h3>审阅 / REVIEW · cs-take-ch01-001 <span class="pill pill-yellow" style="float:right">PENDING_REVIEW</span></h3>
+  <h3>审阅 / REVIEW · cs-output-ch01-004 <span class="pill pill-yellow" style="float:right">PENDING_REVIEW</span></h3>
   <div class="row">
     <div class="col-6">
       <div class="panel" style="margin-bottom:0">
         <h4>Before / After Diff (配置项)</h4>
-        <div class="diff"><span class="ctx"># Channel CH01 · Switch</span>
-<span class="del">- Source: A (PGM)</span>
-<span class="add">+ Source: B (PGM)</span>
-<span class="ctx"># Variant Criticality</span>
+        <div class="diff"><span class="ctx"># Channel CH01 · Output Variant</span>
 <span class="del">- HLS: OPTIONAL</span>
 <span class="add">+ HLS: REQUIRED</span>
 <span class="add">+ SDI: RESERVED (V0.4 Target · V0.2 DISABLED)</span>
 <span class="ctx"># Output Resilience (G4)</span>
 <span class="add">+ HLS.retry: 3x exp-backoff 1s</span>
-<span class="add">+ HLS.heartbeat: 5s</span></div>
+<span class="add">+ HLS.heartbeat: 5s</span>
+<span class="ctx"># Destination (引用, 非 URL)</span>
+<span class="add">+ HLS.dest: CDN-A (SRSAdapter-01)</span></div>
       </div>
     </div>
     <div class="col-6">
@@ -136,8 +136,8 @@
         <table>
           <tbody>
             <tr><td>Risk Level</td><td><span class="v yellow">L2 (重要)</span></td></tr>
-            <tr><td>Impact</td><td>CH01 全部 Variant 切换源</td></tr>
-            <tr><td>Pre-check</td><td><span class="v green">9/9 PASS (B-13)</span></td></tr>
+            <tr><td>Impact</td><td>CH01 Output Variant (HLS) Criticality 提升</td></tr>
+            <tr><td>Pre-check</td><td><span class="v green">Preflight PASS (E-51 Diff + Resource)</span></td></tr>
             <tr><td>Clock Domain</td><td><span class="v green">PTP LOCKED (G7 PASS)</span></td></tr>
             <tr><td>Reviewer</td><td><span class="v">unassigned</span></td></tr>
           </tbody>
@@ -167,8 +167,8 @@
   <table>
     <thead><tr><th>Time</th><th>Action</th><th>Who</th><th>Hash</th></tr></thead>
     <tbody>
-      <tr><td>2026-08-25 14:30</td><td>SUBMIT (B-13 TAKE)</td><td>operator1</td><td>a1f3...e9</td></tr>
-      <tr><td>2026-08-25 14:31</td><td>PRECHECK 9/9 PASS</td><td>system</td><td>b2c4...01</td></tr>
+      <tr><td>2026-08-25 14:30</td><td>SUBMIT (Configuration Change)</td><td>engineer1</td><td>a1f3...e9</td></tr>
+      <tr><td>2026-08-25 14:31</td><td>PRECHECK PASS (E-51 Diff + Resource)</td><td>system</td><td>b2c4...01</td></tr>
       <tr><td>—</td><td>AWAITING REVIEW</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>

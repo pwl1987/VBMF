@@ -718,3 +718,37 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### R.7 结论
 - **四向对账 (Phase 状态 + 业务对象 + 页面行为 + 执行模型) 完成**: 0.5C/D/E/F 状态统一, Channel Workspace 三层, Network INGRESS/EGRESS + Signal Path, Transcode 双模型, Config vs Runtime 双管线, Global Components 收敛。
 - **仍不宣布 FINAL**: 0.5D LOCK + 0.5E LOCK 两个正式声明待用户确认 (内容已全部落盘)。确认后 → Phase 0.5 LOCK FINAL → Phase 0.6 Executable Acceptance。剩余 P2: Command Palette `/` (V0.3) · Impact 5 维 (+Cost) · Diff Graph diff · Player Capability Registry 推导 · 物理源统一入口 wireframe。
+
+---
+
+## S. 0.5F.1 Final Consistency Sweep — 7 项收口 (2026-08-25 末 · 用户第 13 轮审计 22f2245)
+
+> 用户以 `22f2245` 审查: UI/UX 已 85-90% 成熟, 无 V0.2 架构问题; 剩余 = **Phase 0.5F.1 Final Consistency Sweep 7 项** (用户要求逐项落实, 不遗漏)。
+
+### S.1 P0 — D7 删除 TAKE-as-ChangeSet
+- D7 队列示例 `cs-take-ch01-001 (TAKE CH01 Source B→PGM)` / `cs-take-ch03-004 (TAKE CH03)` 全部删除 → 改配置型示例 (`cs-output-ch01-004` HLS REQUIRED / `cs-route-ch03-006` Switch Policy)。
+- Review Detail / Risk Assessment / Audit Trail 同步改配置语义 (去 "B-13 TAKE" / "切换源")。
+- 队列底部加 ⛔ 注: **TAKE/FAILOVER/RESTART/RETRY/OUTPUT RECOVERY 是 Runtime Operation, 不进 ChangeSet** (EXECUTION_MODEL §7)。
+
+### S.2/S.3 P1 — Channel Type 去 Profile 参数复制 + enum 清理
+- `CHANNEL_TYPE_MODEL.md`: TV_LIVE `video.codec/resolution/framerate/bitrate/gop/latency` + `audio.layout/loudness/av_offset` 全部删除 → 改 **`encoding_profile_ref` (→ P-21) / `audio_profile_ref` (→ P-23)** 引用 + "0.5F.1 关键约束" 注 (不产生 Channel.codec vs EncodingProfile.codec 两份真相)。
+- RADIO_LIVE 音频字段同理改 `audio_profile_ref`。
+- enum 清理: `VIRTUAL_PLAYBACK` → `VIRTUAL_PLAYOUT` (全仓统一); `hot_standby_level` 禁 `NONE` → V0.2 Canonical **COLD/WARM/HOT** + 新增 `redundancy_enabled` bool; CH-02 向导热备下拉 `NONE` → `COLD`。
+
+### S.4 P1 — 02 Sources 统一 Add Source Wizard
+- 02-sources segment-tabs 改 **Local Devices / Network Ingress / Internal-Composite**; 顶部加 **ADD SOURCE 统一创建入口** 面板 (Source Family → Source Type → Adapter → Endpoint → Contract → Clock → QC → Preview/Verify → Save → ASSIGN), E-40 = Network 分支 (非并列第二世界)。
+
+### S.5 P1 — ENCODE_MODEL_SPEC 晋升正式 SoT
+- ENCODE_MODEL_SPEC 状态 `0.5F 增补 Spec` → **SEMANTIC LOCKED 0.1 (Phase 0.5 SoT · Encoding Profile Schema 唯一事实源)** + 权威链定义: ENCODE_MODEL_SPEC → P-21 (UI) → M-14 (FILE consumer) → M-17 (REALTIME consumer)。
+
+### S.6 P1 — B-13 改 CD-01 内嵌 Preflight Sheet
+- B-13 = **Interaction Surface, 不是 Navigation Surface**: breadcrumb 改 `CD-01 → TAKE → Preflight Sheet (内嵌)`, 顶部加 banner (真实实现 = CD-01 TAKE → 内嵌 Modal/Side Panel → 9 项 → READY → Runtime Event; 独立成页仅为便于审查)。
+
+### S.7 P1 — Registry / MILESTONES / README 最终状态统一 + FINAL 判定标准
+- **SURFACE_REGISTRY**: 关键 surface 全部升 **LOCK** — CH-02B (DRAFT) · B-13 (SPEC_WIREFRAME) · E-42 (SPEC_WIREFRAME) · D7 (DRAFT); **E-41 保持 SPEC** (Semantic Contract, 0.5G/Phase 4 实施, 用户明确支持)。
+- README: 状态行 + 矩阵加 0.5F.1; **Phase 0.5 FINAL 判定标准** (1. 0.5C+0.5D+0.5E LOCK + 0.5F/0.5F.1 完成; 2. 关键 surface 全部 LOCK; 3. Spec-only surface 保持 SPEC, 不无限扩张)。
+- MILESTONES: 0.5F 行 → 🟢 完成, 新增 0.5F.1 行; 最终条件补 0.5F.1。
+
+### S.8 结论
+- **7 项全部落实, 零残留** (VIRTUAL_PLAYBACK / cs-take / NONE 热备 全仓清零, 仅历史记录保留变更描述)。
+- **仍不宣布 FINAL**: 0.5D LOCK + 0.5E LOCK 声明待用户确认。FINAL 判定标准已定义 — 关键 surface 已全 LOCK, Spec-only 边界已明确 (E-41 等保持 SPEC)。确认后 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance**。

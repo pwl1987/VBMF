@@ -21,7 +21,7 @@
 
 设计约束:
 - `RADIO_LIVE` **明确不建模任何 `video_*` 字段** (无分辨率/帧率/视频编码/码率/GOP/视频监视器/视频输出)。
-- `VIRTUAL_PLAYOUT` 通过子判别 `media_kind ∈ {VIDEO, AUDIO}` 复用 TV 或 Radio 的媒体字段,
+- `VIRTUAL_PLAYOUT` 通过子判别 `media_kind ∈ {VIDEO, AUDIO}` 复用 TV 或 Radio 的 **Profile 引用与输出变体**,
   并额外叠加节目单 (Playlist) 与定时调度 (Scheduler) 层。
 
 ---
@@ -32,11 +32,12 @@
 |---|---|---|---|
 | `channel_id` | string | PK, 必填 | 运营单位主键 (V0.2 §3.6) |
 | `channel_name` | string | 必填 | 命名遵循 V0.2 §1.5 |
-| `channel_type` | enum | 必填 | `TV_LIVE` / `RADIO_LIVE` / `VIRTUAL_PLAYBACK` |
+| `channel_type` | enum | 必填 | `TV_LIVE` / `RADIO_LIVE` / `VIRTUAL_PLAYOUT` (0.5F.1 修正拼写, 全仓统一) |
 | `workspace_id` | string | 必填 | 工作区 / 集群 |
 | `clock_ref` | E-37 | 必填 | 时钟基准 + 4 级 Fallback |
 | `switch_decision` | enum | 直播类必填 | `AUTO` / `MANUAL` (虚拟类由 Scheduler 接管) |
-| `hot_standby_level` | enum | 必填 | `NONE` / `WARM` / `HOT` |
+| `hot_standby_level` | enum | 必填 | `COLD` / `WARM` / `HOT` (V0.2 Canonical, ⛔ 禁 `NONE`) |
+| `redundancy_enabled` | bool | 默认 true | 不需要备机时置 `false`, **不扩充 HotStandbyLevel enum** (0.5F.1 修正) |
 | `bundle_id` | ref | 必填 | Profile Bundle (7 Profile 引用) |
 | `lifecycle` | enum | 系统写 | `DRAFT→TESTING→VERIFIED→READY_TO_TAKE→RUNNING` |
 | `owner` / `created_by` | string | 必填 | 责任人 |
@@ -53,19 +54,12 @@
 |---|---|---|---|
 | source | `primary_source_id` | ref | 主源 (视频+音频契约, SDI/IP) |
 | source | `backup_source_id` | ref | 备源 (可选) |
-| video | `video.codec` | enum | H.264 / H.265 / ... |
-| video | `video.resolution` | enum | 1080p50 / 720p / ... |
-| video | `video.framerate` | number | |
-| video | `video.bitrate` | number | kbps |
-| video | `video.gop_mode` | enum | OpenGop / LowDelay (REALTIME_PROFILE) |
-| video | `video.latency_mode` | enum | ZeroLatency / LowLatency |
-| video | `video.reservation` | string | CPU@x% / GPU@y% |
-| audio | `audio.layout` | enum | STEREO / 5.1 |
-| audio | `audio.loudness_lufs` | number | 目标 -23 |
-| audio | `audio.av_offset_ms` | number | |
-| audio | `audio.mapping` | map | 16ch → 输出布局 |
-| output | `variants[]` | ref[] | 基带 SDI + 网络 HLS/RTMP/UDP-MC/WebRTC |
-| preview | (运行时) | — | 视频监视器 (16:9) + L/R 音柱 |
+| encode | `encoding_profile_ref` | ref → P-21 | **引用** REALTIME_PROFILE — codec/resolution/framerate/bitrate/gop/latency 全部在 P-21, **不复制** (0.5F.1 修正) |
+| audio | `audio_profile_ref` | ref → P-23 | **引用** Audio Profile — layout/loudness/delay/mapping 全部在 P-23, **不复制** (0.5F.1 修正) |
+| output | `variants[]` | ref[] | 基带 SDI + 网络 HLS/RTMP/UDP-MC/WebRTC (引用 P-22 Output Profile + Destination) |
+| preview | (运行时) | — | 视频监视器 (16:9) + L/R 音柱 (预览端点 E-42) |
+
+> **0.5F.1 关键约束:** Channel **不拥有** `codec/bitrate/GOP/resolution/latency` — 全部经 `bundle_id` → P-21 REALTIME_PROFILE / P-23 Audio / P-22 Output 引用。修改 Profile 只改一处, 不产生 `Channel.codec` vs `EncodingProfile.codec` 两份真相。
 
 ---
 
@@ -79,12 +73,7 @@
 | source | `primary_source_id` | ref | 主源 (音频契约: AES67 / 模拟 / 编解码流, **无 video adapter**) |
 | source | `backup_source_id` | ref | 备源 (可选) |
 | video | — | — | **不建模** (无 resolution/framerate/video codec/bitrate/gop/video monitor) |
-| audio | `audio.layout` | enum | MONO / STEREO |
-| audio | `audio.codec` | enum | AAC / OPUS / MP3 |
-| audio | `audio.sample_rate` | enum | 48kHz |
-| audio | `audio.bitrate` | number | |
-| audio | `audio.loudness_lufs` | number | 目标 -23 |
-| audio | `audio.mapping` | map | 通道 → 输出布局 |
+| audio | `audio_profile_ref` | ref → P-23 | **引用** Audio Profile — codec/layout/sample_rate/bitrate/loudness/mapping 全部在 P-23, **不复制** (0.5F.1 修正) |
 | output | `variants[]` | ref[] | **仅音频**: Icecast/Shoutcast、RTMP、SRT、UDP 组播/单播、DAB+ |
 | preview | (运行时) | — | **仅 L/R 音柱, 无视频监视器** |
 
@@ -103,7 +92,7 @@
 > 节目单项 (`kind`) 可为 `ASSET`(文件素材) 或 `VIDEO_SOURCE`(视频源/Live Source); 视频源须先经 E-40/E-42 验证后引用。
 
 ### 4.1 子判别
-`media_kind ∈ {VIDEO, AUDIO}` — 决定复用 §2 或 §3 的媒体字段 (视频/音频编码与输出)。虚拟类型本身不持有 `source` 字段。
+`media_kind ∈ {VIDEO, AUDIO}` — 决定复用 §2/§3 的 **Profile 引用与输出变体** (视频/音频编码与输出)。虚拟类型本身不持有 `source` 字段。
 
 ### 4.2 节目单 (Playlist)
 | 字段 | 类型 | 说明 |

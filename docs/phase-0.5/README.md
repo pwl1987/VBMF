@@ -1,10 +1,15 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F Final UX Reconciliation (本轮)** (2026-08-25)
+> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F Final UX Reconciliation 完成 · 0.5F.1 Final Consistency Sweep (本轮)** (2026-08-25)
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
-> **Phase 0.5 LOCK FINAL 的前置**: 0.5C LOCK + 0.5D LOCK + 0.5E LOCK + 0.5F Final UX Reconciliation 完成 (见 [`MILESTONES.md`](MILESTONES.md))
+> **Phase 0.5 LOCK FINAL 的前置**: 0.5C LOCK + 0.5D LOCK + 0.5E LOCK + 0.5F Final UX Reconciliation 完成 + 0.5F.1 Final Consistency Sweep 完成 (见 [`MILESTONES.md`](MILESTONES.md))
+>
+> **Phase 0.5 FINAL 判定标准 (0.5F.1 定义):**
+> 1. 0.5C + 0.5D + 0.5E LOCK + 0.5F/0.5F.1 完成;
+> 2. **关键 surface 全部 LOCK**: CD-01 WS/Detail · B-13 · CH-01/02/02B · M-14/M-17 · E-40/E-42 · P-20/21/22/28 · E-37/38 · E-50/51/52 · D7 (Registry 已全部升 LOCK, 0.5F.1);
+> 3. **Spec-only surface 保持 SPEC** (E-41 / P-23..27 / E-31..36 / O-41..45 / A-51..55) = Semantic Contract, 0.5G / Phase 4 实施 — 不因"每个 Spec 都要有 HTML"而无限扩张。
 
 ## 0. Phase 0.5 是什么
 
@@ -26,7 +31,8 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5C** Info Arch Closure | 🟡 RECONCILED | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
 | **0.5D** P0 Product Surfaces | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) · 待 0.5D LOCK |
 | **0.5E** Global UX Layer | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) — wireframe 已建, 待 Phase 4 实施 |
-| **0.5F** Final UX Reconciliation | 🟡 IN PROGRESS (本轮) | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components |
+| **0.5F** Final UX Reconciliation | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components |
+| **0.5F.1** Final Consistency Sweep | 🟡 IN PROGRESS (本轮) | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 

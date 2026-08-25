@@ -216,7 +216,8 @@
       </div>
       <div class="field">
         <label>Hot Standby Level 热备等级</label>
-        <select><option>NONE</option><option>WARM (共享资源)</option><option selected>HOT (独占资源)</option></select>
+        <select><option>COLD</option><option>WARM (共享资源)</option><option selected>HOT (独占资源)</option></select>
+        <div style="font-size:10px;color:var(--fgdim);margin-top:3px">V0.2 Canonical: COLD/WARM/HOT · ⛔ 禁 NONE — 不需要备机用 <b>redundancy_enabled = false</b> (0.5F.1 修正)</div>
       </div>
     </div>
   </div>

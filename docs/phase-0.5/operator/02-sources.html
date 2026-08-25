@@ -72,9 +72,23 @@
 
 <!-- 0.5F 双段: Local / External Network -->
 <div class="segment-tabs">
-  <div class="segment-tab active">📺 Local Device Source<span class="count">4</span></div>
-  <div class="segment-tab">🌐 External Network Source<span class="count">6</span></div>
-  <div class="segment-tab">🧩 Composite (Internal)<span class="count">2</span></div>
+  <div class="segment-tab active">📺 Local Devices<span class="count">4</span></div>
+  <div class="segment-tab">🌐 Network Ingress<span class="count">6</span></div>
+  <div class="segment-tab">🧩 Internal / Composite<span class="count">2</span></div>
+</div>
+
+<!-- 统一 Add Source Wizard (0.5F.1) -->
+<div class="panel" style="border-color:var(--purple)">
+  <h3>➕ ADD SOURCE — 统一创建入口 (0.5F.1) <span class="pill pill-purple" style="float:right">E-40 = Network 分支</span></h3>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px;margin-top:4px">
+    <span class="pill pill-yellow">Physical · SDI / DeckLink</span>
+    <span class="pill pill-blue">Network · UDP/RTP/SRT/RTMP/HLS/RTSP/WebRTC → E-40</span>
+    <span class="pill pill-green">Local Logical · FILE / INTERNAL</span>
+    <span class="pill pill-gray">Composite</span>
+  </div>
+  <div class="diag" style="margin-top:6px">
+    所有 Source 走同一 Wizard 链: <b>Source Family → Source Type → Adapter → Endpoint → Contract → Clock → QC → Preview/Verify → Save → ASSIGN</b>。E-40 是 <b>Network 分支</b> (Source Kind→Transport→Delivery Mode→Endpoint Schema), 不是与 Source System 并列的第二世界; 02-sources 是统一 Registry (查看/筛选/健康/Used By/Verify/Assign)。
+  </div>
 </div>
 
 <!-- ============== Local Device Source Tab ============== -->

@@ -66,8 +66,8 @@ surface:
   - id: "CH-02B"
     domain: BROADCAST
     kind: REGISTRY
-    status: DRAFT
-    milestone: "0.5D (D2 Channel Template Center)"
+    status: LOCK
+    milestone: "0.5D (D2 Channel Template Center) · 0.5F.1 升 LOCK (有 wireframe)"
   - id: "CD-01-WS"
     domain: BROADCAST
     kind: WORKSPACE
@@ -83,7 +83,8 @@ surface:
   - id: "B-13"
     domain: BROADCAST
     kind: WORKFLOW
-    status: SPEC_WIREFRAME
+    status: LOCK
+    note: "0.5F.1 升 LOCK · Interaction Surface (CD-01 内嵌 Preflight Sheet)"
     milestone: "0.5F Spec → 0.5D D6 wireframe"
     note: "Take Preflight (9 项联合预检)"
 
@@ -230,7 +231,8 @@ surface:
   - id: "E-42"
     domain: ENGINEERING
     kind: WORKFLOW
-    status: SPEC_WIREFRAME
+    status: LOCK
+    note: "0.5F.1 升 LOCK (wireframe 已入 D5 验收链)"
     milestone: "0.5F Spec → 0.5D D5 wireframe (Source Test Bench)"
   - id: "O-41"
     domain: ENGINEERING
@@ -260,8 +262,8 @@ surface:
   - id: "D7"
     domain: ENGINEERING
     kind: APPROVAL
-    status: DRAFT
-    milestone: "0.5D 后续 (ChangeSet Review 独立审批 surface)"
+    status: LOCK
+    milestone: "0.5D 后续 (ChangeSet Review 独立审批 surface) · 0.5F.1 升 LOCK (有 wireframe, 配置审批正式面)"
   - id: "E-50"
     domain: ENGINEERING
     kind: WORKFLOW
