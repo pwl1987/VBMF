@@ -392,6 +392,31 @@ Original Effective Restored (Runtime Revision N 不变, 无 ChangeSet)
 - [ ] Rollback 后 Runtime Revision 编号不变 (证明是临时覆盖而非新配置)
 - [ ] Override 与 ChangeSet 在 E-50 Impact Preview / D7 ChangeSet Review 中互不污染
 
+### AC-03B-2: Override + Runtime Restart (临时覆盖跨重启语义, 0.5F.18 P1-6 新增)
+
+AC-03B 验证的是"自然 TTL 到期回滚"。但广播现场必须验证 **Override 活跃期间发生 Media Agent / Session / Controller 重启** 的语义, 否则运维会在事故中踩雷：
+
+```
+Override active (Runtime Revision N, Until = wall-clock TTL)
+  ↓ Restart Session / Media Agent / Controller
+expected:
+  - Override state PERSIST (不丢), 重启后重新 apply 到 Runtime Revision N
+  - TTL 以 wall-clock 剩余时间计 (monotonic 或 wall-clock 须明确, 不得因重启重置为 full TTL)
+  - Restart 后 Runtime 仍为 Override 值 (非 Original Effective), 直到 TTL 到期
+  - Controller 重启不清除 Override (Override owner = Runtime, 非 Controller 内存)
+  ↓ TTL 到期 (wall-clock)
+Auto Rollback → Original Effective Restored (Runtime Revision N 不变)
+```
+
+**验收项**：
+
+- [ ] Override 状态持久化 (DB / Runtime store), **不**仅存于 Agent 内存 — 重启后可重建
+- [ ] Session / Media Agent 重启后自动 re-apply Override 值 (不回退 Original Effective)
+- [ ] Controller 重启不清除 Override (Override 生命周期归属 Runtime, 非 Controller)
+- [ ] TTL 语义明确: wall-clock 剩余时间 (重启不重置为 full TTL); 若用 monotonic 须文档化
+- [ ] Restart 期间 Override 活跃标记 + Audit 事件 (restart + re-apply) 留痕
+- [ ] TTL 到期后仍正确 Auto Rollback, Runtime Revision 编号不变
+
 ## 部署环境
 
 - 服务器：10.30.15.10（Ubuntu 26.04，32 核 / 30 GB / 546 GB / 3 张 BMD DeckLink）

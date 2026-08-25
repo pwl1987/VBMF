@@ -77,6 +77,18 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-10 · AC-03B Temporary Override**: 已在 0.5F.16 完成（Phase 0.6 README 已含 AC-03B）, 本轮不复做, 仅交叉引用。
 - 校验：**未新增任何 Surface**（Registry SoT 维持 56 = 33 LOCK + 23 SPEC）; 未新增任何 UI wireframe。结论：完成 0.5F.17 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT LOCK FINAL**, SPEC 表面明确归 Phase 4, **可正式冻结并进入 Phase 0.6 = Executable Acceptance**, 下一阶段指标从"页面覆盖率"切换为"四条可执行验收链 (AC-01~04 + AC-03B) 完成率"。
 
+### Phase 0.5F — Documentation Consistency Patch（0.5F.18，2026-08-25，LOCK FINAL，基于 38b7ab0 复检）
+用户以 `38b7ab0586f83f937446c2b212cc06591cd306d4` 复检 0.5F.17，确认 2 P0 基本解决，但发现 2 P0 文档一致性残留 + 6 P1。本轮 0.5F.18 只做极小文档一致性修补（不新增 Surface、不新增 UI 页面）：
+- **P0-1 · Registry 汇总数字内部矛盾**: 顶部 `ENGINEERING 29 (含 8 SPEC)` 错误（实际 16 SPEC，且漏列 O-41~45）。纠正为精确分域 YAML: BROADCAST{13/13/0} · MEDIA{8/5/3(M-13/15/16)} · ENGINEERING{29/13/16(P-23~27/E-32~36/E-41/O-41~45)} · ADMIN{5/0/5(A-51~55)} · GLOBAL{1/1/0}; TOTAL 56 = 32 LOCK + 24 SPEC。同步修正 0.5F.17 残留的 "23 SPEC" 旧注释 → 24。
+- **P0-2 · Phase 0.5 README 未回写 F17**: `docs/phase-0.5/README.md` 顶部状态链 + "LOCK FINAL 已达成" + "FINAL 判定标准" + §9 标题 全部延伸到 0.5F.17 (派生自 MILESTONES SoT, 不再手写 F11 口径); 文件结构段 DESIGN_SYSTEM/i18n 同步为 V0.2。
+- **P1-1 · NAVIGATION.md 版本头**: `V0.1 锁定` → `VBMF Navigation Model V0.2` + Historical V0.1 lineage (与 DESIGN_SYSTEM/EXECUTION_MODEL 对齐)。
+- **P1-2 · Phase 0.5 README Design System/i18n 版本**: `V0.1` → `V0.2 Console Design System` / `V0.2 i18n Contract` (Historical V0.1)。
+- **P1-3 · EXECUTION_MODEL 轴混写**: `start` 时序表 (第 51 行) + C8 事件 (第 202 行) 原写 `STARTING → READY_TO_TAKE` 单轴, 纠正为三轴各自迁移 `lifecycle STARTING→RUNNING · readiness NOT_READY→READY_TO_TAKE · health UNKNOWN→HEALTHY` (杜绝 Phase 1 实现退化成单轴状态机)。
+- **P1-4 · CD-01 TAKE Readiness 汇总层**: CD-01-WS 新增 ON-AIR SAFETY STRIP (Source/Video/Audio/AV Sync/Output/Backup/Clock/B-13 Gate 八项 ✓ 一眼判断能否 TAKE), 复用 B-13 Preflight, 不新增 Surface。
+- **P1-5 · M-17 页面名称误导**: title + breadcrumb 的 "Realtime Encode" → "Realtime Media Session" (H1 已是 "实时媒体会话", 现统一); 贯彻 Registry M-17 = Runtime Encoding Session 语义。
+- **P1-6 · AC-03B 缺 Runtime Restart 情景**: Phase 0.6 README 新增 **AC-03B-2 Override + Runtime Restart**, 验证 Override 状态持久化/重启 re-apply/TTL wall-clock 语义/Controller 重启不清除/到期仍 Auto Rollback (Runtime Revision 不变); 作为 acceptance clarification, 不重开 V0.2 review。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56 = 32 LOCK + 24 SPEC）; CD-01/M-17 仅在既有页面内补强, 不计入 NAVIGATION 计数。结论：完成 0.5F.18 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT LOCK FINAL 正式收盘**, 下一动作 = **Phase 0.6 Executable Acceptance** (AC-01~04 + AC-03B/AC-03B-2), 不再扩展 0.5。
+
 ### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
 - **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
 - **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。

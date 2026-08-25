@@ -1,5 +1,7 @@
-# VBMF Navigation Model (V0.1 锁定)
+# VBMF Navigation Model V0.2
 
+> **版本 lineage:** Historical V0.1 → Applicable baseline **V0.2** (0.5F.18 P1-1 校正版本头, 与 ARCHITECTURE_V0.2 / OBJECT_VOCABULARY SEMANTIC 0.2 / DESIGN_SYSTEM V0.2 对齐)
+>
 > **目的:** Phase 0.5C Information Architecture Closure 收口的"导航层"。
 > 顶层导航用**业务域**, 不用**编号**; 数字降级为路由 / 页面 ID 内部使用。
 >

@@ -48,7 +48,7 @@ TAKE (operator action) ──► active_source=PRIMARY · Primary Reservation RE
 | `compile` | Graph Runtime | Profiles 兼容 (P-21 REALTIME) | DESIRED → COMPILED |
 | `provision` | H2 Scheduler | Preflight A (Config) PASS | Reservation PROVISIONED |
 | `reserve` | H2 Scheduler | 9-dim vector 可满足 | Reservation RESERVED (HOT 备机同锁) |
-| `start` | Session Manager | Reservation == RESERVED | Session STARTING → READY_TO_TAKE (Reservation **保持 RESERVED**, RUNNING ≠ IN_USE) |
+| `start` | Session Manager | Reservation == RESERVED | lifecycle `STARTING → RUNNING` · readiness `NOT_READY → READY_TO_TAKE` · health `UNKNOWN → HEALTHY` (三轴各自迁移, **非** `STARTING → READY_TO_TAKE` 单轴; Reservation **保持 RESERVED**, RUNNING ≠ IN_USE) |
 | `take` | Operator (CD-01) | B-13: READY/CONDITIONAL + Reservation RESERVED | **lifecycle 不变=RUNNING** · **readiness 不变=READY_TO_TAKE** · `active_source=PRIMARY` · Primary Reservation `RESERVED → IN_USE` (Backup 保持 RESERVED) · emit `TAKE_RECORD` |
 | `release` | Session stop / 退役 | 主备切换完成 / 显式释放 | Reservation RELEASED → 触发仲裁 |
 
@@ -199,7 +199,7 @@ Draft → Validate → ChangeSet       Prepared Session → Readiness
 | C5 | E-33 Review/Approve (L2) | ChangeSet | `CS-001` | — | `CHANGESET_APPROVE` | `APPROVED` |
 | C6 | Apply | Channel Config Rev / Runtime Revision +1 | `cfg-rev N→N+1` | — | `CONFIG_APPLY` | Channel `COMPILED` |
 | C7 | Runtime Provision/Reserve (H2) | `reservations` (9-dim + device_tokens) | — | — | `RESERVATION_RESERVE` | `PROVISIONED → RESERVED` |
-| C8 | Session start (H2 Scheduler) | `media_sessions` (MEDIA_SESSION) | — | Session `s-001` | `SESSION_START` | `STARTING → READY_TO_TAKE` (Reservation 保持 RESERVED, 0.5F.3) |
+| C8 | Session start (H2 Scheduler) | `media_sessions` (MEDIA_SESSION) | — | Session `s-001` | `SESSION_START` | lifecycle `STARTING→RUNNING` · readiness `NOT_READY→READY_TO_TAKE` · health `UNKNOWN→HEALTHY` (三轴各自迁移, Reservation 保持 RESERVED, 0.5F.3 / 0.5F.18 P1-3 修正轴混写) |
 
 ### 6.4 路径 D — Channel Workspace 日常操作 (CD-01)
 

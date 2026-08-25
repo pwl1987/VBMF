@@ -1,15 +1,15 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态 (派生自 [`MILESTONES.md`](MILESTONES.md) SoT)**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **0.5F.11 Final Consistency & Safety Closure (2 P0 + 4 P1)** · **→ Phase 0.6 Executable Acceptance**
+> **状态 (派生自 [`MILESTONES.md`](MILESTONES.md) SoT, 最新收口 = 0.5F.17)**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **0.5F.11 Final Consistency & Safety Closure (2 P0 + 4 P1)** · **0.5F.13/0.5F.14/0.5F.15/0.5F.16/0.5F.17 Lock Semantics Reconciliation** · **→ Phase 0.6 Executable Acceptance**
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
-> **Phase 0.5 LOCK FINAL 已达成** (2026-08-25, 0.5F.8 收口): 0.5C + 0.5D + 0.5E 三 LOCK + 0.5F/0.5F.1-.8 全部完成, 五条 E2E 工作流复验通过 → **Phase 0.6 Executable Acceptance** (Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收)
+> **Phase 0.5 LOCK FINAL 已达成** (2026-08-25, 最新收口 0.5F.17 Lock Semantics Reconciliation): 0.5C + 0.5D + 0.5E 三 LOCK + 0.5F.1-.8 + 0.5F.9~0.5F.17 全部完成, 五条 E2E 工作流复验通过 → **Phase 0.6 Executable Acceptance** (Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收 + AC-03B)
 >
-> **Phase 0.5 FINAL 判定标准 (0.5F.1 定义):**
+> **Phase 0.5 FINAL 判定标准 (0.5F.1 定义, 0.5F.17 焊死 LOCK SEMANTICS):**
 > 1. 0.5C + 0.5D + 0.5E LOCK + 0.5F/0.5F.1 完成;
 > 2. **关键 surface 全部 LOCK**: CD-01 WS/Detail · B-13 · CH-01/02/02B · M-14/M-17 · E-40/E-42 · P-20/21/22/28 · E-37/38 · E-50/51/52 · D7 (Registry 已全部升 LOCK, 0.5F.1);
-> 3. **Spec-only surface 保持 SPEC** (E-41 / P-23..27 / E-31..36 / O-41..45 / A-51..55) = Semantic Contract, 0.5G / Phase 4 实施 — 不因"每个 Spec 都要有 HTML"而无限扩张。
+> 3. **Spec-only surface 保持 SPEC** (E-41 / P-23..27 / E-31..36 / O-41..45 / A-51..55) = Semantic Contract, Phase 4 实施 — 不因"每个 Spec 都要有 HTML"而无限扩张 (0.5F.17: LOCK FINAL ≠ 100% Wireframe Complete, SPEC 不阻塞 Phase 0.6)。
 
 ## 0. Phase 0.5 是什么
 
@@ -85,8 +85,8 @@ docs/phase-0.5/
 ├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (32 LOCK wireframe + 24 SPEC = 56, 0.5F.17 纠错; SPEC = Phase 4 Implementation Surfaces)
 ├── EXECUTION_MODEL.md              ← 执行链/时序唯一事实源 (0.5D.3b)
 ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (计数由 SURFACE_REGISTRY.yaml 派生)
-├── DESIGN_SYSTEM.md                ← V0.1 Design System
-├── I18N_SPEC.md                    ← V0.1 i18n Contract
+├── DESIGN_SYSTEM.md                ← V0.2 Console Design System (0.5F.17 校正版本头; Historical V0.1)
+├── I18N_SPEC.md                    ← V0.2 i18n Contract (与 OBJECT_VOCABULARY SEMANTIC 0.2 对齐; Historical V0.1)
 ├── OPERATOR_WORKFLOW.md            ← 9 Core 操作流
 ├── ERRATA.md                       ← Phase 0.5A 20 项修复归档
 ├── INDEX.md                        ← Phase 0.5A 总索引
@@ -149,7 +149,7 @@ Phase 1 Media Agent (Rust) + Phase 4 Web Console
 7. **Design System** — 5 张 wireframe 统一组件 (DESIGN_SYSTEM.md)
 8. **Command Palette + Keyboard** — Ctrl+K / G D / G M / T / F / R 等
 
-## 9. 当前 LOCK FINAL 条件 (已于 2026-08-25 全部达成 ✅ · 0.5F.11 P0-2 焊死 SoT)
+## 9. 当前 LOCK FINAL 条件 (已于 2026-08-25 全部达成 ✅ · 阶段状态 SoT 规则由 0.5F.11 P0-2 焊死, 最新收口 0.5F.17)
 
 - ✅ **0.5C LOCK FINAL** (4 域 IA + Object Model + 57 决策)
 - ✅ **0.5D LOCK FINAL** (M-17 + E-38 + E-37 + P-20 + P-28 + M-18 wireframe + M-14 重画)

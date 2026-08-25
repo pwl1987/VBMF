@@ -8,10 +8,11 @@
 #   3. 历史手写数字 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 一律废止。
 #
 # 派生计数 (2026-08-25, 0.5D.6 终扫 + 0.5E + 0.5F + 0.5F.17 Lock Semantics 纠错):
-#   BROADCAST 13 · MEDIA 8 · ENGINEERING 29 (含 8 SPEC: M-13/M-15/M-16/P-23/P-24/P-25/P-26/P-27/E-32~36/E-41) · ADMIN 5
-#   域合计 55 · 全局 Validation 1
+#   BROADCAST 13 (LOCK 13 / SPEC 0) · MEDIA 8 (LOCK 5 / SPEC 3) · ENGINEERING 29 (LOCK 13 / SPEC 16) · ADMIN 5 (LOCK 0 / SPEC 5) · GLOBAL 1 (LOCK 1 / SPEC 0)
+#   域合计 55 + 全局 Validation 1 = 56
 #   TOTAL 56 = 32 LOCK (wireframe 已交付, 含全局 Validation) + 24 SPEC (语义契约锁定, wireframe 待 Phase 4 实施)
-#   ⚠️ 历史注释 "55 wireframe + 1 Spec" 已在 0.5F.17 纠正为真实计数 (23 SPEC), 旧注释废止。
+#   精确分域: BROADCAST{total:13,lock:13,spec:0} MEDIA{total:8,lock:5,spec:3(M-13/M-15/M-16)} ENGINEERING{total:29,lock:13,spec:16(P-23~27/E-32~36/E-41/O-41~45)} ADMIN{total:5,lock:0,spec:5(A-51~55)} GLOBAL{total:1,lock:1,spec:0}
+#   ⚠️ 历史注释 "55 wireframe + 1 Spec" 已在 0.5F.17 纠正为真实计数 (24 SPEC), 旧注释废止。
 #
 # 计数口径 (避免 "surface = 已有原型页面" 误解, 0.5F.9 P1 治理建议 + 0.5F.17 焊死):
 #   Surface Contract Count     = 本 Registry 登记 surface 总数 (设计契约, 非实现)
