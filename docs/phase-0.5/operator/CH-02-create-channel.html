@@ -577,7 +577,8 @@ impact  : 2 surface (CH02, +1 Output Variant)
 atomic  : true</div>
       </div>
       <div class="gap ok">✅ G6 已闭合 (D7): ChangeSet Review 独立审批 surface 已建 (operator/D7-changeset-review.html) — Diff / Risk / Approve(L1-L3)/Reject/Rollback / Audit 链.</div>
-      <div class="note">提交后执行链 (0.5D.3 焊死 · <b>Apply ≠ Start</b>): <b>ChangeSet Apply → PROVISION (Runtime Provision) → STARTING → RESERVED → READY_TO_TAKE → (TAKE) → RUNNING</b>. 本向导止于生成 ChangeSet; Apply / Provision / Start 由审批 (D7) + H2 Scheduler (Reservation Spec) 推进; TAKE 在 CD-01 执行.</div>
+      <div class="note">提交后执行链 (0.5F.2 P0 修正 · <b>Apply ≠ Start</b>): <b>ChangeSet Apply → Reservation PROVISIONED→RESERVED → Session STARTING (lifecycle) · NOT_READY (readiness) → READY_TO_TAKE → (TAKE) → RUNNING</b>. 本向导止于生成 ChangeSet; Apply / Provision / Start 由审批 (D7) + H2 Scheduler (Reservation Spec) 推进; TAKE 在 CD-01 执行. ⛔ Session 无 `RESERVED` 状态 (那是 Reservation.state, EXECUTION_MODEL §0).</div>
+      <div class="gap ok">📦 <b>CREATE 将生成 (对象映射 · 0.5F.2):</b> ① `channels` (Channel DRAFT) → ② `profile_bundles` (B-v2 快照, 7 Profile @rev 引用) → ③ `sources` ASSIGNED (PRIMARY/BACKUP) → ④ `output_variants` (引用 P-22 + Destination) → ⑤ ChangeSet → Apply 后 → ⑥ `reservations` (PROVISIONED→RESERVED) → ⑦ `media_sessions` (READY_TO_TAKE)。每步对应 DB Object, 不产生模型外对象.</div>
     </div>
   </div>
   <div class="wizard-nav">

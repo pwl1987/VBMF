@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F Final UX Reconciliation 完成 · 0.5F.1 Final Consistency Sweep (本轮)** (2026-08-25)
+> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F + 0.5F.1 完成 · 0.5F.2 Runtime/Registry/Final Gate (本轮)** (2026-08-25)
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -32,7 +32,8 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5D** P0 Product Surfaces | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) · 待 0.5D LOCK |
 | **0.5E** Global UX Layer | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) — wireframe 已建, 待 Phase 4 实施 |
 | **0.5F** Final UX Reconciliation | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components |
-| **0.5F.1** Final Consistency Sweep | 🟡 IN PROGRESS (本轮) | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 |
+| **0.5F.1** Final Consistency Sweep | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 |
+| **0.5F.2** Runtime/Registry/Final Gate | 🟡 IN PROGRESS (本轮) | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 

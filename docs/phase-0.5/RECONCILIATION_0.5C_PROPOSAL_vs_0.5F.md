@@ -454,7 +454,7 @@
 - v2 提升为正页, 删除 v1: `CD-01-channel-workspace.html` / `M-17-realtime-transcode.html` / `E-40-network-source.html` / `B-13-take-preflight.html`; 全仓 `-v2.html` 引用清零 (NAV/RECON/D7/页内链接/链描述)。原则: Git commit 表版本, 文件名表产品语义。
 
 ### J.8 P1-8 Apply → Provision 链显式化
-- CH-02 提交后执行链: **ChangeSet Apply → PROVISION (Runtime Provision) → STARTING → RESERVED → READY_TO_TAKE → (TAKE) → RUNNING** (Apply ≠ Start)。Reservation Spec 数据流同步加 Apply/Provision。
+- CH-02 提交后执行链: **ChangeSet Apply → PROVISION (Runtime Provision) → STARTING → RESERVED → READY_TO_TAKE → (TAKE) → RUNNING** (Apply ≠ Start)。Reservation Spec 数据流同步加 Apply/Provision。 *(0.5F.2 修正: 该链中的 `RESERVED` 属 Reservation.state; Session 本身无 RESERVED, 见 EXECUTION_MODEL §0 Media Session 三轴。)*
 
 ### J.9 附带回写
 - OBJECT_VOCABULARY §1.13 Revision 前缀约定 (T-v3 / B-v2 / ENC-v7 / OUT-v4 / RS-); POM §1.2 Bundle 权限 (Operator 只能选兼容 Revision + ChangeSet, Engineer 才能编辑 Profile Definition)。
@@ -752,3 +752,47 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### S.8 结论
 - **7 项全部落实, 零残留** (VIRTUAL_PLAYBACK / cs-take / NONE 热备 全仓清零, 仅历史记录保留变更描述)。
 - **仍不宣布 FINAL**: 0.5D LOCK + 0.5E LOCK 声明待用户确认。FINAL 判定标准已定义 — 关键 surface 已全 LOCK, Spec-only 边界已明确 (E-41 等保持 SPEC)。确认后 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance**。
+
+---
+
+## T. 0.5F.2 Runtime / Registry / Final Gate Consistency — 7 项 + 5 Click-Path 验证 (2026-08-25 末 · 用户第 14 轮审计 ed41c29)
+
+> 用户以 `ed41c29` 审查: V0.2 无需改动, 0.5 不再扩页面; 剩余 = 1 P0 + 4 P1 + 2 收口。核心: **Session RESERVED 第二状态机 / CH-02 DRAFT 冲突 / Network Availability / Profile Revision immutable**。
+
+### T.1 P0 — EXECUTION_MODEL Session `RESERVED` 删除 (三轴 Runtime)
+- 状态机图 `Session (STARTING → RESERVED → READY_TO_TAKE)` → **Media Session 三轴**: lifecycle `STOPPED→STARTING→RUNNING→STOPPING` · readiness `NOT_READY→READY_TO_TAKE` · health `HEALTHY/DEGRADED/FAILED/UNKNOWN`。
+- 新增"Media Session 三轴"注: `RESERVED` 属 **Reservation.state** (PROVISIONED→RESERVED→IN_USE→RELEASED); `READY_TO_TAKE` (readiness) 与 `Reservation==RESERVED` 是前置关联, 非同一状态。⛔ 禁 Session 出现 RESERVED/IN_USE。
+- CH-02 执行链同步修正 (Session 无 RESERVED); §J.8 历史记录补修正标注。全仓零残留。
+
+### T.2 P1 — CH-02 升 LOCK
+- Registry `CH-02` DRAFT → **LOCK** (7 步向导 + 对象映射, D1 验收链核心)。
+- CH-02 Step7 新增 **CREATE 将生成 (对象映射)**: ① channels(DRAFT) → ② profile_bundles(B-v2 快照) → ③ sources ASSIGNED → ④ output_variants → ⑤ ChangeSet → Apply → ⑥ reservations(PROVISIONED→RESERVED) → ⑦ media_sessions(READY_TO_TAKE)。"创建完成产生什么"一一对应。
+
+### T.3 P1 — Network Source Availability Tier
+- 02-sources 网络表新增 **Runtime Availability** 列: ✅ AVAILABLE (UDP Unicast/Multicast ASM/SSM · SRT Caller/Listener) · 🟡 ADAPTER_DEFINED (RTMP/HLS/RTSP/WebRTC — V0.3) · 🔵 RESERVED (RIST/Zixi/NDI — V0.3+)。
+- RTMP 行 `CONNECTED · 312 clients / PASS` 误导状态 → **ADAPTER_DEFINED · 样例演示未实装 · — (V0.3)**。⛔ 未实装协议不显示 Connected/PASS。
+
+### T.4 P1 — Bundle → Profile Revision immutable
+- PRODUCT_OBJECT_MODEL §1.2 新增 **Immutable 链**: Bundle = Profile Revision immutable snapshot (7 `@rev` 引用, 非副本); GraphRuntime 捕获 immutable Bundle snapshot, 不在 Channel Runtime 复制 EncodingProfile; 改 Profile → 新 Rev → Bundle 不自动变 (显式新 Bundle Rev); CD-01 显示 CONFIG/PENDING。
+
+### T.5 P1 — CD-01 Config/Compiled/Effective Revision
+- CD-01 Action Context Bar 顶部新增 3 Badge: **CONFIG · Bundle v3** / **COMPILED · GraphRuntime r18** / **EFFECTIVE · r17** — Operator 一眼看清"当前生效哪版, 哪个是 Desired"。
+
+### T.6 Registry ↔ README ↔ MILESTONES 最终对账
+- Registry 关键 surface 全部 LOCK (含 CH-02, 0.5F.2); README FINAL 判定标准与 Registry 一致; README/MILESTONES 加 0.5F.2 行。
+
+### T.7 5 条最终 Click-Path 验证
+
+**A. 新建 Network Source**: 02-sources ADD SOURCE → E-40 (Kind→Transport→Delivery Mode→Endpoint) → E-42 7 层验证 → VERIFIED → ASSIGN。落点: `sources` DRAFT→TESTING→VERIFIED→ASSIGNED; 无第二套创建逻辑。
+
+**B. 新建 Physical Source**: 02-sources ADD SOURCE → Physical (SDI/DeckLink) → Adapter (BMD) → Endpoint (SDI port) → Contract (1080p25) → QC → Save → ASSIGN。落点: `sources` (PHYSICAL) 同一条 Wizard 链, 与 Network 分支对称。
+
+**C. 新建 Channel**: CH-02 7 步 (Type→Template→Source→Clock→Hot Standby→Output→Preflight) → ChangeSet → D7 Approve → Apply → Provision/Reserve → Session READY_TO_TAKE。落点: `channels` DRAFT · `profile_bundles` B-v2 · `sources` ASSIGNED · `output_variants` · `reservations` RESERVED · `media_sessions` READY_TO_TAKE。对象映射见 T.2。
+
+**D. 创建 Realtime Session**: H2 Scheduler → Reservation RESERVED (真锁) → Session STARTING (lifecycle) · NOT_READY → READY_TO_TAKE (readiness)。落点: `reservations` PROVISIONED→RESERVED · `media_sessions` STARTING→READY_TO_TAKE。Session 无 RESERVED (T.1)。
+
+**E. TAKE → FAILOVER → OUTPUT RECOVERY**: CD-01 TAKE → B-13 9 项 (Runtime Pipeline) → TAKE → Runtime Event (evt-take) → Audit; FAILOVER → 备 Session (HOT RESERVED) → Effective Switch Mode; OUTPUT RECOVERY → OutputResilience retry/backoff → 不切源或 Incident。落点: `audit_logs` (A-54) · `incidents`; **全部不进 ChangeSet** (EXECUTION_MODEL §7)。
+
+### T.8 结论
+- **7 项 + 5 Click-Path 全部通过** — 对象→Revision→Session→Audit 链闭合, 无模型外对象, 无第二套状态机。
+- **仍不宣布 FINAL**: 0.5D LOCK + 0.5E LOCK 声明待用户确认。0.5F.2 完成后 FINAL 判定标准三项全部满足 → 用户确认后 **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance** (不再开 0.5G/0.5H)。

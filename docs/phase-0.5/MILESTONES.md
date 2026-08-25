@@ -86,7 +86,8 @@ docs/
 | **0.5D P0 Product Surfaces** | 2026-08 | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` (待 0.5D LOCK) |
 | **0.5E Global UX Layer** | 2026-08 | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
 | **0.5F Final UX Reconciliation** | 2026-08 | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components | `22f2245` |
-| **0.5F.1 Final Consistency Sweep** | 2026-08 | 🟡 IN PROGRESS (本轮) | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 | (本轮) |
+| **0.5F.1 Final Consistency Sweep** | 2026-08 | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 | `ed41c29` |
+| **0.5F.2 Runtime/Registry/Final Gate** | 2026-08 | 🟡 IN PROGRESS (本轮) | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path | (本轮) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 

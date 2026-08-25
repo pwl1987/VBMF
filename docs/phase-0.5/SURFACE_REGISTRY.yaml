@@ -61,8 +61,8 @@ surface:
   - id: "CH-02"
     domain: BROADCAST
     kind: WORKFLOW
-    status: DRAFT
-    milestone: "0.5D (D1 Create Channel Wizard)"
+    status: LOCK
+    milestone: "0.5D (D1 Create Channel Wizard) · 0.5F.2 升 LOCK (7 步 + 对象映射, D1 验收链核心)"
   - id: "CH-02B"
     domain: BROADCAST
     kind: REGISTRY

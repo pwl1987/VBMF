@@ -86,6 +86,12 @@ profile_bundles:
 - Bundle 自己的 `revision_id` 表达"哪 7 个 Profile 版本组合"
 - 修改 Bundle = 创建新 Revision (V0.2 §1.13 锁定)
 
+**Immutable 链 (0.5F.2 焊死):**
+- **Bundle = Profile Revision 的 immutable snapshot** (7 个 `@rev` 引用, 不是副本) — 与 Template 同原则 (immutable snapshot, 实例化后不自动同步)。
+- **GraphRuntime 捕获 immutable Bundle snapshot**, 不在 Channel Runtime 中"再次复制一份 EncodingProfile"。
+- 修改 Profile (如 ENC-v3 → v4) → 新 Profile Revision → 引用它的 Bundle **不自动变** (需显式创建新 Bundle Rev) → CD-01 显示 `CONFIG Bundle v2 / PENDING v3`。
+- ⛔ 禁止 Channel / GraphRuntime 持有 Profile 字段副本 — 只允许 `@rev` 引用 (避免 `Channel.codec` vs `EncodingProfile.codec` 两份真相)。
+
 ### 1.3 第 3 层: Output Variant (Instance / 1 个 Channel N 个 Variant)
 
 **关键创新:** **1 个 Channel N 个 Output Variant**, 每个 Variant = 1 个 Profile 引用 + N 个 Destination 引用; **每个 Destination 保存 `adapter_ref` (Adapter 是运行时执行资源, 可被多个 Destination 共享 — 1 个 SRS 实例服务 N 个输出 Destination, 不误建模为 N 个 Adapter)** (0.5D.5 焊死)。

@@ -29,7 +29,7 @@ GraphRuntime (DESIRED → COMPILED → EFFECTIVE)    │
 Reservation (PROVISIONED → RESERVED → IN_USE → RELEASED)
    │  start (H2 Scheduler, 资源已 RESERVED)
    ▼
-Session (STARTING → RESERVED → READY_TO_TAKE)
+Session (lifecycle STARTING→RUNNING · readiness NOT_READY→READY_TO_TAKE · health UNKNOWN→HEALTHY)
    │  operator action (CD-01)
    ▼
 TAKE ──► RUNNING (Program Master → Output Variant → Adapter)
@@ -50,6 +50,16 @@ TAKE ──► RUNNING (Program Master → Output Variant → Adapter)
 | `start` | Session Manager | Reservation == RESERVED | Session STARTING → READY_TO_TAKE |
 | `take` | Operator (CD-01) | B-13: READY/CONDITIONAL + Reservation RESERVED | TAKE → RUNNING |
 | `release` | Session stop / 退役 | 主备切换完成 / 显式释放 | Reservation RELEASED → 触发仲裁 |
+
+**Media Session 三轴 (0.5F.2 P0 修正 — 删除 Session `RESERVED`):**
+- **Reservation.state**: `PROVISIONED → RESERVED → IN_USE → RELEASED` (属于 Reservation, 不属于 Session)。
+- **Media Session** 仅用 V0.2 Runtime 三轴:
+  - `lifecycle`: `STOPPED → STARTING → RUNNING → STOPPING`
+  - `readiness`: `NOT_READY → READY_TO_TAKE`
+  - `health`: `HEALTHY / DEGRADED / FAILED / UNKNOWN`
+- **Start**: lifecycle `STARTING → RUNNING` · readiness `NOT_READY → READY_TO_TAKE` (前置: `Reservation == RESERVED` 是真锁前提, 但 Session 状态本身无 `RESERVED`)。
+- **TAKE 后**: lifecycle `RUNNING` · readiness `READY_TO_TAKE` · health `HEALTHY` · `active_source = PRIMARY`。
+- ⛔ 禁止在 Session 上出现 `RESERVED` / `IN_USE` 等 Reservation 状态词 (Phase 1 会产生第二套 Runtime 状态机)。
 
 > ⛔ **不变量:** `Apply ≠ Start` · `Start ≠ Take` · `Take ≠ Failover` · **TAKE 绝不触发资源抢占** (只验证 RESERVED)。
 

@@ -174,7 +174,7 @@
   <div class="panel" style="margin-top:8px">
     <div class="diag" style="margin-top:0;margin-bottom:8px">
       <b>External Network Source</b> = 外部网络信号源 (UDP/RTP/SRT/RTMP/HLS/RTSP/WebRTC Pull/RIST/Zixi/NDI).
-      0.5F 实装 UDP Unicast + UDP Multicast + SRT Caller, 其余 Spec 锁 (V0.3 实施).
+      <b>Runtime Availability (0.5F.2):</b> ✅ <b>AVAILABLE</b> (V0.2 实装: UDP Unicast/Multicast ASM/SSM · SRT Caller/Listener) · 🟡 <b>ADAPTER_DEFINED</b> (RTMP/HLS/RTSP/WebRTC — Adapter 已定义, V0.3 实施) · 🔵 <b>RESERVED</b> (RIST/Zixi/NDI — V0.3+ 保留)。⛔ 未实装协议不显示 CONNECTED/PASS, 避免"看起来已运行"的误导.
       <b>详细配置 → <a href="E-40-network-source.html">E-40 Network Source 配置 (Multicast Diagnostics)</a></b>
     </div>
     <table>
@@ -182,6 +182,7 @@
         <tr>
           <th>Source ID</th>
           <th>Type (PIA §4)</th>
+          <th>Runtime Availability (0.5F.2)</th>
           <th>Adapter</th>
           <th>Endpoint</th>
           <th>Contract</th>
@@ -195,6 +196,7 @@
         <tr>
           <td><b>UDP-EXT-001</b></td>
           <td><span class="pill pill-purple">UDP Unicast</span></td>
+          <td><span class="pill pill-green">AVAILABLE</span></td>
           <td>UDP/ADAPTER v1.0</td>
           <td>10.30.20.100:5000 (eno1)</td>
           <td>MPEG-TS · H.264 1080p25</td>
@@ -206,6 +208,7 @@
         <tr>
           <td><b>UDP-MULTICAST-001</b></td>
           <td><span class="pill pill-purple">UDP Multicast (SSM)</span></td>
+          <td><span class="pill pill-green">AVAILABLE</span></td>
           <td>UDP/ADAPTER v1.0</td>
           <td>239.20.10.10:5000 (eno1, SSM 10.30.20.100)</td>
           <td>MPEG-TS · H.264 1080p25</td>
@@ -217,6 +220,7 @@
         <tr>
           <td><b>UDP-MULTICAST-002</b></td>
           <td><span class="pill pill-purple">UDP Multicast (ASM)</span></td>
+          <td><span class="pill pill-green">AVAILABLE</span></td>
           <td>UDP/ADAPTER v1.0</td>
           <td>239.20.10.20:5000 (eno1, ASM)</td>
           <td>MPEG-TS · H.264 720p25</td>
@@ -228,6 +232,7 @@
         <tr>
           <td><b>SRT-REMOTE-001</b></td>
           <td><span class="pill pill-purple">SRT Caller</span></td>
+          <td><span class="pill pill-green">AVAILABLE</span></td>
           <td>srt/1.5 (AES-256)</td>
           <td>remote.studio-a.com:9999 (passphrase)</td>
           <td>MPEG-TS · H.264 1080p25</td>
@@ -239,6 +244,7 @@
         <tr>
           <td><b>SRT-REMOTE-002</b></td>
           <td><span class="pill pill-purple">SRT Listener</span></td>
+          <td><span class="pill pill-green">AVAILABLE</span></td>
           <td>srt/1.5 (AES-256)</td>
           <td>0.0.0.0:9001 (passphrase)</td>
           <td>MPEG-TS · H.264 1080p25</td>
@@ -250,11 +256,12 @@
         <tr>
           <td><b>RTMP-PUSH-001</b></td>
           <td><span class="pill pill-purple">RTMP Push</span></td>
+          <td><span class="pill pill-yellow">ADAPTER_DEFINED (V0.3)</span></td>
           <td>rtmp/ADAPTER v1.0</td>
           <td>rtmp://ingest.cdn.com/live (token)</td>
           <td>FLV · H.264 720p25</td>
-          <td><span class="pill pill-green">CONNECTED · 312 clients</span></td>
-          <td><span class="pill pill-green">PASS</span></td>
+          <td><span class="pill pill-yellow">样例演示 · 未实装</span></td>
+          <td><span class="pill pill-yellow">— (V0.3)</span></td>
           <td>CH01 (Output Variant)</td>
           <td><button class="btn">Detail →</button></td>
         </tr>
