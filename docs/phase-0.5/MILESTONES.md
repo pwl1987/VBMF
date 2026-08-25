@@ -101,6 +101,8 @@ docs/
 | **0.5F.14 Object Boundary & Channel Workspace Closure** | 2026-08 | 🟢 LOCK FINAL | 清旧双真相 (output_profile_ref→default_output_profile_ref) / M-14 拆 FILE_TRANSCODE·REALTIME SESSION 两链 / Target Asset Version / 全局 Configuration Source Panel / Source·Channel Workspace | `967b522` |
 | **0.5F.15 Final Workflow Consistency & Source/Channel UX Closure** | 2026-08 | 🟢 LOCK FINAL | JobKind 5 / SourceKind 11 / CD-01-WS·Detail / AssetVersionRole / StorageDestination / TAKE·FAILOVER / 交付实例化链 / AC-01~04 | `0c8fd0d` |
 | **0.5F.16 SoT & Acceptance Final Reconciliation** | 2026-08 | 🟢 LOCK FINAL | MILESTONES/README/POM/SURFACE/NAVIGATION 状态回写 0.5F.11→0.5F.15 / Output Destination UDP Egress Schema / Storage Path Override / AC-03B Temporary Override | `0c8fd0d`+本轮 |
+| **0.5F.17 Lock Semantics Reconciliation** | 2026-08 | 🟢 LOCK FINAL | Registry 计数纠错 (55+1→32 LOCK+24 SPEC) / 三层 Lock 语义焊死 (Semantic/Workflow/Surface-Contract) / SPEC≠漏画页面 / Execution&Design 版本头 V0.2 / Phase 4 Implementation Surfaces 裁决 (P-23/25/27/E-41/O-41~45/A-51~55) | `38b7ab0`+本轮 |
+| **0.5F.18 Documentation Reconciliation** | 2026-08 | 🟢 LOCK FINAL | 计数三套口径统一 (33/23·55+1→32/24) / MILESTONES History 补 0.5F.17 条目 / 根 README 最新收口 F16→F17 / 0.5C Draft→LOCK FINAL / NAVIGATION+EXECUTION footer V0.1→V0.2 / AC-03B-2 Clock adjustment / CD-01 TAKE Readiness Strip 升级 | `f47c952`+本轮 |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 
@@ -128,7 +130,7 @@ docs/
   - **状态三语义 (0.5F.3 P1-7, 0.5F.17 焊死):** **Semantic Lock** (对象模型/枚举/Profile 职责焊死, OBJECT_VOCABULARY SEMANTIC LOCKED 0.2) · **Workflow Lock** (主操作链闭环) · **Surface-Contract Lock** (56 surface 契约/边界/SoT 已登记且 status 明确, 见 `SURFACE_REGISTRY.yaml`)。⚠️ **Phase 0.5 LOCK FINAL ≠ 100% Wireframe Complete**: status=LOCK 已交付 wireframe, status=SPEC 为「语义契约锁定 + Phase 4 实施 wireframe」, SPEC 不视为漏画页面, 不阻塞 Phase 0.6 (0.5F.17 P0-2 明确)。
 - ✅ **FG-05 · 文档同步** (README / MILESTONES / SURFACE_SPEC / PIA / Registry 状态完全同步, 0.5F F1)
 - ✅ **FG-06 · 3 文档 SEMANTIC LOCKED** (Object Vocabulary + Product Object Model + Navigation)
-- ✅ **FG-07 · 阶段状态 SoT 一致** (MILESTONES.md = SoT, README/Root/Phase README 派生, 无三套状态; GitHub README 反映 4 域 + SURFACE_REGISTRY.yaml 计数 56 (33 LOCK + 23 SPEC), 无历史残留; 最新收口 = 0.5F.17, 0.5F.16/0.5F.17 P0 已回写状态 SoT)
+- ✅ **FG-07 · 阶段状态 SoT 一致** (MILESTONES.md = SoT, README/Root/Phase README 派生, 无三套状态; GitHub README 反映 4 域 + SURFACE_REGISTRY.yaml 计数 56 (32 LOCK + 24 SPEC, 0.5F.18 纠错 33/23→32/24), 无历史残留; 最新收口 = 0.5F.17, 0.5F.16/0.5F.17/0.5F.18 P0 已回写状态 SoT)
 
 ## 5. 进入 Phase 0.6 的条件
 

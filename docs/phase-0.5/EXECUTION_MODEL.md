@@ -304,4 +304,4 @@ B. RUNTIME OPERATION PIPELINE (运行操作)
 
 ---
 
-**VBMF Contributors** · Execution Model V0.1 · Phase 0.5D.3 Object/State/Execution Closure
+**VBMF Contributors** · Execution Model V0.2 · Phase 0.5D.3 Object/State/Execution Closure (0.5F.18 P1-7 footer 校正 V0.1→V0.2)

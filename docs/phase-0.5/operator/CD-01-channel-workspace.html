@@ -188,18 +188,32 @@
     </span>
     <span style="color:var(--fgdim)">三层: <span style="color:var(--green)">Decision</span> → <span style="color:var(--accent)">Readiness</span> → <span style="color:var(--fgdim)">Diagnosis</span></span>
   </div>
-  <!-- ON-AIR SAFETY STRIP: 一眼判断能不能 TAKE (0.5F.18 P1-4 新增, 复用 B-13 Preflight) -->
+  <!-- ON-AIR SAFETY STRIP: 一眼判断能不能 TAKE (0.5F.18 P1-4 新增, 0.5F.18 P1-12 升级为结论层, 复用 B-13 Preflight + Health Tree + Runtime Readiness + AV Sync + Clock + Backup) -->
   <div style="background:rgba(63,185,80,.10);border:1px solid var(--green);border-radius:3px;padding:6px 10px;margin-bottom:6px">
     <span style="color:var(--green);font-size:9px;text-transform:uppercase;letter-spacing:1px">🟢 TAKE READINESS · 现在能不能放心按 TAKE?</span>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px 18px;font-size:10px;margin-top:4px">
       <span>Source <b style="color:var(--green)">✓ LOCKED</b></span>
+      <span>Freshness <b style="color:var(--green)">✓ FRESH</b></span>
       <span>Video <b style="color:var(--green)">✓ HEALTHY</b></span>
       <span>Audio <b style="color:var(--green)">✓ HEALTHY</b></span>
       <span>AV Sync <b style="color:var(--green)">✓ +18ms</b></span>
-      <span>Output <b style="color:var(--green)">✓ HLS / RTMP / UDP</b></span>
-      <span>Backup <b style="color:var(--green)">✓ READY_TO_TAKE</b></span>
       <span>Clock <b style="color:var(--green)">✓ PTP</b></span>
-      <span>B-13 Gate <b style="color:var(--green)">✓ READY</b></span>
+      <span>Backup <b style="color:var(--green)">✓ READY_TO_TAKE</b></span>
+      <span>Output <b style="color:var(--green)">✓ READY</b></span>
+      <span>Preflight (B-13) <b style="color:var(--green)">✓ PASS</b></span>
+      <span>Health Tree <b style="color:var(--green)">✓ ALL_GREEN</b></span>
+    </div>
+    <div style="margin-top:5px"><button class="btn-primary">▶ TAKE</button></div>
+  </div>
+  <!-- ON-AIR SAFETY STRIP — BLOCKED 异常态 (同源复用, 仅当任一信号红时替换上方绿条) -->
+  <div style="background:rgba(248,81,73,.10);border:1px solid var(--red);border-radius:3px;padding:6px 10px;margin-bottom:6px">
+    <span style="color:var(--red);font-size:9px;text-transform:uppercase;letter-spacing:1px">🔴 TAKE BLOCKED · 不能按 TAKE</span>
+    <div style="font-size:10px;margin-top:4px;color:var(--red)">
+      <div>❌ Backup <b>NOT_READY</b> · ❌ Audio <b>DEGRADED</b></div>
+      <div style="margin-top:3px">
+        <button class="btn" style="border-color:var(--red);color:var(--red)">查看原因</button>
+        <button class="btn" style="border-color:var(--yellow);color:var(--yellow)">Emergency Override (L3)</button>
+      </div>
     </div>
   </div>
   <!-- 第一层 DECISION ZONE: 马上做决定 -->

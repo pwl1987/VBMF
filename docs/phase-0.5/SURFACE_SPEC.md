@@ -3511,7 +3511,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 | **TOTAL wireframe (历史 48; 当前权威 56, 见 NAVIGATION §2.5)** | 44 | +4 | 48 |
 | E-41 Network Path (Spec only) | - | +1 (0.5G 实施后 +1) | 1 Spec |
 
-> **0.5D.1 起 Phase 0.5 UI 表面计数以 `SURFACE_REGISTRY.yaml` 为唯一权威 (0.5E 后: 55 wireframe + 1 Spec E-41 = 56)**; 本处 44 / 48 / 52 / 54 / 55 / 56 均为历史 as-of 计数, 废止（统一见 `SURFACE_REGISTRY.yaml` + NAVIGATION §2.5）
+> **0.5D.1 起 Phase 0.5 UI 表面计数以 `SURFACE_REGISTRY.yaml` 为唯一权威 (0.5E 历史 as-of: 55 wireframe + 1 Spec E-41 = 56)**; 本处 44 / 48 / 52 / 54 / 55 / 56 均为历史 as-of 计数, 废止（统一见 `SURFACE_REGISTRY.yaml` + NAVIGATION §2.5）。**Current SoT (0.5F.18): 32 LOCK + 24 SPEC = 56 — 不再用 "55 wireframe + 1 Spec" 表述。**
 > 02-sources.html 重画不计为新增。
 > E-41 Network Path 仅 Spec 锁, 0.5G 实施后总计 49。
 > [变更登记] 0.5F 后新增 3 份 Spec（ENCODE_MODEL_SPEC / E-42 / B-13），均为 Spec-only；其中 E-42 / B-13 为表面，0.5G 实施 wireframe 后计数 +2；ENCODE_MODEL_SPEC 为模型文档，不计入表面计数。
@@ -3538,7 +3538,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 - [x] `check_docs.py` PASS (含 ?query 兼容)
 - [x] NAVIGATION §2 域表更新 (CH-01/CD-01/E-40/E-41 + 修 M/E 撞号, commit `7a9b54f`)
 - [x] PIA §15 验证清单全部勾选 (0.5F 锁 9 + 0.5E 锁 6, 本轮更新)
-- [ ] ROADMAP 计数由 SURFACE_REGISTRY.yaml 派生 (55 wireframe + 1 Spec E-41 = 56)
+- [ ] ROADMAP 计数由 SURFACE_REGISTRY.yaml 派生 (0.5F.18 SoT: **32 LOCK + 24 SPEC = 56**; 历史 "55 wireframe + 1 Spec E-41" 表述已废止)
 
 ### 29.9.7 0.5F 后续 (0.5G / 0.5H / 0.5E)
 

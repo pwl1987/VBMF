@@ -417,6 +417,13 @@ Auto Rollback → Original Effective Restored (Runtime Revision N 不变)
 - [ ] Restart 期间 Override 活跃标记 + Audit 事件 (restart + re-apply) 留痕
 - [ ] TTL 到期后仍正确 Auto Rollback, Runtime Revision 编号不变
 
+#### AC-03B-2-6: Clock adjustment during Override (时钟校正对 TTL 的影响, 0.5F.18 P1-9 新增)
+广播环境 Clock Domain 已是架构级对象 (PTP/系统时钟), NTP correction / Clock rollback 在事故中常见:
+- [ ] **TTL 不意外延长**: Clock rollback (时间回退) 不导致 Override 永不过期或 TTL 被重置为 full
+- [ ] **过期确定性**: Override 过期时刻由单调/权威时钟决定, 不因 NTP step 漂移; 若用 wall-clock, 须明确"拒绝负跳变"或"以 monotonic 辅助"
+- [ ] **Audit 记录时钟校正**: NTP correction / manual clock set 期间若 Override 活跃, Audit 事件记录 correction 量 + 校正后 TTL 剩余
+- [ ] Clock Domain 对象 (PTP lock 状态) 与 Override TTL 解析解耦 — PTP 失锁不自动清除 Override
+
 ## 部署环境
 
 - 服务器：10.30.15.10（Ubuntu 26.04，32 核 / 30 GB / 546 GB / 3 张 BMD DeckLink）

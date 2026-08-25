@@ -75,7 +75,18 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-9 · DESIGN_SYSTEM 版本头**: `VBMF Design System V0.1` → `VBMF Console Design System V0.2`, 加 `Historical V0.1 → Applicable baseline V0.2` lineage。
 - **P1 治理裁决 (方案 A)**: MILESTONES 新增 §5.1「Phase 4 Implementation Surfaces 裁决」, 将 P-23(音频,P0)/P-25(QC,P0)/P-27(Edge,P1)/P-24/P-26/E-32~36/E-41/O-41~45/A-51~55/M-13.M-15.M-16 全部归类为 **Phase 4 Implementation Surfaces**（语义契约已锁, wireframe Phase 4 实施, 不阻塞 Phase 0.6）; P-20 "By Channel" Tab 裁决归 Phase 4（原标 0.5G）。覆盖用户 P1-1~P1-7。
 - **P1-10 · AC-03B Temporary Override**: 已在 0.5F.16 完成（Phase 0.6 README 已含 AC-03B）, 本轮不复做, 仅交叉引用。
-- 校验：**未新增任何 Surface**（Registry SoT 维持 56 = 33 LOCK + 23 SPEC）; 未新增任何 UI wireframe。结论：完成 0.5F.17 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT LOCK FINAL**, SPEC 表面明确归 Phase 4, **可正式冻结并进入 Phase 0.6 = Executable Acceptance**, 下一阶段指标从"页面覆盖率"切换为"四条可执行验收链 (AC-01~04 + AC-03B) 完成率"。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56 = 33 LOCK + 23 SPEC）; 未新增任何 UI wireframe。结论：完成 0.5F.17 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT LOCK FINAL**, SPEC 表面明确归 Phase 4, **可正式冻结并进入 Phase 0.6 = Executable Acceptance**, 下一阶段指标从"页面覆盖率"切换为"四条可执行验收链 (AC-01~04 + AC-03B) 完成率"。*(注: 本条目原始 33/23 为 0.5F.17 当时口径, 0.5F.18 已纠正为 32 LOCK + 24 SPEC = 56)*
+
+### Phase 0.5F — Documentation Reconciliation（0.5F.18，2026-08-25，LOCK FINAL，基于 f47c952 复检）
+用户以 `38b7ab0→f47c952` 连续复核，确认运行语义 (AC-03B-2 / UDP UNI·ASM·SSM / File·Realtime 分离 / Session 三轴) 已落地，但指出 **2 P0 文档一致性残留 + 4 P1 metadata 残留 + 1 P1 Acceptance 细化 + 1 P1 UX 升级**。本轮 0.5F.18 只做文档一致性焊接（不新增 Surface、不新增架构概念）：
+- **P0-1 · 三套计数口径打架**: 根因——0.5F.17/0.5F.18 前轮只改了 Registry/NAVIGATION/phase-0.5/README/SURFACE_SPEC，**漏改根 README 与 MILESTONES FG-07**。本轮统一到唯一 SoT: **56 = 32 LOCK + 24 SPEC**（BROADCAST 13/13/0 · MEDIA 8/5/3 · ENGINEERING 29/13/16 · ADMIN 5/0/5 · GLOBAL 1/1/0）。修正: 根 README 9 处 `55 wireframes + 1 Spec` → `32 LOCK + 24 SPEC`; MILESTONES FG-07 `33 LOCK + 23 SPEC` → `32 + 24`; SURFACE_SPEC/RECONCILIATION_0.5C/0.5E-CROSS 等历史 as-of 注释补 `current SoT: 32 LOCK + 24 SPEC` 说明。**彻底弃用 "55 wireframes + 1 Spec" 表述**。
+- **P0-2 · F17 历史未闭环**: MILESTONES Milestone History 表原为 0.5F.16 止，补 **0.5F.17 + 0.5F.18 独立条目**; 根 README 顶部 `最新收口 = 0.5F.16` → `0.5F.17` (+0.5F.18 焊死计数)。
+- **P1-5 · 根 README 0.5C Draft**: Evolution 表 `Phase 0.5C | 🟡 Draft` → `✅ LOCK FINAL`。
+- **P1-6 · NAVIGATION footer V0.1**: 底部 `VBMF Navigation Model V0.1` → `V0.2`。
+- **P1-7 · EXECUTION_MODEL footer V0.1**: 文末 `Execution Model V0.1` → `V0.2`（顶/底一致）。
+- **P1-9 · AC-03B-2 Clock adjustment**: Phase 0.6 新增 **AC-03B-2-6 Clock adjustment during Override** (TTL 不意外延长 / 过期确定性 / Audit 记录时钟校正 / PTP 失锁不清除 Override)。
+- **P1-12 · CD-01 TAKE Readiness Strip 升级** (0.5F.18 P1-4 基础上): 扩为结论层 — 加 Freshness/Output/Preflight(B-13)/Health Tree 信号；并补 **BLOCKED 异常态**（❌ Backup NOT_READY / ❌ Audio DEGRADED + 查看原因 / Emergency Override L3），把 B-13+Health Tree+Runtime Readiness+AV Sync+Clock+Backup 压成操作员"能不能 TAKE"结论层。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56 = 32 LOCK + 24 SPEC）; CD-01 仅页内补强。结论：完成 0.5F.18 后 **Phase 0.5 文档一致性完全闭环 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT LOCK FINAL**, 可正式冻结并进入 **Phase 0.6 = Executable Acceptance**（三 Gate: G-RUNTIME / G-UIUX / G-DOC，任意 FAIL = NOT ACCEPTED），不再扩展 0.5。
 
 ### Phase 0.5F — Documentation Consistency Patch（0.5F.18，2026-08-25，LOCK FINAL，基于 38b7ab0 复检）
 用户以 `38b7ab0586f83f937446c2b212cc06591cd306d4` 复检 0.5F.17，确认 2 P0 基本解决，但发现 2 P0 文档一致性残留 + 6 P1。本轮 0.5F.18 只做极小文档一致性修补（不新增 Surface、不新增 UI 页面）：

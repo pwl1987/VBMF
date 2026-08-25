@@ -32,7 +32,7 @@
 > | 页面计数多源打架 | ✅ CLOSED | 0.5D.1 SURFACE_REGISTRY.yaml (commit `6367cd8`) |
 > | ChangeSet 状态混用 | ✅ CLOSED | 0.5D.1 三层状态 (commit `6367cd8`) |
 >
-> **SoT 链:** `OBJECT_VOCABULARY.md` (15 对象) ← `SURFACE_REGISTRY.yaml` (56 表面 = 55 wireframe + 1 Spec E-41, 0.5E 后) ← `NAVIGATION.md` §2.5 ← `PIA` ← 本表。
+> **SoT 链:** `OBJECT_VOCABULARY.md` (15 对象) ← `SURFACE_REGISTRY.yaml` (56 表面, 0.5E 历史 as-of: 55 wireframe + 1 Spec E-41; **0.5F.18 current SoT: 32 LOCK + 24 SPEC = 56**) ← `NAVIGATION.md` §2.5 ← `PIA` ← 本表。
 
 ---
 

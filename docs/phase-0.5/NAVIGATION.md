@@ -265,4 +265,4 @@ V0.2 12 Engines 不变, 本 Navigation 4 域是**产品 UX 层**对应, 不动 V
 
 ---
 
-**VBMF Contributors** · VBMF Navigation Model V0.1 · Phase 0.5C Information Architecture Closure
+**VBMF Contributors** · VBMF Navigation Model V0.2 · Phase 0.5C Information Architecture Closure (0.5F.18 P1-6 footer 校正 V0.1→V0.2)
