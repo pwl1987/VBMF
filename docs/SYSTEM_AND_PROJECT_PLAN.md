@@ -453,7 +453,7 @@ DB 标记完成，状态推 SSE
 | 5 | 上传协议 | tus / 分片普通 | **tus**（断点续传 + 进度） |
 | 6 | 部署 | docker-compose / K8s | 起步 **docker-compose**；规模化 K8s |
 | 7 | 监控 | Sentry 云 / GlitchTip 自部署 | 起步 **Sentry 云**；合规上 **GlitchTip** |
-| 8 | 反向代理 | Caddy / nginx + certbot | **初选 Caddy**；但 V0.2 广播场景需精细 proxy policy（大上传/WS/SSE/媒体边界），**最终以 `DEPLOYMENT_AND_DEV_RUNTIME.md` §8 Nginx Reverse Proxy Contract 为准**（Nginx 为主要反代；若保留 Caddy 须满足同等 proxy policy） |
+| 8 | 反向代理 | Caddy / nginx + certbot | **Nginx**（V0.2 广播场景需精细 proxy policy：大上传/WS/SSE/媒体边界；以 `DEPLOYMENT_AND_DEV_RUNTIME.md` §8 Nginx Reverse Proxy Contract 为准；Caddy 不纳入） |
 | 9 | Auth 用户模型 | 单租户 / 多租户 | 起步 **单租户**；SaaS 化时升级 |
 | 10 | 浏览器支持 | 现代 only / 兼容旧版 | **现代 only**（Chrome/Edge/Safari/Firefox 最新版） |
 

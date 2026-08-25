@@ -5,7 +5,7 @@
 > **状态**: **DEPLOYMENT SoT — 与 `ARCHITECTURE_V0.2.md`（Runtime SoT）+ `TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md`（Ownership SoT）共同构成三层 SoT；不重开 V0.2**。
 >
 > **为什么存在**：Runtime Ownership 已在 Ownership SoT 锁死（Media Agent = DeckLink/GStreamer/Live FFmpeg 唯一 Owner），但「Docker 开发环境 / BMD 设备透传 / SSH 远程开发 / 热更新 / 自愈 / Nginx 反代 / 远程实机验收」尚未整合成正式 Deployment Contract，且 `SYSTEM_AND_PROJECT_PLAN.md` 仍存在与 Ownership 冲突的旧表述。本文件负责锁这些事。
-> **选型待拍板**：反向代理初选 Caddy（Plan §2.7 #8），但 V0.2 广播场景需精细 proxy policy，本文件 §8 以 **Nginx** 为主要 Reverse Proxy Contract；若最终保留 Caddy 须满足同等策略。请在 G-RUNTIME 前确认。
+> **反向代理已定稿**：**Nginx** 为 V0.2 唯一对外 HTTP/HTTPS 反代（Plan §2.7 #8 已确认）；Caddy 不纳入。精细 proxy policy 见 §8。
 
 ---
 
