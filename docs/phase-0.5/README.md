@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟡 **0.5C RECONCILED · 0.5D IN PROGRESS** (本轮评审后)
+> **状态**: 🟡 **0.5C RECONCILED · 0.5D IN PROGRESS · 0.5E SEMANTIC LOCKED (wireframes E-50/51/52)** (2026-08-25)
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -25,7 +25,7 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5B.2** Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL |
 | **0.5C** Info Arch Closure | 🟡 RECONCILED | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
 | **0.5D** P0 Product Surfaces | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) · 待 0.5D LOCK |
-| **0.5E** Global UX Layer | 🟡 SPEC | Impact Preview 全域 / Configuration Diff / Command Palette |
+| **0.5E** Global UX Layer | 🟢 SEMANTIC LOCKED (0.5E) | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) — wireframe 已建, 待 Phase 4 实施 |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 
@@ -66,7 +66,7 @@ docs/phase-0.5/
 ├── PRODUCT_OBJECT_MODEL.md         ← 3 层组合关系
 ├── NAVIGATION.md                   ← 4 域顶层导航
 ├── MILESTONES.md                   ← 历史 milestone 归档
-├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (52 wireframe + 1 Spec)
+├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (55 wireframe + 1 Spec E-41 = 56)
 ├── EXECUTION_MODEL.md              ← 执行链/时序唯一事实源 (0.5D.3b)
 ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (计数由 SURFACE_REGISTRY.yaml 派生)
 ├── DESIGN_SYSTEM.md                ← V0.1 Design System
@@ -94,7 +94,7 @@ docs/phase-0.5/
 | **域合计** | **51** | **1** | — |
 | 全局 (10-states Validation) | 1 | 0 | `operator/10-states.html` |
 | **TOTAL** | **52** | **1** | — |
-| **Phase 0.5 总计** | **53** (52 wireframe + 1 Spec) | | |
+| **Phase 0.5 总计** | **56** (55 wireframe + 1 Spec E-41) | | |
 
 ## 6. 与 V0.2 / Phase 0.6 / Phase 1 / Phase 4 关系
 
@@ -135,7 +135,7 @@ Phase 1 Media Agent (Rust) + Phase 4 Web Console
 - ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
 - ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 - ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
-- ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (52 wireframe + 1 Spec), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
+- ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
 
 ---
 

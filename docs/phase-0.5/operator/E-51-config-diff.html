@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>E-51 · Configuration Diff 跨域 (0.5E Part 2) — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none;margin-right:6px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+  th,td{text-align:left;padding:5px 8px;border:1px solid var(--border)}
+  th{background:var(--bg3);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  td.val{background:rgba(210,153,34,.14)}
+  td.struct{background:rgba(248,81,73,.12);border-color:var(--red)}
+  td.sem{background:rgba(163,113,247,.14);border-color:var(--purple)}
+  .muted{color:var(--fgdim);font-size:10px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+  .tabs .tab{padding:5px 10px;font-size:11px;border:1px solid var(--border);border-radius:3px;color:var(--fgdim);cursor:pointer;background:var(--bg2)}
+  .tabs .tab.on{color:var(--accent);border-color:var(--accent);background:rgba(88,166,255,.08);font-weight:600}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--fgdim);margin:6px 0}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:12px;height:12px;display:inline-block;border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › ENGINEERING 工程 · 0.5E Cross-Domain Capabilities / <b>E-51 Configuration Diff</b></div>
+  <h1>🔄 E-51 · Configuration Diff 跨域 <span class="en">0.5E Part 2 — 14 对象 × 3 视图 × 3 类字段 × Critical 阻断</span></h1>
+  <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+    <span class="pill pill-purple">0.5E wireframe</span>
+    <span class="pill pill-blue">SPEC → WIREFRAME</span>
+  </div>
+</header>
+
+<div class="diag" style="border-left-color:var(--purple)">
+  <b>0.5E 规范:</b> <a href="../0.5E-CROSS_DOMAIN_CAPABILITIES.md" style="color:var(--accent)">0.5E-CROSS_DOMAIN_CAPABILITIES.md Part 2</a> — 把 Diff 从 P-21 §10 Profile Diff 推广到 <b>14 个核心对象</b> (除 Revision)。3 视图 (Side-by-side / Inline / Multi-row) 按字段数自动选择; 3 类字段 (Value 黄 / Structure 红 / Semantic 紫) 颜色区分; <b>Critical 字段改动直接 BLOCKED Modal</b>。Bundle / Channel 必用 Multi-row。
+</div>
+
+<!-- Diff 视图 + 字段分类 -->
+<div class="row">
+  <div class="col-6">
+    <div class="panel">
+      <h3>① Diff 视图 (3 种 · 按字段数自动选择)</h3>
+      <table>
+        <tr><th>视图</th><th>适用</th><th>备注</th></tr>
+        <tr><td><b>Side-by-side</b></td><td>字段 ≤ 30</td><td>一眼对比</td></tr>
+        <tr><td><b>Inline (Unified)</b></td><td>字段 &gt; 30 / 大文本</td><td>紧凑</td></tr>
+        <tr><td><b>Multi-row</b></td><td>Bundle / Channel 复合对象</td><td>跨 N 对象</td></tr>
+      </table>
+      <div class="gap">⛔ 禁止把 Side-by-side 用于字段 &gt; 30 的对象 (Bundle / Channel 必用 Multi-row)。</div>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="panel">
+      <h3>② Diff 字段分类 (3 类)</h3>
+      <div class="legend">
+        <span><i style="background:rgba(210,153,34,.5);border:1px solid var(--yellow)"></i> Value Change (黄) — 通常不阻断</span>
+        <span><i style="background:rgba(248,81,73,.5);border:1px solid var(--red)"></i> Structure Change (红) — 必阻断 Apply</span>
+        <span><i style="background:rgba(163,113,247,.5);border:1px solid var(--purple)"></i> Semantic Change (紫) — 必阻断 Apply</span>
+      </div>
+      <table>
+        <tr><th>分类</th><th>含义</th><th>阻断</th></tr>
+        <tr><td class="val"><b>Value Change</b></td><td>同字段值不同 (5000→5500 kbps)</td><td>否</td></tr>
+        <tr><td class="struct"><b>Structure Change</b></td><td>字段新增/删除/类型变</td><td>必阻断 (Schema Migration)</td></tr>
+        <tr><td class="sem"><b>Semantic Change</b></td><td>值同但语义不同 (Main→High)</td><td>必阻断 (需重新 QC)</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Bundle Diff (Multi-row) -->
+<div class="panel" style="border-color:var(--purple)">
+  <h3>③ Bundle Diff — Multi-row (1 Bundle 跨 7 Profile) <span class="pill pill-purple" style="float:right">Composite Diff</span></h3>
+  <table>
+    <tr><th>Component</th><th>v3 (current)</th><th>v4 (draft)</th><th>Change</th></tr>
+    <tr><td>P-21 Encode</td><td>LIVE_HEVC_1080P v3</td><td>LIVE_HEVC_1080P v4</td><td class="val">+500 kbps · GOP 60→120 ⚠</td></tr>
+    <tr><td>P-22 Output</td><td>OUTPUT_HLS_STANDARD v2</td><td>OUTPUT_HLS_STANDARD v2</td><td>= (no change)</td></tr>
+    <tr><td>P-23 Audio</td><td>AUDIO_STEREO_LUFS23 v1</td><td>AUDIO_STEREO_LUFS23 v1</td><td>= (no change)</td></tr>
+    <tr><td>P-24 Graphic</td><td>GRAPHIC_NEWS_LOWER v5</td><td>GRAPHIC_NEWS_LOWER v5</td><td>= (no change)</td></tr>
+    <tr><td>P-25 QC</td><td>QC_BROADCAST_STRICT v1</td><td>QC_BROADCAST_STRICT v1</td><td>= (no change)</td></tr>
+    <tr><td>P-26 Rights</td><td>RIGHTS_DEFAULT v1</td><td>RIGHTS_DEFAULT v1</td><td>= (no change)</td></tr>
+    <tr><td>P-27 Edge</td><td>LIVE_EDGE_DEFAULT v1</td><td>LIVE_EDGE_DEFAULT v1</td><td>= (no change)</td></tr>
+    <tr><td><b>Bundle hash</b></td><td>bh_a3f2e1...</td><td>bh_b4d5c2...</td><td class="val">changed</td></tr>
+    <tr><td><b>Affected Channels</b></td><td>2 (CH01, CH03)</td><td>2 (CH01, CH03)</td><td>=</td></tr>
+    <tr><td><b>Risk</b></td><td>—</td><td>MEDIUM</td><td>+1 step</td></tr>
+  </table>
+  <div style="margin-top:10px;text-align:right">
+    <button class="btn">Cancel</button>
+    <button class="btn primary">Apply via ChangeSet (E-33) →</button>
+  </div>
+</div>
+
+<!-- Channel Diff (Multi-row) -->
+<div class="panel" style="border-color:var(--purple)">
+  <h3>④ Channel Diff — Multi-row (1 Channel 跨 N Source/Output/Profile/Bundle)</h3>
+  <table>
+    <tr><th>Component</th><th>v3 (current effective)</th><th>v4 (draft)</th><th>Change</th></tr>
+    <tr><td>Source (Primary)</td><td>UDP-MULTICAST-001</td><td>UDP-MULTICAST-001</td><td>=</td></tr>
+    <tr><td>Source (Backup)</td><td>SRT-BACKUP-002</td><td>SRT-BACKUP-002</td><td>=</td></tr>
+    <tr><td>Profile Bundle</td><td>Bundle-News-v3</td><td>Bundle-News-v4</td><td class="struct">🔴 1 Profile 改 (Structure)</td></tr>
+    <tr><td>Switch Policy</td><td>FRAME_SWITCH</td><td>FRAME_SWITCH</td><td>=</td></tr>
+    <tr><td>Output Variants</td><td>4 (HLS, RTMP, UDP, WebRTC)</td><td>4 (same)</td><td>=</td></tr>
+    <tr><td>Output Destinations</td><td>4 (CDN-A, CDN-B, ...)</td><td>4 (same)</td><td>=</td></tr>
+    <tr><td><b>Affected Sessions</b></td><td>2 (ENCODE-001, ENCODE-002)</td><td>2 (same)</td><td>=</td></tr>
+    <tr><td><b>Risk</b></td><td>—</td><td>MEDIUM</td><td>+1 step</td></tr>
+  </table>
+  <div style="margin-top:10px;text-align:right">
+    <button class="btn">Cancel</button>
+    <button class="btn primary">Apply via ChangeSet (E-33) →</button>
+  </div>
+</div>
+
+<!-- Side-by-side + Critical 阻断 -->
+<div class="row">
+  <div class="col-6">
+    <div class="panel">
+      <h3>⑤ Source Diff — Side-by-side (字段 ≤ 30)</h3>
+      <table>
+        <tr><th>字段</th><th>v1 (current)</th><th>v2 (draft)</th><th>Change</th></tr>
+        <tr><td>endpoint.group</td><td>239.20.10.10</td><td>239.20.10.10</td><td>=</td></tr>
+        <tr><td>endpoint.source_ip</td><td>10.30.20.100</td><td>10.30.20.101</td><td class="val">changed</td></tr>
+        <tr><td>adapter.type</td><td>UDP</td><td>UDP</td><td>=</td></tr>
+        <tr><td>contract.video</td><td>H264</td><td>HEVC</td><td class="sem">🟣 Semantic (需重新 QC)</td></tr>
+        <tr><td>security.ssm_validation</td><td>SSM (IGMPv3)</td><td>ASM (IGMPv2)</td><td class="struct">🔴 Structure (Security 字段)</td></tr>
+      </table>
+      <div class="gap">⛔ `security.ssm_validation` 是 <b>Security 关键字段</b>, 改动直接 BLOCKED。</div>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="panel" style="border-color:var(--red)">
+      <h3>⑥ Critical 字段阻断 <span class="pill pill-red" style="float:right">BLOCKED MODAL</span></h3>
+      <table>
+        <tr><th>字段类型</th><th>例子</th><th>阻断原因</th></tr>
+        <tr><td>Schema</td><td>Profile 增/删字段</td><td>数据迁移未做</td></tr>
+        <tr><td>Identity</td><td>Channel ID / Bundle ID</td><td>引用关系会断</td></tr>
+        <tr><td>Capability</td><td>Video Codec H264→HEVC</td><td>需重新 QC + Contract</td></tr>
+        <tr><td>Timebase</td><td>Frame Rate 25→30</td><td>SignalContract 不兼容</td></tr>
+        <tr><td>Security</td><td>SSM→ASM</td><td>违反 Security 8 字段</td></tr>
+      </table>
+      <div class="gap" style="margin-top:10px">
+        <b>BLOCKED:</b> 改动被拒绝。<br>Reason: Security 字段 SSM → ASM 违反 Network Source Security 8 字段。<br>Action: 人工 Override (L3 · 输入对象 ID 确认) 或取消。
+      </div>
+      <div style="margin-top:10px;text-align:right">
+        <button class="btn">Cancel</button>
+        <button class="btn l2">Override (L3 · 二次输入确认)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:8px;border-left-color:var(--purple)">
+  🧭 这是 0.5E 跨域能力第 2 张 wireframe (E-51, Configuration Diff)。对应规范 Part 2 锁 5-8。Revision 是不可变快照 (自身即 diff 基线), 不做自身 Diff。Graph diff (Route) / 5 维 (+Cost) 推 V0.3。完整链: <b>E-50 Impact Preview → E-51 Configuration Diff → E-52 Command Palette</b>。
+</div>
+
+</body>
+</html>

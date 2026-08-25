@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>E-50 · Impact Preview 跨域 (0.5E Part 1) — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+  .panel h3 .pill{float:right;margin-left:auto}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.blue{color:var(--accent)}.v.purple{color:var(--purple)}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none;margin-right:6px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+  th,td{text-align:left;padding:5px 8px;border:1px solid var(--border)}
+  th{background:var(--bg3);color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  td .lock{color:var(--purple)}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+  .tabs .tab{padding:5px 10px;font-size:11px;border:1px solid var(--border);border-radius:3px;color:var(--fgdim);cursor:pointer;background:var(--bg2)}
+  .tabs .tab.on{color:var(--accent);border-color:var(--accent);background:rgba(88,166,255,.08);font-weight:600}
+  .risk{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:600}
+  .risk.low{background:rgba(63,185,80,.12);color:var(--green);border:1px solid var(--green)}
+  .risk.med{background:rgba(210,153,34,.12);color:var(--yellow);border:1px solid var(--yellow)}
+  .risk.high{background:rgba(219,109,40,.12);color:var(--orange);border:1px solid var(--orange)}
+  .risk.crit{background:rgba(248,81,73,.12);color:var(--red);border:1px solid var(--red)}
+  .muted{color:var(--fgdim);font-size:10px}
+  .pre{font-family:Menlo,Consolas,monospace;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:8px;line-height:1.6;overflow:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › ENGINEERING 工程 · 0.5E Cross-Domain Capabilities / <b>E-50 Impact Preview</b></div>
+  <h1>📐 E-50 · Impact Preview 跨域 <span class="en">0.5E Part 1 — 修改前必看 (7 对象类型 × 4 维影响 × 风险 4 级)</span></h1>
+  <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+    <span class="pill pill-purple">0.5E wireframe</span>
+    <span class="pill pill-blue">SPEC → WIREFRAME</span>
+  </div>
+</header>
+
+<div class="diag" style="border-left-color:var(--purple)">
+  <b>0.5E 规范:</b> <a href="../0.5E-CROSS_DOMAIN_CAPABILITIES.md" style="color:var(--accent)">0.5E-CROSS_DOMAIN_CAPABILITIES.md Part 1</a> — 把 Impact Preview 从 P-21/P-22 局部能力推广到 <b>7 个对象类型</b> (Channel / Bundle / Source / Output / Audio / Clock / Network Endpoint), 任何 L2/L3 配置修改<b>必弹</b> Modal 或 Drawer, 不允许跳过直接 Apply。4-Layer 集成: DESIRED (改) → COMPILED → EFFECTIVE (🔒 只读) → IMPACT (4 维)。
+</div>
+
+<!-- 对象类型 tabs -->
+<div class="panel">
+  <h3>① 对象类型 (7) <span class="muted">— 点击切换 Impact Preview 适用对象</span></h3>
+  <div class="tabs">
+    <div class="tab on">Source</div>
+    <div class="tab">Channel</div>
+    <div class="tab">Profile Bundle</div>
+    <div class="tab">Output</div>
+    <div class="tab">Audio Profile</div>
+    <div class="tab">Clock</div>
+    <div class="tab">Network Endpoint</div>
+  </div>
+  <table>
+    <tr><th>对象</th><th>改什么</th><th>Impact Preview 显示</th><th>实施位置</th></tr>
+    <tr><td><b>Source</b></td><td>Endpoint / Adapter / Contract</td><td>受影响 Channel + Realtime Sessions + 备份 Path (E-41)</td><td>02-sources · E-40</td></tr>
+    <tr><td><b>Channel</b></td><td>Source 切换 / Switch Policy / Bundle</td><td>Output Variants + Sessions + 备份 Source</td><td>CD-01 Detail</td></tr>
+    <tr><td><b>Profile Bundle</b></td><td>替换任一 7 Profile</td><td>7 维影响 + 引用此 Bundle 的所有 Channel</td><td>P-28</td></tr>
+    <tr><td><b>Output</b></td><td>Profile / Destination / Adapter</td><td>受影响 Channel + CDN 状态 + 备份 Output</td><td>06-output</td></tr>
+    <tr><td><b>Audio Profile</b></td><td>Loudness / Mapping / Delay</td><td>Channel 音量 / LUFS / AV Sync</td><td>P-23 (Spec)</td></tr>
+    <tr><td><b>Clock</b></td><td>Reference / Fallback Chain</td><td>全局 PTP 影响 (所有 Worker) + 切换 1-2 帧漂移</td><td>E-37</td></tr>
+    <tr><td><b>Network Endpoint</b></td><td>Multicast Group / SSM / TTL</td><td>受影响 Source + 跨 VLAN 路由 + IGMP</td><td>E-40</td></tr>
+  </table>
+</div>
+
+<!-- 主演示: Source 4-Layer + 4 维影响 -->
+<div class="panel" style="border-color:var(--purple)">
+  <h3>② 主演示 — Source UDP-MULTICAST-001 <span class="pill pill-yellow">修改 v1 → v2</span>
+    <span class="risk med" style="float:right">⚠ MEDIUM — Schedule at next boundary</span>
+  </h3>
+  <div class="pre">Impact Preview — Source UDP-MULTICAST-001
+═══════════════════════════════════════════════════════════
+Field                  | Desired          | Compiled         | Effective (🔒)    | Impact
+───────────────────────┼──────────────────┼──────────────────┼───────────────────┼────────
+endpoint.group         | 239.20.10.10     | 239.20.10.10     | 239.20.10.10      | 0
+endpoint.source_ip     | 10.30.20.100     | 10.30.20.100     | 10.30.20.100      | 0
+adapter.type           | UDP              | UDP              | UDP               | 0
+contract.video         | H264             | H264             | H264              | 0
+runtime.lock           | —                | —                | LOCKED (🔒)        | 0
+runtime.packet_loss    | —                | —                | 0.003% (🔒)        | 0
+runtime.jitter         | —                | —                | 0.9ms (🔒)         | 0</div>
+  <div class="diag"><b>PIA §6 锁 6:</b> <b>Effective 列用户不能编辑</b> (🔒 read-only); 任何修改只能改 Desired 列, 修改后触发 Recompile → 新 Effective。</div>
+
+  <h3 style="margin-top:14px">③ 4 维影响 (Channels / Sessions / Variants / Audit) <span class="pill pill-purple" style="float:right">必显示</span></h3>
+  <div class="row">
+    <div class="col-6">
+      <div class="panel" style="margin-bottom:6px">
+        <b>[1] Affected Channels</b>
+        <div class="muted" style="margin-top:4px">● CH01 新闻综合 — ON AIR · ACTIVE<br>● CH03 体育频道 — ON AIR · ACTIVE<br>○ CH05 测试频道 — STOPPED</div>
+      </div>
+      <div class="panel" style="margin-bottom:6px">
+        <b>[2] Affected Sessions</b>
+        <div class="muted">● S-CH01-ENCODE-001 — RUNNING · READY_TO_TAKE<br>● S-CH01-ENCODE-002 — RUNNING (BACKUP)<br>● S-CH03-ENCODE-001 — RUNNING</div>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="panel" style="margin-bottom:6px">
+        <b>[3] Affected Variants</b>
+        <div class="muted">● V-CH01-HLS-Domestic — OUTPUTTING<br>● V-CH01-RTMP-Origin — OUTPUTTING<br>○ V-CH05-Test — STOPPED</div>
+      </div>
+      <div class="panel" style="margin-bottom:6px">
+        <b>[4] Audit Trail</b>
+        <div class="muted">· Change Set CS-2026-08-25-001 created<br>· Apply Window: 2026-08-25 23:00:00 (next event boundary)<br>· Auto Rollback: YES (if any session FAILED within 30s)<br>· Audit Log Entry: A-54 (who/when/before/after)</div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:8px">
+    <span class="risk med">⚠ MEDIUM</span>
+    <span class="muted" style="margin-left:8px">Recommendation: Schedule Apply at next event boundary (2 Channels ON_AIR + 5 Sessions ACTIVE)</span>
+  </div>
+  <div style="margin-top:12px;text-align:right">
+    <button class="btn">Cancel</button>
+    <button class="btn primary">Continue to ChangeSet (E-33) →</button>
+  </div>
+</div>
+
+<!-- 实施模式 + 风险算法 -->
+<div class="row">
+  <div class="col-6">
+    <div class="panel">
+      <h3>④ 实施模式 (3 选 1)</h3>
+      <table>
+        <tr><th>模式</th><th>适用</th><th>触发</th></tr>
+        <tr><td><b>Modal</b> (全屏覆盖)</td><td>高风险 L3</td><td>任何保存, 必须 Explicit 确认</td></tr>
+        <tr><td><b>Drawer</b> (右侧滑出)</td><td>中等风险 L2</td><td>任何保存, 4 维影响可见</td></tr>
+        <tr><td><b>Inline</b> (表格下方展开)</td><td>低风险 L1</td><td>任何保存, 不离开页面</td></tr>
+      </table>
+      <div class="gap">⛔ 不允许跳过 Impact Preview 直接 Apply。L2/L3 修改必弹 Modal 或 Drawer。</div>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="panel">
+      <h3>⑤ 风险评级 (4 级 · 算法)</h3>
+      <table>
+        <tr><th>等级</th><th>触发条件</th><th>阻断</th></tr>
+        <tr><td><span class="risk low">✓ LOW</span></td><td>0 Channels ON_AIR + 0 Sessions</td><td>不阻断</td></tr>
+        <tr><td><span class="risk med">⚠ MEDIUM</span></td><td>1-2 Channels ON_AIR / 1-5 Sessions</td><td>不阻断, 提示 schedule</td></tr>
+        <tr><td><span class="risk high">⚠⚠ HIGH</span></td><td>3+ Channels / 6+ Sessions</td><td>阻断直接 Apply, 必须走 ChangeSet</td></tr>
+        <tr><td><span class="risk crit">⛔ CRITICAL</span></td><td>任一 LIVE EVENT / 任一 Bundle 修改</td><td>强制 Schedule 或人工审批</td></tr>
+      </table>
+      <div class="diag">算法: `live_events or bundle_change → CRITICAL; ≥3 on_air or ≥6 sessions → HIGH; ≥1 on_air or ≥1 session → MEDIUM; else LOW`。</div>
+    </div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:8px;border-left-color:var(--purple)">
+  🧭 这是 0.5E 跨域能力第 1 张 wireframe (E-50, Impact Preview)。对应规范 `0.5E-CROSS_DOMAIN_CAPABILITIES.md` Part 1 锁 1-4。E-50/E-51/E-52 为 0.5E 能力参考原型 (ENGINEERING 域, 新增 surface 计数)。完整链: <b>0.5E Impact Preview (E-50) → Configuration Diff (E-51) → Command Palette (E-52)</b> → 0.5E LOCK。剩余: Impact Preview 5 维 (+Cost) 推 V0.3。
+</div>
+
+</body>
+</html>

@@ -84,7 +84,7 @@ docs/
 | **0.5B.2 Product UX Closure** | 2026-08 | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL | `cec7407` |
 | **0.5C Info Arch Closure** | 2026-08 | 🟢 RECONCILED | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (0.5C 已完成) |
 | **0.5D P0 Product Surfaces** | 2026-08 | 🟡 IN PROGRESS | D1-D6 验收链 + 0.5D.1-.6 Semantic/Execution Closure (对象边界 / TAKE 剥离 / 状态统一 / Click-Path Audit) | `3dd00bd`/`50628a2` (待 0.5D LOCK) |
-| **0.5E Global UX Layer** | (待) | 🟡 SPEC | Impact Preview 全域 / Configuration Diff / Dependency View / Command Palette / Keyboard | (0.5B.2 已部分) |
+| **0.5E Global UX Layer** | 2026-08 | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 
@@ -109,7 +109,7 @@ docs/
 3. ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette)
 4. ⛔ **所有 README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 5. ⛔ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 LOCK
-6. ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (52 wireframe + 1 Spec), 不再有 "9 Core Pages" "44" 等历史残留
+6. ⛔ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" 等历史残留
 
 ## 5. 进入 Phase 0.6 的条件
 

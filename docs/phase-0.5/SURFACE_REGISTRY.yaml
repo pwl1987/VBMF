@@ -7,10 +7,10 @@
 #      SURFACE_SPEC 中所有手写计数 (并全部改为引用本文件)。
 #   3. 历史手写数字 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 一律废止。
 #
-# 派生计数 (2026-08-25, 0.5D.1):
-#   BROADCAST 13 · MEDIA 8 · ENGINEERING 26 (含 E-41 SPEC) · ADMIN 5
-#   域合计 52 (51 wireframe + 1 SPEC) · 全局 Validation 1
-#   TOTAL 53 (52 wireframe + 1 Spec E-41) · Phase 0.5 总计 53
+# 派生计数 (2026-08-25, 0.5D.6 终扫 + 0.5E):
+#   BROADCAST 13 · MEDIA 8 · ENGINEERING 29 (含 E-41 SPEC) · ADMIN 5
+#   域合计 55 (54 wireframe + 1 SPEC) · 全局 Validation 1
+#   TOTAL 56 (55 wireframe + 1 Spec E-41) · Phase 0.5 总计 56
 #
 # kind 取值: DASHBOARD / REGISTRY / WORKFLOW / WORKSPACE / DETAIL /
 #            DESIGNER / INSPECTOR / APPROVAL / VALIDATION
@@ -130,7 +130,7 @@ surface:
     status: LOCK
     milestone: "0.5D (Transcode Job Detail)"
 
-  # ---------------- ENGINEERING (26, 含 E-41 SPEC) ----------------
+  # ---------------- ENGINEERING (29, 含 E-41 SPEC) ----------------
   - id: "P-20"
     domain: ENGINEERING
     kind: REGISTRY
@@ -262,6 +262,24 @@ surface:
     kind: APPROVAL
     status: DRAFT
     milestone: "0.5D 后续 (ChangeSet Review 独立审批 surface)"
+  - id: "E-50"
+    domain: ENGINEERING
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5E (Impact Preview 跨域 · 7 对象 × 4 维影响 × 风险 4 级)"
+    note: "0.5E Cross-Domain Capability wireframe"
+  - id: "E-51"
+    domain: ENGINEERING
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5E (Configuration Diff 跨域 · 14 对象 × 3 视图 × 3 类字段)"
+    note: "0.5E Cross-Domain Capability wireframe"
+  - id: "E-52"
+    domain: ENGINEERING
+    kind: WORKFLOW
+    status: LOCK
+    milestone: "0.5E (Command Palette 跨域 · Ctrl+K · RBAC · L1/L2/L3 · 6 状态)"
+    note: "0.5E Cross-Domain Capability wireframe"
 
   # ---------------- ADMIN (5) ----------------
   - id: "A-51"

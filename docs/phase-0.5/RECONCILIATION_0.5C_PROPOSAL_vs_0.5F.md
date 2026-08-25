@@ -32,7 +32,7 @@
 > | 页面计数多源打架 | ✅ CLOSED | 0.5D.1 SURFACE_REGISTRY.yaml (commit `6367cd8`) |
 > | ChangeSet 状态混用 | ✅ CLOSED | 0.5D.1 三层状态 (commit `6367cd8`) |
 >
-> **SoT 链:** `OBJECT_VOCABULARY.md` (15 对象) ← `SURFACE_REGISTRY.yaml` (53 表面 = 52 wireframe + 1 Spec E-41) ← `NAVIGATION.md` §2.5 ← `PIA` ← 本表。
+> **SoT 链:** `OBJECT_VOCABULARY.md` (15 对象) ← `SURFACE_REGISTRY.yaml` (56 表面 = 55 wireframe + 1 Spec E-41, 0.5E 后) ← `NAVIGATION.md` §2.5 ← `PIA` ← 本表。
 
 ---
 
@@ -634,3 +634,24 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### O.5 结论
 - **全仓一致性终扫通过**: 计数 / 链接 / 术语零残留。加上 0.5D.1-.6 语义/执行闭环, Phase 0.5 架构与 UX 已达到 "接近 Freeze" 状态。
 - **仍不宣布 FINAL**: 0.5E (Impact Preview / Config Diff / Command Palette / Global Risk / Critical field blocking) 为 SPEC, 0.5G 实施面未闭环; README 仍标 0.5D IN PROGRESS · 0.5E SPEC。
+
+---
+
+## P. 0.5E Cross-Domain Capabilities — wireframes E-50/E-51/E-52 + 规范升 SEMANTIC LOCKED (2026-08-25 末 · 用户 "继续" 启动 0.5E)
+
+> 0.5D.6 终扫通过后, 用户 "继续" → 启动 0.5E UX 层收口: 把 3 大跨域能力 (Impact Preview / Configuration Diff / Command Palette) 从 Spec 推入 wireframe。
+
+### P.1 三张 0.5E wireframe (ENGINEERING 域新增)
+- **E-50 Impact Preview** (`operator/E-50-impact-preview.html`): 7 对象类型 (Source/Channel/Bundle/Output/Audio/Clock/Network Endpoint) × 4-Layer (Desired/Compiled/Effective🔒/Impact) × 4 维影响 (Channels/Sessions/Variants/Audit) × 风险 4 级 (LOW/MEDIUM/HIGH/CRITICAL) × 3 实施模式 (Modal/Drawer/Inline)。规范 Part 1 锁 1-4。
+- **E-51 Configuration Diff** (`operator/E-51-config-diff.html`): 14 对象 × 3 视图 (Side-by-side/Inline/Multi-row) × 3 类字段 (Value 黄/Structure 红/Semantic 紫) × Bundle/Channel Composite Multi-row Diff × Critical 5 类字段 BLOCKED Modal。规范 Part 2 锁 5-8。
+- **E-52 Command Palette** (`operator/E-52-command-palette.html`): Ctrl+K UI + 3 类命令 (Navigate/Search/Action L1) + RBAC (无权限不出现) + L1/L2/L3 危险级 (L3 不注册) + 6 状态 (EMPTY/TYPING/RESULTS/NO_RESULTS/LOADING/ERROR) + Fuzzy + Recent/Frequent (localStorage) + command_registry.yaml 示例。规范 Part 3 锁 9-14。
+
+### P.2 规范与计数同步
+- `0.5E-CROSS_DOMAIN_CAPABILITIES.md` DRAFT 0.1 → **SEMANTIC LOCKED 0.1** (wireframes 引用 + §3.2.1/§4.2 表面计数 53→56 同步)。
+- **SURFACE_REGISTRY.yaml**: 新增 E-50/E-51/E-52 (ENGINEERING 26→29), 派生计数 BROADCAST 13/MEDIA 8/ENGINEERING 29/ADMIN 5/全局 1 = **TOTAL 56**。
+- NAVIGATION §2.5 (ENGINEERING 29 · 域合计 55 · TOTAL 56) + 3 行表面 + 0.5E 变更登记; README / MILESTONES 0.5E 行 → SEMANTIC LOCKED; SURFACE_SPEC 适用版本补 0.5E。
+- check_docs.py 终扫维持 PASS。
+
+### P.3 0.5E 收口结论
+- 0.5E 三大能力已从 Spec 提升为 **SEMANTIC LOCKED + wireframe 可验收**; 剩余为 **Phase 4 实施** (V0.2/V0.3 边界见规范 Part 4 §4.4)。
+- **Phase 0.5 Freeze 前置三条件**: 0.5C ✅ RECONCILED · 0.5D 🟡 IN PROGRESS (0.5D.1-.6 闭环, 待 0.5D LOCK) · 0.5E 🟢 SEMANTIC LOCKED。待用户确认 0.5D LOCK + 0.5E LOCK 后 → Phase 0.5 LOCK FINAL → Phase 0.6 Executable Acceptance。
