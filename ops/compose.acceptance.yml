@@ -1,0 +1,25 @@
+# VBMF ACCEPTANCE overlay (§9 Level 2 / §11 ACCEPTANCE profile)
+# Usage: docker compose -f docker-compose.yml -f compose.acceptance.yml up --build
+# Pinned commit + real BMD + evidence capture. Publish Nginx 443 + SRS media ports
+# (external encoders/players need RTMP/SRT/WHEP). Secrets from .env.acceptance.
+
+services:
+  nginx:
+    ports:
+      - "443:443"
+      - "80:80"
+
+  srs:
+    # Media protocol plane must be reachable by external SDI encoders / WHEP players
+    ports:
+      - "1935:1935"   # RTMP
+      - "1985:1985"   # SRS HTTP API (internal admin; restrict via firewall)
+      - "8080:8080"   # HLS/HTTP-FLV
+      - "8000:8000"   # SRT
+      - "1989:1989"   # WHEP/WebRTC
+
+  # ACCEPTANCE: media-agent runtime decision pending BMD test (MEDIA-SEC-01).
+  # Default runsc; if DeckLink access fails on runsc, switch to runc + seccomp.
+  media-agent:
+    cap_add:
+      - SYS_ADMIN

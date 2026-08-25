@@ -1,31 +1,38 @@
-# VBMF V0.2 - Development / On-Prem Deployment Compose
+# VBMF V0.2 - BASE Deployment Compose (no host port publishing)
 # Source of Truth: docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md
+#
+# Layering (FLOW-01 / DEPLOY-02):
+#   docker-compose.yml        = BASE (services, internal net, expose only, secrets via ${})
+#   compose.dev.yml           = DEV overlay (HMR, bind mount, publish 5173/3000)
+#   compose.acceptance.yml    = ACCEPTANCE overlay (pinned, Nginx 443 + SRS media ports)
+#   compose.prod.yml          = PROD overlay (Nginx 443 only, no HMR, immutable)
 #
 # Conventions (from Deployment SoT):
 #   - PostgreSQL host = "db", Valkey host = "cache", RustFS host = "rustfs"
 #   - Media Agent = DeckLink/GStreamer/Live FFmpeg sole owner (Ownership SoT F2/F4/F11)
-#   - Readiness wait: Fastify/Worker MUST wait for dependency *health* (not just container start)
+#   - Readiness wait: Fastify/Worker MUST wait for dependency *health* (not just start)
 #   - Health Tree exposes Recovery State (NONE/RESTARTING/RECOVERED/RETRYING/BACKOFF/ESCALATED/MANUAL_REQUIRED)
 #   - Self-Healing: restart policy + budget + backoff + circuit break (L1-L4)
-#   - gVisor (runsc) for Media Agent; Host-side ffmpeg MUST NOT hold DeckLink
+#   - Nginx = SOLE external HTTP/HTTPS ingress (§8). Internal services use `expose`, NOT host publish.
+#   - Secrets: NEVER hardcode. Provided via .env (gitignored) / Docker secrets / SSH provisioning (INFRA-SEC-01).
 #
-# NOTE: gVisor (runsc) + character device passthrough (/dev/blackmagic) has known
-#       limitations on real runsc; verify on BMD server during G-RUNTIME Remote Acceptance.
+# NOTE: gVisor (runsc) + /dev/blackmagic has known real-runsc limits; verify on BMD server.
+#       Alternative: runtime: runc + seccomp/AppArmor/capabilities (MEDIA-SEC-01 Option B).
 
 services:
-  # ---------- Infra ----------
+  # ---------- Infra (internal only, no host publish) ----------
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: vbmf
-      POSTGRES_PASSWORD: vbmf_dev
-      POSTGRES_DB: vbmf
+      POSTGRES_USER: ${POSTGRES_USER:-vbmf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-vbmf}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vbmf -d vbmf"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vbmf} -d $${POSTGRES_DB:-vbmf}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -35,8 +42,8 @@ services:
   cache:
     image: valkey/valkey:8-alpine
     command: ["valkey-server", "--save", "", "--appendonly", "no"]
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
@@ -49,13 +56,13 @@ services:
     image: rustfs/rustfs:2026.8.1   # pin release tag; NEVER latest (DEPLOY-BASELINE-01)
     command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: vbmf
-      MINIO_ROOT_PASSWORD: vbmf_dev_password_change_me
+      MINIO_ROOT_USER: ${RUSTFS_ACCESS:-vbmf}
+      MINIO_ROOT_PASSWORD: ${RUSTFS_SECRET:?set RUSTFS_SECRET in .env}
     volumes:
       - rustfsdata:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    expose:
+      - "9000"
+      - "9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -65,13 +72,14 @@ services:
     restart: unless-stopped
 
   srs:
-    image: ossrs/srs:6
-    ports:
-      - "1935:1935"   # RTMP
-      - "1985:1985"   # SRS HTTP API
-      - "8080:8080"   # HLS/HTTP-FLV
-      - "8000:8000"   # SRT
-      - "1989:1989"   # WHEP/WebRTC
+    image: ossrs/srs:6.0.42   # pin specific patch (DEPLOY-BASE-01); SRS 6 line
+    # Media protocol plane: RTMP/SRT/HLS/WHEP. Published only via profile overlays.
+    expose:
+      - "1935"   # RTMP
+      - "1985"   # SRS HTTP API
+      - "8080"   # HLS/HTTP-FLV
+      - "8000"   # SRT
+      - "1989"   # WHEP/WebRTC
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:1985/api/v1/versions"]
       interval: 5s
@@ -80,7 +88,7 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # ---------- App ----------
+  # ---------- App (internal only, behind Nginx) ----------
   fastify:
     build:
       context: .
@@ -88,19 +96,19 @@ services:
     environment:
       DATABASE_HOST: db
       DATABASE_PORT: "5432"
-      DATABASE_USER: vbmf
-      DATABASE_PASSWORD: vbmf_dev
-      DATABASE_NAME: vbmf
+      DATABASE_USER: ${POSTGRES_USER:-vbmf}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      DATABASE_NAME: ${POSTGRES_DB:-vbmf}
       REDIS_HOST: cache
       REDIS_PORT: "6379"
       RUSTFS_ENDPOINT: http://rustfs:9000
-      RUSTFS_ACCESS: vbmf
-      RUSTFS_SECRET: vbmf_dev_password_change_me
+      RUSTFS_ACCESS: ${RUSTFS_ACCESS:-vbmf}
+      RUSTFS_SECRET: ${RUSTFS_SECRET:?set RUSTFS_SECRET in .env}
       SRS_API: http://srs:1985
       MEDIA_AGENT_RPC: http://media-agent:8080
       TRUST_PROXY: "true"   # Nginx upstream
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
       db:
         condition: service_healthy
@@ -127,14 +135,14 @@ services:
     environment:
       DATABASE_HOST: db
       DATABASE_PORT: "5432"
-      DATABASE_USER: vbmf
-      DATABASE_PASSWORD: vbmf_dev
-      DATABASE_NAME: vbmf
+      DATABASE_USER: ${POSTGRES_USER:-vbmf}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      DATABASE_NAME: ${POSTGRES_DB:-vbmf}
       REDIS_HOST: cache
       REDIS_PORT: "6379"
       RUSTFS_ENDPOINT: http://rustfs:9000
-      RUSTFS_ACCESS: vbmf
-      RUSTFS_SECRET: vbmf_dev_password_change_me
+      RUSTFS_ACCESS: ${RUSTFS_ACCESS:-vbmf}
+      RUSTFS_SECRET: ${RUSTFS_SECRET:?set RUSTFS_SECRET in .env}
     depends_on:
       db:
         condition: service_healthy
@@ -142,8 +150,11 @@ services:
         condition: service_healthy
       rustfs:
         condition: service_healthy
+    # DEPLOY-03: Worker MUST expose a deterministic health endpoint.
+    # Contract: Worker runs a lightweight HTTP health server on :3000/health/worker.
+    # If not implemented by Phase 1, replace with a process-alive CLI probe.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health/worker"]  # if worker exposes health
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/worker"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -154,10 +165,13 @@ services:
     build:
       context: .
       dockerfile: ops/Dockerfile.web
+    # DEPLOY-UI-01: never point browser at localhost. Use same-origin /api (routed by Nginx).
     environment:
-      VITE_API_BASE: http://localhost:3000
-    ports:
-      - "5173:5173"
+      VITE_API_BASE: /api
+      VITE_WS_BASE: /ws
+      VITE_EVENTS_BASE: /events
+    expose:
+      - "5173"
     depends_on:
       fastify:
         condition: service_healthy
@@ -174,16 +188,16 @@ services:
     build:
       context: .
       dockerfile: ops/Dockerfile.media-agent
-    runtime: runsc            # gVisor - isolated media runtime (Deployment SoT §2)
+    runtime: runsc            # gVisor (Deployment SoT §2). Alt: runc + seccomp/AppArmor (MEDIA-SEC-01)
     cap_add:
-      - SYS_ADMIN             # required for GStreamer/DeckLink device ops under gVisor
+      - SYS_ADMIN             # for GStreamer/DeckLink device ops under gVisor
     devices:
       - /dev/blackmagic:/dev/blackmagic   # DeckLink passthrough (F11); Host ffmpeg MUST NOT hold it
     environment:
       RUST_LOG: info
       DECKLINK_DEVICE_PATH: /dev/blackmagic
-    ports:
-      - "8080:8080"           # JSON-RPC control plane
+    expose:
+      - "8080"               # JSON-RPC control plane (internal; Fastify reaches it)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
@@ -191,6 +205,28 @@ services:
       retries: 5
       start_period: 20s
     restart: unless-stopped   # L2 Runtime Self-Heal; Budget/Backoff enforced externally
+
+  # ---------- Ingress (SOLE external HTTP/HTTPS entry, §8) ----------
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      fastify:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    # Host ports published ONLY via profile overlays (dev/acceptance/prod), not base.
+    expose:
+      - "80"
+      - "443"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health/nginx"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
 volumes:
   pgdata:

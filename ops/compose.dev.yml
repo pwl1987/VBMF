@@ -1,0 +1,23 @@
+# VBMF DEV overlay (FLOW-01 / §11 DEV profile)
+# Usage: docker compose -f docker-compose.yml -f compose.dev.yml up --build
+# Dev: HMR + bind mount + publish convenience ports (5173/3000). NOT for prod.
+
+services:
+  web:
+    # Vite dev server with HMR; bind-mount source, no rebuild per edit (§4)
+    volumes:
+      - ./web/src:/app/src:ro
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+    ports:
+      - "5173:5173"
+
+  # Dev convenience: publish Fastify directly too (still behind Nginx normally)
+  fastify:
+    ports:
+      - "3000:3000"
+
+  # Media Agent in DEV: gVisor runsc; controlled restart must preserve live session
+  media-agent:
+    cap_add:
+      - SYS_ADMIN
+    # HMR-equivalent: rebuild + controlled restart (never kill live session)

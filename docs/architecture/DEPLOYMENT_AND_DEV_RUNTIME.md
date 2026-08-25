@@ -253,7 +253,7 @@ Channel → Runtime → Media Agent(Host/Container/Session/Recovery)
 | PostgreSQL | `17` (alpine) | 当前 LTS 线；非 16/18（18 已过新但非必要追） |
 | Valkey | `8` (alpine) | 替代 Redis；8 当前稳定线 |
 | RustFS | 锁具体发布版本（如 `2026.x.x`） | **禁止 `latest`**；RustFS 快速演进，须 pin 发布 tag |
-| SRS | `6` | SRS 6 稳定线（非 5） |
+| SRS | `6.0.42` (pin patch) | SRS 6 稳定线；**须 pin 具体 patch**（DEPLOY-BASE-01），非 `:6` 模糊大版本 |
 | Node.js (Fastify/Worker/Web) | `24` (alpine) | 当前 Active LTS（2026-04 起 LTS） |
 | Rust (Media Agent) | 锁具体 `1.8x` | 滚动版须 pin minor，不得 `rust:latest` |
 | Nginx | `1.27` (alpine) 或 distro stable | 反代契约见 §8 |
@@ -262,4 +262,59 @@ Channel → Runtime → Media Agent(Host/Container/Session/Recovery)
 **约束**：
 - `docker-compose.yml` 中所有 `image:` 必须显式带版本，CI 门禁应校验"无 `latest` / 无未 pin 版本"（DEPLOY-BASELINE-01）。
 - 升级任一组件须更新本表 + compose + 在 CHANGELOG 记录 + Remote Acceptance 复测（§9）。
+
+---
+
+## 14. Node + Rust Boundary & Shared Schema Contract（LANG-01）
+
+> **结论**：VBMF 采用 **Node + Rust 并存**，职责严格隔离。这是合理架构，不统一语言。
+> 风险不在性能，而在"协议/Schema/Debug/Release/Observability 两套生态"的边界成本。
+
+### 职责边界（不可模糊）
+```
+Node (Control / Async Plane)          Rust (Media Runtime Plane)
+├── Fastify: API/Auth/RBAC/Config     ├── Media Agent: DeckLink / GStreamer
+├── Graph Compiler (intent only)      ├── Live FFmpeg / Session / Clock
+├── Worker: transcode/probe/thumb     ├── Switch / Failover / Hot Standby
+├── Object Model / Audit / ChangeSet   ├── Live Recording / Device Lease
+└── File media tasks                  └── Process supervision / Health
+```
+**禁止双重 ownership（LANG-01 红线）**：
+- Fastify/Worker 不得 `spawn` GStreamer/live FFmpeg/开 DeckLink（F9/F11）
+- Rust Agent 不得实现 CRUD/Auth/ORM
+
+### 共享 Schema Contract（解决边界成本的正确方式）
+- 单一契约源：`packages/contracts/`（runtime / graph / health / device / session / output / rpc）。
+- 源格式：**JSON Schema / OpenAPI / Zod**；Rust 侧通过生成/绑定得类型。
+- TypeScript 与 Rust 共享 **Contract**，不共享实现。避免 `latency_budget_ms` vs `latency_budget` 类漂移。
+- 该契约是 Gate 2（Runtime 做实）的前置，须在 Phase 1 落地生成机制。
+
+---
+
+## 15. Media Agent Runtime Isolation Risk（MEDIA-SEC-01）
+
+> **硬环境风险项**：`gVisor (runsc) + /dev/blackmagic + SYS_ADMIN` 的真实硬件兼容性**尚未验证**，
+> 直接决定 Media Agent 能否真正访问 DeckLink。须 BMD 真机测试决定。
+
+**Option A**（默认）：gVisor `runsc`，验证通过则保留。
+**Option B**（备选，倾向广播稳定性优先）：Media Agent 改用 `runc` + 其他隔离：
+- `seccomp` profile（专用 `ops/nginx/seccomp-media.json` 占位）
+- `AppArmor` / `cgroup` / `capabilities` 收敛 / `read_only` rootfs + 特定 `tmpfs`
+- 可靠访问 DeckLink 优先于通用 gVisor 隔离。
+
+**决策权**：最终由 G-RUNTIME Remote Acceptance（§9）真机结果裁定，不在文档阶段定死。
+
+---
+
+## 16. Ops Visibility: Ingress in Runtime Ownership Tree（UX-OPS-02, P2）
+
+运维下钻链除 Channel→Runtime→Media Agent→DeckLink→GStreamer→FFmpeg→SRS 外，
+须补充 **Ingress** 层，使"媒体引擎正常但 API 入口异常"可区分：
+```
+Ingress
+ └── Nginx (TLS / API / WS / SSE / Health)
+      └── Fastify / Web / Media Agent
+```
+Health Tree 须暴露 Nginx 自身 health（已加 `/health/nginx`）。
+
 

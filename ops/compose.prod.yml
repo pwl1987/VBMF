@@ -1,0 +1,27 @@
+# VBMF PROD overlay (§11 PRODUCTION profile)
+# Usage: docker compose -f docker-compose.yml -f compose.prod.yml up --build -d
+# Immutable image / no HMR / Nginx 443 only / SRS media ports published.
+# REAL secrets via Docker secrets or SSH provisioning (INFRA-SEC-01). NEVER commit.
+
+services:
+  nginx:
+    ports:
+      - "443:443"
+      - "80:80"   # redirect to 443
+
+  srs:
+    # Only publish what external consumers require
+    ports:
+      - "1935:1935"   # RTMP ingest from encoders
+      - "1989:1989"   # WHEP/WebRTC playback
+      - "8080:8080"   # HLS/HTTP-FLV delivery
+      # 1985 (SRS API) + 8000 (SRT) kept internal unless required
+
+  # PROD: prefer runc + seccomp/AppArmor if gVisor DeckLink proven unstable
+  # (MEDIA-SEC-01 Option B). Keep cap drop + read-only root where possible.
+  media-agent:
+    cap_add:
+      - SYS_ADMIN
+    # security_opt:
+    #   - "seccomp:./nginx/seccomp-media.json"
+    read_only: false   # GStreamer/FFmpeg need writable temp; mount specific tmpfs

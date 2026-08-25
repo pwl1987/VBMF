@@ -6,29 +6,38 @@
 > this dir only expresses it as concrete compose/Dockerfile shape.
 
 ## Files
-- `docker-compose.yml` — 8-service V0.2 stack: `db / cache / rustfs / srs / fastify / worker / web / media-agent`.
+- `docker-compose.yml` — **BASE**: 9 services (`db/cache/rustfs/srs/fastify/worker/web/media-agent/nginx`),
+  internal `expose` only, secrets via `${}` from `.env`, Nginx as sole ingress.
+- `compose.dev.yml` / `compose.acceptance.yml` / `compose.prod.yml` — **profile overlays**
+  (FLOW-01 / §11): HMR+bind-mount / pinned+BMD media ports / immutable+Nginx-443-only.
 - `Dockerfile.*` — placeholder build contexts (Phase 1 wires real `src/`).
-- `nginx/` — see `docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md` §8 (Nginx Reverse Proxy Contract).
+- `nginx/default.conf` — Nginx ingress routes (`/api /ws /events /ops /admin /health` → fastify; `/` → web).
+- `.env.example` — secrets template; real `.env` is gitignored (INFRA-SEC-01).
 
-## Key contracts encoded in compose
-1. **Readiness wait (INFRA-01)**: Fastify/Worker use `depends_on: condition: service_healthy`
-   on `db/cache/rustfs/srs/media-agent` — NOT mere container start. PostgreSQL "started" ≠ "ready".
-2. **Health Tree (Self-Healing §5)**: every service has a `healthcheck`; expose Recovery State
-   (`NONE/RESTARTING/RECOVERED/RETRYING/BACKOFF/ESCALATED/MANUAL_REQUIRED`) via `/health/*`.
-3. **Media Agent ownership (F2/F4/F11)**: sole DeckLink/GStreamer/Live FFmpeg owner.
-   - `runtime: runsc` (gVisor), `cap_add: SYS_ADMIN`, `devices: /dev/blackmagic`.
-   - Host-side ffmpeg MUST NOT hold DeckLink.
-4. **Nginx = sole ingress** (`§8`): Fastify is NOT a media proxy; SRS owns RTMP/SRT/HLS/WHEP.
+## Key contracts encoded (Deployment SoT)
+1. **Readiness wait (INFRA-01)**: `depends_on: condition: service_healthy` on deps — not mere start.
+2. **Health Tree (§5)**: every service has `healthcheck`; Nginx adds `/health/nginx`.
+3. **Media Agent ownership (F2/F4/F11)**: `runtime: runsc`, `cap_add: SYS_ADMIN`, `/dev/blackmagic`;
+   Host ffmpeg MUST NOT hold DeckLink. runc+seccomp alt pending BMD test (MEDIA-SEC-01).
+4. **Nginx = sole ingress (§8)**: internal services use `expose`, NOT host `ports` (DEPLOY-02).
+   SRS owns media protocol plane (RTMP/SRT/HLS/WHEP), published only via profile overlays.
+5. **Web same-origin (DEPLOY-UI-01)**: `VITE_API_BASE=/api` — never `localhost` (breaks remote browser).
+6. **Secrets externalized (INFRA-SEC-01)**: no hardcoded passwords; `.env` gitignored.
+7. **Image pins (DEPLOY-BASELINE-01)**: specific patch versions; SRS `6.0.42`; no `latest`.
 
 ## G-RUNTIME gate
-- `docker-compose.yml` is the **structure draft**. Real `docker compose up` requires:
-  Phase 1 source trees (fastify/worker/web/media-agent), DeckLink SDK, and a BMD dev server.
-- **Remote BMD Acceptance (§9) cannot run in GitHub CI** — must verify on real hardware.
-- Env preflight (§6) must pass before `up`: Docker/compose/network/volume/healthcheck,
-  containers UP, infra READY, SSH+driver+devices, media runtime, hot-reload, self-healing config.
+- Base compose is the **structure draft**. Real `up` requires Phase 1 source, DeckLink SDK, BMD server.
+- **Remote BMD Acceptance (§9) cannot run in GitHub CI** — verify on real hardware.
+- Env preflight (§6) must pass before `up`.
 
-## Usage (dev/on-prem, after Phase 1)
+## Usage (after Phase 1)
 ```bash
-# from repo root
-docker compose -f ops/docker-compose.yml up --build
+# DEV (HMR, bind mount, publish 5173/3000)
+docker compose -f ops/docker-compose.yml -f ops/compose.dev.yml up --build
+
+# ACCEPTANCE (pinned SHA, real BMD, Nginx 443 + SRS media ports)
+docker compose -f ops/docker-compose.yml -f ops/compose.acceptance.yml up --build
+
+# PROD (immutable, Nginx 443 only, no HMR)
+docker compose -f ops/docker-compose.yml -f ops/compose.prod.yml up --build -d
 ```
