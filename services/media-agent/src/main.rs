@@ -20,5 +20,10 @@ fn main() {
     // Gate 2.1: load config shape from env (no behavior attached yet).
     let _cfg = config::Config::from_env();
 
+    // Gate 2.2: device discovery (filesystem probe; safe on CI / non-BMD hosts).
+    let dm = device::FilesystemDeviceManager::new();
+    let devices = dm.discover();
+    tracing::info!(count = devices.len(), "device discovery complete");
+
     tracing::info!("media-agent skeleton loaded; interfaces frozen, logic pending");
 }

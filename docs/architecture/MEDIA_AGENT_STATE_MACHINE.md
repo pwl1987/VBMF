@@ -1,128 +1,125 @@
-# Media Agent State Machine
+# Media Agent 状态机
 
-**Status:** Frozen contract (2026-08-26)
-**Scope:** Media plane (`media-agent`, Rust) lifecycle — Device × Lease × Supervisor.
-**Companion:** `MEDIA_RUNTIME_SECURITY_MODEL.md` (runtime/isolation), SoT §10 (Gate A).
+**状态:** 已冻结契约(2026-08-26)
+**范围:** 媒体平面(`media-agent`,Rust)生命周期 —— Device × Lease × Supervisor。
+**配套文档:** `MEDIA_RUNTIME_SECURITY_MODEL.md`(运行时/隔离),SoT §10(Gate A)。
 
-> This document defines the **state contract** only. No GStreamer / DeckLink code
-> is wired in the skeleton. Gate 2.1 freezes interfaces; GStreamer attaches at
-> Gate 2.6+.
+> 本文档仅定义**状态契约**。skeleton 中不接入 GStreamer / DeckLink 代码。
+> Gate 2.1 冻结接口;GStreamer 在 Gate 2.6+ 才挂载。
 
 ---
 
-## 1. States
+## 1. 状态
 
 ```
         INIT
-         │  (boot, load config)
+         │  (启动, 加载配置)
          ▼
      DISCOVERING
-         │  (enumerate DeckLink devices via SDK + DesktopVideoHelper IPC)
-         │  ├─ 0 devices ──────────────► DEGRADED
-         │  └─ ≥1 device ─────────────► READY
+         │  (通过 SDK + DesktopVideoHelper IPC 枚举 DeckLink 设备)
+         │  ├─ 0 设备 ──────────────► DEGRADED
+         │  └─ ≥1 设备 ─────────────► READY
          ▼
        READY
-         │  (idle, devices available, no lease)
-         │  (HandleAcquire request)
+         │  (空闲, 设备可用, 无租约)
+         │  (收到 HandleAcquire 请求)
          ▼
       LEASED
-         │  (lease granted; pipeline not yet started)
-         │  (HandleStart request)
+         │  (租约已授予; pipeline 尚未启动)
+         │  (收到 HandleStart 请求)
          ▼
     CAPTURING
-         │  (pipeline live, frames flowing)
+         │  (pipeline 在线, 帧在流动)
          │
-         ├─ device lost / pipeline error ──► DEGRADED
-         ├─ lease expired / revoked ──────► RECOVERING
-         └─ fatal / unrecoverable ────────► FAILED
+         ├─ 设备丢失 / pipeline 错误 ──► DEGRADED
+         ├─ 租约过期 / 被撤销 ──────► RECOVERING
+         └─ 致命 / 不可恢复 ────────► FAILED
          ▼
      DEGRADED
-         │  (transient fault; supervisor attempts recovery)
-         │  ├─ recovered + lease valid ───► CAPTURING
-         │  ├─ lease invalid/expired ─────► RECOVERING
-         │  └─ recovery exhausted ────────► FAILED
+         │  (瞬时故障; supervisor 尝试恢复)
+         │  ├─ 已恢复 + 租约有效 ───► CAPTURING
+         │  ├─ 租约无效/过期 ──────► RECOVERING
+         │  └─ 恢复耗尽 ───────────► FAILED
          ▼
     RECOVERING
-         │  (re-acquire device, re-negotiate lease)
-         │  ├─ ok + lease valid ──────────► CAPTURING
-         │  └─ lease cannot be re-formed ──► READY (await new lease)
+         │  (重新获取设备, 重新协商租约)
+         │  ├─ 成功 + 租约有效 ──────► CAPTURING
+         │  └─ 无法重建租约 ────────► READY (等待新租约)
          ▼
       FAILED
-            (terminal; requires operator / control-plane intervention)
+            (终态; 需运维 / 控制平面介入)
 ```
 
 ---
 
-## 2. State table
+## 2. 状态表
 
-| State | Meaning | Lease | Pipeline | Supervisor action |
+| 状态 | 含义 | 租约 | Pipeline | Supervisor 动作 |
 |---|---|---|---|---|
-| `INIT` | Process boot, config loaded | none | none | → DISCOVERING |
-| `DISCOVERING` | Enumerating DeckLink | none | none | 0→DEGRADED, ≥1→READY |
-| `READY` | Idle, devices present | none | none | await HandleAcquire |
-| `LEASED` | Lease granted, pipeline idle | active | none | await HandleStart |
-| `CAPTURING` | Frames flowing | active | live | monitor health |
-| `DEGRADED` | Transient fault | active/maybe | error | attempt recover |
-| `RECOVERING` | Re-forming device+lease | re-forming | none | →CAPTURING or →READY |
-| `FAILED` | Terminal | n/a | n/a | await external reset |
+| `INIT` | 进程启动, 配置已加载 | 无 | 无 | → DISCOVERING |
+| `DISCOVERING` | 枚举 DeckLink | 无 | 无 | 0→DEGRADED, ≥1→READY |
+| `READY` | 空闲, 设备存在 | 无 | 无 | 等待 HandleAcquire |
+| `LEASED` | 租约已授予, pipeline 空闲 | 有效 | 无 | 等待 HandleStart |
+| `CAPTURING` | 帧在流动 | 有效 | 在线 | 监控健康 |
+| `DEGRADED` | 瞬时故障 | 有效/可能 | 错误 | 尝试恢复 |
+| `RECOVERING` | 重建设备+租约 | 重建中 | 无 | →CAPTURING 或 →READY |
+| `FAILED` | 终态 | 不适用 | 不适用 | 等待外部重置 |
 
 ---
 
-## 3. The critical invariant (why this doc exists)
+## 3. 关键不变量(本文档存在的原因)
 
-> **A pipeline restart after a DeckLink drop MUST re-validate the lease before
-> resuming capture.**
+> **DeckLink 掉线后重启 pipeline,在恢复采集前 MUST 重新校验租约有效性。**
 
-The failure mode this contract prevents:
+本契约要防止的故障模式:
 
 ```
 Pipeline start
    │
    ▼
-DeckLink lost (cable pull / SDK disconnect)
+DeckLink 丢失 (线缆拔出 / SDK 断开)
    │
    ▼
 restart
-   │   ← WRONG: blindly restart and keep capturing
+   │   ← 错误: 盲目重启并继续采集
    ▼
-lease still valid?   ← this question is the bug if unanswered
+租约还有效吗?   ← 若不问这个问题就是 bug
 ```
 
-Correct behavior (enforced by the state machine):
+正确行为(由状态机强制):
 
-1. DeckLink drop → `CAPTURING → DEGRADED`.
-2. Supervisor attempts recovery. **Before** re-entering `CAPTURING`, it MUST check
-   lease validity:
-   - lease **valid** → re-form pipeline → `CAPTURING`.
-   - lease **expired/revoked** → `DEGRADED → RECOVERING → READY` (release device,
-     await a fresh `HandleAcquire`). Never capture without a live lease.
-3. A lease that expires mid-capture is treated as `RECOVERING`, not silent continue.
+1. DeckLink 掉线 → `CAPTURING → DEGRADED`。
+2. Supervisor 尝试恢复。**在**重新进入 `CAPTURING` 之前,MUST 检查租约有效性:
+   - 租约**有效** → 重建 pipeline → `CAPTURING`。
+   - 租约**过期/被撤销** → `DEGRADED → RECOVERING → READY`(释放设备,
+     等待新的 `HandleAcquire`)。绝不在无有效租约时采集。
+3. 采集中过期的租约被视为 `RECOVERING`,而非静默继续。
 
-This is **not** a GStreamer problem — it is the Device + Lease + Supervisor
-interaction. The state machine is the source of truth; GStreamer is a leaf.
+这**不是** GStreamer 问题 —— 而是 Device + Lease + Supervisor 的交互问题。
+状态机是唯一事实来源;GStreamer 只是叶子节点。
 
 ---
 
-## 4. Interface freeze (Gate 2.1)
+## 4. 接口冻结(Gate 2.1)
 
-These traits are declared in the skeleton (`src/*.rs`) and MUST NOT change shape
-without a versioned decision:
+以下 trait 已在 skeleton(`src/*.rs`)中声明,MUST NOT 在未版本化决策的情况下
+改变形状:
 
-- `DeviceManager` — enumerate / state (`DeviceState::{Unknown,Available,Leased,Error}`)
+- `DeviceManager` — 枚举 / 状态(`DeviceState::{Unknown,Available,Leased,Error}`)
 - `DeviceLease` — `acquire()` / `release()` / `renew()`
-- `Pipeline` — `start()` / `stop()` / `restart()`  (restart re-validates lease)
+- `Pipeline` — `start()` / `stop()` / `restart()`  (restart 会重新校验租约)
 - `Supervisor` — `health()` / `recover()`
 
-**GStreamer is NOT connected in Gate 2.1.** The skeleton compiles with these
-interfaces as inert declarations; real device/pipeline logic lands at Gate 2.2+.
+**Gate 2.1 不接入 GStreamer。** skeleton 以惰性声明编译通过;真实设备/pipeline
+逻辑在 Gate 2.2+ 落地。
 
 ---
 
-## 5. Rollout order (frozen)
+## 5. 推进顺序(已冻结)
 
 ```
-1. Rust skeleton          ✅ done (compiles, CI green)
-2. Device discovery        ← next
+1. Rust skeleton          ✅ 完成 (编译通过, CI 绿)
+2. Device discovery        ← 下一步
 3. Lease manager
 4. Health endpoint
 5. Supervisor
@@ -130,5 +127,5 @@ interfaces as inert declarations; real device/pipeline logic lands at Gate 2.2+.
 7. First frame
 ```
 
-First frame is intentionally last: it depends on real SDI input + the full
-Device/Lease/Supervisor state machine being correct first.
+First frame 故意排在最后:它依赖真实 SDI 输入 + 完整的 Device/Lease/Supervisor
+状态机先就位。
