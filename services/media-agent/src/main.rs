@@ -14,6 +14,7 @@ mod supervisor;
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
+use lease::LeaseManager;
 
 fn main() {
     // TODO(Gate 2.1): bootstrap supervisor + device manager + RPC server.
@@ -27,6 +28,15 @@ fn main() {
     let dm = device::FilesystemDeviceManager::new();
     let devices = dm.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
+
+    // Gate 2.3: lease manager (in-memory; no hardware needed for the interface).
+    let lm = lease::InMemoryLeaseManager::new();
+    if let Some(first) = devices.first() {
+        match lm.acquire(&first.device_id, "bootstrap", std::time::Duration::from_secs(60)) {
+            Ok(l) => tracing::info!(device = %l.device_id, "lease acquired"),
+            Err(e) => tracing::warn!(error = %e, "lease acquire failed"),
+        }
+    }
 
     tracing::info!("media-agent skeleton loaded; interfaces frozen, logic pending");
 }
