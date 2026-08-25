@@ -17,7 +17,12 @@ pub struct DeviceLease {
 /// Lease lifecycle (acquire/release/health). No implementation.
 pub trait LeaseManager {
     /// Acquire exclusive lease; fails if already leased (prevents host ffmpeg / double-capture).
-    fn acquire(&self, device_id: &Uuid, owner: &str, ttl: std::time::Duration) -> Result<DeviceLease, LeaseError>;
+    fn acquire(
+        &self,
+        device_id: &Uuid,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<DeviceLease, LeaseError>;
     /// Release lease (explicit or on crash via MEDIA-03).
     fn release(&self, lease: &DeviceLease) -> Result<(), LeaseError>;
     /// Heartbeat / TTL check; expired leases auto-released.

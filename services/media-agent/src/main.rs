@@ -12,6 +12,9 @@ mod pipeline;
 mod rpc;
 mod supervisor;
 
+// Trait must be in scope to call `discover()` (trait method, not inherent).
+use device::DeviceManager;
+
 fn main() {
     // TODO(Gate 2.1): bootstrap supervisor + device manager + RPC server.
     // No logic in skeleton commit.
