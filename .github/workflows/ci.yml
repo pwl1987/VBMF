@@ -1,0 +1,48 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+# Gate A (SoT §10): pure-CI gates, no hardware required.
+# This workflow validates the Rust Media Agent skeleton compiles and is formatted.
+# BMD hardware acceptance (MEDIA-SEC-01 / MEDIA-RT-01 / FI-08/09) is a SEPARATE
+# remote gate and is NOT run here.
+
+jobs:
+  rust:
+    name: Rust media-agent build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/media-agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            services/media-agent/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('services/media-agent/Cargo.toml') }}
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      # Hard gate: skeleton MUST compile. This closes the "unverified skeleton"
+      # gap (local/BMD have no Rust toolchain; crates.io egress blocked on BMD).
+      - name: Build (Gate: skeleton must compile)
+        run: cargo build --release
+
+      # Informational for now (skeleton has intentionally-unused decls).
+      # Promote to -D warnings once Gate 2 logic lands.
+      - name: Clippy (advisory)
+        run: cargo clippy --all-targets -- -W warnings
