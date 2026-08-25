@@ -67,6 +67,16 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1-8 · Phase 0.6 AC-03B Temporary Override**：Phase 0.6 README 新增 AC-03B（Emergency Runtime Override → Who/Why/Until → Immediate Apply → Expire → Auto Restore → Runtime Revision 不变），与 AC-03 (Permanent ChangeSet) 互补。
 - 校验：**未新增任何 Surface**（Registry SoT 维持 56）；一致性 99.5% / UI-UX 语义 98.5%。结论：完成 0.5F.16 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW LOCK FINAL**，可正式进入 **Phase 0.6 = Executable Acceptance**，且不再新增 UI 页面。
 
+### Phase 0.5F — Lock Semantics Reconciliation（0.5F.17，2026-08-25，LOCK FINAL，基于 8da06d5 复检）
+用户以 `8da06d5067ecf4d4fb659c79aae8e7929871b4e3` 复检 0.5F.16，确认上一轮 P0/P1 核心问题大多已修复，但指出 **2 个 P0 阶段治理级矛盾** + 约 10 个 P1 设计/落地问题。本轮 0.5F.17 只做治理级收口（不画新页面、不新增 Surface）：
+- **P0-1 · MILESTONES 自身状态矛盾**: 顶部状态描述链原只延伸到 0.5F.11（缺 0.5F.13~16）、§2 历史汇总只到 0.5F.11、§6 同步说明写"0.5F.11 P0-2"。本轮统一延伸到 **0.5F.17**, 并把"0.5F.11 P0-2"明确标注为 **历史出处**（阶段状态 SoT 规则首次焊死点）, 不视为当前状态声明。
+- **P0-2 · "Phase 0.5 LOCK FINAL" 与 Registry 大量 SPEC 矛盾**: 根因是 `SURFACE_REGISTRY.yaml` 头部注释谎称"55 wireframe + 1 Spec E-41"（实际 **33 LOCK + 23 SPEC = 56**）。本轮在 Registry 顶部焊死 **LOCK SEMANTICS 三层定义**: `Semantic Lock` / `Workflow Lock` / `Surface-Contract Lock`, 并明确 **Phase 0.5 LOCK FINAL ≠ 100% Wireframe Complete**; `status=SPEC` = 语义契约锁定 + Phase 4 实施 wireframe, 不视为漏画页面、不阻塞 Phase 0.6。同步纠正 Registry 计数与 E-41 note（不再标"唯一 SPEC")。MILESTONES §3 FG-04 子项的状态三语义同步改写。
+- **P1-8 · EXECUTION_MODEL 版本头**: `V0.1 · 0.5D.3` → `Semantic Schema V0.2 · 0.5F.16/0.5F.17 LOCK FINAL`, 与 OBJECT_VOCABULARY SEMANTIC LOCKED 0.2 对齐。
+- **P1-9 · DESIGN_SYSTEM 版本头**: `VBMF Design System V0.1` → `VBMF Console Design System V0.2`, 加 `Historical V0.1 → Applicable baseline V0.2` lineage。
+- **P1 治理裁决 (方案 A)**: MILESTONES 新增 §5.1「Phase 4 Implementation Surfaces 裁决」, 将 P-23(音频,P0)/P-25(QC,P0)/P-27(Edge,P1)/P-24/P-26/E-32~36/E-41/O-41~45/A-51~55/M-13.M-15.M-16 全部归类为 **Phase 4 Implementation Surfaces**（语义契约已锁, wireframe Phase 4 实施, 不阻塞 Phase 0.6）; P-20 "By Channel" Tab 裁决归 Phase 4（原标 0.5G）。覆盖用户 P1-1~P1-7。
+- **P1-10 · AC-03B Temporary Override**: 已在 0.5F.16 完成（Phase 0.6 README 已含 AC-03B）, 本轮不复做, 仅交叉引用。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56 = 33 LOCK + 23 SPEC）; 未新增任何 UI wireframe。结论：完成 0.5F.17 后 **Phase 0.5 = UX BASELINE / SEMANTIC / WORKFLOW / SURFACE-CONTRACT LOCK FINAL**, SPEC 表面明确归 Phase 4, **可正式冻结并进入 Phase 0.6 = Executable Acceptance**, 下一阶段指标从"页面覆盖率"切换为"四条可执行验收链 (AC-01~04 + AC-03B) 完成率"。
+
 ### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
 - **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
 - **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。

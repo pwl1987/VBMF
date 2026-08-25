@@ -82,7 +82,7 @@ docs/phase-0.5/
 ├── PRODUCT_OBJECT_MODEL.md         ← 3 层组合关系
 ├── NAVIGATION.md                   ← 4 域顶层导航
 ├── MILESTONES.md                   ← 历史 milestone 归档
-├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (55 wireframe + 1 Spec E-41 = 56)
+├── SURFACE_REGISTRY.yaml           ← 页面计数唯一事实源 (32 LOCK wireframe + 24 SPEC = 56, 0.5F.17 纠错; SPEC = Phase 4 Implementation Surfaces)
 ├── EXECUTION_MODEL.md              ← 执行链/时序唯一事实源 (0.5D.3b)
 ├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (计数由 SURFACE_REGISTRY.yaml 派生)
 ├── DESIGN_SYSTEM.md                ← V0.1 Design System
@@ -110,7 +110,7 @@ docs/phase-0.5/
 >   domains:  {BROADCAST: 13, MEDIA: 8, ENGINEERING: 29, ADMIN: 5}
 >   domain_total: 55        # 54 wireframe + 1 Spec (E-41)
 >   global_validation: 1
->   total: 56               # 55 wireframe + 1 Spec (E-41) + 全局 Validation
+>   total: 56               # 32 LOCK wireframe + 24 SPEC (语义契约锁定, Phase 4 实施) + 全局 Validation, 0.5F.17 纠错
 > ```
 
 - 逐条清单: [`SURFACE_REGISTRY.yaml`](SURFACE_REGISTRY.yaml) (id / domain / kind / status / milestone)
@@ -156,7 +156,7 @@ Phase 1 Media Agent (Rust) + Phase 4 Web Console
 - ✅ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
 - ✅ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步 (派生自 MILESTONES.md SoT)
 - ✅ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
-- ✅ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
+- ✅ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (32 LOCK wireframe + 24 SPEC = 56, 0.5F.17 纠错), 不再有 "9 Core Pages" "44" "0.5B 只定义" 等历史残留
 
 ---
 

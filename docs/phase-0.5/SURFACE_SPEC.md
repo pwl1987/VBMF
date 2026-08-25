@@ -79,7 +79,7 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 - **O-44 说明**: O-44 Replay 是 0.5B 新定义的独立表面（继承 0.5A #07 的 Replay 子区语义, wireframe 已随 0.5A LOCK, 无需重画）, 计入 O(4) 新增; 与 E-31 / O-41 的"整页升级"不同
 - **Phase 0.5 已锁定总计**: 10 (0.5A) + 28 (0.5B 新) + 1 (CD-01) = **39**
 - **0.5D 后总计 (历史 as-of)**: 39 + 5 新 (M-17/M-18/P-20/P-28/E-38) = **44** (E-37 升级与 M-14 重画不加数; 见 §29.2 计数表)
-- **当前锁定总计 (SoT: SURFACE_REGISTRY.yaml)**: **56** (55 wireframe + 1 Spec E-41) · 历史手写 22/39/44/52/53/54/55 一律废止（统一见 Registry 头部）
+- **当前锁定总计 (SoT: SURFACE_REGISTRY.yaml)**: **56** (32 LOCK wireframe + 24 SPEC 语义契约锁定, 0.5F.17 纠错; SPEC = Phase 4 Implementation Surfaces, 不阻塞 Phase 0.6) · 历史手写 22/39/44/52/53/54/55 一律废止（统一见 Registry 头部）
 - **不要再写 "30 / ~25 / ~35" 等模糊数字**
 
 **Surface 编号约定 (锁定):**

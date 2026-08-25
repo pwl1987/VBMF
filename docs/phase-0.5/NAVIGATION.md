@@ -5,7 +5,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure (0.5E Cross-Domain Capabilities 已 Spec 锁)
 >
-> **状态:** 🟢 **LOCK FINAL** (0.5C IA + 0.5F 对账；Historical: RECONCILED) · 55 wireframe + 1 Spec（唯一权威: `SURFACE_REGISTRY.yaml`, 展示见 §2.5）· 0.5D.6 Semantic/Execution Closure 完成 + 0.5E wireframes (E-50/51/52) 已建 + 0.5F.3 状态派生
+> **状态:** 🟢 **LOCK FINAL** (0.5C IA + 0.5F 对账；Historical: RECONCILED) · 32 LOCK wireframe + 24 SPEC（唯一权威: `SURFACE_REGISTRY.yaml` §2.5, 0.5F.17 纠错; SPEC = Phase 4 Implementation Surfaces, 不阻塞 Phase 0.6）· 0.5D.6 Semantic/Execution Closure 完成 + 0.5E wireframes (E-50/51/52) 已建 + 0.5F.3 状态派生
 >
 > **状态权威 (0.5F.3 P1-7):** 各 surface 的 **status 唯一事实源 = `SURFACE_REGISTRY.yaml`**。下方各域表格中的状态列为**展示快照** (以 Registry 为准, 已同步 0.5F.3), 本文件**不维护 status** — 新增 surface / 状态变更一律先改 Registry。
 >
@@ -149,13 +149,13 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | 域 | 表面数 | wireframe | Spec-only | 关键新增 (0.5D / 0.5F / 0.5D.1) |
 |---|---|---|---|---|
 | BROADCAST | 13 | 13 | 0 | CH-01 / CH-02 (D1) / CH-02B (D2) / CD-01 WS+Detail / B-13 v2 (D6); M-17 归 MEDIA |
-| MEDIA | 8 | 8 | 0 | M-17 (0.5D.1 规范计数域, D4 v2) / M-14 重画 / M-18 新 |
-| ENGINEERING | 29 | 28 | 1 (E-41) | P-20 / P-28 / E-37 / E-38 / E-40 v2 (D5) / E-42 v2 (D5) / D7 (0.5D 后续) / E-50~52 (0.5E) |
-| ADMIN | 5 | 5 | 0 | — |
-| **域合计** | **55** | **54** | **1** | — |
+| MEDIA | 8 | 5 | 3 (M-13/M-15/M-16) | M-17 (0.5D.1 规范计数域, D4 v2) / M-14 重画 / M-18 新 |
+| ENGINEERING | 29 | 13 | 16 (P-23~27/E-32~36/E-41/O-41~45) | P-20 / P-28 / E-37 / E-38 / E-40 v2 (D5) / E-42 v2 (D5) / D7 (0.5D 后续) / E-50~52 (0.5E) |
+| ADMIN | 5 | 0 | 5 (A-51~55) | — |
+| **域合计** | **55** | **31** | **24** | — |
 | 全局 (10-states Validation) | 1 | 1 | 0 | — |
-| **TOTAL** | **56** | **55** | **1** | — |
-| **Phase 0.5 总计** | **56** (55 wireframe + 1 Spec E-41) | - | - | - |
+| **TOTAL** | **56** | **32** | **24** | — |
+| **Phase 0.5 总计** | **56** (32 LOCK wireframe + 24 SPEC 语义契约锁定, 0.5F.17 纠错; SPEC = Phase 4 Implementation Surfaces, 不阻塞 Phase 0.6) | - | - | - |
 
 > **历史口径演化**: 0.5B "30+/38" → 0.5C 重排 40 → 0.5D 44 → 0.5F "52+1" → **0.5D.1 起由 `SURFACE_REGISTRY.yaml` 唯一派生 (52 wireframe + 1 Spec E-41 = 53)** → **0.5E 增 E-50/51/52 (55 wireframe + 1 Spec E-41 = 56)**。
 > ⛔ 禁止在 README / 阶段总结中再手写 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 等任何孤立数字 — 一律引用 `SURFACE_REGISTRY.yaml`。

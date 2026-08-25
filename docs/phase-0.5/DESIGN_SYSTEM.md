@@ -1,6 +1,8 @@
-# VBMF Design System V0.1
+# VBMF Console Design System V0.2
 
 > **文档定位:** VBMF Console 全局 UI 设计语言 — 锁 Phase 4 Web Console 实施
+>
+> **版本 lineage:** Historical V0.1 → Applicable baseline **V0.2** (0.5F.17 P1-9 校正版本头, 与 ARCHITECTURE_V0.2 / OBJECT_VOCABULARY SEMANTIC 0.2 对齐)
 >
 > **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5 UX BASELINE LOCK FINAL
 >

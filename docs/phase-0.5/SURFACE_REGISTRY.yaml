@@ -7,16 +7,26 @@
 #      SURFACE_SPEC 中所有手写计数 (并全部改为引用本文件)。
 #   3. 历史手写数字 22 / 39 / 44 / 52 / 53 / 54 / 55 / 56 一律废止。
 #
-# 派生计数 (2026-08-25, 0.5D.6 终扫 + 0.5E + 0.5F):
-#   BROADCAST 13 · MEDIA 8 · ENGINEERING 29 (含 E-41 SPEC) · ADMIN 5
-#   域合计 55 (54 wireframe + 1 SPEC) · 全局 Validation 1
-#   TOTAL 56 (55 wireframe + 1 Spec E-41) · Phase 0.5 总计 56
+# 派生计数 (2026-08-25, 0.5D.6 终扫 + 0.5E + 0.5F + 0.5F.17 Lock Semantics 纠错):
+#   BROADCAST 13 · MEDIA 8 · ENGINEERING 29 (含 8 SPEC: M-13/M-15/M-16/P-23/P-24/P-25/P-26/P-27/E-32~36/E-41) · ADMIN 5
+#   域合计 55 · 全局 Validation 1
+#   TOTAL 56 = 32 LOCK (wireframe 已交付, 含全局 Validation) + 24 SPEC (语义契约锁定, wireframe 待 Phase 4 实施)
+#   ⚠️ 历史注释 "55 wireframe + 1 Spec" 已在 0.5F.17 纠正为真实计数 (23 SPEC), 旧注释废止。
 #
-# 计数口径 (避免 "surface = 已有原型页面" 误解, 0.5F.9 P1 治理建议):
+# 计数口径 (避免 "surface = 已有原型页面" 误解, 0.5F.9 P1 治理建议 + 0.5F.17 焊死):
 #   Surface Contract Count     = 本 Registry 登记 surface 总数 (设计契约, 非实现)
 #   Implemented Wireframe Count = status=LOCK 且 wireframe 已交付的 surface 数
 #   Spec-only Count            = status=SPEC / SPEC_WIREFRAME 尚未升 LOCK 的 surface 数
-# Registry 是页面计数唯一 SoT; "55/56 个 surface" 不等于 "已有 55/56 个原型页面"。
+# Registry 是页面计数唯一 SoT; "56 个 surface" 不等于 "已有 56 个原型页面"。
+#
+# ⛔ 0.5F.17 LOCK SEMANTICS 定义 (解决 "Phase 0.5 LOCK FINAL vs 仍有 23 SPEC" 矛盾):
+#   Phase 0.5 = LOCK FINAL 的含义严格限定为以下三层 Lock, 不要求 100% Wireframe Complete:
+#     1. Semantic Lock      —— 对象模型 / 枚举 / Profile 职责 已焊死 (OBJECT_VOCABULARY SEMANTIC LOCKED 0.2)
+#     2. Workflow Lock       —— 主操作链 (Source→Verify→Channel→Take→Output / Asset→Transcode→QC / Profile→ChangeSet→Effective / Failover→Audit) 已闭环
+#     3. Surface-Contract Lock —— 所有 56 surface 的「契约/边界/SoT」已登记且 status 明确 (LOCK 或 SPEC), 不再漂移
+#   Wireframe Delivery 是独立维度: status=LOCK 已交付, status=SPEC 为「语义契约锁定 + Phase 4 实施 wireframe」。
+#   ⇒ SPEC 不视为 "漏画页面" 或 "未完成 Phase 0.5"; 它们是 Phase 4 Implementation Surfaces, 不阻塞 Phase 0.6。
+#   ⇒ 严禁在 MILESTONES/README 用 "Wireframe Complete = LOCK" 口径宣称或否定 Phase 0.5 状态。
 #
 # kind 取值: DASHBOARD / REGISTRY / WORKFLOW / WORKSPACE / DETAIL /
 #            DESIGNER / INSPECTOR / APPROVAL / VALIDATION
@@ -232,7 +242,7 @@ surface:
     kind: INSPECTOR
     status: SPEC
     milestone: "0.5F (Network Path Inspector, SPEC-only)"
-    note: "唯一 Spec-only 表面 (0.5G 实施 wireframe)"
+    note: "Spec-only 表面, Phase 4 实施 wireframe (0.5F.17: 不再标 '唯一', 与 P-23/25/27/O-41~45/A-51~55 同为 SPEC)"
   - id: "E-42"
     domain: ENGINEERING
     kind: WORKFLOW
