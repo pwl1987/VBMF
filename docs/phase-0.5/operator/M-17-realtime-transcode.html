@@ -2,490 +2,246 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>M-17 · Realtime Encode 实时编码 — VBMF Operator Console</title>
+<title>M-17 · Realtime Encode (Profile Bundle 反射) — VBMF Operator Console</title>
 <style>
   :root{
     --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
     --border:#30363d; --border2:#444c56;
     --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
     --accent:#58a6ff; --accent2:#79b8ff;
-    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
-    --health-healthy:#3fb950; --health-degraded:#d29922; --health-failed:#f85149; --health-unknown:#6e7681;
-    --node-active:#58a6ff; --node-standby:#58a6ff; --node-offline:#6e7681;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
   .header{background:linear-gradient(135deg,#0d1117 0%,#1f2937 100%);border-bottom:2px solid var(--accent);padding:14px 18px;margin:-12px -12px 12px -12px;display:flex;align-items:center;gap:16px}
   .header h1{font-size:18px;font-weight:600;color:var(--fg)}
   .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
-  .header .breadcrumb{color:var(--fgdim);font-size:11px}
-  .header .breadcrumb a{color:var(--accent);text-decoration:none}
+  .breadcrumb{color:var(--fgdim);font-size:11px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
   .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
-  .pill-green{background:rgba(63,185,80,.15);color:var(--health-healthy);border:1px solid var(--health-healthy)}
-  .pill-yellow{background:rgba(210,153,34,.15);color:var(--health-degraded);border:1px solid var(--health-degraded)}
-  .pill-red{background:rgba(248,81,73,.15);color:var(--health-failed);border:1px solid var(--health-failed)}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
   .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
   .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
   .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
   .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
   .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--fg)}
-  .panel h3 .cn{color:var(--fg);font-weight:500}
-  .panel h3 .en{color:var(--fgdim);font-size:11px;font-weight:400}
   .panel h3 .pill{float:right}
   .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
-  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
   .k{color:var(--fgdim);font-size:11px}
   .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
-  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}.v.orange{color:var(--orange)}
-  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px;position:relative}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
   .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-  .metric .val{font-size:24px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
-  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.blue{color:var(--accent)}
+  .metric .val{font-size:22px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.blue{color:var(--accent)}
   .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
   .pipeline{display:flex;align-items:stretch;gap:6px;margin:8px 0;padding:8px;background:var(--bg3);border-radius:3px}
-  .pipeline .stage{flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;text-align:center;position:relative}
+  .pipeline .stage{flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;text-align:center}
   .pipeline .stage .ico{font-size:14px;margin-bottom:4px}
   .pipeline .stage .name{font-size:11px;font-weight:600;color:var(--fg)}
   .pipeline .stage .detail{font-size:10px;color:var(--fgdim);margin-top:2px;font-family:Menlo,Consolas,monospace}
   .pipeline .stage.active{border-color:var(--accent);background:rgba(88,166,255,.05)}
   .pipeline .arrow{display:flex;align-items:center;color:var(--fgdim);font-size:16px}
   table{width:100%;border-collapse:collapse;font-size:11px}
-  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;font-size:10px}
   td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace}
-  tr:hover td{background:var(--bg3)}
   .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
-  .btn:hover{background:var(--bg4);border-color:var(--border2)}
-  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .btn.primary:hover{background:var(--accent2)}
-  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
-  .btn.l3{border-color:var(--red);color:var(--red)}
-  details{margin-bottom:8px}
-  details summary{cursor:pointer;color:var(--fgdim);font-size:11px;padding:4px 0}
-  details summary:hover{color:var(--fg)}
-  .legend{font-size:10px;color:var(--fgdim);margin-top:6px;line-height:1.6}
-  .box-title{font-size:11px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-  .stage-title{font-size:12px;font-weight:600;color:var(--fg);margin-bottom:6px;display:flex;align-items:center;gap:6px}
-  .role-active{color:var(--node-active);font-weight:600}
-  .role-standby{color:var(--node-standby);font-weight:500;opacity:.7}
-  .role-offline{color:var(--node-offline);text-decoration:line-through}
-  .sev{font-weight:600}
-  .sev.crit{color:var(--red)}
-  .sev.warn{color:var(--yellow)}
-  .sev.ok{color:var(--green)}
+  .btn:hover{border-color:var(--accent)}
   .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
   .diag b{color:var(--accent)}
   .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
-  .dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
-  .dot.yellow{background:var(--yellow);box-shadow:0 0 6px var(--yellow)}
-  .dot.red{background:var(--red);box-shadow:0 0 6px var(--red);animation:pulse 1.5s infinite}
-  .dot.gray{background:var(--gray)}
-  .dot.blue{background:var(--accent);box-shadow:0 0 6px var(--accent)}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+  .dot.green{background:var(--green)}.dot.blue{background:var(--accent)}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  /* Provenance / Profile Bundle (v2 新增) */
+  .provenance{background:linear-gradient(135deg,#1a1320 0%,#161b22 100%);border:1px solid var(--purple)}
+  .provenance h3{color:var(--purple)}
+  .pbundle{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+  .pchip{font-size:11px;padding:5px 10px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+  .pchip.on{background:rgba(63,185,80,.18);border-color:var(--green);color:var(--green);font-weight:600}
 </style>
 </head>
 <body>
 
 <div class="header">
   <div>
-    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>M-17 Realtime Encode 实时编码</b></div>
-    <h1><span class="cn">M-17 · 实时编码</span> <span class="en">REALTIME ENCODE (Live Encoder Runtime)</span></h1>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="M-17-realtime-transcode.html">M-17 Realtime Encode</a> › <b>Profile Bundle 反射 (D4)</b></div>
+    <h1><span>⚙️ M-17 · 实时编码</span> <span class="en">REALTIME ENCODE · Profile Bundle 反射</span></h1>
   </div>
-  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-    <span class="pill pill-green"><span class="dot green"></span>RUNNING</span>
-    <span class="pill pill-green"><span class="dot green"></span>READY_TO_TAKE</span>
-    <span class="pill pill-green"><span class="dot green"></span>HEALTHY</span>
-    <span class="pill pill-blue">Encoder-RT-01</span>
+  <div style="margin-left:auto;text-align:right">
+    <span class="pill pill-green">0.5D 原型 · D4</span><br>
+    <span class="pill pill-blue" style="margin-top:4px">0.5D 验收链 · D4</span><br>
+    <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>RUNNING · READY_TO_TAKE · HEALTHY</span>
   </div>
 </div>
 
-<!-- Live Encoder Runtime (顶部状态) -->
+<!-- PROVENANCE: 本 RT Encoder Session 属于 Channel CH01 (源自模板→Bundle), Encoding Profile (P-21) REALTIME_PROFILE 激活 -->
+<div class="panel provenance">
+  <h3>⛓ 实例来源 Provenance (Channel → Bundle → Encoding Profile · REALTIME_PROFILE)</h3>
+  <div class="row">
+    <div class="col-4">
+      <div class="k">所属 Channel (运行态)</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace.html" class="btn">CH01</a> <span class="pill pill-green">ON-AIR</span></div>
+      <div class="diag">CH01 由 Template <b>CH01-News-Live</b> Rev T-v3 实例化 (见 <a href="CH-02b-channel-template-center.html" style="color:var(--accent)">D2</a> / <a href="CD-01-channel-workspace.html" style="color:var(--accent)">D3</a>)。</div>
+    </div>
+    <div class="col-4">
+      <div class="k">Profile Bundle (7 Profile 引用)</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
+      <div class="diag">本 Session 的编码参数来自 Bundle 中 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> 的快照 (immutable)。</div>
+    </div>
+    <div class="col-4">
+      <div class="k">激活 Profile (REALTIME_PROFILE)</div>
+      <div class="v green" style="margin:4px 0;font-size:14px">● P-21 @ ENC-v3</div>
+      <div class="diag">DESIRED = Encoding Profile (P-21) · profile_type=REALTIME_PROFILE rev ENC-v3 → COMPILED → EFFECTIVE 一致 (无降级)。</div>
+    </div>
+  </div>
+  <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 本 Session 在 <a href="CD-01-channel-workspace.html">D3 CD-01</a> 的 Profile Bundle 条 (P-21 高亮) 与 <a href="CH-02b-channel-template-center.html">D2 模板</a> 的默认 7 Profile 引用互相印证。</div>
+</div>
+
+<!-- PROFILE BUNDLE 7 引用 -->
+<div class="panel">
+  <h3>📦 Profile Bundle · 7 Profile 引用 (P-28) <span class="pill pill-purple">REALTIME_PROFILE = 本页激活</span></h3>
+  <div class="pbundle">
+    <span class="pchip on">Encoding Profile (P-21) ● active · REALTIME_PROFILE</span>
+    <span class="pchip">Output Profile (P-22)</span>
+    <span class="pchip">Audio Profile (P-23)</span>
+    <span class="pchip">Graphic Profile (P-24)</span>
+    <span class="pchip">QC Profile (P-25)</span>
+    <span class="pchip">Rights Profile (P-26)</span>
+    <span class="pchip">Edge Policy Profile (P-27)</span>
+  </div>
+  <div class="diag">7 Profile 是可复用策略引用 (POM §4.2). 本页 Session 仅消费 <b>Encoding Profile (P-21) 的 REALTIME_PROFILE 分支</b>; Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01), 其余由 D3(CD-01) / M-14 / QC 等各自消费. 与 D1④ / D2 / D3 完全一致.</div>
+</div>
+
+<!-- 3-LAYER 配置态 -->
 <div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--accent)">
-  <h3><span class="cn">实时编码器运行态</span> / LIVE ENCODER RUNTIME (Session 三轴: Lifecycle + Readiness + Health)
-    <span class="pill pill-green" style="float:right"><span class="dot green"></span>RT-01 · MEDIA_SESSION</span>
-  </h3>
+  <h3>⚙️ 配置态 3-Layer (DESIRED → COMPILED → EFFECTIVE) <span class="pill pill-blue" style="float:right">绑定 Encoding Profile (P-21) REALTIME_PROFILE</span></h3>
   <div class="row">
     <div class="col-3 metric">
       <div class="label">Session ID</div>
-      <div class="val blue" style="font-size:14px">sess-rt01-2026-08-25-001</div>
-      <div class="sub">Started 14:23:08 (1h 17m uptime)</div>
+      <div class="val blue" style="font-size:13px">sess-rt01-2026-08-25-001</div>
+      <div class="sub">Encoder-RT-01 · 1h 17m uptime</div>
     </div>
     <div class="col-3 metric">
-      <div class="label">Lifecycle</div>
-      <div class="val green">RUNNING</div>
-      <div class="sub">STOPPED → STARTING → RUNNING (4.2s)</div>
+      <div class="label">DESIRED (Profile)</div>
+      <div class="val green" style="font-size:13px">P-21 ENC-v3</div>
+      <div class="sub">Encoding Profile · REALTIME_PROFILE (GOP 50 · CBR 5M · 1080p25)</div>
     </div>
     <div class="col-3 metric">
-      <div class="label">Readiness</div>
-      <div class="val green">READY_TO_TAKE</div>
-      <div class="sub">PTP LOCKED · SRS ready</div>
+      <div class="label">COMPILED</div>
+      <div class="val blue" style="font-size:13px">libx264 · w-02</div>
+      <div class="sub">worker-02 (scheduler 选中)</div>
     </div>
     <div class="col-3 metric">
-      <div class="label">Health</div>
-      <div class="val green">HEALTHY</div>
-      <div class="sub">7/7 Health Invariants H1-H7 PASS</div>
+      <div class="label">EFFECTIVE</div>
+      <div class="val green" style="font-size:13px">v3 ACTIVE</div>
+      <div class="sub">Δ COMPILED==EFFECTIVE · 无降级</div>
     </div>
   </div>
-  <div class="diag" style="margin-top:10px">
-    <b>3-Layer 配置态 (DESIRED → COMPILED → EFFECTIVE):</b>
-    DESIRED = <span class="role-active">H264-LIVE-1080P25-5M</span> ·
-    COMPILED = <span class="role-active">libx264 · worker-02</span> ·
-    EFFECTIVE = <span class="role-active">Revision v3 ACTIVE</span> ·
-    Δ: <b>COMPILED == EFFECTIVE</b> · Reason: 无降级, 健康运行
-  </div>
+  <div class="diag" style="margin-top:10px"><b>为什么绑定 Profile 而非自由填参:</b> 运行态编码参数来自 Bundle 快照 (immutable), 修改需经 ChangeSet (L2) 升 P-21 (Encoding Profile) rev, 不污染模板默认. 详见 M-17 "Impact Preview / Apply ChangeSet".</div>
 </div>
 
-<!-- Pipeline: Source → Normalize → Encode → Output (主区) -->
+<!-- PIPELINE (沿用 M-17 0.5D LOCK 结构) -->
 <div class="panel">
-  <h3><span class="cn">实时编码管线</span> / REALTIME ENCODE PIPELINE (Source → Normalize → Encode → Output)
-    <span class="pill pill-green" style="float:right">FRAME_SWITCH (Primary/Backup Active)</span>
-  </h3>
+  <h3>🔀 实时编码管线 / PIPELINE (Source → Normalize → Encode → Output)</h3>
   <div class="pipeline">
-    <div class="stage active">
-      <div class="ico">📡</div>
-      <div class="name">SOURCE</div>
-      <div class="detail">SDI-01 (Primary)</div>
-      <div class="detail" style="color:var(--green)">1080i25 · LOCKED</div>
-    </div>
+    <div class="stage active"><div class="ico">📡</div><div class="name">SOURCE</div><div class="detail">SDI-01 (Primary)</div><div class="detail" style="color:var(--green)">1080i25 · LOCKED</div></div>
     <div class="arrow">→</div>
-    <div class="stage active">
-      <div class="ico">🔄</div>
-      <div class="name">NORMALIZE</div>
-      <div class="detail">1080p25 · UYVY422</div>
-      <div class="detail" style="color:var(--green)">BT.709</div>
-    </div>
+    <div class="stage active"><div class="ico">🔄</div><div class="name">NORMALIZE</div><div class="detail">1080p25 · UYVY422</div><div class="detail" style="color:var(--green)">BT.709</div></div>
     <div class="arrow">→</div>
-    <div class="stage active">
-      <div class="ico">⚙️</div>
-      <div class="name">ENCODE</div>
-      <div class="detail">H.264 · 5 Mbps</div>
-      <div class="detail" style="color:var(--green)">GOP 50 · CBR</div>
-    </div>
+    <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">H.264 · 5 Mbps</div><div class="detail" style="color:var(--green)">GOP 50 · CBR</div></div>
     <div class="arrow">→</div>
-    <div class="stage active">
-      <div class="ico">📤</div>
-      <div class="name">OUTPUT</div>
-      <div class="detail">SRS · HLS + WebRTC</div>
-      <div class="detail" style="color:var(--green)">3 destinations</div>
-    </div>
+    <div class="stage active"><div class="ico">📤</div><div class="name">OUTPUT</div><div class="detail">SRS · HLS + WebRTC</div><div class="detail" style="color:var(--green)">3 destinations</div></div>
   </div>
   <div class="row" style="margin-top:8px">
     <div class="col-6">
-      <div class="box-title">Primary / Backup 配置 (redundancy_group = rg-sdi-rt01)</div>
+      <div class="k" style="margin-bottom:4px">Primary / Backup (redundancy_group = rg-sdi-rt01)</div>
       <table>
-        <thead><tr><th>Role</th><th>Source</th><th>Status</th><th>Signal</th><th>Switch Mode</th></tr></thead>
+        <thead><tr><th>Role</th><th>Source</th><th>Status</th><th>Switch</th></tr></thead>
         <tbody>
-          <tr>
-            <td><span class="role-active">● ACTIVE</span></td>
-            <td>SDI-01 (Duo2 / IN-1)</td>
-            <td><span class="pill pill-green"><span class="dot green"></span>ON-AIR</span></td>
-            <td>1080i25 · LOCKED</td>
-            <td>—</td>
-          </tr>
-          <tr>
-            <td><span class="role-standby">○ STANDBY</span></td>
-            <td>SDI-02 (Duo2 / IN-2)</td>
-            <td><span class="pill pill-blue"><span class="dot blue"></span>HOT</span></td>
-            <td>1080i25 · LOCKED</td>
-            <td>FRAME_SWITCH (40ms)</td>
-          </tr>
-          <tr>
-            <td><span class="role-offline">○ OFFLINE</span></td>
-            <td>SDI-03 (SDI / IN-1)</td>
-            <td><span class="pill pill-gray"><span class="dot gray"></span>COLD</span></td>
-            <td>—</td>
-            <td>MASTER_SWITCH (2s)</td>
-          </tr>
+          <tr><td><span class="pill pill-green">ACTIVE</span></td><td>SDI-01</td><td>ON-AIR</td><td>—</td></tr>
+          <tr><td><span class="pill pill-blue">STANDBY</span></td><td>SDI-02</td><td>HOT</td><td>FRAME_SWITCH 40ms</td></tr>
+          <tr><td><span class="pill pill-gray">OFFLINE</span></td><td>SDI-03</td><td>COLD</td><td>MASTER_SWITCH 2s</td></tr>
         </tbody>
       </table>
     </div>
     <div class="col-6">
-      <div class="box-title">Effective Switch Mode (V0.2 §3.4 锁定)</div>
+      <div class="k" style="margin-bottom:4px">Effective Switch Mode (V0.2 §3.4 锁)</div>
       <table>
-        <thead><tr><th>属性</th><th>值</th><th>来源</th></tr></thead>
+        <thead><tr><th>属性</th><th>值</th></tr></thead>
         <tbody>
-          <tr><td>effective_switch_mode</td><td><span class="pill pill-blue">FRAME_SWITCH</span></td><td>Policy: hot_standby_levels (V0.2)</td></tr>
-          <tr><td>switch_execution_state</td><td><span class="pill pill-green">IDLE</span></td><td>Runtime (last switch 18m ago)</td></tr>
-          <tr><td>target_failover_time_ms</td><td>100</td><td>hot_standby_levels.target_failover_time_ms (HOT)</td></tr>
-          <tr><td>measured_failover_ms (p95)</td><td>87</td><td>failover_benchmarks (last 7d)</td></tr>
-          <tr><td>switch_attempts_24h</td><td>2</td><td>0 异常</td></tr>
-          <tr><td>filler_if_gt_1s</td><td><span class="pill pill-green">FILLER (snow + tone)</span></td><td>Policy applied (FI-01 compliant)</td></tr>
+          <tr><td>effective_switch_mode</td><td><span class="pill pill-blue">FRAME_SWITCH</span></td></tr>
+          <tr><td>target_failover_time_ms</td><td>100 (HOT)</td></tr>
+          <tr><td>measured_failover_ms p95</td><td>87</td></tr>
+          <tr><td>filler_if_gt_1s</td><td><span class="pill pill-green">FILLER (snow+tone)</span></td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- 实时指标 (右侧主区) -->
+<div class="diag" style="border-left-color:var(--purple)">
+  <b>边界 (0.5D.3): Encode Session ≠ Output.</b> 本页止于 Encoder: <b>Encode Session → Program Master / Delivery Boundary → Output Variant → Output Session / Adapter</b>。Output Session 的 Health / Protocol / Destination 由 CD-01 Output 区下钻 (06-output / D7 ChangeSet Review), <b>不塞进 Encoder 属性</b>。
+</div>
+
+<!-- 实时指标 -->
 <div class="row">
   <div class="col-8">
     <div class="panel">
-      <h3><span class="cn">实时编码指标</span> / REALTIME METRICS (E-36 Resource + E-38 Hardware 实时聚合)
-        <span class="pill pill-green" style="float:right"><span class="dot green"></span>FRESH · age 1s</span>
-      </h3>
+      <h3>📊 实时编码指标 / METRICS <span class="pill pill-green" style="float:right">FRESH · age 1s</span></h3>
       <div class="row">
-        <div class="col-3 metric">
-          <div class="label">FPS</div>
-          <div class="val green">25.00</div>
-          <div class="sub">target 25.0 · drift 0.0</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">Encoding Speed</div>
-          <div class="val blue">1.02x</div>
-          <div class="sub">realtime (target ≥ 1.0x)</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">CPU</div>
-          <div class="val green">71%</div>
-          <div class="sub">14.5 / 32 threads</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">RAM</div>
-          <div class="val green">2.4 GB</div>
-          <div class="sub">/ 30 GB</div>
-        </div>
+        <div class="col-3 metric"><div class="label">FPS</div><div class="val green">25.00</div><div class="sub">drift 0.0</div></div>
+        <div class="col-3 metric"><div class="label">Speed</div><div class="val blue">1.02x</div><div class="sub">realtime</div></div>
+        <div class="col-3 metric"><div class="label">CPU</div><div class="val green">71%</div><div class="sub">14.5/32 th</div></div>
+        <div class="col-3 metric"><div class="label">PTS Drift</div><div class="val green">+0.4ms/min</div><div class="sub">PTP LOCKED</div></div>
       </div>
       <div class="row" style="margin-top:8px">
-        <div class="col-3 metric">
-          <div class="label">Dropped Frames</div>
-          <div class="val green">0</div>
-          <div class="sub">last 1h · target 0</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">PTS Drift</div>
-          <div class="val green">+0.4 ms/min</div>
-          <div class="sub">PTP LOCKED · target < 5</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">AV Offset</div>
-          <div class="val green">+12 ms</div>
-          <div class="sub">target < 40 ms</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">Stage Latency</div>
-          <div class="val green">168 ms</div>
-          <div class="sub">SDI → SRS (Stage) · target < 200 · 注: E2E = Source → Player</div>
-        </div>
+        <div class="col-3 metric"><div class="label">Bitrate</div><div class="val green">4.92 Mbps</div><div class="sub">CBR 5.0</div></div>
+        <div class="col-3 metric"><div class="label">GOP</div><div class="val green">50</div><div class="sub">closed IDR 2s</div></div>
+        <div class="col-3 metric"><div class="label">AV Offset</div><div class="val green">+12 ms</div><div class="sub">&lt;40ms</div></div>
+        <div class="col-3 metric"><div class="label">Clients</div><div class="val blue">1,247 HLS</div><div class="sub">+312 RTMP +89 WHIP</div></div>
       </div>
-      <div class="row" style="margin-top:8px">
-        <div class="col-3 metric">
-          <div class="label">VBV Buffer</div>
-          <div class="val green">42%</div>
-          <div class="sub">target 30-60%</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">Bitrate Actual</div>
-          <div class="val green">4.92 Mbps</div>
-          <div class="sub">target 5.0 · CBR</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">GOP Length</div>
-          <div class="val green">50</div>
-          <div class="sub">closed · IDR every 2s</div>
-        </div>
-        <div class="col-3 metric">
-          <div class="label">Output Clients</div>
-          <div class="val blue">1,247 HLS</div>
-          <div class="sub">+ 312 RTMP + 89 WHIP</div>
-        </div>
-      </div>
-      <div class="legend">
-        数据来源: E-38 Hardware (BMD DeckLink + host metrics) + E-36 Resource / Capacity
-        · Last update 15:40:42 · Freshness: FRESH (age 1s) · Phase 0.5B.2 P0-2 freshness
-      </div>
+      <div class="diag">数据: E-38 Hardware + E-36 Resource · FRESH age 1s (0.5B.2 P0-2). H1-H7 全 PASS.</div>
     </div>
   </div>
   <div class="col-4">
     <div class="panel">
-      <h3><span class="cn">调度器决策</span> / SCHEDULER DECISION (Session 资源分配)
-        <span class="pill pill-blue" style="float:right">worker-02</span>
-      </h3>
-      <div class="diag" style="margin-top:0;background:rgba(63,185,80,.05);border-left-color:var(--green)">
-        <b>Why worker-02 selected:</b>
-        <table style="margin-top:6px;font-size:10px">
-          <tbody>
-            <tr><td>✓ encoder supported</td><td>libx264 + libx265</td></tr>
-            <tr><td>✓ 14.5 CPU threads free</td><td>(CPU 71% / 32)</td></tr>
-            <tr><td>✓ 2.4 GB RAM free</td><td>(RAM 8%)</td></tr>
-            <tr><td>✓ queue depth lowest</td><td>(3 jobs in queue)</td></tr>
-            <tr><td>✓ NIC headroom</td><td>eth0 1.2 Gbps used</td></tr>
-            <tr><td>✓ PCIe passthrough</td><td>BMD Duo2 / IN-1 bound</td></tr>
-            <tr><td>✓ BMDP driver</td><td>Desktop Video 16.2a1</td></tr>
-            <tr><td>✓ Storage W</td><td>61% (W&lt;80%)</td></tr>
-          </tbody>
-        </table>
+      <h3>🩺 HEALTH INVARIANTS (H1-H7)</h3>
+      <div style="font-size:11px;line-height:1.9">
+        <div><span style="color:var(--green)">✓ H1</span> ≥1 ACTIVE Source HEALTHY</div>
+        <div><span style="color:var(--green)">✓ H2</span> All ACTIVE Nodes HEALTHY</div>
+        <div><span style="color:var(--green)">✓ H3</span> PTP LOCKED</div>
+        <div><span style="color:var(--green)">✓ H4</span> READY_TO_TAKE</div>
+        <div><span style="color:var(--green)">✓ H5</span> Output 状态匹配 3-Tier</div>
+        <div><span style="color:var(--green)">✓ H6</span> Freshness FRESH</div>
+        <div><span style="color:var(--green)">✓ H7</span> UI/API 一致性</div>
       </div>
     </div>
     <div class="panel">
-      <h3><span class="cn">健康检查</span> / HEALTH INVARIANTS (H1-H7)</h3>
-      <div style="font-size:11px;line-height:1.8">
-        <div><span class="sev ok">✓ H1</span> At least one ACTIVE Source HEALTHY</div>
-        <div><span class="sev ok">✓ H2</span> All ACTIVE Nodes HEALTHY</div>
-        <div><span class="sev ok">✓ H3</span> PTP Clock LOCKED &amp; DEGRADED &lt; 1%</div>
-        <div><span class="sev ok">✓ H4</span> All ACTIVE Sessions READY_TO_TAKE</div>
-        <div><span class="sev ok">✓ H5</span> Output Adapter 状态匹配 3-Tier Protocol</div>
-        <div><span class="sev ok">✓ H6</span> Health Freshness FRESH (age 1s)</div>
-        <div><span class="sev ok">✓ H7</span> UI/API 一致性 (channel_health_view == UI 颜色)</div>
-      </div>
+      <h3>📦 Backup Output (CDN Failover) <span class="pill pill-orange" style="float:right">G4 触点</span></h3>
+      <table>
+        <tbody>
+          <tr><td>primary</td><td>CDN-A (● live)</td></tr>
+          <tr><td>backup</td><td>CDN-B (○ standby)</td></tr>
+          <tr><td>edge_policy</td><td>LIVE_EDGE_DEFAULT</td></tr>
+          <tr><td>retry</td><td style="color:var(--orange)">3x backoff 1s</td></tr>
+        </tbody>
+      </table>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 已建模为独立对象 (06-output + D6/B-13: 重连策略/心跳/退避/zombie 判定). M-17 Backup Output retry 3x 为该对象在编码面的触点, 决策留在 06-output 而非 M-17. 此处仅展示, 不编辑.</div>
     </div>
   </div>
 </div>
 
-<!-- Filler / Master / Output 详细 -->
-<div class="panel">
-  <h3><span class="cn">Filler / 备用 / 紧急资产</span> / FILLER + EMERGENCY + BACKUP (切换时用)
-    <span class="pill pill-blue" style="float:right">Policy: hot_standby_levels=HOT</span>
-  </h3>
-  <div class="row">
-    <div class="col-4">
-      <div class="box-title">Filler (切换间隙填充, FI-01 触发)</div>
-      <table>
-        <tbody>
-          <tr><td>type</td><td><span class="v">snow + tone</span></td></tr>
-          <tr><td>trigger</td><td><span class="v">switch &gt; 1s</span></td></tr>
-          <tr><td>duration</td><td><span class="v">until primary OK</span></td></tr>
-          <tr><td>policy</td><td><span class="pill pill-green">ENABLED</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="col-4">
-      <div class="box-title">Emergency Asset (Master 失败时)</div>
-      <table>
-        <tbody>
-          <tr><td>asset_id</td><td><span class="v">a-emergency-001</span></td></tr>
-          <tr><td>type</td><td><span class="v">MP4 / 1920×1080 / 30s loop</span></td></tr>
-          <tr><td>expires</td><td><span class="v">permanent</span></td></tr>
-          <tr><td>policy</td><td><span class="pill pill-green">ENABLED</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="col-4">
-      <div class="box-title">Backup Output (CDN Failover)</div>
-      <table>
-        <tbody>
-          <tr><td>primary</td><td><span class="v">CDN-A (● live)</span></td></tr>
-          <tr><td>backup</td><td><span class="v">CDN-B (○ standby)</span></td></tr>
-          <tr><td>edge_policy</td><td><span class="v">LIVE_EDGE_DEFAULT</span></td></tr>
-          <tr><td>retry</td><td><span class="v">3x backoff 1s</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+<div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
+  🧭 这是 0.5D 验收链第 4 张 (D4, M-17 Realtime Encode). 本页把 D1/D2/D3 产出的 <b>Profile Bundle → Encoding Profile (P-21) · REALTIME_PROFILE</b> 在编码运行态反射: 顶部 Provenance 条 (Channel CH01 ← 模板 ← Bundle) + 7 Profile 引用 (P-21 REALTIME 高亮, P-22 Output 不激活) + 3-Layer 配置态绑定 P-21 ENC-v3 + Pipeline/指标/健康检查 (沿用 M-17 0.5D LOCK). G4 触点: Backup Output retry 3x 已由独立 OutputResilience 对象覆盖 (06-output + D6/B-13, 0.5D.1 闭合). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 本页为升级原型, 不新增 surface (升级既有 M-17, 不计入 NAVIGATION 计数).
 </div>
-
-<!-- 6 状态样例 -->
-<details>
-  <summary>▸ 6 状态样例 (M-17 Realtime Encode) — 完整 Spec 收口</summary>
-  <div class="panel" style="margin-top:8px">
-    <table>
-      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
-      <tbody>
-        <tr><td><b>● NORMAL</b></td><td>Session RUNNING + READY_TO_TAKE + HEALTHY + 3-Layer match</td><td>顶部三轴全绿 + Pipeline 主绿 + 9 实时指标全绿 + H1-H7 全 PASS</td></tr>
-        <tr><td><b>◌ LOADING</b></td><td>Session STARTING (4-5s 启动期)</td><td>Pipeline 各 stage skeleton + 指标 skeleton + "Initializing encoder..."</td></tr>
-        <tr><td><b>○ EMPTY</b></td><td>— (M-17 不应为空, 路由不存在) 改为引导</td><td>无 RT Encoder 时: "Create Realtime Encoder" 引导 + 选 Profile + 选 Source</td></tr>
-        <tr><td><b>⚠ WARNING</b></td><td>DEGRADED (e.g. CPU 90% / AV Offset 35ms / Drift 4ms/min) 或 H3/H6 WARN</td><td>顶部黄条 + 对应 metric 标黄 + Recommend Action: RESOURCE 域(CPU/Drift)→减码率/暂停后台 Job/查 Resource Vector, <b>不触发源 FAILOVER</b>; 仅 SOURCE 故障才进 FAILOVER（对齐 Failure Domain Matrix）</td></tr>
-        <tr><td><b>✗ ERROR</b></td><td>FAILED (e.g. Source 断流 5s+) 或 H1/H2 FAIL</td><td>顶部红条 + Filler 自动接管 + 自动切 FRAME/MASTER</td></tr>
-        <tr><td><b>✗✗ CRITICAL</b></td><td>Master Join 失败 / 全 Source 不可达 / Clock LOST</td><td>顶部红条 + Emergency Asset 自动 + 强制 NACK + 通知 Admin</td></tr>
-      </tbody>
-    </table>
-  </div>
-</details>
-
-<!-- Used By / Impact / Dependency (8 横切能力 #1 + #2) -->
-<details>
-  <summary>▸ Used By / Impact Preview / Dependency (8 横切能力 #1 + #2)</summary>
-  <div class="panel" style="margin-top:8px">
-    <div class="box-title">Used By (本 Session 引用关系)</div>
-    <table>
-      <thead><tr><th>对象</th><th>引用</th><th>状态</th></tr></thead>
-      <tbody>
-        <tr><td>Channel</td><td>CH01 (CH01-News-Live)</td><td><span class="pill pill-green">ON-AIR</span></td></tr>
-        <tr><td>Output Variant</td><td>V-CH01-HLS-Domestic</td><td><span class="pill pill-green">ACTIVE</span></td></tr>
-        <tr><td>Encoding Profile</td><td>H264-LIVE-1080P25-5M @ v3</td><td><span class="pill pill-green">ACTIVE</span></td></tr>
-        <tr><td>Profile Bundle</td><td>CH01-News-Live</td><td><span class="pill pill-green">ACTIVE</span></td></tr>
-        <tr><td>Source (rg)</td><td>SDI-01 (ACTIVE) + SDI-02 (STANDBY) + SDI-03 (OFFLINE)</td><td>2 健康 + 1 备用</td></tr>
-      </tbody>
-    </table>
-    <div class="box-title" style="margin-top:12px">Impact Preview (修改编码参数前必看)</div>
-    <table>
-      <thead><tr><th>维度</th><th>Before (v3)</th><th>After (v4)</th><th>Risk</th></tr></thead>
-      <tbody>
-        <tr><td>Bitrate</td><td>5.0 Mbps</td><td>6.0 Mbps</td><td><span class="sev warn">+20% CPU</span></td></tr>
-        <tr><td>Preset</td><td>medium</td><td>slow</td><td><span class="sev warn">+30% CPU</span></td></tr>
-        <tr><td>Audio</td><td>AAC 192k</td><td>AAC 256k</td><td><span class="sev ok">no impact</span></td></tr>
-        <tr><td colspan="4" style="text-align:center;color:var(--fgdim)">
-          <button class="btn">Explain 影响 (8 横切能力 #3)</button>
-          <button class="btn l2">Apply ChangeSet (L2)</button>
-        </td></tr>
-      </tbody>
-    </table>
-  </div>
-</details>
-
-<!-- Realtime vs File 对比 (跨域导航 #29.3) -->
-<details>
-  <summary>▸ Realtime vs File Transcode 区分 (Phase 0.5C §29.3 锁定)</summary>
-  <div class="panel" style="margin-top:8px">
-    <table>
-      <thead><tr><th>维度</th><th>Realtime (M-17, 本页)</th><th>File (M-14, 重画)</th></tr></thead>
-      <tbody>
-        <tr><td>输入</td><td>Source (SDI/SRT/RTMP)</td><td>Asset (MP4/MOV/TS)</td></tr>
-        <tr><td>输出</td><td>Output Variant (live) → SRS</td><td>Asset Version (新 Version)</td></tr>
-        <tr><td>运行时对象</td><td><b>Session (MEDIA_SESSION)</b></td><td><b>Job (FILE_TRANSCODE kind)</b></td></tr>
-        <tr><td>状态机</td><td>三轴 (lifecycle + readiness + health)</td><td>5 状态 (PENDING/QUEUED/RUNNING/COMPLETED/FAILED)</td></tr>
-        <tr><td>用户关心</td><td>FPS/Speed/CPU/Dropped/AV Offset/Latency</td><td>% Progress/ETA/Output Size/Quality/CRF</td></tr>
-        <tr><td>失败恢复</td><td>FRAME/MASTER failover</td><td>1-pass/2-pass/Retry/Cancel</td></tr>
-        <tr><td>UI 步骤</td><td>无 (持续运行)</td><td>6 步 Wizard (Source/Output/Profile/QC/Schedule/Submit)</td></tr>
-        <tr><td>P-21 Profile</td><td>REALTIME 段 (Latency/GOP/VBV/Rate Control/Warmup)</td><td>FILE 段 (CRF/1-2 pass/Multi-pass/Segmenting/Batch)</td></tr>
-      </tbody>
-    </table>
-    <div class="diag">
-      <b>共享:</b> 1 个 Encode Engine, 2 个产品语义 (M-17 / M-14). Profile Registry (P-21/P-20) 共享,
-      <b>不增加第 2 个 Engine</b> (Phase 0.5C 锁定).
-    </div>
-  </div>
-</details>
-
-<!-- 6 状态: EMPTY -->
-<details>
-  <summary>▸ EMPTY 状态 (无 RT Encoder, 引导创建)</summary>
-  <div class="panel" style="margin-top:8px;text-align:center;padding:32px">
-    <div style="font-size:36px;opacity:.3;margin-bottom:12px">📡</div>
-    <h3 style="color:var(--fg);justify-content:center">尚无实时编码器</h3>
-    <div style="color:var(--fgdim);margin:8px 0 16px">Realtime Encode 用于 24/7 直播编码 (SDI 主备 → SRS HLS+WebRTC).<br>需要先创建 Realtime Encoder + 选 Source + 选 Profile Bundle.</div>
-    <button class="btn primary" style="margin-right:8px">+ Create Realtime Encoder (L1)</button>
-    <button class="btn">从 P-20 Profile Center 选 Bundle →</button>
-  </div>
-</details>
-
-<!-- i18n 锚点 -->
-<details>
-  <summary>▸ i18n 锚点 (zh-CN default · en-US fallback · Canonical Vocabulary 保留原文)</summary>
-  <div class="panel" style="margin-top:8px">
-    <table>
-      <thead><tr><th>i18n key</th><th>zh-CN</th><th>en-US</th></tr></thead>
-      <tbody>
-        <tr><td>broadcast.realtime_transcode.title</td><td>实时编码</td><td>Realtime Encode</td></tr>
-        <tr><td>broadcast.realtime_transcode.runtime</td><td>实时编码器运行态</td><td>Live Encoder Runtime</td></tr>
-        <tr><td>broadcast.realtime_transcode.pipeline</td><td>实时编码管线</td><td>Realtime Encode Pipeline</td></tr>
-        <tr><td colspan="3" style="color:var(--fgdim);font-size:10px">
-          Canonical Vocabulary (保留英文): SOURCE / NORMALIZE / ENCODE / OUTPUT /
-          FRAME_SWITCH / MASTER_SWITCH / PACKET / GOP / VBV / PTP / HLS / RTMP / WebRTC / WHIP / SRS /
-          READY_TO_TAKE / RUNNING / STOPPING / NOT_READY
-        </td></tr>
-      </tbody>
-    </table>
-  </div>
-</details>
-
-<footer>
-  VBMF Operator Console · M-17 Realtime Encode · BROADCAST 域 · Phase 0.5D · 设计稿 v0.1
-  · 关联: P-20 Profile Center / P-28 Profile Bundle / M-15 Transcode Jobs (锁) / E-36 Resource (锁) / E-37 Clock (升级) / E-38 Hardware (0.5D)
-  · Object: Session (MEDIA_SESSION) · Vocabulary: 4 State Models (Lifecycle + Readiness + Health + Node Role)
-</footer>
 
 <script>
-(function(){var k='vt-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+(function(){var k='m17v2-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
 </script>
 </body>
 </html>

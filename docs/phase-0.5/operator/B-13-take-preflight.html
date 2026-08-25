@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>B-13 v2 · Take Preflight (TAKE 前置联合检查) — VBMF Operator Console</title>
+<title>B-13 · Take Preflight (TAKE 前置联合检查) — VBMF Operator Console</title>
 <style>
   :root{
     --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
@@ -91,8 +91,8 @@
 
 <div class="header">
   <div>
-    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CD-01-channel-workspace-v2.html">D3 CD-01</a> › <b>B-13 Take Preflight (模态)</b></div>
-    <h1>🛡️ B-13 v2 · TAKE 前置联合预检 <span class="en">TAKE PREFLIGHT · 9-ITEM UNION CHECK</span></h1>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CD-01-channel-workspace.html">D3 CD-01</a> › <b>B-13 Take Preflight (模态)</b></div>
+    <h1>🛡️ B-13 · TAKE 前置联合预检 <span class="en">TAKE PREFLIGHT · 9-ITEM UNION CHECK</span></h1>
   </div>
   <div style="margin-left:auto;text-align:right">
     <span class="pill pill-green">0.5D 原型 · D6</span><br>
@@ -107,7 +107,7 @@
   <div class="row">
     <div class="col-4">
       <div class="k">触发</div>
-      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace-v2.html" class="btn">D3 CD-01</a> TAKE (CH01 · READY_TO_TAKE)</div>
+      <div class="v" style="margin:4px 0"><a href="CD-01-channel-workspace.html" class="btn">D3 CD-01</a> TAKE (CH01 · READY_TO_TAKE)</div>
       <div class="diag">替代纯 confirm 弹窗; 全屏模态对 Source B 做 9 项联合检查, 全 PASS 才放 TAKE.</div>
     </div>
     <div class="col-4">
@@ -145,7 +145,7 @@
   </div>
 
   <div class="diag" style="border-left-color:var(--green)">
-    <b>最终判断 (P0-3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">TAKE AVAILABLE</b>. 任一区域 FAIL → 对应区标 RED → TAKE 禁用; #7 REQUIRED FAIL → 阻断, OPTIONAL/AUX FAIL → 仅 WARNING (不误切源). #7/#9 模型见下方 <b>OutputResilience (G4)</b> 与 <b>Reservation (G8)</b>.
+    <b>最终判断 (P0-3 + 0.5D.3):</b> CONFIGURATION = <span style="color:var(--green)">PASS</span> · RUNTIME READINESS = <span style="color:var(--green)">PASS</span> → <b style="color:var(--green)">READY → TAKE ENABLED</b>. 结果闭集: `READY` / `CONDITIONAL` (仅 WARNING + Reservation 满足 + REQUIRED 全 PASS) / `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). #7 REQUIRED FAIL → BLOCKED, OPTIONAL/AUX FAIL → 仅 WARNING. #7/#9 模型见下方 <b>OutputResilience (G4)</b> 与 <b>Reservation (G8)</b>.
   </div>
   <div class="diag" style="border-left-color:var(--purple);margin-top:8px">
     <b>四动作语义 (0.5D.2):</b> Configure (改 Desired) ≠ Validate (Preflight, 本页) ≠ Apply (ChangeSet / Logical Atomic) ≠ Operate (TAKE / FAILOVER / RESTART / FALLBACK). <b>Apply ≠ Start; Start ≠ Take; Take ≠ Failover.</b> Apply 走 ChangeSet, Operate 在 CD-01.
@@ -196,16 +196,16 @@
 <!-- ACTIONS -->
 <div class="panel" style="background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-color:var(--green)">
   <h3>🎬 决策 / 阻断 <span class="pill pill-green" style="float:right">TAKE 可用</span></h3>
-  <div class="diag">任一项 #1–#8 FAIL → TAKE 禁用; #7 REQUIRED FAIL → 阻断; #7 OPTIONAL/AUX FAIL → 仅 WARNING (不误切源). 全 PASS + ChangeSet 审批 → 启用 TAKE.</div>
+  <div class="diag"><b>最终结果闭集 TakePreflightResult (0.5D.3):</b> `READY` (全 PASS) · `CONDITIONAL` (仅允许的 WARNING + Reservation 满足 + REQUIRED 全 PASS) · `BLOCKED` (任一 hard blocker, <b>含 #9 Resource &gt;100%</b>). READY / CONDITIONAL → TAKE ENABLED; BLOCKED → TAKE DISABLED. #7 OPTIONAL/AUX FAIL → WARNING 不阻断 (不误切源). + ChangeSet 审批后放行.</div>
   <div class="actions">
-    <a href="CD-01-channel-workspace-v2.html" class="btn">← CANCEL</a>
+    <a href="CD-01-channel-workspace.html" class="btn">← CANCEL</a>
     <button class="btn l2">🔍 Review ChangeSet (L2)</button>
     <button class="btn take">▶ TAKE (提交 ChangeSet)</button>
   </div>
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight v2) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (E-33 带 L2 Review/Approve/回滚, 可拆 D7). G3 (SDI 基带输出变体 — 0.5D.1 已以 RESERVED 落 06-output, commit 6367cd8) / G7 (时钟域联动 — 0.5D.1 已落 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4, PARTIAL) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
+  🧭 这是 0.5D 验收链第 6 张 (D6, B-13 Take Preflight) — <b>链收尾</b>. 本页除 9 项联合预检 (Spec §1, 拆 Configuration Preflight / Runtime Take Readiness, 结果闭集 READY/CONDITIONAL/BLOCKED), 还**闭合最后三个缺口**: <b>G4 Output Resilience</b> (独立 OutputResilience 子对象: 重连/心跳/退避/zombie/Test Send, 落 06-output) · <b>G8 Reservation</b> (显式 Quota 对象 + HOT 独占扣减/释放 + 跨 Channel 仲裁) · <b>G6 ChangeSet 审批</b> (E-33 带 L2 Review/Approve/回滚, 独立面 D7). G3 (SDI 基带输出变体 — 0.5D.1 已以 RESERVED 落 06-output, commit 6367cd8) / G7 (时钟域联动 — 0.5D.1 已落 E-37) / G9 (Take/Create 口径已在 D1 文案统一) / G10 (音频映射 D3/D4, PARTIAL) / G11 (命名约束 D1) 不在 D6 范围, 延续既有标注. 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b> ✅ 全链完成. B-13 为既有 Spec-only 表面, 本页补其 wireframe, 不新增 surface 计数.
 </div>
 
 <script>

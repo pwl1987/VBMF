@@ -252,29 +252,29 @@
 - 注册：NAVIGATION BROADCAST 列表 + §2.5（BROADCAST 13→14 / 域合计 52→53 / TOTAL 53→54 / 总计 54→55）；SURFACE_SPEC §29.9.3 条目已同步；CH-02 页脚验收链标注 D2。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D3-D6 联调后 LOCK。
 
-### D3 ✅ CD-01 Channel Control Workspace v2（已建 + 已注册）
-- 文件：`operator/CD-01-channel-workspace-v2.html`（运行态反射：Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余(srcP/srcB 来自模板) + 反向追溯 D2）。
+### D3 ✅ CD-01 Channel Control Workspace（已建 + 已注册 · 0.5D.3 并入正页）
+- 文件：`operator/CD-01-channel-workspace.html`（运行态反射：Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余(srcP/srcB 来自模板) + 反向追溯 D2）。
 - 覆盖：本页把 D1/D2 产出的 Template→Bundle→Channel 在运行态反射：① 顶部 Provenance 条显示源自 Template Rev + Profile Bundle 快照(immutable, 不回灌); ② Profile Bundle 7 Profile 引用(P-21~P-27)与 D1 第④步 / D2 模板默认引用一致; ③ Output Variants 带 delivery_criticality (REQUIRED/OPTIONAL/AUX) 与 D1 第⑤步口径一致, 可无限添加; ④ 源冗余 PRIMARY=srcP / BACKUP=srcB 来自模板默认; ⑤ 反向追溯链接到 D2 (Used By)。
 - 缺口标注（沿用 D1/D2 口径）：G3 基带 SDI 输出变体缺失 / G4 Output Resilience 未建模 / G5 源预览端点缺失 / G9 Take/Create 口径 / G10 音频映射/权限/告警。`state: historical: OPEN@D3 · current: CLOSED · closed_by: D5(G5) + 0.5D.1 6367cd8(G3/G4)`
 - 注册：升级既有 CD-01 (0.5F LOCK), **不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**; CD-01 行注 v2 原型。NAVIGATION §2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D4-D6 联调后随 CD-01 一同评估 LOCK。
 
-### D4 ✅ M-17 Realtime Encode v2（已建 + 已注册）
-- 文件：`operator/M-17-realtime-transcode-v2.html`（运行态反射：Provenance 条 + 7 Profile 引用(REALTIME 高亮) + 3-Layer 配置态绑定 P-22 + Pipeline/指标/健康检查(沿用 M-17 0.5D LOCK) + Backup Output retry 标 G4 触点）。
-- 覆盖：① 顶部 Provenance 条显示本 RT Encoder Session 属于 Channel CH01 (源自模板 CH01-News-Live Rev v3 → Bundle bundle-news-01)，Realtime Profile (P-22) 为当前激活 Profile；② Profile Bundle 7 Profile 引用(P-21~P-27) 与 D1④ / D2 / D3 一致，REALTIME 高亮；③ 3-Layer 配置态(DESIRED=P-22 rev → COMPILED → EFFECTIVE) 绑定 Realtime Profile，修改须经 ChangeSet 升 rev，不污染模板默认；④ Pipeline Source→Normalize→Encode→Output + 实时指标 + H1-H7 健康检查（沿用 M-17）；⑤ Backup Output retry 3x backoff 1s 标为 G4 触点；⑥ 反向追溯链接 D3(CD-01 v2) / D2(模板)。
+### D4 ✅ M-17 Realtime Encode（已建 + 已注册 · 0.5D.3 并入正页 + 修正 P-21/REALTIME_PROFILE）
+- 文件：`operator/M-17-realtime-transcode.html`（运行态反射：Provenance 条 + 7 Profile 引用(P-21 REALTIME_PROFILE 高亮) + 3-Layer 配置态绑定 P-21 + Pipeline/指标/健康检查(沿用 M-17 0.5D LOCK) + Backup Output retry 标 G4 触点）。
+- 覆盖：① 顶部 Provenance 条显示本 RT Encoder Session 属于 Channel CH01 (源自模板 CH01-News-Live Rev T-v3 → Bundle bundle-news-01)，Encoding Profile (P-21) · profile_type=REALTIME_PROFILE 为当前激活 Profile（0.5D.3 修正：原误标 P-22）；② Profile Bundle 7 Profile 引用(P-21~P-27) 与 D1④ / D2 / D3 一致，P-21 高亮；③ 3-Layer 配置态(DESIRED=P-21 ENC-v3 → COMPILED → EFFECTIVE) 绑定 Encoding Profile REALTIME_PROFILE，修改须经 ChangeSet 升 rev，不污染模板默认；④ Pipeline Source→Normalize→Encode→Output + 实时指标 + H1-H7 健康检查（沿用 M-17）；⑤ Backup Output retry 3x backoff 1s 标为 G4 触点；⑥ 反向追溯链接 D3(CD-01) / D2(模板)。
 - 缺口标注（沿用 D1/D2/D3 口径）：G4 Output Resilience 在 M-17 的 Backup Output retry 硬编码，但无独立 OutputResilience 配置对象（决策留 06-output 而非 M-17）→ 落 D6；G9 Take/Create 口径；G10 Rights 地域/音频映射。`state: historical: OPEN@D4 · current: CLOSED · closed_by: D6(G4) + 0.5D.1 6367cd8`
 - 注册：升级既有 M-17 (0.5D LOCK)，**不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**；M-17 行注 v2 原型。§2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D5-D6 联调后随 M-17 一同评估。
 
 ### D5 ✅ E-40 Network Source Wizard + E-42 Test Bench（已建 + 已注册 · 闭合 G2/G5）
-- 文件：`operator/E-40-network-source-v2.html`（创建向导：Adapter/Endpoint/Security 8 字段 + 生命周期 DRAFT→E-42→VERIFIED→D1 ASSIGN + 链接 E-42）；`operator/E-42-source-test-bench.html`（7 层验证台 wireframe：Network/Transport/Container/Video/Audio/Clock/QC + 实时预览 + VERIFIED/FAILED 判定）。
+- 文件：`operator/E-40-network-source.html`（创建向导：Adapter/Endpoint/Security 8 字段 + 生命周期 DRAFT→E-42→VERIFIED→D1 ASSIGN + 链接 E-42）；`operator/E-42-source-test-bench.html`（7 层验证台 wireframe：Network/Transport/Container/Video/Audio/Clock/QC + 实时预览 + VERIFIED/FAILED 判定）。
 - 覆盖（**本链首次真正补模型而非仅反射**）：① 闭合 **G2 (P0)**：源不在频道向导(D1 第②步)内联创建；在 E-40 独立创建后经 E-42 7 层验证为 VERIFIED 才进 VERIFIED 池，供 D1 第②步 ASSIGN 为 PRIMARY/BACKUP；模板(D2)默认源同理须指向 VERIFIED 源；② 闭合 **G5 (P1)**：视频缩略流 + 音频 LUFS/RMS 预览端点定义在 E-42（Source Runtime Preview Stream），D1 第③步/D3 PVW 复用同一端点，不重复定义；③ 验证台单层 FAIL → FAILED，不可存 VERIFIED / 不可用于 ON AIR（呼应 E-40 CRITICAL 不可存 VERIFIED），仅可存 UNVERIFIED/修复/重测；④ 反向追溯链接 D1 / E-40 / E-42 互相印证。
 - 缺口标注（沿用 D1/D2/D3/D4 口径）：G5 的子项「音频 16ch→输出布局映射」并入 G10（D3/D4）；G3 基带 SDI 输出变体 / G4 Output Resilience / G6 端点拓扑 / G8 变更门禁 不在 D5，落 D6。`state: historical: OPEN@D5 · current: CLOSED · closed_by: D6(G4/G6/G8) + 0.5D.1 6367cd8(G3/G7)`
 - 注册：E-40 (0.5F LOCK)、E-42 (Spec-only 表面, 0.5G 实施) 均为既有 surface；本次 E-42 补 wireframe、E-40 补 v2 创建闭环，**不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**。E-40/E-42 行注 D5 原型。§2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
 - 状态：🟡 DRAFT（0.5D 原型），待与 D6 联调后随 E-40/E-42 一同评估。
 
-### D6 ✅ B-13 Take Preflight v2（已建 + 已注册 · 闭合 G4/G6/G8 · 验收链收尾）
-- 文件：`operator/B-13-take-preflight-v2.html`（9 项联合预检面板 + Output Resilience 对象(G4) + Reservation/Quota 对象(G8) + ChangeSet 审批闭环(G6) + CANCEL/TAKE 决策）。
+### D6 ✅ B-13 Take Preflight（已建 + 已注册 · 闭合 G4/G6/G8 · 验收链收尾）
+- 文件：`operator/B-13-take-preflight.html`（9 项联合预检面板 (Config/Runtime 时态分离 + 结果闭集 READY/CONDITIONAL/BLOCKED) + Output Resilience 对象(G4) + Reservation/Quota 对象(G8) + ChangeSet 审批闭环(G6) + CANCEL/TAKE 决策）。
 - 覆盖（**本链收尾, 闭合最后三个缺口**）：① 9 项联合检查 (Spec §1): Source/Video/Audio/Clock/Switch/Backup/Output/Latency/Resource, 全 PASS 才放 TAKE, 对齐 Failure Domain Matrix (Output 坏不误切源); ② **G4 (P0) 闭合**: 建模独立 OutputResilience 子对象 (P-28 Bundle 子对象 / 06-output) — 每 REQUIRED Output 带 retry 3x·指数退避 1s / heartbeat 5s / zombie &gt;30s / Test Send 联动, 决策落 06-output 而非 M-17 (呼应 D3/D4 标注); ③ **G8 (P1) 闭合**: 显式 Reservation/Quota 对象 + HOT 独占扣减/释放时机 + 跨 Channel 仲裁, 与 REALTIME_PROFILE.resource_reservation=REQUIRED 一致; ④ **G6 (P0) 闭合**: 9 PASS → 提交 ChangeSet (E-33) 带 L2 Review/Approve/回滚闭环 (原子提交+审阅), 原 E-33 仅结构缺审批界面; ⑤ 反向追溯链接 D1-D5 (CD-01 TAKE 触发 / E-42 VERIFIED 源 / D1 输出 criticality / D4 编码资源)。
 - 缺口标注（链末收口）: G3 基带 SDI 输出变体仍待 06-output 升级 (B-13 #7 已显示 SDI REQUIRED, 但 06-output 缺该变体) / G7 时钟域联动校验 (E-37) / G9 Take/Create 口径已在 D1 文案统一 / G10 音频映射 (D3/D4) / G11 命名约束 (D1) — 均不在 D6 范围, 延续既有标注。G6 若需独立审阅 surface, 可拆 D7 ChangeSet Review (见 F.4 建议), 本链 D6 已内联闭合。`state: historical: OPEN@D6 · current: G3/G7 CLOSED (0.5D.1 6367cd8), G10 PARTIAL`
 - 注册：B-13 为既有 Spec-only 表面 (0.5G 实施); 本次补其 wireframe, **不新增 surface、不计入 NAVIGATION/SURFACE_SPEC 计数**。B-13 行注 D6 原型。§2.5 计数维持 D2 末值 (BROADCAST 14 / 域合计 53 / TOTAL 54 / 总计 55)。
@@ -422,3 +422,40 @@
 
 ### I.7 剩余 (非冻结阻断, 0.5E/0.5G)
 - E-40 Media Contract 屏 · Network/Media Path 双视图组件 · Duplicate Channel · Host/Device Capacity 视图 · E-40→E-42 数据契约显式化 · M-18 kind 差异化 UI · Context Command Palette · Dependency/Impact Workspace · 退役工作流统一 UX。
+
+---
+
+## J. 0.5D.3 Object/State/Execution Closure (2026-08-25 末 · 用户第 6 轮检修 eb3b021)
+
+> 用户检修结论: 不能冻结 — 出现 **P-22 / Realtime Profile 对象类型错位** (最危险: Phase 1 可能建出 `realtime_profile_id → output_profiles` 错误 FK)。本轮 4 P0 + 4 P1, 不做新页面, 只焊对象/状态/执行链。
+
+### J.1 P0-1 修正 P-21 / REALTIME_PROFILE / P-22 关系 (M-17)
+- 权威链: `P-21 Encoding Profile { FILE_PROFILE / REALTIME_PROFILE } → M-17 REALTIME_PROFILE → MEDIA_SESSION`; `P-22 Output Profile → Output Variant → Destination → Adapter`。
+- M-17 全部 "Realtime Profile (P-22)" → **Encoding Profile (P-21) · profile_type=REALTIME_PROFILE**; DESIRED = P-21 ENC-v3; 7 Profile chip 纠正 (P-21 Encoding active / P-22 Output 不激活 / P-23 Audio / P-24 Graphic / P-25 QC / P-26 Rights / P-27 Edge)。
+- 附: M-17 边界注 "Encode Session ≠ Output" (Encoder → Program Master → Output Variant → Output Session/Adapter)。
+
+### J.2 P0-2 P-21 增 profile_type UI
+- P-21 (product/P-21-encoding-profile.html): 顶部 Profile Type 单选 (FILE_PROFILE / REALTIME_PROFILE, 创建后不可变); 旧 Latency Mode → **Latency Class (NORMAL/LOW/ULTRA_LOW)**; 新增 Realtime Only 专属区 (Startup Budget / Hot Standby / Resource Reservation / Failover Policy / Worker Constraints)。
+
+### J.3 P0-3 Object Vocabulary ER: Adapter ≠ P-22
+- ER 图 `ADAPTER (P-22)` → `ADAPTER (Runtime)`; 附注: Adapter 来自 Runtime / Capability Registry (E-34) / Device Registry (E-35/E-38), 四层边界 P-22 → Variant → Destination → Adapter。
+
+### J.4 P0-4 B-13 #9 Resource 漏判 + 结果闭集
+- 决策规则修复: 任一 hard blocker (含 #9 Resource >100%) → BLOCKED, 不再只写 #1–#8。
+- 焊死闭集 **TakePreflightResult = READY / CONDITIONAL / BLOCKED** (READY=全PASS; CONDITIONAL=仅 WARNING+Reservation 满足+REQUIRED 全 PASS; BLOCKED=任意 hard blocker)。READY/CONDITIONAL → TAKE ENABLED。
+
+### J.5 P1-5 Reservation 引用 V0.2 9-dim ResourceVector
+- RESOURCE_RESERVATION_SPEC: `resource_vector` 改为 **= V0.2 §3.11 (9-dim: cpu_threads/gpu_sessions/vram_mb/ram_mb/ingress/egress/disk_write/pcie_rx/pcie_tx)** + `device_tokens` + `constraints`, 禁止另建简化模型; CH-02 卡同步。
+
+### J.6 P1-6 抢占改 DRAIN/RELEASE
+- 被抢占方不再直接 FAILED: **PREEMPT_PENDING → DRAINING → RELEASED**; 仅无法安全释放才 `RESOURCE_CONFLICT → Safety Decision (Degrade/Stop/Reject)`, 对齐 V0.2 §8.9 RESOURCE → Degrade background jobs。
+
+### J.7 P1-7 清除 *-v2.html 并存
+- v2 提升为正页, 删除 v1: `CD-01-channel-workspace.html` / `M-17-realtime-transcode.html` / `E-40-network-source.html` / `B-13-take-preflight.html`; 全仓 `-v2.html` 引用清零 (NAV/RECON/D7/页内链接/链描述)。原则: Git commit 表版本, 文件名表产品语义。
+
+### J.8 P1-8 Apply → Provision 链显式化
+- CH-02 提交后执行链: **ChangeSet Apply → PROVISION (Runtime Provision) → STARTING → RESERVED → READY_TO_TAKE → (TAKE) → RUNNING** (Apply ≠ Start)。Reservation Spec 数据流同步加 Apply/Provision。
+
+### J.9 附带回写
+- OBJECT_VOCABULARY §1.13 Revision 前缀约定 (T-v3 / B-v2 / ENC-v7 / OUT-v4 / RS-); POM §1.2 Bundle 权限 (Operator 只能选兼容 Revision + ChangeSet, Engineer 才能编辑 Profile Definition)。
+- 剩余 (0.5E/0.5G): 同 §I.7 + E-40 Media Contract / Network-Media Path 双视图 / Duplicate Channel / Host/Device Capacity / Dependency/Impact Workspace。

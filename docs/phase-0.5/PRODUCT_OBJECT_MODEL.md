@@ -72,6 +72,11 @@ profile_bundles:
 
 **UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 7 个 Profile 引用, 不重新配置 7 套参数。
 
+**权限 (0.5D.3):**
+- **Operator**: 只能选择已有兼容 Revision 引用 / 创建 ChangeSet / Preflight / Apply — **不能编辑 Profile Definition**。
+- **Engineer**: 才能编辑 Profile Definition (P-21/P-22 等 Builder)。
+- Bundle = 组合层, **不应成为第二个 Profile Builder**。
+
 **优势:**
 - Operator 改一个 Channel = 改一个 Bundle (7 个引用一次到位)
 - Engineer 改一个 Profile (例如 HEVC → H.265) = 影响所有引用该 Profile 的 Bundle, 但有 Impact Preview 看到所有受影响 Channel

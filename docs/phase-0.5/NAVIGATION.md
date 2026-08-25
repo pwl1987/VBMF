@@ -78,10 +78,10 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
 | **CH-02** | Create Channel Wizard 频道创建向导 | 🟡 DRAFT (0.5D 原型 D1) | Operator / Director |
 | **CH-02B** | Channel Template Center 频道模板工厂 | 🟡 DRAFT (0.5D 原型 D2) | Operator / Director |
-| **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · v2 升级见验收链 D3 原型 `operator/CD-01-channel-workspace-v2.html` |
+| **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · D3 升级已并入正页 `operator/CD-01-channel-workspace.html` |
 | **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
-| **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Operator · v2 wireframe 已补见验收链 D6 原型 `operator/B-13-take-preflight-v2.html` |
-| ~~**M-17**~~ | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · v2 见 D4 原型 `operator/M-17-realtime-transcode-v2.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
+| **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Operator · D6 wireframe 已并入正页 `operator/B-13-take-preflight.html` |
+| ~~**M-17**~~ | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · D4 升级已并入正页 `operator/M-17-realtime-transcode.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
 
 > **注**: 08-graph-designer / 09-health-tree 已划归 ENGINEERING 域 (PIA V0.1 §12); 10-states Validation 是全局 Validation 不属于 BROADCAST。
 
@@ -120,7 +120,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **E-36** | Resource / Capacity 资源/容量 | 🟡 Spec (0.5B.0) | Engineer / SRE |
 | **E-37** | Clock 时钟 | 🟢 LOCK (0.5D 升级: 4 级 Fallback Chain) | Engineer · ✅ 0.5D 后续升级: G7 时钟域联动校验已落 `operator/E-37-clock.html` |
 | **E-38** | Hardware Inventory 硬件清单 | 🟢 LOCK (0.5D) | Engineer |
-| **E-40** | Network Source 网络源 (UDP Unicast/Multicast + 9 External 子类 + Security 8 字段) | 🟢 LOCK (0.5F) | Engineer · v2 创建向导见验收链 D5 原型 `operator/E-40-network-source-v2.html` |
+| **E-40** | Network Source 网络源 (UDP Unicast/Multicast + 9 External 子类 + Security 8 字段) | 🟢 LOCK (0.5F) | Engineer · D5 创建向导已并入正页 `operator/E-40-network-source.html` |
 | **E-41** | Network Path Inspector 网络路径检查器 (5 Hop Kind + 8 Failure Mode) | 🟡 Spec 锁 (0.5F); wireframe 0.5G 实施 | Engineer / SRE |
 | **E-42** | Source Test Bench 源入网验证台 (7 层: Network/Transport/Container/Video/Audio/Clock/QC) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Engineer / Operator · v2 wireframe 已补见验收链 D5 原型 `operator/E-42-source-test-bench.html` |
 | **O-41** | Health Tree 实时健康树 (Operator 视图) | 🟡 Spec (0.5B.0) | SRE |

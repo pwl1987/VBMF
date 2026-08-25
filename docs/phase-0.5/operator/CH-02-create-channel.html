@@ -537,6 +537,8 @@
       <div class="card" style="border-color:var(--green);margin-top:8px"><div class="title">Reservation 对象 (RESOURCE_RESERVATION_SPEC.md · 0.5D.1)</div>
         <div class="k" style="margin-top:4px">state</div><div class="v green">PROVISIONED (ChangeSet Apply 后 → RESERVED)</div>
         <div class="k" style="margin-top:4px">scope</div><div class="v">HOT (独占 · 主+备同时占用)</div>
+        <div class="k" style="margin-top:4px">resource_vector (V0.2 §3.11 9-dim)</div><div class="v">cpu 2.5t · ram 4G · egress 8M · pcie 0.4G/s …</div>
+        <div class="k" style="margin-top:4px">device_tokens</div><div class="v">bmd-in-1 · enc-slot-1 · nic-port (独占)</div>
         <div class="k" style="margin-top:4px">owner / expires</div><div class="v">CH02 / session stop → RELEASED → 触发仲裁</div>
         <div class="diag" style="color:var(--green);margin-top:6px">✅ Reservation/Quota 对象已建模 (RESOURCE_RESERVATION_SPEC.md): 本步生成 PROVISIONED 预算; Apply 后由 H2 Scheduler Acquire → RESERVED; HOT 备机同步 RESERVED; 跨 Channel 仲裁按 priority + acquired_at. 设计缺口已关闭 (0.5D.1).</div>
       </div>
@@ -574,7 +576,7 @@ impact  : 2 surface (CH02, +1 Output Variant)
 atomic  : true</div>
       </div>
       <div class="gap ok">✅ G6 已闭合 (D7): ChangeSet Review 独立审批 surface 已建 (operator/D7-changeset-review.html) — Diff / Risk / Approve(L1-L3)/Reject/Rollback / Audit 链.</div>
-      <div class="note">提交后 Channel lifecycle: <b>STOPPED → STARTING → READY_TO_TAKE → (TAKE) → RUNNING</b>. 本向导止于 STARTING; TAKE 在 CD-01 执行.</div>
+      <div class="note">提交后执行链 (0.5D.3 焊死 · <b>Apply ≠ Start</b>): <b>ChangeSet Apply → PROVISION (Runtime Provision) → STARTING → RESERVED → READY_TO_TAKE → (TAKE) → RUNNING</b>. 本向导止于生成 ChangeSet; Apply / Provision / Start 由审批 (D7) + H2 Scheduler (Reservation Spec) 推进; TAKE 在 CD-01 执行.</div>
     </div>
   </div>
   <div class="wizard-nav">
@@ -590,7 +592,7 @@ atomic  : true</div>
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
-  🧭 这是 0.5D 验收链第 1 张 (D1, 已迭代: 频道类型 TV/Radio/Virtual / 字号切换 / 源可选跳转 / 双视频预览 / 输出基带+韧性 / Virtual 移除信号源选项卡 / 网络输出可无限添加). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 v2 → D4 M-17 v2 → D5 E-40/E-42 → D6 B-13 v2</b>.
+  🧭 这是 0.5D 验收链第 1 张 (D1, 已迭代: 频道类型 TV/Radio/Virtual / 字号切换 / 源可选跳转 / 双视频预览 / 输出基带+韧性 / Virtual 移除信号源选项卡 / 网络输出可无限添加). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>.
   内联缺口块已按 0.5D.1 状态更新: G2/G3/G4/G5/G6 均标 ✅ 已闭合 (绿块), 仅"节目单/Scheduler 运行态对象"保留 ⚠ (待 0.5E, 非冻结阻断). 详见对账报告 §F/§H/§I. 本向导不产生运行态对象, 仅生成 ChangeSet 经审批后落到 Channel/Source/Profile Bundle.
 </div>
 

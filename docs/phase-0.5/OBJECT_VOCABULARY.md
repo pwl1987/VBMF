@@ -195,6 +195,7 @@
 | **UI 入口** | P-21 Section 10 / P-22 Section / CD-01 / Change Set Detail |
 | **核心字段** | `revision_id, target_kind, target_id, snapshot_json, parent_revision_id, change_set_id, created_by, created_at` |
 | **不可变** | ⛔ 一旦创建, 不可修改, 只能通过新 Revision 覆盖 |
+| **前缀约定 (0.5D.3)** | 人眼可区分对象类型, 禁止统一存 `version=3`: `T-v3`(Template) / `B-v2`(Bundle) / `ENC-v7`(Encoding) / `OUT-v4`(Output) / `RS-20260825-001`(Runtime Snapshot) |
 | **绝不允许混用** | ❌ 不是 "Version" (那是 Asset 域) / "Snapshot" (那是运行时) |
 
 ### 1.14 Change Set 变更集 (事务性)
@@ -261,7 +262,7 @@
               │              │               ↓
               └──────┬───────┘         ┌──────────┐
                      ↓                 │ ADAPTER  │
-                ┌─────────┐            │ (P-22)   │
+                ┌─────────┐            │ (Runtime)│
                 │ SESSION │←───────────└──────────┘
                 │ (实时)  │
                 └────┬────┘
@@ -300,6 +301,8 @@
    │  - Logical Atomic Apply  │
    └──────────────────────────┘
 ```
+
+> ⛔ **Adapter ≠ P-22 (0.5D.3 修正):** ER 中 `ADAPTER (Runtime)` — Output Adapter 来自 **Runtime / Capability Registry (E-34) / Device Registry (E-35/E-38)**，不是 Output Profile (P-22)。四层边界: **Output Profile (P-22) → Output Variant → Destination → Output Adapter** (V0.2 §3.10 Adapter 3-Tier AVAILABLE/RESERVED/UNAVAILABLE)。
 
 ---
 

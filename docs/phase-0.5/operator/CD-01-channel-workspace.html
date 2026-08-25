@@ -2,387 +2,349 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>CD-01 · CH01 Channel Control Workspace 频道控制工作台 — VBMF Operator Console</title>
+<title>CD-01 · Channel Control Workspace (Template/Bundle 反射) — VBMF Operator Console</title>
 <style>
   :root{
     --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
     --border:#30363d; --border2:#444c56;
     --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
     --accent:#58a6ff; --accent2:#79b8ff;
-    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28; --purple:#a371f7;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:10px}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:14px;line-height:1.55;padding:10px}
   .header{background:linear-gradient(135deg,#0d1117 0%,#162032 100%);border-bottom:2px solid var(--green);padding:12px 16px;margin:-10px -10px 8px -10px;display:flex;align-items:center;gap:16px}
-  .header h1{font-size:18px;font-weight:600}
-  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
-  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .header h1{font-size:20px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:14px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:12px;margin-bottom:4px}
   .breadcrumb a{color:var(--accent);text-decoration:none}
-  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
   .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
   .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
   .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
   .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
   .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
   .pill-orange{background:rgba(219,109,40,.15);color:var(--orange);border:1px solid var(--orange)}
-  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:8px}
-  .panel h3{font-size:12px;font-weight:600;margin-bottom:6px;color:var(--fg);display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.5px}
-  .panel h3 .pill{float:right;margin-left:auto;font-size:9px}
+  .pill-purple{background:rgba(163,113,247,.18);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:8px}
+  .panel h3{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--fg);display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.5px}
+  .panel h3 .pill{float:right;margin-left:auto;font-size:10px}
   .row{display:grid;grid-template-columns:repeat(12,1fr);gap:8px}
-  .col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
-  .k{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
-  .v{color:var(--fg);font-size:11px;font-family:Menlo,Consolas,monospace}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
   .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}
-  .monitor{background:#000;border:1px solid var(--border);border-radius:3px;height:110px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;margin-bottom:6px}
-  .monitor .label{position:absolute;top:4px;left:4px;font-size:9px;color:var(--fgdim);text-transform:uppercase;letter-spacing:1px;z-index:2;background:rgba(0,0,0,.7);padding:1px 4px;border-radius:2px}
-  .monitor .state{position:absolute;top:4px;right:4px;font-size:9px;z-index:2;background:rgba(0,0,0,.7);padding:1px 4px;border-radius:2px}
-  .monitor .icon{font-size:32px;opacity:.3;color:var(--fg)}
-  .monitor .scan{position:absolute;top:0;left:0;right:0;height:2px;background:var(--green);box-shadow:0 0 4px var(--green);animation:scan 3s linear infinite}
-  @keyframes scan{0%{top:0}100%{top:100%}}
-  .meter{height:8px;background:var(--bg3);border:1px solid var(--border);border-radius:2px;position:relative;overflow:hidden;margin:2px 0}
-  .meter .fill{height:100%;background:linear-gradient(90deg,var(--green) 0%,var(--green) 60%,var(--yellow) 80%,var(--red) 100%)}
-  .meter .peak{position:absolute;top:0;right:0;height:100%;width:2px;background:var(--red)}
-  .source-row{display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--bg3);border-radius:3px;margin:2px 0;font-size:11px}
-  .source-row .role{font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:1px;min-width:60px}
-  .source-row .role.active{color:var(--accent)}
-  .source-row .role.standby{color:var(--accent);opacity:.7}
-  .source-row .role.offline{color:var(--gray);text-decoration:line-through}
-  .source-row .name{flex:1;font-family:Menlo,Consolas,monospace}
-  .source-row .signal{font-size:9px;color:var(--green)}
-  .source-row .signal.warn{color:var(--yellow)}
-  .output-row{display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--bg3);border-radius:3px;margin:2px 0;font-size:11px}
-  .output-row .proto{font-weight:600;font-size:10px;min-width:50px;color:var(--accent)}
-  .output-row .dest{flex:1;font-family:Menlo,Consolas,monospace;font-size:10px}
-  .output-row .bitrate{font-size:10px;color:var(--fgdim)}
-  .take-btn{background:linear-gradient(135deg,var(--red) 0%,#c91b13 100%);color:#fff;border:none;padding:12px 24px;font-size:18px;font-weight:700;border-radius:4px;cursor:pointer;letter-spacing:8px;text-transform:uppercase;box-shadow:0 4px 12px rgba(248,81,73,.3);width:100%;margin-top:8px}
-  .take-btn:hover{background:linear-gradient(135deg,#ff5e57 0%,var(--red) 100%)}
-  .take-btn.l2{border-color:var(--yellow);background:linear-gradient(135deg,var(--yellow) 0%,#9a7400 100%);box-shadow:0 4px 12px rgba(210,153,34,.3)}
-  .btn{display:inline-block;padding:3px 8px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:10px;cursor:pointer;text-decoration:none}
-  .btn:hover{background:var(--bg4)}
-  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
-  .details{font-size:10px;color:var(--fgdim);font-family:Menlo,Consolas,monospace;line-height:1.6}
-  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:middle}
-  .dot.green{background:var(--green);box-shadow:0 0 4px var(--green)}
-  .dot.yellow{background:var(--yellow)}
-  .dot.red{background:var(--red);animation:pulse 1.5s infinite}
-  .dot.gray{background:var(--gray)}
-  .dot.blue{background:var(--accent);animation:pulse 1.5s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:6px 10px;margin-top:6px;font-size:10px;color:var(--fgdim);line-height:1.5}
-  .diag b{color:var(--accent)}
-  footer{text-align:center;color:var(--fgdim);font-size:10px;margin-top:8px;padding:6px;border-top:1px solid var(--border)}
+  .btn{display:inline-block;padding:4px 9px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{border-color:var(--accent)}
+  .btn-primary{background:linear-gradient(135deg,var(--green) 0%,#2ea043 100%);color:#fff;border:none;padding:9px 20px;font-size:14px;font-weight:600;border-radius:4px;cursor:pointer}
+  .diag{font-size:11px;color:var(--fgdim);margin-top:4px}
+  .note{font-size:11px;color:var(--fgdim);background:var(--bg3);border-left:2px solid var(--accent);padding:6px 9px;border-radius:2px;margin:4px 0}
+  .gap{background:rgba(219,109,40,.12);border-left:2px solid var(--orange);color:var(--orange);padding:6px 9px;border-radius:2px;font-size:11px;margin:5px 0}
+  /* Provenance */
+  .provenance{background:linear-gradient(135deg,#1a1320 0%,#161b22 100%);border:1px solid var(--purple)}
+  .provenance h3{color:var(--purple)}
+  /* Profile Bundle */
+  .pbundle{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+  .pchip{font-size:11px;padding:5px 10px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);color:var(--fgdim);font-family:Menlo,Consolas,monospace}
+  .pchip.on{background:rgba(88,166,255,.18);border-color:var(--accent);color:var(--accent);font-weight:600}
+  /* Monitor / preview */
+  .monitor{height:120px;background:#000;border:1px solid var(--border);border-radius:3px;position:relative;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px;overflow:hidden}
+  .monitor .live{position:absolute;top:5px;left:7px;color:var(--red);font-size:10px;font-weight:700}
+  .monitor .res{position:absolute;bottom:5px;right:7px;color:var(--green);font-size:10px}
+  .preview{display:flex;align-items:stretch;gap:2px;margin-top:4px}
+  .preview .vside{width:13px;display:flex;flex-direction:column;align-items:center}
+  .preview .vside .k{font-size:9px;color:var(--fgdim);margin-bottom:2px}
+  .preview .vside .vbar{flex:1;width:7px;background:var(--bg4);border:1px solid var(--border);border-radius:2px;position:relative;overflow:hidden}
+  .preview .vside .vbar .lvl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--green) 0%,var(--green) 68%,var(--yellow) 86%,var(--red) 100%)}
+  .preview .monitor{flex:1;height:auto;aspect-ratio:16/9;align-self:start;margin-top:0}
+  .audio-preview{display:flex;align-items:stretch;gap:2px;margin-top:4px}
+  .audio-preview .a-mon{flex:1;height:96px;background:#000;border:1px solid var(--border);border-radius:3px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px;text-align:center}
+  .audio-preview .a-mon .res{position:absolute;bottom:5px;right:7px;color:var(--green);font-size:10px}
+  .audio-preview .vside{width:13px;display:flex;flex-direction:column;align-items:center}
+  .audio-preview .vside .k{font-size:9px;color:var(--fgdim);margin-bottom:2px}
+  .audio-preview .vside .vbar{flex:1;width:7px;background:var(--bg4);border:1px solid var(--border);border-radius:2px;position:relative;overflow:hidden}
+  .audio-preview .vside .vbar .lvl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--green) 0%,var(--green) 68%,var(--yellow) 86%,var(--red) 100%)}
+  /* Source redundancy cards */
+  .src-card{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--gray);border-radius:3px;padding:8px;margin:3px 0}
+  .src-card.role-active{border-left-color:var(--green)}
+  .src-card.role-standby{border-left-color:var(--yellow)}
+  .src-card.role-off{border-left-color:var(--gray);opacity:.7}
+  .src-card .h{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px;margin-bottom:4px}
+  .src-card .role{font-size:9px;text-transform:uppercase;letter-spacing:1px;padding:1px 6px;border-radius:8px}
+  .src-card .role.r-active{background:rgba(63,185,80,.15);color:var(--green)}
+  .src-card .role.r-standby{background:rgba(210,153,34,.15);color:var(--yellow)}
+  .src-card .role.r-off{background:rgba(110,118,129,.15);color:var(--gray)}
+  .sr{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px}
+  .sr .name{flex:1;font-family:Menlo,Consolas,monospace}
+  .sr .sig{font-size:10px;color:var(--green)}
+  .sr .sig.off{color:var(--gray)}
+  /* Output rows */
+  .output-row{display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--bg3);border-radius:3px;margin:2px 0;font-size:12px}
+  .output-row .proto{font-weight:600;font-size:11px;min-width:54px;color:var(--accent)}
+  .output-row .dest{flex:1;font-family:Menlo,Consolas,monospace;font-size:11px}
+  .output-row .crit{font-size:10px;padding:1px 6px;border-radius:8px}
+  .crit.required{background:rgba(248,81,73,.15);color:var(--red)}
+  .crit.optional{background:rgba(210,153,34,.15);color:var(--yellow)}
+  .crit.aux{background:rgba(110,118,129,.15);color:var(--gray)}
+  .addout{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0;padding:6px 8px;background:var(--bg3);border:1px dashed var(--border2);border-radius:3px}
+  .addout label{font-size:11px;color:var(--accent);font-weight:600;white-space:nowrap}
+  .addout input{width:auto;min-width:200px;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:5px 7px;border-radius:3px;font-size:12px;font-family:Menlo,Consolas,monospace}
+  .addout select{background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:5px 7px;border-radius:3px;font-size:12px}
+  .net-outputs:empty{display:none}
+  /* Audio master + 16ch */
+  .mbars{display:grid;grid-template-columns:repeat(16,1fr);gap:2px;height:48px;background:var(--bg4);border:1px solid var(--border);border-radius:2px;padding:3px;margin-top:4px}
+  .mbars .b{background:var(--bg);border-radius:1px;position:relative;overflow:hidden}
+  .mbars .b .lvl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--green) 0%,var(--green) 70%,var(--yellow) 88%,var(--red) 100%)}
+  /* Switch / Take */
+  .takeover{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .failover{font-size:11px;padding:6px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;margin-top:4px}
+  .failover .on{color:var(--green);font-weight:600}
+  /* Health */
+  .health{display:flex;flex-direction:column;gap:3px;margin-top:4px}
+  .health .hr{display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 6px;background:var(--bg3);border-radius:3px}
+  .health .hr .dot{width:8px;height:8px;border-radius:50%}
+  .health .hr .dot.g{background:var(--green)}.health .hr .dot.y{background:var(--yellow)}.health .hr .dot.r{background:var(--red)}
+  .health .hr .dot.gr{background:var(--gray)}
+  /* Typography */
+  .typo{display:inline-flex;gap:3px;border:1px solid var(--border);border-radius:6px;padding:2px;background:var(--bg3)}
+  .typo button{background:transparent;color:var(--fgdim);border:none;border-radius:4px;padding:3px 12px;font-size:11px;cursor:pointer}
+  .typo button.on{background:var(--green);color:#fff}
 </style>
 </head>
-<body>
+<body data-ctype="tv">
 
-<!-- Header: CH01 状态总览 -->
 <div class="header">
   <div>
-    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="CH-01-channel-list.html">CH-01 Channel List</a> › <b>CD-01 CH01 News 综合</b></div>
-    <h1><span class="cn">📺 CH01 · 新闻综合</span> <span class="en">CD-01 CHANNEL CONTROL WORKSPACE (Take Desk · 0.5F PIA §7)</span></h1>
+    <div class="breadcrumb"><a href="CH-01-channel-list.html">Broadcast</a> / Channel / <a href="CH-01-channel-list.html">CH01</a> / <span style="color:var(--fg)">Control Workspace</span></div>
+    <h1>CD-01 <span class="en">Channel Control Workspace · 频道控制工作台 (Template/Bundle 反射)</span></h1>
   </div>
-  <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-    <span class="pill pill-green"><span class="dot green"></span>ON AIR</span>
-    <span class="pill pill-green"><span class="dot green"></span>FRAME_SWITCH</span>
-    <span class="pill pill-green"><span class="dot green"></span>HEALTHY</span>
-    <span class="pill pill-blue"><span class="dot blue"></span>READY_TO_TAKE</span>
-    <a href="CD-01-channel-detail.html" class="btn">CD-01 Detail (8 Tab) →</a>
-  </div>
-</div>
-
-<!-- 1. PVW / PGM / NEXT -->
-<div class="row">
-  <div class="col-4">
-    <div class="panel">
-      <h3>◌ PVW (Preview)<span class="pill pill-blue" style="float:right">SDI-02 · STANDBY</span></h3>
-      <div class="monitor">
-        <div class="label">PREVIEW</div>
-        <div class="state"><span class="dot yellow"></span>STANDBY</div>
-        <div class="icon">▦</div>
-        <div class="scan"></div>
-      </div>
-      <div class="details">
-        <div>SDI-02 · 1080p25 · LOCKED</div>
-        <div>VIDEO ✓ AUDIO ✓ PTS ✓</div>
-        <div>2.4 Gbps · Loss 0.000%</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-4">
-    <div class="panel" style="border-color:var(--green)">
-      <h3>● PGM (Program On Air)<span class="pill pill-green" style="float:right">SDI-01 · ACTIVE</span></h3>
-      <div class="monitor" style="border-color:var(--green)">
-        <div class="label">PROGRAM</div>
-        <div class="state"><span class="dot green"></span>ON AIR</div>
-        <div class="icon" style="color:var(--green)">●</div>
-        <div class="scan"></div>
-      </div>
-      <div class="details">
-        <div>SDI-01 · 1080p25 · LOCKED</div>
-        <div>VIDEO ✓ AUDIO ✓ PTS ✓</div>
-        <div>2.4 Gbps · Loss 0.000%</div>
-        <div style="color:var(--green)">● ON AIR · 17h 23m 14s</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-4">
-    <div class="panel">
-      <h3>⏭ NEXT (Next Program)<span class="pill pill-blue" style="float:right">News 20:00 · +5m 23s</span></h3>
-      <div class="monitor">
-        <div class="label">NEXT</div>
-        <div class="state"><span class="dot blue"></span>QUEUED</div>
-        <div class="icon">▷</div>
-      </div>
-      <div class="details">
-        <div>Playlist Item #PR-1428</div>
-        <div>Asset: a-news-2026-08-25-evening.mp4</div>
-        <div>Duration: 00:30:00</div>
-        <div style="color:var(--accent)">▶ Starts in 5m 23s</div>
-      </div>
+  <div style="margin-left:auto;text-align:right">
+    <span class="pill pill-green">0.5D 原型 · D3</span><br>
+    <span class="pill pill-blue" style="margin-top:4px">0.5D 验收链 · D3</span><br>
+    <div class="typo" id="typo" style="margin-top:5px">
+      <button data-m="compact">精致</button><button data-m="standard" class="on">标准</button>
     </div>
   </div>
 </div>
 
-<!-- 2. SOURCE / AUDIO / OUTPUT -->
-<div class="row">
-  <!-- SOURCE (3 Source redundancy) -->
-  <div class="col-4">
-    <div class="panel">
-      <h3>📡 SOURCE (rg-sdi-rt01)<span class="pill pill-green" style="float:right">2/3 HEALTHY</span></h3>
-      <div class="source-row">
-        <div class="role active">● ACTIVE</div>
-        <div class="name">SDI-01 (Duo2 / IN-1)</div>
-        <div class="signal">1080i25 LOCKED</div>
-      </div>
-      <div class="source-row">
-        <div class="role standby">○ STANDBY</div>
-        <div class="name">SDI-02 (Duo2 / IN-2)</div>
-        <div class="signal">1080i25 LOCKED</div>
-      </div>
-      <div class="source-row">
-        <div class="role offline">○ OFFLINE</div>
-        <div class="name">SDI-03 (SDI / IN-1)</div>
-        <div class="signal" style="color:var(--gray)">— (COLD)</div>
-      </div>
-      <div style="margin-top:4px;display:flex;gap:3px">
-        <a href="02-sources.html" class="btn">02 Sources →</a>
-      </div>
-    </div>
-  </div>
-  <!-- AUDIO -->
-  <div class="col-4">
-    <div class="panel">
-      <h3>🔊 AUDIO (L/R Master)<span class="pill pill-green" style="float:right">-23.0 LUFS · SAFETY</span></h3>
-      <div style="display:grid;grid-template-columns:30px 1fr 50px;gap:4px;align-items:center;font-size:10px;margin:4px 0">
-        <div style="color:var(--fgdim)">L</div>
-        <div class="meter"><div class="fill" style="width:68%"></div><div class="peak"></div></div>
-        <div class="v">-6.2 dB</div>
-        <div style="color:var(--fgdim)">R</div>
-        <div class="meter"><div class="fill" style="width:65%"></div><div class="peak"></div></div>
-        <div class="v">-6.5 dB</div>
-      </div>
-      <div class="details">
-        <div><b>LUFS-I:</b> <span class="v green">-23.0</span> (target -23 ± 1)</div>
-        <div><b>True Peak:</b> <span class="v green">-1.5 dBTP</span> (limit -1.0)</div>
-        <div><b>AV Offset:</b> <span class="v green">+12 ms</span> (target &lt; 40)</div>
-        <div><b>Drift:</b> <span class="v green">+0.4 ms/min</span></div>
-        <div><b>Master Join:</b> <span class="v green">✓ LOCKED</span></div>
-      </div>
-      <div style="margin-top:5px;font-size:10px;color:var(--fgdim)">Quick Adjust (现场微调, 非策略配置)</div>
-      <div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap">
-        <button class="btn">AV Offset +10ms</button>
-        <button class="btn">AV Offset -10ms</button>
-        <button class="btn">Gain +1dB</button>
-        <a href="05-audio.html" class="btn">Deep Config → Audio Profile</a>
-      </div>
-    </div>
-  </div>
-  <!-- OUTPUT -->
-  <div class="col-4">
-    <div class="panel">
-      <h3>📤 OUTPUT (4 Variants)<span class="pill pill-green" style="float:right">4/4 ACTIVE</span></h3>
-      <div class="output-row">
-        <div class="proto">HLS</div>
-        <div class="dest">CDN-A primary + CDN-B backup</div>
-        <div class="bitrate">4.9Mbps · 1,247</div>
-      </div>
-      <div class="output-row">
-        <div class="proto">RTMP</div>
-        <div class="dest">YouTube + Facebook (push)</div>
-        <div class="bitrate">4.9Mbps · 312</div>
-      </div>
-      <div class="output-row">
-        <div class="proto">UDP</div>
-        <div class="dest">239.30.1.10:5000 (Multicast SSM)</div>
-        <div class="bitrate">4.9Mbps · 89</div>
-      </div>
-      <div class="output-row">
-        <div class="proto">WebRTC</div>
-        <div class="dest">WHIP / WHIP-SRS</div>
-        <div class="bitrate">4.9Mbps · 178</div>
-      </div>
-      <div style="margin-top:4px;display:flex;gap:3px">
-        <a href="06-output.html" class="btn">06 Output →</a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 3. SWITCH DECISION + TAKE -->
-<div class="panel" style="border-color:var(--red)">
-  <h3 style="color:var(--red)">⚡ SWITCH DECISION<span class="pill pill-green" style="float:right">COMPILED==EFFECTIVE</span></h3>
+<!-- PROVENANCE STRIP -->
+<div class="panel provenance">
+  <h3>⛓ 实例来源 Provenance (Template → Bundle → Channel) <span class="pill pill-purple">immutable snapshot</span></h3>
   <div class="row">
-    <div class="col-8">
-      <div class="details" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        <div>
-          <div class="k">Capability</div>
-          <div class="v green">✓ PASS</div>
-        </div>
-        <div>
-          <div class="k">Runtime Alignment</div>
-          <div class="v green">✓ PASS</div>
-        </div>
-        <div>
-          <div class="k">Clock (PTP)</div>
-          <div class="v green">✓ LOCKED</div>
-        </div>
-        <div>
-          <div class="k">Readiness</div>
-          <div class="v green">✓ READY_TO_TAKE</div>
-        </div>
-        <div>
-          <div class="k">Compiled Mode</div>
-          <div class="v blue">FRAME_SWITCH</div>
-        </div>
-        <div>
-          <div class="k">Effective Mode</div>
-          <div class="v blue">FRAME_SWITCH</div>
-        </div>
-        <div>
-          <div class="k">Last Take</div>
-          <div class="v">87 ms (target 100)</div>
-        </div>
-        <div>
-          <div class="k">Last Take At</div>
-          <div class="v">14:23:08 (1h 17m ago)</div>
-        </div>
-        <div>
-          <div class="k">Filler</div>
-          <div class="v green">snow + tone (ENABLED)</div>
-        </div>
-        <div>
-          <div class="k">Switch Attempts 24h</div>
-          <div class="v">2 (0 abnormal)</div>
-        </div>
-        <div>
-          <div class="k">Switch Decision Tree</div>
-          <div class="v green">→ FRAME (Capability + Runtime OK)</div>
-        </div>
-        <div>
-          <div class="k">target_failover_time_ms</div>
-          <div class="v">100 (HOT)</div>
-        </div>
-      </div>
+    <div class="col-4">
+      <div class="k">Template (创建工厂, 不进运行态)</div>
+      <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">CH01-News-Live</a> <span class="pill pill-purple">Rev v3</span></div>
+      <div class="k" style="margin-top:4px">Instantiated at</div>
+      <div class="v" style="font-size:11px">2026-08-25 08:30 (实例化时刻)</div>
+      <div class="diag">Channel Template = 创建工厂 (OBJECT_VOCAB §1.15). 本 Channel 在 STARTING 时由其实例化; 模板本身不参与运行态.</div>
     </div>
     <div class="col-4">
-      <button class="take-btn">T&nbsp;&nbsp;A&nbsp;&nbsp;K&nbsp;&nbsp;E</button>
-      <div style="margin-top:4px;display:flex;gap:3px">
-        <button class="btn l2" style="flex:1">⏸ Hold (L2)</button>
-        <button class="btn" style="flex:1">🔄 Re-probe</button>
-        <a href="03-switcher.html" class="btn" style="flex:1">03 →</a>
-      </div>
-      <div class="diag">
-        <b>TAKE:</b> 切 PVW (SDI-02) → PGM, 旧 PGM (SDI-01) 变 PVW.
-        Last 87ms &lt; target 100ms (HOT standby).
-        按 L1, 1 button, 不变体. Mix/Cut/VO 留到 CD-01 Tab 2 Switch.
-      </div>
+      <div class="k">Bundle Snapshot (7 Profile 引用)</div>
+      <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
+      <div class="k" style="margin-top:4px">Template Sync</div>
+      <div class="v" style="font-size:11px;color:var(--yellow)">OFF · immutable snapshot</div>
+      <div class="diag">实例化时快照 Template 默认 7 Profile 引用; Template Rev 升级 <b>不会自动同步</b>到本 Channel (快照不可变).</div>
+    </div>
+    <div class="col-4">
+      <div class="k">Channel Lifecycle</div>
+      <div class="v green" style="margin:4px 0;font-size:14px">● RUNNING</div>
+      <div class="diag">STARTING → READY_TO_TAKE → (TAKE) → RUNNING. 模板仅参与 STARTING 之前; 之后运行态独立于模板 (D3 Provenance 完整化).</div>
     </div>
   </div>
+  <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 在 <a href="CH-02b-channel-template-center.html">D2 Channel Template Center</a> 的模板卡 "Used By" 列表可看到本 Channel (验证 D2 的反向追溯声明).</div>
 </div>
 
-<!-- 4. HEALTH (7 Invariants + 9 Subsystem mini) -->
+<!-- PROFILE BUNDLE -->
 <div class="panel">
-  <h3>🏥 HEALTH (7 Invariants H1-H7)<span class="pill pill-green" style="float:right">7/7 PASS</span></h3>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px">
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H1 Source</div>
+  <h3>📦 Profile Bundle · 7 Profile 引用 (P-28) <span class="pill pill-blue">实例化快照 · 源自 Template Rev T-v3</span></h3>
+  <div class="pbundle">
+    <span class="pchip on">Encoding Profile (P-21) ● active · REALTIME_PROFILE</span>
+    <span class="pchip">Output Profile (P-22)</span>
+    <span class="pchip">Audio Profile (P-23)</span>
+    <span class="pchip">Graphic Profile (P-24)</span>
+    <span class="pchip">QC Profile (P-25)</span>
+    <span class="pchip">Rights Profile (P-26)</span>
+    <span class="pchip">Edge Policy Profile (P-27)</span>
+  </div>
+  <div class="diag">7 种 Profile 是可复用策略引用, 非 UI 组合视图 (POM §4.2 / ENCODE_MODEL_SPEC). 本 Channel 编码走 <b>Encoding Profile (P-21) · REALTIME_PROFILE</b> (0.5D.3 修正: 原误标 P-22), Output Profile (P-22) 由 Output Variant 消费 (06-output / CD-01 Output 区). 深度配置见 M-17 (D4) / P-21 / P-22.</div>
+</div>
+
+<!-- TOP ROW: LEFT PVW/PGM/NEXT + AUDIO | RIGHT SOURCE -->
+<div class="row">
+  <div class="col-8">
+    <!-- PVW / PGM / NEXT -->
+    <div class="panel">
+      <h3>🖥 监视 · PVW / PGM / NEXT</h3>
+      <div class="row">
+        <div class="col-4">
+          <div class="k" style="margin-bottom:3px">PVW 预监</div>
+          <div class="preview">
+            <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
+            <div class="monitor"><span class="live">● LIVE</span> 1080p50 · 16:9 <span class="res">UDP-MC</span></div>
+            <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:52%"></div></div></div>
+          </div>
+          <div class="diag">NEXT (待切): UDP-MC 239.10.20.10 = 模板 BACKUP</div>
+        </div>
+        <div class="col-4">
+          <div class="k" style="margin-bottom:3px">PGM 主输出</div>
+          <div class="preview">
+            <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:64%"></div></div></div>
+            <div class="monitor"><span class="live">● LIVE</span> 1080p50 · 16:9 <span class="res">SDI-IN-01</span></div>
+            <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
+          </div>
+          <div class="diag">ON AIR: SDI-IN-01 = 模板 PRIMARY (srcP)</div>
+        </div>
+        <div class="col-4">
+          <div class="k" style="margin-bottom:3px">NEXT 待切</div>
+          <div class="src-card role-standby" style="margin-top:0">
+            <div class="h"><span class="role r-standby">BACKUP</span> UDP-MC</div>
+            <div class="sr"><span class="name">239.10.20.10:5000</span><span class="sig">● STREAMING</span></div>
+          </div>
+          <div class="diag">TAKE 后 NEXT → PGM; 仅切源, 不触输出 (Failure Domain).</div>
+        </div>
+      </div>
     </div>
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H2 Active</div>
-    </div>
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H3 Clock</div>
-    </div>
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H4 Session</div>
-    </div>
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H5 Output</div>
-    </div>
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H6 Fresh</div>
-    </div>
-    <div style="text-align:center;padding:4px;background:rgba(63,185,80,.05);border:1px solid var(--green);border-radius:3px">
-      <div class="v green" style="font-size:14px">✓</div>
-      <div class="k">H7 UI/DB</div>
+    <!-- AUDIO -->
+    <div class="panel">
+      <h3>🔊 AUDIO · L/R Master + 16ch</h3>
+      <div class="row">
+        <div class="col-6">
+          <div class="k">L / R 主电平</div>
+          <div class="preview" style="margin-top:4px">
+            <div class="vside"><div class="k">L</div><div class="vbar"><div class="lvl" style="height:64%"></div></div></div>
+            <div class="a-mon" style="flex:1;height:auto;aspect-ratio:16/6;background:#000;border:1px solid var(--border);border-radius:3px;display:flex;align-items:center;justify-content:center;color:var(--fgdim);font-size:11px">L/R Master · -23.0 LUFS · +12ms</div>
+            <div class="vside"><div class="k">R</div><div class="vbar"><div class="lvl" style="height:58%"></div></div></div>
+          </div>
+          <div class="diag">LUFS-I -23.0 · AV Offset +12ms · Drift +0.4ms/min</div>
+        </div>
+        <div class="col-6">
+          <div class="k">嵌入 16ch 电平</div>
+          <div class="mbars">
+            <div class="b"><div class="lvl" style="height:64%"></div></div><div class="b"><div class="lvl" style="height:58%"></div></div>
+            <div class="b"><div class="lvl" style="height:40%"></div></div><div class="b"><div class="lvl" style="height:36%"></div></div>
+            <div class="b"><div class="lvl" style="height:22%"></div></div><div class="b"><div class="lvl" style="height:18%"></div></div>
+            <div class="b"><div class="lvl" style="height:12%"></div></div><div class="b"><div class="lvl" style="height:10%"></div></div>
+            <div class="b"><div class="lvl" style="height:0%"></div></div><div class="b"><div class="lvl" style="height:0%"></div></div>
+            <div class="b"><div class="lvl" style="height:0%"></div></div><div class="b"><div class="lvl" style="height:0%"></div></div>
+            <div class="b"><div class="lvl" style="height:0%"></div></div><div class="b"><div class="lvl" style="height:0%"></div></div>
+            <div class="b"><div class="lvl" style="height:0%"></div></div><div class="b"><div class="lvl" style="height:0%"></div></div>
+          </div>
+          <div class="diag">Ch1-2 主 · Ch3-8 伴音 · Ch9-16 空闲</div>
+        </div>
+      </div>
+      <div class="gap">🟡 G10 (PARTIAL · 非冻结阻断): 16ch → 输出布局映射 (Embed Audio 选 Ch1-8/1-16) 已在 D1 暴露; 运行态音频映射 / Rights 地域 / 告警端点余项待 0.5E.</div>
     </div>
   </div>
-  <div style="margin-top:6px;font-size:10px;color:var(--fgdim)">
-    <span class="k">9 Subsystem:</span>
-    <span class="v green">SOURCE</span> ·
-    <span class="v green">SWITCHER</span> ·
-    <span class="v green">COMPOSITION</span> ·
-    <span class="v green">AUDIO</span> ·
-    <span class="v green">MASTER</span> ·
-    <span class="v green">OUTPUT</span> ·
-    <span class="v green">RECORDING</span> ·
-    <span class="v green">CLOCK</span> ·
-    <span class="v green">RESOURCE</span>
+  <div class="col-4">
+    <!-- SOURCE REDUNDANCY -->
+    <div class="panel">
+      <h3>🔀 SOURCE 冗余 <span class="pill pill-orange">srcP/srcB 来自模板</span></h3>
+      <div class="src-card role-active">
+        <div class="h"><span class="role r-active">PRIMARY</span> SDI-IN-01</div>
+        <div class="sr"><span class="name">BNC / 1080p50 / LOCKED</span><span class="sig">● HEALTHY</span></div>
+        <div class="sr"><span class="name">= 模板 srcP (默认主源)</span></div>
+      </div>
+      <div class="src-card role-standby">
+        <div class="h"><span class="role r-standby">BACKUP</span> UDP-MC 239.10.20.10</div>
+        <div class="sr"><span class="name">:5000 / SSM / STREAMING</span><span class="sig">● HEALTHY</span></div>
+        <div class="sr"><span class="name">= 模板 srcB (默认备源)</span></div>
+      </div>
+      <div class="src-card role-off">
+        <div class="h"><span class="role r-off">OFFLINE</span> SDI-IN-02</div>
+        <div class="sr"><span class="name">BNC / 待命</span><span class="sig off">○ OFFLINE</span></div>
+        <div class="sr"><span class="name">冷备, 不参与 failover 链</span></div>
+      </div>
+      <div class="diag">2/3 HEALTHY. PRIMARY=srcP, BACKUP=srcB (源自 CH01-News-Live 模板默认). 备源经 E-42 7 层验证 (G2).</div>
+      <div class="gap ok">✅ G5 (P1) 已闭合 (D5 / 0.5D.1): 源实时预览端点定义在 E-42 (Source Runtime Preview Stream), D1/D3 PVW 复用同一端点, 不重复定义.</div>
+    </div>
   </div>
 </div>
 
-<!-- 5. 6 状态样例 -->
-<details>
-  <summary>▸ 6 状态样例 (CD-01 Channel Workspace) — 完整 Spec 收口 (PIA §7)</summary>
-  <div class="panel" style="margin-top:6px">
-    <table>
-      <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
-      <tbody>
-        <tr><td><b>● NORMAL</b></td><td>ON AIR + FRAME_SWITCH + HEALTHY + 7/7 H1-H7</td><td>完整 7 块 + 3 PVW/PGM/NEXT + 3 Source 角色 + 4 Output + TAKE 红按钮</td></tr>
-        <tr><td><b>◌ LOADING</b></td><td>Channel STARTING (3-5s)</td><td>3 monitor skeleton + metric skeleton + "Initializing..."</td></tr>
-        <tr><td><b>○ EMPTY</b></td><td>— (路由不存在)</td><td>404 引导 "回 CH-01 Channel List"</td></tr>
-        <tr><td><b>⚠ WARNING</b></td><td>DEGRADED (H2/H6 WARN) / STANDBY 1 个不通</td><td>顶部黄条 + 对应 H/WARN 标黄 + TAKE 按钮保留但加黄边</td></tr>
-        <tr><td><b>✗ ERROR</b></td><td>FAILED (1+ H FAIL) / Source 断 5s+ / 切到 Filler</td><td>顶部红条 + Filler 自动接管 + TAKE 按钮 L2 (需手动确认)</td></tr>
-        <tr><td><b>✗✗ CRITICAL</b></td><td>全 Source 不可达 / Clock LOST / Master Join FAILED</td><td>顶部红条 + Emergency Asset 接管 + TAKE 按钮禁用 + 通知 Admin</td></tr>
-      </tbody>
-    </table>
+<!-- BOTTOM ROW: LEFT OUTPUT | RIGHT SWITCH/TAKE/HEALTH -->
+<div class="row">
+  <div class="col-8">
+    <!-- OUTPUT -->
+    <div class="panel">
+      <h3>📡 OUTPUT Variants · delivery_criticality <span class="pill pill-orange">Failure Domain: 输出故障 ≠ 切节目源</span></h3>
+      <div class="output-row"><span class="proto">SDI</span><span class="dest">SDI-OUT-01 / BNC / 1080p50 (基带 · V0.2 DISABLED / Target V0.4)</span><span class="crit aux">RESERVED</span><a class="btn">预留 Schema</a></div>
+      <div class="output-row"><span class="proto">HLS</span><span class="dest">https://edge.example.com/ch01/index.m3u8</span><span class="crit required">REQUIRED</span><a class="btn">配置</a></div>
+      <div class="output-row"><span class="proto">RTMP</span><span class="dest">rtmp://origin.example.com/live/ch01</span><span class="crit required">REQUIRED</span><a class="btn">配置</a></div>
+      <div class="output-row"><span class="proto">UDP-MC</span><span class="dest">239.20.30.30:8000 (in-plant)</span><span class="crit optional">OPTIONAL</span><a class="btn">配置</a></div>
+      <div class="output-row"><span class="proto">WebRTC</span><span class="dest">wss://edge.example.com/ch01</span><span class="crit aux">AUXILIARY</span><a class="btn">配置</a></div>
+      <div class="net-outputs"></div>
+      <div class="addout">
+        <label>＋ 添加网络输出</label>
+        <select id="ntProto"><option>RTMP</option><option>HLS</option><option>SRT</option><option>UDP-MC</option><option>WebRTC</option></select>
+        <input id="ntDest" placeholder="rtmp:// 或 wss:// 或 srt:// ...">
+        <select id="ntCrit"><option value="required">REQUIRED</option><option value="optional" selected>OPTIONAL</option><option value="aux">AUXILIARY</option></select>
+        <button class="btn" onclick="addNet()">＋ 添加</button>
+        <span class="diag" style="margin:0">同 D1 第⑤步口径: 网络输出可无限添加, 资源预览三档规则 (≤80% PASS / 80-100% reservation / &gt;100% BLOCK) 校验通过即可.</span>
+      </div>
+      <div class="diag">REQUIRED 必须 HEALTHY 否则 Take 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4.</div>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 独立对象 (重连策略·指数退避 / 心跳 / zombie 判定 / Test Send 联动) 落 06-output + D6/B-13. ✅ G3 (P0) 已闭合: SDI 基带输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema, 不参与运行态.</div>
+    </div>
   </div>
-</details>
-
-<!-- 6. PIA 双层 UI 跨域 (PIA §5 锁) -->
-<div class="diag">
-  <b>PIA §5 双层 UI 原则:</b>
-  本页是 Operation 工作台 (Operator/Director), 1 屏内可见 7 块.
-  Engineering 深页 (Sources/Switcher/Audio/Output/Graph/Health) 各自独立, 不并入.
-  跳转保持 Channel ID 上下文 (8 横切能力 #2 Dependency).
+  <div class="col-4">
+    <!-- SWITCH DECISION -->
+    <div class="panel">
+      <h3>🔀 SWITCH DECISION 切换决策</h3>
+      <div class="failover"><span class="on">AUTO</span> 信号丢失自动切 (判据阈值待定)</div>
+      <div class="failover" style="border-left:3px solid var(--gray);border-color:var(--gray)">Hot Standby: <b>HOT</b> (独占资源). 主源故障按决策自动/手动切备源.</div>
+      <div class="diag">切换判据 (静帧/黑场/音频丢失阈值) 在 D5/E-40 定义; 此处仅选策略.</div>
+      <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): Output Resilience (重连/心跳/退避) 已建模为独立对象 (06-output + D6/B-13); 输出层故障 ≠ 源故障, retry 失败只降级+告警, 不切源.</div>
+    </div>
+    <!-- TAKE -->
+    <div class="panel">
+      <h3>🎬 TAKE / 状态</h3>
+      <div class="takeover">
+        <button class="btn-primary">▶ TAKE (NEXT → PGM)</button>
+        <button class="btn">⏸ STOP</button>
+      </div>
+      <div class="diag" style="color:var(--green)">READY_TO_TAKE · REQUIRED 输出全 HEALTHY → Take 放行.</div>
+      <div class="note" style="border-left-color:var(--yellow)">⚠ G9 (P1): 全局口径统一 — TAKE 在 CD-01 的 READY_TO_TAKE 阶段 (非向导). 向导第⑥步已改"创建前预检", 此处为运行态 TAKE, 二者不混.</div>
+    </div>
+    <!-- HEALTH -->
+    <div class="panel">
+      <h3>💡 HEALTH 健康</h3>
+      <div class="health">
+        <div class="hr"><span class="dot g"></span> Source PRIMARY LOCKED</div>
+        <div class="hr"><span class="dot g"></span> Source BACKUP STREAMING</div>
+        <div class="hr"><span class="dot g"></span> Encode Realtime Profile OK</div>
+        <div class="hr"><span class="dot g"></span> Audio -23 LUFS / +12ms</div>
+        <div class="hr"><span class="dot g"></span> HLS/RTMP REQUIRED HEALTHY</div>
+        <div class="hr"><span class="dot y"></span> UDP-MC OPTIONAL 丢包 0.02% (WARN)</div>
+        <div class="hr"><span class="dot gr"></span> SDI-IN-02 OFFLINE (冷备)</div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<footer>
-  VBMF Operator Console · CD-01 Channel Control Workspace · BROADCAST 域 · Phase 0.5F (PIA §7 锁) · 设计稿 v0.1
-  · 关联: CH-01 Channel List / CD-01 Channel Detail (8 Tab) / 02 Sources (deep) / 03 Switcher (deep) / 05 Audio (deep) / 06 Output (deep) / 09 Health Tree (deep)
-  · Object: Channel + Source (3 redundancy) + Profile Bundle + Output Variant + Session + Health Tree
-  · TAKE = 1 button (L1), Mix/Cut/VO 留 CD-01 Tab 2 Switch
-  · 1 屏设计 (笔记本 13" 1080p, 7 块全可见, 不滚动)
-</footer>
+<div class="note" style="margin-top:8px;border-left-color:var(--yellow)">
+  🧭 这是 0.5D 验收链第 3 张 (D3, CD-01 Channel Control Workspace). 本页把 D1/D2 产出的 <b>Template → Profile Bundle → Channel</b> 在运行态反射: 顶部 Provenance 条 + 7 Profile 引用快照 + Output criticality 升级 + 源冗余 (srcP/srcB 来自模板) + 反向追溯 D2. 历史缺口块: G3/G4/G5 已由 0.5D.1 关闭 (绿块), G10 PARTIAL 待 0.5E (详见对账报告 §F/§H/§I). 完整链: <b>D1 创建 → D2 模板 → D3 CD-01 → D4 M-17 → D5 E-40/E-42 → D6 B-13</b>. 本页为运行态反射原型, 不新增 surface (升级既有 CD-01, 不计入 NAVIGATION 计数).
+</div>
 
 <script>
-(function(){var k='vt-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();
+  // Typography toggle (与 D1/D2 一致)
+  function setMode(m){
+    document.body.style.zoom = (m==='standard'?'1.25':'1');
+    try{localStorage.setItem('cd01v2-mode',m);}catch(e){}
+    document.querySelectorAll('#typo button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  }
+  document.querySelectorAll('#typo button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+  var saved=null; try{saved=localStorage.getItem('cd01v2-mode');}catch(e){}
+  setMode(saved||'standard');
+  // 网络输出可无限添加 (性能合适即可) — 同 D1 口径
+  function addNet(){
+    const p=document.getElementById('ntProto').value;
+    const dest=document.getElementById('ntDest').value.trim();
+    const crit=document.getElementById('ntCrit').value;
+    const critLabel={required:'REQUIRED',optional:'OPTIONAL',aux:'AUXILIARY'}[crit];
+    const row=document.createElement('div');
+    row.className='output-row';
+    row.innerHTML='<span class="proto">'+p+'</span><span class="dest">'+(dest||(p.toLowerCase()+'://'))+'</span><span class="crit '+crit+'">'+critLabel+'</span><a class="btn">配置</a>';
+    document.querySelector('.net-outputs').appendChild(row);
+    document.getElementById('ntDest').value='';
+  }
 </script>
 </body>
 </html>

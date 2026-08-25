@@ -20,7 +20,9 @@
 | `reservation_id` | UUID | 主键 |
 | `target_channel` | ref | 预留给哪个 Channel |
 | `target_session` | ref | 预留给哪个 Session (MEDIA_SESSION / OUTPUT_SESSION) |
-| `resource_vector` | map | `{cpu_cores, mem_gb, nic_ports[], bmd_devices[], encoder_slots, bandwidth_mbps}` |
+| `resource_vector` | map | **= V0.2 §3.11 ResourceVector (9-dim, 不得另建简化模型)**: `cpu_threads / gpu_sessions / vram_mb / ram_mb / ingress_mbps / egress_mbps / disk_write_mbps / pcie_rx_mb_s / pcie_tx_mb_s` |
+| `device_tokens` | list | `{BMD_IN/OUT token, NIC port, encoder_slot}` — 独占性约束 (Exclusivity Constraint) |
+| `constraints` | list | 独占约束 / 亲和约束 (同 HOST / NUMA) |
 | `scope` | enum | `HOT / WARM / COLD / TRANSIENT` (对应 Hot-Standby 3 级 + 一次性) |
 | `priority` | enum | `CRITICAL / HIGH / NORMAL / LOW` |
 | `state` | enum | `PROVISIONED / RESERVED / IN_USE / RELEASED` |
@@ -34,9 +36,13 @@
 ```text
 PROVISIONED  →  RESERVED  →  IN_USE  →  RELEASED
    (预算已算)     (资源已锁)   (正在使用)   (释放回池)
-      │             │            │
-      └─────────────┴────────────┘
-               任何阶段可 FAILED (抢占/超时/仲裁失败)
+
+抢占/释放路径 (0.5D.3 安全语义 — 禁止直接写 FAILED):
+RESERVED/IN_USE → PREEMPT_PENDING → DRAINING → RELEASED
+                                              │ 仅无法安全释放时
+                                              ↓
+                                RESOURCE_CONFLICT → Safety Decision
+                                (Degrade / Stop / Reject — 由 Failure Domain §8.9 决策)
 ```
 
 - **PROVISIONED**: Preflight 算账完成, 尚未锁资源。→ 对应 B-13 Resource 三档 PASS/reservation 段。
@@ -50,7 +56,7 @@ PROVISIONED  →  RESERVED  →  IN_USE  →  RELEASED
 - **仲裁规则** (跨 Channel):
   1. `CRITICAL` > `HIGH` > `NORMAL` > `LOW`。
   2. 同级: 先到先得 (acquired_at)。
-  3. 抢占仅允许 `WARM/COLD → HOT` 升级需求且被占方为 `LOW/NORMAL`; **被抢占方进入 FAILED**, 由 Failure Domain 决策 (不静默)。
+  3. 抢占仅允许 `WARM/COLD → HOT` 升级需求且被占方为 `LOW/NORMAL`; 被抢占方走 **PREEMPT_PENDING → DRAINING → RELEASED** 有序释放 (对齐 V0.2 §8.9 `RESOURCE → Degrade background jobs`), 调度器**不直接写 FAILED**; 仅当无法安全释放时才进入 `RESOURCE_CONFLICT` → Safety Decision (Degrade / Stop / Reject)。
   4. 同 priority 时, `HOT` 备机保留量不参与普通复用 (防"备机预算被偷走")。
 
 ## 5. HOT Standby 语义 (关键)
@@ -72,9 +78,9 @@ PROVISIONED  →  RESERVED  →  IN_USE  →  RELEASED
 ## 7. 数据流示例 (Realtime Encode + HOT)
 
 ```text
-1. D1 向导资源预览 (Step 6) → 生成 PROVISIONED 预算
-2. 提交 ChangeSet → Approve
-3. STARTING → H2 Scheduler Acquire: PROVISIONED → RESERVED (锁 encoder_slots + BMD token)
+1. D1 向导资源预览 (Step 6) → 生成 PROVISIONED 预算 (9-dim ResourceVector + device_tokens)
+2. 提交 ChangeSet → Review/Approve → Apply
+3. Runtime Provision → H2 Scheduler Acquire: PROVISIONED → RESERVED (锁 9-dim vector + BMD/NIC token)
 4. Session 启动: RESERVED → IN_USE
 5. HOT 备机: scope=HOT, 独立 RESERVED, 主备共享同一 resource_vector 的两个副本
 6. 主 Session 停止 → RELEASED → 触发仲裁
