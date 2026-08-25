@@ -5,7 +5,9 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure (0.5E Cross-Domain Capabilities 已 Spec 锁)
 >
-> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 55 wireframe + 1 Spec（唯一权威: `SURFACE_REGISTRY.yaml`, 展示见 §2.5）· 0.5D.6 Semantic/Execution Closure 完成 + 0.5E wireframes (E-50/51/52) 已建
+> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 55 wireframe + 1 Spec（唯一权威: `SURFACE_REGISTRY.yaml`, 展示见 §2.5）· 0.5D.6 Semantic/Execution Closure 完成 + 0.5E wireframes (E-50/51/52) 已建 + 0.5F.3 状态派生
+>
+> **状态权威 (0.5F.3 P1-7):** 各 surface 的 **status 唯一事实源 = `SURFACE_REGISTRY.yaml`**。下方各域表格中的状态列为**展示快照** (以 Registry 为准, 已同步 0.5F.3), 本文件**不维护 status** — 新增 surface / 状态变更一律先改 Registry。
 >
 > **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) · [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) · [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`0.5E-CROSS_DOMAIN_CAPABILITIES.md`](0.5E-CROSS_DOMAIN_CAPABILITIES.md) (Impact Preview / Configuration Diff / Command Palette 跨域)
 
@@ -76,11 +78,11 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator · ✅ 0.5D 后续升级: G3 基带 SDI 输出变体 (**RESERVED · V0.2 实现 DISABLED · Target V0.4**) + G4 Output Resilience 独立对象已落 `operator/06-output.html` |
 | **07-recording** | Recording 录制 | 🟢 LOCK (0.5A) | Operator |
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
-| **CH-02** | Create Channel Wizard 频道创建向导 | 🟡 DRAFT (0.5D 原型 D1) | Operator / Director |
-| **CH-02B** | Channel Template Center 频道模板工厂 | 🟡 DRAFT (0.5D 原型 D2) | Operator / Director |
+| **CH-02** | Create Channel Wizard 频道创建向导 | 🟢 LOCK (0.5F.3 升 · SURFACE_REGISTRY) | Operator / Director |
+| **CH-02B** | Channel Template Center 频道模板工厂 | 🟢 LOCK (0.5F.1 升 · SURFACE_REGISTRY) | Operator / Director |
 | **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · D3 升级已并入正页 `operator/CD-01-channel-workspace.html` |
 | **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
-| **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Operator · D6 wireframe 已并入正页 `operator/B-13-take-preflight.html` |
+| **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟢 LOCK (0.5F.1 升 · Interaction Surface, SURFACE_REGISTRY) | Operator · D6 wireframe 已并入正页 `operator/B-13-take-preflight.html` |
 | ~~**M-17**~~ | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · D4 升级已并入正页 `operator/M-17-realtime-transcode.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
 
 > **注**: 08-graph-designer / 09-health-tree 已划归 ENGINEERING 域 (PIA V0.1 §12); 10-states Validation 是全局 Validation 不属于 BROADCAST。
@@ -114,7 +116,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **E-31** | Graph Designer 图设计 (0.5A #08 升级) | 🟢 LOCK (0.5A, 0.5B 升 Engineering) | Engineer |
 | **E-32** | Preflight Center 预检中心 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-33** | Change Sets 变更集 | 🟡 Spec (0.5B.0) | Engineer |
-| **D7** | ChangeSet Review 变更集审阅 (独立审批 surface, 0.5D 后续新增) | 🟡 DRAFT (0.5D 后续原型 `operator/D7-changeset-review.html`) | Engineer / Admin |
+| **D7** | ChangeSet Review 变更集审阅 (独立审批 surface, 0.5D 后续新增) | 🟢 LOCK (0.5F.1 升 · SURFACE_REGISTRY) | Engineer / Admin |
 | **E-34** | Capability Registry 能力注册 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-35** | Device Registry 设备注册 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-36** | Resource / Capacity 资源/容量 | 🟡 Spec (0.5B.0) | Engineer / SRE |
@@ -122,7 +124,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **E-38** | Hardware Inventory 硬件清单 | 🟢 LOCK (0.5D) | Engineer |
 | **E-40** | Network Source 网络源 (UDP Unicast/Multicast + 9 External 子类 + Security 8 字段) | 🟢 LOCK (0.5F) | Engineer · D5 创建向导已并入正页 `operator/E-40-network-source.html` |
 | **E-41** | Network Path Inspector 网络路径检查器 (5 Hop Kind + 8 Failure Mode) | 🟡 Spec 锁 (0.5F); wireframe 0.5G 实施 | Engineer / SRE |
-| **E-42** | Source Test Bench 源入网验证台 (7 层: Network/Transport/Container/Video/Audio/Clock/QC) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Engineer / Operator · v2 wireframe 已补见验收链 D5 原型 `operator/E-42-source-test-bench.html` |
+| **E-42** | Source Test Bench 源入网验证台 (7 层: Network/Transport/Container/Video/Audio/Clock/QC) | 🟢 LOCK (0.5F.1 升 · SURFACE_REGISTRY) | Engineer / Operator · v2 wireframe 已补见验收链 D5 原型 `operator/E-42-source-test-bench.html` |
 | **E-50** | Impact Preview 影响预览跨域 (7 对象 × 4 维影响 × 风险 4 级) | 🟢 LOCK (0.5E wireframe `operator/E-50-impact-preview.html`) | Engineer / Operator |
 | **E-51** | Configuration Diff 配置对比跨域 (14 对象 × 3 视图 × 3 类字段) | 🟢 LOCK (0.5E wireframe `operator/E-51-config-diff.html`) | Engineer / Operator |
 | **E-52** | Command Palette 命令面板跨域 (Ctrl+K · RBAC · L1/L2/L3 · 6 状态) | 🟢 LOCK (0.5E wireframe `operator/E-52-command-palette.html`) | All |

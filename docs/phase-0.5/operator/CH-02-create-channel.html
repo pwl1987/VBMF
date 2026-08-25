@@ -201,18 +201,21 @@
     </div>
     <div class="col-6">
       <div class="field">
-        <label>Clock 时钟 (E-37 4 级 Fallback)</label>
+        <label>Clock 时钟 (E-37 · Domain / Reference / Priority / Fallback Chain)</label>
         <select><option>PTP Primary (GPS) → PTP Secondary → NTP → Internal</option><option>NTP Primary → NTP Secondary → Internal</option></select>
-        <div class="hint">⚠ 时钟域需与源类型匹配: SDI 基带源要求 PTP; 纯网络源可用 NTP. 当前向导未强制校验 (设计缺口, 见 §F).</div>
+        <div class="hint">时钟域 = Clock Domain + Reference + Priority + Fallback Chain + Quality; 不简化为 "SDI→PTP / Network→NTP" (网络源也可运行 PTP domain, 0.5F.3 P1-4 修正).</div>
+      </div>
+      <div class="note" style="border-left-color:var(--green)">✅ <b>CLOCK COMPATIBILITY (0.5F.3 强制 Preflight):</b>
+        Source A (SDI-IN-01): MEDIA + TIMECODE · Channel: PTP / ptp0 → <b>ALIGNABLE</b><br>
+        Fallback: PTP → TIMECODE → SYSTEM · 不匹配 → WARN/FAIL 阻断提交.</div>
+      <div class="field">
+        <label>Failover Policy 故障切换策略</label>
+        <select><option>AUTO (自动执行已编译 SwitchDecision)</option><option>MANUAL CONFIRM (人工确认)</option></select>
+        <div class="hint">Switch Mode (PACKET/FRAME/MASTER) 由 Compiler Decision Tree 决定; 此处只选"发生故障后是否允许系统自动执行已编译决策". 切换判据 (信号丢失阈值/静帧检测) 在 D5/E-40 定义 (0.5F.3 P1-6 修正).</div>
       </div>
       <div class="field">
-        <label>Switch Decision 切换决策</label>
-        <select><option>AUTO (信号丢失自动切)</option><option>MANUAL (人工确认)</option></select>
-        <div class="hint">切换判据 (信号丢失阈值/静帧检测) 在 D5/E-40 定义, 此处仅选策略.</div>
-      </div>
-      <div class="field">
-        <label>Master 主输出</label>
-        <select><option>PROGRAM</option><option>PREVIEW</option></select>
+        <label>Program Master</label>
+        <div class="hint">Program Master = GraphRuntime Compiler 的结果 (DESIRED→COMPILED→EFFECTIVE), 不是创建向导选择的"输出模式". PVW/PGM (Monitoring/Switching) 在 CD-01 Workspace 表达 (0.5F.3 P1-5 修正).</div>
       </div>
       <div class="field">
         <label>Hot Standby Level 热备等级</label>
@@ -309,7 +312,7 @@
         <div class="title">Source → Channel Assign (02-sources G-C)</div>
         <div class="source-row"><span class="role active">PRIMARY</span><span class="name">SDI-IN-01</span><span class="signal">ASSIGNED</span></div>
         <div class="source-row"><span class="role standby">BACKUP</span><span class="name">UDP-MC 239.10.20.10</span><span class="signal">ASSIGNED</span></div>
-        <div class="diag">Hot Standby: HOT · 主源故障时按 Switch Decision 自动/手动切备源 (输出层故障 ≠ 源故障).</div>
+        <div class="diag">Hot Standby: HOT (Policy) · 主源故障时按 Failover Policy (AUTO / MANUAL CONFIRM) 切备源 (输出层故障 ≠ 源故障, 0.5F.3).</div>
       </div>
       <div class="card">
         <div class="title">入网验证 Test Bench (E-42, 7 层)</div>
@@ -360,7 +363,7 @@
           <div class="field"><label>Gap Filler</label><select><option>ASSET-FILLER (空白垫播)</option><option>静音</option></select></div>
         </div>
         <div class="diag">Scheduler 按时间表自动切源/播 Asset; 直播插入项 (Live Insert) 在窗口内抢占, 结束后回退节目单.</div>
-        <div class="gap">⚠ 设计缺口: 节目单与 Scheduler 的运行态对象 (PLAYLIST / SCHEDULE / SCHEDULER_JOB) 尚未在 POM 建模; 切源时序与 Output 联动需独立定义 (归入 D5/D6).</div>
+        <div class="gap">KNOWN P1 — OUT OF SCOPE (0.5E/0.6): 节目单与 Scheduler 运行态对象 (PLAYLIST / SCHEDULE / SCHEDULER_JOB) 建模归 0.5E+; 不阻断 CH-02 LOCK (0.5F.3 区分 KNOWN P1 vs DESIGN GAP).</div>
       </div>
     </div>
   </div>
@@ -570,7 +573,8 @@
   source  : SDI-IN-01 (PRIMARY) + UDP-MC 239.10.20.10 (BACKUP)
   encode  : REALTIME_PROFILE (ZeroLatency)
   audio   : -23 LUFS / +12ms
-  output  : SDI(REQ) + HLS(REQ) + RTMP(REQ) + UDP-MC(OPT) + WebRTC(AUX)
+  output  : HLS(REQ) + RTMP(REQ) + UDP-MC(OPT) + WebRTC(AUX)
+  sdiresv : SDI = RESERVED/DISABLED (V0.2, Target V0.4, NOT MATERIALIZED)
 <span id="csPlaylist" style="display:none">  playlist: 12 items · LINEAR · auto_start 06:00 · gap_filler ASSET-FILLER
 </span>  resource: reservation HOT, ≤80%
 impact  : 2 surface (CH02, +1 Output Variant)

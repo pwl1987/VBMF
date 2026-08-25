@@ -87,7 +87,8 @@ docs/
 | **0.5E Global UX Layer** | 2026-08 | 🟢 SEMANTIC LOCKED | Impact Preview (E-50) / Configuration Diff (E-51) / Command Palette (E-52) wireframe 已建 · 待 Phase 4 实施 | `1a1607a`+ |
 | **0.5F Final UX Reconciliation** | 2026-08 | 🟢 完成 | 状态统一 / Channel Workspace 三层 / Network INGRESS·EGRESS / Transcode 双模型 / Config vs Runtime / Global Components | `22f2245` |
 | **0.5F.1 Final Consistency Sweep** | 2026-08 | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 | `ed41c29` |
-| **0.5F.2 Runtime/Registry/Final Gate** | 2026-08 | 🟡 IN PROGRESS (本轮) | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path | (本轮) |
+| **0.5F.2 Runtime/Registry/Final Gate** | 2026-08 | 🟢 完成 | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path | `e346f9c` |
+| **0.5F.3 Runtime/Active-Service/Final Gate** | 2026-08 | 🟡 IN PROGRESS (本轮) | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 | (本轮) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 
@@ -111,7 +112,8 @@ docs/
 1. ✅ **0.5C RECONCILED** (0.5C 已完成)
 2. ⛔ **0.5D LOCK** (0.5D.1-.6 语义/执行闭环完成, 待 LOCK 声明)
 3. ⛔ **0.5E LOCK** (SEMANTIC LOCKED + wireframes E-50/51/52, 待 LOCK 声明)
-4. ⛔ **0.5F Final UX Reconciliation + 0.5F.1 Final Consistency Sweep 完成** (状态统一 / Channel Workspace / Network / Transcode / Config vs Runtime / Components / FINAL 判定标准; 关键 surface 全部升 LOCK, Spec-only 保持 SPEC)
+4. ⛔ **0.5F/0.5F.1/0.5F.2/0.5F.3 全部完成** (状态统一 / Channel Workspace / Network / Transcode / Config vs Runtime / Components / FINAL 判定标准 / Reservation↔Active Service / M-17 三轴 / Navigation 派生; 关键 surface 全部升 LOCK, Spec-only 保持 SPEC)
+   - **状态三语义 (0.5F.3 P1-7):** **Surface Lock** (页面/原型已冻结, 见 `SURFACE_REGISTRY.yaml`) · **Workflow Acceptance** (点击路径验收, 见 RECONCILIATION §T) · **Milestone Lock** (阶段正式 LOCK 声明)。Registry 关键 surface 已全 LOCK ≠ Milestone 已 LOCK — Milestone Lock 需 0.5D/0.5E 正式声明。
 5. ✅ **所有 README / MILESTONES / SURFACE_SPEC / PIA / Registry** 状态完全同步 (0.5F F1)
 6. ✅ **Object Vocabulary** + **Product Object Model** + **Navigation** 3 文档 SEMANTIC LOCKED
 7. ✅ **GitHub README** 反映 4 域 + `SURFACE_REGISTRY.yaml` 计数 (55 wireframe + 1 Spec E-41 = 56), 不再有 "9 Core Pages" "44" 等历史残留

@@ -796,3 +796,33 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### T.8 结论
 - **7 项 + 5 Click-Path 全部通过** — 对象→Revision→Session→Audit 链闭合, 无模型外对象, 无第二套状态机。
 - **仍不宣布 FINAL**: 0.5D LOCK + 0.5E LOCK 声明待用户确认。0.5F.2 完成后 FINAL 判定标准三项全部满足 → 用户确认后 **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance** (不再开 0.5G/0.5H)。
+
+---
+
+## U. 0.5F.3 Runtime/Active-Service/Final Gate — 3 P0 + 4 P1 (2026-08-25 末 · 用户第 15 轮交叉检修 e346f9c)
+
+> 用户以 `e346f9c` 交叉检修: 上轮 5 大项基本完成; 剩余 **3 P0 (Reservation↔TAKE 时序 / M-17 HOT·COLD 作 Status / CH-02 SDI(REQ) 泄漏) + 4 P1**。用户要求逐项落实。
+
+### U.1 P0-1 — Reservation ↔ Active Service 时序焊死
+- **冲突**: RESOURCE_RESERVATION_SPEC 写 "Session 启动 RESERVED → IN_USE" 又写 "TAKE 只验证 state==RESERVED" → 逻辑死锁。
+- **修复**: 定义 **Active Service Semantics**: **Session RUNNING ≠ Reservation IN_USE**。RESERVED = 已锁定供该 Session 使用但尚未成为 Active Service Path; IN_USE = 已承担 Active Service Path (首次 TAKE 触发 Primary RESERVED→IN_USE, Backup 保持 RESERVED); Failover → 旧 Primary IN_USE→RELEASED/DRAINING, 新 Backup RESERVED→IN_USE。
+- 落点: RESOURCE_RESERVATION_SPEC (状态图注/状态定义/数据流 8 步) + EXECUTION_MODEL (start/take 行 + §6 C8)。
+
+### U.2 P0-2 — M-17 COLD/HOT 作 Status 修正
+- M-17 Primary/Backup 表 `Status: HOT/COLD` → **Role (ACTIVE/STANDBY/OFFLINE) + Runtime 三轴 (Lifecycle/Readiness/Health) + Standby Policy (HOT) 单独显示**。COLD/WARM/HOT = Policy/Target, 非 Runtime State (V0.2)。
+
+### U.3 P0-3 — CH-02 ChangeSet Summary SDI(REQ) 泄漏
+- `output: SDI(REQ)+...` → **HLS(REQ)+RTMP(REQ)+UDP-MC(OPT)+WebRTC(AUX) + `sdiresv: SDI = RESERVED/DISABLED (V0.2, Target V0.4, NOT MATERIALIZED)`**。杜绝 output_variants 出现禁用 SDI active variant 脏数据。
+
+### U.4/U.5/U.6 P1 — CH-02 三项修正
+- **Clock Compatibility 强制 Preflight** (P1-4): 删除 "SDI→PTP / Network→NTP" 简单化 + "未强制校验" → Clock Domain/Reference/Priority/Fallback + `ALIGNABLE` 结果块, 不匹配 → WARN/FAIL 阻断。
+- **Master = PROGRAM/PREVIEW 删除** (P1-5): Program Master = GraphRuntime Compiler 结果, 非向导选择; PVW/PGM 归 CD-01 Workspace。
+- **Switch Decision → Failover Policy** (P1-6): AUTO / MANUAL CONFIRM = "故障后是否允许自动执行已编译决策"; Switch Mode (PACKET/FRAME/MASTER) 由 Compiler Decision Tree 决定, 不在此选择。`Switch Decision Tree` (V0.2 §3.4) 术语保留。
+
+### U.7 P1-7 — NAVIGATION 状态派生 + MILESTONES 三语义
+- **NAVIGATION**: 新增状态权威声明 (**status 唯一事实源 = SURFACE_REGISTRY.yaml, 本文件不维护 status**), 5 处过时 status 同步 (CH-02/CH-02B/B-13/D7/E-42 → LOCK)。
+- **MILESTONES**: 拆 **Surface Lock / Workflow Acceptance / Milestone Lock** 三语义 (Registry surface 全 LOCK ≠ Milestone LOCK)。
+
+### U.8 结论
+- **3 P0 + 4 P1 全部落实, 零残留** (SDI(REQ) / Session-Start-IN_USE / 未强制校验 清零)。
+- 5 条 Click-Path 仍成立; FINAL 判定标准三项满足。**仍不宣布 FINAL** — 0.5D LOCK + 0.5E LOCK 声明待用户确认 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance**。

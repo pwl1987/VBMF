@@ -165,13 +165,14 @@
     <div class="col-6">
       <div class="k" style="margin-bottom:4px">Primary / Backup (redundancy_group = rg-sdi-rt01)</div>
       <table>
-        <thead><tr><th>Role</th><th>Source</th><th>Status</th><th>Switch</th></tr></thead>
+        <thead><tr><th>Role</th><th>Source</th><th>Runtime (Lifecycle / Readiness / Health)</th><th>Switch</th></tr></thead>
         <tbody>
-          <tr><td><span class="pill pill-green">ACTIVE</span></td><td>SDI-01</td><td>ON-AIR</td><td>—</td></tr>
-          <tr><td><span class="pill pill-blue">STANDBY</span></td><td>SDI-02</td><td>HOT</td><td>FRAME_SWITCH · Eligibility PASS (Target/Measured 见下)</td></tr>
-          <tr><td><span class="pill pill-gray">OFFLINE</span></td><td>SDI-03</td><td>COLD</td><td>MASTER_SWITCH · Eligibility — (offline)</td></tr>
+          <tr><td><span class="pill pill-green">ACTIVE</span></td><td>SDI-01</td><td>RUNNING / READY_TO_TAKE / HEALTHY</td><td>—</td></tr>
+          <tr><td><span class="pill pill-blue">STANDBY</span></td><td>SDI-02</td><td>RUNNING / READY_TO_TAKE / HEALTHY</td><td>FRAME_SWITCH · Eligibility PASS (Target/Measured 见下)</td></tr>
+          <tr><td><span class="pill pill-gray">OFFLINE</span></td><td>SDI-03</td><td>STOPPED / NOT_READY / UNKNOWN</td><td>MASTER_SWITCH · Eligibility — (offline)</td></tr>
         </tbody>
       </table>
+      <div style="margin-top:6px;font-size:10px;color:var(--fgdim)"><b>Standby Policy: HOT</b> (COLD/WARM/HOT = Policy/Target, 非 Runtime State; 0.5F.3 P0-2 修正)。Runtime 只用三轴 (Lifecycle/Readiness/Health)。</div>
     </div>
     <div class="col-6">
       <div class="k" style="margin-bottom:4px">Effective Switch Mode (V0.2 §3.4 锁)</div>

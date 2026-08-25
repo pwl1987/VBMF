@@ -35,7 +35,7 @@
 
 ```text
 PROVISIONED  →  RESERVED  →  IN_USE  →  RELEASED
-   (预算已算)     (资源已锁)   (正在使用)   (释放回池)
+   (预算已算)     (已锁定未上服务)  (已承担 Active Service Path)  (释放回池)
 
 抢占/释放路径 (0.5D.3 安全语义 — 禁止直接写 FAILED):
 RESERVED/IN_USE → PREEMPT_PENDING → DRAINING → RELEASED
@@ -46,9 +46,15 @@ RESERVED/IN_USE → PREEMPT_PENDING → DRAINING → RELEASED
 ```
 
 - **PROVISIONED**: Preflight 算账完成, 尚未锁资源。→ 对应 B-13 Resource 三档 PASS/reservation 段。
-- **RESERVED**: 调度器**实际锁定** resource_vector (编码器插槽 / BMD 设备 token / NIC 端口 / CPU 配额), 其他 Channel 无法抢占。
-- **IN_USE**: Session 启动后资源正式占用。
+- **RESERVED**: 调度器**实际锁定** resource_vector (编码器插槽 / BMD 设备 token / NIC 端口 / CPU 配额), 其他 Channel 无法抢占; 资源已供该 Session 使用, 但**尚未成为 Active Service Path**。
+- **IN_USE**: 该 Reservation **已承担 Active Service Path** (首次 TAKE 触发 Primary RESERVED→IN_USE; Backup 保持 RESERVED)。
 - **RELEASED**: Session 停止 / Channel 停播 / 手动释放, 资源回池, 触发其他 PENDING 仲裁。
+
+> **Active Service Semantics (0.5F.3 P0-1 焊死):** **Session RUNNING ≠ Reservation IN_USE**。`RUNNING` = 进程/媒体 Session 在运行; `IN_USE` = 该 Reservation 已承担 Active Service Path。
+> - Session Start: **保持 RESERVED** (RUNNING + READY_TO_TAKE + Reservation RESERVED)。
+> - 首次 TAKE: Primary `RESERVED → IN_USE`; Backup 仍 `RESERVED`。
+> - Failover: 旧 Primary `IN_USE → RELEASED / DRAINING`; 新 Backup `RESERVED → IN_USE`。
+> - TAKE 仍只验证 `reservation.state == RESERVED` (未上服务前) — 与 IN_USE 无时序矛盾。
 
 ## 4. Quota 与仲裁
 
@@ -92,9 +98,11 @@ CONFIGURE → PRELIGHT/PREVIEW → PREPROVISION → RESERVE → READY_TO_TAKE �
 1. D1 向导资源预览 (Step 6) → 生成 PROVISIONED 预算 (9-dim ResourceVector + device_tokens)
 2. 提交 ChangeSet → Review/Approve → Apply
 3. Runtime Provision → H2 Scheduler Acquire: PROVISIONED → RESERVED (锁 9-dim vector + BMD/NIC token)
-4. Session 启动: RESERVED → IN_USE
-5. HOT 备机: scope=HOT, 独立 RESERVED, 主备共享同一 resource_vector 的两个副本
-6. 主 Session 停止 → RELEASED → 触发仲裁
+4. Session 启动: **保持 RESERVED** (RUNNING ≠ IN_USE, 0.5F.3 P0-1 修正)
+5. 首次 TAKE → Primary RESERVED → IN_USE (Backup 保持 RESERVED)
+6. HOT 备机: scope=HOT, 独立 RESERVED, 主备共享同一 resource_vector 的两个副本
+7. Failover → 旧 Primary IN_USE → RELEASED/DRAINING; 新 Backup RESERVED → IN_USE
+8. 主 Session 停止 → RELEASED → 触发仲裁
 ```
 
 ---
