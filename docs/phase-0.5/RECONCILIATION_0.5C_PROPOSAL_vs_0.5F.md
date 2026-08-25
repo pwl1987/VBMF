@@ -1019,3 +1019,43 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### Z.11 结论
 - **2 P0 + 4 P1 全部落实, 零非法残留**; 五条 E2E 工作流端到端通过; 0.5D+0.5E+0.5F.1-.8 全 LOCK/完成。
 - **Phase 0.5 UX BASELINE = LOCK FINAL 正式达成**; 下一步进入 **Phase 0.6 Executable Acceptance** (不再新增页面/设计, 转为可执行验收规范)。
+
+---
+
+## Z.2. 0.5F.9 Micro-Closure — 2 P0 + 5 P1 (用户第 21 轮审计 99b7880, 2026-08-25)
+
+> 用户以 `99b7880` 重新审计, 确认 Phase 0.5 LOCK FINAL 名副其实, 但要求进入 Phase 0.6 前收掉 **2 P0 + 5 P1 micro-closure** (不扩页面/不重构). 本步作为 LOCK FINAL 后的收口补丁落地.
+
+### Z.2.1 P0-1 — E-40 统一 Source Ingest Wizard + E-42 Source Verification Bench
+- E-40 由 "Network Source Wizard" 改为 "源接入向导 (SOURCE INGEST WIZARD)", 顶部加 **Source Kind 选择器** (Physical/Network/File/Internal/Composite), 并新增 **Physical (SDI/BMD) 分支面板** (Device/Port/Signal 探测 → Detected 1080p50·UYVY422·2ch PCM·48kHz / BMD Lock / Clock). 物理源不再需要独立页面, 与网络源共用同一 Wizard (四级联动: Kind→Transport→Delivery→Endpoint).
+- E-42 由 "Source Test Bench" 改为 "Source Verification Bench", 新增 **Validation Profile by Source Kind** (NETWORK/PHYSICAL/FILE/INTERNAL 四套验证档), 7 层为 NETWORK 档.
+
+### Z.2.2 P0-2 — 清除 REALTIME_ENCODE 作为 JobKind
+- OBJECT_VOCABULARY §1.11: Job 子类 6→5 (移除 REALTIME_ENCODE), UI 入口移除 M-17 (其为 Session 工作区), 增加 "REALTIME_ENCODE 已移出 Job" 说明; §2 MEDIA 域 Job 列表同步; §3 关系图 JOB 框移除 REALTIME_ENCODE.
+- ENCODE_MODEL_SPEC §0/§3: REALTIME_PROFILE 运行包装由 `Session（REALTIME_ENCODE 包装）`→`Session（MEDIA_SESSION）`; 关系图说明改为 "REALTIME_PROFILE 由 MEDIA_SE... 承载 (非 Job)".
+- 最终模型: `FILE_PROFILE → FILE_TRANSCODE Job` · `REALTIME_PROFILE → MEDIA_SESSION`; 消除 "Job=REALTIME_ENCODE / Session=MEDIA_SESSION" 二重解释.
+
+### Z.2.3 P1-1 — CD-01 Audio Runtime Controls
+- Audio 面板加运行控制: MUTE/DIM/A-B/FOLLOW/±3dB/Audio Delay ±10/+12ms; Audio Source PRIMARY/BACKUP + Mapping (Ch1-2 主·Ch3-8 伴音·Ch9-16 空闲) + 配置 Audio Profile→P-23. CD-01 由纯监看升级为 On-Air 控制.
+
+### Z.2.4 P1-2 — CD-01 Output Runtime Recovery
+- Output 面板加运行恢复: 每输出 (HLS/RTMP/UDP-MC) Restart/Disable/View. Output 故障 ≠ 源故障, 不切节目源 (V0.2 §).
+
+### Z.2.5 P1-3 — Source VERIFIED Freshness
+- E-40 验证面板加 Freshness 维度: FRESH / STALE / INVALID (NIC/IGMP/Route/Codec/Clock 变化自动触发 Revalidate). VERIFIED 非永久有效, 贴合真实广播.
+
+### Z.2.6 P1-4 — CD-01 Provenance 默认折叠
+- 实例来源 Provenance 用 `<details>` 包裹, 默认折叠 (只留一行 summary), 提升 Operator 运行信息优先级.
+
+### Z.2.7 P1-5 — CH-02 Apply Summary Expected Effective State
+- 上线总览面板加 "Expected Effective State": Switch Mode FRAME_SWITCH / Hot Standby HOT / Program Master 1080p25 RAW / Outputs HLS·RTMP·UDP / Reservation RESERVED / Estimated Start 2.1s. "点 Apply 后系统最终会跑成什么".
+
+### Z.2.8 P1 文档治理 — Surface 三计数口径
+- SURFACE_REGISTRY.yaml 加注释: Surface Contract Count / Implemented Wireframe Count / Spec-only Count 三口径分离, 避免 "55/56 surface = 已有 56 个原型页面" 误解 (Registry 是页面计数唯一 SoT).
+
+### Z.2.9 check_docs + 五条 E2E
+- `check_docs.py PASS`. 五条 E2E 复验仍通过. P-23 Audio Profile HTML 当前不存在, CD-01 的 "配置 Audio Profile → P-23" 用纯文本 (不断链).
+
+### Z.2.10 结论
+- **2 P0 + 5 P1 全部落实, 零非法残留**; Phase 0.5 LOCK FINAL 名副其实.
+- **Phase 0.6 Executable Acceptance 现在可以正式开始** (Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收).

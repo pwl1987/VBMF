@@ -129,29 +129,31 @@
 
 <!-- PROVENANCE STRIP -->
 <div class="panel provenance">
-  <h3>⛓ 实例来源 Provenance (Template → Bundle → Channel) <span class="pill pill-purple">immutable snapshot</span></h3>
-  <div class="row">
-    <div class="col-4">
-      <div class="k">Template (创建工厂, 不进运行态)</div>
-      <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">CH01-News-Live</a> <span class="pill pill-purple">Rev v3</span></div>
-      <div class="k" style="margin-top:4px">Instantiated at</div>
-      <div class="v" style="font-size:11px">2026-08-25 08:30 (实例化时刻)</div>
-      <div class="diag">Channel Template = 创建工厂 (OBJECT_VOCAB §1.15). 本 Channel 在 STARTING 时由其实例化; 模板本身不参与运行态.</div>
+  <details>
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--purple)">⛓ 实例来源 Provenance (Template → Bundle → Channel) <span class="pill pill-purple">immutable snapshot · 点击展开</span></summary>
+    <div class="row" style="margin-top:10px">
+      <div class="col-4">
+        <div class="k">Template (创建工厂, 不进运行态)</div>
+        <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">CH01-News-Live</a> <span class="pill pill-purple">Rev v3</span></div>
+        <div class="k" style="margin-top:4px">Instantiated at</div>
+        <div class="v" style="font-size:11px">2026-08-25 08:30 (实例化时刻)</div>
+        <div class="diag">Channel Template = 创建工厂 (OBJECT_VOCAB §1.15). 本 Channel 在 STARTING 时由其实例化; 模板本身不参与运行态.</div>
+      </div>
+      <div class="col-4">
+        <div class="k">Bundle Snapshot (7 Profile 引用)</div>
+        <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
+        <div class="k" style="margin-top:4px">Template Sync</div>
+        <div class="v" style="font-size:11px;color:var(--yellow)">OFF · immutable snapshot</div>
+        <div class="diag">实例化时快照 Template 默认 7 Profile 引用; Template Rev 升级 <b>不会自动同步</b>到本 Channel (快照不可变).</div>
+      </div>
+      <div class="col-4">
+        <div class="k">Channel Lifecycle</div>
+        <div class="v green" style="margin:4px 0;font-size:14px">● RUNNING</div>
+        <div class="diag">STARTING → READY_TO_TAKE → (TAKE) → RUNNING. 模板仅参与 STARTING 之前; 之后运行态独立于模板 (D3 Provenance 完整化).</div>
+      </div>
     </div>
-    <div class="col-4">
-      <div class="k">Bundle Snapshot (7 Profile 引用)</div>
-      <div class="v" style="margin:4px 0"><a href="CH-02b-channel-template-center.html" class="btn">bundle-news-01</a> <span class="pill pill-blue">7 refs</span></div>
-      <div class="k" style="margin-top:4px">Template Sync</div>
-      <div class="v" style="font-size:11px;color:var(--yellow)">OFF · immutable snapshot</div>
-      <div class="diag">实例化时快照 Template 默认 7 Profile 引用; Template Rev 升级 <b>不会自动同步</b>到本 Channel (快照不可变).</div>
-    </div>
-    <div class="col-4">
-      <div class="k">Channel Lifecycle</div>
-      <div class="v green" style="margin:4px 0;font-size:14px">● RUNNING</div>
-      <div class="diag">STARTING → READY_TO_TAKE → (TAKE) → RUNNING. 模板仅参与 STARTING 之前; 之后运行态独立于模板 (D3 Provenance 完整化).</div>
-    </div>
-  </div>
-  <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 在 <a href="CH-02b-channel-template-center.html">D2 Channel Template Center</a> 的模板卡 "Used By" 列表可看到本 Channel (验证 D2 的反向追溯声明).</div>
+    <div class="note" style="border-left-color:var(--purple)">← 反向追溯: 在 <a href="CH-02b-channel-template-center.html">D2 Channel Template Center</a> 的模板卡 "Used By" 列表可看到本 Channel (验证 D2 的反向追溯声明).</div>
+  </details>
 </div>
 
 <!-- PROFILE BUNDLE -->
@@ -285,6 +287,25 @@
         </div>
       </div>
       <div class="gap">🟡 G10 (PARTIAL · 非冻结阻断): 16ch → 输出布局映射 (Embed Audio 选 Ch1-8/1-16) 已在 D1 暴露; 运行态音频映射 / Rights 地域 / 告警端点余项待 0.5E.</div>
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Control (0.5F.9 P1-1)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button class="btn l2">🔇 MUTE</button>
+          <button class="btn">🔅 DIM</button>
+          <button class="btn">A/B</button>
+          <button class="btn">FOLLOW</button>
+          <button class="btn">+3 dB</button>
+          <button class="btn">-3 dB</button>
+          <span style="font-size:11px;color:var(--fgdim)">Audio Delay</span>
+          <button class="btn">-10</button><span class="v" style="font-size:12px">+12ms</span><button class="btn">+10</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">
+          <span style="font-size:11px;color:var(--fgdim)">Audio Source</span>
+          <span class="pill pill-green">PRIMARY</span><span class="pill pill-yellow">BACKUP</span>
+          <span style="font-size:11px;color:var(--fgdim)">Mapping</span> Ch1-2 主 · Ch3-8 伴音 · Ch9-16 空闲
+          <span style="margin-left:auto;font-size:11px;color:var(--accent)">配置 Audio Profile → P-23</span>
+        </div>
+      </div>
     </div>
   </div>
   <div class="col-4">
@@ -334,6 +355,14 @@
       </div>
       <div class="diag">REQUIRED 必须 HEALTHY 否则 Take 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4.</div>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 独立对象 (重连策略·指数退避 / 心跳 / zombie 判定 / Test Send 联动) 落 06-output + D6/B-13. ✅ G3 (P0) 已闭合: SDI 基带输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema, 不参与运行态.</div>
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Recovery (0.5F.9 P1-2)</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:11px">HLS <span class="pill pill-green">HEALTHY</span></span><button class="btn">Restart</button><button class="btn">Disable</button><button class="btn">View</button>
+          <span style="font-size:11px">RTMP <span class="pill pill-green">HEALTHY</span></span><button class="btn">Restart</button><button class="btn">Disable</button><button class="btn">View</button>
+          <span style="font-size:11px">UDP-MC <span class="pill pill-yellow">DEGRADED</span></span><button class="btn">Restart</button><button class="btn">Disable</button><button class="btn">View</button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="col-4">

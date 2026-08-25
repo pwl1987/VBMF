@@ -86,14 +86,26 @@
 
 <div class="header">
   <div>
-    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="02-sources.html">02 Sources</a> › <a href="E-40-network-source.html">E-40 Network Source</a> › <b>E-42 Source Test Bench</b></div>
-    <h1>🔬 E-42 · 源入网验证台 <span class="en">SOURCE TEST BENCH · 7-LAYER VALIDATION</span></h1>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="02-sources.html">02 Sources</a> › <a href="E-40-network-source.html">E-40 Source Ingest</a> › <b>E-42 Source Verification Bench</b></div>
+    <h1>🔬 E-42 · 源验证台 <span class="en">SOURCE VERIFICATION BENCH · PER-KIND VALIDATION PROFILE</span></h1>
   </div>
   <div style="margin-left:auto;text-align:right">
     <span class="pill pill-green">0.5D 原型 · D5</span><br>
     <span class="pill pill-blue" style="margin-top:4px">0.5D 验收链 · D5</span><br>
     <span class="pill pill-green" style="margin-top:4px"><span class="dot green"></span>7/7 PASS · VERIFIED</span>
   </div>
+</div>
+
+<!-- Validation Profile by Source Kind (0.5F.9 P0-1) -->
+<div class="panel" style="border-color:var(--blue)">
+  <h3>Validation Profile by Source Kind (0.5F.9 P0-1)</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px">
+    <div><b>NETWORK</b><br>Network → Transport → Container → Video → Audio → Clock → QC</div>
+    <div><b>PHYSICAL (SDI/BMD)</b><br>Device → Signal Lock → Format → Video → Audio → Clock → QC</div>
+    <div><b>FILE</b><br>File Access → Container → Video → Audio → Timecode → Rights → QC</div>
+    <div><b>INTERNAL</b><br>Template → Render → Clock → QC</div>
+  </div>
+  <div class="diag">不同 Kind 使用不同验证档; 下方 7 层为 <b>NETWORK</b> 档 (最常用). 验证通过后输出 Verified Media Contract (SRC-vN), 再允许 D1 ASSIGN (0.5F.9).</div>
 </div>
 
 <!-- PROVENANCE: 验证的源来自 E-40 (G2 创建面); 通过后进入 VERIFIED 池供 D1 ASSIGN -->

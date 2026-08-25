@@ -15,7 +15,7 @@
 | `profile_type` | 业务语义 | 运行时包装 | 关键差异 |
 |---|---|---|---|
 | `FILE_PROFILE` | 文件转码（质量/效率优先，可排队/暂停/重试） | `Job`（FILE_TRANSCODE） | 不要求实时预算、热备、故障切换 |
-| `REALTIME_PROFILE` | 实时编码（持续运行、低延迟、自动恢复、热备） | `Session`（REALTIME_ENCODE 包装） | 强制 Realtime 专属属性（见 §3） |
+| `REALTIME_PROFILE` | 实时编码（持续运行、低延迟、自动恢复、热备） | `Session`（MEDIA_SESSION） | 强制 Realtime 专属属性（见 §3） |
 
 三端 schema 结构（与 SURFACE_SPEC §3337 一致）：
 
@@ -116,7 +116,7 @@ EncodingProfile:
 | Common 段字段 | P-21 §392-470（9 区，广播级，已 LOCK） |
 | `REALTIME_PROFILE` 运行时 | M-17 Realtime Transcode（Session 三轴 + 实时指标） |
 | `FILE_PROFILE` 运行时 | M-14 File Transcode（6 步 Wizard）/ M-18 Job Detail |
-| `Job` / `Session` 包装 | OBJECT_VOCABULARY §1.11（REALTIME_ENCODE 由 Session 包装） |
+| `Job` / `Session` 包装 | OBJECT_VOCABULARY §1.11/§1.12（`REALTIME_PROFILE` 由 `MEDIA_SESSION` 承载, 非 Job） |
 | Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 7 Profile） |
 
 ---

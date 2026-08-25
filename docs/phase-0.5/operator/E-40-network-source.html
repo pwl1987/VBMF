@@ -65,8 +65,8 @@
 
 <div class="header">
   <div>
-    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="02-sources.html">02 Sources</a> › <b>E-40 Network Source Wizard</b></div>
-    <h1>🛰️ E-40 · 网络源创建向导 <span class="en">NETWORK SOURCE WIZARD · CREATE → VERIFY → ASSIGN</span></h1>
+    <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <a href="02-sources.html">02 Sources</a> › <b>E-40 Source Ingest Wizard</b></div>
+    <h1>🛰️ E-40 · 源接入向导 <span class="en">SOURCE INGEST WIZARD · KIND → TRANSPORT → DELIVERY → ENDPOINT → VERIFY</span></h1>
   </div>
   <div style="margin-left:auto;text-align:right">
     <span class="pill pill-green">0.5D 原型 · D5</span><br>
@@ -87,6 +87,19 @@
   <div class="diag"><b>G2 闭合:</b> D1 第②步只能"选"已有 VERIFIED 源, 不能"新建并验证". 内联新建源必须在此(E-40)完成, 经 <a href="E-42-source-test-bench.html" style="color:var(--accent)">E-42</a> 7 层验证为 VERIFIED 后才可回 D1 ASSIGN. 模板(D2)默认源同理须指向 VERIFIED 源.</div>
 </div>
 
+<!-- Source Kind selector (0.5F.9 P0-1: unified Source Ingest Wizard) -->
+<div class="panel" style="border-color:var(--blue)">
+  <h3>① Source Kind · 源类型 (统一接入入口)</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="padding:8px 12px;border:1px solid var(--blue);border-radius:4px;background:var(--bg3)">🌐 Network<small style="display:block;color:var(--fgdim)">UDP/RTP/SRT/RTMP/HLS/RTSP/WebRTC</small></div>
+    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">🔌 Physical<small style="display:block;color:var(--fgdim)">SDI / BMD (DeckLink)</small></div>
+    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">📁 File</div>
+    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">⚙ Internal<small style="display:block;color:var(--fgdim)">BLACK/BARS/FILLER</small></div>
+    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">🧩 Composite</div>
+  </div>
+  <div class="diag">统一入口:<b>所有 Kind 共用一个 Wizard</b> (CREATE → VERIFY → ASSIGN), 仅按 Kind 展开不同 Device/Endpoint Schema. 物理源 (SDI/BMD) 不再需要独立页面, 直接在此配置 (0.5F.9 P0-1).</div>
+</div>
+
 <!-- WIZARD STEPPER -->
 <div class="stepper">
   <div class="st done">① Adapter 协议层</div>
@@ -100,9 +113,9 @@
 <div class="row">
   <div class="col-8">
     <div class="panel">
-      <h3>📝 创建网络源 (Network → UDP)</h3>
+      <h3>📝 创建网络源 (Network → UDP) <small style="font-size:11px;color:var(--fgdim)">· 分支演示, 其余 Transport / Physical / File / Internal 见同 Wizard</small></h3>
       <div style="background:var(--bg2);border:1px solid var(--accent);border-radius:4px;padding:10px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:6px">① Source Kind → ② Transport → ③ Delivery Mode → ④ Endpoint Schema <span style="color:var(--fgdim);font-weight:400">(三级联动: 决定 Schema)</span></div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:6px">① Source Kind → ② Transport → ③ Delivery Mode → ④ Endpoint Schema <span style="color:var(--fgdim);font-weight:400">(四级联动: Kind 决定 Transport, 再决定 Schema)</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <span class="pill pill-yellow">Network</span>
           <span style="font-size:10px;color:var(--fgdim)">UDP · RTP · SRT · RTMP · HLS · WebRTC Pull · RTSP — 本页演示 Network → UDP</span>
@@ -196,6 +209,16 @@
         <button class="btn l2">💾 存为 VERIFIED (验证后)</button>
         <a href="CH-02-create-channel.html" class="btn">→ 去 D1 选 VERIFIED 源</a>
       </div>
+      <div style="margin-top:8px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px">
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Verification Freshness (VERIFIED 非永久有效 · 0.5F.9 P1-3)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+          <div><span class="pill pill-green">FRESH</span> 24h 内 / fingerprint 匹配</div>
+          <div><span class="pill pill-yellow">STALE</span> 超 24h / 待 Revalidate</div>
+          <div><span class="pill" style="border-color:#e5484d;color:#e5484d">INVALID</span> NIC/IGMP/Route/Codec/Clock 变化</div>
+          <div>Last verified: 2026-08-25 08:42 · Contract: SRC-v7</div>
+        </div>
+        <div class="diag" style="margin-top:6px">VERIFIED → STALE/INVALID 自动触发 Revalidate; 真实广播中 IGMP/Route/VLAN/Clock 均会变, 必须 freshness 维度.</div>
+      </div>
       <div class="gap">⚠ G5 预览端点不在本页: 视频缩略流 + 音频 LUFS/RMS 预览在 <a href="E-42-source-test-bench.html" style="color:var(--orange)">E-42</a> 定义 (Source Runtime Preview Stream), 本页不重复.</div>
     </div>
   </div>
@@ -220,6 +243,32 @@
   </div>
   <div style="margin-top:8px"><a href="E-41-NETWORK_PATH_INSPECTOR.md" class="btn">🔬 E-41 查看完整路径 →</a></div>
   <div class="diag">配置层 (Group/Port/IGMP) + 实时 Receive 指标 compact 合并; 完整路径诊断在 E-41 Network Path Inspector (0.5F.8 P1-3)。</div>
+</div>
+
+<!-- Physical Source Branch (0.5F.9 P0-1: unified wizard, Physical = SDI/BMD) -->
+<div class="panel" style="border-color:var(--green)">
+  <h2>① 创建 Physical Source (SDI / BMD)</h2>
+  <div class="row">
+    <div class="col-8">
+      <div class="form-grid">
+        <div class="field"><label>Device</label><select><option>DeckLink Duo 2</option><option>DeckLink 8K Pro</option></select></div>
+        <div class="field"><label>Port</label><select><option>SDI IN 1</option><option>SDI IN 2</option><option>SDI IN 3</option><option>SDI IN 4</option></select></div>
+        <div class="field"><label>Signal</label><select><option>Auto Detect</option><option>1080p50</option><option>1080i50</option><option>720p50</option></select></div>
+      </div>
+      <div class="diag">物理源不配置网络, 仅绑定设备端口 + 信号探测. 探测后自动回填 Format / Pixel / Audio, 进入 VERIFY.</div>
+    </div>
+    <div class="col-4">
+      <div class="panel" style="margin:0">
+        <div class="k">Detected</div>
+        <div class="v" style="color:var(--green)">1080p50 · UYVY422 · 2ch PCM · 48kHz</div>
+        <div class="k" style="margin-top:8px">BMD Lock</div>
+        <div class="v" style="color:var(--green)">LOCKED</div>
+        <div class="k" style="margin-top:8px">Clock</div>
+        <div class="v">TIMECODE / PTP</div>
+        <a href="E-42-source-test-bench.html" class="btn primary" style="margin-top:10px">▶ Run Verification</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Signal Path Diagnostics (0.5F F3) -->

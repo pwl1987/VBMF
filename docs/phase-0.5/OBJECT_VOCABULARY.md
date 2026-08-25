@@ -167,12 +167,12 @@
 | **正式名** | Job |
 | **kind 值** | `JOB` |
 | **DB 表** | `media_jobs` + `media_job_attempts` |
-| **UI 入口** | M-14 File Transcode / M-17 Realtime Transcode / M-18 Job Detail |
+| **UI 入口** | M-14 File Transcode / M-18 Job Detail（⚠ M-17 是 Session 工作区, 见 1.12, 非 Job） |
 | **唯一 ID** | `job_id` (UUID) |
-| **6 子类 (kind 必填)** | `FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE` |
+| **5 子类 (kind 必填)** | `FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE` |
 | **核心字段** | `job_id, kind, status (PENDING/QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED), progress_pct, worker_ref, input_ref, output_refs[], attempts[]` |
 | **生命周期** | PENDING → QUEUED → RUNNING → (COMPLETED / FAILED / CANCELLED), 不可回退 (除 RESTART) |
-| **绝不允许混用** | ❌ Job ≠ Session (见 1.12) |
+| **绝不允许混用** | ❌ Job ≠ Session (见 1.12) · ⚠ `REALTIME_ENCODE` 已移出 Job: 实时编码是 Session, 由 `REALTIME_PROFILE` 实例化 `MEDIA_SESSION` (ENCODE_MODEL_SPEC §0) |
 
 ### 1.12 Session 会话 (持续运行)
 
@@ -237,7 +237,7 @@
 | 域 (Top Nav) | 核心对象 |
 |---|---|
 | **BROADCAST** | Channel, Channel Template, Source, Route, Session (OUTPUT), Graph, Output Variant, Destination, Adapter |
-| **MEDIA** | Asset, Asset Version, Job (FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE), Session (MEDIA) |
+| **MEDIA** | Asset, Asset Version, Job (FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE), Session (MEDIA) |
 | **ENGINEERING** | Profile (7 子类), Profile Bundle, Revision, Channel Template, Graph (design-time), Preflight Run, Change Set, Reservation, Hardware, Clock, Health Tree, Incident, Replay, Benchmark |
 | **ADMIN** | User, Role, Permission, Audit Log, System Setting |
 
@@ -285,7 +285,7 @@
    ┌──────────────────────────┐
    │  JOB (一次性)            │
    │  - FILE_TRANSCODE        │  1.13
-   │  - REALTIME_ENCODE       │  通常 1 个 Session 包装 1 个 Job
+   │  - ARCHIVE               │  实时编码非 Job → MEDIA_SESSION
    │  - PROBE / QC / UPLOAD   │
    └──────────────────────────┘
 

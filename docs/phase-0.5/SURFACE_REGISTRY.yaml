@@ -12,6 +12,12 @@
 #   域合计 55 (54 wireframe + 1 SPEC) · 全局 Validation 1
 #   TOTAL 56 (55 wireframe + 1 Spec E-41) · Phase 0.5 总计 56
 #
+# 计数口径 (避免 "surface = 已有原型页面" 误解, 0.5F.9 P1 治理建议):
+#   Surface Contract Count     = 本 Registry 登记 surface 总数 (设计契约, 非实现)
+#   Implemented Wireframe Count = status=LOCK 且 wireframe 已交付的 surface 数
+#   Spec-only Count            = status=SPEC / SPEC_WIREFRAME 尚未升 LOCK 的 surface 数
+# Registry 是页面计数唯一 SoT; "55/56 个 surface" 不等于 "已有 55/56 个原型页面"。
+#
 # kind 取值: DASHBOARD / REGISTRY / WORKFLOW / WORKSPACE / DETAIL /
 #            DESIGNER / INSPECTOR / APPROVAL / VALIDATION
 # status 取值: LOCK / DRAFT / SPEC / SPEC_WIREFRAME (Spec 锁定 + wireframe 已补)
