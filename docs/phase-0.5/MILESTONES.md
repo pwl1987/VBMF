@@ -3,7 +3,7 @@
 > **目的:** 把 `phase-0.5 / phase-0.5b / phase-0.5b.1 / phase-0.5b.2` 这些"目录分层"统一为
 > **Phase 0.5 下的历史 milestone**, Git commit 仍然负责版本管理, 目录只表达 `phase / domain / role`。
 >
-> **Current phase status (2026-08-25, 权威见 `README.md`):** 🟡 **0.5F.6 Final Semantic & Workflow Gate** — 0.5C RECONCILED · 0.5D 0.5D.1-.6 闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED · 0.5F/0.5F.1/0.5F.2/0.5F.3/0.5F.4/0.5F.5 完成 · 0.5F.6 当前。
+> **Current phase status (2026-08-25, 权威见 `README.md`):** 🟡 **0.5F.7 Semantic Closure** — 0.5C RECONCILED · 0.5D 0.5D.1-.6 闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED · 0.5F/0.5F.1/0.5F.2/0.5F.3/0.5F.4/0.5F.5/0.5F.6 完成 · 0.5F.7 当前。
 >
 > **本文件 = 历史阶段归档 (Historical), 不承担 Current Status** — 当前状态一律以 `README.md` + `SURFACE_REGISTRY.yaml` 为准 (0.5F.5 P1-5 修正)。
 
@@ -91,7 +91,8 @@ docs/
 | **0.5F.3 Runtime/Active-Service/Final Gate** | 2026-08 | 🟢 完成 | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 | `435842e` |
 | **0.5F.4 Cross-Surface Consistency** | 2026-08 | 🟢 完成 | B-13 TAKE≠ChangeSet · Clock Compatibility / Video Switch 分支 / CH-02 Audio→P-23 / CD-01 PENDING / M-17 Pipeline 拆分 / lifecycle 更名 / Fixture 统一 | `8dabc86` |
 | **0.5F.5 Cross-Surface Final Consistency** | 2026-08 | 🟢 完成 | Source Adapter V0.2/V0.3 统一 / B-13 Spec-HTML SoT / TAKE TARGET 术语 / compact UX / #9 Hard Block / 5 工作流验收 | `cdafe33` |
-| **0.5F.6 Final Semantic & Workflow Gate** | 2026-08 | 🟡 IN PROGRESS (本轮) | COMPOSITE V0.2/V0.3 修正 / Clock Domain=PTP / 全屏模态→Preflight Sheet / Capability×Runtime 列 / RTMP Used By / SDI+AES67 fixture | (本轮) |
+| **0.5F.6 Final Semantic & Workflow Gate** | 2026-08 | 🟢 完成 | COMPOSITE V0.2/V0.3 修正 / Clock Domain=PTP / 全屏模态→Preflight Sheet / Capability×Runtime 列 / RTMP Used By / SDI+AES67 fixture | `70af9f3` |
+| **0.5F.7 Semantic Closure** | 2026-08 | 🟡 IN PROGRESS (本轮) | ChangeSet APPROVED canonical 澄清 / TakePreflightResult×API 对齐 / TAKE 三轴 / CH-02 Profile Bundle / E-40 条件 Schema / CD-01 切换策略 / M-17 三轴 Graph + Reservation 闭环 | (本轮) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 

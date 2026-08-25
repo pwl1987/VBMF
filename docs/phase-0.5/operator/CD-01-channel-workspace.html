@@ -340,7 +340,9 @@
     <!-- SWITCH DECISION -->
     <div class="panel">
       <h3>🔀 SWITCH DECISION 切换决策</h3>
-      <div class="failover"><span class="on">AUTO</span> 信号丢失自动切 (判据阈值待定)</div>
+      <div class="failover"><span class="on">AUTO</span> 信号丢失自动切</div>
+      <div class="failover" style="border-left:3px solid var(--green)"><b>Trigger:</b> Signal Loss · Freeze · Black · Audio Loss · Clock Failure → Decision <code>PACKET→FRAME→MASTER→REJECT</code> · Hysteresis Failover 2s / Failback 5s / Min Hold 10s</div>
+      <a href="E-40-network-source.html" class="btn" style="margin:2px 0 4px">查看切换规则 (D5/E-40) →</a>
       <div class="failover" style="border-left:3px solid var(--gray);border-color:var(--gray)">Hot Standby: <b>HOT</b> (独占资源). 主源故障按决策自动/手动切备源.</div>
       <div class="diag">切换判据 (静帧/黑场/音频丢失阈值) 在 D5/E-40 定义; 此处仅选策略.</div>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): Output Resilience (重连/心跳/退避) 已建模为独立对象 (06-output + D6/B-13); 输出层故障 ≠ 源故障, retry 失败只降级+告警, 不切源.</div>

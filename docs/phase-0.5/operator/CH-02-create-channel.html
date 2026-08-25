@@ -400,17 +400,18 @@
     <div class="col-6">
       <div class="vt-only">
       <div class="field">
-        <label>Realtime Encode Profile</label>
-        <select>
-          <option>Video Profile (codec/resolution/framerate/bitrate)</option>
-          <option selected>Realtime Profile (LowLatency / ZeroLatency + GopMode)</option>
-          <option>Audio Profile (layout/loudness/mapping)</option>
-          <option>QC Profile (rules/thresholds)</option>
-          <option>Rights Profile (window/territory/policy)</option>
-          <option>Edge Policy (rule/action)</option>
-          <option>Graphic Profile (template/layer)</option>
-        </select>
-        <div class="hint">7 种 Profile 是 Bundle 的可复用策略引用, 非 UI 组合视图 (POM §4.2).</div>
+        <label>Profile Bundle (7 策略引用 · 模板默认已 resolve)</label>
+        <div style="border:1px solid var(--border);border-radius:3px;padding:6px;background:var(--bg2);margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Encoding</span><span style="flex:1;font-size:11px">P-21 · REALTIME_PROFILE · ENC-v3</span><a href="P-21-encoding-profile.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Output</span><span style="flex:1;font-size:11px">P-22 · OUT-v4</span><a href="06-output.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Audio</span><span style="flex:1;font-size:11px">P-23 · AUDIO-v8</span><a href="P-20-profile-center.html" class="btn" style="padding:1px 6px;font-size:9px">查看</a></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Graphics</span><span style="flex:1;font-size:11px">GFX 引用 (模板默认)</span></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">QC</span><span style="flex:1;font-size:11px">QC 引用 (模板默认)</span></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="width:66px;font-size:10px;color:var(--fgdim)">Rights</span><span style="flex:1;font-size:11px">RIGHTS 引用 (模板默认)</span></div>
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="width:66px;font-size:10px;color:var(--fgdim)">Edge</span><span style="flex:1;font-size:11px">EDGE 引用 (模板默认)</span></div>
+        </div>
+        <div class="hint">7 种 Profile 是 Bundle 的可复用策略引用, 各自独立; 非单一"转码 Profile"组合框 (POM §4.2).</div>
+        <div style="display:flex;gap:4px;margin-top:6px"><button class="btn">使用模板默认</button><button class="btn">选择 Bundle → P-28</button></div>
       </div>
       <div class="card">
         <div class="title">Realtime 专属属性 (REALTIME_PROFILE)</div>

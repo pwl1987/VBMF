@@ -32,7 +32,8 @@ Reservation (PROVISIONED → RESERVED → IN_USE → RELEASED)
 Session (lifecycle STARTING→RUNNING · readiness NOT_READY→READY_TO_TAKE · health UNKNOWN→HEALTHY)
    │  operator action (CD-01)
    ▼
-TAKE ──► RUNNING (Program Master → Output Variant → Adapter)
+TAKE (operator action) ──► active_source=PRIMARY · Primary Reservation RESERVED→IN_USE
+   (lifecycle 保持 RUNNING · readiness 保持 READY_TO_TAKE · 仅改激活源/预留, 不迁 lifecycle)
    │
    ├─ FAILOVER: PACKET/FRAME/MASTER Decision → 备源/备机 (Reservation 已预占)
    └─ OUTPUT RECOVERY: OutputResilience (retry/backoff/zombie) → 不切源 → Incident/Replay
@@ -48,7 +49,7 @@ TAKE ──► RUNNING (Program Master → Output Variant → Adapter)
 | `provision` | H2 Scheduler | Preflight A (Config) PASS | Reservation PROVISIONED |
 | `reserve` | H2 Scheduler | 9-dim vector 可满足 | Reservation RESERVED (HOT 备机同锁) |
 | `start` | Session Manager | Reservation == RESERVED | Session STARTING → READY_TO_TAKE (Reservation **保持 RESERVED**, RUNNING ≠ IN_USE) |
-| `take` | Operator (CD-01) | B-13: READY/CONDITIONAL + Reservation RESERVED | TAKE → RUNNING + Primary Reservation `RESERVED → IN_USE` (Backup 保持 RESERVED) |
+| `take` | Operator (CD-01) | B-13: READY/CONDITIONAL + Reservation RESERVED | **lifecycle 不变=RUNNING** · **readiness 不变=READY_TO_TAKE** · `active_source=PRIMARY` · Primary Reservation `RESERVED → IN_USE` (Backup 保持 RESERVED) · emit `TAKE_RECORD` |
 | `release` | Session stop / 退役 | 主备切换完成 / 显式释放 | Reservation RELEASED → 触发仲裁 |
 
 **Media Session 三轴 (0.5F.2 P0 修正 — 删除 Session `RESERVED`):**
@@ -182,7 +183,7 @@ Draft → Validate → ChangeSet       Prepared Session → Readiness
 
 | # | 用户点击 | DB Object | Revision | Runtime Session | Audit Event | 状态迁移 |
 |---|---|---|---|---|---|---|
-| D1 | CD-01 切源 PGM←B (TAKE) | — (运行时事件) | — | Session `s-001` | → 路径 E | `READY_TO_TAKE → RUNNING` |
+| D1 | CD-01 切源 PGM←B (TAKE) | — (运行时事件) | — | Session `s-001` | → 路径 E | lifecycle=RUNNING(不变) · readiness=READY_TO_TAKE(不变) · `active_source` 变更 · Reservation→IN_USE |
 | D2 | CD-01 添加 Output Variant (选 Profile+Destination) | `output_variants` (新) | — | — | `CONFIG_CHANGE` (走 ChangeSet) | Variant refs 更新 |
 | D3 | CD-01 Audio MUTE / DIM | Session runtime | — | — | `AUDIO_CONTROL` (即时生效, 不进 ChangeSet) | runtime 状态 |
 | D4 | CD-01 Open Audio 深页 / Health | 查看 | — | — | 无需 audit | — |
@@ -193,7 +194,7 @@ Draft → Validate → ChangeSet       Prepared Session → Readiness
 |---|---|---|---|---|---|---|
 | E1 | CD-01 TAKE → B-13 模态 | `preflight_runs` (B-13) | — | — | `PREFLIGHT_RUN` | TakePreflightResult `READY/CONDITIONAL/BLOCKED` |
 | E2 | B-13 READY → Operator Intent | TakeIntent (operator intent) | — | — | `OPERATOR_INTENT` | — |
-| E3 | TAKE 执行 | — (Runtime Event `evt-take-...`) | — | Session `READY_TO_TAKE → RUNNING` | `TAKE_RECORD` (**非 ChangeSet**) | Reservation `IN_USE` |
+| E3 | TAKE 执行 | — (Runtime Event `evt-take-...`) | — | lifecycle=RUNNING(不变) · readiness=READY_TO_TAKE(不变) · `active_source` 变更 | `TAKE_RECORD` (**非 ChangeSet**) | Reservation `IN_USE` |
 | E4 | Audit / Incident Timeline | `audit_logs` + `incident_timeline` | — | — | `TAKE_RECORD` 入链 | — |
 
 **关键 (0.5D.5 焊死):** TAKE **不生成 ChangeSet**。仅当同次操作还修改了 Bundle/Profile/Route/Output/Runtime Config 时, 才**另发** ChangeSet (E-33), 与 TAKE 事件解耦。
@@ -224,6 +225,8 @@ Draft → Validate → ChangeSet       Prepared Session → Readiness
 | H2 | Validate | ChangeSet | — | — | `CHANGESET_VALIDATE` | `VALIDATED` |
 | H3 | Approve (L2 / D7 独立面) | ChangeSet | — | — | `CHANGESET_APPROVE` | `APPROVED` |
 | H4 | Apply | Runtime Revision +1 | `cfg-rev +1` | — | `CONFIG_APPLY` | `APPLIED` → 触发 Provision (C7) |
+
+> **P0-1 语义澄清 (0.5F.7):** `APPROVED` 是 `ChangeSetStatus` 的 canonical 值 (OBJECT_VOCABULARY §1.14 三层词汇: `ChangeSetStatus` / `ReviewState` / `TransactionPhase`), **非 Phase-0.5 新造枚举** — 不构成 enum leak。审批语义双轴共存: `ChangeSetStatus=APPROVED` + `ReviewState=PENDING/APPROVED/REJECTED`。若需回退到 4 值 `ChangeSetStatus` (移除 APPROVED, 仅留 `ReviewState`), 属 V0.2 词汇变更, 需同步改 OBJECT_VOCABULARY + chains, **不在 0.5F.7 范围**。
 
 ### 6.9 单一创建入口映射 (0.5D.5 原则 → 落点)
 

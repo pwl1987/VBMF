@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F/0.5F.1/0.5F.2/0.5F.3/0.5F.4/0.5F.5 完成 · 0.5F.6 Final Semantic & Workflow Gate (本轮)** (2026-08-25)
+> **状态**: 🟡 **0.5C RECONCILED · 0.5D 0.5D.1-.6 语义/执行闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED (E-50/51/52) · 0.5F/0.5F.1/0.5F.2/0.5F.3/0.5F.4/0.5F.5/0.5F.6 完成 · 0.5F.7 Semantic Closure (本轮)** (2026-08-25)
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -37,7 +37,8 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5F.3** Runtime/Active-Service/Final Gate | 🟢 完成 | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 |
 | **0.5F.4** Cross-Surface Consistency | 🟢 完成 | B-13 TAKE≠ChangeSet · Clock Compatibility / Video Switch 分支 / CH-02 Audio→P-23 / CD-01 PENDING / M-17 Pipeline 拆分 / lifecycle 更名 / Fixture 统一 |
 | **0.5F.5** Cross-Surface Final Consistency | 🟢 完成 | Source Adapter V0.2/V0.3 统一 / B-13 Spec-HTML SoT / TAKE TARGET 术语 / compact UX / #9 Hard Block / 5 工作流验收 |
-| **0.5F.6** Final Semantic & Workflow Gate | 🟡 IN PROGRESS (本轮) | COMPOSITE V0.2/V0.3 修正 / Clock Domain=PTP (Quality 维度) / 全屏模态→Preflight Sheet / Capability×Runtime 列 / RTMP Used By / SDI+AES67 fixture |
+| **0.5F.6** Final Semantic & Workflow Gate | 🟢 完成 | COMPOSITE V0.2/V0.3 修正 / Clock Domain=PTP (Quality 维度) / 全屏模态→Preflight Sheet / Capability×Runtime 列 / RTMP Used By / SDI+AES67 fixture |
+| **0.5F.7** Semantic Closure | 🟡 IN PROGRESS (本轮) | ChangeSet APPROVED canonical 澄清 / TakePreflightResult×API 对齐 / TAKE 三轴不改 Lifecycle / CH-02 Profile Bundle / E-40 条件 Schema / CD-01 切换策略 / M-17 三轴 Graph + Reservation 闭环 |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 

@@ -139,7 +139,9 @@ Scheduler 按 `items[].start_time` 自动切播: `ASSET` 项播文件素材, `VI
 | `POST` | `/channels/{id}/playlist` | 创建节目单 (**仅 Virtual**) | 非 Virtual → 409 |
 | `POST` | `/channels/{id}/playlist/items` | 追加节目项 | |
 | `POST` | `/channels/{id}/schedule` | 设置定时调度 (**仅 Virtual**) | |
-| `POST` | `/channels/{id}/take` | 开播 (需 Preflight 全 PASS) | |
+| `POST` | `/channels/{id}/take` | 开播 · `TakePreflightResult` READY/CONDITIONAL→`200` allow(+warning) · BLOCKED→`409` (0.5F.7 P0-2) | |
+
+> **P0-2 (0.5F.7) — `TakePreflightResult` 与 API 对齐:** B-13 闭集 = `READY` / `CONDITIONAL` / `BLOCKED` (0.5D.3 焊死)。两层分离: **`readiness` (Runtime 三轴) = `NOT_READY` / `READY_TO_TAKE`** vs **`TakePreflightResult` = `READY` / `CONDITIONAL` / `BLOCKED`**。API 不再写"必须全 PASS"——`READY` 与 `CONDITIONAL` 均放行, 仅 `BLOCKED`(含 #9 Resource>100%) 返回 `409`。`CONDITIONAL` = 仅 WARNING + Reservation 满足 + REQUIRED 全 PASS。
 
 ### 5.1 请求示例
 ```json
@@ -151,7 +153,7 @@ POST /api/v1/channels
   "clock_ref": "PTP Primary",
   "audio": { "layout": "STEREO", "codec": "AAC", "sample_rate": "48kHz",
              "bitrate": 128, "loudness_lufs": -23 },
-  "output": { "variants": [ { "proto": "ICECAST", "required": true }, { "proto": "RTMP", "required": true }, { "proto": "SRT", "optional": true }, { "proto": "UDP_MC", "optional": true }, { "proto": "DAB_PLUS", "aux": true } ] }
+  "output": { "variants": [ { "proto": "RTMP", "required": true }, { "proto": "SRT", "optional": true }, { "proto": "UDP_MC", "optional": true }, { "proto": "ICECAST", "required": true, "maturity": "V0.3_RESERVED" }, { "proto": "DAB_PLUS", "aux": true, "maturity": "V0.3_RESERVED" } ] }
 }
 # 若 body 含 "video": {...} → 422 (RADIO_LIVE 禁止 video 字段)
 ```

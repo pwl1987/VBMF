@@ -151,21 +151,21 @@
 
 <!-- PIPELINE (沿用 M-17 0.5D LOCK 结构) -->
 <div class="panel">
-  <h3>🔀 实时编码管线 / PIPELINE (Source → Normalize → Program Master → Encode → Output Variants → Adapters)</h3>
-  <div class="pipeline">
-    <div class="stage active"><div class="ico">📡</div><div class="name">SOURCE</div><div class="detail">SDI-01 (Primary)</div><div class="detail" style="color:var(--green)">1080i25 · LOCKED</div></div>
-    <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">🔄</div><div class="name">NORMALIZE</div><div class="detail">1080p25 · UYVY422</div><div class="detail" style="color:var(--green)">BT.709</div></div>
-    <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">🔀</div><div class="name">REDUNDANCY / SWITCH</div><div class="detail">FRAME_SWITCH (Effective Runtime Mode)</div><div class="detail" style="color:var(--green)">eligible · Decision Tree</div></div>
-    <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">🎬</div><div class="name">PROGRAM MASTER</div><div class="detail">RAW (Program semantic master)</div><div class="detail" style="color:var(--green)">MASTER · ready</div></div>
-    <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">P-21 REALTIME · H.264</div><div class="detail" style="color:var(--green)">GOP 50 · CBR · ENC-v3</div></div>
-    <div class="arrow">→</div>
-    <div class="stage active"><div class="ico">📦</div><div class="name">OUTPUT VARIANTS</div><div class="detail">HLS · WebRTC</div><div class="detail" style="color:var(--green)">P-22 派生</div></div>
-    <div class="arrow">→</div>
-    <div class="stage"><div class="ico">🔌</div><div class="name">ADAPTERS</div><div class="detail">SRS · WHIP</div><div class="detail" style="color:var(--fgdim)">E-35/E-38</div></div>
+  <h3>🔀 实时编码管线 / PIPELINE (Video/Audio/Metadata 三独立 Graph → Master Join → Program Master → Encode → Output Variants)</h3>
+  <div style="display:flex;flex-direction:column;gap:4px;margin:8px 0;padding:8px;background:var(--bg3);border-radius:3px">
+    <div style="display:flex;align-items:center;gap:6px"><span style="width:84px;font-size:10px;font-weight:700;color:var(--accent)">VIDEO GRAPH</span><div class="stage active" style="flex:1"><div class="name">Source → Normalize → Switch → Compose</div><div class="detail">SDI-01 (Primary) 1080i25 · LOCKED → 1080p25</div></div></div>
+    <div style="display:flex;align-items:center;gap:6px"><span style="width:84px;font-size:10px;font-weight:700;color:var(--accent)">AUDIO GRAPH</span><div class="stage active" style="flex:1"><div class="name">Mixer → Loudness → Delay → Audio Master</div><div class="detail">48k/2ch · LUFS-I -23.1 · AV +18ms</div></div></div>
+    <div style="display:flex;align-items:center;gap:6px"><span style="width:84px;font-size:10px;font-weight:700;color:var(--accent)">METADATA</span><div class="stage active" style="flex:1"><div class="name">Timecode / SCTE-35 / CC</div><div class="detail">PTP LOCKED</div></div></div>
+    <div style="text-align:center;font-size:12px;font-weight:700;color:var(--green);margin:4px 0">⬇ MASTER JOIN (三轴合成 Program Semantic Master) ⬇</div>
+    <div class="pipeline" style="margin:0">
+      <div class="stage active"><div class="ico">🎬</div><div class="name">PROGRAM MASTER</div><div class="detail">RAW (Program semantic master)</div><div class="detail" style="color:var(--green)">MASTER · ready</div></div>
+      <div class="arrow">→</div>
+      <div class="stage active"><div class="ico">⚙️</div><div class="name">ENCODE</div><div class="detail">P-21 REALTIME · H.264</div><div class="detail" style="color:var(--green)">GOP 50 · CBR · ENC-v3</div></div>
+      <div class="arrow">→</div>
+      <div class="stage active"><div class="ico">📦</div><div class="name">OUTPUT VARIANTS</div><div class="detail">HLS · WebRTC</div><div class="detail" style="color:var(--green)">P-22 派生</div></div>
+      <div class="arrow">→</div>
+      <div class="stage"><div class="ico">🔌</div><div class="name">ADAPTERS</div><div class="detail">SRS · WHIP <span style="color:var(--orange)">(Browser Delivery/Player Adapter, 非 V0.2 Runtime Output Adapter)</span></div></div>
+    </div>
   </div>
   <div class="row" style="margin-top:8px">
     <div class="col-6">
@@ -255,6 +255,20 @@
       </table>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 已建模为独立对象 (06-output + D6/B-13: 重连策略/心跳/退避/zombie 判定). M-17 Backup Output retry 3x 为该对象在编码面的触点, 决策留在 06-output 而非 M-17. 此处仅展示, 不编辑.</div>
     </div>
+    <div class="panel" style="border-color:var(--purple)">
+        <h3>📐 Reservation vs Runtime Usage (0.5F.7 P1-5)</h3>
+        <table>
+          <thead><tr><th>Resource</th><th>Reserved</th><th>Used</th><th>Headroom</th></tr></thead>
+          <tbody>
+            <tr><td>CPU</td><td>2.5 th</td><td>1.8 th</td><td style="color:var(--green)">28%</td></tr>
+            <tr><td>RAM</td><td>4 GB</td><td>2.1 GB</td><td style="color:var(--green)">47%</td></tr>
+            <tr><td>GPU</td><td>1</td><td>1</td><td style="color:var(--fgdim)">0%</td></tr>
+            <tr><td>NIC</td><td>8 Mbps</td><td>5.2 Mbps</td><td style="color:var(--green)">35%</td></tr>
+            <tr><td>PCIe</td><td>0.4 GB/s</td><td>0.21 GB/s</td><td style="color:var(--green)">48%</td></tr>
+          </tbody>
+        </table>
+        <div class="diag">Resource Vector → Reservation (CH-02 预占) → Runtime Telemetry 闭环. Reservation HEALTHY; Headroom 充裕 (0.5F.7 P1-5).</div>
+      </div>
     <div class="panel" style="border-color:var(--accent)">
       <h3>🎙 一屏判断「能不能播」 (0.5F F4) <span class="pill pill-blue" style="float:right">Session 联动摘要</span></h3>
       <table>

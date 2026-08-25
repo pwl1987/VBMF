@@ -934,3 +934,44 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### X.8 结论
 - **2 P0 + 4 P1 全部落实, 零残留** (COMPOSITE V0.3 / Clock domain=BROADCAST / 全屏模态 / Output Variant fixture 清零); 五条 E2E 工作流端到端通过, 无对象/状态/Revision/权限/导航断裂。
 - **建议正式宣布**: **Phase 0.5 UX BASELINE = LOCK FINAL**; **Phase 0.6 = Executable Acceptance Specification** (不再开 0.5G/0.5H)。0.5D LOCK + 0.5E LOCK 声明即写入判定矩阵。
+
+---
+
+## Y. 0.5F.7 Semantic Closure — 3 P0 + 5 P1 (用户第 19 轮反向审计 70af9f3, 2026-08-25)
+
+> 用户以 `70af9f3` 做"修复后反向审计": 上轮 6 项已真修 ✅; 但要求再做 **0.5F.7 Semantic Closure**, 只修 **3 P0 + 5 P1** (+ 顺手 2 个 🟡 future-leakage 标记)。本轮收口。
+
+### Y.1 P0-1 — ChangeSet `APPROVED` 是否 enum leak? → **已 canonical, 非泄漏 (加澄清注)**
+- 用户前提: "V0.2 Canonical ChangeSetStatus = DRAFT/VALIDATED/APPLIED/ROLLED_BACK (无 APPROVED)". 但 EXECUTION_MODEL H 表 `DRAFT→VALIDATED→APPROVED→APPLIED` 用 APPROVED。
+- **核验结论 (关键):** `OBJECT_VOCABULARY §1.14` (0.5D.1 焊死的三层词汇) 的 `ChangeSetStatus = DRAFT/VALIDATED/APPROVED/SCHEDULED/APPLIED/ROLLED_BACK/ABORTED` **已含 APPROVED**; 与独立轴 `ReviewState = NOT_REQUIRED/PENDING/APPROVED/REJECTED` 双轴共存。用户给的 4 值模型是 **0.5D.1 之前的旧版**。
+- **处置:** 不删 APPROVED (删会改 V0.2 canonical, 违背"不要修改 V0.2", 且引发 OBJECT_VOCABULARY+chains 跨文件不一致); 在 EXECUTION_MODEL H 表后加澄清注, 明确 APPROVED 属 canonical `ChangeSetStatus`, **非 Phase-0.5 新造枚举** → 不构成 enum leak。
+- **留给用户决策:** 若仍要回退到 4 值 ChangeSetStatus (移除 APPROVED, 仅留 ReviewState), 属 V0.2 词汇变更, 需同步改 OBJECT_VOCABULARY + chains — **不在 0.5F.7 范围**, 需单独开 V0.3 流程或用户特批。
+
+### Y.2 P0-2 — `TakePreflightResult` 与 API 统一
+- CHANNEL_TYPE_MODEL `POST /channels/{id}/take` "开播 (需 Preflight 全 PASS)" → **`TakePreflightResult` READY/CONDITIONAL→200 allow(+warning) · BLOCKED→409** (与 B-13 闭集 0.5D.3 一致)。
+- 明确两层分离: `readiness` (Runtime 三轴) = `NOT_READY`/`READY_TO_TAKE` ≠ `TakePreflightResult` = `READY`/`CONDITIONAL`/`BLOCKED`。API 不再要求"全 PASS"。
+
+### Y.3 P0-3 — Execution Model 三轴: TAKE 不改 Lifecycle
+- EXECUTION_MODEL 管线图 + 时序表 (take / D1 / E3 行) 原写 `TAKE → RUNNING` / `READY_TO_TAKE → RUNNING` (把 readiness 误当 lifecycle 迁移)。
+- 修正: **START** lifecycle `STARTING→RUNNING` + readiness `NOT_READY→READY_TO_TAKE`; **TAKE** lifecycle 不变=RUNNING · readiness 不变=READY_TO_TAKE · 仅 `active_source` 变更 · Primary Reservation `RESERVED→IN_USE` · emit `TAKE_RECORD`。杜绝 Phase 1 工程师写 `session.lifecycle="RUNNING"` 退化三轴。
+
+### Y.4–Y.8 P1 — 五项 UX/流程收口
+- **P1-1** CH-02 "Realtime Encode Profile" 单一下拉 (混入 7 类 Profile) → **Profile Bundle**: 7 个独立策略引用分行 (Encoding P-21 / Output P-22 / Audio P-23 / Graphics / QC / Rights / Edge), `[使用模板默认]` / `[选择 Bundle → P-28]`。视觉不再暗示"一个转码 Profile 含七种东西"。
+- **P1-2** E-40 三套 Schema 平铺 → **Delivery Mode 选择后仅渲染对应 Endpoint Schema** (UNICAST / MULTICAST_ASM 隐藏, 默认 SSM 显示), 顶部加注。
+- **P1-3** CD-01 "判据阈值待定" → **当前策略** (Signal Loss/Freeze/Black/Audio Loss/Clock Failure → Decision `PACKET→FRAME→MASTER→REJECT` · Hysteresis 2s/5s/10s) + **[查看切换规则 (D5/E-40)]** 链接。
+- **P1-4** M-17 单线管线 → **Video/Audio/Metadata 三独立 Graph → MASTER JOIN → PROGRAM MASTER → ENCODE → OUTPUT VARIANTS** (三轴可视化, 不再弱化 Audio 为编码附属); ADAPTERS 加注 `WHIP = Browser Delivery/Player Adapter (非 V0.2 Runtime Output Adapter)` (🟡 #十九)。
+- **P1-5** M-17 加 **Reservation vs Runtime Usage** 面板 (CPU/RAM/GPU/NIC/PCIe 的 Reserved/Used/Headroom), 闭环 Resource Vector → Reservation → Telemetry。
+
+### Y.9 🟡 顺手 two future-leakage 标记 (用户 §十九/§二十, 不在 3+5 但 trivial)
+- CHANNEL_TYPE_MODEL request 示例 `ICECAST`/`DAB_PLUS` 标 `"maturity": "V0.3_RESERVED"` — V0.3+ 能力显式标注, 防 Phase 4 误判为 V0.2 承诺。
+
+### Y.10 五条 E2E 工作流复验 (A 网络源 / B 物理源 / C 建频道 / D 实时编码 / E 开播+故障)
+- 0.5F.6 验收链仍全 ✅; 本轮 P0-3 修正使 START/TAKE 三轴语义无歧义, 工作流落点更精确。
+
+### Y.11 残留扫描
+- `READY_TO_TAKE → RUNNING` / `判据阈值待定` / `Realtime Encode Profile` / `(alternate)` **全清零**。`全 PASS` 仅存于: canonical TakePreflightResult 定义 (READY=全PASS) / 配置预检 gate (CH-02 ⑦ REQUIRED 全 PASS 才放行, 属 ChangeSet 级, 非 TAKE 级) / Source E-42 7 层 / 历史 Reconciliation — 均合法。`check_docs.py PASS`。
+
+### Y.12 结论
+- **3 P0 + 5 P1 (+2 🟡) 全部落实, 零非法残留**; 五条 E2E 工作流端到端通过。
+- **P0-1 特别说明:** `APPROVED` 经核验属 canonical ChangeSetStatus (0.5D.1 三层), **非 Phase-0.5 泄漏** — 故未删除, 加澄清注; 是否回退 4 值模型待用户决策 (属 V0.2 词汇变更)。
+- **建议正式宣布**: **Phase 0.5 UX BASELINE = LOCK FINAL**; **Phase 0.6 = Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收**。0.5D LOCK + 0.5E LOCK 声明即写入判定矩阵即 FINAL。
