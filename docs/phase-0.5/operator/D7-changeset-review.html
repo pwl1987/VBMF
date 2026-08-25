@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>D7 · ChangeSet Review 变更集审阅 — VBMF Operator Console</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1f242c; --bg4:#2a3038;
+    --border:#30363d; --border2:#444c56;
+    --fg:#c9d1d9; --fgdim:#8b949e; --fgdim2:#6e7681;
+    --accent:#58a6ff; --accent2:#79b8ff;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149; --blue:#58a6ff; --gray:#6e7681; --orange:#db6d28; --purple:#bc8cff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;padding:12px}
+  .modeswitch{position:fixed;top:10px;right:12px;display:flex;gap:6px;z-index:99}
+  .modeswitch button{font-size:11px;padding:4px 8px;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border);border-radius:3px;cursor:pointer}
+  .modeswitch button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .compact *{font-size:11px !important}
+  .header{background:linear-gradient(135deg,#0d1117 0%,#1a162e 100%);border-bottom:2px solid var(--purple);padding:14px 18px;margin:-12px -12px 12px -12px}
+  .header h1{font-size:18px;font-weight:600}
+  .header h1 .en{color:var(--fgdim);font-size:13px;font-weight:400;margin-left:8px}
+  .breadcrumb{color:var(--fgdim);font-size:11px;margin-bottom:4px}
+  .breadcrumb a{color:var(--accent);text-decoration:none}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .pill-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+  .pill-yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+  .pill-red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+  .pill-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent)}
+  .pill-gray{background:rgba(110,118,129,.15);color:var(--gray);border:1px solid var(--gray)}
+  .pill-purple{background:rgba(188,140,255,.15);color:var(--purple);border:1px solid var(--purple)}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+  .panel h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--fg);display:flex;align-items:center;gap:8px}
+  .panel h3 .pill{margin-left:auto}
+  .panel h4{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--fg)}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+  .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  .k{color:var(--fgdim);font-size:11px}
+  .v{color:var(--fg);font-size:12px;font-family:Menlo,Consolas,monospace}
+  .v.green{color:var(--green)}.v.yellow{color:var(--yellow)}.v.red{color:var(--red)}.v.blue{color:var(--accent)}.v.purple{color:var(--purple)}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;padding:6px 8px;color:var(--fgdim);font-weight:500;border-bottom:1px solid var(--border);background:var(--bg3);text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--fg);font-family:Menlo,Consolas,monospace;vertical-align:top}
+  tr:hover td{background:var(--bg3)}
+  .btn{display:inline-block;padding:4px 10px;background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:3px;font-size:11px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--bg4)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.approve{background:var(--green);color:#fff;border-color:var(--green)}
+  .btn.reject{border-color:var(--red);color:var(--red)}
+  .btn.l2{border-color:var(--yellow);color:var(--yellow)}
+  .btn.l3{border-color:var(--red);color:var(--red)}
+  .btn.l1{border-color:var(--green);color:var(--green)}
+  .metric{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:10px}
+  .metric .label{color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .metric .val{font-size:22px;font-weight:600;font-family:Menlo,Consolas,monospace;color:var(--fg)}
+  .metric .val.green{color:var(--green)}.metric .val.yellow{color:var(--yellow)}.metric .val.red{color:var(--red)}.metric .val.purple{color:var(--purple)}
+  .metric .sub{font-size:10px;color:var(--fgdim);margin-top:2px}
+  .diag{background:rgba(88,166,255,.05);border-left:2px solid var(--accent);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--fgdim)}
+  .diag b{color:var(--accent)}
+  .diff{font-family:Menlo,Consolas,monospace;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:8px;margin-top:6px;white-space:pre}
+  .diff .add{color:var(--green)}
+  .diff .del{color:var(--red)}
+  .diff .ctx{color:var(--fgdim)}
+  footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;padding:8px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="modeswitch">
+  <button id="btn-std" class="active">标准</button>
+  <button id="btn-compact">精致</button>
+</div>
+
+<div class="header">
+  <div class="breadcrumb"><a href="B-13-take-preflight-v2.html">B-13 Take Preflight</a> › <b>D7 ChangeSet Review 变更集审阅 (独立审批 surface, 从 B-13 内联审批拆出)</b></div>
+  <h1><span class="cn">D7 · 变更集审阅</span> <span class="en">CHANGESET REVIEW &amp; APPROVAL (INDEPENDENT SURFACE)</span></h1>
+</div>
+
+<!-- Summary Metrics -->
+<div class="row" style="margin-bottom:12px">
+  <div class="col-3 metric"><div class="label">Pending Review</div><div class="val yellow">3</div><div class="sub">待审阅</div></div>
+  <div class="col-3 metric"><div class="label">Approved (待 Apply)</div><div class="val green">2</div><div class="sub">已批准</div></div>
+  <div class="col-3 metric"><div class="label">Rejected</div><div class="val red">1</div><div class="sub">已驳回</div></div>
+  <div class="col-3 metric"><div class="label">Risk L3</div><div class="val purple">1</div><div class="sub">高危需 Admin</div></div>
+</div>
+
+<!-- ChangeSet Queue -->
+<div class="panel">
+  <h3>变更集队列 / CHANGESET QUEUE <span class="pill pill-purple" style="float:right">6 total</span></h3>
+  <table>
+    <thead><tr><th>ID</th><th>Title</th><th>Affected</th><th>Risk</th><th>Author</th><th>Created</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <tr>
+        <td>cs-take-ch01-001</td><td>TAKE CH01 Source B→PGM</td><td>CH01 · HLS/RTMP/SDI</td><td><span class="pill pill-yellow">L2</span></td><td>operator1</td><td>2026-08-25 14:30</td><td><span class="v yellow">PENDING_REVIEW</span></td><td><button class="btn primary">Review</button></td>
+      </tr>
+      <tr>
+        <td>cs-bundle-p28-002</td><td>更新 Profile Bundle (P-28)</td><td>CH03 · Bundle</td><td><span class="pill pill-yellow">L2</span></td><td>engineer2</td><td>2026-08-25 11:02</td><td><span class="v yellow">PENDING_REVIEW</span></td><td><button class="btn primary">Review</button></td>
+      </tr>
+      <tr>
+        <td>cs-disable-output-003</td><td>DISABLE Output (RTMP)</td><td>CH05 · RTMP</td><td><span class="pill pill-red">L3</span></td><td>admin1</td><td>2026-08-24 09:15</td><td><span class="v yellow">PENDING_REVIEW</span></td><td><button class="btn primary">Review</button></td>
+      </tr>
+      <tr>
+        <td>cs-bundle-p28-001</td><td>创建 Profile Bundle (P-28)</td><td>CH02 · Bundle</td><td><span class="pill pill-yellow">L2</span></td><td>engineer2</td><td>2026-08-23 16:40</td><td><span class="v green">APPROVED</span></td><td><button class="btn">Detail</button></td>
+      </tr>
+      <tr>
+        <td>cs-take-ch03-004</td><td>TAKE CH03</td><td>CH03 · SRT</td><td><span class="pill pill-yellow">L2</span></td><td>operator3</td><td>2026-08-22 10:05</td><td><span class="v red">REJECTED</span></td><td><button class="btn">Detail</button></td>
+      </tr>
+      <tr>
+        <td>cs-rollback-ch01-005</td><td>ROLLBACK CH01 → prev</td><td>CH01</td><td><span class="pill pill-red">L3</span></td><td>admin1</td><td>2026-08-21 20:11</td><td><span class="v green">APPLIED</span></td><td><button class="btn">Detail</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Review Detail (selected: cs-take-ch01-001) -->
+<div class="panel" style="border-left:3px solid var(--purple)">
+  <h3>审阅 / REVIEW · cs-take-ch01-001 <span class="pill pill-yellow" style="float:right">PENDING_REVIEW</span></h3>
+  <div class="row">
+    <div class="col-6">
+      <div class="panel" style="margin-bottom:0">
+        <h4>Before / After Diff (配置项)</h4>
+        <div class="diff"><span class="ctx"># Channel CH01 · Switch</span>
+<span class="del">- Source: A (PGM)</span>
+<span class="add">+ Source: B (PGM)</span>
+<span class="ctx"># Variant Criticality</span>
+<span class="del">- HLS: OPTIONAL</span>
+<span class="add">+ HLS: REQUIRED</span>
+<span class="add">+ SDI: REQUIRED (G3 基带)</span>
+<span class="ctx"># Output Resilience (G4)</span>
+<span class="add">+ HLS.retry: 3x exp-backoff 1s</span>
+<span class="add">+ HLS.heartbeat: 5s</span></div>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="panel" style="margin-bottom:0">
+        <h4>Risk Assessment</h4>
+        <table>
+          <tbody>
+            <tr><td>Risk Level</td><td><span class="v yellow">L2 (重要)</span></td></tr>
+            <tr><td>Impact</td><td>CH01 全部 Variant 切换源</td></tr>
+            <tr><td>Pre-check</td><td><span class="v green">9/9 PASS (B-13)</span></td></tr>
+            <tr><td>Clock Domain</td><td><span class="v green">PTP LOCKED (G7 PASS)</span></td></tr>
+            <tr><td>Reviewer</td><td><span class="v">unassigned</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:12px;margin-bottom:0">
+    <h4>审批动作 / APPROVAL</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="v" style="flex:1;min-width:200px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px;color:var(--fg)" placeholder="Reviewer (Who) + Why 必填 (L2)" />
+      <button class="btn l1">✓ Approve (L1)</button>
+      <button class="btn l2">✓ Approve (L2)</button>
+      <button class="btn l3">✓ Approve (L3)</button>
+      <button class="btn reject">✗ Reject</button>
+      <button class="btn l3">↩ Rollback</button>
+    </div>
+  </div>
+  <div class="diag" style="border-left-color:var(--purple)">
+    <b>状态分离 (§10):</b> Business Status = PENDING_REVIEW → APPROVED → APPLIED; Execution Phase = QUEUED → APPLYING → APPLIED / ABORTED (Phase 非 Status). 审批动作带 Who+Why 写入 A-54 (hash chain, append-only).
+  </div>
+</div>
+
+<!-- Audit Trail -->
+<div class="panel">
+  <h3>审计链 / AUDIT TRAIL <span class="pill pill-gray" style="float:right">append-only</span></h3>
+  <table>
+    <thead><tr><th>Time</th><th>Action</th><th>Who</th><th>Hash</th></tr></thead>
+    <tbody>
+      <tr><td>2026-08-25 14:30</td><td>SUBMIT (B-13 TAKE)</td><td>operator1</td><td>a1f3...e9</td></tr>
+      <tr><td>2026-08-25 14:31</td><td>PRECHECK 9/9 PASS</td><td>system</td><td>b2c4...01</td></tr>
+      <tr><td>—</td><td>AWAITING REVIEW</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Relationship to B-13 / E-33 -->
+<div class="diag" style="border-left-color:var(--purple)">
+  <b>与 B-13 / E-33 的关系:</b> B-13 (D6) 在 TAKE 前置内联 L2 Review/Approve/回滚; 本 D7 是其<b>独立审阅面</b>, 供 Engineer/Admin 在 ChangeSet 提交后集中审批。二者共享同一 ChangeSet 对象 (E-33 Business Status) 与 A-54 Audit 链。G6 闭环 (E-33 原缺审批界面) 由此独立 surface 收口。
+</div>
+
+<footer>
+  VBMF Operator Console · D7 ChangeSet Review · ENGINEERING 域 · Phase 0.5D 后续新增 (独立审批 surface)
+  · 关联: E-33 Change Sets (Business Status) / B-13 Take Preflight (提交) / A-54 Audit (hash chain) / P-28 Profile Bundle
+  · 状态分离: Business Status vs Execution Phase (§10) · G6 闭环收口
+</footer>
+
+<script>
+document.getElementById('btn-std').onclick = () => { document.body.classList.remove('compact'); document.getElementById('btn-std').classList.add('active'); document.getElementById('btn-compact').classList.remove('active'); };
+document.getElementById('btn-compact').onclick = () => { document.body.classList.add('compact'); document.getElementById('btn-compact').classList.add('active'); document.getElementById('btn-std').classList.remove('active'); };
+document.querySelectorAll('button').forEach(b => b.addEventListener('click', e => { if(!e.target.closest('a')) console.log('[D7] action:', e.target.textContent.trim()); }));
+</script>
+</body>
+</html>

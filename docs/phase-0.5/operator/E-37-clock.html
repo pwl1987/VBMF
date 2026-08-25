@@ -335,6 +335,26 @@
   </div>
 </details>
 
+<!-- G7 CLOCK DOMAIN LINKAGE VALIDATION -->
+<div class="panel" style="border-left:3px solid var(--orange)">
+  <h3>🔗 时钟域联动校验 / CLOCK DOMAIN LINKAGE VALIDATION <span class="pill pill-green" style="float:right">G7 闭环 · all PASS</span></h3>
+  <div class="diag" style="border-left-color:var(--orange)">
+    <b>规则 (G7):</b> 基带 SDI 源 必须 PTP 域 (BROADCAST_GRADE / GOOD); 网络源 (UDP / RTMP / RTP / SRT) 时钟域需与源类型匹配 (NTP 不适配基带). 选 Clock 时<b>联动校验所引用源的时钟域</b>, 不匹配 → 阻断该 Channel TAKE / 标 WARN.
+  </div>
+  <table>
+    <thead><tr><th>Source / 源</th><th>类型</th><th>所需时钟域</th><th>当前 Reference</th><th>校验</th></tr></thead>
+    <tbody>
+      <tr><td>SDI-01 (基带)</td><td>SDI embedded</td><td>PTP (BROADCAST_GRADE)</td><td>PTP LOCKED</td><td><span class="v green">✓ PASS</span></td></tr>
+      <tr><td>UDP-MC-10 (网络)</td><td>UDP Multicast</td><td>与 PTP 对齐 / NTP 备选</td><td>PTP LOCKED</td><td><span class="v green">✓ PASS</span></td></tr>
+      <tr><td>SRT-01 (网络)</td><td>SRT caller</td><td>与 PTP 对齐 / NTP 备选</td><td>PTP LOCKED</td><td><span class="v green">✓ PASS</span></td></tr>
+      <tr><td>RTMP-01 (网络)</td><td>RTMP</td><td>NTP / 本地时基</td><td>PTP LOCKED (兼容)</td><td><span class="v green">✓ PASS</span></td></tr>
+    </tbody>
+  </table>
+  <div class="diag" style="border-left-color:var(--orange);margin-top:8px">
+    <b>⚠ 退化校验:</b> 若当前 Reference 退化为 <span style="color:var(--red)">NTP-only (非 PTP)</span>, 则基带 SDI 源 (SDI-01) 校验 → <span style="color:var(--red)">✗ FAIL (需 PTP)</span>, 阻断该 Channel TAKE; 网络源可降级兼容. 此校验在 D1 创建向导选 Clock 时即触发 (G7 落点: D1 校验 + E-37).
+  </div>
+</div>
+
 <!-- Actions -->
 <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap">
   <button class="btn primary">⏱ Sync PTP Now</button>
@@ -350,6 +370,7 @@
   · V0.2 Architecture: Clock Runtime Domain CLOSED · 9-dim Runtime 域之一 · Health Invariant H3 (PTP LOCKED & DEGRADED &lt; 1%)
   · 4 Reference Class: BROADCAST_GRADE / GOOD / FAIR / POOR
   · Fallback Chain 4 级: PTP → TIMECODE → MEDIA → SYSTEM (MONOTONIC)
+  · 0.5D 后续升级: G7 时钟域联动校验已落 (见 🔗 时钟域联动校验 面板)
 </footer>
 
 <script>

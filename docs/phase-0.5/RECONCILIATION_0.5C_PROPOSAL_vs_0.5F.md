@@ -301,3 +301,30 @@
 ### F.4 结论
 - 模型骨架（7 Profile / Template≠Bundle / Failure Domain / Output Criticality / Resource 三档）稳健；**缺口集中在"闭环动作对象"缺失**：源内联创建、基带输出、输出韧性、ChangeSet 审批、Reservation 五处是阻断 0.5 冻结的真实 P0。
 - 建议在 D2-D6 基础上**追加 D7（ChangeSet Review）**，并把 G3/G4 明确并入 06-output 升级工作单。D1 已用橙色"设计缺口"块在 wireframe 内联标注 G2/G3/G4/G6/G8，便于评审时对照。
+
+---
+
+## G. 0.5D 后续升级闭环 (2026-08-25 末 · 用户"全做")
+
+> 用户确认执行前序 F.4 建议的全部三项后续: ① 06-output 升级落 G3/G4; ② E-37 落 G7; ③ 新建 D7 ChangeSet Review 独立审批 surface。
+
+### G.1 G3 (P0) 基带 SDI 输出变体 — 06-output.html
+- 原 `CH01-SDI-Master` 仅标 `DISABLED (V0.4 Target)`; 现建模为**基带 SDI 输出变体** (BNC 12G-SDI / 3G-SDI 1080p50 / 16ch AES 嵌入音频 / Embedded Timecode / PTP 帧同步), 状态 BASEBAND·ACTIVE。
+- 新增 🎞 SDI OUTPUT Tab, 强调"无网络依赖、故障不切节目源 (Failure Domain 输出适配器级)"。
+
+### G.2 G4 (P0) Output Resilience 独立对象 — 06-output.html
+- 原仅 Failure Recovery 概念, 无独立配置对象; 现每 REQUIRED Output Variant 携带 **OutputResilience 子对象** (P-28 Bundle 子对象 / 06-output): retry 3x·exp-backoff 1s / heartbeat 5s / zombie >30s / test-send 联动。
+- 新增 🛟 OUTPUT RESILIENCE Tab (HLS/RTMP/SDI/UDP-MC 四行 criticality + 韧性参数), 决策落在 06-output 而非 M-17 (呼应 D3/D4)。
+
+### G.3 G7 (P1) 时钟域联动校验 — E-37-clock.html
+- 新增 🔗 时钟域联动校验 面板: 基带 SDI 源须 PTP 域 (BROADCAST_GRADE/GOOD), 网络源 (UDP/RTMP/RTP/SRT) 时钟域须与源类型匹配; 选 Clock 时联动校验所引用源, 不匹配 (如 Reference 退化为 NTP-only) → 阻断该 Channel TAKE。
+- 落点: D1 创建向导选 Clock 校验 + E-37 (F.2 G7 原定落点)。
+
+### G.4 D7 (P0) ChangeSet Review 独立审批 surface — 新建 operator/D7-changeset-review.html
+- 从 B-13 (D6) 内联 L2 审批拆出**独立审阅面**: ChangeSet 队列 (Pending/Approved/Rejected/Applied) + Before/After Diff + Risk Assessment + Reviewer 指派 + Approve/Reject/Rollback + Audit Trail。
+- 与 E-33 (Business Status) / B-13 (提交) / A-54 (Audit hash chain) 共享对象; G6 闭环 (E-33 原缺审批界面) 由此 surface 收口。
+- **新 surface, 计入 NAVIGATION/SURFACE_SPEC 计数**: ENGINEERING 26→27 · 域合计 53→54 · TOTAL 54→55 · 总计 55→56。
+
+### G.5 缺口闭环总账
+- 本轮闭合: G3✅ G4✅ G7✅ G6✅ (D7 收口) — 余 G9(D1 已统一) G10(D3/D4 部分) G11(D1) 延续标注。
+- 至此 F.2 全部 11 项缺口均有落点, 其中 10 项已闭 (G1 D1 / G2 D5 / G3 06-output / G4 06-output / G5 D5+D3 / G6 D7 / G7 E-37 / G8 D6 / G9 D1 / G11 D1), G10 部分落 D3/D4 延续。

@@ -60,6 +60,8 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="tab" data-view="webrtc">🌐 [ WEBRTC DETAIL WebRTC 详情 ]</div>
   <div class="tab" data-view="udp">📡 [ UDP OUTPUT UDP 输出 (对称 E-40) ]</div>
   <div class="tab" data-view="recovery">🛟 [ FAILURE RECOVERY 故障引导恢复 ]</div>
+  <div class="tab" data-view="sdi">🎞 [ SDI OUTPUT 基带输出 (G3) ]</div>
+  <div class="tab" data-view="resilience">🛟 [ OUTPUT RESILIENCE 韧性 (G4) ]</div>
 </div>
 
 <!-- LIST VIEW -->
@@ -140,13 +142,13 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       </tr>
       <tr>
         <td><b>CH01-SDI-Master 主输出</b></td>
-        <td>SDI</td>
+        <td>SDI (基带)</td>
         <td><span class="url">/dev/blackmagic/io0</span></td>
-        <td><i class="dot gray"></i>DISABLED (V0.4 Target)</td>
-        <td>—</td>
-        <td>—</td>
-        <td>—</td>
-        <td><button class="btn" disabled>启用 Enable (L3)</button></td>
+        <td><i class="dot green"></i>BASEBAND · ACTIVE</td>
+        <td>1.5 Gbps (3G-SDI)</td>
+        <td>— (硬连)</td>
+        <td>live</td>
+        <td><button class="btn">详情 Detail (G3)</button><button class="btn danger">禁用 Disable (L3)</button></td>
       </tr>
     </tbody>
   </table>
@@ -371,6 +373,53 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   </div>
 </div>
 
+<!-- SDI OUTPUT VIEW (G3: 基带 SDI 输出变体) -->
+<div class="view" id="sdi">
+  <div class="detail" style="border-left:3px solid var(--green)">
+    <h4>CH01-SDI-Master 主输出 (基带 SDI) <span class="badge">SDI</span> <span style="color:var(--green)">● BASEBAND · ACTIVE</span></h4>
+    <div class="diag" style="margin-top:0">
+      <b>G3 闭环:</b> 06-output 原仅 UDP OUTPUT + Failure Recovery, 现补<b>基带 SDI 输出变体</b> — 无网络依赖、故障不切节目源 (Failure Domain: 输出适配器级, 非信号源级)。
+    </div>
+    <div class="grid">
+      <div class="field"><div class="k">Connector 接口</div><div class="v">BNC ×1 (12G-SDI)</div></div>
+      <div class="field"><div class="k">Signal Format 信号格式</div><div class="v">3G-SDI (1080p50)</div></div>
+      <div class="field"><div class="k">Bitrate 比特率</div><div class="v green">1.5 Gbps</div></div>
+      <div class="field"><div class="k">Embedded Audio 嵌入音频</div><div class="v">16 ch AES (via SDI)</div></div>
+      <div class="field"><div class="k">Timecode 时码</div><div class="v">Embedded VITC/LTC</div></div>
+      <div class="field"><div class="k">Reference 参考</div><div class="v">PTP LOCKED (帧同步)</div></div>
+      <div class="field"><div class="k">Network Dependency 网络依赖</div><div class="v green">无 (硬连)</div></div>
+      <div class="field"><div class="k">Failure Domain 故障域</div><div class="v">输出适配器级</div></div>
+      <div class="field"><div class="k">On Failure 故障时</div><div class="v">提示 Rejoin / 修 Output, 不误切节目源</div></div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <button class="btn primary">🚀 Test Send 发送测试</button>
+      <button class="btn">✎ Edit 编辑</button>
+    </div>
+  </div>
+</div>
+
+<!-- OUTPUT RESILIENCE VIEW (G4: Output Resilience 独立对象) -->
+<div class="view" id="resilience">
+  <div class="detail" style="border-left:3px solid var(--green)">
+    <h4>Output Resilience 对象 (G4 闭环 · 独立配置对象) <span style="color:var(--green)">✅ resolved</span></h4>
+    <div class="diag" style="margin-top:0">
+      <b>G4 闭环:</b> 原仅 Failure Recovery 概念, 无独立 OutputResilience 配置对象。现每 REQUIRED Output Variant 携带独立 OutputResilience 子对象 (P-28 Bundle 子对象 / 06-output): 重连策略 / 心跳 / 退避 / zombie 判定 / Test Send 联动。决策落在 06-output 而非 M-17。
+    </div>
+    <table>
+      <thead><tr><th>Output Variant</th><th>criticality</th><th>retry 重连</th><th>heartbeat 心跳</th><th>zombie 判定</th><th>test-send 联动</th></tr></thead>
+      <tbody>
+        <tr><td><b>HLS</b></td><td><span class="v green">REQUIRED</span></td><td>3x · exp-backoff 1s</td><td>5s</td><td>&gt;30s</td><td>联动 (启动前探活)</td></tr>
+        <tr><td><b>RTMP</b></td><td><span class="v green">REQUIRED</span></td><td>3x · exp-backoff 1s</td><td>5s</td><td>&gt;30s</td><td>联动</td></tr>
+        <tr><td><b>SDI</b></td><td><span class="v green">REQUIRED</span></td><td>N/A (硬连)</td><td>N/A</td><td>N/A (硬连)</td><td>联动 (信号丢失检测)</td></tr>
+        <tr><td><b>UDP-MC</b></td><td><span class="v yellow">OPTIONAL</span></td><td>2x · 1s</td><td>10s</td><td>&gt;30s</td><td>联动 (失败仅 WARN)</td></tr>
+      </tbody>
+    </table>
+    <div class="diag" style="margin-top:8px;border-left-color:var(--green)">
+      <b>运行态:</b> 故障按其判定 zombie/重连 → 不影响节目源 (Failure Domain Matrix §8.9); REQUIRED FAIL → 阻断 TAKE; OPTIONAL/AUX FAIL → 仅 WARNING。
+    </div>
+  </div>
+</div>
+
 <script>
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -384,6 +433,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 <footer>
   V0.2 §3 Output Engine + §3.6 Latency Probes (7 Core + 2 Client E2E + 1 Optional CDN) · §3.7.1 Encode = delivery boundary
+  · 0.5D 后续升级: G3 基带 SDI 输出变体 + G4 Output Resilience 独立对象已落 (见 🎞 SDI OUTPUT / 🛟 OUTPUT RESILIENCE Tab)
 </footer>
 <script>
 (function(){var k='vt-mode';var s=document.createElement('style');s.textContent='#vt-modeswitch{position:fixed;bottom:10px;right:10px;z-index:9999;display:flex;gap:4px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:3px;font-family:Menlo,Consolas,monospace;box-shadow:0 2px 8px rgba(0,0,0,.4)}#vt-modeswitch button{background:#1f242c;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}#vt-modeswitch button.on{background:#3fb950;color:#fff;border-color:#3fb950}';document.head.appendChild(s);var b=document.createElement('div');b.id='vt-modeswitch';b.innerHTML='<button data-m="compact">精致</button><button data-m="standard">标准</button>';document.body.appendChild(b);function a(m){document.body.style.zoom=(m==='standard'?'1.25':'1');try{localStorage.setItem(k,m)}catch(e){}b.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.dataset.m===m)});}b.querySelectorAll('button').forEach(function(x){x.onclick=function(){a(x.dataset.m)}});var m;try{m=localStorage.getItem(k)}catch(e){}a(m||'standard');})();

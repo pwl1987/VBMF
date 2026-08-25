@@ -5,7 +5,7 @@
 >
 > **本阶段:** 0.5C Information Architecture Closure (0.5E Cross-Domain Capabilities 已 Spec 锁)
 >
-> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 54 wireframe + 1 spec（以 §2.5 为权威, 含 0.5D 原型 CH-02, CH-02B）· 待 0.5D 业务闭环后 FINAL
+> **状态:** 🟡 **RECONCILED** (0.5C IA + 0.5F 对账) · 55 wireframe + 1 spec（以 §2.5 为权威, 含 0.5D 原型 CH-02 / CH-02B / D7）· 待 0.5D 业务闭环后 FINAL
 >
 > **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) · [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) · [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`0.5E-CROSS_DOMAIN_CAPABILITIES.md`](0.5E-CROSS_DOMAIN_CAPABILITIES.md) (Impact Preview / Configuration Diff / Command Palette 跨域)
 
@@ -73,7 +73,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **03-switcher** | Switcher 切播 | 🟢 LOCK (0.5A) | Operator |
 | **04-composition** | Composition 图文包装 | 🟢 LOCK (0.5A) | Director |
 | **05-audio** | Audio 音频 | 🟢 LOCK (0.5A) | Operator |
-| **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator |
+| **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator · ✅ 0.5D 后续升级: G3 基带 SDI 输出变体 + G4 Output Resilience 独立对象已落 `operator/06-output.html` |
 | **07-recording** | Recording 录制 | 🟢 LOCK (0.5A) | Operator |
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
 | **CH-02** | Create Channel Wizard 频道创建向导 | 🟡 DRAFT (0.5D 原型 D1) | Operator / Director |
@@ -114,10 +114,11 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **E-31** | Graph Designer 图设计 (0.5A #08 升级) | 🟢 LOCK (0.5A, 0.5B 升 Engineering) | Engineer |
 | **E-32** | Preflight Center 预检中心 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-33** | Change Sets 变更集 | 🟡 Spec (0.5B.0) | Engineer |
+| **D7** | ChangeSet Review 变更集审阅 (独立审批 surface, 0.5D 后续新增) | 🟡 DRAFT (0.5D 后续原型 `operator/D7-changeset-review.html`) | Engineer / Admin |
 | **E-34** | Capability Registry 能力注册 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-35** | Device Registry 设备注册 | 🟡 Spec (0.5B.0) | Engineer |
 | **E-36** | Resource / Capacity 资源/容量 | 🟡 Spec (0.5B.0) | Engineer / SRE |
-| **E-37** | Clock 时钟 | 🟢 LOCK (0.5D 升级: 4 级 Fallback Chain) | Engineer |
+| **E-37** | Clock 时钟 | 🟢 LOCK (0.5D 升级: 4 级 Fallback Chain) | Engineer · ✅ 0.5D 后续升级: G7 时钟域联动校验已落 `operator/E-37-clock.html` |
 | **E-38** | Hardware Inventory 硬件清单 | 🟢 LOCK (0.5D) | Engineer |
 | **E-40** | Network Source 网络源 (UDP Unicast/Multicast + 9 External 子类 + Security 8 字段) | 🟢 LOCK (0.5F) | Engineer · v2 创建向导见验收链 D5 原型 `operator/E-40-network-source-v2.html` |
 | **E-41** | Network Path Inspector 网络路径检查器 (5 Hop Kind + 8 Failure Mode) | 🟡 Spec 锁 (0.5F); wireframe 0.5G 实施 | Engineer / SRE |
@@ -144,19 +145,21 @@ Phase 0.5B 用了 6 个**编号工作域**:
 |---|---|---|---|---|---|
 | BROADCAST | 14 | 12 (0.5F 后全部 LOCK; CH-02, CH-02B 为 0.5D 原型待 LOCK) | 0 | 3 (M-17, CH-02, CH-02B) | +3 (CH-01, CD-01 WS, CD-01 Detail 升 wireframe) |
 | MEDIA | 8 | 5 (M-11/12/14/17/18) | 3 (M-13/15/16) | 2 (M-14 重画, M-18 新) | 0 |
-| ENGINEERING | 26 | 8 (P-20/21/22/28 + E-31/37/38/40) | 17 | 5 (P-20, P-28, E-37, E-38, 改 1) | +1 (E-40) |
+| ENGINEERING | 27 | 8 (P-20/21/22/28 + E-31/37/38/40) | 17 | 5 (P-20, P-28, E-37, E-38, 改 1) | +1 (E-40) |
 | ADMIN | 5 | 0 | 5 | 0 | 0 |
-| **域合计 (wireframe)** | **53** | **25** | **25** | **10** | **+4** |
+| **域合计 (wireframe)** | **54** | **25** | **25** | **10** | **+4** |
 | 全局 (10-states Validation) | 1 | 1 | 0 | 0 | 0 |
-| **TOTAL wireframe** | **54** | **26** | **25** | **10** | **+4** |
+| **TOTAL wireframe** | **55** | **26** | **25** | **10** | **+4** |
 | E-41 Network Path (Spec only) | 1 Spec | 0 | 1 (0.5F Spec 锁, 0.5G 实施) | - | +1 Spec |
-| **Phase 0.5 总计** | **55** (54 wireframe + 1 Spec) | - | - | - | - |
+| **Phase 0.5 总计** | **56** (55 wireframe + 1 Spec) | - | - | - | - |
 
 > **历史口径演化**: 0.5B 报 "30+ UI 表面" → 实为 38 → 0.5C 重排 40 → 0.5D 后 44 → 0.5F 后 **52 个 wireframe + 1 Spec (E-41)** = 53。
 > 02-sources.html 重画不计为新增。
 > ⛔ 禁止在 README / 阶段总结中再使用 39 / 44 / 47 等早期数字。
 >
 > **[变更登记 · 0.5F 后]** 新增 3 份 Spec 文档登记（上一轮产出，待 0.5G 实施 wireframe）: `ENCODE_MODEL_SPEC.md` (P-21 双语义模型) / `E-42-source-test-bench.md` (Source Test Bench) / `B-13-take-preflight.md` (Take Preflight)。E-42 / B-13 为 Spec-only 表面，不计 0.5F 48 wireframe 计数；P-21 模型以引用形式挂接。详见 `SURFACE_SPEC.md` §29.9.3b Batch 4。
+>
+> **[变更登记 · 0.5D 后续]** 新增 D7 ChangeSet Review 独立审批 surface (ENGINEERING 域, +1 → 27): 从 B-13 内联 L2 审批拆出独立审阅面, 见 `operator/D7-changeset-review.html`; 同步落 G3 (06-output 基带 SDI 输出变体) / G4 (06-output Output Resilience 独立对象) / G7 (E-37 时钟域联动校验)。ENGINEERING 26→27 · 域合计 53→54 · TOTAL 54→55 · 总计 55→56。详见 `SURFACE_SPEC.md` D7 节 + `RECONCILIATION_0.5C_PROPOSAL_vs_0.5F.md` §G。
 
 ---
 

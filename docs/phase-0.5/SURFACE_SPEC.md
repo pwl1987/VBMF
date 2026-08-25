@@ -1196,6 +1196,26 @@ PREPARING → APPLYING → COMMITTED
 
 > **注意:** `CLOCK_LOST` 不在 Canonical Vocabulary 中, 统一为 `CLOCK_FAILED`。
 
+> **G7 闭环 (0.5D 后续升级):** E-37 新增「时钟域联动校验」面板 — 基带 SDI 源 必须 PTP 域 (BROADCAST_GRADE/GOOD), 网络源 (UDP/RTMP/RTP/SRT) 时钟域需与源类型匹配; 选 Clock 时联动校验所引用源的时钟域, 不匹配 (如 Reference 退化为 NTP-only 时基带 SDI 源) → 阻断该 Channel TAKE。详见 `operator/E-37-clock.html`。
+
+---
+
+## D7 · ChangeSet Review 变更集审阅 (独立审批 surface · 0.5D 后续新增)
+
+| 维度 | 定义 |
+|---|---|
+| **目标** | ChangeSet 的独立审阅 / 审批 surface (从 B-13 内联 L2 审批拆出), 集中处理 PENDING_REVIEW 的变更集, 提供 Diff / 风险 / 审阅 / 回滚 闭环 |
+| **主要操作** | List / Diff / Assign Reviewer / Approve (L1/L2/L3) / Reject / Rollback / Audit |
+| **权限** | R: Engineer+ · W: Engineer (Review) / Admin (Approve) · A: Admin |
+| **关联工作流** | E-33 Change Sets (Business Status) · B-13 Take Preflight (提交) · A-54 Audit |
+
+> **与 B-13 的关系:** B-13 (D6) 在 TAKE 前置内联了 L2 Review/Approve/回滚; D7 是其**独立审阅面**, 供 Engineer/Admin 在 ChangeSet 提交后集中审批, 二者共享同一 ChangeSet 对象 (E-33 Business Status) 与 A-54 Audit 链。G6 闭环 (E-33 原缺审批界面) 由本 surface 收口。
+
+### 信息架构
+- **列表:** Pending / Approved / Rejected / Applied 四态分组, 每行: ID · Title · Affected(Channel/Variant) · Risk(L1/L2/L3) · Author · Created · Status
+- **详情:** Before/After Diff (配置项) · Risk Assessment · Reviewer 指派 · Approve/Reject/Rollback 动作 · Audit Trail
+- **状态分离:** Business Status (PENDING_REVIEW/APPROVED/REJECTED/APPLIED) 与 Execution Phase (QUEUED/APPLYING/APPLIED/ABORTED) 严格分离 (§10)
+
 ---
 
 # 7. 05 Operations 运维工作域 (Operator / Engineer)
@@ -3423,6 +3443,7 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 - `docs/phase-0.5/operator/P-20-profile-center.html` (新, ENGINEERING 域)
 - `docs/phase-0.5/operator/P-28-profile-bundle.html` (新, ENGINEERING 域)
 - `docs/phase-0.5/operator/M-18-transcode-job-detail.html` (新, 由 M-15 子页升级为独立页)
+- `docs/phase-0.5/operator/D7-changeset-review.html` (新, ENGINEERING 域, 0.5D 后续: ChangeSet Review 独立审批 surface)
 - `docs/phase-0.5/operator/M-14-file-transcode.html` (原 M-14 重画, 从 product/ 移到 operator/)
 
 ---
