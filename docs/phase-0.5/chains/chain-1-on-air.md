@@ -78,8 +78,8 @@
 
 ## 关联 Wireframe
 
-- `wireframes/01-dashboard.html`（主入口）
-- `wireframes/03-switcher.html`（TAKE 动作 / 模式展示）
-- `wireframes/04-composition.html`（Variant Composition）
-- `wireframes/06-output.html`（最终分发）
-- `wireframes/09-health-tree.html`（链路监控）
+- `../operator/01-dashboard.html`（主入口）
+- `../operator/03-switcher.html`（TAKE 动作 / 模式展示）
+- `../operator/04-composition.html`（Variant Composition）
+- `../operator/06-output.html`（最终分发）
+- `../operator/09-health-tree.html`（链路监控）

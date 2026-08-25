@@ -115,10 +115,10 @@ PREPARING → APPLYING → COMMITTED
 
 ## 关联 Wireframe
 
-- `wireframes/04-composition.html`（Program + Variant Composition + 节目编排）
-- `wireframes/01-dashboard.html`（On-Air 监控）
-- `wireframes/03-switcher.html`（自动 TAKE 事件流）
-- `wireframes/09-health-tree.html`（Playout 状态监控）
+- `../operator/04-composition.html`（Program + Variant Composition + 节目编排）
+- `../operator/01-dashboard.html`（On-Air 监控）
+- `../operator/03-switcher.html`（自动 TAKE 事件流）
+- `../operator/09-health-tree.html`（Playout 状态监控）
 
 ## 关键禁忌
 

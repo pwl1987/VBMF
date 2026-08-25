@@ -1,95 +1,136 @@
-# Phase 0.5 — 操作员工作流与 Low-Fi 线框
+# Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 拆分为 **Phase 0.5A (LOCK FINAL)** + **Phase 0.5B (Product UI Surface, 当前)**
+> **状态**: 🟡 **0.5C DRAFT 0.1** (本轮)
 >
-> **0.5A**: 1 份操作员工作流 + **9 Core Operational Pages + 1 Validation Page** + 4 关键操作链 + ERRATA 归档
+> **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
-> **0.5B**: V0.2 架构所有对象 → UI 表面的完整映射规范 ([`../phase-0.5b/SURFACE_SPEC.md`](../phase-0.5b/SURFACE_SPEC.md))
+> **Phase 0.5 LOCK FINAL 的前置**: 0.5C LOCK + 0.5D LOCK + 0.5E LOCK (见 [`MILESTONES.md`](MILESTONES.md))
 
-## 0.5A vs 0.5B 划分
+## 0. Phase 0.5 是什么
 
-| 阶段 | 范围 | 状态 |
+Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Acceptance 之前** 的"产品 UX Baseline"阶段。它的目的是:
+
+- 把 V0.2 锁定的 12 Engines / 5 横向系统 / 6 横切能力 翻译成 **UI 表面的完整规范**
+- 把所有 wireframe (Operator + Product) 收口到 **同一份 Surface Spec + Design System + i18n Contract**
+- 把历史 milestone (0.5A / 0.5B / 0.5B.1 / 0.5B.2) 统一为一个 Phase, **不再**用目录分层做版本管理
+
+## 1. 当前状态矩阵
+
+| Milestone | 状态 | 关键交付 |
 |---|---|---|
-| **0.5A** | Operator 播控 UI 语义 = 9 Core + 1 Validation + 4 Chains | 🟢 **LOCK FINAL** |
-| **0.5B** | V0.2 架构所有对象 (Media/Transcode/Profile/Engineering/Admin) → UI 表面定义 | 🟡 **进行中** (Spec 完成, 实施 0.5B.1) |
+| **0.5A** Operator Semantics | 🟢 LOCK FINAL | 9 Core + 1 Validation + 4 Chains + 20 项 UI 语义修复 |
+| **0.5B** Product Surface | 🟢 LOCK FINAL | SURFACE_SPEC + i18n + 13 P0 语义边界 |
+| **0.5B-Closure-1** | 🟢 LOCK FINAL | 10 项产品化收口 (3-Layer / 4-Tuple / 3-Tier / 9D / H1-H7 / Dependency) |
+| **0.5B.1** P0 Wireframes | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) |
+| **0.5B.2** Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL |
+| **0.5C** Info Arch Closure | 🟡 DRAFT 0.1 (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
+| **0.5D** P0 Product Surfaces | ⛔ 待开始 | M-15 Realtime / E-34 Hardware / E-36 Clock / P-20 Profile Center / P-28 Bundle / M-16 Job Detail / M-14 重画 |
+| **0.5E** Global UX Layer | ⛔ 待开始 | Impact Preview 全域 / Configuration Diff / Command Palette |
 
-**Phase 0.5 全部 Freeze 的条件**: 0.5B 把 Media / Transcode / Profiles / Engineering / Admin 这些"架构已有、UI 未落地"的工作域全部定义清楚（通过 Surface Spec 实现）。
+完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 
-## 页面架构（0.5A 锁定）
+## 2. 4 域顶层导航 (Phase 0.5C 锁定)
+
+UI 顶层导航改为**业务域**, 不用**编号**:
+
+| 域 | 主要用户 | 包含对象 |
+|---|---|---|
+| **BROADCAST** (直播) | Operator / Director | Channel, Source, Graph, Route, Session, Variant |
+| **MEDIA** (媒体) | Content Manager / Editor | Asset, Asset Version, Job (FILE_TRANSCODE/PROBE/QC/UPLOAD/ARCHIVE) |
+| **ENGINEERING** (工程) | Engineer / SRE | Profile (6), Profile Bundle, ChangeSet, Preflight, Hardware, Clock, Health, Incident |
+| **ADMIN** (管理) | Admin | User, Role, Permission, Audit, System Setting |
+
+⛔ **Profiles / Operations 不再是顶层域** — 全部进 ENGINEERING 域。
+
+详细导航模型见 [`NAVIGATION.md`](NAVIGATION.md)。
+
+## 3. 3 大对象组合层 (Phase 0.5C 锁定)
 
 ```
-9 Core Operational Pages  (正式产品工作域)
-+ 1 Validation State Page (Phase 0.5 验收辅助, 不在 9 Core 计数)
-= 10 HTML artifacts
+Profile (Policy / 跨 Channel 共享)
+   ↓ 1:1 引用
+Profile Bundle (Composition / 1 Channel 1 Bundle, 6 Profile 引用)
+   ↓ 1:N 派生
+Output Variant (Instance / 1 Channel N Variant, Profile + Destinations + Adapter)
 ```
 
-## Phase 0.5A — UI Semantics Closure
+完整对象模型见 [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md)。
+14 个对象权威定义见 [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md)。
 
-Phase 0.5A 完成后从"24/7 广播机房操作员能否安全、快速、无歧义地使用"角度复审，发现 **18 个 UI/UX 语义缺口**（其中 1 项违反 V0.2 锁定），落地为 **12 + 8 = 20 项修复**：
+## 4. 目录结构 (Phase 0.5C 锁定)
 
-- **第一轮 (12 项)**：5 项 P0 必须修 + 5 项 P1 强烈建议 + 2 项 P2 锦上添花
-- **第二轮 (8 项)**：4 项 P0 语义错误 + 3 项 P1 文档/口径 + 1 项 Health Tree 9 Subsystem 对齐
+```
+docs/phase-0.5/
+├── README.md                       ← 本文件 (Phase 0.5 顶层入口)
+├── OBJECT_VOCABULARY.md            ← 14 个对象权威定义
+├── PRODUCT_OBJECT_MODEL.md         ← 3 层组合关系
+├── NAVIGATION.md                   ← 4 域顶层导航
+├── MILESTONES.md                   ← 历史 milestone 归档
+├── SURFACE_SPEC.md                 ← V0.2 架构对象 → UI 表面完整映射 (4 域 × 44 表面)
+├── DESIGN_SYSTEM.md                ← V0.1 Design System
+├── I18N_SPEC.md                    ← V0.1 i18n Contract
+├── OPERATOR_WORKFLOW.md            ← 9 Core 操作流
+├── ERRATA.md                       ← Phase 0.5A 20 项修复归档
+├── INDEX.md                        ← Phase 0.5A 总索引
+│
+├── milestones/                     (5 历史 milestone 文档)
+├── operator/                       (9 Core + 1 Validation HTML · 中英双语 · Dark Mode 24/7)
+├── product/                        (5 P0 wireframes: M-11 / M-12 / M-14 / P-21 / P-22)
+└── chains/                         (4 链: On-Air / Failure / Playout / Engineering)
+```
 
-完整归档见 [`ERRATA.md`](ERRATA.md)。
+⛔ **`phase-0.5b/` 目录已删除** — 之前叫 `phase-0.5b` 是因为它晚于 `phase-0.5` 创建, 但 Git commit 才是版本管理, 目录应该表达 `phase / domain / role`, 不应承担版本职责。
 
-## 入口
+## 5. 页面架构 (合并 0.5A + 0.5B 后)
 
-| 文件 | 用途 |
-|---|---|
-| [`INDEX.md`](INDEX.md) | Phase 0.5A 总览 + 验收 |
-| [`OPERATOR_WORKFLOW.md`](OPERATOR_WORKFLOW.md) | 角色矩阵 + 三轴状态机 + 危险操作 3 层 |
-| [`ERRATA.md`](ERRATA.md) | Phase 0.5A 变更归档（12 + 8 项 UI 语义修复） |
-| [`../phase-0.5b/SURFACE_SPEC.md`](../phase-0.5b/SURFACE_SPEC.md) | **Phase 0.5B Surface Spec** (V0.2 → UI 完整映射) |
+| 类型 | 数量 | 路径 |
+|---|---|---|
+| **Operator** (0.5A 锁定) | 9 + 1 Validation = 10 | `operator/0[1-9]-*.html` + `operator/10-states.html` |
+| **Product** (0.5B.1 + 0.5D) | 5 + 6 待补 = 11 | `product/M-*.html` + `product/P-*.html` |
+| **Channel Detail** (0.5B.0) | 1 | (CD-01, Spec 锁定) |
+| **Total** | **22 / 44** (含 0.5D 全部新表面) | |
 
-## 9 Core Operational Pages + 1 Validation Page（中英双语）
+## 6. 与 V0.2 / Phase 0.6 / Phase 1 / Phase 4 关系
 
-Dark Mode First（24/7 广播机房）。任何浏览器直接打开：
+```
+V0.2 Architecture (LOCK FINAL)
+   ↓ 翻译为产品对象
+Phase 0.5 UX Baseline (本目录, LOCK FINAL 条件见 MILESTONES.md)
+   ↓ 验收
+Phase 0.6 Executable Acceptance Specification
+   ↓ 实施
+Phase 1 Media Core (Rust) + Phase 4 Web Console
+```
 
-| # | 页面 | 主要角色 | 文件 | Phase 0.5.1 |
-|---|---|---|---|---|
-| 1 | Dashboard 主控台 | Operator 操作员 | [`wireframes/01-dashboard.html`](wireframes/01-dashboard.html) | P0-2 + P2-1 |
-| 2 | Sources 源管理 | Engineer 工程师 | [`wireframes/02-sources.html`](wireframes/02-sources.html) | P1-6 Clock Reference |
-| 3 | Switcher 切播器 | Operator 操作员 | [`wireframes/03-switcher.html`](wireframes/03-switcher.html) | P0-3 5 状态机 + L2 |
-| 4 | Composition 图文包装 | Director 节目总监 | [`wireframes/04-composition.html`](wireframes/04-composition.html) | P0-4 Timeline+Composition |
-| 5 | Audio 音频 | Operator 操作员 | [`wireframes/05-audio.html`](wireframes/05-audio.html) | P1-3 广播安全区 |
-| 6 | Output 输出 | Operator 操作员 | [`wireframes/06-output.html`](wireframes/06-output.html) | P1-4 3 视图 |
-| 7 | Recording 录制 | Operator 操作员 | [`wireframes/07-recording.html`](wireframes/07-recording.html) | P1-5 Incident→Replay |
-| 8 | Graph Designer 图设计 | Engineer 工程师 | [`wireframes/08-graph-designer.html`](wireframes/08-graph-designer.html) | P0-1 Scenario + 3 Tab |
-| 9 | Health Tree 健康树 | 全员 | [`wireframes/09-health-tree.html`](wireframes/09-health-tree.html) | P0-5 + P1-2 + 9 Subsystem |
-| 10 | **10 States 状态总览** | 全员（验收辅助） | [`wireframes/10-states.html`](wireframes/10-states.html) | P2-2 新增 · **Validation Page** |
+**禁止:** 在 Phase 0.5 LOCK FINAL 之前开 Phase 0.6, 否则测试会因 UI / 文档未锁而反复改。
 
-## 4 关键操作链
+## 7. i18n 约定 (Phase 0.5.1 锁定)
 
-| # | 链 | 角色 | 文件 |
-|---|---|---|---|
-| 1 | On-Air 播出 | Operator 操作员 | [`chains/chain-1-on-air.md`](chains/chain-1-on-air.md) |
-| 2 | Failure 故障 | Operator 操作员 + System | [`chains/chain-2-failure.md`](chains/chain-2-failure.md) |
-| 3 | Playout 节目单 | Director 节目总监 | [`chains/chain-3-playout.md`](chains/chain-3-playout.md) |
-| 4 | Engineering 工程 | Engineer 工程师 | [`chains/chain-4-engineering.md`](chains/chain-4-engineering.md) |
+- **Markdown 文档**: 中文为主
+- **wireframe**: 中英双语 (中文为主, Canonical Vocabulary 保留英文: PACKET / FRAME / MASTER / HLS / RTMP / WebRTC / SRT / H.264 / H.265 / PTP / LUFS / EBU R128 / dBTP)
+- **enum 翻译表**: 见 [`I18N_SPEC.md`](I18N_SPEC.md) 11 个 enum 的 zh-CN / en-US 双向映射
+- **格式化**: 日期 / 时间 / 数字 / 码率 / 延迟 / 响度 / 复数 / 插值 全部锁定
 
-## 验收
+## 8. 8 横切能力 (0.5B.2 + 0.5C 锁定)
 
-- ✅ 9 Core Pages + 1 Validation Page = 10 HTML artifacts（**中英双语**，Dark Mode 24/7）
-- ✅ 9 Core Pages 互相跳转（20+ 链接）
-- ✅ 4 链覆盖 4 角色（Operator / Operator+System / Director / Engineer）
-- ✅ 4 链引用 V0.2 架构（§3.4 / §3.7 / §3.9 / §8.9 / X1-X6）
-- ✅ Health Tree 显式呈现 7 Health Invariants + 7 HA-01..HA-07 验收用例
-- ✅ 危险操作 3 层：L1 / L2 (3s 倒计时) / L3 (输入 YES)
-- ✅ **所有 UI label 中英双语**（Phase 0.5 锁定要求）
+1. **Impact Preview** — 任何修改前显示 Affected / Resource / Runtime Risk / Rollback
+2. **Dependency Graph** — "谁用我 / 我影响谁" 全局视图
+3. **Explain Why** — 6 类解释 (Why selected / Why not usable / Why degraded / Why this worker / Why FRAME not PACKET / Why output failed)
+4. **Runtime Freshness** — Health / Discovery / Capability 的 Last observed / Age / Fresh·Stale
+5. **Configuration Diff** — 所有 Revision 之间 before/after/impact
+6. **Compatibility Advisor** — Profile ↔ Source ↔ Worker ↔ Output ↔ Player
+7. **Design System** — 5 张 wireframe 统一组件 (DESIGN_SYSTEM.md)
+8. **Command Palette + Keyboard** — Ctrl+K / G D / G M / T / F / R 等
 
-## 与 V0.2 架构的对应
+## 9. 当前 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
 
-| 操作员概念 | V0.2 架构位 |
-|---|---|
-| Channel 通道 | §3.1 Data Plane + §5 channel_* |
-| PVW/PGM 预览/节目 | §3.7 Program Master（Video Join） |
-| TAKE 切播 | §3.4 Switch Mode Decision Tree |
-| Health 颜色 | §5 channel_health_view（C.26 Errata-14 7 规则） |
-| 9 Core Pages + 1 Validation Page | §10 UX 架构（7+2+1 Validation） |
-| Change Set 变更集 | §1.21 + §5 config_revisions / change_sets |
-| Incident 事件 | §5 incidents（X4 Incident Timeline） |
-| Recording 录制 | §3 Recording Engine + §5 chunked recording |
+- ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
+- ⛔ **0.5D LOCK FINAL** (M-15 + E-34 + E-36 + P-20 + P-28 + M-16 wireframe + M-14 重画)
+- ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
+- ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
+- ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
+- ⛔ **GitHub README** 反映 4 域 + 44 表面, 不再有 "9 Core Pages" "0.5B 只定义" 等历史残留
 
-## 下一步
+---
 
-Phase 0.6 — Reference A1/A2/B + 5 Fault Injection + 7 Health Invariants = **Executable Acceptance Specification**。
+**VBMF Contributors** · Phase 0.5 UX Baseline · Phase 0.5C Information Architecture Closure

@@ -2,7 +2,9 @@
 
 > **文档定位:** V0.2 架构对象 → VBMF Console UI 表面 的完整映射
 >
-> **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5A LOCK FINAL
+> **适用版本:** VBMF V0.2 LOCK FINAL + Phase 0.5A LOCK FINAL + Phase 0.5B-Closure-1 + 0.5B.1 + 0.5B.2 LOCK FINAL + 0.5C DRAFT 0.1
+>
+> **Phase 0.5C 锁定:** UI 顶层导航从 6 编号域 (01..06) 改为 4 业务域 (BROADCAST / MEDIA / ENGINEERING / ADMIN). 详见 [`NAVIGATION.md`](../NAVIGATION.md) §1 与本节 §29.2.
 >
 > **Baseline Metadata (强制对齐 — 与 GitHub `master` 一致):**
 >
@@ -15,16 +17,23 @@
 > health_invariants: 7                 # H1-H7 (Errata-14 锁定)
 > canonical_vocabulary: LOCKED         # 见 §2.6
 > never_reopen: V0.2.5                 # 不再开 V0.2.5
+> phase_0_5_status: 0.5A/0.5B/0.5B.1/0.5B.2 LOCK FINAL + 0.5C DRAFT 0.1
+> phase_0_5c: Information_Architecture_Closure  # 目录归并 + Object Vocabulary + Navigation 4 域
+> top_navigation: 4 域 (BROADCAST / MEDIA / ENGINEERING / ADMIN)  # 0.5C 锁定
 > baseline_sot: docs/architecture/ARCHITECTURE_V0.2.md
 > ```
 >
-> **关联文档:**
+> **关联文档 (Phase 0.5C 归并后):**
 > - [`docs/architecture/ARCHITECTURE_V0.2.md`](../architecture/ARCHITECTURE_V0.2.md) — V0.2 架构基线 (192KB / 4021 行 / 22 轮 review)
-> - [`docs/phase-0.5/README.md`](../phase-0.5/README.md) — Phase 0.5A Operator Semantics (LOCK FINAL)
-> - [`docs/phase-0.5/ERRATA.md`](../phase-0.5/ERRATA.md) — Phase 0.5A 20 项修复归档
-> - [`docs/phase-0.6/README.md`](../phase-0.6/README.md) — Executable Acceptance Specification
-> - [`docs/phase-0.5b/README.md`](README.md) — Phase 0.5B 阶段介绍
-> - [`docs/phase-0.5b/I18N_SPEC.md`](I18N_SPEC.md) — i18n Contract (Locale / Canonical Terms / Enum Labels)
+> - [`docs/phase-0.5/README.md`](../README.md) — Phase 0.5 顶层入口 (4 域导航)
+> - [`docs/phase-0.5/OBJECT_VOCABULARY.md`](../OBJECT_VOCABULARY.md) — 0.5C 14 对象权威定义
+> - [`docs/phase-0.5/PRODUCT_OBJECT_MODEL.md`](../PRODUCT_OBJECT_MODEL.md) — 0.5C 3 层组合关系
+> - [`docs/phase-0.5/NAVIGATION.md`](../NAVIGATION.md) — 0.5C 4 域顶层导航
+> - [`docs/phase-0.5/MILESTONES.md`](../MILESTONES.md) — 0.5C 历史 milestone 归档
+> - [`docs/phase-0.5/ERRATA.md`](../ERRATA.md) — Phase 0.5A 20 项修复归档
+> - [`docs/phase-0.6/README.md`](../phase-0.6/README.md) — Executable Acceptance Specification (前置: Phase 0.5 LOCK FINAL)
+> - [`docs/phase-0.5/DESIGN_SYSTEM.md`](../DESIGN_SYSTEM.md) — V0.1 Design System
+> - [`docs/phase-0.5/I18N_SPEC.md`](../I18N_SPEC.md) — V0.1 i18n Contract
 
 ---
 
@@ -878,7 +887,7 @@ Engineering
 
 ## E-31 · Graph Designer 图设计 *(= 0.5A #08)*
 
-**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`phase-0.5/wireframes/08-graph-designer.html`](../phase-0.5/wireframes/08-graph-designer.html)
+**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`phase-0.5/operator/08-graph-designer.html`](../phase-0.5/operator/08-graph-designer.html)
 
 ---
 
@@ -1173,7 +1182,7 @@ Operations
 
 ## O-41 · Health Tree 健康树 *(= 0.5A #09)*
 
-**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`phase-0.5/wireframes/09-health-tree.html`](../phase-0.5/wireframes/09-health-tree.html)
+**状态:** 🟢 Phase 0.5A LOCK FINAL — 见 [`phase-0.5/operator/09-health-tree.html`](../phase-0.5/operator/09-health-tree.html)
 
 ---
 
@@ -3177,14 +3186,190 @@ Runtime (参考)
 新增 / 修改:
 - `docs/phase-0.5b/SURFACE_SPEC.md` (本节 §28)
 - `docs/phase-0.5b/DESIGN_SYSTEM.md` (新增, P0-8)
-- `docs/phase-0.5b/wireframes/M-11-media-library.html` (P1 Saved Views)
-- `docs/phase-0.5b/wireframes/M-12-asset-detail.html` (P0-5 Asset Version 命名 + P1 Rights Override L3)
-- `docs/phase-0.5b/wireframes/M-14-transcode-center.html` (P0-7 Mini Acceptance Test + P1 Profile Diff + Use in Playout Safety)
-- `docs/phase-0.5b/wireframes/P-21-encoding-profile.html` (P0-4 EFFECTIVE 语义 + BMD port-by-port + P1 Compatibility Advisor)
-- `docs/phase-0.5b/wireframes/P-22-output-profile.html` (P0-6 RTP + Latency 拆 + Edge Policy 边界)
+- `docs/phase-0.5b/product/M-11-media-library.html` (P1 Saved Views)
+- `docs/phase-0.5b/product/M-12-asset-detail.html` (P0-5 Asset Version 命名 + P1 Rights Override L3)
+- `docs/phase-0.5b/product/M-14-transcode-center.html` (P0-7 Mini Acceptance Test + P1 Profile Diff + Use in Playout Safety)
+- `docs/phase-0.5b/product/P-21-encoding-profile.html` (P0-4 EFFECTIVE 语义 + BMD port-by-port + P1 Compatibility Advisor)
+- `docs/phase-0.5b/product/P-22-output-profile.html` (P0-6 RTP + Latency 拆 + Edge Policy 边界)
 - `README.md` (顶层, 反映 6 domains / 30+ surfaces / UX BASELINE LOCK FINAL)
 
 ---
 
-**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure
+# 29. Phase 0.5C — Information Architecture Closure (本节)
+
+> **状态**: 🟡 **DRAFT 0.1** (本轮, 待用户审过)
+>
+> **触发**: 0.5B.2 UX BASELINE LOCK FINAL 后, 用户反向 review 25 条, 发现:
+> 1. 目录结构 phase-0.5 + phase-0.5b 不应并列 (应统一目录 + milestone 归档)
+> 2. Realtime Encode / File Transcode 必须现在拆 (不增加 Engine)
+> 3. README / ROADMAP / SURFACE_SPEC / Phase 0.6 README 之间状态不同步
+> 4. 缺少"对象组合关系"产品级入口 (Profile Bundle)
+> 5. 缺少 Hardware / Clock / Realtime Transcode / Profile Center / Job Detail
+> 6. 数字 (01-06) 不应进 UI 顶层导航
+> 7. Phase 0.6 README 写了 `< 100ms` 错误语义 (应 `target_failover_time_ms + measured p50/p95/p99`)
+
+## 29.1 目录归并 (commit cec7407 → 本轮)
+
+```
+OLD:
+docs/phase-0.5/    (Operator, 9 + 1)
+docs/phase-0.5b/   (Product, 5)
+
+NEW (本轮):
+docs/phase-0.5/
+├── README.md                    (Phase 0.5 顶层入口, 4 域导航)
+├── OBJECT_VOCABULARY.md         (14 对象权威定义, 0.5C 新增)
+├── PRODUCT_OBJECT_MODEL.md      (3 层组合, 0.5C 新增)
+├── NAVIGATION.md                (4 域, 0.5C 新增)
+├── MILESTONES.md                (历史 milestone, 0.5C 新增)
+├── SURFACE_SPEC.md              (从 phase-0.5b/ 移过来)
+├── DESIGN_SYSTEM.md             (从 phase-0.5b/ 移过来)
+├── I18N_SPEC.md                 (从 phase-0.5b/ 移过来)
+├── OPERATOR_WORKFLOW.md         (原 phase-0.5/)
+├── ERRATA.md                    (原 phase-0.5/)
+├── INDEX.md                     (原 phase-0.5/)
+├── milestones/                  (5 历史 milestone 文档, 0.5C 新增)
+├── operator/                    (原 phase-0.5/wireframes/, 9 + 1)
+├── product/                     (原 phase-0.5b/wireframes/, 5)
+└── chains/                      (原 phase-0.5/chains/, 4)
+```
+
+⛔ `phase-0.5b/` 目录已 git rm 完毕。Git history 完整保留 (全部用 `git mv`)。
+
+## 29.2 4 域顶层导航 (覆盖原 6 工作域)
+
+UI 顶层导航**从数字改为业务域**:
+
+| 域 | 中文 | 主要用户 | 包含对象 (本域新增) |
+|---|---|---|---|
+| **BROADCAST** | 直播 | Operator / Director | Channel · Source · Graph · Route · Session (REALTIME) · Variant · 09 Health Tree |
+| **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE) |
+| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 6 Profile · ChangeSet · Preflight · Hardware (E-34 新增) · Clock (E-36 新增) · Health · Incident · Replay · Benchmark** |
+| **ADMIN** | 管理 | Admin | User · Role · Permission · Audit · System Setting |
+
+| 域 | 表面数 | 已 LOCK | Spec 锁定 (待 wireframe) | 0.5D 新增 |
+|---|---|---|---|---|
+| BROADCAST | 12 | 10 | 1 (CD-01) | 1 (**M-15 Realtime Transcode**) |
+| MEDIA | 7 | 2 | 3 | 2 (**M-14 重画 File Transcode** + **M-16 Job Detail**) |
+| ENGINEERING | 20 | 2 | 13 | 5 (**P-20 Profile Center** + **P-28 Profile Bundle** + **E-34 Hardware** + **E-36 Clock** + 改 1) |
+| ADMIN | 5 | 0 | 5 | 0 |
+| **TOTAL** | **44** | **14** | **22** | **8** |
+
+⛔ **Profiles 不再是顶层域** (归 ENGINEERING)
+⛔ **Operations 不再是顶层域** (归 ENGINEERING)
+
+## 29.3 Realtime Encode / File Transcode 拆分 (M-14 / M-15)
+
+V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不增加 Engine):
+
+| 产品语义 | 底层 Engine | 运行时对象 | UI 表面 |
+|---|---|---|---|
+| **Realtime Transcode** (实时转码) | Encode Engine (REALTIME mode) | **Session (MEDIA_SESSION)** | **M-15 Realtime Transcode** (0.5D 新增) |
+| **File Transcode** (文件转码) | Encode Engine (FILE mode) | **Job (FILE_TRANSCODE kind)** | **M-14 File Transcode** (0.5B.1 M-14 改名, 0.5D 重画) |
+
+详细 2 种语义对比:
+
+| 维度 | Realtime Transcode | File Transcode |
+|---|---|---|
+| 输入 | Source (SDI / SRT / RTMP) | Asset (MP4 / MOV / TS) |
+| 输出 | Variant (live) → SRS | Asset Version (新 Version) |
+| 状态 | Session 三轴 (lifecycle + readiness + health) | Job 5 状态 (PENDING/QUEUED/RUNNING/COMPLETED/FAILED) |
+| 用户关心 | FPS / Speed / CPU / Dropped Frames / AV Offset / Latency / READY_TO_TAKE | % Progress / ETA / Output Size / Quality / CRF / Loudness |
+| 失败恢复 | FRAME/MASTER failover (V0.2) | 1-pass / 2-pass / Retry / Cancel |
+| UI 步骤 | (无, 持续) | 6 步 Wizard: Source / Output / Profile / QC / Schedule / Submit |
+
+**P-21 Encoding Profile** 同时支持 2 种语义, 但 schema 分 Common / Realtime / File 3 段 (0.5D 实施)。
+
+## 29.4 新增 6 个 UI 表面 (0.5D 锁定 Spec, 0.5D 画 wireframe)
+
+| 表面 | 域 | 关键交付 |
+|---|---|---|
+| **P-20 Profile Center** | ENGINEERING | 7 Tab 切换 6 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
+| **P-28 Profile Bundle** | ENGINEERING | 1 Channel 1 Bundle, 6 Profile 引用, 不重新配置 6 套参数 |
+| **E-34 Hardware Inventory** | ENGINEERING | HOST 顶层 (CPU/GPU/BMD/NIC/Storage) → Device 详情 (Capabilities/Ports/Assignment/Health/Temperature/Firmware/Driver) |
+| **E-36 Clock** | ENGINEERING | Reference (PTP/TIMECODE/SYSTEM/MONOTONIC) + Fallback Chain + Offset/Drift/Lock + Fallback history |
+| **M-15 Realtime Transcode** | BROADCAST | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
+| **M-16 Transcode Job Detail** | MEDIA | Job #TR-1822 (Status/Input/Profile/Worker/Pipeline 6 步/Realtime 5 指标/Quality VMAF PSNR SSIM/Output/Attempts) |
+| **M-14 File Transcode** (重画) | MEDIA | 6 步 New File Transcode Wizard (Source / Output / Profile / QC / Schedule / Submit), 不再"贴实时 Worker" 形式 |
+
+## 29.5 Object Vocabulary (0.5C 新增文档)
+
+14 个核心对象锁定 (Phase 0.5 全栈唯一权威):
+
+1. **Asset** (媒体资产, 1:1) — M-11 / M-12
+2. **Asset Version** (Master/Proxy/Mobile/Archive/Custom) — M-12 Tab ②
+3. **Profile** (6 子类) — P-20 Profile Center
+4. **Profile Bundle** (1 Channel 1 Bundle, 6 Profile 引用) — P-28 (0.5D)
+5. **Channel** (运营单位) — CD-01
+6. **Source** (11 kinds) — 02 Sources
+7. **Route** (Graph 编译后) — 08 Graph Designer
+8. **Output Variant** (1 Channel N Variant) — CD-01 Tab 6
+9. **Output Destination** (host:port) — 06 Output
+10. **Output Adapter** (SRSAdapter/UDPAdapter/RTPAdapter/FileAdapter) — P-22
+11. **Job** (5 kinds: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE) — M-14 / M-15 / M-16
+12. **Session** (2 kinds: MEDIA_SESSION / OUTPUT_SESSION, 三轴状态) — M-15 / CD-01
+13. **Revision** (不可变快照) — P-21 §10 / P-22 / CD-01
+14. **Change Set** (Logical Atomic Apply) — E-33
+
+⛔ **典型易混术语对** (强制 UI 区分):
+- Asset Version vs Output Variant (M-12 + CD-01)
+- Profile vs Profile Bundle (P-20 + P-28)
+- Job vs Session (M-14/M-15 + M-16)
+- Revision vs Version (V0.2 强约束: Version 修改 = 新 Revision)
+- Graph vs Route (08 + E-32)
+
+## 29.6 Phase 0.6 README 语义修复
+
+Phase 0.6 README 之前写:
+
+```text
+- [ ] 切换时延 < 100ms（target，非协议保证）  ❌ 错误
+- [ ] 切换 < 500ms（target）                     ❌ 错误
+```
+
+V0.2 Architecture 锁定: 任何 latency 验收**禁止**写协议式保证。正确写法:
+
+```text
+- [ ] `target_failover_time_ms` 来自 `hot_standby_levels` (V0.2 锁定, Policy 字段)
+- [ ] `failover_benchmarks` 独立 runtime 实测 p50 / p95 / p99
+- [ ] PASS = measured p95 <= target
+```
+
+Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正。
+
+## 29.7 Phase 0.5 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
+
+完整判定见 [`MILESTONES.md` §4](../MILESTONES.md#4-phase-05-lock-final-判定矩阵)。
+
+简版:
+- ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
+- ⛔ **0.5D LOCK FINAL** (上面 6 个新表面 + M-14 重画)
+- ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
+- ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
+- ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
+
+## 29.8 实施文件清单 (本轮 + 0.5D)
+
+**本轮 (0.5C) 已完成:**
+- 目录归并 (17 R + 9 M + 1 D, git history 保留)
+- `docs/phase-0.5/OBJECT_VOCABULARY.md` (16.5KB 新)
+- `docs/phase-0.5/PRODUCT_OBJECT_MODEL.md` (12.2KB 新)
+- `docs/phase-0.5/NAVIGATION.md` (11.6KB 新)
+- `docs/phase-0.5/MILESTONES.md` (7.4KB 新)
+- `docs/phase-0.5/README.md` (重写, 4 域导航)
+- `README.md` (根, 修 Engine 列表 + 9 Core 残留 + 4 域导航)
+- `docs/phase-0.6/README.md` (修 `< 100ms` 语义)
+
+**0.5D 待做 (6 个新 wireframe + 1 个重画):**
+- `docs/phase-0.5/operator/M-15-realtime-transcode.html` (新)
+- `docs/phase-0.5/operator/E-34-hardware-inventory.html` (新)
+- `docs/phase-0.5/operator/E-36-clock.html` (新)
+- `docs/phase-0.5/operator/P-20-profile-center.html` (新)
+- `docs/phase-0.5/operator/P-28-profile-bundle.html` (新)
+- `docs/phase-0.5/operator/M-16-transcode-job-detail.html` (新)
+- `docs/phase-0.5/operator/M-14-file-transcode.html` (从 product/ 移过来 + 重画)
+
+---
+
+**VBMF Contributors** · VBMF UI/UX Surface Specification V0.2 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure + 0.5C Information Architecture Closure
 

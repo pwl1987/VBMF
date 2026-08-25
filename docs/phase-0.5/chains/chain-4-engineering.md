@@ -179,10 +179,10 @@ prepare 准备(rev-008)
 
 ## 关联 Wireframe
 
-- `wireframes/08-graph-designer.html`（主入口）
-- `wireframes/02-sources.html`（Source 状态）
-- `wireframes/09-health-tree.html`（运行时监控）
-- `wireframes/07-recording.html`（录像回溯）
+- `../operator/08-graph-designer.html`（主入口）
+- `../operator/02-sources.html`（Source 状态）
+- `../operator/09-health-tree.html`（运行时监控）
+- `../operator/07-recording.html`（录像回溯）
 
 ## 关键禁忌
 

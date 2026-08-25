@@ -98,11 +98,11 @@ failure_domain_matrix:
 
 ## 关联 Wireframe
 
-- `wireframes/01-dashboard.html`（Operator 收到 ALERT）
-- `wireframes/02-sources.html`（Source 状态）
-- `wireframes/03-switcher.html`（Switch Mode 变化 / 最近事件）
-- `wireframes/07-recording.html`（录像 Chunk + Incident 关联）
-- `wireframes/09-health-tree.html`（Tree 颜色变化）
+- `../operator/01-dashboard.html`（Operator 收到 ALERT）
+- `../operator/02-sources.html`（Source 状态）
+- `../operator/03-switcher.html`（Switch Mode 变化 / 最近事件）
+- `../operator/07-recording.html`（录像 Chunk + Incident 关联）
+- `../operator/09-health-tree.html`（Tree 颜色变化）
 
 ## 关键禁忌
 

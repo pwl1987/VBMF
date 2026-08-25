@@ -1,8 +1,26 @@
 # Phase 0.6 — Executable Acceptance Specification 可执行验收规范
 
-> **状态**：📋 计划中
+> **状态**：📋 计划中 (前置: Phase 0.5 = UX BASELINE LOCK FINAL)
 > **范围**：Reference A1/A2/B + 5 Fault Injection + 7 Health Invariants tests
 > **目的**：在 V0.2 架构基线上做**真实部署 / 真实故障注入**，把 22 轮 review 锁定的 7 Health Invariants / 5 FI / 3 Switch Mode 全部转成可执行测试。
+
+## 0. V0.2 语义对齐 (Phase 0.5C 锁定)
+
+Phase 0.6 的 latency 验收**不写**协议式保证 (e.g. "< 100ms"), 而是:
+
+```yaml
+target:
+  source: hot_standby_levels.target_failover_time_ms   # V0.2 锁定, Policy 字段
+
+acceptance:
+  measured:
+    source: failover_benchmarks                        # V0.2 独立 runtime 实测
+    metrics: [p50, p95, p99]
+    required:
+      p95_lte_target: true
+```
+
+**禁止:** 任何验收项写 `切换时延 < Xms` 形式。**正确写法** 总是 `target + measured p50/p95/p99` 形式。WARN 与 PASS 严格分离, PASS 必须实测值。
 
 ## 目标
 
@@ -34,7 +52,7 @@ Source.B (compressed) ─┘   (PACKET)
 - [ ] Runtime Alignment（GOP/IDR/PTS/DTS/timebase/SPS/PPS/audio continuity）PASS
 - [ ] WARN ≠ PASS（PACKET 严格要求 PASS）
 - [ ] Switch decision tree 选 PACKET_SWITCH
-- [ ] 切换时延 < 100ms（target，不构成协议保证）
+- [ ] `target_failover_time_ms` 来自 `hot_standby_levels`（V0.2 锁定，**非协议保证**），由 `failover_benchmarks` 独立实测 p50/p95/p99
 - [ ] 反复切换 100 次，零异常
 - [ ] 24h 持续运行无崩溃
 
@@ -59,7 +77,7 @@ SDI-B ─→ Normalize ─→ Encode ─┘   (FRAME/MASTER)
 - [ ] FRAME_SWITCH 触发条件（codec/format/color space 异源）
 - [ ] MASTER_SWITCH 触发条件（异构主备 / 不同色域）
 - [ ] AV sync 测量（Master Join 处）
-- [ ] 切换 < 500ms（target）
+- [ ] `target_failover_time_ms` 来自 `hot_standby_levels`（V0.2 锁定，**非协议保证**），由 `failover_benchmarks` 独立实测 p50/p95/p99
 - [ ] 24h 稳定
 
 ### Reference B — 异构源 + 图文 + 多 Master

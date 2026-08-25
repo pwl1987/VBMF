@@ -5,7 +5,7 @@
 >
 > **阶段划分:**
 > - **0.5A** (LOCK FINAL) — Operator 播控 UI 语义 (9 Core + 1 Validation)
-> - **0.5B** (当前) — V0.2 架构所有对象 → UI 表面 (见 [`../phase-0.5b/SURFACE_SPEC.md`](../phase-0.5b/SURFACE_SPEC.md))
+> - **0.5B** (当前) — V0.2 架构所有对象 → UI 表面 (见 [`SURFACE_SPEC.md`](SURFACE_SPEC.md))
 >
 > **Phase 0.5.1** — Stateful Operator UX Closure（12 + 8 = 20 项 UI 语义修复）已完成，详见 [`ERRATA.md`](ERRATA.md)
 >

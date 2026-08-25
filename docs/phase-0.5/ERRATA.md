@@ -39,7 +39,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - `[AUTO INSERTED NORMALIZE]` Reason 字段（RAW_VIDEO format mismatch 等）
 - 视觉标识：`[AUTO INSERTED]` 虚线节点 / `[WARNING]` 黄 / `[REJECT]` 红
 
-**文件：** `docs/phase-0.5/wireframes/08-graph-designer.html`
+**文件：** `docs/phase-0.5/operator/08-graph-designer.html`
 
 ---
 
@@ -62,7 +62,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
    - NOW / NEXT / TAKE / SCHEDULED / SYSTEM DECIDES / EXECUTION RESULT
 4. **Controls** — 单一主 TAKE 按钮 + 排播信息
 
-**文件：** `docs/phase-0.5/wireframes/01-dashboard.html`
+**文件：** `docs/phase-0.5/operator/01-dashboard.html`
 
 ---
 
@@ -94,7 +94,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - **SWITCHED** 终态 + 自动回 IDLE
 - 危险操作分层可视化：L1（无确认）/ L2（3s 倒计时）/ L3（YES + 5s）
 
-**文件：** `docs/phase-0.5/wireframes/03-switcher.html`
+**文件：** `docs/phase-0.5/operator/03-switcher.html`
 
 ---
 
@@ -114,7 +114,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
   - RAW → Master → Variant 渲染管线
 - **Director 工作域 = Timeline + Composition 同屏双栏**（符合 Chain 3）
 
-**文件：** `docs/phase-0.5/wireframes/04-composition.html`
+**文件：** `docs/phase-0.5/operator/04-composition.html`
 
 ---
 
@@ -128,7 +128,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - `1 fr 1 fr` → `1fr 1fr`
 - 重写整页 CSS（顺便统一中英双语规范）
 
-**文件：** `docs/phase-0.5/wireframes/09-health-tree.html`
+**文件：** `docs/phase-0.5/operator/09-health-tree.html`
 
 ---
 
@@ -151,7 +151,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
    - HA-01..HA-07 验收用例
    - Health Invariants H1-H7
 
-**文件：** `docs/phase-0.5/wireframes/09-health-tree.html`
+**文件：** `docs/phase-0.5/operator/09-health-tree.html`
 
 ---
 
@@ -167,7 +167,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - 与 §3.13 AVSync Manager 真正接上
 - 颜色：全绿 = 安全 / 任一黄/红 = 状态降级
 
-**文件：** `docs/phase-0.5/wireframes/05-audio.html`
+**文件：** `docs/phase-0.5/operator/05-audio.html`
 
 ---
 
@@ -180,7 +180,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 2. **HLS Detail**：Encoder / Bitrate / Segment Duration / Playlist Age / PTS Continuity / Reconnect
 3. **WebRTC Detail**：ICE / DTLS / SRTP / RTT / Jitter / Packet Loss / Bitrate
 
-**文件：** `docs/phase-0.5/wireframes/06-output.html`
+**文件：** `docs/phase-0.5/operator/06-output.html`
 
 ---
 
@@ -204,7 +204,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
    - 导出 / 复制链接
 3. **Recent Incidents 列表**：每条 Incident 都有 "→ 跳到 Replay" 链接（X4 Timeline 双向链接）
 
-**文件：** `docs/phase-0.5/wireframes/07-recording.html`
+**文件：** `docs/phase-0.5/operator/07-recording.html`
 
 ---
 
@@ -225,7 +225,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 3. **Clock Quality 列**新增到 Source 表格：BROADCAST / GOOD / FAIR / POOR / N/A 5 档
 4. 新增 Clock Quality badge 颜色：绿/绿/黄/红/灰
 
-**文件：** `docs/phase-0.5/wireframes/02-sources.html`
+**文件：** `docs/phase-0.5/operator/02-sources.html`
 
 ---
 
@@ -261,7 +261,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 
 每张卡显示：编号 / 名称 / 描述 / 三轴 / Compiled+Effective / Channel Health View / 典型场景
 
-**文件：** `docs/phase-0.5/wireframes/10-states.html`（新文件）
+**文件：** `docs/phase-0.5/operator/10-states.html`（新文件）
 
 ---
 
@@ -295,7 +295,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - Res: `1920×1080 / 25` → `1920×1080 / 25 (RAW frame)`
 - 目标节点明确加 `(AUTO)` 标识：`视频主节点 (AUTO)`
 
-**文件：** `docs/phase-0.5/wireframes/08-graph-designer.html`
+**文件：** `docs/phase-0.5/operator/08-graph-designer.html`
 
 ---
 
@@ -311,7 +311,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
    - 明确 Aggregation Rule 2 触发
 3. **SDI 主输出 (V0.4)** 移到独立折叠区，标注 "不在 9 Subsystem 计数"
 
-**文件：** `docs/phase-0.5/wireframes/09-health-tree.html`
+**文件：** `docs/phase-0.5/operator/09-health-tree.html`
 
 ---
 
@@ -326,7 +326,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
   - `switch_execution_state = EXECUTING`
 - Scenario 注明 "SWITCHING 不是 Canonical Enum (V0.2 已锁死)"
 
-**文件：** `docs/phase-0.5/wireframes/10-states.html`
+**文件：** `docs/phase-0.5/operator/10-states.html`
 
 ---
 
@@ -339,7 +339,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - Scenario 注明 "ECHS=STARTING 是 presentation policy 锁定, 不是 lifecycle 状态"
 - 删除 "持续 2-5s" 固定范围
 
-**文件：** `docs/phase-0.5/wireframes/10-states.html`
+**文件：** `docs/phase-0.5/operator/10-states.html`
 
 ---
 
@@ -355,7 +355,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - "目标切换 ~87ms" → "Target 100ms · Last measured p95 87ms (failover_benchmarks)"
 - "87ms 预算" → "Target 100ms, last p95 87ms"
 
-**文件：** `docs/phase-0.5/wireframes/01-dashboard.html`
+**文件：** `docs/phase-0.5/operator/01-dashboard.html`
 
 ---
 
@@ -368,7 +368,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - NOT_READY: "接管慢 1-2s" → "由 failover_benchmarks 测量, 不是固定值"
 - STOPPING: "持续 2-5s" → "实测由 benchmark 测量, 不写固定范围"
 
-**文件：** `docs/phase-0.5/wireframes/10-states.html`
+**文件：** `docs/phase-0.5/operator/10-states.html`
 
 ---
 
@@ -387,7 +387,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 - `docs/phase-0.5/OPERATOR_WORKFLOW.md` — §3 标题 + 验收清单
 - `docs/phase-0.5/INDEX.md` — 范围段 + 目录 + 页面清单表
 - `docs/phase-0.5/README.md` — 范围段 + 页面清单表
-- `docs/phase-0.5/wireframes/10-states.html` — title + header + footer 三处加 "1 Validation Page" 标识
+- `docs/phase-0.5/operator/10-states.html` — title + header + footer 三处加 "1 Validation Page" 标识
 - `README.md` (顶层) — 核心能力表 / 演进历史 / 文档结构 / 中英 Summary / Current phase / badge 全部更新
 
 ---
@@ -411,7 +411,7 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 
 + 隐藏折叠：DEGRADED 示例 + SDI 主输出 (V0.4 目标)
 
-**文件：** `docs/phase-0.5/wireframes/09-health-tree.html`
+**文件：** `docs/phase-0.5/operator/09-health-tree.html`
 
 ---
 
@@ -444,10 +444,10 @@ Phase 0.5.1 目标：只修 UI / Workflow / State / Interaction，不碰 V0.2 �
 ## Final Closure 修改文件清单
 
 ```
-docs/phase-0.5/wireframes/01-dashboard.html          (M)  FC-P1-1
-docs/phase-0.5/wireframes/08-graph-designer.html     (M)  FC-P0-1
-docs/phase-0.5/wireframes/09-health-tree.html        (M)  FC-P0-2 + FC-DOC-1
-docs/phase-0.5/wireframes/10-states.html             (M)  FC-P0-3 + FC-P0-4 + FC-P1-2 + FC-P1-3
+docs/phase-0.5/operator/01-dashboard.html          (M)  FC-P1-1
+docs/phase-0.5/operator/08-graph-designer.html     (M)  FC-P0-1
+docs/phase-0.5/operator/09-health-tree.html        (M)  FC-P0-2 + FC-DOC-1
+docs/phase-0.5/operator/10-states.html             (M)  FC-P0-3 + FC-P0-4 + FC-P1-2 + FC-P1-3
 docs/phase-0.5/OPERATOR_WORKFLOW.md                  (M)  FC-P1-3
 docs/phase-0.5/INDEX.md                              (M)  FC-P1-3
 docs/phase-0.5/README.md                             (M)  FC-P1-3
@@ -489,16 +489,16 @@ README.md                                            (M)  FC-P1-3
 ## 5. 修改文件清单
 
 ```
-docs/phase-0.5/wireframes/01-dashboard.html        (M)  P0-2  + P2-1
-docs/phase-0.5/wireframes/02-sources.html          (M)  P1-6
-docs/phase-0.5/wireframes/03-switcher.html         (M)  P0-3
-docs/phase-0.5/wireframes/04-composition.html      (M)  P0-4
-docs/phase-0.5/wireframes/05-audio.html            (M)  P1-3
-docs/phase-0.5/wireframes/06-output.html           (M)  P1-4
-docs/phase-0.5/wireframes/07-recording.html        (M)  P1-5
-docs/phase-0.5/wireframes/08-graph-designer.html   (M)  P0-1
-docs/phase-0.5/wireframes/09-health-tree.html      (M)  P0-5 + P1-2
-docs/phase-0.5/wireframes/10-states.html           (A)  P2-2 (new)
+docs/phase-0.5/operator/01-dashboard.html        (M)  P0-2  + P2-1
+docs/phase-0.5/operator/02-sources.html          (M)  P1-6
+docs/phase-0.5/operator/03-switcher.html         (M)  P0-3
+docs/phase-0.5/operator/04-composition.html      (M)  P0-4
+docs/phase-0.5/operator/05-audio.html            (M)  P1-3
+docs/phase-0.5/operator/06-output.html           (M)  P1-4
+docs/phase-0.5/operator/07-recording.html        (M)  P1-5
+docs/phase-0.5/operator/08-graph-designer.html   (M)  P0-1
+docs/phase-0.5/operator/09-health-tree.html      (M)  P0-5 + P1-2
+docs/phase-0.5/operator/10-states.html           (A)  P2-2 (new)
 docs/phase-0.5/ERRATA.md                           (A)  本文档
 ```
 

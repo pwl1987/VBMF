@@ -51,7 +51,7 @@
 
 ### 3.1 Dashboard（主控台）
 
-**位置**：wireframes/01-dashboard.html
+**位置**：operator/01-dashboard.html
 
 布局（Dark Mode 24/7）：
 
@@ -80,7 +80,7 @@
 
 ### 3.2 Sources（源管理）
 
-**位置**：wireframes/02-sources.html
+**位置**：operator/02-sources.html
 
 11 个 Source Adapter 状态列表（V0.2 §2.4 锁定）：
 - SDI（BMD DeckLink，3 张卡，dev0/dev1/io0）
@@ -92,7 +92,7 @@
 
 ### 3.3 Switcher（切播器）
 
-**位置**：wireframes/03-switcher.html
+**位置**：operator/03-switcher.html
 
 - 显示当前 COMPILED_MODE 编译模式（channel_routes.switch_mode）
 - 显示当前 EFFECTIVE_RUNTIME_MODE 运行时模式（media_session_runtime.effective_switch_mode）
@@ -101,7 +101,7 @@
 
 ### 3.4 Composition（图文包装）
 
-**位置**：wireframes/04-composition.html
+**位置**：operator/04-composition.html
 
 - **Program Composition 层**：节目级 Logo/字幕/版权（所有 Variant 共享）
 - **Variant Composition 层**：平台 Logo/水印（按 Output Variant 叠加）
@@ -110,7 +110,7 @@
 
 ### 3.5 Audio（音频）
 
-**位置**：wireframes/05-audio.html
+**位置**：operator/05-audio.html
 
 - 混音器（多路 PCM 输入）
 - Loudness 响度（EBU R128）
@@ -119,7 +119,7 @@
 
 ### 3.6 Output（输出）
 
-**位置**：wireframes/06-output.html
+**位置**：operator/06-output.html
 
 - SRS Adapter 输出列表（HLS / RTMP / WebRTC / SRT）
 - 每路：URL / 健康 / 带宽 / 客户端数（HLS .m3u8 请求数）
@@ -127,7 +127,7 @@
 
 ### 3.7 Recording（录制）
 
-**位置**：wireframes/07-recording.html
+**位置**：operator/07-recording.html
 
 - 录制通道列表（每路 5 min chunk）
 - 录制状态 / 磁盘占用
@@ -136,7 +136,7 @@
 
 ### 3.8 Graph Designer（NEW，V0.2 §3.10）
 
-**位置**：wireframes/08-graph-designer.html
+**位置**：operator/08-graph-designer.html
 
 - 拖拽：Source / Process / Output 节点
 - 边声明：Data Plane / Clock Domain / Edge Policy
@@ -147,7 +147,7 @@
 
 ### 3.9 Health Tree（NEW，V0.2 §3.9 + §5 7 Health Invariants）
 
-**位置**：wireframes/09-health-tree.html
+**位置**：operator/09-health-tree.html
 
 ```
 CH01 (Channel: HEALTHY)
