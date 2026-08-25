@@ -15,6 +15,7 @@
 - 跳转必须**携带对象上下文**（对象 ID / Revision / 路径），**禁止**打开泛化首页（如裸 `Output` 首页、`Source` 首页）。
 - 跨域跳转到达后，目标页面顶部必须显示「来自 / Go Back」与携带的 Context。
 - 任何 surface ID 必须与 `SURFACE_REGISTRY.yaml` 完全一致，**不能把两个 surface 压缩成同一 ID**（如 `CD-01` 必须拆为 `CD-01-WS` / `CD-01-Detail`）。
+- **覆盖完整性:** 下表已覆盖 `OBJECT_VOCABULARY.md` 锁定的全部 **15 个 Canonical Object**（Source / Profile / Profile Bundle / Output Variant / Media Session / ChangeSet / Job / Asset / Asset Version / Route / Destination / Adapter / Revision / Channel / Channel Template）。任何新增对象都必须补一行, 不得留白。
 
 ---
 
@@ -32,6 +33,35 @@
 | Incident | Replay 回放 | 07 Recording | `incident_id` |
 | ChangeSet | Runtime 运行态 | M-17 Realtime Session | `runtime_revision` |
 | Channel | Audio Profile 音频配置 | P-23 Audio Profile | `profile_rev` |
+| Asset | Create Version 创建版本 | M-12 Asset Detail (Tab ②) | `asset_id` |
+| Asset Version | File Transcode 文件转码 | M-14 File Transcode | `asset_version_id` + `asset_id` |
+| Asset Version | QC 质检 | M-18 Job Detail (QC) / QC Profile | `asset_version_id` |
+| Job | Open Output Asset Version 查看产出 | M-12 Asset Detail | `job_id` + `asset_version_id` |
+| Job | Runtime 运行态 | M-18 Job Detail | `job_id` |
+| Route | Open Source / Channel 反向跳转 | 02 Sources / CD-01 | `route_id` |
+| Destination | Open Adapter 查看执行资源 | 06 Output (Adapter 详情) | `dest_id` + `adapter_ref` |
+| Adapter | Open Health 健康 | 09 Health Tree / E-38 | `adapter_id` |
+| Revision | Open ChangeSet 查看变更 | D7 ChangeSet | `revision_id` |
+| Channel Template | Instantiate 实例化频道 | CD-01 (Create Channel) | `template_id` |
+
+### 1.1 媒体域核心闭环 (Asset → Asset Version → Job → 新 Asset Version → QC → Used By)
+
+> 用户主链路必须全程保留上下文, 转码产出去哪了一目了然:
+
+```
+Asset (M-11)
+  → Create Asset Version (M-12 Tab ②)
+  → File Transcode (M-14)
+  → 选 Encoding Profile (P-21) + Packaging Profile (P-20 Packaging Tab) + Output Profile (P-22)
+  → Preview / Test Encode
+  → Job (M-18, FILE_TRANSCODE, job_id)
+  → COMPLETED → 新 Asset Version (asset_version_id)
+  → QC (M-18 Job Detail / QC Profile)
+  → Used By → Channel / Playout (CD-01)
+```
+
+- 任何跳转都携带 `asset_id` / `asset_version_id` / `job_id`, **禁止**从转码页跳到泛化首页后丢失上下文。
+- `Job` 与 `Asset Version` 双向可达: Job 详情能看到产出 Asset Version, Asset Version 能看到触发它的 Job。
 
 ---
 
@@ -44,3 +74,9 @@
 - [ ] Output：`node_path` 在 06 Output 与 09 Health Tree 间闭环
 - [ ] ChangeSet：`runtime_revision` 在 D7 → M-17 间单调可回滚
 - [ ] Channel Audio：`profile_rev` 在 CD-01-WS 与 P-23 间闭环
+- [ ] Asset / Asset Version：`asset_id` / `asset_version_id` 贯穿 M-11 → M-12 → M-14 → M-18 → (新 Asset Version) → QC → Used By
+- [ ] Job：`job_id` 从 M-14 经 M-18 → 新 Asset Version 闭环, 与 Asset Version 双向可达
+- [ ] Route：`route_id` 在 02 / 03 / 04 与 CD-01 间双向可达
+- [ ] Destination / Adapter：`dest_id` / `adapter_ref` 在 06 Output 与 09 Health Tree 间闭环
+- [ ] Revision：`revision_id` 在 D7 与 ChangeSet 间可达
+- [ ] Channel Template：`template_id` 实例化 → CD-01 闭环

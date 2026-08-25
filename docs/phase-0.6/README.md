@@ -235,6 +235,21 @@ P-20 Profile Center / P-21 Encoding Profile 的责任边界必须锁死，防止
 - **Packaging Profile**：`container(MP4|TS) / segment(HLS|DASH) / segment-duration / playlist / manifest / DRM`。
 - 两者为**独立 Profile 类型**，共享引用但运行时对象 / 状态机 / 失败恢复 / UI 分离（与 M-14 File Transcode / M-17 Realtime Session 的 Encoding↔Packaging 分离一致）。
 - **禁止**：P-21 Encoding Profile 承担 container / segment / manifest / DRM；DRM 属 Packaging / Distribution 边界。
+- **Packaging Profile = 第 8 个 canonical Profile kind**（OBJECT_VOCABULARY §1.3 / PRODUCT_OBJECT_MODEL §1.1）：与 Encoding / Output 三者独立（`ENCODING_PROFILE` / `PACKAGING_PROFILE` / `OUTPUT_PROFILE`）；P-20 Profile Center 新增 Packaging Tab 承载其 Registry，Output Profile (P-22) 只负责 Destination / Protocol / Distribution，不接管 container / segment / manifest / DRM。
+
+### Encoding × Packaging × Output × Player Compatibility Preflight
+
+Encoding Profile 与 Packaging Profile 各自合法，但组合后未必合法。Phase 0.6 Preflight 必须验证四者兼容性（不仅是单 Profile 内部校验）：
+
+- **Encoding × Packaging**：codec / profile / level / framerate 必须与 container / segment-format / mux 兼容（e.g. H.264 + HLS + CMAF 合法；H.264 + 裸 MPEG-TS 直推 DASH 不合法）。
+- **Packaging × Output**：segment / manifest 必须与 Destination Protocol 兼容（HLS→HLS Destination；DASH→DASH Destination；UDP-TS 不需要 manifest）。
+- **Output × Player Capability**：目标播放端能力（Codec / DRM / Container）必须覆盖 Packaging 产出。
+- **Latency Policy**：Packaging segment-duration 与 Encoding GOP / `latency_class` 一致（Ultra-Low 不可用长 segment）。
+
+**验收项**：
+- [ ] Preflight 拒绝"各自合法但组合非法"的 Bundle（e.g. H.264 + DASH-CMAF 但 Output 只声明 UDP-TS）
+- [ ] Preflight 校验 Player Capability ∩ Packaging 产出 ≠ ∅
+- [ ] 兼容性矩阵由 Encoding / Packaging / Output Profile 共同派生，不手写
 
 ### E2E Acceptance: Profile → Bundle → ChangeSet → Runtime → Output
 
@@ -263,8 +278,20 @@ Output still HEALTHY (Variant 全同步: HLS / RTMP / WHEP)
 - [ ] 选择性 Apply（仅 CH01）不污染 CH03 / CH08
 - [ ] Preflight 失败则 ChangeSet 不进入 APPLYING（WARN ≠ PASS）
 - [ ] Apply 后 Runtime Revision 单调 +1，旧 Revision 可回滚
-- [ ] Apply 期间 Output 持续 HEALTHY（零黑场 / 零中断）
+- [ ] Apply 期间 Output 持续 HEALTHY，且 Cutover Acceptance 6 项全 PASS（见上）
 - [ ] 回滚路径：Rollback → 上一 Runtime Revision
+
+### Cutover Acceptance (Transactional Cutover 硬验收)
+
+`Output still HEALTHY` 不等于"零可见中断"。Logical Atomic / Transactional Cutover 的真正验收必须同时满足以下连续性指标（`health == HEALTHY` 只是必要非充分条件）：
+
+- [ ] **No visible black frame**（零黑场）
+- [ ] **No audio mute**（零静音）
+- [ ] **No PTS discontinuity**（PTS 连续，无跳变）
+- [ ] **No unexpected frame gap / drop**（无异常丢帧）
+- [ ] **No Output session interruption / restart**（Output Session 不重启）
+- [ ] **AV sync within threshold**（AV 同步在预算内，通常 < ±½ frame）
+- [ ] Health = HEALTHY **且** 上述 6 项全 PASS，才判定 Cutover 成功
 
 ### UI-E2E-01: Profile Revision → Selective Apply → Runtime Verification (真实 UI 点击路径)
 
@@ -293,6 +320,52 @@ M-17 Realtime Session (Runtime)
 - [ ] D7 ChangeSet Review 为独立审批 surface，Apply 动作有 Operator 明确确认
 - [ ] M-17 → 06 Output 经 `[Open Output]` 携带对象上下文（非泛化 Output 首页）
 - [ ] Apply 后 Runtime Revision +1，Output 全程 HEALTHY（与 §E2E 系统级验证互为佐证）
+
+### UI-E2E-02: Asset → File Transcode → Asset Version → QC (真实 UI 点击路径, 媒体域闭环)
+
+媒体域必须经由真实 UI 点击走通，证明 Asset / Asset Version / Job / QC 的跳转闭环成立（OBJECT_NAVIGATION_MATRIX §1.1）：
+
+```
+M-11 Media Library
+  ↓ Create Asset Version
+M-12 Asset Detail (Tab ②)
+  ↓ File Transcode
+M-14 File Transcode (FILE_PROFILE)
+  ↓ 选 Encoding Profile (P-21) + Packaging Profile (P-20 Packaging Tab) + Output Profile (P-22)
+  ↓ Preview / Test Encode
+M-18 Job Detail (Job = FILE_TRANSCODE, job_id)
+  ↓ COMPLETED
+新 Asset Version (asset_version_id)
+  ↓ QC
+M-18 Job Detail (QC) / QC Profile (P-25)
+  ↓ Used By
+CD-01 Channel / Playout
+```
+
+**验收项**：
+- [ ] 每一跳都是 UI 内真实点击，上下文 (asset_id / asset_version_id / job_id) 全程保留
+- [ ] 转码产出（新 Asset Version）从 M-18 真实跳回 M-12，不丢上下文
+- [ ] QC 结果回写 Asset Version，Used By 能跳到引用它的 Channel
+- [ ] Packaging Profile 与 Encoding Profile 在 M-14 中作为独立选择，不可合并
+
+### UI-E2E-03: Channel → Realtime Session → Output → Health (真实 UI 点击路径, 实时域闭环)
+
+```
+CD-01 Channel Control Workspace (CD-01-WS)
+  ↓ 配置 Realtime Session
+M-17 Realtime Session (REALTIME_PROFILE)
+  ↓ Provision / Reservation
+  ↓ STARTING → READY_TO_TAKE → RUNNING
+06 Output (Output Variant)
+  ↓ Open Runtime
+09 Health Tree
+```
+
+**验收项**：
+- [ ] 每一跳 UI 真实点击，上下文 (channel_id / session_id / variant_id) 全程保留
+- [ ] Realtime Session 经 `[Open Output]` 携带对象上下文跳 06 Output（非泛化 Output 首页）
+- [ ] 06 Output → 09 Health Tree 经 `[Open Health]` 闭环
+- [ ] FILE_TRANSCODE（UI-E2E-02）与 REALTIME_ENCODE（本链）完全分离，不共用同一 UI 入口
 
 ## 部署环境
 

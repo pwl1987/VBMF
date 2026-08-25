@@ -55,6 +55,7 @@ EncodingProfile:
 - **Container**: MPEG-TS / fMP4 / MP4 / MOV / MKV / Segment / Index / Metadata / Timecode
 
 > 注：Common 段的 `Latency Mode (Normal/Low/Ultra-Low)`（P-21 §455）在 `REALTIME_PROFILE` 下被 §3 的 `latency_class` 取代并强化，不再使用松散的 Mode 表述。
+> **Packaging 边界（0.6 焊死）**：Encoding Profile 的 `Container` 仅指**文件封装**（MP4 / MKV，FILE_PROFILE 产出）；**传输封装（HLS / DASH / MPEG-TS / segment / manifest / DRM）全部归 `PACKAGING_PROFILE`**（见 §8）。Encoding 不承担 Packaging 职责，与 phase-0.6 `Profile Responsibility Boundary` 一致。
 
 ---
 
@@ -117,7 +118,7 @@ EncodingProfile:
 | `REALTIME_PROFILE` 运行时 | M-17 Realtime Session（Session 三轴 + 实时指标） |
 | `FILE_PROFILE` 运行时 | M-14 File Transcode（6 步 Wizard）/ M-18 Job Detail |
 | `Job` / `Session` 包装 | OBJECT_VOCABULARY §1.11/§1.12（`REALTIME_PROFILE` 由 `MEDIA_SESSION` 承载, 非 Job） |
-| Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 7 Profile） |
+| Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 8 Profile） |
 
 ---
 
@@ -138,5 +139,39 @@ EncodingProfile:
 2. Realtime 段按 §3 落字段 + Validation 新增实时校验
 3. M-17 / M-14 分别绑定 `REALTIME_PROFILE` / `FILE_PROFILE` 类型过滤
 4. P-28 Bundle 允许混合引用两类 Profile（Video 用 REALTIME，Archive 派生用 FILE）
+
+---
+
+## 8. Packaging Profile (PACKAGING_PROFILE) — 第 8 个 canonical Profile kind
+
+> 与 Encoding / Output 三者独立（phase-0.6 `Profile Responsibility Boundary` + OBJECT_VOCABULARY §1.3 + PRODUCT_OBJECT_MODEL §1.1）。**Encoding = Media Encoding Policy**；**Packaging = Delivery Packaging Policy**；Output = Destination / Protocol / Distribution Policy。
+
+**Schema (SoT: 本 Spec §8 · UI: P-20 Packaging Tab)**：
+
+```yaml
+PackagingProfile:
+  kind: PACKAGING_PROFILE
+  container: enum[MP4, MPEG_TS, fMP4, CMAF]        # 封装
+  segment:
+    format: enum[HLS, DASH]                         # 切片协议
+    duration_ms: int                                # 切片时长 (与 Encoding GOP / latency_class 协同)
+    playlist: int                                   # 播放列表长度
+  manifest: enum[HLS_M3U8, DASH_MPD]                # 清单
+  drm: enum[NONE, Widevine, PlayReady, FairPlay]    # DRM (属 Packaging / Distribution 边界)
+```
+
+**边界 (硬规则)**：
+- Encoding Profile **禁止**承担 `container / segment / manifest / DRM`；DRM 属 Packaging / Distribution。
+- Packaging Profile **禁止**承担 `codec / resolution / framerate / bitrate / GOP / rate-control`。
+- 三者组合合法性由 **Compatibility Preflight**（phase-0.6）校验，而非单 Profile 内部校验。
+
+**与现有对象映射**：
+
+| 本 Spec | 现有文档 / 表面 |
+|---|---|
+| `PACKAGING_PROFILE` 定义 | OBJECT_VOCABULARY §1.3（8 种 Profile）/ PRODUCT_OBJECT_MODEL §1.1 |
+| Packaging Registry UI | P-20 Profile Center（Packaging Tab，0.5D 新增） |
+| Bundle 引用 | P-28 Profile Bundle（1 Channel 1 Bundle，引用 8 Profile：含 `packaging_profile_ref`） |
+| 兼容性校验 | phase-0.6 `Encoding × Packaging × Output × Player Compatibility Preflight` |
 
 ⛔ 本 Spec 仅为 Schema 增补，不改动 V0.2 任何 Engine 或 Runtime 机制。

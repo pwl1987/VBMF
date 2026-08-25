@@ -38,7 +38,7 @@
 | `switch_decision` | enum | 直播类必填 | `AUTO` / `MANUAL` (虚拟类由 Scheduler 接管) |
 | `hot_standby_level` | enum | 必填 | `COLD` / `WARM` / `HOT` (V0.2 Canonical, ⛔ 禁 `NONE`) |
 | `redundancy_enabled` | bool | 默认 true | 不需要备机时置 `false`, **不扩充 HotStandbyLevel enum** (0.5F.1 修正) |
-| `bundle_id` | ref | 必填 | Profile Bundle (7 Profile 引用) |
+| `bundle_id` | ref | 必填 | Profile Bundle (8 Profile 引用) |
 | `channel_configuration_status` | enum | 系统写 | `DRAFT → VALIDATED → APPLIED → RETIRED` (Channel 配置生命周期; 0.5F.4 P1-5 更名 — 不叫 `lifecycle`, 避免与 Session Runtime 三轴冲突) |
 | `owner` / `created_by` | string | 必填 | 责任人 |
 | `created_at` / `updated_at` | timestamp | 系统写 | |

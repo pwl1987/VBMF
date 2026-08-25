@@ -32,25 +32,27 @@ UI 必须显式表达这 3 层的"组合关系", 而不是每个对象一个孤�
 
 ## 1. 三个核心组合层 (Phase 0.5C 锁定)
 
-### 1.1 第 1 层: 7 种 Profile (Policy / 跨 Channel 共享)
+### 1.1 第 1 层: 8 种 Profile (Policy / 跨 Channel 共享)
 
 | 子类 | 对象 ID 命名 | 跨多少 Channel 共享? | 由谁管理 |
 |---|---|---|---|
 | **Encoding Profile** | `enc_profile_id` | 共享 (但每 Channel 派生 1 个 Revision) | Engineer |
 | **Audio Profile** | `audio_profile_id` | 共享 | Engineer |
+| **Packaging Profile** | `packaging_profile_id` | 共享 | Engineer |
 | **Output Profile** | `out_profile_id` | 共享 | Engineer |
 | **Graphic Profile** | `graphic_profile_id` | 共享 | Designer / Engineer |
 | **QC Profile** | `qc_profile_id` | 共享 | QC Lead |
 | **Rights Profile** | `rights_profile_id` | 共享 | Legal / Rights Manager |
 | **Edge Policy Profile** | `edge_policy_id` | 共享 | SRE / Engineer |
 
-**UI 入口:** **P-20 Profile Center** (Phase 0.5D 新增) — 一个总览页, 顶部 7 个 Tab 切换 7 种 Profile Registry。
+**UI 入口:** **P-20 Profile Center** (Phase 0.5D 新增) — 一个总览页, 顶部 8 个 Tab 切换 8 种 Profile Registry。
 
 > **禁止:** 出现 "Channel Profile" / "Stream Profile" 这种含糊词, 用 Bundle 表达组合。
+> **Packaging Profile 与 Encoding Profile 严格分离** (Phase 0.6 §3.1): Encoding 只负责 codec / resolution / framerate / bitrate / GOP / rate-control / 2-pass; Packaging 只负责 container / segment / HLS·DASH / manifest / DRM; **Encoding 禁止承担 Packaging 职责**, Output 只负责 Destination / Protocol / Distribution。
 
 ### 1.2 第 2 层: Profile Bundle (Composition / 1 个 Channel 用 1 个 Bundle)
 
-**关键创新:** **1 个 Channel 1 个 Bundle**, Bundle 内含 7 种 Profile 的引用 (不是副本)。
+**关键创新:** **1 个 Channel 1 个 Bundle**, Bundle 内含 8 种 Profile 的引用 (不是副本)。
 
 ```yaml
 # DB schema
@@ -60,6 +62,7 @@ profile_bundles:
   channel_id: CH01  # 1:1 反向引用 (1 Channel 1 Bundle)
   encoding_profile_ref: H264-LIVE-1080P25-5M@v3
   audio_profile_ref:    NEWS-STEREO-R128@v1
+  packaging_profile_ref: HLS-CMAF-PKG@v1
   output_profile_ref:   HLS-LIVE-MAIN@v2
   qc_profile_ref:       NEWS-QC@v1
   rights_profile_ref:   NEWS-DOMESTIC@v4
@@ -70,7 +73,7 @@ profile_bundles:
   notes: '新闻直播标准配置 / News Live Standard'
 ```
 
-**UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 7 个 Profile 引用, 不重新配置 7 套参数。
+**UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 8 个 Profile 引用, 不重新配置 8 套参数。
 
 **权限 (0.5D.3):**
 - **Operator**: 只能选择已有兼容 Revision 引用 / 创建 ChangeSet / Preflight / Apply — **不能编辑 Profile Definition**。
@@ -78,16 +81,16 @@ profile_bundles:
 - Bundle = 组合层, **不应成为第二个 Profile Builder**。
 
 **优势:**
-- Operator 改一个 Channel = 改一个 Bundle (7 个引用一次到位)
+- Operator 改一个 Channel = 改一个 Bundle (8 个引用一次到位)
 - Engineer 改一个 Profile (例如 HEVC → H.265) = 影响所有引用该 Profile 的 Bundle, 但有 Impact Preview 看到所有受影响 Channel
-- 不重复配置 (7 个 Profile 不需要在每个 Channel 重新填)
+- 不重复配置 (8 个 Profile 不需要在每个 Channel 重新填)
 
 **Revision 策略:**
-- Bundle 自己的 `revision_id` 表达"哪 7 个 Profile 版本组合"
+- Bundle 自己的 `revision_id` 表达"哪 8 个 Profile 版本组合"
 - 修改 Bundle = 创建新 Revision (V0.2 §1.13 锁定)
 
 **Immutable 链 (0.5F.2 焊死):**
-- **Bundle = Profile Revision 的 immutable snapshot** (7 个 `@rev` 引用, 不是副本) — 与 Template 同原则 (immutable snapshot, 实例化后不自动同步)。
+- **Bundle = Profile Revision 的 immutable snapshot** (8 个 `@rev` 引用, 不是副本) — 与 Template 同原则 (immutable snapshot, 实例化后不自动同步)。
 - **GraphRuntime 捕获 immutable Bundle snapshot**, 不在 Channel Runtime 中"再次复制一份 EncodingProfile"。
 - 修改 Profile (如 ENC-v3 → v4) → 新 Profile Revision → 引用它的 Bundle **不自动变** (需显式创建新 Bundle Rev) → CD-01 显示 `CONFIG Bundle v2 / PENDING v3`。
 - ⛔ 禁止 Channel / GraphRuntime 持有 Profile 字段副本 — 只允许 `@rev` 引用 (避免 `Channel.codec` vs `EncodingProfile.codec` 两份真相)。
@@ -136,7 +139,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
         ┌─────────────────┼─────────────────┐
         │                 │                 │
      SOURCE            BUNDLE            VARIANT
-   (1..N, 冗余)    (1, 7 个 Profile 引用)   (1..N, 输出)
+   (1..N, 冗余)    (1, 8 个 Profile 引用)   (1..N, 输出)
         │                 │                 │
         ↓                 ↓                 ↓
     ┌──────────┐    ┌──────────┐    ┌──────────┐
@@ -237,10 +240,10 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Encoding Profile, Variant |
 | **M-17 Realtime Session** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
 | **M-18 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
-| **P-20 Profile Center** (0.5D) | Profile (7 子类 Registry) | Bundle, Variant, Channel |
+| **P-20 Profile Center** (0.5D) | Profile (8 子类 Registry) | Bundle, Variant, Channel |
 | **P-21 Encoding Profile** | Encoding Profile | Bundle, Variant, Channel |
 | **P-22 Output Profile** | Output Profile | Bundle, Variant, Destination, Edge Policy |
-| **P-28 Profile Bundle** (0.5D) | Profile Bundle | Channel, 7 Profile, ChangeSet |
+| **P-28 Profile Bundle** (0.5D) | Profile Bundle | Channel, 8 Profile, ChangeSet |
 | **E-38 Hardware Inventory** (0.5D) | Hardware Capability + Device | Session, Job, Profile |
 | **E-37 Clock** (0.5D 升级) | Clock Reference + Fallback Chain | Session, Source, Channel |
 | **O-41 Health Tree** | Health Tree + Channel | Source, Node, RG, Incident |
@@ -256,7 +259,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 |---|---|
 | `media_assets` | Asset (1.1) |
 | `media_asset_versions` | Asset Version (1.2) |
-| `encoding_profiles` / `output_profiles` / `audio_profiles` 等 7 表 | Profile (1.3, 7 kind) |
+| `encoding_profiles` / `audio_profiles` / `packaging_profiles` / `output_profiles` 等 8 表 | Profile (1.3, 8 kind) |
 | `profile_bundles` (0.5D 持久化) | Profile Bundle (1.4, 0.5C 新增) |
 | `channels` | Channel (1.5) |
 | `sources` | Source (1.6) |
@@ -276,7 +279,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 ## 6. Phase 0.5C LOCK FINAL 验证清单
 
 - [ ] **导航 4 域** (BROADCAST / MEDIA / ENGINEERING / ADMIN) 顶层无数字
-- [ ] **7 Profile** 全部进 P-20 Profile Center, 不再各自分散
+- [ ] **8 Profile** 全部进 P-20 Profile Center, 不再各自分散
 - [ ] **M-14 / M-17** 显式标 "File Transcode" / "Realtime Encode", 不再叫 "Transcode Center"
 - [ ] **Variant vs Version** 命名严格分离
 - [ ] **Bundle** 进 SURFACE_SPEC §3.3 (新章节)

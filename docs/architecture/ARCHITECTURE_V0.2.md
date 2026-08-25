@@ -1351,6 +1351,8 @@ Graph Runtime 上线
 
 ---
 
+<a id="第-5-部分数据模型核心表"></a>
+
 ## 第 5 部分：数据模型（核心表，V0.2 第 3 轮更新）
 
 > 上一版 30+ 张。本轮重点新增：
@@ -1869,6 +1871,8 @@ edge_policy_profiles
 
 ---
 
+<a id="第-6-部分关键技术决策30"></a>
+
 ## 第 6 部分：关键技术决策（V0.2 第 3 轮，30+ 项）
 
 | # | 决策 | 选择 | 理由 |
@@ -1932,6 +1936,8 @@ edge_policy_profiles
 | 57 | ⭐ WARN ≠ PASS（switch_mode eligibility） | **PACKET_SWITCH 要求 Mandatory Capability Contract `PASS`；`WARN` 和 `FAIL` 都不满足 PACKET eligibility**；Common RAW Contract Resolution 规则锁死 | 锁定（V0.2.4 Errata-9）|
 
 ---
+
+<a id="第-7-部分媒体能力矩阵qc-完整清单"></a>
 
 ## 第 7 部分：媒体能力矩阵（QC 完整清单，V0.2 第 3 轮更新）
 
@@ -2460,6 +2466,8 @@ QC 持续监测 → 异常 → Incident (X4)
 （同 V0.2 第 2 轮，不变）
 
 ---
+
+<a id="附录-a术语表"></a>
 
 ## 附录 A：术语表（V0.2 第 3 轮更新，V0.2.4 Errata-8 修订）
 

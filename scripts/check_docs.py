@@ -3,12 +3,14 @@
 
 检查项:
   1. Markdown 相对链接目标存在（本地运行: python scripts/check_docs.py）
-  2. docs/ 下 HTML wireframe 的 href 目标存在
-  3. 关键数字口径（表面计数 / 收口计数 / 引擎与横向系统名单）
+  2. docs/ 下 HTML wireframe 的 href 目标存在（扫描全部, 不再只查第一个）
+  3. Markdown / HTML 的锚点 (#section) 目标存在（防死锚点, 如 #final-state）
+  4. 关键数字口径（表面计数 / 收口计数 / 引擎与横向系统名单）
 
 用法:
   python scripts/check_docs.py          # 全部检查
-  python scripts/check_docs.py links    # 只查链接
+  python scripts/check_docs.py links    # 只查链接 + 锚点
+  python scripts/check_docs.py numbers  # 只查数字口径
 
 退出码: 0 = 通过, 1 = 有错误
 """
@@ -29,6 +31,44 @@ def iter_files(pattern):
         yield p
 
 
+def _slugify(heading):
+    """GitHub 风格 heading slug: 小写, 去行内格式, 空格→连字符, 去首尾连字符。"""
+    s = heading.strip().lower()
+    s = s.replace("`", "")
+    s = re.sub(r"[^\w\s-]", "", s, flags=re.UNICODE)  # 保留字母/数字/下划线/空格/连字符(含 CJK)
+    s = s.replace(" ", "-")
+    s = s.strip("-")
+    return s
+
+
+def _norm(a):
+    """宽松归一: 去大小写/标点/空白, 保留字母数字与 CJK。用于锚点近似匹配,
+    容忍 `§` / `.` / `-` / 全角等作者约定差异 (如 `#§-3-...signal-graph-v0-2-final` ↔ 标题 `§3 ... V0.2`)。"""
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]", "", a.lower())
+
+
+def _md_anchors(text):
+    """收集一个 md 文件内所有可用锚点: 显式 id/name + 标题 slug。"""
+    anchors = set()
+    for m in re.finditer(r'\bid="([^"]+)"', text):
+        anchors.add(m.group(1))
+    for m in re.finditer(r'\bname="([^"]+)"', text):
+        anchors.add(m.group(1))
+    for m in re.finditer(r"^#{1,6}\s+(.+?)\s*#*\s*$", text, re.MULTILINE):
+        anchors.add(_slugify(m.group(1)))
+    return anchors
+
+
+def _html_anchors(text):
+    """收集一个 html 文件内所有 id / name 锚点。"""
+    anchors = set()
+    for m in re.finditer(r'\bid="([^"]+)"', text):
+        anchors.add(m.group(1))
+    for m in re.finditer(r'\bname="([^"]+)"', text):
+        anchors.add(m.group(1))
+    return anchors
+
+
 def check_md_links():
     errs = []
     for md in iter_files("*.md"):
@@ -39,11 +79,27 @@ def check_md_links():
                 continue
             if target.startswith(GITHUB_ONLY):
                 continue
-            path = target.split("#")[0]
+            # 同页锚点 (#section): 校验当前文件自身锚点
+            if target.startswith("#"):
+                anchor = target[1:]
+                if anchor:
+                    anc = _md_anchors(text)
+                    anc_norm = {_norm(a) for a in anc}
+                    if anchor not in anc and _slugify(anchor) not in anc and _norm(anchor) not in anc_norm:
+                        errs.append(f"[MD-ANCHOR] {md.relative_to(ROOT)} -> {target} (同页锚点不存在)")
+                continue
+            path, _, anchor = target.partition("#")
             if not path:
                 continue
-            if not (md.parent / path).resolve().exists():
+            resolved = (md.parent / path).resolve()
+            if not resolved.exists():
                 errs.append(f"[MD-LINK] {md.relative_to(ROOT)} -> {target}")
+                continue
+            if anchor:
+                anc = _md_anchors(resolved.read_text(encoding="utf-8"))
+                anc_norm = {_norm(a) for a in anc}
+                if anchor not in anc and _slugify(anchor) not in anc and _norm(anchor) not in anc_norm:
+                    errs.append(f"[MD-ANCHOR] {md.relative_to(ROOT)} -> {target} (锚点 #{anchor} 不存在)")
     return errs
 
 
@@ -63,7 +119,21 @@ def check_html_links():
                 continue
             if not (html.parent / target_no_qs).resolve().exists():
                 errs.append(f"[HTML-LINK] {html.relative_to(ROOT)} -> {target}")
-        return errs
+        # 跨文件锚点校验 (#section 且带路径)
+        for m in re.finditer(r'href="([^"]*#[^"]+)"', text):
+            target = m.group(1)
+            if target.startswith(("#", "http://", "https://", "mailto:", "javascript:")):
+                continue  # 同页 / 外部锚点不在此校验
+            path, _, anchor = target.partition("#")
+            if not path:
+                continue
+            resolved = (html.parent / path.split("?", 1)[0]).resolve()
+            if resolved.exists() and anchor:
+                anc = _html_anchors(resolved.read_text(encoding="utf-8"))
+                anc_norm = {_norm(a) for a in anc}
+                if anchor not in anc and _slugify(anchor) not in anc and _norm(anchor) not in anc_norm:
+                    errs.append(f"[HTML-ANCHOR] {html.relative_to(ROOT)} -> {target} (锚点 #{anchor} 不存在)")
+    return errs  # BUG FIX: 原实现此处 return 误缩进在 for 循环内, 只查了首个 HTML 即返回
 
 
 def load_sot():
@@ -151,7 +221,7 @@ def main():
         for e in errors:
             print("  " + e)
         sys.exit(1)
-    print("PASS — 链接可达 + 数字口径一致")
+    print("PASS — 链接可达 + 锚点有效 + 数字口径一致")
 
 
 if __name__ == "__main__":

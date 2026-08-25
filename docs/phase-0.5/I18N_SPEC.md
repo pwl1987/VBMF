@@ -888,7 +888,7 @@ Phase 0.5A wireframe 当前是 prototype, hard-coded 字符串可以接受。
 | M-11 Media Library | `media.library.*` | P-20 Profile Center (0.5D) | `engineering.profile_center.*` |
 | M-12 Asset Detail | `media.asset_detail.*` | P-21 Encoding Profile | `engineering.profiles.encoding.*` |
 | M-13 Upload / Ingest | `media.upload.*` | P-22 Output Profile | `engineering.profiles.output.*` |
-| M-14 Transcode Center | `media.transcode.*` | P-23~P-27 | `engineering.profiles.{audio|graphic|qc|rights|edge}.*` |
+| M-14 Transcode Center | `media.transcode.*` | P-23~P-27 | `engineering.profiles.{audio|graphic|qc|rights|edge|packaging}.*` |
 | M-15 Transcode Jobs | `media.jobs.*` | P-28 Bundle (0.5D) | `engineering.profile_bundle.*` |
 | M-16 Versions / Renders | `media.versions.*` | M-17 Realtime (0.5D) | `broadcast.realtime_transcode.*` |
 | M-18 Job Detail (0.5D) | `media.job_detail.*` | O-41 Health Tree | `operations.health_tree.*` |

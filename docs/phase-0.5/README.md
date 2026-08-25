@@ -53,7 +53,7 @@ UI 顶层导航改为**业务域**, 不用**编号**:
 |---|---|---|
 | **BROADCAST** (直播) | Operator / Director | Channel, Source, Graph, Route, Session, Variant |
 | **MEDIA** (媒体) | Content Manager / Editor | Asset, Asset Version, Job (FILE_TRANSCODE/PROBE/QC/UPLOAD/ARCHIVE) |
-| **ENGINEERING** (工程) | Engineer / SRE | Profile (7), Profile Bundle, ChangeSet, Preflight, Hardware, Clock, Health, Incident |
+| **ENGINEERING** (工程) | Engineer / SRE | Profile (8), Profile Bundle, ChangeSet, Preflight, Hardware, Clock, Health, Incident |
 | **ADMIN** (管理) | Admin | User, Role, Permission, Audit, System Setting |
 
 ⛔ **Profiles / Operations 不再是顶层域** — 全部进 ENGINEERING 域。
@@ -65,7 +65,7 @@ UI 顶层导航改为**业务域**, 不用**编号**:
 ```
 Profile (Policy / 跨 Channel 共享)
    ↓ 1:1 引用
-Profile Bundle (Composition / 1 Channel 1 Bundle, 7 Profile 引用)
+Profile Bundle (Composition / 1 Channel 1 Bundle, 8 Profile 引用)
    ↓ 1:N 派生
 Output Variant (Instance / 1 Channel N Variant, Profile + Destinations + Adapter)
 ```

@@ -51,14 +51,15 @@
 | **绝不允许混用** | ❌ 不要叫 "Variant" — 那是 Output 域的概念 |
 | **典型错误** | "Create Variant" 按钮含义模糊 → 必须分 "Create Asset Version" (M-12) / "Create Output Variant" (CD-01 Tab 6) |
 
-### 1.3 Profile 配置档 (7 种子类, kind 必填)
+### 1.3 Profile 配置档 (8 种子类, kind 必填)
 
-> 关键: **7 种 Profile 是 7 个 kind, 共享 P-20 Profile Center 入口, 但 schema 独立**。
+> 关键: **8 种 Profile 是 8 个 kind, 共享 P-20 Profile Center 入口, 但 schema 独立**。**Packaging Profile 与 Encoding Profile 严格分离**: Encoding 只负责 codec / resolution / framerate / bitrate / GOP / rate-control / 2-pass; Packaging 只负责 container / segment / HLS·DASH / manifest / DRM; **Encoding 禁止承担 Packaging 职责** (Phase 0.6 §3.1)。
 
 | 子类 | kind | DB 表 | 锁定状态 |
 |---|---|---|---|
 | **Encoding Profile** | `ENCODING_PROFILE` | `encoding_profiles` | 🟢 LOCK (P-21 wireframe) |
 | **Audio Profile** | `AUDIO_PROFILE` | `audio_profiles` | 🟡 P1 |
+| **Packaging Profile** | `PACKAGING_PROFILE` | `packaging_profiles` | 🟡 P1 (Phase 4 wireframe) |
 | **Output Profile** | `OUTPUT_PROFILE` | `output_profiles` | 🟢 LOCK (P-22 wireframe) |
 | **Graphic Profile** | `GRAPHIC_PROFILE` | `graphic_profiles` | 🟡 P1 |
 | **QC Profile** | `QC_PROFILE` | `qc_profiles` | 🟡 P1 |
@@ -79,8 +80,8 @@
 | **DB 表** | `profile_bundles` (V0.4+) |
 | **UI 入口** | P-28 Profile Bundle (Phase 0.5D) |
 | **唯一 ID** | `bundle_id` (UUID) |
-| **核心字段** | `bundle_id, name, encoding_profile_ref, audio_profile_ref, output_profile_ref, qc_profile_ref, rights_profile_ref, edge_policy_ref, graphic_profile_ref, notes` |
-| **示例** | `CH01-News-Live` = H264-LIVE-1080P25-5M + NEWS-STEREO-R128 + HLS-LIVE-MAIN + NEWS-QC + NEWS-DOMESTIC + LIVE-DEFAULT + NEWS-LOWERTHIRD |
+| **核心字段** | `bundle_id, name, encoding_profile_ref, audio_profile_ref, packaging_profile_ref, output_profile_ref, qc_profile_ref, rights_profile_ref, edge_policy_ref, graphic_profile_ref, notes` |
+| **示例** | `CH01-News-Live` = H264-LIVE-1080P25-5M + NEWS-STEREO-R128 + HLS-CMAF-PKG + HLS-LIVE-MAIN + NEWS-QC + NEWS-DOMESTIC + LIVE-DEFAULT + NEWS-LOWERTHIRD |
 | **绝不允许混用** | ❌ 不是 "Channel Profile" (那是 channel-level config), 不是 "Preset" |
 
 ### 1.5 Channel 通道
@@ -224,7 +225,7 @@
 | **DB 表** | `channel_templates` (V0.4+) |
 | **UI 入口** | CH-02B Channel Template Center (Phase 0.5D) |
 | **唯一 ID** | `template_id` (UUID) |
-| **核心字段** | `template_id, name, template_revision, channel_type (TV_LIVE/RADIO_LIVE/VIRTUAL_PLAYOUT), default_source_policy, default_bundle_ref (Profile Bundle · 7 Profile 引用), default_output_variants[] (含默认 delivery_criticality), default_qc_policy, default_clock_policy, used_by[]` |
+| **核心字段** | `template_id, name, template_revision, channel_type (TV_LIVE/RADIO_LIVE/VIRTUAL_PLAYOUT), default_source_policy, default_bundle_ref (Profile Bundle · 8 Profile 引用), default_output_variants[] (含默认 delivery_criticality), default_qc_policy, default_clock_policy, used_by[]` |
 | **Revision** | `template_revision` — 模板修订不可变 (V0.2 §1.13), 改模板 = 新 Revision |
 | **关系** | `Template (工厂, 不进运行态) → instantiate → Profile Bundle Revision → Channel (DRAFT)` |
 | **绝不允许混用** | ❌ 不是 "Profile" / "Preset" / "Bundle" — 模板是创建工厂对象, Bundle 是 Channel 实际配置集合 |
@@ -238,7 +239,7 @@
 |---|---|
 | **BROADCAST** | Channel, Channel Template, Source, Route, Session (OUTPUT), Graph, Output Variant, Destination, Adapter |
 | **MEDIA** | Asset, Asset Version, Job (FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE), Session (MEDIA) |
-| **ENGINEERING** | Profile (7 子类), Profile Bundle, Revision, Channel Template, Graph (design-time), Preflight Run, Change Set, Reservation, Hardware, Clock, Health Tree, Incident, Replay, Benchmark |
+| **ENGINEERING** | Profile (8 子类), Profile Bundle, Revision, Channel Template, Graph (design-time), Preflight Run, Change Set, Reservation, Hardware, Clock, Health Tree, Incident, Replay, Benchmark |
 | **ADMIN** | User, Role, Permission, Audit Log, System Setting |
 
 ---

@@ -3209,6 +3209,7 @@ Runtime (参考)
 - 6 状态样例 unified
 - Keyboard shortcuts (Command Palette / G D / G M / T / F / R / Esc / Space / Ctrl+S)
 
+<a id="28-surfacelock-final-收口"></a>
 ## 28.2 8 横切能力 (Phase 4 实施指南, 本轮锁定)
 
 | # | 能力 | 含义 | 实施 |
@@ -3314,7 +3315,7 @@ UI 顶层导航**从数字改为业务域**:
 |---|---|---|---|
 | **BROADCAST** | 直播 | Operator / Director | Channel · Source · Session (REALTIME) · Variant |
 | **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (6 kinds, 见 §29.5) |
-| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 7 Profile · Graph/Route (E-31) · ChangeSet · Preflight · Hardware (E-38 新增) · Clock (E-37 升级) · Health · Incident · Replay · Benchmark** |
+| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 8 Profile · Graph/Route (E-31) · ChangeSet · Preflight · Hardware (E-38 新增) · Clock (E-37 升级) · Health · Incident · Replay · Benchmark** |
 | **ADMIN** | 管理 | Admin | User · Role · Permission · Audit · System Setting |
 
 **计数表 (0.5C.1 重算 — 修正草稿与已锁定编号的撞号: E-34 已是 Capability Registry, E-36 已是 Resource/Capacity, E-37 本就是 Clock, M-15/M-16 已被占用; 新表面改用空闲编号 M-17 / M-18 / E-38):**
@@ -3361,8 +3362,8 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 
 | 表面 | 域 | 类型 | 关键交付 |
 |---|---|---|---|
-| **P-20 Profile Center** | ENGINEERING | 新增 | 8 Tab 切换 7 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
-| **P-28 Profile Bundle** | ENGINEERING | 新增 | 1 Channel 1 Bundle, 7 Profile 引用, 不重新配置 7 套参数 |
+| **P-20 Profile Center** | ENGINEERING | 新增 | 9 Tab 切换 8 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
+| **P-28 Profile Bundle** | ENGINEERING | 新增 | 1 Channel 1 Bundle, 8 Profile 引用, 不重新配置 8 套参数 |
 | **E-38 Hardware Inventory** | ENGINEERING | 新增 | HOST 顶层 (CPU/GPU/BMD/NIC/Storage) → Device 详情 (Capabilities/Ports/Assignment/Health/Temperature/Firmware/Driver); 与 E-35 Device Registry / E-36 Resource 互补 |
 | **E-37 Clock** (升级) | ENGINEERING | 升级 | Reference (PTP/TIMECODE/SYSTEM/MONOTONIC) + Fallback Chain + Offset/Drift/Lock + Fallback history (已有 Spec §E-37, 0.5D 补 wireframe) |
 | **M-17 Realtime Session** | BROADCAST | 新增 | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
@@ -3375,8 +3376,8 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 
 1. **Asset** (媒体资产, 1:1) — M-11 / M-12
 2. **Asset Version** (Master/Proxy/Mobile/Archive/Custom) — M-12 Tab ②
-3. **Profile** (7 子类) — P-20 Profile Center
-4. **Profile Bundle** (1 Channel 1 Bundle, 7 Profile 引用) — P-28 (0.5D)
+3. **Profile** (8 子类) — P-20 Profile Center
+4. **Profile Bundle** (1 Channel 1 Bundle, 8 Profile 引用) — P-28 (0.5D)
 5. **Channel** (运营单位) — CD-01
 6. **Source** (11 kinds) — 02 Sources
 7. **Route** (Graph 编译后) — 08 Graph Designer
@@ -3416,7 +3417,7 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 
 ## 29.7 Phase 0.5 LOCK FINAL 条件 (0.5C → 0.5D → 0.5E)
 
-完整判定见 [`MILESTONES.md` §4](MILESTONES.md#4-phase-05-lock-final-判定矩阵)。
+完整判定见 [`MILESTONES.md` §3（LOCK FINAL 判定矩阵）](MILESTONES.md#3-phase-05-lock-final-判定矩阵)。
 
 简版:
 - ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
@@ -3490,7 +3491,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 | 表面 | 域 | 类型 | 关键交付 |
 |---|---|---|---|
 | **CH-02 Create Channel Wizard** | BROADCAST | 新增 (D1) | 7 步向导: 模板→信号源→节目单(Virtual)→编码&音频→输出(分级)→资源→预检; 生成 ChangeSet 落 Channel/Source/Bundle |
-| **CH-02B Channel Template Center** | BROADCAST | 新增 (D2) | 模板工厂 (Template≠Bundle, 不进运行态); 实例化出 Profile Bundle(7 Profile 引用)+Channel(DRAFT); 覆盖 TV/Radio/Virtual; 文件 operator/CH-02b-channel-template-center.html |
+| **CH-02B Channel Template Center** | BROADCAST | 新增 (D2) | 模板工厂 (Template≠Bundle, 不进运行态); 实例化出 Profile Bundle(8 Profile 引用)+Channel(DRAFT); 覆盖 TV/Radio/Virtual; 文件 operator/CH-02b-channel-template-center.html |
 | *D3 CD-01 v2* | BROADCAST | 待建 | Channel Workspace 升级 |
 | *D4 M-17 Realtime Encode v2* | MEDIA | 待建 | Realtime Encode 升级 |
 | *D5 E-40/E-42 Source Wizard+Test Bench* | ENGINEERING | 待建 | 源向导+7层验证台 |

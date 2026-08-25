@@ -68,7 +68,7 @@
 
 <div class="header">
   <div class="breadcrumb"><a href="01-dashboard.html">Dashboard</a> › <b>P-20 Profile Center 配置中心</b></div>
-  <h1><span class="cn">P-20 · 配置中心</span> <span class="en">PROFILE CENTER (8 Tabs: 7 Profile Registries + Bundle)</span></h1>
+  <h1><span class="cn">P-20 · 配置中心</span> <span class="en">PROFILE CENTER (9 Tabs: 8 Profile Registries + Bundle)</span></h1>
 </div>
 
 <!-- 顶部统计: 全域 Profile 健康 + 影响面 -->
@@ -76,7 +76,7 @@
   <div class="col-3 metric">
     <div class="label">Profile 总数</div>
     <div class="val blue">87</div>
-    <div class="sub">across 7 registries</div>
+    <div class="sub">across 8 registries</div>
   </div>
   <div class="col-3 metric">
     <div class="label">ACTIVE</div>
@@ -95,11 +95,12 @@
   </div>
 </div>
 
-<!-- 7 Tab 切换 -->
+<!-- 9 Tab 切换 -->
 <div class="tabs">
   <div class="tab active"><span class="ico">⚙️</span>Encoding <span class="count">18</span></div>
   <div class="tab"><span class="ico">🔊</span>Audio <span class="count">12</span></div>
   <div class="tab"><span class="ico">📤</span>Output <span class="count">15</span></div>
+  <div class="tab"><span class="ico">📀</span>Packaging <span class="count">10</span></div>
   <div class="tab"><span class="ico">🎨</span>Graphic <span class="count">8</span></div>
   <div class="tab"><span class="ico">🔍</span>QC <span class="count">14</span></div>
   <div class="tab"><span class="ico">⚖️</span>Rights <span class="count">11</span></div>
@@ -275,7 +276,7 @@
     <table>
       <thead><tr><th>状态</th><th>触发</th><th>UI 表现</th></tr></thead>
       <tbody>
-        <tr><td><b>● NORMAL</b></td><td>列表 + 详情 + 3-Layer + Used By 完整</td><td>完整 7 Tab + 选中行高亮 + 右侧 Used By 7 项</td></tr>
+        <tr><td><b>● NORMAL</b></td><td>列表 + 详情 + 3-Layer + Used By 完整</td><td>完整 9 Tab + 选中行高亮 + 右侧 Used By 9 项</td></tr>
         <tr><td><b>◌ LOADING</b></td><td>首次打开 / 切 Tab</td><td>列表 skeleton + 详情 panel skeleton</td></tr>
         <tr><td><b>○ EMPTY</b></td><td>0 Profile (新系统)</td><td>引导 "Create from Preset" (8 个: Broadcast 1080p25 H.264/HEVC/LL/Archive/Proxy/Mobile/Web/Custom)</td></tr>
         <tr><td><b>⚠ WARNING</b></td><td>DRIFT / STALE Profile 存在 / 兼容性 ⚠</td><td>黄色 Banner + DRIFT 计数 (顶部 metric) + iOS old 兼容性 标黄</td></tr>
@@ -292,8 +293,8 @@
   <div class="panel" style="margin-top:8px">
     <div class="diag" style="margin-top:0">
       <b>Profile Bundle (P-28, 0.5D 锁 Spec):</b>
-      1 Channel 1 Bundle, 7 Profile 引用 (不重复配置).<br>
-      例 CH01-News-Live = H264-LIVE-1080P25-5M + NEWS-STEREO-R128 + HLS-LIVE-MAIN + NEWS-QC + NEWS-DOMESTIC + LIVE-DEFAULT + NEWS-LOWERTHIRD.<br>
+      1 Channel 1 Bundle, 8 Profile 引用 (不重复配置).<br>
+      例 CH01-News-Live = H264-LIVE-1080P25-5M + NEWS-STEREO-R128 + HLS-LIVE-MAIN + HLS-CMAF-PKG + NEWS-QC + NEWS-DOMESTIC + LIVE-DEFAULT + NEWS-LOWERTHIRD.<br>
       Engineer 改 Profile → Impact Preview → 影响所有 Bundle → ChangeSet → Logical Atomic Apply.
     </div>
     <div style="margin-top:8px;display:flex;gap:6px">
@@ -307,7 +308,7 @@
   VBMF Operator Console · P-20 Profile Center · ENGINEERING 域 · Phase 0.5D · 设计稿 v0.1
   · 关联: P-21 Encoding Profile (锁) / P-22 Output Profile (锁) / P-23 Audio / P-24 Graphic / P-25 QC / P-26 Rights / P-27 Edge Policy / P-28 Profile Bundle (0.5D)
   · 8 横切能力: Impact Preview / Dependency Graph / Explain Why / Configuration Diff / Compatibility Advisor 全部跨 Profile Registry
-  · Vocabulary: 7 Profile kinds (ENCODING/AUDIO/OUTPUT/GRAPHIC/QC/RIGHTS/EDGE_POLICY) + Bundle = 8 Tab
+  · Vocabulary: 8 Profile kinds (ENCODING/AUDIO/PACKAGING/OUTPUT/GRAPHIC/QC/RIGHTS/EDGE_POLICY) + Bundle = 9 Tab
 </footer>
 
 <script>
