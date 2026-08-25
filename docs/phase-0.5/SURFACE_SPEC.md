@@ -3487,20 +3487,81 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 
 - [x] PIA V0.1 12 锁 (commit `bda8134` 同期)
 - [x] 5 张新 wireframe 落地 (CH-01 / CD-01 Workspace / CD-01 Detail / 02-sources 重写 / E-40)
-- [x] E-41 Network Path Spec 锁 (本轮)
+- [x] E-41 Network Path Spec 锁 (commit `7a9b54f`)
 - [x] `check_docs.py` PASS (含 ?query 兼容)
-- [ ] NAVIGATION §3 表更新 (CH-01/CD-01/E-40 加进 BROADCAST/ENGINEERING 域)
-- [ ] PIA §15 验证清单全部勾选
-- [ ] ROADMAP 同步 47 表面口径
+- [x] NAVIGATION §2 域表更新 (CH-01/CD-01/E-40/E-41 + 修 M/E 撞号, commit `7a9b54f`)
+- [x] PIA §15 验证清单全部勾选 (0.5F 锁 9 + 0.5E 锁 6, 本轮更新)
+- [ ] ROADMAP 同步 48 表面口径 (0.5G 完成后做)
 
-### 29.9.7 0.5F 后续 (0.5G / 0.5H)
+### 29.9.7 0.5F 后续 (0.5G / 0.5H / 0.5E)
 
 | 轮次 | 范围 | 状态 |
 |---|---|---|
 | **0.5G** | E-41 Network Path wireframe; P-20 加 "by Channel" Tab (PIA §15 §6 项调整) | 待启动 |
 | **0.5H** | Network Source Security 8 字段实装 (PIA §11, V0.3 起步) | 待启动 |
-| **0.5E** | 4-Layer + Impact Preview + Configuration Diff + Command Palette 全部跨域 | 待启动 |
-| **0.5 LOCK FINAL** | 0.5A/B/C/D/E/F/G/H 全部完成, PIA/MILESTONES/NAVIGATION/README/ROADMAP 同步 | 待启动 |
+| **0.5E** | 4-Layer + Impact Preview + Configuration Diff + Command Palette 全部跨域 | ✅ **本轮 Spec 锁** ([`0.5E-CROSS_DOMAIN_CAPABILITIES.md`](0.5E-CROSS_DOMAIN_CAPABILITIES.md)) |
+| **0.5 LOCK FINAL** | 0.5A/B/C/D/E/F/G/H 全部完成, PIA/MILESTONES/NAVIGATION/README/ROADMAP 同步 | 待启动 (0.5G/0.5H 完成后启动) |
+
+---
+
+## 29.10 Phase 0.5E — Cross-Domain Capabilities (本轮 · 0.5F Batch 4 同步)
+
+PIA §6 锁 6 要求 "4-Layer 推广 + Impact 必显示", 本轮在 0.5F Batch 1/2/3 基础上, 把 3 个跨域能力 Spec 锁:
+
+### 29.10.1 范围 (3 能力 × 跨域)
+
+| 能力 | 0.5B 局部实施 | 0.5E 跨域推广 |
+|---|---|---|
+| **Impact Preview** | P-21 / P-22 / M-14 (Profile 改) | 7 对象 (Channel, Bundle, Source, Output, Audio Profile, Clock, Network Endpoint) + 4 维影响 (Channels / Sessions / Variants / Audit) + 4 级 Risk (LOW/MEDIUM/HIGH/CRITICAL) |
+| **Configuration Diff** | P-21 §10 + M-14 Wizard Step 2 (Profile Diff) | 14 个核心对象 (除 Revision 外) + 3 视图 (Side-by-side / Inline / Multi-row) + 3 类字段 (Value / Structure / Semantic) + Critical 字段阻断 |
+| **Command Palette** | DESIGN_SYSTEM §8 锁 Ctrl+K (无 UI) | UI Spec 锁 (Ctrl+K + 顶部搜索 + `/`) + 3 类命令 (Navigate / Search / Action) + RBAC + 6 状态 + Recent/Frequent |
+
+### 29.10.2 锁 15 项 (摘自 0.5E-CROSS_DOMAIN_CAPABILITIES.md §4.6)
+
+| # | 锁 |
+|---|---|
+| 1 | Impact Preview 推广到 7+ 对象 |
+| 2 | Impact Preview 4 维影响必显示 |
+| 3 | 风险评级 4 级 (LOW/MEDIUM/HIGH/CRITICAL) + 算法 |
+| 4 | Effective 字段 🔒 read-only, 不允许改 |
+| 5 | Configuration Diff 推广到 14 核心对象 (除 Revision) |
+| 6 | Diff 视图 3 种 + 字段数自动选择 |
+| 7 | Diff 字段分类 3 类 (Value/Structure/Semantic) + 颜色 |
+| 8 | Critical 字段 (Schema/Identity/Capability/Timebase/Security) 阻断 |
+| 9 | Command Palette 入口 (Ctrl+K + 顶部搜索 + `/`) |
+| 10 | 命令 3 类 (Navigate/Search/Action) + 全部 4 域注册 |
+| 11 | L1 可执行 / L2 跳转 / L3 不注册, 危险级强制 |
+| 12 | RBAC 集成 (无权限命令不出现) |
+| 13 | Fuzzy 搜索 + Recent/Frequent (localStorage) |
+| 14 | 6 状态 (EMPTY/TYPING/RESULTS/NO_RESULTS/LOADING/ERROR) |
+| 15 | V0.2 / V0.3 边界 (Cost 预测 / 全文搜索等推 V0.3) |
+
+### 29.10.3 0.5E 与其他 Spec 的关系
+
+```text
+PIA V0.1 §6  4-Layer (Desired/Compiled/Effective/Impact)
+            ↓
+SURFACE_SPEC §24  Used By + Impact Preview (局部, P-21/P-22/M-14)
+            ↓
+SURFACE_SPEC §28.2  8 横切能力 (Impact Preview / Configuration Diff / Command Palette 是其中 3 个)
+            ↓
+0.5E Spec  跨域 3 大能力 (本轮, 把 §24/§28.2 推广到全部 4 域 × 14 对象)
+            ↓
+PIA V0.1 §15  0.5E LOCK FINAL 6 条件 (PIA §15 锁 7, 见下文更新)
+```
+
+### 29.10.4 0.5E 实施边界 (V0.2 / V0.3)
+
+| 实施项 | V0.2 (Phase 4) | V0.3 后续 |
+|---|---|---|
+| Impact Preview 7 对象 | ✅ | 推广到 14 |
+| Configuration Diff 14 对象 (除 Revision) | ✅ | Route Graph Diff |
+| Command Palette 入口 + 3 类命令 | ✅ | 全文 + OCR + LLM 推荐 |
+| Risk 算法 4 级 | ✅ | 机器学习预测 |
+| Critical 字段阻断 5 类 | ✅ | 全 Schema 字段 |
+| RBAC + L1/L2/L3 | ✅ | L4 (Irreversible) + Time-based |
+
+⛔ **0.5E 是 Spec 锁, 实施在 Phase 4 Web Console。** 不在 0.5E 阶段做 wireframe (Command Palette 唯一可能的 wireframe 推到 Phase 4)。
 
 ---
 
@@ -3570,5 +3631,5 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 
 ---
 
-**VBMF Contributors** · VBMF UI/UX Surface Specification V0.3 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure + 0.5C Information Architecture Closure + 0.5C.1 一致性收口 + 0.5D P0 Product Surfaces + 0.5F Channel/Network UX Closure
+**VBMF Contributors** · VBMF UI/UX Surface Specification V0.4 · Phase 0.5B Closure-1 + 0.5B.2 Product UX/Semantic Closure + 0.5C Information Architecture Closure + 0.5C.1 一致性收口 + 0.5D P0 Product Surfaces + 0.5F Channel/Network UX Closure + 0.5E Cross-Domain Capabilities
 

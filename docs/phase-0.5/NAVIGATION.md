@@ -3,11 +3,11 @@
 > **目的:** Phase 0.5C Information Architecture Closure 收口的"导航层"。
 > 顶层导航用**业务域**, 不用**编号**; 数字降级为路由 / 页面 ID 内部使用。
 >
-> **本阶段:** 0.5C Information Architecture Closure
+> **本阶段:** 0.5C Information Architecture Closure (0.5E Cross-Domain Capabilities 已 Spec 锁)
 >
-> **状态:** 🟡 **DRAFT 0.1** — 等待 0.5C LOCK FINAL
+> **状态:** 🟢 **LOCK FINAL** (0.5C + 0.5E)
 >
-> **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) · [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) · [`SURFACE_SPEC.md`](SURFACE_SPEC.md)
+> **权威源:** [`OBJECT_VOCABULARY.md`](OBJECT_VOCABULARY.md) · [`PRODUCT_OBJECT_MODEL.md`](PRODUCT_OBJECT_MODEL.md) · [`SURFACE_SPEC.md`](SURFACE_SPEC.md) · [`0.5E-CROSS_DOMAIN_CAPABILITIES.md`](0.5E-CROSS_DOMAIN_CAPABILITIES.md) (Impact Preview / Configuration Diff / Command Palette 跨域)
 
 ---
 

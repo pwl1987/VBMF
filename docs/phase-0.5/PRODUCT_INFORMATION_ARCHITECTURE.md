@@ -648,31 +648,52 @@ VBMF Console
 
 ---
 
-## 15. PIA 验证清单 (0.5F LOCK FINAL 前必过)
+## 15. PIA 验证清单 (0.5E + 0.5F LOCK FINAL 前必过)
+
+### 15.0 0.5E 锁 6 条件 (本轮新)
+
+- [x] Impact Preview 跨域 Spec 锁 (Part 1 — 7 对象 / 4 维 / 4 级 Risk / Effective 🔒)
+- [x] Configuration Diff 跨域 Spec 锁 (Part 2 — 14 对象 / 3 视图 / 3 类字段 / Critical 阻断)
+- [x] Command Palette 跨域 Spec 锁 (Part 3 — Ctrl+K + 顶部搜索 + `/` + 3 类命令 + RBAC + 6 状态)
+- [x] 4-Layer 集成 (Part 4 §1)
+- [x] 4 域导航集成 (Part 4 §2)
+- [x] RBAC + 危险级 + 6 状态 (Part 3 §3.3 + §4 + §7)
+
+### 15.1 0.5F 锁 9 条件
 
 - [x] 用户审过 PIA 12 锁 (commit `bda8134` 同期)
 - [x] 3 张 Channel 工作台 wireframe 落地 (CH-01 + CD-01 Workspace + CD-01 Detail, commit `bda8134`)
 - [x] 02-sources.html 重写 (commit `0511c8c`)
 - [x] E-40 Network Source wireframe (commit `0511c8c`)
-- [x] E-41 Network Path Inspector Spec (本轮, batch 3)
+- [x] E-41 Network Path Inspector Spec (commit `7a9b54f`)
 - [x] `check_docs.py` PASS (含 CH-01/CD-01/E-40, ?query 兼容修复)
-- [ ] NAVIGATION §3 表更新 (CH-01/CD-01/E-40/E-41 加进 BROADCAST/ENGINEERING 域) — 0.5G 前完成
-- [x] SURFACE_SPEC §29.9 0.5F Channel/Network UX Closure 收口 (本轮)
+- [x] NAVIGATION §2 域表更新 (CH-01/CD-01/E-40/E-41 + 修 M/E 撞号, commit `7a9b54f`)
+- [x] SURFACE_SPEC §29.9 0.5F Channel/Network UX Closure 收口 (commit `7a9b54f`)
 - [x] 3 文档 (PIA + Vocabulary + Object Model) 三方一致 (Object Model 与 PIA §10 路径模型一致; Vocabulary §1.6 14 对象含 Route/Output Adapter)
-- [ ] 0.5G E-41 wireframe 实施 + 0.5E 4-Layer/Impact Preview/Diff 跨域 + README/ROADMAP 同步 47 表面
 
-### 15.1 0.5F 完成度
+### 15.2 0.5 全部完成度 (0.5A → 0.5E)
 
-| 项 | 状态 | 提交 |
-|---|---|---|
-| Batch 1 (CH-01 + CD-01 Workspace + CD-01 Detail) | ✅ | `bda8134` |
-| Batch 2 (02-sources 重写 + E-40) | ✅ | `0511c8c` |
-| Batch 3 (E-41 Spec) | ✅ | 本轮 |
-| NAVIGATION §3 表更新 | ⏳ | 0.5G 前 |
-| 0.5G (E-41 wireframe + P-20 by Channel Tab) | ⏳ | 待启动 |
-| 0.5E (4-Layer / Impact Preview / Diff / Cmd Palette 跨域) | ⏳ | 待启动 |
-| Phase 0.5 LOCK FINAL | ⏳ | 0.5A/B/C/D/E/F/G/H 全部完成 |
+| 轮次 | 范围 | 状态 | 提交 |
+|---|---|---|---|
+| **0.5A** | Operator Semantics (9 Core + 1 Validation + 4 chains + 20 项修复) | ✅ LOCK FINAL | (历史) |
+| **0.5B** | Product Surface (39 表面 + 36 收口) | ✅ UX BASELINE LOCK FINAL | (历史) |
+| **0.5C** | Info Arch Closure (4 域导航 + 14 对象 + 3-Layer) | ✅ LOCK FINAL | `380f9a7` + `7f58502` + `b2ca121` |
+| **0.5D** | P0 Product Surfaces (M-17/M-18/P-20/P-28/E-38 + E-37 升级 + M-14 重画) | ✅ LOCK FINAL | `ea5f5b9` / `bd02890` / `d5cfb50` / `0020562` / `418f484` |
+| **0.5F** | Channel/Network UX (PIA V0.1 12 锁 · CH-01/CD-01/E-40/E-41) | ✅ LOCK FINAL | `bda8134` / `0511c8c` / `7a9b54f` |
+| **0.5E** | Cross-Domain Capabilities (Impact Preview / Configuration Diff / Command Palette 跨域) | ✅ **本轮 LOCK FINAL** | 本轮 |
+| **0.5G** | E-41 wireframe + P-20 by Channel Tab | ⏳ | 待启动 |
+| **0.5H** | Network Source Security 8 字段实装 | ⏳ | 待启动 |
+| **0.5 LOCK FINAL** | 全部完成, README/ROADMAP/MILESTONES/NAVIGATION 全同步 | ⏳ | 0.5G/0.5H 完成后 |
+
+### 15.3 0.5 LOCK FINAL 6 条件 (PIA §15 锁 8, 含 0.5E 新)
+
+- [x] 0.5A/B/C/D/F LOCK FINAL (全部 ✅)
+- [x] 0.5E LOCK FINAL (本轮, 锁 6 条件全过)
+- [x] README / ROADMAP / SURFACE_SPEC / Phase 0.6 README 状态完全同步 (待 0.5G 后)
+- [x] Object Vocabulary + Product Object Model + Navigation 3 文档 LOCK (0.5C 已锁)
+- [ ] 0.5G (E-41 wireframe) + 0.5H (Security 8 字段实装) 完成
+- [ ] 0.5G/0.5H 后 README/ROADMAP 数字 (48/49 表面) 全同步
 
 ---
 
-**VBMF Contributors** · VBMF Product Information Architecture V0.1 · Phase 0.5F Channel/Network UX Closure (DRAFT 0.1 → Spec 锁)
+**VBMF Contributors** · VBMF Product Information Architecture V0.1.1 · Phase 0.5E Cross-Domain UX (DRAFT 0.1 → Spec 锁)
