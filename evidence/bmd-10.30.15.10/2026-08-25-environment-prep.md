@@ -1,25 +1,27 @@
-# BMD Acceptance Server — Environment Prep Evidence
+# BMD 验收服务器 — 环境准备证据
 
-> **G-RUNTIME Level 2 (Deployment SoT §9)**: Remote BMD Server provisioning log.
-> This file is the auditable record of environment preparation on the real Blackmagic
-> Design (BMD) server, per ENV Preflight + Acceptance Evidence requirements.
-> **Do NOT redact SHA / host identity — this is acceptance evidence, not a secret.**
+> **G-RUNTIME 第二级（Deployment SoT §9）**：远程 BMD 服务器环境准备记录。
+> 本文档是真实 Blackmagic Design（BMD）服务器上环境准备的可审计记录，符合"环境预检（ENV Preflight）+ 验收证据"要求。
+> **注意：SHA / 主机标识属于验收证据，不是密件，不得涂销。**
 
-## 1. Target
+## 1. 目标机器
 
-| Field | Value |
+| 项目 | 值 |
 |---|---|
-| Host | `10.30.15.10` |
-| SSH user | `lytv` (key auth, sudo NOPASSWD) |
-| OS | Ubuntu 26.04 LTS (resolute) |
-| Kernel | `7.0.0-30-generic #30-Ubuntu SMP PREEMPT_DYNAMIC` |
-| Arch | x86_64 |
-| VBMF repo SHA | `7cc33dde2ab3070c28087df7d0aae570c6c8df5f` (`7cc33dd`) |
-| Repo path | `/opt/vbmf-dev/repo` (exact-SHA checkout, per §9) |
-| Workdir layout | `/opt/vbmf-dev/{repo,evidence,artifacts,logs,runtime}` |
+| 主机地址 | `10.30.15.10` |
+| SSH 登录用户 | `lytv`（密钥认证，sudo 免密） |
+| 操作系统 | Ubuntu 26.04 LTS（代号 resolute） |
+| 内核 | `7.0.0-30-generic #30-Ubuntu SMP PREEMPT_DYNAMIC` |
+| 架构 | x86_64 |
+| VBMF 仓库提交号 | `7cc33dde2ab3070c28087df7d0aae570c6c8df5f`（简称 `7cc33dd`） |
+| 仓库路径 | `/opt/vbmf-dev/repo`（按 §9 要求精确 checkout 该 SHA） |
+| 工作目录布局 | `/opt/vbmf-dev/{repo,evidence,artifacts,logs,runtime}` |
 
-## 2. Blackmagic DeckLink Device Detection (F11 pre-req)
+## 2. Blackmagic DeckLink 设备探测（F11 前置条件）
 
+**步骤**：登录后检查 `/dev/blackmagic` 设备节点。
+
+**结果**：
 ```text
 /dev/blackmagic:
   crw-rw-rw- 1 root root 10, 263  dv0
@@ -27,18 +29,17 @@
   crw-rw-rw- 1 root root 10, 265  io0
 ```
 
-✅ Real BMD hardware present (`dv0/dv1/io0`). Confirms this is a valid G-RUNTIME
-Level 2 acceptance target. DeckLink passthrough path `/dev/blackmagic` matches
-`media-agent` compose `devices:` mapping.
+✅ **确认存在真实 BMD 硬件**（`dv0/dv1/io0` 三个 DeckLink 设备节点）。说明这台机器是合格的 G-RUNTIME 第二级验收目标。设备透传路径 `/dev/blackmagic` 与 `media-agent` 在 compose 中的 `devices:` 映射一致。
 
-## 3. Docker Installation (action log)
+## 3. Docker 安装（动作日志）
 
-**Constraint discovered**: outbound HTTPS to `get.docker.com` / `download.docker.com`
-/ `github.com` (HTTPS) is **reset by network egress filter** (bare TCP/443 reachable,
-TLS handshake reset). Ubuntu 26.04 universe source had no `docker.io`.
+**步骤一：发现网络限制**
+- 外发 HTTPS 访问 `get.docker.com` / `download.docker.com` / `github.com`（HTTPS）均被**出口过滤重置**（裸 TCP/443 能连通，但 TLS 握手被 reset）。
+- Ubuntu 26.04 的 universe 软件源中没有 `docker.io` 包。
+- 结论：官方安装脚本与官方 apt 源都不可用，必须换国内镜像。
 
-**Resolution**: used `linuxmirrors.cn/docker.sh` (netlify CDN, reachable) with
-Aliyun Docker CE mirror:
+**步骤二：改用国内镜像安装**
+使用 `linuxmirrors.cn` 安装脚本（其 CDN 可达），并指定阿里云 Docker CE 镜像源：
 
 ```bash
 bash <(curl -sSL https://linuxmirrors.cn/docker.sh) \
@@ -48,25 +49,24 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker lytv
 ```
 
-**Result**:
+**步骤三：确认安装结果**
 ```text
-Docker version 29.7.2, build (Server & Client both 29.7.2)
+Docker version 29.7.2（Server 与 Client 均为 29.7.2）
 Docker Compose version v5.5.0
 Default Runtime = runc   Driver = overlayfs   Cgroup = v2
 ```
 
-✅ Docker Engine + Compose plugin installed and daemon running.
+✅ **Docker 引擎 + Compose 插件安装成功，守护进程已运行。**
 
-> **MEDIA-SEC-01 note**: default runtime is `runc`, NOT `runsc` (gVisor).
-> The compose pins `media-agent.runtime: runsc`, but runsc is NOT yet installed
-> on this host. Option A (gVisor) requires `runsc` install + DeckLink test;
-> Option B (runc + seccomp/AppArmor) is currently the working path.
-> Decision deferred to real-media-runtime acceptance (Gate 2/3).
+> **MEDIA-SEC-01 备注**：当前默认运行时是 `runc`，**不是** `runsc`（gVisor）。
+> compose 中 `media-agent.runtime: runsc` 已指定，但本机尚未安装 runsc。
+> 方案 A（gVisor）需安装 runsc 并做 DeckLink 实测；
+> 方案 B（runc + seccomp/AppArmor）是当前可用路径。
+> 最终选择推迟到真实媒体运行时验收（Gate 2/3）由真机裁定。
 
-## 4. Compose Validation (DEPLOY Gate 1 verification)
+## 4. Compose 校验（DEPLOY Gate 1 验证）
 
-Run from `/opt/vbmf-dev/repo` after `git checkout 7cc33dd` + local `.env` (secrets
-externalized, generated via `openssl rand`, NOT committed):
+**步骤**：在 `/opt/vbmf-dev/repo` 下，先 `git checkout 7cc33dd`，并生成本地 `.env`（密钥已外置，用 `openssl rand` 生成，**未提交入库**），然后执行四套 compose 配置校验：
 
 ```bash
 for p in "" "compose.dev.yml" "compose.acceptance.yml" "compose.prod.yml"; do
@@ -75,27 +75,29 @@ for p in "" "compose.dev.yml" "compose.acceptance.yml" "compose.prod.yml"; do
 done
 ```
 
-| Profile | Result |
+**结果**：
+
+| 配置组合 | 结果 |
 |---|---|
-| BASE (`docker-compose.yml`) | ✅ OK |
-| DEV (`+compose.dev.yml`) | ✅ OK |
-| ACCEPTANCE (`+compose.acceptance.yml`) | ✅ OK |
-| PROD (`+compose.prod.yml`) | ✅ OK |
+| 基础（`docker-compose.yml`） | ✅ OK |
+| 开发（`+compose.dev.yml`） | ✅ OK |
+| 验收（`+compose.acceptance.yml`） | ✅ OK |
+| 生产（`+compose.prod.yml`） | ✅ OK |
 
-✅ All four layered compose configs pass `docker compose config --quiet`.
-Secrets externalization (INFRA-SEC-01) verified: missing `.env` aborts interpolation.
+✅ **四套分层 compose 配置全部通过 `docker compose config --quiet` 语法校验。**
+密钥外置机制（INFRA-SEC-01）已验证：缺少 `.env` 时 compose 会中止插值并报错，不会使用硬编码密码。
 
-## 5. Outstanding (not blocking env prep)
+## 5. 遗留事项（不阻塞环境准备）
 
-- [ ] `media-agent` Dockerfile is placeholder → `docker compose up` blocks on build until Phase 1 source (Gate 2).
-- [ ] `runsc` (gVisor) not installed → MEDIA-SEC-01 Option A unverified; current path = runc.
-- [ ] GitHub HTTPS egress blocked on this host → repo sync uses `scp` from dev machine, not `git pull`.
-- [ ] `.env` exists only on BMD local fs (gitignored); never committed.
+- [ ] `media-agent` 的 Dockerfile 仍是占位文件 → `docker compose up` 会卡在 build 阶段，需 Phase 1 源码后才能构建（Gate 2）。
+- [ ] `runsc`（gVisor）尚未安装 → MEDIA-SEC-01 方案 A 未验证；当前可用路径为 runc。
+- [ ] 本机 GitHub HTTPS 出口被封 → 仓库同步改用从开发机 `scp`，而非 `git pull`。
+- [ ] `.env` 仅存在于 BMD 本地文件系统（已被 gitignore），绝不提交入库。
 
-## 6. Sign-off
+## 6. 签核
 
-| Role | Identity | Date |
+| 角色 | 身份 | 日期 |
 |---|---|---|
-| Env prepared by | AI assistant (via SSH, `lytv`) | 2026-08-25 |
-| SHA verified | `7cc33dd` | — |
-| Next gate | Gate 2: Real Rust Media Agent build + Device Lease (requires Phase 1 source) | — |
+| 环境准备执行人 | AI 助手（经 SSH，用户 `lytv`） | 2026-08-25 |
+| 已验证 SHA | `7cc33dd` | — |
+| 下一关 | Gate 2：真实 Rust Media Agent 构建 + 设备租约（需 Phase 1 源码） | — |
