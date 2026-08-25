@@ -94,12 +94,12 @@
           <span class="pill pill-blue">ENC v3</span>
           <span class="pill pill-blue">AUD v1</span>
           <span class="pill pill-blue">PKG v2</span>
-          <span class="pill pill-blue">OUT v2</span>
+          <span class="pill pill-blue">OUT DEFAULT v2</span>
           <span class="pill pill-blue">GFX v1</span>
           <span class="pill pill-blue">QC v1</span>
           <span class="pill pill-blue">RIGHTS v4</span>
           <span class="pill pill-blue">EDGE v2</span>
-          <div style="margin-top:4px;color:var(--fgdim);font-size:10px">8 / 8 Profile refs · Packaging = HLS-CMAF-v2</div>
+          <div style="margin-top:4px;color:var(--fgdim);font-size:10px">8 / 8 Profile refs · Packaging = HLS-CMAF-v2 · <b>OUT DEFAULT</b> (3 Variants using default: Domestic/Overseas/Archive 见详情)</div>
         </td>
         <td><span class="pill pill-green">● ACTIVE</span></td>
         <td><button class="btn">Open ↓</button></td>
@@ -112,12 +112,12 @@
           <span class="pill pill-blue">ENC v3</span>
           <span class="pill pill-blue">AUD v1</span>
           <span class="pill pill-blue">PKG v1</span>
-          <span class="pill pill-blue">OUT v1</span>
+          <span class="pill pill-blue">OUT DEFAULT v1</span>
           <span class="pill pill-blue">GFX v1</span>
           <span class="pill pill-blue">QC v1</span>
           <span class="pill pill-blue">RIGHTS v3</span>
           <span class="pill pill-blue">EDGE v1</span>
-          <div style="margin-top:4px;color:var(--fgdim);font-size:10px">8 / 8 Profile refs · Packaging = DASH-AVC-v1</div>
+          <div style="margin-top:4px;color:var(--fgdim);font-size:10px">8 / 8 Profile refs · Packaging = DASH-AVC-v1 · <b>OUT DEFAULT</b> (1 Variant using default)</div>
         </td>
         <td><span class="pill pill-green">● ACTIVE</span></td>
         <td><button class="btn">Open →</button></td>
@@ -130,12 +130,12 @@
           <span class="pill pill-blue">ENC v1</span>
           <span class="pill pill-blue">AUD v1</span>
           <span class="pill pill-blue">PKG v1</span>
-          <span class="pill pill-blue">OUT v1</span>
+          <span class="pill pill-blue">OUT DEFAULT v1</span>
           <span class="pill pill-blue">GFX v1</span>
           <span class="pill pill-blue">QC v1</span>
           <span class="pill pill-blue">RIGHTS v1</span>
           <span class="pill pill-blue">EDGE v1</span>
-          <div style="margin-top:4px;color:var(--fgdim);font-size:10px">8 / 8 Profile refs · Packaging = ARCHIVE-MP4-v1</div>
+          <div style="margin-top:4px;color:var(--fgdim);font-size:10px">8 / 8 Profile refs · Packaging = ARCHIVE-MP4-v1 · <b>OUT DEFAULT</b> (1 Variant using default)</div>
         </td>
         <td><span class="pill pill-yellow">⚠ DRAFT</span></td>
         <td><button class="btn">Open →</button></td>
@@ -149,15 +149,17 @@
 
 <!-- 选中 Bundle 详情: 6 引用 -->
 <div class="panel">
-  <h3><span class="cn">CH01-News-Live 详情</span> / BUNDLE DETAIL (8 Profile 引用, 非副本)
-    <span class="pill pill-green" style="float:right">Channel CH01 · 1 Realtime Session + 3 Output Variants</span>
+  <h3><span class="cn">CH01-News-Live 详情 · Instance Bundle</span> / INSTANCE BUNDLE DETAIL (8 Profile 引用, 非副本)
+    <span class="pill pill-green" style="float:right">Instance Bundle CH01-News-Live · Channel CH01 · 1 Realtime Session + 3 Output Variants</span>
+    <div style="font-size:10px;color:var(--fgdim);font-weight:normal;margin-top:4px">⚑ 0.5F.14: 此为 Template 经 <code>default_bundle_ref → instantiate</code> 产生的 <b>Instance Bundle</b> (1 Channel 1 Instance Bundle), 非 Template 本身. "1 Channel 1 Bundle" 指实例级 1:1, 模板可被多频道复用.</div>
   </h3>
   <div class="row">
+    <div style="width:100%;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin:4px 0 2px">CORE DELIVERY · 高频</div>
     <!-- Encoding -->
     <div class="col-4">
       <div class="bundle-slot required">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">⚙️ Encoding Profile (REQUIRED)</div>
         <div class="profile-name">H264-LIVE-1080P25-5M</div>
@@ -173,7 +175,7 @@
     <div class="col-4">
       <div class="bundle-slot required">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">🔊 Audio Profile (REQUIRED)</div>
         <div class="profile-name">NEWS-STEREO-R128</div>
@@ -189,7 +191,7 @@
     <div class="col-4">
       <div class="bundle-slot required">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">📦 Packaging Profile (REQUIRED)</div>
         <div class="profile-name">HLS-CMAF-v2</div>
@@ -202,27 +204,34 @@
         </div>
       </div>
     </div>
-    <!-- Output -->
+    <!-- Output (0.5F.14 P0: Bundle 仅持 DEFAULT, 真实 SoT = Variant) -->
     <div class="col-4">
       <div class="bundle-slot required">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle… Default</button>
         </div>
-        <div class="slot-name">📤 Output Profile (REQUIRED)</div>
+        <div class="slot-name">📤 Output Profile — BUNDLE DEFAULT (REQUIRED)</div>
         <div class="profile-name">HLS-LIVE-MAIN</div>
-        <div class="profile-meta">v2 ACTIVE · HLS · CDN-A primary + CDN-B backup</div>
+        <div class="profile-meta">v2 ACTIVE · HLS · CDN-A primary + CDN-B backup · 实例化带入, Variant 可 Override</div>
+        <div style="margin-top:6px;font-size:10px;color:var(--fgdim)">⚑ 0.5F.14: 此处的 Output Profile 是 <b>Bundle Default</b>。唯一权威 SoT = 各 Variant 的 <code>output_profile_ref</code>。未指定者继承此值。</div>
         <div style="margin-top:6px;font-size:10px">
-          <a style="color:var(--accent);text-decoration:none">Open P-22 →</a>
-          ·
+          <a style="color:var(--accent);text-decoration:none">Open P-22 →</a> ·
           <span style="color:var(--green)">PASS</span>
+        </div>
+        <div style="margin-top:8px;font-size:10px;border-top:1px solid var(--bd,#30363d);padding-top:6px">
+          <b>Per-Variant Effective Output (SoT = Variant):</b>
+          <div style="margin-top:3px;color:var(--fgdim)">Domestic HLS → <span style="color:var(--orange,#d29922)">OUT-v3 Override</span></div>
+          <div style="margin-top:2px;color:var(--fgdim)">Overseas RTMP → <span style="color:var(--orange,#d29922)">OUT-v5 Override</span></div>
+          <div style="margin-top:2px;color:var(--fgdim)">Archive → <span style="color:var(--green)">OUT DEFAULT v2 (inherited)</span></div>
         </div>
       </div>
     </div>
+    <div style="width:100%;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin:10px 0 2px">OPERATIONS · 中频</div>
     <!-- Graphic (P0: 补齐缺失的 Graphic slot) -->
     <div class="col-4">
       <div class="bundle-slot optional">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">🎨 Graphic Profile (OPTIONAL)</div>
         <div class="profile-name">NEWS-LOWERTHIRD</div>
@@ -238,7 +247,7 @@
     <div class="col-4">
       <div class="bundle-slot optional">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">🔍 QC Profile (OPTIONAL)</div>
         <div class="profile-name">NEWS-QC</div>
@@ -248,11 +257,12 @@
         </div>
       </div>
     </div>
+    <div style="width:100%;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin:10px 0 2px">GOVERNANCE · 低频</div>
     <!-- Rights -->
     <div class="col-4">
       <div class="bundle-slot required">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">⚖️ Rights Profile (REQUIRED)</div>
         <div class="profile-name">NEWS-DOMESTIC</div>
@@ -268,7 +278,7 @@
     <div class="col-4">
       <div class="bundle-slot required">
         <div class="profile-actions">
-          <button class="btn" style="font-size:9px;padding:2px 6px">▾ Change</button>
+          <button class="btn" style="font-size:9px;padding:2px 6px">Change Bundle…</button>
         </div>
         <div class="slot-name">🔌 Edge Policy Profile (REQUIRED)</div>
         <div class="profile-name">LIVE-DEFAULT</div>
@@ -283,9 +293,31 @@
     <b>关键规则 (Phase 0.5C PRODUCT_OBJECT_MODEL §1.2 锁定):</b>
     改 Bundle = 创建新 Revision → 进入 ChangeSet → Logical Atomic Apply.
     不允许直接改 Bundle 内的 Profile (Profile 改回去自身 Revision).
-    1 Channel 1 Bundle 1:1 反向引用.
+    1 Channel 1 Instance Bundle 1:1 反向引用.
   </div>
 </div>
+
+<!-- 0.5F.14 P1-5: Change Bundle → 强制 Impact Preview 入口 (非普通下拉) -->
+<details style="margin-top:12px">
+  <summary style="cursor:pointer;font-weight:600;color:var(--orange,#d29922)">▸ CHANGE IMPACT — 点击任意 "Change Bundle…" 必须首先展开此面板 (禁止就地下拉替换)</summary>
+  <div class="panel" style="margin-top:8px;border-left:3px solid var(--orange,#d29922)">
+    <div style="font-size:11px;font-weight:700;color:var(--orange,#d29922);margin-bottom:6px">CHANGE IMPACT · Encoding v3 → v4</div>
+    <div style="font-size:11px;line-height:1.7;color:var(--fgdim)">
+      <b style="color:var(--fg)">Affected Channel:</b> CH01 · CH03 · CH07<br>
+      <b style="color:var(--fg)">Runtime:</b> 3 Realtime Sessions<br>
+      <b style="color:var(--fg)">Outputs:</b> 8 Output Variants (其中 5 继承 Default 将升级, 3 已 Override 不受影响)<br>
+      <b style="color:var(--fg)">Resource:</b> CPU +4.2 threads · NIC +8 Mbps<br>
+      <b style="color:var(--fg)">Preflight:</b> <span style="color:var(--green)">PASS</span><br>
+      <b style="color:var(--fg)">Effective:</b> Immediate / Next Boundary / Scheduled
+    </div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button class="btn primary">📋 Create ChangeSet</button>
+      <button class="btn">📅 Schedule Apply</button>
+      <button class="btn l2">⏸ Cancel</button>
+    </div>
+    <div style="margin-top:6px;font-size:10px;color:var(--fgdim)">⚠ 注意区分两种影响传播: 改 <b>Profile</b> (多个 Bundle/Channel 引用, 选子集升级) ≠ 改 <b>Bundle</b> (单 Channel 实例, Variant 重派生). 此处为 Bundle 级.</div>
+  </div>
+</details>
 
 <!-- 3-Layer + 4 Workflows -->
 <div class="row">
@@ -407,7 +439,7 @@
 </div>
 
 <div class="panel" style="font-size:11px;color:var(--fgdim);border-left:3px solid var(--orange,#d29922);padding:8px 12px;margin-top:8px">
-  ⚠ <b>0.5F.13 · Bundle Change 必须进入 Configuration Surface</b>：任意 slot 的 <code>▾ Change</code> 不是普通下拉——改一个 Profile 会触发 <b>Bundle Revision → Graph Compile → Resource Recalculate → Preflight → ChangeSet → Apply</b>。点击 <code>▾ Change</code> 必须先弹 <b>Impact Preview</b>（Affected: Encoding Session / Output Variant ×N / Resource / Reservation / Preflight；Risk: LOW/MEDIUM/HIGH），再 <b>Create ChangeSet</b>，禁止直接就地替换。
+  ⚠ <b>0.5F.13 · Bundle Change 必须进入 Configuration Surface</b>：任意 slot 的 <code>Change Bundle…</code> 不是普通下拉——改一个 Profile 会触发 <b>Bundle Revision → Graph Compile → Resource Recalculate → Preflight → ChangeSet → Apply</b>。点击 <code>Change Bundle…</code> 必须先弹 <b>Impact Preview</b>（Affected: Encoding Session / Output Variant ×N / Resource / Reservation / Preflight；Risk: LOW/MEDIUM/HIGH），再 <b>Create ChangeSet</b>，禁止直接就地替换。
 </div>
 
 <footer>

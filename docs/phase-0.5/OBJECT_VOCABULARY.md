@@ -80,7 +80,7 @@
 | **DB 表** | `profile_bundles` (V0.4+) |
 | **UI 入口** | P-28 Profile Bundle (Phase 0.5D) |
 | **唯一 ID** | `bundle_id` (UUID) |
-| **核心字段** | `bundle_id, name, encoding_profile_ref, audio_profile_ref, packaging_profile_ref, output_profile_ref, qc_profile_ref, rights_profile_ref, edge_policy_ref, graphic_profile_ref, notes` |
+| **核心字段** | `bundle_id, name, channel_id (1:1 Instance Bundle), encoding_profile_ref, audio_profile_ref, packaging_profile_ref (Bundle Default), default_output_profile_ref (Bundle Default, 实例化带入), qc_profile_ref, rights_profile_ref, edge_policy_ref, graphic_profile_ref, notes` |
 | **示例** | `CH01-News-Live` = H264-LIVE-1080P25-5M + NEWS-STEREO-R128 + HLS-CMAF-PKG + HLS-LIVE-MAIN + NEWS-QC + NEWS-DOMESTIC + LIVE-DEFAULT + NEWS-LOWERTHIRD |
 | **绝不允许混用** | ❌ 不是 "Channel Profile" (那是 channel-level config), 不是 "Preset" |
 
@@ -419,6 +419,78 @@ Bitrate
 
 > **守卫 (0.5F.13)**: 任何 Surface 显示 Profile 派生值, 必须同时可展开 "Inherited / Overridden / Explicit / Compiled / Effective" 来源链。禁止只显示最终值而无来源。
 
+### 全局组件: Configuration Source Panel (0.5F.14 P1-6 焊死)
+
+上述 5 态来源链必须收敛为**单一可复用 UI 组件**, 而不是各 Surface 各自实现。组件契约:
+
+```text
+Configuration Source Panel (点击任意派生值展开)
+┌─────────────────────────────────────────┐
+│ Bitrate = 8 Mbps            (Effective) │
+├─────────────────────────────────────────┤
+│ Profile   ENC-LIVE-v5      5 Mbps        │
+│ Bundle    inherited                      │
+│ Variant   8 Mbps  Override               │
+│ Compiled  8 Mbps                         │
+│ Runtime   8 Mbps                         │
+└─────────────────────────────────────────┘
+```
+
+**强制出现位置 (SoT = 本 Vocabulary §1.16)**:
+`P-21` (Encoding Profile) · `P-22` (Output Profile) · `P-28` (Profile Bundle) · `CD-01` (Channel Workspace) · `M-14` (File Transcode) · `M-17` (Realtime Session)
+
+**约束**: 同一组件、同一 5 态渲染、同一展开交互; Phase 4 实现时禁止在 6 个 Surface 各写一套来源逻辑。
+
+### 1.17 Source Workspace 统一入口 (0.5F.14 P2-9 焊死)
+
+Source 已定义 12 类 kind + Endpoint 子对象。UX 必须做成**连续 Wizard**, 而非分散页面 (E-40 Network Source / E-42 Source Test Bench 已存在, 仅 UI 收口):
+
+```text
+Create Source
+  Source Type
+    Physical : SDI
+    Network  : SRT / RTMP / RTP / UDP / RTSP / HLS / WebRTC
+    File     : FILE
+    Internal : BLACK / BARS / FILLER
+  ↓ (选 UDP)
+    Unicast / Multicast ASM / Multicast SSM
+    + Interface / VLAN / Local Bind / Group / Source IP / Port / IGMP / DSCP / TTL
+  ↓
+  TEST → LOCK → VERIFY → ASSIGN → ACTIVE / STANDBY
+```
+
+> 不产生新 Surface; 复用 02 Sources + E-40 + E-42。状态流转即 Source 业务生命周期 (§1.6)。
+
+### 1.18 两条对象链: FILE_TRANSCODE vs REALTIME SESSION (0.5F.14 P1-3 焊死)
+
+两者**共享 Packaging Profile Registry**, 但**不共享 Variant 对象**:
+
+```text
+FILE_TRANSCODE (M-14)
+  Asset → Asset Version → FILE_PROFILE → Packaging Profile → Job Policy → Job → New Asset Version
+  产物 = 资产版本 (资产域)
+
+REALTIME SESSION (M-17)
+  Channel → Output Variant → Output Profile → Packaging Profile → Realtime Session → SRS
+  产物 = 直播输出变体 (输出交付域)
+
+共享: Packaging Profile Registry
+禁止: Asset Version 与 Output Variant 混用同一上下文
+```
+
+### 1.19 Channel Workspace: 上下文驾驶舱 (0.5F.14 P2-10 焊死)
+
+CD-01 作为统一操作上下文 (驾驶舱), 深度配置仍为独立页面 (Drawer/Inspector):
+
+```text
+CD-01 Channel Workspace
+  Source · Switch · Health · PVW · PGM · NEXT
+  Audio (LUFS/AV Sync/Drift) · Output (HLS/RTMP/UDP) 同上下文协作
+  点击 Audio → P-23 / Switch → 03 / Output → 06 (深页)
+```
+
+> 不新增 Surface; Audio/Switch/Output/Health 在 Channel Workspace 同一上下文中协作, 深配进 P-23 / 03 / 06。
+
 ---
 
-**VBMF Contributors** · VBMF Object Vocabulary V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13 Profile Ownership & Variant Delivery Closure
+**VBMF Contributors** · VBMF Object Vocabulary V0.1 · Phase 0.5C Information Architecture Closure + 0.5F.13/0.5F.14 Profile Ownership & Variant Delivery Closure

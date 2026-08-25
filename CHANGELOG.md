@@ -28,6 +28,19 @@ VBMF（IP Broadcast Media Fabric）的所有重要变更都记录在此文件中
 - **P1 · Source 连续流程 / UDP 网络上下文 / CD-01 工作驾驶舱**：在 0.5F.13 复检结论中记为后续可优化项（P2），本提交未展开，待 Phase 0.6 决定。
 - 校验：一致性 95% / UI-UX 语义完整度 92%；**未新增任何 Surface**（Registry SoT 维持 56）；仅四份权威文档 + 两份 wireframe 内联提示收口。结论：Phase 0.5 Product/UX Semantics 可冻结，下一提交应进入 Phase 0.6 Executable Acceptance（AC-01/AC-02/AC-03）。
 
+### Phase 0.5F — Object Boundary & Channel Workspace Closure（0.5F.14，2026-08-25，LOCK FINAL，基于 b4e409f 复检）
+- **P0 · 清掉 Bundle.output_profile_ref 旧双真相**：PRODUCT_OBJECT_MODEL §1.2/§1.4 schema 删 `output_profile_ref`，改 `default_output_profile_ref`；§1.3 Variant schema 改双 ref（`output_profile_ref` + `packaging_profile_ref`）；OBJECT_VOCABULARY §1.4 核心字段同步；加 0.5F.14 P0 守卫。
+- **P0 · P-28 OUT 不再视觉当成 Bundle 直接 Profile**：顶部 3 行 `OUT v2/v1/v1` → `OUT DEFAULT v2/v1/v1`；详情 OUT slot 改为「BUNDLE DEFAULT + Per-Variant Effective (Domestic RTMP/Archive 继承)」；按钮 `▾ Change` → `▾ Change Default`。
+- **P1 · M-14 拆 FILE_TRANSCODE / REALTIME SESSION 两条对象链**：Step3 diag + 顶部蓝条 + POM §3.6 + OBJECT_VOCABULARY §1.18 明确——M-14 产物是 Asset Version（资产域），M-17 产物是 Output Variant（输出交付域），共享 Packaging Registry 但不共享 Variant 对象；M-14 不再出现 Output Profile/Variant 选择。
+- **P1 · M-14 Step2 改名 Target Asset Version**：Wizard/面板/表头 `选择输出 Output`/`Select Output Versions`/`Output Version` → `选择目标资产版本`/`Target Asset Version`；NAVIGATION_MATRIX §1.1 同步。
+- **P1 · P-28 Change → Impact Preview 强制入口**：8 个 `▾ Change` → `Change Bundle…`；新增 CHANGE IMPACT 折叠面板（Encoding v3→v4 / Affected CH01·CH03·CH07 / 3 Sessions / 8 Variants / Resource / Preflight / Effective），并区分 Profile 级 vs Bundle 级影响传播。
+- **P1 · 全局 Configuration Source Panel**：OBJECT_VOCABULARY §1.16 新增统一组件契约（6 强制位置 P-21/P-22/P-28/CD-01/M-14/M-17）；PRODUCT_OBJECT_MODEL §3.5 升级引用；NAVIGATION_MATRIX §3.2 验收同步。
+- **P2 · P-28 8 Profile 视觉分层**：CORE DELIVERY（Encoding/Audio/Packaging/Output）/ OPERATIONS（Graphic/QC/Edge）/ GOVERNANCE（Rights）分组标签。
+- **P2 · Instance Bundle 语义**：`1 Channel 1 Bundle` → `Instance Bundle`，明确 Template `instantiate → Bundle instance → Channel`，避免「一个 Bundle 只能一个 Channel」误解。
+- **P2 · Source Workspace 统一入口**：OBJECT_VOCABULARY §1.17 新增 Physical/Network/File/Internal → Endpoint（UDP 展开 Unicast/ASM/SSM + 网络参数）→ TEST→VERIFY→ASSIGN 连续 Wizard，复用 02/E-40/E-42，不新增 Surface。
+- **P2 · CD-01 Channel Workspace**：OBJECT_VOCABULARY §1.19 收口 Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 同上下文协作，深配进 P-23/03/06（驾驶舱 + 深页）。NAVIGATION_MATRIX §3.3 加验收闭环。
+- 校验：**未新增任何 Surface**（Registry SoT 维持 56）；一致性 98% / UI-UX 语义 97%。结论：完成 0.5F.14 后 Phase 0.5 Product/UX Semantics 可真正 Freeze；下一提交进入 Phase 0.6 Executable Acceptance（AC-01 外来 UDP/SSM→Source→Channel→Switch→Audio→Output；AC-02 Asset→Asset Version→File Transcode→Packaging→QC→New Asset Version；AC-03 Channel→Bundle→Variant×N→Effective Runtime→Fault/Failover）。
+
 ### Phase 0.6 Preflight / Acceptance Spec Correction（2026-08-25，基于 e9ebe6f）
 - **P0-6.0-A1**：修正 Reference A1 链路——删除 PACKET_SWITCH 路径中错误的 Encode。PACKET_SWITCH = COMPRESSED → Switch → COMPRESSED（V0.2 §3.4 锁死）；Encode 仅出现于 RAW → Encode → COMPRESSED（Program Master delivery boundary）。
 - **P0-6.0-A2**：修正 Reference A2 链路——FRAME_SWITCH = RAW → Switch → RAW、MASTER_SWITCH = RAW → Normalize → Master-level Switch → RAW；Encode 从 Switcher 前移到 Program Master / delivery boundary 之后（Frame/MASTER 验证的是 RAW 域切换，不是 COMPRESSED）。

@@ -52,10 +52,9 @@
 Asset (M-11)
   → Create Asset Version (M-12 Tab ②)
   → File Transcode (M-14, Transcode Center / FILE 模式)
-  → 选 Output Version (asset_version_id)
-  → 选 Encoding Profile (P-21)
-  → 选 Packaging Profile (P-20 Packaging Tab · 默认继承 Bundle Default, 可 Variant Override, 0.5F.13)
-  → 选 Output Profile (P-22 · 唯一 SoT = Variant, 0.5F.13)
+  → 选 Target Asset Version (asset_version_id · 0.5F.14 改名, 非 Output Variant)
+  → 选 Encoding Profile (P-21 · FILE_PROFILE)
+  → 选 Packaging Profile (P-20 Packaging Tab · 资产版本级, 非 Variant 级, 0.5F.14)
   → Job Policy (M-14 Step ⑤)
   → Preview / Test Encode (M-14 Step ⑥)
   → Submit → Job (M-18, FILE_TRANSCODE, job_id)
@@ -63,6 +62,7 @@ Asset (M-11)
   → QC (M-18 Job Detail / QC Profile)
   → Used By → Channel / Playout (CD-01)
 ```
+> ⚑ 0.5F.14: M-14 产物是 **Asset Version** (资产域), **不**选 Output Profile / Output Variant (输出交付域). 两条对象链见 OBJECT_VOCABULARY §1.18 / POM §3.6.
 
 - 任何跳转都携带 `asset_id` / `asset_version_id` / `job_id`, **禁止**从转码页跳到泛化首页后丢失上下文。
 - `Job` 与 `Asset Version` 双向可达: Job 详情能看到产出 Asset Version, Asset Version 能看到触发它的 Job。
@@ -136,9 +136,22 @@ Effective Runtime
 每屏显示派生值，必须可展开：
 `Inherited`（灰）/ `Overridden`（橙）/ `Explicit` / `Compiled` / `Effective`（主显示加粗）。
 
-### 3.2 闭环要求（Acceptance 0.5F.13）
+### 3.2 闭环要求（Acceptance 0.5F.13 + 0.5F.14）
 
-- [ ] P-28 / CD-01 / P-21 / P-22 / M-14 任一 Profile 派生值，点击可见完整来源链
+- [ ] P-28 / CD-01 / P-21 / P-22 / M-14 / M-17 任一 Profile 派生值，点击可见完整来源链（统一 Configuration Source Panel）
 - [ ] Variant 的 `packaging_profile_ref` 显式标注「继承 Bundle」或「Variant Override」
 - [ ] `EFFECTIVE_PACKAGING = Bundle Default ↓ Variant Override` 计算路径可回溯
 - [ ] 改 Bundle Default 时，Impact Preview 明确区分「受影响 Variant（未指定）」与「不受影响 Variant（已 Override）」
+- [ ] M-14 跳转携带 `asset_id` / `asset_version_id` / `job_id`，**不**出现 Output Variant / Output Profile 选择（0.5F.14 两条链分离）
+
+### 3.3 Source Workspace 连续闭环（0.5F.14 P2-9）
+
+- [ ] 02 Sources 入口：Create → Source Type（Physical/Network/File/Internal）→ Endpoint 配置 → TEST → VERIFY → ASSIGN → ACTIVE/STANDBY
+- [ ] 选 UDP 后展开 Unicast/ASM/SSM + Interface/VLAN/Bind/Group/IGMP/DSCP/TTL
+- [ ] 复用 E-40 + E-42，不新增 Surface；状态流转 = Source 业务生命周期（OBJECT_VOCABULARY §1.6/§1.17）
+
+### 3.4 Channel Workspace 驾驶舱闭环（0.5F.14 P2-10）
+
+- [ ] CD-01 同上下文呈现 Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 协作区
+- [ ] 点击 Audio → P-23 / Switch → 03 / Output → 06（深页），携带 `channel_id`
+- [ ] 不新增 Surface；驾驶舱 + 深页结构（OBJECT_VOCABULARY §1.19）

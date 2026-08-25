@@ -50,7 +50,7 @@ UI 必须显式表达这 3 层的"组合关系", 而不是每个对象一个孤�
 > **禁止:** 出现 "Channel Profile" / "Stream Profile" 这种含糊词, 用 Bundle 表达组合。
 > **Packaging Profile 与 Encoding Profile 严格分离** (Phase 0.6 §3.1): Encoding 只负责 codec / resolution / framerate / bitrate / GOP / rate-control / 2-pass; Packaging 只负责 container / segment / HLS·DASH / manifest / DRM; **Encoding 禁止承担 Packaging 职责**, Output 只负责 Destination / Protocol / Distribution。
 
-### 1.2 第 2 层: Profile Bundle (Composition / 1 个 Channel 用 1 个 Bundle)
+### 1.2 第 2 层: Profile Bundle (Composition / 1 个 Channel 用 1 个 Instance Bundle)
 
 **关键创新:** **1 个 Channel 1 个 Bundle**, Bundle 内含 8 种 Profile 的引用 (不是副本)。
 
@@ -59,11 +59,11 @@ UI 必须显式表达这 3 层的"组合关系", 而不是每个对象一个孤�
 profile_bundles:
   bundle_id: UUID
   name: 'CH01-News-Live'
-  channel_id: CH01  # 1:1 反向引用 (1 Channel 1 Bundle)
+  channel_id: CH01  # 1:1 反向引用 (1 Channel 1 Instance Bundle)
   encoding_profile_ref: H264-LIVE-1080P25-5M@v3
   audio_profile_ref:    NEWS-STEREO-R128@v1
-  packaging_profile_ref: HLS-CMAF-PKG@v1
-  output_profile_ref:   HLS-LIVE-MAIN@v2
+  packaging_profile_ref: HLS-CMAF-PKG@v1          # Bundle Default (Variant 可 Override)
+  default_output_profile_ref: HLS-LIVE-MAIN@v2    # Bundle Default (实例化带入, Variant 可 Override; 唯一 SoT = Variant.output_profile_ref)
   qc_profile_ref:       NEWS-QC@v1
   rights_profile_ref:   NEWS-DOMESTIC@v4
   edge_policy_ref:      LIVE-DEFAULT@v2
@@ -72,6 +72,8 @@ profile_bundles:
   created_at: 2026-08-25T14:00:00+08:00
   notes: '新闻直播标准配置 / News Live Standard'
 ```
+
+> ⛔ **0.5F.14 P0 · 删除旧双真相**: 此处**不再有** `output_profile_ref` 字段。Bundle 只持 `default_output_profile_ref` 作为 Template 级默认；**唯一权威** = `output_variants[].output_profile_ref`（见 §1.4 / OBJECT_VOCABULARY §1.8）。禁止在 Bundle schema 中同时出现 `output_profile_ref` 与 Variant 的 `output_profile_ref`。
 
 **UI 入口:** **P-28 Profile Bundle** (Phase 0.5D 新增) — 选 8 个 Profile 引用, 不重新配置 8 套参数。
 
@@ -104,7 +106,8 @@ profile_bundles:
 output_variants:
   variant_id: V-CH01-HLS-Domestic
   channel_id: CH01
-  profile_ref: HLS-LIVE-MAIN@v2  # 引用 P-22, 不是副本
+  output_profile_ref: HLS-LIVE-MAIN@v2     # 唯一 SoT = Variant (P-22 引用, 非副本)
+  packaging_profile_ref: HLS-CMAF-PKG@v1   # 未指定=继承 Bundle.packaging_profile_ref (Default), 指定=Variant Override (0.5F.13)
   destinations:
     - dest_id: CDN-A (primary)
       adapter_ref: SRSAdapter-01   # 运行时执行资源, 可共享
@@ -227,19 +230,40 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 6. Until 到期后, 自动回滚到 Bundle 默认 Profile / Variant 原 Override
 ```
 
-### 3.5 Workflow: 配置继承链可解释性 (0.5F.13 P1)
+### 3.5 Workflow: 配置继承链可解释性 (0.5F.13 P1 → 0.5F.14 P1-6 升级为全局组件)
 
 ```
-1. 任意显示 Profile 派生值的 Surface (P-28 / CD-01 / P-21 / P-22 / M-14)
-2. 每个值旁提供 "来源" 展开:
+1. 任意显示 Profile 派生值的 Surface (P-28 / CD-01 / P-21 / P-22 / M-14 / M-17)
+2. 使用统一组件 Configuration Source Panel (OBJECT_VOCABULARY §1.16), 每值旁展开 5 态:
      Inherited   (继承自上层, 本层未改)
      Overridden  (本层显式覆盖)
      Explicit    (本层原始定义)
      Compiled    (编译合并结果)
      Effective   (最终运行态, 主显示)
 3. 例: Bitrate = 8 Mbps (Effective), 展开见 Profile 5 → Bundle inherited → Variant 8 Override → Compiled 8
-4. 禁止只显示最终值而无来源链 (OBJECT_VOCABULARY §1.16 守卫)
+4. 禁止各 Surface 各写一套来源逻辑; 统一组件, 统一渲染 (§1.16 约束)
 ```
+
+### 3.6 两条对象链: FILE_TRANSCODE vs REALTIME SESSION (0.5F.14 P1-3 焊死)
+
+```
+FILE_TRANSCODE (M-14):
+  Asset → Asset Version → FILE_PROFILE → Packaging Profile → Job Policy → Job → New Asset Version
+  产物 = 资产版本 (资产域); 与 Channel Output Variant 无关
+
+REALTIME SESSION (M-17):
+  Channel → Output Variant → Output Profile → Packaging Profile → Realtime Session → SRS
+  产物 = 直播输出变体 (输出交付域)
+
+共享: Packaging Profile Registry
+禁止: Asset Version 与 Output Variant 混用同一上下文 (M-14 选的是 Target Asset Version, 非 Variant)
+```
+
+### 3.7 Source / Channel Workspace 收口 (0.5F.14 P2-9/P2-10)
+
+- **Source Workspace**: 02 Sources + E-40 + E-42 收口为连续 Wizard (Physical/Network/File/Internal → Endpoint → TEST→VERIFY→ASSIGN), 不新增 Surface。
+- **Channel Workspace (CD-01)**: Source/Switch/Health/PVW/PGM/NEXT + Audio/Output 同上下文协作; 深配进 P-23/03/06。驾驶舱 + 深页结构。
+- 详见 OBJECT_VOCABULARY §1.17 / §1.18 / §1.19。
 
 ---
 
@@ -259,7 +283,7 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | **10 States** (Validation) | — | (无业务对象, 状态参考) |
 | **M-11 Media Library** (product) | Asset | Asset Version, Job, QC Profile, Rights Profile |
 | **M-12 Asset Detail** (product) | Asset + Asset Version | QC Profile, Rights Profile, Channel (Used By) |
-| **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Encoding Profile, Variant |
+| **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Asset Version, Encoding Profile (FILE_PROFILE), Packaging Profile |
 | **M-17 Realtime Session** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
 | **M-18 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
 | **P-20 Profile Center** (0.5D) | Profile (8 子类 Registry) | Bundle, Variant, Channel |

@@ -83,7 +83,7 @@
 <!-- 6 步 Wizard -->
 <div class="wizard-steps">
   <div class="step done"><span class="check">✓</span><div class="num">STEP 1</div>选择输入 Source</div>
-  <div class="step active"><div class="num">STEP 2</div>选择输出 Output</div>
+  <div class="step active"><div class="num">STEP 2</div>选择目标资产版本</div>
   <div class="step"><div class="num">STEP 3</div>选择 Profile</div>
   <div class="step"><div class="num">STEP 4</div>选择 QC</div>
   <div class="step"><div class="num">STEP 5</div>排程 Schedule</div>
@@ -91,7 +91,7 @@
 </div>
 
 <div class="panel" style="font-size:11px;color:var(--fgdim);border-left:3px solid var(--accent,#58a6ff);padding:8px 12px;margin-top:8px">
-  ⓘ <b>0.5F.13 · 推荐 Workflow（与 Object Model 对齐）</b>：① Select Asset → ② Select Output Version → ③ Select Encoding Profile → ④ Select Packaging Profile（默认继承 Bundle Default，可 Variant Override）→ ⑤ Job Policy → ⑥ Preview / Test Encode → Submit。当前 wireframe 的 Step 2/3 已贴近该顺序；<b>Transcode Center</b> 建议作为统一媒体处理入口，内分 <b>[ FILE ]</b>（Asset→Encoding→Packaging→Job→QC→Asset Version）与 <b>[ REALTIME ]</b>（Source→Encoding→Session→Reservation→READY_TO_TAKE→Output）两种运行模式，避免“文件转码 / 实时编码”被理解成两个割裂产品。
+  ⓘ <b>0.5F.14 · 推荐 Workflow（与 Object Model 对齐 · 两条对象链分离）</b>：① Select Asset → ② Select <b>Target Asset Version</b> → ③ Select Encoding Profile (FILE_PROFILE) → ④ Select Packaging Profile（资产版本级，非 Variant 级）→ ⑤ Job Policy → ⑥ Preview / Test Encode → Submit → <b>New Asset Version</b>。<b>Transcode Center</b> 建议作为统一媒体处理入口，内分 <b>[ FILE ]</b>（Asset→Asset Version→Encoding→Packaging→Job→QC→New Asset Version）与 <b>[ REALTIME ]</b>（Channel→Output Variant→Output Profile→Packaging→Session→SRS）两种运行模式——共享 Packaging Profile Registry，但 Asset Version ≠ Output Variant。
 </div>
 
 <!-- Step 1 Source: 已选 input (折叠) -->
@@ -107,22 +107,23 @@
   </div>
 </details>
 
-<!-- Step 2 Output Versions (主区) -->
+<!-- Step 2 Target Asset Versions (主区) — 0.5F.14 P1-4 改名 -->
 <div class="panel">
-  <h3><span class="cn">第 2 步 · 选择输出版本</span> / STEP 2: Select Output Versions (Master / Proxy / Mobile / Archive / Custom)
+  <h3><span class="cn">第 2 步 · 选择目标资产版本</span> / STEP 2: Select Target Asset Versions (Master / Proxy / Mobile / Archive / Custom)
   <span class="pill pill-blue" style="float:right">2 versions selected · Estimated 1.18 GB</span>
-  <div style="font-size:10px;color:var(--fgdim);margin-top:4px">每个 Output Asset Version 绑定一个 <b>FILE_ENCODING_PROFILE (P-21 · FILE_PROFILE)</b> — 如 Master → ENC-v12 · Proxy → ENC-v22 · Archive → ENC-v07。⛔ REALTIME_PROFILE 不得出现在本 picker (M-17/Session 专属)。</div>
+  <div style="font-size:10px;color:var(--fgdim);margin-top:4px">每个 <b>Target Asset Version</b> 绑定一个 <b>FILE_ENCODING_PROFILE (P-21 · FILE_PROFILE)</b> — 如 Master → ENC-v12 · Proxy → ENC-v22 · Archive → ENC-v07。⛔ REALTIME_PROFILE 不得出现在本 picker (M-17/Session 专属)。</div>
   </h3>
   <div class="diag" style="margin-top:0;margin-bottom:12px">
-    <b>Asset Version (M-12 锁) ≠ Output Variant (CD-01 锁):</b>
-    这里选的是 Asset Version (Master/Proxy/Mobile/Archive/Custom), 跟 Channel 的 Output Variant 无关.
-    完成后跳 M-12 Asset Detail / Tab ② Versions 查看.
+    <b>⚑ 0.5F.14 · 两条对象链严格分离:</b>
+    <br>① <b>FILE_TRANSCODE (本页 M-14):</b> Asset → <b>Asset Version</b> → FILE_PROFILE → Packaging Profile → Job Policy → Job → <b>New Asset Version</b>. 产物是<b>资产版本</b>, 与 Channel 的 Output Variant 无关.
+    <br>② <b>REALTIME SESSION (M-17):</b> Channel → <b>Output Variant</b> → Output Profile → Packaging Profile → Realtime Session → SRS. 产物是<b>直播输出变体</b>.
+    <br>两者<b>共享 Packaging Profile Registry</b>, 但<b>不共享 Variant 对象</b> (Asset Version ≠ Output Variant).
   </div>
   <table>
     <thead>
       <tr>
         <th style="width:24px"><input type="checkbox" checked></th>
-        <th>Output Version</th>
+        <th>Target Asset Version</th>
         <th>Profile Reference</th>
         <th>Codec</th>
         <th>Resolution</th>
@@ -208,7 +209,7 @@
   <summary>▸ Step 3 Profile (Encoding / Packaging / Job Policy — 职责分离)</summary>
   <div class="panel" style="margin-top:8px">
 
-    <div class="diag" style="border-left:3px solid var(--purple,#a371f7);padding:6px 10px;margin-bottom:8px">⚑ <b>0.5F.13 · Packaging / Output Profile 归属</b>：本步为<b>单 Output Asset Version</b> 选 Packaging Profile（= Variant 级 `packaging_profile_ref`，未指定则继承 Bundle Default）。`Output Profile` 唯一 SoT = 该 Version 对应的 Variant；禁止与 Bundle 产生双真相。选择项旁应可展开 <b>Inherited / Overridden / Explicit / Compiled / Effective</b> 来源链（OBJECT_VOCABULARY §1.16）。</div>
+    <div class="diag" style="border-left:3px solid var(--purple,#a371f7);padding:6px 10px;margin-bottom:8px">⚑ <b>0.5F.14 · FILE_TRANSCODE 对象链 (本页 M-14)</b>：本步为<b>目标资产版本 (Target Asset Version)</b> 选 <b>Packaging Profile</b>——这是<b>资产版本级</b>的 Packaging（产物为单文件/自适应包，归属该 Asset Version），<b>不是</b> Channel 的 Output Variant 级 `packaging_profile_ref`。两者共享 Packaging Profile Registry，但对象上下文不同（Asset Version ≠ Output Variant）。选择项旁可展开 <b>FILE compatible / DELIVERY compatible</b> 标记与 <b>Inherited / Overridden / Explicit / Compiled / Effective</b> 来源链（OBJECT_VOCABULARY §1.16）。</div>
 
     <!-- ① Encoding Profile -->
     <div class="box-title" style="color:#58a6ff">① Encoding Profile (P-21 · FILE_PROFILE)</div>
