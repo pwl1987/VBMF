@@ -3453,7 +3453,17 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 |---|---|---|---|
 | **E-41 Network Path Inspector Spec** | ENGINEERING | Spec 锁 | Network Path 5 类 Node Kind + 8 类失败模式 + 4-Layer 应用 + 6 状态 + Schema 草稿; wireframe 0.5G 实施 |
 
-### 29.9.4 0.5F 计数表 (PIA Batch 1+2+3)
+### 29.9.3b Batch 4 (0.5F 后变更登记) — 3 份 Spec 文档
+
+> 上一轮（0.5F 锁后）产出，本轮登记进表面清单。均为 **Spec-only**（wireframe 0.5G 实施），不计入 0.5F 48 wireframe 计数。
+
+| 文档 | 域 | 类型 | 关键交付 |
+|---|---|---|---|
+| **ENCODE_MODEL_SPEC.md** | ENGINEERING | Spec 锁 | Encoding Profile 双语义模型 `FILE_PROFILE` / `REALTIME_PROFILE` + Realtime 专属属性（latency_class / failover_compatibility / hot_standby / resource_reservation / encoder_warmup 等）; 挂接 P-21 |
+| **E-42 Source Test Bench Spec** | ENGINEERING | Spec 锁 | Source 入网验证台 7 层（Network/Transport/Container/Video/Audio/Clock/QC）; 挂接 02-sources / E-40 |
+| **B-13 Take Preflight Spec** | BROADCAST | Spec 锁 | CD-01 TAKE 前置联合检查 9 项（Source/Video/Audio/Clock/Switcher/Backup/Master/Output/Latency）; 挂接 CD-01 |
+
+### 29.9.4 0.5F 计数表 (PIA Batch 1+2+3+4)
 
 | 域 | 0.5D 已锁定 | 0.5F 新增 | 0.5F 域内合计 |
 |---|---|---|---|
@@ -3468,6 +3478,7 @@ PIA V0.1 锁 12 项 (见 [`PRODUCT_INFORMATION_ARCHITECTURE.md` §13](PRODUCT_IN
 > **0.5F 后 Phase 0.5 UI 表面 = 48 个 wireframe 完成** (44 + CH-01 + CD-01 WS + CD-01 Detail 升 wireframe + E-40)
 > 02-sources.html 重画不计为新增。
 > E-41 Network Path 仅 Spec 锁, 0.5G 实施后总计 49。
+> [变更登记] 0.5F 后新增 3 份 Spec（ENCODE_MODEL_SPEC / E-42 / B-13），均为 Spec-only；其中 E-42 / B-13 为表面，0.5G 实施 wireframe 后计数 +2；ENCODE_MODEL_SPEC 为模型文档，不计入表面计数。
 > ⛔ 禁止在 README / 阶段总结中再使用 39 / 44 / 47 等早期数字。
 
 ### 29.9.5 0.5F 实施要点

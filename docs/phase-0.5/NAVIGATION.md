@@ -78,6 +78,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
 | **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator |
 | **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
+| **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Operator |
 | **M-17** | Realtime Transcode 实时转码 | 🟢 LOCK (0.5D) | Operator / Engineer |
 
 > **注**: 08-graph-designer / 09-health-tree 已划归 ENGINEERING 域 (PIA V0.1 §12); 10-states Validation 是全局 Validation 不属于 BROADCAST。
@@ -100,7 +101,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | # | 表面 | 状态 | 角色 |
 |---|---|---|---|
 | **P-20** | Profile Center 配置中心 | 🟢 LOCK (0.5D) | Engineer |
-| **P-21** | Encoding Profile 编码配置 | 🟢 LOCK (0.5B.1) | Engineer |
+| **P-21** | Encoding Profile 编码配置 | 🟢 LOCK (0.5B.1); 双语义模型见 `ENCODE_MODEL_SPEC.md` (FILE_PROFILE / REALTIME_PROFILE) | Engineer |
 | **P-22** | Output Profile 输出配置 | 🟢 LOCK (0.5B.1) | Engineer |
 | **P-23** | Audio Profile 音频配置 | 🟡 Spec (0.5B.0) | Engineer |
 | **P-24** | Graphic Profile 图形配置 | 🟡 Spec (0.5B.0) | Engineer |
@@ -118,6 +119,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **E-38** | Hardware Inventory 硬件清单 | 🟢 LOCK (0.5D) | Engineer |
 | **E-40** | Network Source 网络源 (UDP Unicast/Multicast + 9 External 子类 + Security 8 字段) | 🟢 LOCK (0.5F) | Engineer |
 | **E-41** | Network Path Inspector 网络路径检查器 (5 Hop Kind + 8 Failure Mode) | 🟡 Spec 锁 (0.5F); wireframe 0.5G 实施 | Engineer / SRE |
+| **E-42** | Source Test Bench 源入网验证台 (7 层: Network/Transport/Container/Video/Audio/Clock/QC) | 🟡 Spec 锁 (0.5F 后续轮次产出); wireframe 0.5G 实施 | Engineer / Operator |
 | **O-41** | Health Tree 实时健康树 (Operator 视图) | 🟡 Spec (0.5B.0) | SRE |
 | **O-42** | Incident Center 事件中心 | 🟡 Spec (0.5B.0) | SRE |
 | **O-43** | Incident Timeline 事件时间线 | 🟡 Spec (0.5B.0) | SRE |
@@ -151,6 +153,8 @@ Phase 0.5B 用了 6 个**编号工作域**:
 > **历史口径演化**: 0.5B 报 "30+ UI 表面" → 实为 38 → 0.5C 重排 40 → 0.5D 后 44 → 0.5F 后 **52 个 wireframe + 1 Spec (E-41)** = 53。
 > 02-sources.html 重画不计为新增。
 > ⛔ 禁止在 README / 阶段总结中再使用 39 / 44 / 47 等早期数字。
+>
+> **[变更登记 · 0.5F 后]** 新增 3 份 Spec 文档登记（上一轮产出，待 0.5G 实施 wireframe）: `ENCODE_MODEL_SPEC.md` (P-21 双语义模型) / `E-42-source-test-bench.md` (Source Test Bench) / `B-13-take-preflight.md` (Take Preflight)。E-42 / B-13 为 Spec-only 表面，不计 0.5F 48 wireframe 计数；P-21 模型以引用形式挂接。详见 `SURFACE_SPEC.md` §29.9.3b Batch 4。
 
 ---
 

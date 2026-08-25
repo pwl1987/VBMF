@@ -90,3 +90,13 @@ phase-0.5/
 ## 下一步
 
 Phase 0.6：Reference A1/A2/B + 5 Fault Injection + 7 Health Invariants = Executable Acceptance Specification。
+
+## 补充 Spec 文档（0.5F 后变更登记）
+
+> 0.5F LOCK FINAL 后产出的 3 份 Spec（仅 Spec，wireframe 待 0.5G），与上方 9 Core 线框互补，已登记进 `NAVIGATION.md` / `SURFACE_SPEC.md` §29.9.3b Batch 4。
+
+| 文档 | 挂接表面 | 关键交付 |
+|---|---|---|
+| `ENCODE_MODEL_SPEC.md` | P-21 Encoding Profile | Encoding Profile 双语义模型 `FILE_PROFILE` / `REALTIME_PROFILE` + Realtime 专属属性（Latency Class / Failover / Warm-up / Hot Standby / Resource Reservation） |
+| `E-42-source-test-bench.md` | 02-sources / E-40 | Source 入网验证台（7 层: Network / Transport / Container / Video / Audio / Clock / QC） |
+| `B-13-take-preflight.md` | CD-01 Take | TAKE 前置联合检查 9 项（Source / Video / Audio / Clock / Switcher / Backup / Master / Output / Latency） |

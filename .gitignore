@@ -1,0 +1,9 @@
+# 所有 Python 脚本不入库
+*.py
+
+# IDE / 工具数据目录不入库
+.zcode/
+.codebuddy/
+
+# GitHub key 文件（保留，不入库）
+/NUL

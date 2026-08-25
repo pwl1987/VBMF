@@ -316,6 +316,46 @@
   </div>
 </div>
 
+<!-- ============== Assign to Channel (G-C: Source→Channel 主动映射) ============== -->
+<div class="panel">
+  <h3><span class="cn">分配到通道</span> / ASSIGN TO CHANNEL (提案 §17 · Source→Channel 主动映射 · 与下方 USED BY 反向互补)
+    <span class="pill pill-purple" style="float:right">Active Mapping · 6</span>
+  </h3>
+  <div class="diag" style="margin-top:0;margin-bottom:8px">
+    <b>主动映射:</b> 从 Source 直接指派到 Channel 的 Role (Primary/Backup), 无需回到 Channel 页重找 Source. 反向关系见上方 USED BY 面板.
+  </div>
+  <div class="row">
+    <div class="col-4">
+      <div class="box-title">Source 选择</div>
+      <div class="field"><div class="k">Select Source</div><div class="v">UDP-MULTICAST-001 ▾</div></div>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Channel + Role</div>
+      <div class="field"><div class="k">Channel</div><div class="v">CH02 ▾</div></div>
+      <div class="field"><div class="k">Role</div><div class="v">● Primary &nbsp; ○ Backup</div></div>
+    </div>
+    <div class="col-4">
+      <div class="box-title">Switch / Standby</div>
+      <div class="field"><div class="k">Clock</div><div class="v">AUTO</div></div>
+      <div class="field"><div class="k">Switch Mode</div><div class="v">AUTO → FRAME_SWITCH</div></div>
+      <div class="field"><div class="k">Hot Standby</div><div class="v">HOT</div></div>
+    </div>
+  </div>
+  <div style="margin-top:10px;display:flex;gap:6px">
+    <button class="btn primary">🔗 Assign + Preflight (L2)</button>
+    <a href="CD-01-channel-workspace.html" class="btn">↗ Open CD-01 Channel Workspace →</a>
+  </div>
+  <h3 style="font-size:11px;color:var(--fgdim);margin:16px 0 8px">Current Mapping 当前映射</h3>
+  <table>
+    <thead><tr><th>Source</th><th>Channel</th><th>Role</th><th>Clock</th><th>Switch</th><th>Standby</th><th>Preflight</th></tr></thead>
+    <tbody>
+      <tr><td>SDI-01</td><td>CH01</td><td><span class="pill pill-green">PRIMARY</span></td><td>AUTO</td><td>FRAME_SWITCH</td><td>HOT</td><td><span class="pill pill-green">PASS</span></td></tr>
+      <tr><td>UDP-MULTICAST-001</td><td>CH02</td><td><span class="pill pill-green">PRIMARY</span></td><td>AUTO</td><td>FRAME_SWITCH</td><td>HOT</td><td><span class="pill pill-green">PASS</span></td></tr>
+      <tr><td>UDP-EXT-001</td><td>CH03</td><td><span class="pill pill-yellow">BACKUP</span></td><td>AUTO</td><td>FRAME_SWITCH</td><td>WARM</td><td><span class="pill pill-green">PASS</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
 <footer>
   VBMF Operator Console · 02 Sources (双段重写) · ENGINEERING 域 · Phase 0.5F (PIA §4 锁) · 设计稿 v0.1
   · 双段: Local Device Source (SDI/File/Internal) + External Network Source (9 子类, 0.5F 实装 UDP/SRT)

@@ -58,6 +58,8 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="tab active" data-view="list">📋 [ OUTPUT LIST 输出列表 ]</div>
   <div class="tab" data-view="hls">📺 [ HLS DETAIL HLS 详情 ]</div>
   <div class="tab" data-view="webrtc">🌐 [ WEBRTC DETAIL WebRTC 详情 ]</div>
+  <div class="tab" data-view="udp">📡 [ UDP OUTPUT UDP 输出 (对称 E-40) ]</div>
+  <div class="tab" data-view="recovery">🛟 [ FAILURE RECOVERY 故障引导恢复 ]</div>
 </div>
 
 <!-- LIST VIEW -->
@@ -290,6 +292,81 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <div class="k">Last Restart</div>
         <div class="v">—</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- UDP OUTPUT VIEW (G-A: 与 E-40 Input 对称) -->
+<div class="view" id="udp">
+  <div class="detail">
+    <h4>UDP Output 网络输出 (与 E-40 Network Source Input 对称) <span class="badge">UDP</span></h4>
+    <div class="diag" style="margin-top:0;margin-bottom:8px">
+      <b>对称原则:</b> Output 端也支持 UDP Unicast / Multicast, 与 Source 端 E-40 字段对称, 形成完整「CH01 → Encode → UDP Multicast 239.10.20.10:5000」产品能力。
+    </div>
+    <div class="grid">
+      <div class="field"><div class="k">Mode 模式</div><div class="v">Multicast</div></div>
+      <div class="field"><div class="k">Group Address 组地址</div><div class="v">239.10.20.10</div></div>
+      <div class="field"><div class="k">Port 端口</div><div class="v">5000</div></div>
+      <div class="field"><div class="k">Interface 接口</div><div class="v">eno2</div></div>
+      <div class="field"><div class="k">IGMP Version</div><div class="v">v3</div></div>
+      <div class="field"><div class="k">ASM / SSM</div><div class="v">SSM</div></div>
+      <div class="field"><div class="k">Source-Specific 源地址</div><div class="v">10.30.20.50</div></div>
+      <div class="field"><div class="k">TTL</div><div class="v">32</div></div>
+      <div class="field"><div class="k">Payload / Container</div><div class="v">MPEG-TS / H.264</div></div>
+      <div class="field"><div class="k">Packet Size</div><div class="v">1316 B</div></div>
+      <div class="field"><div class="k">Bitrate 比特率</div><div class="v green">8.0 Mbps</div></div>
+      <div class="field"><div class="k">QoS / DSCP</div><div class="v">CS4 (32)</div></div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <button class="btn primary">🚀 Test Send 发送测试</button>
+      <button class="btn">✎ Edit 编辑</button>
+    </div>
+  </div>
+  <h3 style="font-size:11px;color:var(--fgdim);margin:16px 0 8px">Unicast / Multicast 配置对照 (与 E-40 Input 对称)</h3>
+  <div class="detail">
+    <div class="grid">
+      <div class="field"><div class="k">Unicast · Remote Address</div><div class="v">10.30.20.60</div></div>
+      <div class="field"><div class="k">Unicast · Local Bind</div><div class="v">eno2:5000</div></div>
+      <div class="field"><div class="k">Unicast · Receive Buffer</div><div class="v">4 MB</div></div>
+      <div class="field"><div class="k">Multicast · Group</div><div class="v">239.10.20.10</div></div>
+      <div class="field"><div class="k">Multicast · IGMP</div><div class="v">v3</div></div>
+      <div class="field"><div class="k">Multicast · Join State</div><div class="v green">JOINED</div></div>
+      <div class="field"><div class="k">Bitrate Budget</div><div class="v">8 Mbps (NIC +8)</div></div>
+      <div class="field"><div class="k">Test Send Result</div><div class="v green">PASS · 0 loss</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FAILURE RECOVERY VIEW (G-B: Output Failure Guided Recovery) -->
+<div class="view" id="recovery">
+  <div class="detail" style="border-left:3px solid var(--red)">
+    <h4 style="color:var(--red)">⚠ OUTPUT FAILURE — HLS Adapter FAILED <span class="badge" style="background:var(--red);color:#fff">GUIDED RECOVERY</span></h4>
+    <div class="diag" style="border-left-color:var(--red)">
+      <b>诊断结论:</b> 节目源与切换均正常, 故障<b>仅限 HLS 输出适配器</b>, 不应触发节目源 FAILOVER (Failure Domain Matrix §8.9)。
+    </div>
+    <div class="grid" style="margin-top:8px">
+      <div class="field"><div class="k">Program Master 主路</div><div class="v green">✓ HEALTHY</div></div>
+      <div class="field"><div class="k">Source 信号源</div><div class="v green">✓ HEALTHY</div></div>
+      <div class="field"><div class="k">Switcher 切换</div><div class="v green">✓ HEALTHY</div></div>
+      <div class="field"><div class="k">HLS Adapter</div><div class="v red">✗ FAILED (seg write err)</div></div>
+      <div class="field"><div class="k">RTMP Adapter</div><div class="v green">✓ HEALTHY</div></div>
+      <div class="field"><div class="k">UDP Adapter</div><div class="v green">✓ HEALTHY</div></div>
+    </div>
+  </div>
+  <h3 style="font-size:11px;color:var(--fgdim);margin:16px 0 8px">Recommended Actions 推荐恢复路径 (按序)</h3>
+  <div class="detail">
+    <ol style="font-size:12px;color:var(--fg);padding-left:22px;line-height:2">
+      <li><b>Restart HLS Adapter</b> — 重启故障适配器, 不影响节目源 (L2)</li>
+      <li><b>Retry</b> — 重试写入 CDN, 适用瞬时错误</li>
+      <li><b>Fallback Output Variant</b> — 切换到备用 HLS 变体 / 备份 CDN (不切节目源)</li>
+    </ol>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <button class="btn" style="background:var(--red);color:#fff;border-color:var(--red)">🔄 Restart HLS Adapter (L2)</button>
+      <button class="btn">↻ Retry</button>
+      <button class="btn">⇄ Fallback Variant</button>
+    </div>
+    <div class="diag" style="margin-top:8px;border-left-color:var(--red)">
+      <b>⛔ 禁止:</b> 此故障<b>不</b>应触发 Source/Program FAILOVER — 错误恢复路径为「输出适配器级」而非「信号源级」(Failure Domain Matrix §8.9)。
     </div>
   </div>
 </div>
