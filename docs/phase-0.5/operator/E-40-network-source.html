@@ -97,7 +97,7 @@
     <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">⚙ Internal<small style="display:block;color:var(--fgdim)">BLACK/BARS/FILLER</small></div>
     <div style="padding:8px 12px;border:1px solid var(--border);border-radius:4px">🧩 Composite</div>
   </div>
-  <div class="diag">统一入口:<b>所有 Kind 共用一个 Wizard</b> (CREATE → VERIFY → ASSIGN), 仅按 Kind 展开不同 Device/Endpoint Schema. 物理源 (SDI/BMD) 不再需要独立页面, 直接在此配置 (0.5F.9 P0-1).</div>
+  <div class="diag">统一入口:<b>所有 Kind 共用一个 Wizard</b> (CREATE → VERIFY → ASSIGN), 仅按 Kind 展开不同 Device/Endpoint Schema. 5 种 Kind 各有配置分支 (Network/Physical/File/Internal/Composite), 物理源 (SDI/BMD) 不再需要独立页面 (0.5F.9 P0-1 + 0.5F.10).</div>
 </div>
 
 <!-- WIZARD STEPPER -->
@@ -210,14 +210,20 @@
         <a href="CH-02-create-channel.html" class="btn">→ 去 D1 选 VERIFIED 源</a>
       </div>
       <div style="margin-top:8px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px">
-        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Verification Freshness (VERIFIED 非永久有效 · 0.5F.9 P1-3)</div>
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Verification Freshness (VERIFIED 非永久有效 · 0.5F.9 P1-3 / 0.5F.10 P1-2)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
-          <div><span class="pill pill-green">FRESH</span> 24h 内 / fingerprint 匹配</div>
-          <div><span class="pill pill-yellow">STALE</span> 超 24h / 待 Revalidate</div>
+          <div><span class="pill pill-green">FRESH</span> threshold 内 / fingerprint 匹配</div>
+          <div><span class="pill pill-yellow">STALE</span> 超 threshold / 待 Revalidate</div>
           <div><span class="pill" style="border-color:#e5484d;color:#e5484d">INVALID</span> NIC/IGMP/Route/Codec/Clock 变化</div>
           <div>Last verified: 2026-08-25 08:42 · Contract: SRC-v7</div>
         </div>
-        <div class="diag" style="margin-top:6px">VERIFIED → STALE/INVALID 自动触发 Revalidate; 真实广播中 IGMP/Route/VLAN/Clock 均会变, 必须 freshness 维度.</div>
+        <div class="form-row" style="margin-top:6px"><label>Freshness Policy (可配置, 非系统常量 · 0.5F.10 P1-2)</label><select><option>BROADCAST_GRADE · 1h</option><option selected>NORMAL · 24h</option><option>LAB · 7d</option></select></div>
+        <div style="margin-top:6px;font-size:11px;line-height:1.7">
+          <div style="color:var(--green)">🟢 FRESH → ON AIR ✅ 允许</div>
+          <div style="color:var(--yellow)">🟡 STALE → ON AIR ⚠️ 已运行频道允许继续 · 新增 ASSIGN 禁止 (不瞬间打断在播)</div>
+          <div style="color:var(--red)">🔴 INVALID → ON AIR ❌ 阻断 · 触发 Failover Policy</div>
+        </div>
+        <div class="diag" style="margin-top:6px">新鲜度是 <b>Policy Default</b> (BROADCAST_GRADE/NORMAL/LAB), 不是架构常量; 真实广播中 IGMP/Route/VLAN/Clock 均会变. STALE 不瞬间打掉在播节目, 仅阻断新分配 (0.5F.10 P1-3).</div>
       </div>
       <div class="gap">⚠ G5 预览端点不在本页: 视频缩略流 + 音频 LUFS/RMS 预览在 <a href="E-42-source-test-bench.html" style="color:var(--orange)">E-42</a> 定义 (Source Runtime Preview Stream), 本页不重复.</div>
     </div>
@@ -266,6 +272,87 @@
         <div class="k" style="margin-top:8px">Clock</div>
         <div class="v">TIMECODE / PTP</div>
         <a href="E-42-source-test-bench.html" class="btn primary" style="margin-top:10px">▶ Run Verification</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- File Source Branch (0.5F.10 P0-1: unified wizard, File = Asset playback) -->
+<div class="panel" style="border-color:var(--gray)">
+  <h2>① 创建 File Source (资产回放)</h2>
+  <div class="row">
+    <div class="col-8">
+      <div class="form-grid">
+        <div class="field"><label>Asset</label><select><option>News_2026_08_25.mp4</option></select></div>
+        <div class="field"><label>Version</label><select><option>Master-v3</option></select></div>
+        <div class="field"><label>Duration</label><input value="00:08:32"></div>
+        <div class="field"><label>Video Format</label><select><option>1080p25 H.264</option></select></div>
+        <div class="field"><label>Audio Format</label><select><option>AAC 48k 2ch</option></select></div>
+        <div class="field"><label>Timecode</label><input value="09:58:00:00"></div>
+        <div class="field"><label>Rights</label><select><option>VALID</option><option>EXPIRED</option></select></div>
+        <div class="field"><label>Start Behavior</label><select><option>BEGIN</option><option>INPOINT</option></select></div>
+        <div class="field"><label>End Behavior</label><select><option>HOLD_LAST</option><option>BLACK</option><option>FILLER</option><option>LOOP</option></select></div>
+      </div>
+      <div class="diag">File 源有独立生命周期 (资产/版本/时长/Rights), 与 Network 实时流不同; 进入 Source 后按资产时间线播放, End Behavior 决定播完行为 (垫播/黑场/循环).</div>
+    </div>
+    <div class="col-4">
+      <div class="panel" style="margin:0">
+        <div class="k">Detected</div>
+        <div class="v" style="color:var(--green)">H.264 1080p25 · AAC 48k · TC 09:58:00:00</div>
+        <div class="k" style="margin-top:8px">Rights</div>
+        <div class="v" style="color:var(--green)">VALID</div>
+        <a href="E-42-source-test-bench.html" class="btn primary" style="margin-top:10px">▶ Run Verification</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Internal Source Branch (0.5F.10 P0-1: unified wizard, Internal = generated signal) -->
+<div class="panel" style="border-color:var(--purple)">
+  <h2>① 创建 Internal Source (生成信号)</h2>
+  <div class="row">
+    <div class="col-8">
+      <div class="form-grid">
+        <div class="field"><label>Type</label><select><option>BLACK</option><option>BARS</option><option>FILLER</option><option>SILENCE</option><option>CUSTOM_INTERNAL</option></select></div>
+        <div class="field"><label>Resolution</label><select><option>1080p25</option><option>1080i50</option></select></div>
+        <div class="field"><label>FPS</label><select><option>25</option><option>50</option></select></div>
+        <div class="field"><label>Audio</label><select><option>SILENCE</option><option>BED</option></select></div>
+        <div class="field"><label>Clock</label><select><option>PTP</option><option>FREERUN</option></select></div>
+        <div class="field"><label>Duration</label><select><option>indefinite</option><option>fixed</option></select></div>
+        <div class="field"><label>Loop</label><select><option>ON</option><option>OFF</option></select></div>
+      </div>
+      <div class="diag">FILLER 对 Safety Engine 关键: Video=BLACK/SLATE/LOOP_ASSET · Audio=SILENCE/BED · Duration=indefinite · Priority=safety fallback. 其它 Internal 源同理走 E-42 验证 (Generated Signal 档).</div>
+    </div>
+    <div class="col-4">
+      <div class="panel" style="margin:0">
+        <div class="k">Generated</div>
+        <div class="v" style="color:var(--green)">1080p25 · BLACK · SILENCE</div>
+        <a href="E-42-source-test-bench.html" class="btn primary" style="margin-top:10px">▶ Run Verification</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Composite Source Branch (0.5F.10 P1-1: Graph-backed Source, not plain Endpoint) -->
+<div class="panel" style="border-color:var(--accent)">
+  <h2>① 创建 Composite Source (Graph-backed · 子源合成)</h2>
+  <div class="row">
+    <div class="col-8">
+      <div class="form-grid">
+        <div class="field"><label>Source Graph</label><select><option>SDI-IN-01</option><option>SRT-CAM-02</option><option>BLACK</option></select></div>
+        <div class="field"><label>Select Children</label><select multiple><option>SDI-IN-01</option><option>SRT-CAM-02</option><option>BLACK</option></select></div>
+        <div class="field"><label>Composition / Routing</label><select><option>Main+Key</option><option>PiP</option><option>N-cam Mix</option></select></div>
+        <div class="field"><label>Clock</label><select><option>PTP</option></select></div>
+      </div>
+      <div class="diag">COMPOSITE 不是普通 Endpoint 分支, 而是 <b>Graph-backed Source</b>: 选已有子源 → 定义合成/路由 → Compile → Validate → Verified Composite Contract. 输出 RAW_VIDEO / RAW_AUDIO + PTP Clock.</div>
+    </div>
+    <div class="col-4">
+      <div class="panel" style="margin:0">
+        <div class="k">Compile</div>
+        <div class="v" style="color:var(--green)">✓ Data Plane · ✓ Clock · ✓ Resource · ✓ Latency</div>
+        <div class="k" style="margin-top:8px">Output Contract</div>
+        <div class="v">RAW_VIDEO · RAW_AUDIO · PTP</div>
+        <a href="E-42-source-test-bench.html" class="btn primary" style="margin-top:10px">▶ Verify Composite</a>
       </div>
     </div>
   </div>

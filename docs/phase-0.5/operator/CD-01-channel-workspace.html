@@ -288,14 +288,14 @@
       </div>
       <div class="gap">🟡 G10 (PARTIAL · 非冻结阻断): 16ch → 输出布局映射 (Embed Audio 选 Ch1-8/1-16) 已在 D1 暴露; 运行态音频映射 / Rights 地域 / 告警端点余项待 0.5E.</div>
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Control (0.5F.9 P1-1)</div>
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Control (0.5F.9 P1-1 · 0.5F.10 P1-5 Action Semantics)</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <button class="btn l2">🔇 MUTE</button>
-          <button class="btn">🔅 DIM</button>
-          <button class="btn">A/B</button>
-          <button class="btn">FOLLOW</button>
-          <button class="btn">+3 dB</button>
-          <button class="btn">-3 dB</button>
+          <button class="btn l2">🔇 MUTE <span class="pill pill-red" style="margin-left:4px">L2</span></button>
+          <button class="btn">🔅 DIM <span class="pill pill-yellow" style="margin-left:4px">L1/L2</span></button>
+          <button class="btn">A/B <span style="font-size:9px;color:var(--fgdim)">Monitor A/B</span></button>
+          <button class="btn">FOLLOW <span style="font-size:9px;color:var(--fgdim)">Follow PGM</span></button>
+          <button class="btn">+3 dB <span class="pill pill-yellow" style="margin-left:4px">L1</span></button>
+          <button class="btn">-3 dB <span class="pill pill-yellow" style="margin-left:4px">L1</span></button>
           <span style="font-size:11px;color:var(--fgdim)">Audio Delay</span>
           <button class="btn">-10</button><span class="v" style="font-size:12px">+12ms</span><button class="btn">+10</button>
         </div>
@@ -305,6 +305,7 @@
           <span style="font-size:11px;color:var(--fgdim)">Mapping</span> Ch1-2 主 · Ch3-8 伴音 · Ch9-16 空闲
           <span style="margin-left:auto;font-size:11px;color:var(--accent)">配置 Audio Profile → P-23</span>
         </div>
+        <div class="diag" style="margin-top:6px"><b>Action Semantics (0.5F.10 P1-5):</b> MUTE=静音 (L2, 危险) · DIM=衰减监听 (L1/L2) · A/B=监听源 A/B 切换 (L1) · FOLLOW=跟随 PGM (L1) · GAIN ±3dB / Delay ±10ms=运行微调 (L1). <b>所有 runtime control 变更均进入 Audit Log + Incident Timeline</b>, 不弹模态但留痕.</div>
       </div>
     </div>
   </div>
@@ -356,11 +357,21 @@
       <div class="diag">REQUIRED 必须 HEALTHY 否则 Take 阻断; OPTIONAL 仅 WARNING 不阻断; AUXILIARY 故障可忽略. 见 B-13 §P0-4.</div>
       <div class="gap ok">✅ G4 (P0) 已闭合 (0.5D.1): OutputResilience 独立对象 (重连策略·指数退避 / 心跳 / zombie 判定 / Test Send 联动) 落 06-output + D6/B-13. ✅ G3 (P0) 已闭合: SDI 基带输出 = RESERVED (V0.2 Implementation DISABLED · Target V0.4), 06-output 预留 Schema, 不参与运行态.</div>
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Recovery (0.5F.9 P1-2)</div>
+        <div style="color:var(--fgdim);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Runtime Recovery (0.5F.9 P1-2 · 0.5F.10 P1-4 Impact Preview)</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-          <span style="font-size:11px">HLS <span class="pill pill-green">HEALTHY</span></span><button class="btn">Restart</button><button class="btn">Disable</button><button class="btn">View</button>
-          <span style="font-size:11px">RTMP <span class="pill pill-green">HEALTHY</span></span><button class="btn">Restart</button><button class="btn">Disable</button><button class="btn">View</button>
-          <span style="font-size:11px">UDP-MC <span class="pill pill-yellow">DEGRADED</span></span><button class="btn">Restart</button><button class="btn">Disable</button><button class="btn">View</button>
+          <span style="font-size:11px">HLS <span class="pill pill-green">HEALTHY</span></span><button class="btn">Restart</button><button class="btn l2">Disable</button><button class="btn">View</button>
+          <span style="font-size:11px">RTMP <span class="pill pill-green">HEALTHY</span></span><button class="btn">Restart</button><button class="btn l2">Disable</button><button class="btn">View</button>
+          <span style="font-size:11px">UDP-MC <span class="pill pill-yellow">DEGRADED</span></span><button class="btn">Restart</button><button class="btn l2">Disable</button><button class="btn">View</button>
+        </div>
+        <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--red);border-radius:3px;padding:8px;font-size:11px">
+          <div style="color:var(--red);font-weight:600;margin-bottom:4px">⚠ Disable Impact Preview (REQUIRED 输出必须预演 · 0.5F.10 P1-4)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div>Current: <span class="pill pill-green">HLS REQUIRED</span> <span class="pill pill-green">RTMP REQUIRED</span></div>
+            <div>After Disable: <span class="pill pill-red">HLS DISABLED</span> · Channel = <span class="pill pill-red">DEGRADED</span></div>
+            <div>Effect: 必选输出丢失 · Take 仍放行降级 (不阻断)</div>
+            <div>Confirm: 需 L2 + Who/Why 二次确认</div>
+          </div>
+          <div class="diag" style="margin-top:6px">Delivery Criticality → Safety Consequence → Confirmation 必须连起来: Disable REQUIRED 输出触发 Impact Preview + L2 二次确认, 不似普通按钮. OPTIONAL/AUX 仅 WARNING (0.5F.10 P1-4).</div>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 # Phase 0.5 — UX Baseline (0.5A + 0.5B + 0.5C 统一)
 
-> **状态**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **→ Phase 0.6 Executable Acceptance**
+> **状态**: 🟢 **Phase 0.5 UX BASELINE = LOCK FINAL** (2026-08-25) — 0.5C RECONCILED→LOCK · 0.5D LOCK · 0.5E LOCK · 0.5F.1-.8 完成 · **0.5F.9 收口补丁 (2 P0 + 5 P1)** · **0.5F.10 Source & Runtime Safety 收口 (2 P0 + 7 P1)** · **→ Phase 0.6 Executable Acceptance**
 >
 > **顶层入口**: 整个 Phase 0.5 的"对外"权威 README, 之前 `phase-0.5b/README.md` 已删除
 >
@@ -41,6 +41,7 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5F.7** Semantic Closure | 🟢 完成 | ChangeSet APPROVED canonical 澄清 / TakePreflightResult×API 对齐 / TAKE 三轴不改 Lifecycle / CH-02 Profile Bundle / E-40 条件 Schema / CD-01 切换策略 / M-17 三轴 Graph + Reservation 闭环 |
 | **0.5F.8** Final Semantic + UX Gate | 🟢 完成 (ACCEPTED) | P0: EXECUTION_MODEL §4 旧 READY_TO_TAKE→RUNNING 清除 / D7 ChangeSet 三轴视觉分离; P1: E-40 Network Path compact / P-21 Used By 影响入口 / CH-02 Apply 前 Summary / M-17 Reservation Explain Breakdown · **Phase 0.5 LOCK FINAL 达成** |
 | **0.5F.9** Micro-Closure (LOCK FINAL 后补丁) | 🟢 完成 | P0: E-40 统一 Source Ingest Wizard (Kind Physical/Network/File/Internal/Composite) + E-42 Source Verification Bench per-Kind; OBJECT_VOCAB/ENCODE 清除 REALTIME_ENCODE 作为 JobKind (REALTIME_PROFILE→MEDIA_SESSION). P1: CD-01 Audio 运行控制 / Output 运行恢复 / Source VERIFIED Freshness / Provenance 折叠 / CH-02 Expected Effective / Surface 三计数口径 · **Phase 0.6 前收口** |
+| **0.5F.10** Source & Runtime Safety Micro Closure | 🟢 完成 | P0: E-40 真正实现多 Kind Wizard 视觉 (File/Internal/Composite 同级分支 + Composite Graph-backed) + E-42 真正实现 per-Kind Fixture (5 Kind 验收态). P1: Composite Graph-backed / Freshness Policy Default / STALE ON AIR 行为 / Output Disable Impact Preview + Confirm / Audio Action Semantics + L 级 / E-42 Capability Inputs / M-17 UI 名 Realtime Session · **Phase 0.6 前最终收口** |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。
 

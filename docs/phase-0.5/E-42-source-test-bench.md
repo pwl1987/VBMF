@@ -12,7 +12,7 @@
 
 - **自动**: Add Source 向导末步（PIA §4.2 第 7 步 Preview 之后、Save 之前）运行
 - **手动**: Source 详情页 "Test Bench" 按钮
-- **约束**: 未 `VERIFIED` 的 Source 可 Save 但标记 `UNVERIFIED`，**不能**用于 ON AIR Channel（PIA §4 Source Capability 据此计算 `Available For`）
+- **约束**: 未 `VERIFIED` 的 Source 可 Save 但标记 `UNVERIFIED`，**不能**用于 ON AIR Channel（PIA §4 Source Capability 据此声明各 Switch Mode 的 capability 资格; 最终 Available Switch Mode 由 Runtime Alignment + Canonical Decision Tree 推导）
 
 ---
 
@@ -44,7 +44,7 @@
 
 ## 3. 与 4-Layer / E-40 关系
 
-- E-42 输出作为 Source 的 `capability` 输入（PIA §4）：决定 `Available For` = `FRAME_SWITCH` / `MASTER_SWITCH` / `PACKET_SWITCH`
+- E-42 输出作为 Source 的 `capability` 输入（PIA §4）：声明各 Switch Mode 的 capability 资格（`PACKET_SWITCH` eligible / `FRAME_SWITCH` common RAW / `MASTER_SWITCH` normalize）, **不直接决定** Available Switch Mode; 最终由 Runtime Alignment + Canonical Switch Mode Decision Tree（PACKET→FRAME→MASTER→REJECT, V0.2 §3.4）推导
 - E-40 持续诊断复用同一组探针（Network Reachability / Quality Metrics），但 E-42 是入网一次性验证
 
 ---

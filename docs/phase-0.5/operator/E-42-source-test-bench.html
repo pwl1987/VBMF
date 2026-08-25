@@ -108,6 +108,19 @@
   <div class="diag">不同 Kind 使用不同验证档; 下方 7 层为 <b>NETWORK</b> 档 (最常用). 验证通过后输出 Verified Media Contract (SRC-vN), 再允许 D1 ASSIGN (0.5F.9).</div>
 </div>
 
+<!-- Fixture States by Kind (0.5F.10 P0-2: per-Kind representative fixtures) -->
+<div class="panel" style="border-color:var(--orange)">
+  <h3>Fixture States by Kind (0.5F.10 P0-2 · Phase 0.6 验收 Fixture)</h3>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:10px">
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px"><b>A · NETWORK/SSM</b><div style="margin:4px 0;color:var(--green)">✓ IGMP·Route·RTP·TS·H264·AAC·PTP</div><span class="pill pill-green">VERIFIED</span></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px"><b>B · PHYSICAL/SDI</b><div style="margin:4px 0;color:var(--green)">✓ Lock·Format·Video·Audio·Clock</div><span class="pill pill-green">VERIFIED</span></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px"><b>C · FILE</b><div style="margin:4px 0;color:var(--green)">✓ Access·Container·TC·Rights</div><span class="pill pill-green">VERIFIED</span></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px"><b>D · INTERNAL/FILLER</b><div style="margin:4px 0;color:var(--green)">✓ Render·Clock·QC</div><span class="pill pill-green">VERIFIED</span></div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px"><b>E · COMPOSITE</b><div style="margin:4px 0;color:var(--green)">✓ DataPlane·Clock·Resource·Latency</div><span class="pill pill-green">VERIFIED</span></div>
+  </div>
+  <div class="diag">每个 Kind 一套代表性 Fixture (Phase 0.6 直接拿做验收); 下方 7 层交互为 Network 档完整示例, 其余 Kind 走各自 Validation Profile (0.5F.10 P0-2).</div>
+</div>
+
 <!-- PROVENANCE: 验证的源来自 E-40 (G2 创建面); 通过后进入 VERIFIED 池供 D1 ASSIGN -->
 <div class="panel provenance">
   <h3>⛓ 验证上下文 (E-40 创建 → E-42 验证 → D1 ASSIGN)</h3>
@@ -211,6 +224,17 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Source Capability Contract (0.5F.10 P1-6: E-42 输出 Capability Inputs, 不自行决定 Switch Mode) -->
+<div class="panel" style="border-color:var(--purple)">
+  <h3>Source Capability Contract (E-42 输出 = Capability Inputs · 0.5F.10 P1-6)</h3>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:11px">
+    <div><b>PACKET_SWITCH</b><br>capability eligibility: <span class="pill pill-green">PASS</span></div>
+    <div><b>FRAME_SWITCH</b><br>common RAW contract: <span class="pill pill-green">available</span></div>
+    <div><b>MASTER_SWITCH</b><br>normalization path: <span class="pill pill-green">available</span></div>
+  </div>
+  <div class="diag">E-42 只产出 <b>Source Capability Contract</b> (各 Switch Mode 的 capability 资格), <b>不直接决定</b> Available Switch Mode. 最终 Switch Mode 由 <b>Runtime Alignment + Canonical Switch Mode Decision Tree</b> (PACKET→FRAME→MASTER→REJECT, V0.2 §3.4) 推导. 即: 资格在此声明, 决策在运行时 (0.5F.10 P1-6).</div>
 </div>
 
 <div class="note" style="margin-top:8px;border-left-color:var(--yellow)">

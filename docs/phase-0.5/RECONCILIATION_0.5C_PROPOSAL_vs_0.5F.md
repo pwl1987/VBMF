@@ -1058,4 +1058,44 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 
 ### Z.2.10 结论
 - **2 P0 + 5 P1 全部落实, 零非法残留**; Phase 0.5 LOCK FINAL 名副其实.
-- **Phase 0.6 Executable Acceptance 现在可以正式开始** (Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收).
+- **Phase 0.6 Executable Acceptance 现在可以正式开始** (Reference A1/A2/B + Fault Injection + 7 Health Invariants + 五条真实 E2E 验收)。
+
+---
+
+## Z.3. 0.5F.10 Source & Runtime Safety Micro Closure (用户第 22 轮审计 d5652b7, 2026-08-25)
+
+> 用户以 `d5652b7` 复核 0.5F.9 闭环, 确认 2 P0 + 5 P1 已正确落地, 但发现 "Schema 已统一、实际 wireframe 未完全兑现" 的最后一个明显缺口 (E-40 仍 Network-first / E-42 fixture 仍只有 Network) 及若干运行控制安全细节. 要求进入 Phase 0.6 前做极小 `0.5F.10 = 2 P0 + 7 P1 micro-closure` (不增页面/不重构).
+
+### Z.3.1 P0-1 — E-40 真正实现多 Kind Wizard 视觉
+- 在 Physical 分支后追加 **File / Internal / Composite** 三个同级配置分支面板 (同一 Wizard, 各自 form-grid + Detected/Generated/Compile 侧栏 + Run Verification), 不再是 "Network + Physical 追加". 顶部 Kind 选择器 diag 同步改为 "5 种 Kind 各有配置分支".
+
+### Z.3.2 P0-2 — E-42 真正实现 per-Kind Fixture
+- 新增 **Fixture States by Kind** 面板: A·NETWORK/SSM / B·PHYSICAL/SDI / C·FILE / D·INTERNAL/FILLER / E·COMPOSITE 五套代表性验收态 (Phase 0.6 直接拿做 Fixture), 下方 7 层交互仍保留为 Network 完整示例.
+
+### Z.3.3 P1-1 — Composite = Graph-backed Source
+- Composite 分支明确为 Graph-backed: Source Graph → Select Children → Composition/Routing → Compile → Validate → Verified Composite Contract (输出 RAW_VIDEO/RAW_AUDIO + PTP), 不套普通 Endpoint 分支.
+
+### Z.3.4 P1-2 — Freshness 24h → Policy Default
+- Freshness 盒改为 `freshness_policy` 选择器 (BROADCAST_GRADE=1h / NORMAL=24h / LAB=7d), 明确新鲜度是 Policy Default 而非架构常量.
+
+### Z.3.5 P1-3 — STALE 的 ON AIR 行为
+- 明确 FRESH→✅ / STALE→⚠️ 已运行频道允许继续·新增 ASSIGN 禁止 (不瞬间打断在播) / INVALID→❌ 阻断·Failover.
+
+### Z.3.6 P1-4 — Output Disable Impact Preview + Confirm
+- CD-01 Output Recovery 加 Impact Preview 盒: Disable REQUIRED 输出 → Current/After/Effect/Confirm 预演 + L2 二次确认; OPTIONAL/AUX 仅 WARNING. Delivery Criticality→Safety Consequence→Confirmation 连起来.
+
+### Z.3.7 P1-5 — Audio Control Action Semantics + L 级
+- CD-01 Audio 控制加 L 级徽章 (MUTE L2 / DIM L1-L2 / GAIN L1 / A/B L1 / FOLLOW L1) 与 Action Semantics 说明 (A/B=Monitor A/B, FOLLOW=Follow PGM); 所有 runtime control 变更进入 Audit Log + Incident Timeline.
+
+### Z.3.8 P1-6 — E-42 不再 "直接决定 Switch Mode"
+- E-42 加 **Source Capability Contract** 面板, 明确只产出各 Switch Mode 的 capability 资格 (PACKET eligible / FRAME common RAW / MASTER normalize), **不直接决定** Available Switch Mode; 最终由 Runtime Alignment + Canonical Decision Tree (PACKET→FRAME→MASTER→REJECT, V0.2 §3.4) 推导. 同步修正 `E-42-source-test-bench.md` 第 15/47 行旧 "决定 Available For" 表述.
+
+### Z.3.9 P1-7 — M-17 UI 名 → Realtime Session
+- NAVIGATION M-17 三处 (BROADCAST 历史 / MEDIA 正页 / checklist) 显示名由 "Realtime Encode 实时编码" 改为 "Realtime Session 实时媒体会话 (Encoding Session · Runtime)". (HTML 文件名 `M-17-realtime-transcode.html` 未改名以避链接改动; 显示名已统一.)
+
+### Z.3.10 check_docs + 五条 E2E
+- `check_docs.py PASS`. 五条 E2E 复验仍通过. 本次未新增 surface, SURFACE_REGISTRY 计数不变.
+
+### Z.3.11 结论
+- **2 P0 + 7 P1 全部落实, 零非法残留**; "Schema 已统一、wireframe 未兑现" 缺口已补 (E-40 五 Kind 分支 + E-42 五 Kind fixture).
+- **Phase 0.5 = LOCK FINAL 名副其实**; `0.5F.10` 为进入 Phase 0.6 前的**最终微收口**, 之后不再开 0.5G/0.5H 等审查轮, 直接进入 **Phase 0.6 Executable Acceptance**.

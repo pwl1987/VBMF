@@ -83,7 +83,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **CD-01** | Channel Control Workspace 通道控制工作台 (Take Desk 7 块) | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator · D3 升级已并入正页 `operator/CD-01-channel-workspace.html` |
 | **CD-01** | Channel Detail 通道详情 (8 Tab) | 🟢 LOCK (0.5F, 原 Spec 0.5B.0 升 wireframe) | All |
 | **B-13** | Take Preflight TAKE 前置联合预检 (9 项) | 🟢 LOCK (0.5F.1 升 · Interaction Surface, SURFACE_REGISTRY) | Operator · D6 wireframe 已并入正页 `operator/B-13-take-preflight.html` |
-| ~~**M-17**~~ | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · D4 升级已并入正页 `operator/M-17-realtime-transcode.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
+| ~~**M-17**~~ | Realtime Session 实时媒体会话 (Encoding Session · Runtime) | 🟢 LOCK (0.5D) | Operator / Engineer · D4 升级已并入正页 `operator/M-17-realtime-transcode.html` · ⚠ **0.5D.1 起归 MEDIA §2.2 (规范计数域), 本域不再计数** |
 
 > **注**: 08-graph-designer / 09-health-tree 已划归 ENGINEERING 域 (PIA V0.1 §12); 10-states Validation 是全局 Validation 不属于 BROADCAST。
 
@@ -97,7 +97,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **M-14** | File Transcode 文件转码 (新名) | 🟢 LOCK (0.5D, 重画 6 步 Wizard) | Editor / Engineer |
 | **M-15** | Transcode Jobs 转码任务 (M-14 母页) | 🟡 Spec (0.5B.0) | Editor / Engineer |
 | **M-16** | Versions / Renders 资产版本渲染 | 🟡 Spec (0.5B.0) | Editor |
-| **M-17** | Realtime Encode 实时编码 | 🟢 LOCK (0.5D) | Operator / Engineer · **0.5D.1 起规范计数域** (原与 BROADCAST 双列) |
+| **M-17** | Realtime Session 实时媒体会话 (Encoding Session · Runtime) | 🟢 LOCK (0.5D) | Operator / Engineer · **0.5D.1 起规范计数域** (原与 BROADCAST 双列) |
 | **M-18** | Transcode Job Detail 转码任务详情 (M-15 子页升级为独立页) | 🟢 LOCK (0.5D) | Editor / Engineer |
 
 ### 2.3 ENGINEERING 域 (26 表面 · 0.5D.1, 含 E-41 SPEC)
@@ -252,7 +252,7 @@ V0.2 12 Engines 不变, 本 Navigation 4 域是**产品 UX 层**对应, 不动 V
 - [ ] 每个域显示主对象图标, 不用数字
 - [ ] 数字仅出现在 URL path (如 `/broadcast/cd-01/:id`) 和内部 page_id
 - [ ] M-14 改名为 "File Transcode" / 文件转码
-- [ ] M-17 新增 "Realtime Transcode" / 实时转码
+- [ ] M-17 新增 "Realtime Session" / 实时媒体会话 (Encoding Session · Runtime)
 - [ ] Profile Center (P-20) 顶部 7 Tab (Enc/Audio/Out/Graphic/QC/Rights/Edge)
 - [ ] Profile Bundle (P-28) 进入 ENGINEERING 域
 - [ ] Hardware (E-38) / Clock (E-37) 进入 ENGINEERING 域

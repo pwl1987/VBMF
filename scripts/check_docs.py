@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".zcode", "node_modules", ".history"}
+SKIP_DIRS = {".git", ".zcode", ".codebuddy", "node_modules", ".history"}
 # GitHub 站内约定路径（本仓库Issues/Discussions/Security），本地不存在属正常
 GITHUB_ONLY = ("../../issues", "../../discussions", "../../pulls", "../../security", "../../wiki")
 
