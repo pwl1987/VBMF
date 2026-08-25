@@ -1,8 +1,9 @@
-﻿//! RPC — transport boundary to Node/Fastify Control Plane.
+//! RPC — transport boundary to Node/Fastify Control Plane.
 //! Frozen interface per SoT §14 (Node=Control, Rust=Hardware). No transport yet.
 //!
 //! Rust MUST NOT implement: API gateway, auth, RBAC, config UI, WebSocket aggregation.
 //! Those are Fastify's. Rust exposes only Hardware Plane operations below.
+#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

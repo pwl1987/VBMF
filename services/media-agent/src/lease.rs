@@ -1,5 +1,6 @@
-﻿//! Device Lease — exclusive ownership of a DeckLink device.
+//! Device Lease — exclusive ownership of a DeckLink device.
 //! Frozen interface per SoT §15.2 (MEDIA-02). No logic yet.
+#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

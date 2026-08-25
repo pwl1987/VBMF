@@ -1,5 +1,6 @@
 //! GStreamer Pipeline Controller — capture lifecycle.
 //! Frozen interface per SoT §15.2. No logic yet.
+#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

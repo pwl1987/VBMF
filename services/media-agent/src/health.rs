@@ -1,5 +1,6 @@
-﻿//! Health — agent runtime state machine (for /health endpoint & ops UI).
+//! Health — agent runtime state machine (for /health endpoint & ops UI).
 //! Frozen interface per SoT §15.2. State enum only.
+#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
 
 use serde::{Deserialize, Serialize};
 

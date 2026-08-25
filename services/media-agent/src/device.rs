@@ -1,5 +1,6 @@
-﻿//! Device Manager — DeckLink hardware discovery & status.
+//! Device Manager — DeckLink hardware discovery & status.
 //! Frozen interface per SoT §15.2 (MEDIA-02/04). No logic yet.
+#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

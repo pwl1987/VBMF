@@ -1,5 +1,6 @@
 //! Runtime Supervisor — crash/hang/lost-device detection & restart.
 //! Frozen interface per SoT §15.2 (MEDIA-03). No logic yet.
+#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
 
 use std::time::Duration;
 
