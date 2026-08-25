@@ -140,6 +140,8 @@
 
 ## A. 逐节对账（23 节）
 
+> ⚠ **本节为 0.5C 提案历史对账记录 (HISTORY)** — 行内 ⚠/缺口均为**修复前状态**; 当前状态以顶部 **CURRENT BASELINE** 为准 (G-A~G-D 等已 CLOSED, 见文件头)。(0.5F.5 P1-4 标注)
+
 | # | 提案核心 | 本地 0.5F 状态 | 证据 |
 |---|---|---|---|
 | 1 | UI 按 Engine 组织 vs 按任务工作 | ✅ | PIA §5 双层 UI（Operation 工作台 + Engineering 深页）；§0.5F 范式转移明确「不再按 Engine 一一对应拆页」|
@@ -861,3 +863,42 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### V.9 结论
 - **2 P0 + 4 P1 + 3 P2 全部落实, 零残留** (TAKE→ChangeSet / PTP LOCKED 二元 / Audio→M-17 / lifecycle 混用 清零)。
 - **仍不宣布 FINAL** — 0.5D LOCK + 0.5E LOCK 声明待用户确认 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance**。
+
+---
+
+## W. 0.5F.5 Cross-Surface Final Consistency — 2 P0 + 5 P1 + 3 P2 + 5 工作流验收 (2026-08-25 末 · 用户第 17 轮交叉检修 8dabc86)
+
+> 用户以 `8dabc86` 交叉检修: 上轮 6 核心问题基本闭合; 剩余 **2 P0 (Source Adapter V0.2/V0.3 冲突 / B-13 Spec-HTML 双 SoT) + 5 P1 + 3 P2**。用户要求逐条实现, 并以 **5 条真实工作流** 验收 (非按页面)。
+
+### W.1 P0-1 — Source Adapter V0.2/V0.3 状态统一
+- **冲突**: V0.2 Architecture Source Adapter = 11 种 (SDI/SRT/RTMP/HLS/WebRTC/RTP/UDP/RTSP/FILE/INTERNAL/COMPOSITE, 仅 RIST/Zixi/NDI 推 V0.3) vs 02-sources 标 "RTMP/HLS/RTSP/WebRTC = ADAPTER_DEFINED (V0.3)"。
+- **修复**: 保持 V0.2 不动; 02-sources 图例改 **Architecture Capability: AVAILABLE (11 种) vs Runtime Implementation: NOT YET VERIFIED** (不写 "V0.3 实施"); RTMP 行 Availability 改 `AVAILABLE (Arch) · Impl: NOT YET VERIFIED`。避免工程师以 UI 为准砍掉 V0.2 Adapter。
+
+### W.2 P0-2 — B-13-take-preflight.md 更新到 HTML SoT
+- B-13.md 9 项清单更新到 HTML 语义: Video item → **Video/Switch Compatibility 分支** (PACKET=capability_contract strict · FRAME=COMMON_RAW_CONTRACT + timebase alignable + normalize · MASTER=normalize_to_master); Clock item → **Compatibility/Quality** (reference/domain/quality/fallback/timebase ALIGNABLE)。加 video/clock yaml schema 块。Spec 与 HTML 单一 SoT。
+
+### W.3/W.4/W.5 P1 — B-13 三项 UX 收口
+- **角色术语 (P1-1)**: B-13 锁定 **TAKE TARGET (目标信号) / FAILOVER BACKUP (备源) / CURRENT SOURCE** 三角色, 弃 "Source (Primary)" 混用 (HTML 检查对象 + item 1/6 同步; .md 表头同步)。
+- **compact vs full UX (P1-2)**: B-13 = Preflight Engine (后台实时), READY → Compact Confirmation (Target/Switch/Backup/Output/Resource + [TAKE]); 仅 WARNING/FAIL/CONDITIONAL → 展开 Full 9-item Diagnostics。
+- **#9 Hard Block (P1-3)**: 正文明确 **Hard Block = #1-#8 FAIL + #9 >100%**; Conditional = #9 80-100% (reservation 满足才放行)。
+
+### W.6/W.7 P1 — 文档滞后修正
+- **NAVIGATION 06-output** 补 **UDP Output (Unicast/Multicast ASM/SSM · Test Send)**; **RECONCILIATION §A 加 HISTORY 标注** (行内 ⚠ 为修复前状态, 当前以 CURRENT BASELINE 为准)。
+- **MILESTONES 顶部** → **Current phase status (0.5F.4)** + 声明 "本文件 = 历史归档, 不承担 Current Status"。
+
+### W.8 P2 — Registry B-13 重复 note 键合并
+- SURFACE_REGISTRY B-13 `note` 双键 → 单键合并 (Take Preflight · 0.5F.1 升 LOCK · Interaction Surface)。
+
+### W.9 5 条真实工作流端到端验收 (用户 §十六)
+
+| WF | 路径 | 落点 (对象→事件) | 状态 |
+|---|---|---|---|
+| **A 建立网络信号源** | Source Manager → Add Network Source → UDP Unicast/MC → Interface/Group/Port/IGMP → Test Receive → Path → Contract → QC → Save → Assign Channel | `sources` DRAFT→VERIFIED→ASSIGNED; `E-42` PASS; Audit `SOURCE_VERIFIED` | ✅ |
+| **B 建立直播频道** | Create Channel → Template → Source → P-21 REALTIME → P-23 Audio → P-22 Output → Reservation → Preflight → ChangeSet → Apply → Session STARTING→RUNNING→READY_TO_TAKE | `channels`·`profile_bundles`·`reservations` RESERVED·`media_sessions` READY_TO_TAKE (IN_USE 归 TAKE) | ✅ |
+| **C TAKE** | CD-01 → TAKE TARGET → 后台 Preflight → Compact Confirmation → TAKE → Runtime Event → Audit | `evt-take`·Audit A-54; Primary Reservation RESERVED→IN_USE | ✅ |
+| **D UDP Output** | Output → UDP → Unicast/Multicast → Interface/TTL/DSCP → Test Send → Health | `output_variants`·Destination; 与 Source INGRESS 对称 (EGRESS) | ✅ |
+| **E 故障** | HLS FAILED → Failure Domain OUTPUT → Restart Adapter → Retry → Alternate Variant → 不切 Source | `output_resilience`·`incidents`; 不进 ChangeSet | ✅ |
+
+### W.10 结论
+- **2 P0 + 5 P1 + 3 P2 全部落实, 零残留**; 5 条工作流端到端通过。
+- **仍不宣布 FINAL** — 0.5D LOCK + 0.5E LOCK 声明待用户确认 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance** (不再开 0.5G/0.5H)。

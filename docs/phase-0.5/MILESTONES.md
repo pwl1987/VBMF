@@ -3,9 +3,9 @@
 > **目的:** 把 `phase-0.5 / phase-0.5b / phase-0.5b.1 / phase-0.5b.2` 这些"目录分层"统一为
 > **Phase 0.5 下的历史 milestone**, Git commit 仍然负责版本管理, 目录只表达 `phase / domain / role`。
 >
-> **本阶段:** 0.5C Information Architecture Closure
+> **Current phase status (2026-08-25, 权威见 `README.md`):** 🟡 **0.5F.5 Cross-Surface Final Consistency** — 0.5C RECONCILED · 0.5D 0.5D.1-.6 闭环 (待 LOCK) · 0.5E SEMANTIC LOCKED · 0.5F/0.5F.1/0.5F.2/0.5F.3/0.5F.4 完成 · 0.5F.5 当前。
 >
-> **状态:** 🟢 **0.5C RECONCILED · 0.5D.6 Semantic/Execution Closure 完成** (2026-08-25) — 等待 0.5D LOCK + 0.5E LOCK 后 Phase 0.5 Freeze
+> **本文件 = 历史阶段归档 (Historical), 不承担 Current Status** — 当前状态一律以 `README.md` + `SURFACE_REGISTRY.yaml` 为准 (0.5F.5 P1-5 修正)。
 
 ---
 
@@ -89,7 +89,8 @@ docs/
 | **0.5F.1 Final Consistency Sweep** | 2026-08 | 🟢 完成 | D7 TAKE 残留清理 / Channel Type 引用化 / enum 清理 / Source Wizard 统一 / ENCODE SoT / B-13 内嵌 / FINAL 判定标准 | `ed41c29` |
 | **0.5F.2 Runtime/Registry/Final Gate** | 2026-08 | 🟢 完成 | Session RESERVED 三轴化 / CH-02 LOCK / Network Availability / Bundle immutable / CD-01 Revision / 5 Click-Path | `e346f9c` |
 | **0.5F.3 Runtime/Active-Service/Final Gate** | 2026-08 | 🟢 完成 | Reservation↔Active Service 焊死 / M-17 Runtime-Policy 分离 / CH-02 SDI·Clock·Master·FailoverPolicy / NAVIGATION 状态派生 | `435842e` |
-| **0.5F.4 Cross-Surface Consistency** | 2026-08 | 🟡 IN PROGRESS (本轮) | B-13 TAKE≠ChangeSet · Clock Compatibility / Video Switch 分支 / CH-02 Audio→P-23 / CD-01 PENDING / M-17 Pipeline 拆分 / lifecycle 更名 / Fixture 统一 | (本轮) |
+| **0.5F.4 Cross-Surface Consistency** | 2026-08 | 🟢 完成 | B-13 TAKE≠ChangeSet · Clock Compatibility / Video Switch 分支 / CH-02 Audio→P-23 / CD-01 PENDING / M-17 Pipeline 拆分 / lifecycle 更名 / Fixture 统一 | `8dabc86` |
+| **0.5F.5 Cross-Surface Final Consistency** | 2026-08 | 🟡 IN PROGRESS (本轮) | Source Adapter V0.2/V0.3 统一 / B-13 Spec-HTML SoT / TAKE TARGET 术语 / compact UX / #9 Hard Block / 5 工作流验收 | (本轮) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵
 

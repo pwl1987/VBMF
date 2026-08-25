@@ -9,8 +9,9 @@
 
 ## 0. 触发
 
-- CD-01 TAKE 按钮 → 打开 B-13 全屏/模态面板（**非简单 confirm**）
-- 实时对 Source B 做 9 项联合检查，全部 PASS 才放 TAKE
+- CD-01 TAKE 按钮 → **后台实时 Preflight**（Preflight Engine, 不是每次都弹巨型 UI）。
+- **两级 UX (0.5F.5 P1-2):** READY → **Compact Confirmation**（TAKE TARGET / Switch Mode / Backup / Output / Resource 摘要 + `[TAKE]`）；仅 **WARNING / FAIL / CONDITIONAL** → 展开 **B-13 Full 9-item Diagnostics**。
+- 全部 PASS 才放 TAKE。TAKE = **Runtime Event** (`evt-take` → Audit / Incident Timeline), **不走 ChangeSet**（0.5F.4 P0-1）。
 
 ---
 
@@ -18,15 +19,29 @@
 
 | # | 检查 | PASS 标准 | 失败动作 |
 |---|---|---|---|
-| 1 | **Source** | Source B LOCKED | 🔴 阻断 |
-| 2 | **Video** | 分辨率/Codec 匹配 Profile | 🔴 阻断 |
+| 1 | **TAKE TARGET (Source)** | 目标信号 LOCKED（TAKE 要切到的源, ≠ CURRENT SOURCE / FAILOVER BACKUP） | 🔴 阻断 |
+| 2 | **Video / Switch Compatibility** | 按 Effective Switch Decision 分支: PACKET=capability_contract strict · FRAME=COMMON_RAW_CONTRACT required + timebase alignable + Normalize 可完成 · MASTER=normalize_to_master required | 🔴 阻断 |
 | 3 | **Audio** | 音轨存在 + LUFS 在 Profile 范围内 | 🔴 阻断 |
-| 4 | **Clock** | PTP LOCKED | 🔴 阻断 |
+| 4 | **Clock (Compatibility/Quality)** | reference 可用 + domain compatible + quality ≥ Profile 要求 + fallback chain 有效 + timebase ALIGNABLE（非 PTP 二元） | 🔴 阻断 |
 | 5 | **Switch** | 目标 Switch Mode（FRAME/MASTER/PACKET）eligible | 🔴 阻断 |
-| 6 | **Backup** | READY_TO_TAKE（Hot Standby 就绪） | 🔴 阻断 |
+| 6 | **FAILOVER BACKUP** | READY_TO_TAKE（Hot Standby 就绪, 备源） | 🔴 阻断 |
 | 7 | **Output** | REQUIRED Variant 全 HEALTHY；OPTIONAL/AUXILIARY 仅 WARNING（按 `delivery_criticality`） | REQUIRED FAIL → 🔴 阻断；OPTIONAL/AUXILIARY → 🟡 WARNING（按 Failure Domain，**不误切源**） |
 | 8 | **Latency** | Budget PASS（≤ `max_startup_latency`） | 🔴 阻断 |
 | 9 | **Resource** | E-36 Resource Vector：≤80% PASS；80–100% 仅当 `resource_reservation` 已满足 → 🟡 WARN；>100% → 🔴 BLOCK | 见资源规则 |
+
+> **Video / Clock Schema (0.5F.5 P0-2 修正, 与 B-13 HTML 同 SoT):**
+> ```yaml
+> video:   # 按 effective_switch_mode 分支
+>   packet:  {capability_contract: strict}               # codec/profile/level 严格匹配
+>   frame:   {common_raw_contract: required, timebase: alignable, normalize: required}
+>   master:  {normalize_to_master: required}
+> clock:
+>   reference: ptp0            # 不强制 "所有 Channel 必须 PTP"
+>   domain: BROADCAST
+>   quality: BROADCAST_GRADE   # ≥ Profile 要求
+>   fallback: [PTP, TIMECODE, SYSTEM]   # 链有效
+>   timebase_alignment: ALIGNABLE
+> ```
 
 ---
 
@@ -50,7 +65,8 @@
 
 ## 2. 决策与阻断
 
-- 任一 #1–#8 FAIL → **TAKE 按钮禁用**，显示失败项 + 原因 + 建议动作
+- **Hard Block（TAKE 禁用）**: 任一 #1–#8 FAIL · **#9 Resource >100%** → 显示失败项 + 原因 + 建议动作（0.5F.5 P1-3: 明确含 #9）
+- **Conditional**: #9 Resource 80–100% → 仅当 `resource_reservation` 已满足才放行，否则 BLOCK
 - 对齐 **Failure Domain Matrix**：Output 坏 → 提示 `Rejoin Multicast` / 修 Output，**不**误切节目源
 - 全部 PASS → Operator Intent → TAKE（Runtime Event `evt-take`）→ Audit / Incident Timeline（0.5F.4 P0-1 修正: **TAKE ≠ ChangeSet**；配置变更才走 E-33 ChangeSet）
 

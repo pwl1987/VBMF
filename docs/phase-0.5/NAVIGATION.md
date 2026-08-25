@@ -75,7 +75,7 @@ Phase 0.5B 用了 6 个**编号工作域**:
 | **03-switcher** | Switcher 切播 | 🟢 LOCK (0.5A) | Operator |
 | **04-composition** | Composition 图文包装 | 🟢 LOCK (0.5A) | Director |
 | **05-audio** | Audio 音频 | 🟢 LOCK (0.5A) | Operator |
-| **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator · ✅ 0.5D 后续升级: G3 基带 SDI 输出变体 (**RESERVED · V0.2 实现 DISABLED · Target V0.4**) + G4 Output Resilience 独立对象已落 `operator/06-output.html` |
+| **06-output** | Output 输出 | 🟢 LOCK (0.5A) | Operator · ✅ 0.5D 后续升级: G3 基带 SDI 输出变体 (**RESERVED · V0.2 实现 DISABLED · Target V0.4**) + G4 Output Resilience 独立对象 + **UDP Output (Unicast/Multicast ASM/SSM · Test Send, 0.5F 与 Source 对称)** 已落 `operator/06-output.html` |
 | **07-recording** | Recording 录制 | 🟢 LOCK (0.5A) | Operator |
 | **CH-01** | Channel List 通道列表 | 🟢 LOCK (0.5F, PIA V0.1 锁) | Operator / Director |
 | **CH-02** | Create Channel Wizard 频道创建向导 | 🟢 LOCK (0.5F.3 升 · SURFACE_REGISTRY) | Operator / Director |

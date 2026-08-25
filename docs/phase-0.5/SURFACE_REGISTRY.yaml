@@ -84,9 +84,8 @@ surface:
     domain: BROADCAST
     kind: WORKFLOW
     status: LOCK
-    note: "0.5F.1 升 LOCK · Interaction Surface (CD-01 内嵌 Preflight Sheet)"
     milestone: "0.5F Spec → 0.5D D6 wireframe"
-    note: "Take Preflight (9 项联合预检)"
+    note: "Take Preflight (9 项联合预检) · 0.5F.1 升 LOCK · Interaction Surface (CD-01 内嵌 Preflight Sheet)"
 
   # ---------------- MEDIA (8) ----------------
   - id: "M-11"
