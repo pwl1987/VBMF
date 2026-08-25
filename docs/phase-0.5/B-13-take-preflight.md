@@ -36,9 +36,9 @@
 >   frame:   {common_raw_contract: required, timebase: alignable, normalize: required}
 >   master:  {normalize_to_master: required}
 > clock:
+>   domain: PTP                # V0.2 Canonical Clock Domain: SYSTEM/MONOTONIC/MEDIA/TIMECODE/PTP (BROADCAST 是 Quality 维度, 非 Domain — 0.5F.6 P0-2 修正)
 >   reference: ptp0            # 不强制 "所有 Channel 必须 PTP"
->   domain: BROADCAST
->   quality: BROADCAST_GRADE   # ≥ Profile 要求
+>   quality: BROADCAST_GRADE   # Clock Quality 维度 (≠ Domain)
 >   fallback: [PTP, TIMECODE, SYSTEM]   # 链有效
 >   timebase_alignment: ALIGNABLE
 > ```

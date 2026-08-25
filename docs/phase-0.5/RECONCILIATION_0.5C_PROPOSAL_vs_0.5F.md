@@ -840,7 +840,7 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 - `OPERATOR_WORKFLOW.md` "TAKE 切播 按钮 (写入 change_set → apply)" → **Runtime Event**。B-13 HTML 产物区已确认正确 (0.5D.5 已修)。
 
 ### V.2 P0-2 — B-13 Clock 改 Compatibility / Quality
-- B-13 HTML 第 4 项 `Clock = PTP LOCKED` (二元) → **Clock Compatibility/Quality Preflight**: `reference=ptp0 · domain=BROADCAST · quality=BROADCAST_GRADE · fallback=PTP→TIMECODE→SYSTEM 有效 · timebase ALIGNABLE` → PASS/WARN/FAIL。网络源不天然等价 "必须 PTP"。
+- B-13 HTML 第 4 项 `Clock = PTP LOCKED` (二元) → **Clock Compatibility/Quality Preflight**: `reference=ptp0 · domain=BROADCAST · quality=BROADCAST_GRADE · fallback=PTP→TIMECODE→SYSTEM 有效 · timebase ALIGNABLE` → PASS/WARN/FAIL。网络源不天然等价 "必须 PTP"。⚠ **0.5F.6 P0-2 勘误**: 此处 `domain=BROADCAST` 是**非法 Canonical Clock Domain** (V0.2 仅 SYSTEM/MONOTONIC/MEDIA/TIMECODE/PTP); BROADCAST 是 **Clock Quality** 维度。已在 0.5F.6 改为 `domain=PTP`。
 
 ### V.3 P1-1 — B-13 Video 按 Switch Mode 分支
 - B-13 HTML 第 2 项 `Video (codec 匹配 Profile)` → **Video / Switch Compatibility**: PACKET=codec/profile/level 严格匹配 · FRAME=COMMON_RAW_CONTRACT + timebase 可对齐 + Normalize 可完成 · MASTER=Normalize 到统一 Program Master Contract。本例 FRAME_SWITCH 分支检查。避免 "架构允许 FRAME_SWITCH 但 B-13 因 codec 不同 BLOCK"。
@@ -902,3 +902,35 @@ REALTIME_PROFILE → Reservation → Session → READY_TO_TAKE → TAKE
 ### W.10 结论
 - **2 P0 + 5 P1 + 3 P2 全部落实, 零残留**; 5 条工作流端到端通过。
 - **仍不宣布 FINAL** — 0.5D LOCK + 0.5E LOCK 声明待用户确认 → **Phase 0.5 UX BASELINE LOCK FINAL → Phase 0.6 Executable Acceptance** (不再开 0.5G/0.5H)。
+
+---
+
+## X. 0.5F.6 Final Semantic & Workflow Gate — 2 P0 + 4 P1 + 5 E2E 验收 (2026-08-25 末 · 用户第 18 轮交叉检修 cdafe33)
+
+> 用户以 `cdafe33` 交叉检修: 0.5F.5 的 2 P0+5 P1+3 P2 已真修; 但修复后暴露 **2 个新 P0 (COMPOSITE V0.3 冲突 / B-13 Clock domain=BROADCAST 非法) + 4 个 P1**。本轮只修这 6 项 (`0.5F.6 Final Semantic & Workflow Gate`) + 五条 E2E 验收, 不再扩页面。
+
+### X.1 P0-1 — COMPOSITE V0.2/V0.3 状态冲突
+- 02-sources Composite 区 `V0.3 实施 / V0.3 实装` → **Architecture Capability = AVAILABLE (V0.2 §2.4 已锁) · Runtime Implementation = NOT YET VERIFIED**。V0.2 Architecture Source Adapter 列表含 COMPOSITE (11 种之一), 不能标 V0.3。
+
+### X.2 P0-2 — B-13 Clock Domain 非法 Canonical Enum
+- `domain: BROADCAST` 非法: V0.2 Canonical Clock Domain = **SYSTEM/MONOTONIC/MEDIA/TIMECODE/PTP**; BROADCAST 是 **Clock Quality** 维度 (BROADCAST_GRADE/MEDIA_GRADE/...)。B-13.md yaml + B-13 HTML 第 4 项 `domain=BROADCAST` → **`domain=PTP`** (reference=ptp0 · quality=BROADCAST_GRADE)。避免 `enum ClockDomain { ... BROADCAST }` 污染 Canonical Vocabulary。RECONCILIATION V.2 加勘误注。
+
+### X.3/X.4/X.5/X.6 P1 — 四项收口
+- **P1-1** B-13 HTML 顶部 "全屏模态" → **Preflight Sheet**: READY=Compact Confirmation, 仅 WARNING/FAIL/CONDITIONAL 展开 Full 9-item。
+- **P1-2** 02-sources 网络表列名 `Runtime Availability (0.5F.2)` → **`Arch Capability / Runtime State`** (两维度拆分: Capability=ARCH_AVAILABLE/ARCH_RESERVED · Runtime=VERIFIED/NOT_VERIFIED/FAILED)。
+- **P1-3** RTMP-PUSH-001 `Used By = CH01 (Output Variant)` → **`CH01 (Source · PRIMARY)`** (Ingress 源 ≠ Output Variant, 不打通 Ingress/Egress 边界)。
+- **P1-4** CH-02 `SDI-IN-01 · AES67` fixture → **Video Source: SDI-IN-01 (SDI embedded PCM) · Audio Source: AES67-AUDIO-01 (网络音频域, 独立源)** (SDI 音频=embedded PCM, 非天然 AES67)。
+
+### X.7 五条 E2E 工作流验收 (用户 §十四, 不再按页面验收)
+
+| WF | 关键步骤 | 对象→状态→事件 落点 | 结果 |
+|---|---|---|---|
+| **A Network Source** | 02 Sources → Add → UDP Unicast/MC ASM/SSM → Endpoint → Contract → Clock → QC → E-42 → VERIFIED → ASSIGN | `sources` VERIFIED→ASSIGNED; E-42 PASS; Audit `SOURCE_VERIFIED` | ✅ |
+| **B Physical Source** | 02 Sources → SDI → BMD Port → Contract → QC → VERIFY → ASSIGN | `sources` (SDI, embedded PCM) VERIFIED; Channel `primary_source_id` | ✅ |
+| **C Create Channel** | CH-02 → Template → Primary(SDI-IN-01) + Backup + Clock(PTP) + Hot Standby(HOT) + P-21 REALTIME + P-23 Audio + P-22 Output + Reservation → Preflight → ChangeSet → Apply → Provision → READY_TO_TAKE | `channels.config_status` VALIDATED/APPLIED · `reservations` RESERVED · `media_sessions` READY_TO_TAKE | ✅ |
+| **D Runtime Encoding** | P-21 REALTIME_PROFILE → M-17 → Reservation → Session STARTING→RUNNING→READY_TO_TAKE | `media_sessions.lifecycle` (DES/CMP/EFF 三档) · Reservation RESERVED (start 不入 IN_USE) | ✅ |
+| **E On-Air + Failure** | CD-01 → TAKE TARGET (UDP-MC) → B-13 Preflight → TAKE → evt-take; Source Failure→Failover (Backup IN_USE); Output Failure→Output Recovery (不切 Source) | `evt-take`·Audit; Primary Reservation RESERVED→IN_USE; `output_resilience`; 不进 ChangeSet | ✅ |
+
+### X.8 结论
+- **2 P0 + 4 P1 全部落实, 零残留** (COMPOSITE V0.3 / Clock domain=BROADCAST / 全屏模态 / Output Variant fixture 清零); 五条 E2E 工作流端到端通过, 无对象/状态/Revision/权限/导航断裂。
+- **建议正式宣布**: **Phase 0.5 UX BASELINE = LOCK FINAL**; **Phase 0.6 = Executable Acceptance Specification** (不再开 0.5G/0.5H)。0.5D LOCK + 0.5E LOCK 声明即写入判定矩阵。
