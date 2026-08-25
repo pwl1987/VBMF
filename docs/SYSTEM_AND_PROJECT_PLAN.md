@@ -6,7 +6,7 @@
 > **会话**: mvs_6ba8f6b9e66e4ea3b89036e75f929fab
 
 > **📌 SoT 分层声明 (2026-08-25 追加)**: VBMF 存在三套互相独立、互不冲突的 SoT, 审核时须区分:
-> 1. **产品实施技术栈 SoT** = 本文档 (§2.2, V0.2 Technical Stack Baseline 冻结): Fastify + PostgreSQL + Drizzle + React 19 + Vite + shadcn/ui + Tailwind + Valkey + RustFS + BullMQ + MediaMTX/SRS + Better Auth/CASL。
+> 1. **产品实施技术栈 SoT** = 本文档 (§2.2, V0.2 Technical Stack Baseline 冻结): Fastify + PostgreSQL + Drizzle + React 19 + Vite + shadcn/ui + Tailwind + Valkey + RustFS + BullMQ + **SRS** (主流媒体服务器/Streaming Gateway, 已锁定) + Better Auth/CASL。
 > 2. **媒体运行时/架构 SoT** = `docs/architecture/ARCHITECTURE_V0.2.md`: Rust Media Agent / FFmpeg / GStreamer / BMD DeckLink / JSON-RPC / SDI·SRT·UDP / RTMP·HLS·WHEP。
 > 3. **验收 Harness SoT** = `docs/phase-0.6/` (Python + YAML + Playwright)。
 > 另: Phase 0.5 的 HTML/CSS/JS 是 **UX 原型** (验证 IA/Workflow/Surface/Design System), 其结论在 **Phase 4** 由本表 React 19 + shadcn/ui 真正落地; 当前仓库**尚无正式业务代码**, 故本次为一次性技术栈冻结, 后续变更须走 V0.2 Architecture Change Review。
@@ -233,7 +233,7 @@ srt tls dtls http https
 ### 2.2 选型栈（用户确认 · V0.2 Technical Stack Baseline 冻结）
 
 > **冻结声明 (2026-08-25)**: 本节为 VBMF **产品实施技术栈 SoT**。当前仓库尚无正式业务代码, 本次一次性冻结, 后续变更须走 V0.2 Architecture Change Review。
-> **分层关系**: 本表是「产品实施栈」; 媒体运行时/架构技术 (Rust Media Agent / FFmpeg / GStreamer / BMD DeckLink / MediaMTX·SRS / JSON-RPC / SDI·SRT·UDP / RTMP·HLS·WHEP) 见 `docs/architecture/ARCHITECTURE_V0.2.md`; Phase 0.5 的 HTML/CSS/JS 是 **UX 原型** (验证 IA/Workflow/Surface/Design System), 其结论在 **Phase 4 由本表的 React 19 + shadcn/ui 真正落地**, 二者不冲突。Phase 0.6 验收 Harness (Python+YAML+Playwright) 见 `docs/phase-0.6/`。
+> **分层关系**: 本表是「产品实施栈」; 媒体运行时/架构技术 (Rust Media Agent / FFmpeg / GStreamer / BMD DeckLink / **SRS** / JSON-RPC / SDI·SRT·UDP / RTMP·HLS·WHEP) 见 `docs/architecture/ARCHITECTURE_V0.2.md`; Phase 0.5 的 HTML/CSS/JS 是 **UX 原型** (验证 IA/Workflow/Surface/Design System), 其结论在 **Phase 4 由本表的 React 19 + shadcn/ui 真正落地**, 二者不冲突。Phase 0.6 验收 Harness (Python+YAML+Playwright) 见 `docs/phase-0.6/`。
 
 #### Control Plane / Web Console
 
@@ -268,8 +268,7 @@ srt tls dtls http https
 | 缓存 | **Valkey** | Redis 兼容, runtime cache / session / locks / rate limit |
 | 队列 | **BullMQ** | Valkey 驱动的任务队列 (转码/缩略图/打包/分析) |
 | 对象存储 | **RustFS** | S3 兼容, 原片/Proxy/Thumbnail/HLS assets (生产可 MinIO) |
-| 流媒体网关(默认) | **MediaMTX** | RTMP/SRT/WebRTC(WHEP)/HLS 实时媒体路由 |
-| 网关兼容 | **SRS** | 特定场景/兼容 Gateway |
+| 流媒体网关 / Streaming Gateway | **SRS** ⚠️ 已锁定 | 主流媒体服务器: RTMP/SRT/HLS/WebRTC(WHEP) 汇聚·分发·协议转换; FFmpeg/GStreamer → SRS → {RTMP, HLS, WHEP}; **不纳入 MediaMTX** (避免双 Gateway 增加运维/故障域/测试矩阵) |
 | 鉴权 | **Better Auth** | 用户/会话 |
 | 授权 | **CASL** | RBAC: User→Role→Permission→Capability→Action (TAKE/Override/Failover/Restart…) |
 | 可观测 | **OpenTelemetry + Prometheus + Grafana + Sentry** | tracing / metrics / dashboard / error tracking |
@@ -287,7 +286,7 @@ srt tls dtls http https
 |---|---|---|
 | 🔴 必须 | `bullmq` | Valkey 驱动的任务队列 |
 | 🔴 必须 | 转码 worker (独立进程) | spawn ffmpeg 转码任务 (Fastify 不直接跑长时 ffmpeg) |
-| 🔴 必须 | `MediaMTX` (默认) 或 `SRS` (兼容) | 流媒体服务器（ffmpeg 不能裸 RTMP 派发） |
+| 🔴 必须 | `SRS` (已锁定主流媒体服务器) | 流媒体服务器（ffmpeg 不能裸 RTMP 派发）；**MediaMTX 不纳入当前 V0.2** |
 | 🔴 必须 | `hls.js` (前端) | 浏览器 HLS 播放 |
 | 🔴 必须 | `@aws-sdk/client-s3` (Node) | RustFS SDK |
 | 🔴 必须 | `better-auth` | 用户/会话 (2.2 已确认) |
@@ -319,7 +318,7 @@ srt tls dtls http https
 ```
 阶段 1 (骨架): docker-compose + Fastify + Vite + Valkey + RustFS
 阶段 2 (转码): bullmq + worker + fluent-ffmpeg
-阶段 3 (流): MediaMTX + hls.js + flv.js
+阶段 3 (流): SRS + hls.js + flv.js
 阶段 4 (用户): better-auth + casl
 阶段 5 (生产): sentry + prometheus + grafana + opentelemetry
 ```
@@ -350,7 +349,7 @@ srt tls dtls http https
 │  │  └────────┬─────────┘             │
 │  │           │                        │
 │  │           ▼                        │
-│  │  ┌── MediaMTX (1935) ──┐         │
+│  │  ┌── SRS (1935) ──┐              │
 │  │  │   收 RTMP           │         │
 │  │  │   出 HLS / HTTP-FLV │         │
 │  │  │   出 WebRTC (可选)  │         │
@@ -403,7 +402,7 @@ DB 标记完成，状态推 SSE
 
 **Phase 1: 单机最小可用**（~3 天）
 - [ ] pnpm monorepo 初始化
-- [ ] docker-compose.yml: api + web + valkey + rustfs + mediamtx
+- [ ] docker-compose.yml: api + web + valkey + rustfs + srs
 - [ ] Fastify + Drizzle + PostgreSQL 骨架
 - [ ] React 19 + Vite + shadcn/ui + Tailwind 骨架 (VBMF Design System 起步)
 - [ ] 健康检查 + Swagger UI
@@ -417,8 +416,8 @@ DB 标记完成，状态推 SSE
 - [ ] 前端上传 + 任务列表 + 播放器
 
 **Phase 3: 实时流**（~3 天）
-- [ ] MediaMTX 集成
-- [ ] SDI → ffmpeg → MediaMTX
+- [ ] SRS 集成
+- [ ] SDI → ffmpeg → SRS
 - [ ] HLS 播放
 - [ ] 实时预览页
 
@@ -446,7 +445,7 @@ DB 标记完成，状态推 SSE
 | # | 决策点 | 选项 | 推荐 |
 |---|---|---|---|
 | 1 | 鉴权方案 | better-auth / lucia-auth / @fastify/jwt | **better-auth**（现代 + 全栈 + TS-first） |
-| 2 | 流媒体服务器 | MediaMTX / SRS / nginx-rtmp | **MediaMTX**（单文件 Go，更轻；SRS 国内网速好但更重） |
+| 2 | 流媒体服务器 | SRS（已锁定） | **SRS**（项目已确认主流媒体服务器；RTMP/HLS/SRT/WebRTC-WHEP 全覆盖；**MediaMTX 不纳入**以避免双 Gateway 负担） |
 | 3 | 对象存储 | RustFS / MinIO | **RustFS**（国产/轻）；生产**MinIO**更稳 |
 | 4 | 实时推送 | SSE / WebSocket | **SSE**（Fastify 内置、单向、够用） |
 | 5 | 上传协议 | tus / 分片普通 | **tus**（断点续传 + 进度） |
@@ -655,7 +654,7 @@ sysctl kernel.randomize_va_space
 
 ### 立即可做（无新依赖）
 
-1. **拉 SRS 或 MediaMTX** —— 跑个 RTMP 收流测试，验证 ffmpeg → 流服务器链路
+1. **拉 SRS** —— 跑个 RTMP 收流测试，验证 ffmpeg → SRS 链路
 2. **写 systemd 服务** —— SDI 抓帧 → RTMP 推流的开机自启
 3. **加固 UFW 源 IP** —— 22 端口只对 10.30.0.0/16 开（不再用 10.0.0.0/8）
 
@@ -690,7 +689,7 @@ sysctl kernel.randomize_va_space
 | HTTPS/加密 | gnutls (TLS 1.3) |
 | 对象存储 | 待选 (RustFS / MinIO) |
 | 任务队列 | 待选 (BullMQ) |
-| 流媒体服务器 | 待选 (MediaMTX / SRS) |
+| 流媒体服务器 | **SRS** (已锁定, 见 §2.2) |
 
 ## 附录 C：技术决策时间线
 
