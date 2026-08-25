@@ -241,6 +241,8 @@ Audio Mixer / Loudness / Delay ─────┘
 | **FI-03** | Primary FFmpeg 进程崩溃 | PIPELINE 管道 | RESTART + RESUME | DEGRADED → HEALTHY |
 | **FI-04** | Clock Drift +5ms/min | CLOCK 时钟 | FALLBACK to TIMECODE | DEGRADED (CLOCK_DEGRADED event) |
 | **FI-05** | HLS 切片失败 | OUTPUT 输出 | RESTART_ADAPTER → alternate | DEGRADED → HEALTHY |
+| **FI-08** | GStreamer ingest 进程崩溃（SDI-A） | SOURCE 源 / PIPELINE | Agent detects → restart GStreamer pipeline → DeckLink session recover | DEGRADED → HEALTHY |
+| **FI-09** | Media Agent 主动重启（kill -TERM） | MEDIA RUNTIME | GStreamer pipeline + DeckLink session + downstream state 全量 recover | DEGRADED → HEALTHY |
 
 #### FI-01A · Primary SDI 冻结 + Backup READY（SOURCE 源）
 - **injection**：Primary SDI 输入冻结 ≥5s（injection_point: SDI Input / SOURCE）
@@ -289,6 +291,20 @@ Audio Mixer / Loudness / Delay ─────┘
 - **期望恢复**：BACKUP_DISK（target: alternate disk）
 - **期望 Channel Health**：unaffected（录制独立域）
 - **deterministic**：写入失败 event → BACKUP_DISK 接管；Output/Source 不受影响；退出 = Recorder Health = HEALTHY 且连续 ≥5 段写入成功
+
+#### FI-08 · GStreamer ingest 进程崩溃（SOURCE/PIPELINE）
+- **injection**：kill GStreamer ingest 进程（injection_point: GStreamer pipeline / SOURCE，device=DeckLink SDI-A）
+- **前置约束**：归属 `Rust Media Agent` 生命周期（见 `TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md` §3/§4 F4）
+- **期望恢复**：Agent 检测到 GStreamer 进程丢失 → 重启 pipeline → DeckLink session 重建 → 下游 Normalize/Encode/Output state recover
+- **期望 Channel Health**：DEGRADED（pipeline 重建期间）→ HEALTHY（recover 完成）
+- **deterministic**：进程丢失 detection ≤5s → restart；recover 后无 AV sync discontinuity；退出 DEGRADED = Pipeline Health = HEALTHY 且持续 ≥30s
+
+#### FI-09 · Media Agent 主动重启（MEDIA RUNTIME）
+- **injection**：kill -TERM Media Agent 进程（injection_point: Media Agent / MEDIA RUNTIME），由 supervisor/Orchestrator 重新拉起
+- **前置约束**：Media Agent = Media Runtime Owner（GSTR-01/§4 F4）；重启须保持 DeckLink Exclusive Lease 不丢（§4 F11）
+- **期望恢复**：Agent 重启 → GStreamer pipeline + DeckLink session + runtime graph + downstream state 全量 recover；active_source_id 不丢
+- **期望 Channel Health**：DEGRADED（Agent 重启窗口）→ HEALTHY（recover 完成）
+- **deterministic**：Agent 重启 ≤30s → 全量 recover；退出 DEGRADED = Channel Health = HEALTHY 且稳定 ≥30s；期间不得有第二进程抢占 DeckLink（F11）
 
 > **FI 注入点锁定（P1）**：每条 FI 必须写明 `injection_point: {node, domain}`，否则 Phase 0.6 实测时两人会做出不同恢复动作。当前已锁定：FI-02 = Audio Mixer / PIPELINE。以下为**不同 Failure Domain**，须各自独立 FI，不得并入 FI-02：Source embedded_audio（SOURCE）、Loudness node（PIPELINE）、Audio Master Join（MASTER）。
 

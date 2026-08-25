@@ -1,7 +1,7 @@
 # Technology Stack & Runtime Ownership (V0.2 Reconciliation SoT)
 
 > **文档身份**: VBMF 技术栈与运行时所有权 **Reconciliation Contract**。
-> **生成**: 2026-08-25（基于基线 `a6eca1f`，第 41+ 轮审查结论落地）。
+> **生成**: 2026-08-25（基于基线 `a6eca1f`；第 42 轮建契约，第 43 轮复核 `c232206` 增补 GSTR-02/HW-01/RECORD-02/FRONT-02 + Gate A/B/C）。
 > **状态**: **RECONCILIATION SoT — 不重开 V0.2**。
 >
 > **为什么存在**: `SYSTEM_AND_PROJECT_PLAN.md`（V0.1 规划）、`ARCHITECTURE_V0.2.md`（Runtime SoT）、Phase 0.5（UX）、Phase 0.6（验收）四套文档各自描述系统，但中间缺一层 **Runtime Ownership Contract**，导致 GStreamer ingest / Live FFmpeg / Recording / MediaMTX 等边界漂移。
@@ -111,6 +111,46 @@
 > **FFmpeg 双 owner**：File/offline → BullMQ Node Worker；Live/realtime → Rust Media Agent。二者**不得混用同一入口**（见 Phase 0.6 UI-E2E-03 `FILE_TRANSCODE ≠ REALTIME_ENCODE`）。
 > **Recording 双分**：Live Recording（跟 runtime clock / PGM / AV sync / session）→ Media Agent；Post-processing（transcode/trim/proxy/checksum/archive）→ Node Worker。
 
+### 3.1 GSTR-02：Pipeline 构造归属（P1）
+
+> **Pipeline Construction = Media Agent responsibility**。
+> **Graph Compiler 只产生 `Runtime Graph Intent`（语义：节点 / 边 / 时钟约束 / latency budget），不得生成具体 GStreamer/FFmpeg 进程命令。**
+> Media Agent 负责把 Intent **materialize** 为：GStreamer pipeline 实例、FFmpeg 进程、DeckLink session、restart policy。
+> 禁止：Node Graph Compiler 直接拼 `gst-launch` / `ffmpeg` CLI 字符串交给某处执行（见 §4 F9）。
+
+### 3.2 BOUNDARY-06 / RECORD-02：Runtime Artifact → Async Job Handoff（P1）
+
+Live Recording 落盘后，与 Post-processing 的交接必须走正式契约，禁止"文件丢在某目录等 Worker 扫"：
+
+```
+Media Agent (host)
+  └─ Local Recording Artifact (segment/rollover/close 由 Agent 负责)
+       └─ Finalization Event (artifact path + PGM ref + clock + session)
+            └─ BullMQ Post-process Job (BODY 携带 artifact 引用, 非轮询)
+                 └─ Node Worker → RustFS / Asset
+```
+
+- **谁负责 segment/rollover/close**：Media Agent（跟 runtime clock / PGM / AV sync）。
+- **何时写 RustFS**：Post-process Job 完成且 checksum 通过后，由 Worker 写；Agent 不直写对象存储。
+- **Worker 从哪接管**：订阅 Finalization Event（BullMQ），不轮询共享目录。
+
+### 3.3 FRONT-02：Media Controller 边界（P1，Phase 4 前冻结）
+
+浏览器侧视频/解码**不**由 React 直接操作。建议形态：
+
+```
+packages/media-runtime/
+├── hls/        (hls.js adapter)
+├── whep/       (WebRTC/WHEP adapter)
+├── webcodecs/  (WebCodecs frame processing)
+├── video-element/
+└── controller/ (统一 MediaSessionState / MediaPlaybackState 出口)
+```
+
+- React **只能消费** `MediaSessionState` / `MediaPlaybackState` 这类状态；
+- React **不得直接操作** `hls.js instance` / `RTCPeerConnection` / `VideoFrame`；
+- Media Controller 是 browser-side runtime abstraction（非独立后端服务），归 Frontend 平面但独立于 React render 树。
+
 ---
 
 ## 4. Forbidden Dependencies（硬约束）
@@ -130,6 +170,10 @@ MEDIA PLANE OWNS MEDIA PROCESS LIFECYCLE
 | F6 | **React MUST NOT own media process lifecycle** | `<video>`/MSE/WHEP/WebCodecs 经独立 Media Controller，不触发 React render 承担解码 |
 | F7 | **Graph Compiler MUST NOT run as BullMQ Job** | 它是 Control Plane 确定性编译器，非异步媒体任务 |
 | F8 | **MediaMTX MUST NOT be in V0.2 baseline** | 双 Gateway 增加运维/故障域/测试矩阵 |
+| F9 | **FFmpeg Invocation Guard**：Live FFmpeg 仅 Media Agent 可 spawn；File FFmpeg 仅 Async Worker 可 spawn；**Fastify/Control Plane 不得 `import child_process` 直接 spawn ffmpeg** | 规范正确但代码易违规；建议工程层加 lint / repo-check 拦截 Control Plane 的 ffmpeg spawn（见 §6 Gate A） |
+| F10 | **Graph Compiler MUST NOT emit concrete media process command** | 只能产 `Runtime Graph Intent`；materialize 归 Media Agent（GSTR-02） |
+| F11 | **DeckLink / Hardware device = exclusive lease owned by Media Agent** | 设备发现后建 Device Registry + Exclusive Lease + Session Owner；禁止第二进程（含诊断工具/Recording job/Operator 误改）抢占同一 device（HW-01） |
+| F12 | **Media Controller (browser) MUST isolate hls.js/WHEP/WebCodecs from React render** | React 只消费状态，不直接持有媒体对象（FRONT-02） |
 
 ---
 
@@ -142,4 +186,42 @@ MEDIA PLANE OWNS MEDIA PROCESS LIFECYCLE
 - **TECH-05（AntD Pro 漂移）** → §1 已锁 shadcn/ui（SYSTEM_AND_PROJECT_PLAN 第 245/297 行已落实）。
 - **TECH-06（Plan 身份）** → §0 分层；SYSTEM_AND_PROJECT_PLAN 头部须声明 "V0.1 Planning / Reconciled with V0.2"。
 
+### 5.1 第 43 轮复核新增落点（基于 commit `c232206` 复核，`62a7687` 为 rebase 前旧 hash）
+
+| 类别 | 问题 | 落点 |
+|---|---|---|
+| GSTR-02 | Pipeline 构造归属未明文 | §3.1 + §4 F10（Agent materialize，Graph Compiler 只产 Intent） |
+| TECH-02 (enforcement) | 缺工程级 Invocation Guard | §4 F9（lint / repo-check 建议，见 §6 Gate A） |
+| BOUNDARY-06 / RECORD-02 | Runtime Artifact → Async Job 交接 | §3.2 Handoff Contract |
+| GSTR-03 / ACC-03 | Agent restart / GStreamer crash recovery 未充分验收 | Phase 0.6 补 acceptance 项（见 §6 Gate B）；本文档 §4 F4 已锁 lifecycle owner |
+| HW-01 | DeckLink 独占/租约缺失 | §4 F11（Device Registry + Exclusive Lease） |
+| GRAPH-01 | Intent vs concrete runtime materialization | §3.1 / §4 F10 |
+| FRONT-02 | Media Controller 边界未定义 | §3.3（packages/media-runtime 形态） |
+| UX-03 | Runtime Owner 可见性 | Phase 4 Health Tree 须含 Runtime Owner 链（Agent/host/session/pipeline/recovery） |
+| STREAM-03 | Gateway capability ↔ protocol 映射 | Object Model 层下一步；Output Variant = {Adapter, Capability, Endpoint, Protocol, Latency, Health} |
+| ACC-03 | G-DOC Runner 真实执行 | 代码工作，不在本文档范围；见 §6 Gate B |
+
 > 本文件是 G-DOC 前置 Gate 的 SoT 输入：任何后续技术栈变更须先过本契约与 V0.2 Architecture Change Review。
+
+---
+
+## 6. 下一阶段 Gate（Ownership Enforcement，非架构 Review）
+
+> **原则**：V0.2 继续冻结；不再做第 N 轮架构 Review。下一步把本契约从"文档"转为"可执行约束 + 验收项"。
+
+### Gate A — Ownership Enforcement（P1，工程层）
+1. **FFmpeg Invocation Guard**：在 `api/` (Fastify/Control Plane) 加 lint/repo-check，禁止 `child_process.spawn("ffmpeg"...)`；Live FFmpeg 仅 `media-agent/` 可 spawn，File FFmpeg 仅 `worker/` 可 spawn（F9）。
+2. **DeckLink Exclusive Lease**：Media Agent 在 Hardware Discovery 后建 Device Registry + Exclusive Lease + Session Owner；任何第二 opener（诊断工具 / Recording job / Operator 误改）被拒绝（F11）。
+3. **Graph Compiler 输出断言**：CI 检查 Graph Compiler 产物不含 `gst-launch`/`ffmpeg` CLI 字符串，只含 Runtime Graph Intent（F10）。
+
+### Gate B — G-DOC / G-RUNTIME（P0/P1）
+1. **Runner 真实化**：Phase 0.6 runner 真正执行 `pass_rule`，不再仅 STRUCTURE/COVERAGE 层面（ACC-03）。
+2. **GStreamer ownership runtime test**：新增 acceptance 项——
+   - `Media Agent restart → GStreamer pipeline recovery → DeckLink session recover → downstream state recover`
+   - `GStreamer process crash → Agent detects → restart pipeline → health DEGRADED → recovery`
+3. **执行顺序**：ENV Preflight → A1 → A2 → B → FI → HA → G-UIUX。
+
+### Gate C — Phase 1 Implementation Contract
+- Runtime Artifact → Async Job Handoff 落地为消息契约（§3.2）。
+- Media Controller `packages/media-runtime` 在 Phase 4 前冻结（§3.3）。
+- SRS Output Variant capability 映射进入 Object Model（STREAM-03）。
