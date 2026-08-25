@@ -8,7 +8,7 @@
 ```
 Phase 0    架构冻结                       ✅ V0.2 LOCK FINAL
 Phase 0.5A 操作员语义与线框            ✅ LOCK FINAL（10 中英双语页面 + 4 链 + 20 项修复）
-Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（38 表面 + 5 P0 wireframe + 36 项收口）
+Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（39 表面（38 + CD-01）+ 5 P0 wireframe + 36 项收口）
 Phase 0.5C 信息架构收口                 🟡 DRAFT 0.1（目录归并 + 4 域导航 + Object Vocabulary）
 Phase 0.5D P0 产品表面                  ⛔ 待开始（6 新表面 + M-14 重画）
 Phase 0.6  Reference + Fault Injection   📋 前置: Phase 0.5 LOCK FINAL
@@ -49,7 +49,7 @@ V1.0       完整 IP 播控                   📋
 
 **Phase 0.5B（Product UI Surface，UX BASELINE LOCK FINAL）已交付**：
 
-- `SURFACE_SPEC.md` — V0.2 架构对象 → 38 UI 表面完整映射（0.5A 10 + 新增 28；0.5C 起 4 域组织）
+- `SURFACE_SPEC.md` — V0.2 架构对象 → 39 UI 表面完整映射（0.5A 10 + 新增 28 + CD-01；0.5C 起 4 域组织）
 - `DESIGN_SYSTEM.md` — token / 组件 / 状态模型 / 键盘规范
 - `I18N_SPEC.md` — zh-CN + en-US 契约 + Canonical Vocabulary + enum 翻译表
 - 5 张 P0 wireframe（`product/`）：M-11 Media Library / M-12 Asset Detail / M-14 Transcode Center / P-21 Encoding Profile / P-22 Output Profile
@@ -57,7 +57,7 @@ V1.0       完整 IP 播控                   📋
 
 **Phase 0.5C（Info Arch，DRAFT 0.1 待审）**：目录归并 + 4 域导航（BROADCAST/MEDIA/ENGINEERING/ADMIN）+ `OBJECT_VOCABULARY.md`（14 对象）+ `PRODUCT_OBJECT_MODEL.md` + `NAVIGATION.md` + 0.6 语义修复
 
-**Phase 0.5D（待开始）**：6 个新表面 wireframe（M-15 Realtime Transcode / M-16 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-34 Hardware / E-36 Clock）+ M-14 File Transcode 重画
+**Phase 0.5D（待开始）**：5 个新表面 wireframe（M-17 Realtime Transcode / M-18 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-38 Hardware）+ E-37 Clock 升级 + M-14 File Transcode 重画
 
 ## Phase 0.6 — Reference Implementation + Fault Injection 📋 **Next**
 
@@ -178,7 +178,7 @@ X1-X6 横切能力的实施：
 
 | 阶段 | 社区协作 |
 |---|---|
-| Phase 0.5 | 公开 15 wireframe + 38 表面 Spec + Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
+| Phase 0.5 | 公开 15 wireframe + 39 表面 Spec + Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
 | Phase 0.6 | 公开 Reference A1/A2/B + 5 Fault Injection 配置，欢迎调参与建议 |
 | Phase 1+ | 接受 Rust / TypeScript 贡献 |
 

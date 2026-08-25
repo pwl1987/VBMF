@@ -7,7 +7,7 @@
 :root{
   --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
   --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
-  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;--badge-green-bg:#1a3a1a;--badge-yellow-bg:#3a3a1a;--badge-red-bg:#3a1a1a;--badge-blue-bg:#1a2a3a;--badge-gray-bg:#1f242c;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
@@ -27,10 +27,10 @@ header h2{font-size:14px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
 .dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}
 .badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
-.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
-.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
-.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
-.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+.badge.green{background:var(--badge-green-bg);color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:var(--badge-yellow-bg);color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:var(--badge-red-bg);color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:var(--badge-blue-bg);color:var(--blue);border-color:#2a4a5a}
 
 /* Hero + 3-Layer */
 .hero{display:grid;grid-template-columns:1fr 240px;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:12px}
@@ -44,8 +44,8 @@ header h2{font-size:14px}
 .tri .layer .v.green{color:var(--green)}
 .tri .layer .v.yellow{color:var(--yellow)}
 .tri .layer .v.blue{color:var(--blue)}
-.tri .delta{margin-top:6px;padding:6px;background:#1a2a3a;border-radius:3px;font-size:10px}
-.tri .delta.warn{background:#3a3a1a}
+.tri .delta{margin-top:6px;padding:6px;background:var(--badge-blue-bg);border-radius:3px;font-size:10px}
+.tri .delta.warn{background:var(--badge-yellow-bg)}
 
 /* Tabs */
 .tabs{display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px 6px 0 0;overflow:hidden;flex-wrap:wrap}
@@ -87,8 +87,8 @@ tr:last-child td{border-bottom:none}
 .resource-row .stat .v.gray{color:var(--gray)}
 
 /* Validation */
-.validation{background:#1a2a3a;border:2px solid var(--green);border-radius:6px;padding:12px;margin-bottom:8px}
-.validation.fail{border-color:var(--red);background:#3a1a1a}
+.validation{background:var(--badge-blue-bg);border:2px solid var(--green);border-radius:6px;padding:12px;margin-bottom:8px}
+.validation.fail{border-color:var(--red);background:var(--badge-red-bg)}
 .validation h4{margin:0 0 6px 0;color:var(--green);font-size:13px}
 .validation.fail h4{color:var(--red)}
 .validation .check{display:grid;grid-template-columns:140px 1fr 60px;gap:8px;padding:4px 0;font-size:12px;align-items:center}
@@ -114,7 +114,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <body>
 
 <header>
-  <h2>编码 Profile Builder / Encoding Profile — 10 Sections (P-21)</h2>
+  <h2 data-i18n="engineering.profiles.encoding.title">编码 Profile Builder / Encoding Profile — 10 Sections (P-21)</h2>
   <div>
     <span class="lang">🌐 <b>中</b> / EN</span>
     <span style="margin-left:12px;color:var(--fgdim)">← Profile Center (P-20 · 0.5D 待创建)</span>
@@ -130,7 +130,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <!-- Hero: Profile Identity + 3-Layer (DESIRED / COMPILED / EFFECTIVE) -->
 <div class="hero">
   <div>
-    <h2>HEVC Main10 1080p25 Master <span class="badge green">● ACTIVE</span></h2>
+    <h2>HEVC Main10 1080p25 Master <span class="badge blue">● ACTIVE</span></h2>
     <div class="meta">
       v3 · Category: Broadcast · Created: 2026-08-24 by Director Zhang · Last Modified: 2026-08-24 19:30
     </div>
@@ -150,7 +150,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 </div>
 
 <!-- Runtime Performance Panel (Phase 0.5B.2 P0-4 锁定: Configuration State ≠ Runtime Telemetry) -->
-<div class="panel" style="background:#1a2a3a;border:1px solid var(--accent);margin-bottom:12px">
+<div class="panel" style="background:var(--badge-blue-bg);border:1px solid var(--accent);margin-bottom:12px">
   <h3 style="margin:0 0 8px 0"><span class="cn" style="color:var(--accent)">Runtime Performance</span> / RUNTIME TELEMETRY (与 3-Layer 分离, Phase 0.5B.2 P0-4 锁定)</h3>
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:11px">
     <div class="resource-row">
@@ -269,7 +269,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="check"><span class="k">Runtime Readiness</span><span class="v">Encoder ✓ Worker ✓ Network ✓</span><span class="status" style="color:var(--green)">PASS</span></div>
   <div class="check"><span class="k">Test Encode</span><span class="v">Last run 2026-08-24 19:30: 5.1x realtime · Quality OK</span><span class="status" style="color:var(--green)">PASS</span></div>
   <div style="margin-top:8px;display:flex;gap:6px">
-    <button class="btn primary">▶ Re-test 重新测试 (L1)</button>
+    <button class="btn primary" data-i18n="engineering.profiles.encoding.action.retest">▶ Re-test 重新测试 (L1)</button>
     <button class="btn">Open Capability Registry (E-34) →</button>
     <button class="btn">Open Device (E-35) →</button>
   </div>
@@ -539,7 +539,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       </div>
 
       <div style="margin-top:12px;display:flex;gap:6px">
-        <button class="btn primary">🔧 Fix Automatically 自动修复</button>
+        <button class="btn primary" data-i18n="engineering.profiles.encoding.action.fix_auto">🔧 Fix Automatically 自动修复</button>
         <button class="btn">📖 Explain 详细解释</button>
         <button class="btn">Open Capability Registry (E-34) →</button>
         <button class="btn">Open Device (E-35) →</button>

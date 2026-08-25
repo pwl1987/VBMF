@@ -53,9 +53,9 @@ header,nav{display:flex;justify-content:space-between;align-items:center;padding
 .tree .dot.red{background:var(--red)}
 .tree .dot.gray{background:var(--gray)}
 .tree .role{display:inline-block;font-size:9px;padding:1px 4px;border-radius:2px;margin-left:6px;background:var(--bg2);color:var(--fgdim);text-transform:uppercase;letter-spacing:1px}
-.tree .role.active{background:var(--green);color:#000}
-.tree .role.standby{background:var(--yellow);color:#000}
-.tree .role.offline{background:var(--gray);color:#fff}
+.tree .role.active{background:var(--blue);color:#000}
+.tree .role.standby{background:transparent;color:var(--blue);border:1px dashed var(--blue)}
+.tree .role.offline{background:transparent;color:var(--gray);border:1px solid var(--gray)}
 .tree .rg{color:var(--accent);font-size:10px;margin-left:6px}
 
 /* Engineering View */
@@ -210,7 +210,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="panel">
     <h3><span class="cn">CH01 当前健康树</span> / CURRENT HEALTH TREE</h3>
     <div class="tree">
-      <div class="node"><span class="dot green"></span><b>CH01</b> <span style="color:var(--fgdim)">— Channel: HEALTHY (EffectiveChannelStatus)</span></div>
+      <div class="node"><span class="dot yellow"></span><b>CH01</b> <span style="color:var(--fgdim)">— Channel: DEGRADED (EffectiveChannelStatus · Rule 2: WebRTC ACTIVE+DEGRADED 传播)</span></div>
       <div class="node" style="padding-left:24px"><span class="dot green"></span>Source.Primary <span class="role active">ACTIVE</span> <span class="rg">RG-001</span> — HEALTHY</div>
       <div class="node" style="padding-left:24px"><span class="dot green"></span>Source.Backup <span class="role standby">STANDBY</span> <span class="rg">RG-001</span> — HEALTHY</div>
       <div class="node" style="padding-left:24px"><span class="dot green"></span>Switcher <span class="role active">ACTIVE</span> — HEALTHY (FRAME_SWITCH)</div>
@@ -219,7 +219,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div class="node" style="padding-left:24px"><span class="dot green"></span>Video Master Join — HEALTHY (AV sync +12ms)</div>
       <div class="node" style="padding-left:24px"><span class="dot green"></span>Audio Master Join — HEALTHY (AV sync +12ms)</div>
       <div class="node" style="padding-left:24px"><span class="dot green"></span>Program Master — HEALTHY (RAW)</div>
-      <div class="node" style="padding-left:24px"><span class="dot green"></span>Output.SRS <span class="role active">ACTIVE</span> — HEALTHY</div>
+      <div class="node" style="padding-left:24px"><span class="dot yellow"></span>Output.SRS <span class="role active">ACTIVE</span> — DEGRADED (子节点 WebRTC 传播)</div>
       <div class="node" style="padding-left:48px"><span class="dot green"></span>HLS — HEALTHY (1,247 clients)</div>
       <div class="node" style="padding-left:48px"><span class="dot green"></span>RTMP — HEALTHY</div>
       <div class="node" style="padding-left:48px"><span class="dot yellow"></span>WebRTC — DEGRADED (drift +15ms)</div>
@@ -229,7 +229,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 
     <h3 style="margin-top:16px"><span class="cn">7 条健康不变量</span> / 7 HEALTH INVARIANTS</h3>
     <div class="inv"><span class="id" style="color:var(--green)">H1 ✓</span><span class="cond">无 <code>ACTIVE+FAILED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
-    <div class="inv"><span class="id" style="color:var(--green)">H2 ✓</span><span class="cond">无 <code>ACTIVE+DEGRADED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
+    <div class="inv"><span class="id" style="color:var(--yellow)">H2 ●</span><span class="cond"><code>ACTIVE+DEGRADED</code> → DEGRADED (WebRTC 触发, 已正确传播到 Channel)</span><span class="res" style="color:var(--green)">PASS</span></div>
     <div class="inv"><span class="id" style="color:var(--green)">H3 ✓</span><span class="cond">无 <code>STANDBY+FAILED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
     <div class="inv"><span class="id" style="color:var(--green)">H4 ✓</span><span class="cond">无 <code>STANDBY+DEGRADED</code></span><span class="res" style="color:var(--green)">PASS</span></div>
     <div class="inv"><span class="id" style="color:var(--green)">H5 ✓</span><span class="cond"><code>OFFLINE+FAILED</code> → 系统已吸收</span><span class="res" style="color:var(--green)">PASS</span></div>
@@ -237,8 +237,8 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <div class="inv"><span class="id" style="color:var(--green)">H7 ✓</span><span class="cond"><code>effective_channel_status = channel_health_view</code></span><span class="res" style="color:var(--green)">PASS</span></div>
 
     <h3 style="margin-top:16px"><span class="cn">聚合结果</span> / AGGREGATION</h3>
-    <div class="rule"><span class="rname">channel_health_aggregation:</span> HEALTHY (Rule 6: 至少一个 ACTIVE+HEALTHY + 无 DEGRADED/FAILED/UNKNOWN)</div>
-    <div class="rule"><span class="rname">channel_health_view:</span> HEALTHY (Policy: lifecycle=RUNNING + aggregation=HEALTHY)</div>
+    <div class="rule"><span class="rname">channel_health_aggregation:</span> DEGRADED (Rule 2: WebRTC ACTIVE+DEGRADED — 存在 DEGRADED 时 Rule 6 HEALTHY 不成立)</div>
+    <div class="rule"><span class="rname">channel_health_view:</span> DEGRADED (Policy: lifecycle=RUNNING + aggregation=DEGRADED)</div>
 
     <h3 style="margin-top:16px"><span class="cn">节点详情（可解释性）</span> / NODE EXPLAINABILITY</h3>
     <div class="svc-row">

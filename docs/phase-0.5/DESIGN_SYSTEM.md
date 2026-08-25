@@ -14,17 +14,17 @@
 ## 0. 目的
 
 Phase 0.5A / 0.5B.1 wireframe 当前每页自己定义 CSS / State, Phase 4 实施会各做各的。本 Design System V0.1 锁定:
-- **4 State Models Taxonomy** (不混用)
-- **Color Tokens** (6 状态 + 4 角色)
+- **6 State Models Taxonomy** (不混用; 0.5C.1 勘误: 原称 "4 套" 漏计 Node Role 与 ECHS)
+- **Color Tokens** (双层: Raw ↔ Semantic; 6 状态 + 4 角色)
 - **Typography / Spacing / Border / Radius**
-- **核心组件清单** (15 个)
+- **核心组件清单** (20 个; 0.5C.1 并入 SURFACE_SPEC §16.3 的 5 个核心 UX 组件)
 - **Keyboard Shortcuts**
 
 ---
 
-## 1. 4 State Models Taxonomy (锁定 — 不能互换)
+## 1. 6 State Models Taxonomy (锁定 — 不能互换)
 
-V0.1 锁定 4 套独立的 State Model:
+V0.1 锁定 6 套独立的 State Model (0.5C.1 勘误: 原标题 "4 套" 与下表 6 行不符):
 
 | 套 | 用途 | 枚举 (canonical) | UI 颜色 |
 |---|---|---|---|
@@ -75,13 +75,40 @@ V0.1 锁定 4 套独立的 State Model:
 --ui-critical:  #f85149  # red + pulse animation
 --ui-loading:   #6e7681  # neutral
 --ui-empty:     #6e7681  # neutral + 引导
+--ui-orange:    #db6d28  # 进行中 / 上传进度 / 外部强调 (V0.1 收录, 0.5B wireframe 已用)
+
+# Readiness (独立, 不与 Health 混)
+--readiness-ready:      #3fb950  # READY_TO_TAKE
+--readiness-not-ready:  #d29922  # NOT_READY
+
+# Lifecycle (独立)
+--lifecycle-stopped:    #6e7681  # outline gray
+--lifecycle-starting:   #58a6ff  # blue + anim
+--lifecycle-running:    #3fb950  # solid
+--lifecycle-stopping:   #6e7681  # gray + anim
 
 # 状态色块 (Badge 背景)
 --badge-green-bg:   #1a3a1a
 --badge-yellow-bg:  #3a3a1a
 --badge-red-bg:     #3a1a1a
 --badge-blue-bg:    #1a2a3a
+--badge-orange-bg:  #3a2a1a
 --badge-gray-bg:    #1f242c
+```
+
+### 2.1 Raw ↔ Semantic 双层映射 (0.5C.1 补 — wireframe 现状 → Phase 4 目标)
+
+0.5A/0.5B wireframe 的 `:root` 使用 Raw 色名; Phase 4 实施**必须**改用语义层 token:
+
+```yaml
+Raw (wireframe 现用):      Semantic (Phase 4 目标):
+--green:  #3fb950    →    --health-healthy / --readiness-ready
+--yellow: #d29922    →    --health-degraded / --ui-warning / --readiness-not-ready
+--red:    #f85149    →    --health-failed / --ui-error / --ui-critical
+--gray:   #6e7681    →    --health-unknown / --role-offline / --ui-loading
+--blue:   #58a6ff    →    --accent / --role-active / --health-starting
+--orange: #db6d28    →    --ui-orange
+# badge 背景硬编码 (#1a3a1a 等) → --badge-*-bg 变量
 ```
 
 ---
@@ -152,7 +179,7 @@ radius:
 
 ---
 
-## 6. Components (V0.1 锁定 — 15 个)
+## 6. Components (V0.1 锁定 — 20 个; 0.5C.1 并入 SURFACE_SPEC §16.3 的核心 UX 组件)
 
 ### 6.1 Button
 
@@ -172,7 +199,7 @@ Button:
 **Danger Level 视觉:**
 - L1: 默认按钮 (无确认)
 - L2: 黄色背景 + 黑色文字 (3s 倒计时 Modal)
-- L3: 红色背景 + 白色文字 (输入 "YES"/"DELETE" 确认)
+- L3: 红色背景 + 白色文字 (输入确认词, 见 6.15)
 
 ### 6.2 Badge
 
@@ -357,11 +384,67 @@ Diff:
 DangerActions:
   L1: 普通按钮 + 直接执行
   L2: 黄色按钮 + 3s 倒计时 Modal + Confirm/Cancel
-  L3: 红色按钮 + 必须输入 "YES" / "DELETE" + 5s 倒计时 + Confirm/Cancel
+  L3: 红色按钮 + 必须输入确认词 + 5s 倒计时 + Confirm/Cancel
   always:
     - 显示动作详情 (目标 / 影响 / 不可逆)
     - 强制刷新当前数据 (避免 stale)
     - 记录到 audit_logs
+```
+
+**L3 确认词表 (0.5C.1 统一 — 与动作同词, 全大写):**
+
+| 动作 | 确认词 |
+|---|---|
+| 通用危险 (03 Switcher TAKE 失败回退等) | `YES` |
+| 删除类 (Delete Asset / Profile / Output) | `DELETE` |
+| Rights Override (M-12) | `OVERRIDE` |
+| Rollback (E-33) | `ROLLBACK` |
+
+### 6.16 ConfigurationTriangle (SURFACE_SPEC §15 — 第 1 个核心 UX 基础设施)
+
+```yaml
+ConfigurationTriangle:
+  layers: DESIRED (用户配置) / COMPILED (Graph Compiler 产物) / EFFECTIVE (运行时实测)
+  呈现: 三段切换器 + 层间 Diff 标记 (Δ)
+  规则: 默认显示 EFFECTIVE; DESIRED≠COMPILED 显示 "待 Apply" 角标
+  适用: P-21 / P-22 / M-14 / CD-01 (§15.3 清单)
+```
+
+### 6.17 ImpactPanel (SURFACE_SPEC §24.2 — 第 2 个核心 UX 基础设施)
+
+```yaml
+ImpactPanel (修改前必看):
+  输入: pending ChangeSet / Profile 修改
+  输出: 受影响 Channels / Variants / Sessions 数 + 风险分级 + 回滚入口
+  规则: L2/L3 操作必须先呈现; 不可关闭跳过 (只能 Cancel)
+```
+
+### 6.18 PreflightPanel (E-32 / §21.3)
+
+```yaml
+PreflightPanel:
+  sections: 9D Required / Available / Delta / Headroom
+  status: PASS / WARN / FAIL (per-dim + 总体)
+  规则: FAIL 阻断 Apply; WARN 需确认
+```
+
+### 6.19 DependencyGraph (§24.3, 可视化可选)
+
+```yaml
+DependencyGraph:
+  nodes: Asset / Profile / Channel / Variant / Device
+  edges: uses / binds / references
+  用途: Used By 反向追溯 + 删除前影响检查
+  实现: Phase 4 可先用列表, 图形化后置
+```
+
+### 6.20 ChannelStatusCard (Dashboard / O-41 / CD-01)
+
+```yaml
+ChannelStatusCard:
+  content: Channel 名 + ECHS (来自 channel_health_view) + RuntimeStateChip + 关键指标
+  click: → CD-01 Channel Detail
+  规则: ECHS 禁止 UI 自算 (Errata-14)
 ```
 
 ---
@@ -379,7 +462,7 @@ DangerActions:
 | **ERROR** | 单次操作失败 (Encode 失败/Profile 校验错) | 红色 Banner + 错误信息 + Retry 按钮 |
 | **CRITICAL** | 业务中断 (Source 全 FAILED / ChangeSet 失败) | 红色 Banner + pulse 动画 + Incident 入口 |
 
-**Phase 4 实施:** 每个 page.tsx 必须包含 6 状态分支, 缺一不可。
+**Phase 4 实施:** 每个 page 必须包含 6 状态分支, 缺一不可。**口径分层 (与 SURFACE_SPEC §2.1 一致)**: Spec 级由 SURFACE_SPEC 各表面 + §2.1.1 补全表构成 SoT; wireframe 级 (0.5D / Phase 4) 逐页呈现视觉样例。
 
 ---
 
@@ -406,10 +489,12 @@ DangerActions:
 | `G R` | Recording |
 | `G M` | Media Library (M-11) |
 | `G X` | Transcode Center (M-14) |
-| `G P` | Profiles (P-21) |
+| `G P` | Profiles (P-21; 0.5D 后 → P-20 Profile Center) |
 | `G E` | Engineering (Graph Designer) |
 | `G H` | Health Tree |
 | `G I` | Incidents |
+| `G U` | Users (A-51, Administration) |
+| `G L` | Audit Logs (A-54, Administration) |
 
 ### 8.3 Action
 
@@ -424,6 +509,8 @@ DangerActions:
 | `Del` | Delete (选中) | L3 (输入确认) |
 
 **危险操作必须显式 L1/L2/L3**, 不允许快捷键绕过确认。
+**误触防护 (0.5C.1 补):** 单键 `T` / `F` / `Del` 仅在无文本输入焦点时生效; 触发后一律进入对应 L2/L3 确认流程, 无"直接执行"路径。
+**Command Palette (`Ctrl+K`) 命令清单:** Phase 4 定义 (导航 + 常用 L1 动作; L2/L3 动作仅跳转到确认入口, 不可直接执行)。
 
 ---
 

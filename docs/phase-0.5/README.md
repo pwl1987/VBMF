@@ -24,7 +24,7 @@ Phase 0.5 是 **V0.2 Architecture LOCK FINAL 之后, Phase 0.6 Executable Accept
 | **0.5B.1** P0 Wireframes | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) |
 | **0.5B.2** Product UX Closure | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL |
 | **0.5C** Info Arch Closure | 🟡 DRAFT 0.1 (本轮) | 目录归并 + Object Vocabulary + Navigation 4 域 + Product Object Model + 0.6 语义修复 |
-| **0.5D** P0 Product Surfaces | ⛔ 待开始 | M-15 Realtime / E-34 Hardware / E-36 Clock / P-20 Profile Center / P-28 Bundle / M-16 Job Detail / M-14 重画 |
+| **0.5D** P0 Product Surfaces | ⛔ 待开始 | M-17 Realtime / E-38 Hardware / E-37 Clock 升级 / P-20 Profile Center / P-28 Bundle / M-18 Job Detail / M-14 重画 |
 | **0.5E** Global UX Layer | ⛔ 待开始 | Impact Preview 全域 / Configuration Diff / Command Palette |
 
 完整 milestone 表见 [`MILESTONES.md`](MILESTONES.md)。

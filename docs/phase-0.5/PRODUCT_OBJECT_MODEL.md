@@ -222,14 +222,14 @@ V0.2 已经把 Channel 作为运营单位 (V0.2 §3.6)。Phase 0.5C 进一步把
 | **M-11 Media Library** (product) | Asset | Asset Version, Job, QC Profile, Rights Profile |
 | **M-12 Asset Detail** (product) | Asset + Asset Version | QC Profile, Rights Profile, Channel (Used By) |
 | **M-14 File Transcode** (product) | Job (FILE_TRANSCODE) | Asset, Encoding Profile, Variant |
-| **M-15 Realtime Transcode** (product, 0.5D) | Session (MEDIA_SESSION) | Channel, Source, Encoding Profile |
-| **M-16 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
+| **M-17 Realtime Transcode** (product, 0.5D) | Session (MEDIA_SESSION, 包装 REALTIME_ENCODE Job) | Channel, Source, Encoding Profile |
+| **M-18 Transcode Job Detail** (product, 0.5D) | Job (任意 kind) | Worker, Profile, Asset, Variant |
 | **P-20 Profile Center** (0.5D) | Profile (6 子类 Registry) | Bundle, Variant, Channel |
 | **P-21 Encoding Profile** | Encoding Profile | Bundle, Variant, Channel |
 | **P-22 Output Profile** | Output Profile | Bundle, Variant, Destination, Edge Policy |
 | **P-28 Profile Bundle** (0.5D) | Profile Bundle | Channel, 6 Profile, ChangeSet |
-| **E-34 Hardware** (0.5D) | Hardware Capability + Device | Session, Job, Profile |
-| **E-36 Clock** (0.5D) | Clock Reference + Fallback Chain | Session, Source, Channel |
+| **E-38 Hardware Inventory** (0.5D) | Hardware Capability + Device | Session, Job, Profile |
+| **E-37 Clock** (0.5D 升级) | Clock Reference + Fallback Chain | Session, Source, Channel |
 | **O-41 Health Tree** | Health Tree + Channel | Source, Node, RG, Incident |
 | **O-42 Incident Center** | Incident | Channel, Replay, Job |
 | **A-51 Users** | User | Role, Permission, Audit |

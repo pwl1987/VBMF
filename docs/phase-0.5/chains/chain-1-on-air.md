@@ -17,7 +17,7 @@
   ↓
 [按 TAKE 切播按钮] ← L2 重要操作（3s 倒计时 + 二次确认）
   ↓
-[切到 PGM：PACKET_SWITCH（87ms）]
+[切到 PGM：Effective Mode=FRAME_SWITCH（Hot-Standby Policy Target 100ms · failover_benchmarks 实测 p95 87ms）]
   ↓
 [Program-scope Master 接收新源（RAW 域）]
   ↓

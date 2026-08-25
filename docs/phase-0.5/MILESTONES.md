@@ -58,7 +58,7 @@ docs/
 │   │   ├── 09-health-tree.html
 │   │   └── 10-states.html                    # 1 Validation Page
 │   │
-│   ├── product/                              # Product UX 5+ (M-14/M-15/M-16/P-28 在 0.5D)
+│   ├── product/                              # Product UX 5+ (M-14 重画/M-17/M-18/P-20/P-28/E-38 在 0.5D)
 │   │   ├── M-11-media-library.html
 │   │   ├── M-12-asset-detail.html
 │   │   ├── M-14-file-transcode.html          # (待 0.5D 重画)
@@ -83,7 +83,7 @@ docs/
 | **0.5B.1 P0 Wireframes** | 2026-08 | 🟢 LOCK FINAL | 5 张 P0 wireframe (M-11/M-12/M-14/P-21/P-22) | `3ef6a30` |
 | **0.5B.2 Product UX Closure** | 2026-08 | 🟢 LOCK FINAL | 8 P0 + 5 P1 + Design System + UX BASELINE LOCK FINAL | `cec7407` |
 | **0.5C Info Arch Closure** | 2026-08 | 🟡 DRAFT 0.1 (本轮) | 目录归并 + Object Vocabulary + Navigation + Product Object Model + Phase 0.6 语义修复 | (本轮提交) |
-| **0.5D P0 Product Surfaces** | (待) | ⛔ 未开始 | M-15 Realtime Transcode + E-34 Hardware + E-36 Clock + P-20 Profile Center + P-28 Profile Bundle + M-16 Job Detail | — |
+| **0.5D P0 Product Surfaces** | (待) | ⛔ 未开始 | M-17 Realtime Transcode + E-38 Hardware + E-37 Clock 升级 + P-20 Profile Center + P-28 Profile Bundle + M-18 Job Detail + M-14 重画 | — |
 | **0.5E Global UX Layer** | (待) | ⛔ 未开始 | Impact Preview 全域 / Configuration Diff / Dependency View / Command Palette / Keyboard | (0.5B.2 已部分) |
 
 ## 3. Phase 0.5 LOCK FINAL 判定矩阵

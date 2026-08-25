@@ -7,7 +7,7 @@
 :root{
   --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
   --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
-  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;--badge-green-bg:#1a3a1a;--badge-yellow-bg:#3a3a1a;--badge-red-bg:#3a1a1a;--badge-blue-bg:#1a2a3a;--badge-gray-bg:#1f242c;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
@@ -42,10 +42,10 @@ tr:hover{background:var(--bg3);cursor:pointer}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
 .dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}.dot.blue{background:var(--blue)}
 .badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
-.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
-.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
-.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
-.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+.badge.green{background:var(--badge-green-bg);color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:var(--badge-yellow-bg);color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:var(--badge-red-bg);color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:var(--badge-blue-bg);color:var(--blue);border-color:#2a4a5a}
 .badge.gray{background:var(--bg3);color:var(--fgdim)}
 .thumb{width:48px;height:27px;background:#000;border:1px solid var(--border);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--fgdim)}
 .empty-state{text-align:center;padding:60px 20px;color:var(--fgdim)}
@@ -94,11 +94,11 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     <!-- Saved Views (Phase 0.5B.2 P1 强化) -->
     <div class="filter-group">
       <div class="label" style="color:var(--accent)">★ Saved Views 收藏视图</div>
-      <div class="filter-item" style="background:#1a2a3a;border-left:2px solid var(--accent)">★ 今日新闻 Today's News <span class="count">12</span></div>
+      <div class="filter-item" style="background:var(--badge-blue-bg);border-left:2px solid var(--accent)">★ 今日新闻 Today's News <span class="count">12</span></div>
       <div class="filter-item">★ 待 QC Pending QC <span class="count">14</span></div>
       <div class="filter-item">★ QC Failed <span class="count">12</span></div>
-      <div class="filter-item" style="background:#3a3a1a">⚠ Rights 7 天内到期 Expiring <span class="count">8</span></div>
-      <div class="filter-item" style="background:#1a3a1a">✓ 可直接播出 Ready for Playout <span class="count">98</span></div>
+      <div class="filter-item" style="background:var(--badge-yellow-bg)">⚠ Rights 7 天内到期 Expiring <span class="count">8</span></div>
+      <div class="filter-item" style="background:var(--badge-green-bg)">✓ 可直接播出 Ready for Playout <span class="count">98</span></div>
       <div class="filter-item">★ 待转码 Pending Transcode <span class="count">6</span></div>
       <div class="filter-item">★ 我拥有的 Mine <span class="count">42</span></div>
       <div style="margin-top:6px;font-size:10px;color:var(--fgdim);cursor:pointer">+ Save Current View 保存当前视图</div>
@@ -379,9 +379,9 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <tr><td><b>● NORMAL</b></td><td>READY 资产 &gt; 0</td><td>正常列表 + 筛选可用</td></tr>
       <tr><td><b>◌ LOADING</b></td><td>首次 / 刷新</td><td>10 行 Skeleton + spinner</td></tr>
       <tr><td><b>○ EMPTY</b></td><td>0 assets (新系统)</td><td>中央 "无媒体资产" + [+ Upload Asset] 主按钮 + "从录制导入" 副按钮</td></tr>
-      <tr><td><b>⚠ WARNING</b></td><td>有 QC_FAILED 或 RIGHTS_BLOCKED</td><td>黄色 Banner: "12 assets have QC issues, 3 have rights issues"</td></tr>
+      <tr><td><b>⚠ WARNING</b></td><td>有 QC_FAILED / RIGHTS_BLOCKED 资产, 或 Storage ≥ 80% (阈值与 E-36 统一)</td><td>黄色 Banner: "12 assets have QC issues, 3 have rights issues" / "Storage 82% · 4 days until full"</td></tr>
       <tr><td><b>✗ ERROR</b></td><td>Probe 失败 / Hash 不匹配</td><td>红色行标记 + [Retry Probe] 按钮</td></tr>
-      <tr><td><b>✗✗ CRITICAL</b></td><td>Storage &gt; 90% (Warning)</td><td>顶部红条: "Storage critical (92%) · 1 day until full"</td></tr>
+      <tr><td><b>✗✗ CRITICAL</b></td><td>Storage &gt; 95% (全局阈值: W ≥80% / E ≥90% / C &gt;95%)</td><td>顶部红条: "Storage critical (96%) · write protection suggested"</td></tr>
     </tbody>
   </table>
 </div>

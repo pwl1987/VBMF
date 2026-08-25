@@ -77,7 +77,7 @@ canonical_terms:
   - Preflight
   - Configuration_Versioning
   - Incident_Timeline
-  - Health_Tree
+  # (X5 Health_Tree 与 Runtime 域同名, 见下方 Runtime 域, 不重复列)
   - Capability_Registry
 
   # Switch Mode 3
@@ -132,11 +132,15 @@ canonical_terms:
   - WebRTC
   - SRT
   - UDP
+  - RTP          # 0.5B.2 P0-6 加入 (RTP over UDP, 与 UDP MPEG-TS 区分)
   - MPEG-TS
   - fMP4
   - MP4
   - MOV
   - MKV
+  - DASH         # Reserved V0.4+ — UI 显示原文 + [Reserved] 标注
+  - SDI          # 同上 (SDI Master Output Reserved)
+  - DRM          # 同上
 
   # 编解码
   - H.264
@@ -149,6 +153,11 @@ canonical_terms:
   - MP3
   - Vorbis
   - Theora
+
+  # 硬件编码器 (Runtime Discovery 驱动, 显示原文)
+  - NVENC
+  - QSV
+  - VideoToolbox
 
   # 时钟
   - PTP
@@ -497,6 +506,189 @@ dangerous_action:
     en-US: Dangerous (Type to Confirm)
 ```
 
+#### UI Surface State 翻译表 (0.5C.1 补 — 每页 6 状态)
+
+```yaml
+status.ui_surface:
+  normal:
+    zh-CN: 正常
+    en-US: Normal
+  loading:
+    zh-CN: 加载中
+    en-US: Loading
+  empty:
+    zh-CN: 空
+    en-US: Empty
+  warning:
+    zh-CN: 警告
+    en-US: Warning
+  error:
+    zh-CN: 错误
+    en-US: Error
+  critical:
+    zh-CN: 严重
+    en-US: Critical
+```
+
+#### Node Role 翻译表 (0.5C.1 补)
+
+```yaml
+status.node_role:
+  active:
+    zh-CN: 主用
+    en-US: Active
+  standby:
+    zh-CN: 备用
+    en-US: Standby
+  offline:
+    zh-CN: 离线
+    en-US: Offline
+```
+
+#### Health Freshness 翻译表 (0.5B.2 P0-2 定义, 0.5C.1 补表)
+
+```yaml
+status.health_freshness:
+  fresh:
+    zh-CN: 新鲜
+    en-US: Fresh
+  stale:
+    zh-CN: 过期
+    en-US: Stale
+```
+
+#### Job Status 翻译表 (0.5C.1 补)
+
+```yaml
+status.job:
+  pending:
+    zh-CN: 等待中
+    en-US: Pending
+  queued:
+    zh-CN: 排队中
+    en-US: Queued
+  running:
+    zh-CN: 运行中
+    en-US: Running
+  completed:
+    zh-CN: 已完成
+    en-US: Completed
+  failed:
+    zh-CN: 已失败
+    en-US: Failed
+  cancelled:
+    zh-CN: 已取消
+    en-US: Cancelled
+```
+
+#### Job Kind 翻译表 (0.5C.1 补 — 6 kinds, 见 SURFACE_SPEC §29.5)
+
+```yaml
+job.kind:
+  file_transcode:
+    zh-CN: 文件转码
+    en-US: File Transcode
+  realtime_encode:
+    zh-CN: 实时编码
+    en-US: Realtime Encode
+  probe:
+    zh-CN: 探测
+    en-US: Probe
+  qc:
+    zh-CN: 质量检测
+    en-US: QC
+  upload:
+    zh-CN: 上传
+    en-US: Upload
+  archive:
+    zh-CN: 归档
+    en-US: Archive
+```
+
+#### Profile Status 翻译表 (0.5C.1 补)
+
+```yaml
+status.profile:
+  draft:
+    zh-CN: 草稿
+    en-US: Draft
+  active:
+    zh-CN: 生效中
+    en-US: Active
+  deprecated:
+    zh-CN: 已弃用
+    en-US: Deprecated
+```
+
+#### Rights Status 翻译表 (0.5C.1 补)
+
+```yaml
+status.rights:
+  active:
+    zh-CN: 有效
+    en-US: Valid
+  expiring:
+    zh-CN: 即将到期
+    en-US: Expiring
+  expired:
+    zh-CN: 已过期
+    en-US: Expired
+  blocked:
+    zh-CN: 已阻止
+    en-US: Blocked
+  overridden:
+    zh-CN: 已覆盖 (L3)
+    en-US: Overridden (L3)
+```
+
+#### QC Severity 翻译表 (0.5C.1 补 — 同用于 Alert Severity)
+
+```yaml
+severity.qc:
+  info:
+    zh-CN: 信息
+    en-US: Info
+  warning:
+    zh-CN: 警告
+    en-US: Warning
+  error:
+    zh-CN: 错误
+    en-US: Error
+  critical:
+    zh-CN: 严重
+    en-US: Critical
+```
+
+#### User Status 翻译表 (0.5C.1 补)
+
+```yaml
+status.user:
+  active:
+    zh-CN: 启用
+    en-US: Active
+  disabled:
+    zh-CN: 禁用
+    en-US: Disabled
+  locked:
+    zh-CN: 锁定
+    en-US: Locked
+```
+
+#### Clock Reference Class 翻译表 (0.5C.1 补 — BROADCAST_GRADE 为 canonical 不译)
+
+```yaml
+clock.reference_class:
+  good:
+    zh-CN: 良好
+    en-US: Good
+  fair:
+    zh-CN: 一般
+    en-US: Fair
+  poor:
+    zh-CN: 较差
+    en-US: Poor
+```
+
 ### 3.3 UI 中应**避免**的 hard-coded 字符串 (反模式)
 
 ```typescript
@@ -522,10 +714,10 @@ formatting:
     en-US: "2026-08-25"
   time:
     zh-CN: "14:25:36"   # 24h
-    en-US: "2:25:36 PM"  # 12h
+    en-US: "14:25:36"   # 24h (0.5C.1 修正: 广播机房日志/时间线统一 24h, 与 O-43 Incident Timeline 一致; 12h 制在跨班次对表时产生歧义)
   datetime:
     zh-CN: "2026-08-25 14:25:36 CST"
-    en-US: "Aug 25, 2026 2:25:36 PM CST"
+    en-US: "2026-08-25 14:25:36 CST"
   timezone:
     default: Asia/Shanghai  # user profile setting
     overrides: per channel
@@ -624,6 +816,31 @@ error_codes:
   e_008_rights_blocked:
     zh-CN: 版权阻止
     en-US: Rights blocked
+  # 0.5C.1 补 (覆盖 0.5B wireframe 已呈现的失败模式)
+  e_009_probe_failed:
+    zh-CN: 媒体探测失败
+    en-US: Media probe failed
+  e_010_hash_mismatch:
+    zh-CN: 文件哈希不匹配
+    en-US: File hash mismatch
+  e_011_test_connection_failed:
+    zh-CN: 连接测试失败
+    en-US: Test connection failed
+  e_012_storage_full:
+    zh-CN: 存储空间不足
+    en-US: Storage full
+  e_013_hash_chain_verification_failed:
+    zh-CN: 审计链校验失败
+    en-US: Audit hash chain verification failed
+  e_014_encode_failed:
+    zh-CN: 编码失败
+    en-US: Encode failed
+  e_015_upload_failed:
+    zh-CN: 上传失败
+    en-US: Upload failed
+  e_016_rtp_ssrc_conflict:
+    zh-CN: RTP SSRC 冲突
+    en-US: RTP SSRC conflict
 ```
 
 ---
@@ -656,19 +873,32 @@ Phase 0.5A wireframe 当前是 prototype, hard-coded 字符串可以接受。
 2. Phase 0.5B.2 全部 wireframe 迁移
 3. Phase 0.5A wireframe (9 Core + 1 Validation) 在 Phase 4 实施时迁移
 
-**i18n Key 与 0.5A wireframe 字段对照表 (待 Phase 0.5B.1 完成):**
-- 01-dashboard: `broadcast.dashboard.*`
-- 02-sources: `broadcast.sources.*`
-- 03-switcher: `broadcast.switcher.*`
-- 04-composition: `broadcast.composition.*`
-- 05-audio: `broadcast.audio.*`
-- 06-output: `broadcast.output.*`
-- 07-recording: `broadcast.recording.*`
-- 08-graph-designer: `engineering.graph_designer.*`
-- 09-health-tree: `operations.health_tree.*`
-- 10-states: `validation.states.*`
-- M-11: `media.library.*`
-- ... (后续)
+**i18n Key 命名空间 × 表面全表 (0.5C.1 补全 — 替代原 "(后续)" 占位; 前缀与 0.5C 4 域一致):**
+
+| 表面 | Key 前缀 | 表面 | Key 前缀 |
+|---|---|---|---|
+| 01-dashboard | `broadcast.dashboard.*` | E-31 Graph Designer | `engineering.graph_designer.*` |
+| 02-sources | `broadcast.sources.*` | E-32 Preflight | `engineering.preflight.*` |
+| 03-switcher | `broadcast.switcher.*` | E-33 Change Sets | `engineering.change_sets.*` |
+| 04-composition | `broadcast.composition.*` | E-34 Capability | `engineering.capability.*` |
+| 05-audio | `broadcast.audio.*` | E-35 Device Registry | `engineering.device_registry.*` |
+| 06-output | `broadcast.output.*` | E-36 Resource | `engineering.resource.*` |
+| 07-recording | `broadcast.recording.*` | E-37 Clock | `engineering.clock.*` |
+| CD-01 Channel Detail | `broadcast.channel_detail.*` | E-38 Hardware (0.5D) | `engineering.hardware.*` |
+| M-11 Media Library | `media.library.*` | P-20 Profile Center (0.5D) | `engineering.profile_center.*` |
+| M-12 Asset Detail | `media.asset_detail.*` | P-21 Encoding Profile | `engineering.profiles.encoding.*` |
+| M-13 Upload / Ingest | `media.upload.*` | P-22 Output Profile | `engineering.profiles.output.*` |
+| M-14 Transcode Center | `media.transcode.*` | P-23~P-27 | `engineering.profiles.{audio|graphic|qc|rights|edge}.*` |
+| M-15 Transcode Jobs | `media.jobs.*` | P-28 Bundle (0.5D) | `engineering.profile_bundle.*` |
+| M-16 Versions / Renders | `media.versions.*` | M-17 Realtime (0.5D) | `broadcast.realtime_transcode.*` |
+| M-18 Job Detail (0.5D) | `media.job_detail.*` | O-41 Health Tree | `operations.health_tree.*` |
+| O-42 Alerts | `operations.alerts.*` | O-43 Incident Timeline | `operations.incident_timeline.*` |
+| O-44 Replay | `operations.replay.*` | O-45 Benchmarks | `operations.benchmarks.*` |
+| A-51 Users | `administration.users.*` | A-52 Roles | `administration.roles.*` |
+| A-53 Permissions | `administration.permissions.*` | A-54 Audit Logs | `administration.audit.*` |
+| A-55 System Settings | `administration.settings.*` | 10-states | `validation.states.*` |
+
+**桥接状态回写 (0.5C.1, 如实记录):** 0.5B.1 五张 wireframe 的 `data-i18n` 标注进度原为 M-11=14 处 / M-12=7 处 / M-14·P-21·P-22=0 处, 未达 "全部替换 hard-code" 的原定目标; 0.5C.1 已为 M-14 / P-21 / P-22 补齐骨架级 `data-i18n`（header / breadcrumb / 主操作区）, 全量字符串迁移仍留 Phase 4。
 
 ---
 
@@ -677,11 +907,11 @@ Phase 0.5A wireframe 当前是 prototype, hard-coded 字符串可以接受。
 **V0.1 锁定:**
 - 2 Locale: zh-CN (default) / en-US
 - Canonical Vocabulary (不翻译)
-- 11 个 enum 翻译表 (HealthState / Lifecycle / Readiness / SwitchMode / HotStandby / FailureDomain / Clock / MediaAssetStatus / ChangeSet Status+Phase / Clock Event / DangerousAction)
+- 22 个 enum 翻译表（V0.1 原 11 个: HealthState / Lifecycle / Readiness / SwitchMode / HotStandby / FailureDomain / Clock / MediaAssetStatus / ChangeSet Status+Phase / Clock Event / DangerousAction; 0.5C.1 补 11 个: UI Surface State / Node Role / Health Freshness / Job Status / Job Kind / Profile Status / Rights Status / QC Severity / User Status / Clock Reference Class）
 - Formatting 约定
 - Pluralization (zh-CN single, en-US ICU)
 - Interpolation
-- Error Code 翻译表
+- Error Code 翻译表 (16 条)
 
 **V0.2 未来 (不阻塞 Phase 0.5B.1):**
 - 增加 zh-TW / ja-JP / ko-KR

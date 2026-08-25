@@ -7,7 +7,7 @@
 :root{
   --bg:#0d1117;--bg2:#161b22;--bg3:#1f242c;--border:#30363d;
   --fg:#c9d1d9;--fgdim:#8b949e;--accent:#58a6ff;
-  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;
+  --green:#3fb950;--yellow:#d29922;--red:#f85149;--gray:#6e7681;--blue:#58a6ff;--orange:#db6d28;--badge-green-bg:#1a3a1a;--badge-yellow-bg:#3a3a1a;--badge-red-bg:#3a1a1a;--badge-blue-bg:#1a2a3a;--badge-gray-bg:#1f242c;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:16px;margin:0}
@@ -27,10 +27,10 @@ header h2{font-size:14px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .dot.green{background:var(--green)}.dot.yellow{background:var(--yellow)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}.dot.blue{background:var(--blue)}
 .badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--fgdim);border:1px solid var(--border)}
-.badge.green{background:#1a3a1a;color:var(--green);border-color:#2a5a2a}
-.badge.yellow{background:#3a3a1a;color:var(--yellow);border-color:#5a5a2a}
-.badge.red{background:#3a1a1a;color:var(--red);border-color:#5a2a2a}
-.badge.blue{background:#1a2a3a;color:var(--blue);border-color:#2a4a5a}
+.badge.green{background:var(--badge-green-bg);color:var(--green);border-color:#2a5a2a}
+.badge.yellow{background:var(--badge-yellow-bg);color:var(--yellow);border-color:#5a5a2a}
+.badge.red{background:var(--badge-red-bg);color:var(--red);border-color:#5a2a2a}
+.badge.blue{background:var(--badge-blue-bg);color:var(--blue);border-color:#2a4a5a}
 .badge.gray{background:var(--bg3);color:var(--fgdim)}
 .badge.outline{background:transparent;border:1px solid var(--border);color:var(--fgdim)}
 
@@ -51,7 +51,7 @@ header h2{font-size:14px}
 /* Profile list */
 .profiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .profile-card{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:12px;cursor:pointer}
-.profile-card.selected{border-color:var(--accent);background:#1a2a3a}
+.profile-card.selected{border-color:var(--accent);background:var(--badge-blue-bg)}
 .profile-card h4{margin:0 0 6px 0;font-size:13px}
 .profile-card .meta{color:var(--fgdim);font-size:11px;margin-bottom:6px}
 
@@ -88,7 +88,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <body>
 
 <header>
-  <h2>输出 Profile / Output Profile — 4-Tuple + 3-Tier Protocol (P-22)</h2>
+  <h2 data-i18n="engineering.profiles.output.title">输出 Profile / Output Profile — 4-Tuple + 3-Tier Protocol (P-22)</h2>
   <div>
     <span class="lang">🌐 <b>中</b> / EN</span>
     <span style="margin-left:12px;color:var(--fgdim)">← Profile Center (P-20 · 0.5D 待创建)</span>
@@ -174,26 +174,26 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
   <div class="panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <h3 style="margin:0"><span class="cn">Profile 列表</span> / PROFILES</h3>
-      <button class="btn primary" style="font-size:11px;padding:3px 8px">+ 新建</button>
+      <button class="btn primary" style="font-size:11px;padding:3px 8px" data-i18n="engineering.profiles.output.action.create">+ 新建</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr;gap:6px">
       <div class="profile-card selected">
-        <h4>HLS-LIVE-01 <span class="badge green">● ACTIVE</span></h4>
+        <h4>HLS-LIVE-01 <span class="badge blue">● ACTIVE</span></h4>
         <div class="meta">HLS · 5 Mbps CBR · LL-HLS 2s</div>
         <div style="font-size:10px;color:var(--fgdim)">3 Variants · 6 Destinations</div>
       </div>
       <div class="profile-card">
-        <h4>HLS-LL-01 <span class="badge green">● ACTIVE</span></h4>
+        <h4>HLS-LL-01 <span class="badge blue">● ACTIVE</span></h4>
         <div class="meta">HLS · 3 Mbps · Low Latency 1s</div>
         <div style="font-size:10px;color:var(--fgdim)">2 Variants · 4 Destinations</div>
       </div>
       <div class="profile-card">
-        <h4>RTMP-PUSH-01 <span class="badge green">● ACTIVE</span></h4>
+        <h4>RTMP-PUSH-01 <span class="badge blue">● ACTIVE</span></h4>
         <div class="meta">RTMP · 4 Mbps CBR · Push to Origin</div>
         <div style="font-size:10px;color:var(--fgdim)">1 Variant · 1 Destination</div>
       </div>
       <div class="profile-card">
-        <h4>ARCHIVE-01 <span class="badge green">● ACTIVE</span></h4>
+        <h4>ARCHIVE-01 <span class="badge blue">● ACTIVE</span></h4>
         <div class="meta">File · MP4 · NFS Archive</div>
         <div style="font-size:10px;color:var(--fgdim)">2 Variants · 2 Destinations</div>
       </div>
@@ -292,7 +292,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
     </div>
 
     <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn primary">💾 Save 保存 (L2 · ChangeSet)</button>
+      <button class="btn primary" data-i18n="engineering.profiles.output.action.save">💾 Save 保存 (L2 · ChangeSet)</button>
       <button class="btn">▶ Test Connection 测试连接 (L1)</button>
       <button class="btn">View in Output 运行态 0.5A #06 →</button>
       <button class="btn">View Variants (3) →</button>
@@ -318,7 +318,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <td>CH01</td>
         <td>HLS-LIVE-01 (this)</td>
         <td>CDN-A (●) + CDN-B (备用)</td>
-        <td><span class="badge green">● ACTIVE</span></td>
+        <td><span class="badge blue">● ACTIVE</span></td>
         <td><button class="btn">Open in CD-01 →</button></td>
       </tr>
       <tr>
@@ -334,7 +334,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
         <td>CH03</td>
         <td>HLS-LIVE-01 (this)</td>
         <td>CDN-A (●)</td>
-        <td><span class="badge green">● ACTIVE</span></td>
+        <td><span class="badge blue">● ACTIVE</span></td>
         <td><button class="btn">Open in CD-01 →</button></td>
       </tr>
     </tbody>

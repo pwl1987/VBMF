@@ -541,4 +541,29 @@ Phase 0.5.1 完成后，UI 已具备：
 
 ---
 
+## 8. Phase 0.5C.1 追加修复（2026-08-25 · 对账轮, 5 项）
+
+> 0.5A wireframe 为 LOCK FINAL, 本节按既有 Errata 流程追加（不改变语义, 只修复实现与文档宣称不一致处）。
+
+### C1-1 · 08-graph-designer: 补 VALIDATION Tab（兑现 P0-1 残留）
+- **问题**: P0-1 与 §6 验收清单声称 [DESIGN / COMPILED / VALIDATION] 三 Tab, 页面实际只有 2 Tab（VALIDATION 内容散在 Inspector）。
+- **修复**: 恢复第三 Tab + 新增完整 VALIDATION 面板（X2 Preflight 8 项校验）; 同时修复 Switcher 节点重复 style 属性导致的高亮样式失效。
+
+### C1-2 · 09-health-tree: Engineering View 聚合矛盾（FC-P0-2 残留）
+- **问题**: WebRTC=DEGRADED 与 CH01=HEALTHY / H2 PASS / aggregation=HEALTHY 同屏矛盾（Rule 2 要求 ACTIVE+DEGRADED → Channel DEGRADED）。
+- **修复**: CH01 → DEGRADED（标注 Rule 2 传播来源）; Output.SRS 随子节点降级; H2 行改为触发态展示; aggregation/view 两行改为 DEGRADED。Operator View 的 DEGRADED 折叠示例与此一致。
+
+### C1-3 · 09-health-tree: Node Role 色对齐 DESIGN_SYSTEM §2
+- **问题**: `.role.active` 用绿色、standby 用黄色, 与 DESIGN_SYSTEM `--role-active: blue (NOT green!)` 反模式禁令冲突。
+- **修复**: ACTIVE=实心蓝 / STANDBY=蓝描边虚线 / OFFLINE=灰描边。0.5B 五张 product wireframe 的 ● ACTIVE 徽章同步由绿改蓝。
+
+### C1-4 · chain-1-on-air: 87ms 语义残留（FC-P1-1 漏改）
+- **问题**: 步骤 5 仍写 "PACKET_SWITCH（87ms）", 与 01-dashboard 修复后口径（Effective=FRAME_SWITCH; 87ms 是实测 p95 非 Target）矛盾。
+- **修复**: 改为 "Effective Mode=FRAME_SWITCH（Policy Target 100ms · failover_benchmarks 实测 p95 87ms）"。
+
+### C1-5 · product/ wireframe i18n 与 token 对账（0.5B 范畴, 一并记录）
+- M-14 / P-21 / P-22 补骨架级 `data-i18n`（header / 统计 / 主操作）; badge 底色改用 `--badge-*-bg` token; M-12 Rights Override 模态补 "输入 OVERRIDE" 确认输入框; M-11 存储阈值对齐 E-36 口径（W ≥80% / E ≥90% / C >95%）; M-12 EMPTY 态对齐 SURFACE_SPEC（Probe in progress, 非 404）。
+
+---
+
 **VBMF Contributors** · Phase 0.5 LOCK FINAL · Phase 0.5.1 20 项 UI 语义修复（12 + 8 Final Closure）

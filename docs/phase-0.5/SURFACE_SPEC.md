@@ -55,23 +55,30 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 
 ---
 
-## 1. 6 大工作域 (Work Domains) — 计数口径统一
+## 1. 工作域 (Work Domains) — 计数口径统一
 
-| # | 工作域 | 角色 | UI 表面数 | 来源 | 状态 |
+> **Phase 0.5C 起顶层导航为 4 业务域** (BROADCAST / MEDIA / ENGINEERING / ADMIN, 见 §29.2 与 [`NAVIGATION.md`](../NAVIGATION.md))。
+> 下表 6 编号域保留为**表面编号体系与历史口径**, 不再是 UI 顶层导航。
+
+| # | 工作域 | 角色 | UI 表面数 | 来源 | 状态 (0.5C.1 回写) |
 |---|---|---|---|---|---|
-| 01 | **Broadcast 播控** | Operator / Director | 9 Core | 0.5A LOCK | 🟢 LOCK FINAL |
-| 02 | **Media 媒体资产** | Director / Engineer | 6 新 (M-11~16) | 0.5B 新增 | 🔴 待定义 |
-| 03 | **Profiles 配置** | Engineer | 7 新 (P-21~27) | 0.5B 新增 | 🔴 待定义 |
-| 04 | **Engineering 工程** | Engineer | 2 升级 (E-31) + 6 新 (E-32~37) | 0.5A #08 + 0.5B 新增 | 🟡 部分 LOCK + 6 待定义 |
-| 05 | **Operations 运维** | Operator / Engineer | 1 升级 (O-41) + 4 新 (O-42~45) | 0.5A #09 + 0.5B 新增 | 🟡 部分 LOCK + 4 待定义 |
-| 06 | **Administration 平台管理** | Admin | 5 新 (A-51~55) | 0.5B 新增 | 🔴 待定义 |
+| 01 | **Broadcast 播控** | Operator / Director | 9 Core | 0.5A LOCK | 🟢 LOCK FINAL (operator/) |
+| 02 | **Media 媒体资产** | Director / Engineer | 6 新 (M-11~16) | 0.5B 新增 | 🟢 Spec 锁定 · M-11/M-12/M-14 有 wireframe (product/) |
+| 03 | **Profiles 配置** | Engineer | 7 新 (P-21~27) | 0.5B 新增 | 🟢 Spec 锁定 · P-21/P-22 有 wireframe (product/) |
+| 04 | **Engineering 工程** | Engineer | 2 升级 (E-31) + 6 新 (E-32~37) | 0.5A #08 + 0.5B 新增 | 🟢 LOCK + Spec 锁定 |
+| 05 | **Operations 运维** | Operator / Engineer | 1 升级 (O-41) + 4 新 (O-42~45) | 0.5A #09 + 0.5B 新增 | 🟢 LOCK + Spec 锁定 |
+| 06 | **Administration 平台管理** | Admin | 5 新 (A-51~55) | 0.5B 新增 | 🟢 Spec 锁定 |
+| +CD | **Channel Detail** (01 域子页) | Operator / Director | 1 (CD-01) | 0.5B Closure-1 新增 (§17) | 🟢 Spec 锁定 · wireframe 0.5D+ |
 | +1 | **State Reference 状态参考** | 全员 | 1 (10-states) | 0.5A LOCK (Validation) | 🟢 LOCK FINAL |
 
 **口径说明 (避免歧义):**
 - **0.5A 锁定的 UI 表面**: 9 Core (01-09) + 1 Validation (10-states) = **10**
 - **0.5B 新增 UI 表面**: M(6) + P(7) + E(6) + O(4) + A(5) = **28**
+- **0.5B Closure-1 新增**: CD-01 Channel Detail (§17) = **1** (单独计数, CD 前缀不占域内序号)
 - **从 0.5A 升级到 0.5B 工作域的 UI 表面**: E-31 (Graph Designer 升级到 Engineering) + O-41 (Health Tree 升级到 Operations) = **2 升级** (升级 = 重新归类, 不是新增)
-- **0.5B 完成后的总 UI 表面**: 10 (0.5A) + 28 (0.5B 新) = **38** (含 1 Validation)
+- **O-44 说明**: O-44 Replay 是 0.5B 新定义的独立表面（继承 0.5A #07 的 Replay 子区语义, wireframe 已随 0.5A LOCK, 无需重画）, 计入 O(4) 新增; 与 E-31 / O-41 的"整页升级"不同
+- **Phase 0.5 已锁定总计**: 10 (0.5A) + 28 (0.5B 新) + 1 (CD-01) = **39**
+- **0.5D 后总计**: 39 + 5 新 (M-17/M-18/P-20/P-28/E-38) = **44** (E-37 升级与 M-14 重画不加数; 见 §29.2 计数表)
 - **不要再写 "30 / ~25 / ~35" 等模糊数字**
 
 **Surface 编号约定 (锁定):**
@@ -85,7 +92,8 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 
 ### 2.1 6 状态样例 (适用于每页)
 
-每页设计稿必须包含 6 个状态样例，否则视为不完整：
+> **口径分层 (0.5C.1 回写)**: **Spec 级** — 每个表面必须有 6 状态定义（正文各表面"状态模型"小节 + §2.1.1 补全表共同构成 SoT）；
+> **Wireframe 级** — 0.5D / Phase 4 出图时必须逐页呈现 6 个状态的**视觉样例**（此前宣称"缺一视为不完整"对 Spec-only 表面不可验证, 现以此为修正）。
 
 | 状态 | 触发条件 | UI 表现 |
 |---|---|---|
@@ -95,6 +103,28 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 | **Warning 警告** | 软指标越界 (漂移 / 漂移率 / 磁盘 80%) | 黄色 + Alert Banner |
 | **Error 错误** | 单次操作失败 (Encode 失败 / Profile 校验错) | 红色 + 错误信息 + 重试按钮 |
 | **Critical 严重** | 业务中断 (Source 全 FAILED / Change Set 失败) | 红色脉冲 + Incident 入口 |
+
+### 2.1.1 Spec 级状态模型补全表 (0.5C.1 — 覆盖 0.5B 正文缺状态模型的 13 个表面 + 缺 Loading/Empty 的 4 个表面)
+
+| 表面 | Normal | Loading | Empty | Warning | Error | Critical |
+|---|---|---|---|---|---|---|
+| **M-15** Transcode Jobs | Job 列表实时刷新 | 表格 skeleton | 无历史 Job + "发起第一个转码" 引导 | 排队超阈值 / Worker 接近满载 | 单 Job FAILED + Retry 入口 | 全部 Worker 不可达 |
+| **M-16** Versions / Renders | 版本列表 + 当前默认高亮 | skeleton | 仅原始上传 1 版 + "创建 Proxy" 引导 | 默认版本 QC WARN 角标 | 渲染失败行 + Retry | 默认版本缺失 (被删/损坏) 红条 |
+| **P-23** Audio Profiles | Profile 列表 | skeleton | 0 Profile + 模板引导 | 引用中的 Profile 长期未验证 | 响度参数越界校验失败 | 删除被引用 Profile 阻断 |
+| **P-24** Graphic Profiles | 模板列表 + 画布预览 | skeleton | 0 模板 + 内置模板引导 | 模板资源缺失 (字体/图片) | 模板解析失败 | On-Air 模板修改被 ChangeSet 阻断 |
+| **P-25** QC Profiles | Profile 列表 + 阈值表 | skeleton | 0 Profile + "Broadcast Default" 模板引导 | 阈值偏离 EBU R128 建议值提醒 | 阈值组合非法 | 删除被引用 QC Profile 阻断 |
+| **P-26** Rights Profiles | 模板列表 | skeleton | 0 模板 + 引导 | 默认模板即将到期 | 地域/平台组合冲突 | 误删默认模板阻断 |
+| **P-27** Edge Policy | Policy 列表 | skeleton | 0 Policy + LIVE_EDGE_DEFAULT 模板引导 | Policy 与 Switch Mode 不匹配提示 | 参数校验失败 | 删除被引用 Edge Policy 阻断 |
+| **E-34** Capability Registry | 矩阵只读展示 | skeleton | Discovery 未运行 + "重新发现" 引导 | Registry 缓存 STALE | Discovery 失败 + Retry | Registry 不可用 (Preflight 降级红条) |
+| **E-37** Clock | Reference Locked (绿) | skeleton | 无外部 Reference, SYSTEM 兜底提示 | CLOCK_DEGRADED (offset 越界, 黄) | CLOCK_FAILED (Fallback 生效, 红) | 全部 Reference 失效 (红条 + Incident) |
+| **O-43** Incident Timeline | 时间线滚动 | skeleton | 时间窗内无事件 (正常空态说明) | 事件密度异常提示 | 加载失败 + Retry | 在播 Channel 出现 ACTIVE 事件 (置顶红条) |
+| **O-45** Benchmarks | 最新 p50/p95/p99 表 | skeleton | 无基准数据 + "运行基准" 引导 | measured 接近 target (>80%) | 基准任务失败 | measured p95 > target (HOT 场景红条) |
+| **A-52** Roles | 角色列表 | skeleton | 仅内置 4 角色 (不可删提示) | 自定义角色含高危权限组合 | 并发编辑保存冲突 | 移除内置角色阻断 |
+| **A-53** Permissions | 矩阵展示 | skeleton | 不适用 (内置矩阵永不为空, 显示说明) | 自定义权限覆盖提示 | 加载失败 + Retry | 不适用 |
+| **A-55** System Settings | 10 区设置 | skeleton | 不适用 (各区永有默认值) | 改动未 Apply (ChangeSet 待提交) | 保存校验失败 | failover/安全类设置修改需 L3 + ChangeSet |
+| **E-36** Resource | 容量仪表全绿 | 图表 skeleton | 无 Runtime 数据 (Host 离线) | 80-90% 黄 | 90-95% 红 + 释放建议 | >95% 红条 + 写入保护提示 |
+| **A-51** Users | 用户列表 | skeleton | 仅初始 admin 账户提示 | 账户即将过期 / 异地登录 | 用户名冲突 / 保存失败 | 锁定自身 admin 账户阻断 |
+| **A-54** Audit Logs | 日志流 | skeleton | 查询窗内无记录 + "审计已启用" 说明 | Hash Chain 校验慢告警 | 查询失败 + Retry | Hash Chain 验证失败 (审计完整性破坏, 红条) |
 
 ### 2.2 危险操作 3 层
 
@@ -145,7 +175,7 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 |---|---|---|---|---|
 | **01 Broadcast** 播控 | R+W (1A 9 Core) | R+W (1A 9 Core) | R+W (1A 9 Core) | A |
 | **02 Media** 媒体 | R | R+W (M-11~16) | R+W (M-11~16) | A |
-| **03 Profiles** 配置 | R (own channel) | R (own channel) | R+W (P-21~27) | A |
+| **03 Profiles** 配置 | R (own channel) | R + W (仅 P-24 Graphic / P-26 Rights 模板) | R+W (P-21~27) | A |
 | **04 Engineering** 工程 | R (limited) | R (limited) | R+W (E-31~37) | A |
 | **05 Operations** 运维 | R+W (1A 9 Core + O-42 告警确认) | R (O-41~45) | R+W (O-41~45) | A |
 | **06 Administration** 管理 | — | — | R (own profile) | A |
@@ -162,11 +192,12 @@ V0.2 架构已定义 ~30 个核心对象（media_assets / encoding_profiles / ch
 
 ```
 Media Library (M-11)  ← 入口
-  ├─ Asset Detail (M-12)   ← 列表点击
-  │   ├─ Versions Tab (M-12a)   ← 子 tab
-  │   ├─ QC Tab (M-12b)
-  │   ├─ Rights Tab (M-12c)
-  │   └─ History Tab (M-12d)
+  ├─ Asset Detail (M-12)   ← 列表点击 (5 Tab 锁定)
+  │   ├─ Overview Tab (M-12a)  ← 默认子 tab
+  │   ├─ Versions Tab (M-12b)
+  │   ├─ QC Tab (M-12c)
+  │   ├─ Rights Tab (M-12d)
+  │   └─ History Tab (M-12e)
   ├─ Upload / Ingest (M-13)  ← 新建
   └─ Transcode Center (M-14)  ← 转码入口
       ├─ Transcode Jobs (M-15)  ← 队列
@@ -199,11 +230,11 @@ Media Library (M-11)  ← 入口
 
 ### 状态模型
 - Normal: READY 资产 > 0
-- Loading: 首次/刷新, 6 行 Skeleton
+- Loading: 首次/刷新, 10 行 Skeleton (与 M-11 wireframe 一致; DS §7 允许 3-10 行)
 - Empty: 0 assets + `[+ Upload Asset]` 主按钮 + "从录制导入" 副按钮
 - Warning: 黄色 Banner "12 assets have QC issues, 3 have rights issues"
 - Error: Probe 失败 / Hash 不匹配 + `[Retry Probe]`
-- Critical: Storage > 90% 顶部红条
+- Critical: Storage > 95% 顶部红条（阈值口径全局统一: Warning ≥80% / Error ≥90% / Critical >95%, 与 E-36 一致）
 
 ---
 
@@ -310,7 +341,7 @@ Media Library (M-11)  ← 入口
 | **权限** | R: 全部 · W: Engineer+ (Retry) · A: Admin |
 
 **字段:** Job ID · Asset · Profile · Status · Started · Duration · Worker · Attempts (重试次数)
-**操作:** `[View Detail]` `[Retry]` `[Open Asset]` `[Copy Log URL]` · 批量 `[Retry Selected]` `[Cancel Selected]` `[Export CSV]`
+**操作:** `[View Detail]` `[Retry (L1)]` `[Open Asset]` `[Copy Log URL]` · 批量 `[Retry Selected (L1)]` `[Cancel Selected (L2 — 仅 QUEUED/PENDING 可取消; RUNNING 需确认停止 Worker)]` `[Export CSV]`
 
 ---
 
@@ -505,7 +536,7 @@ Codec → Encoder → Capability → Resource Estimate
 
 | 维度 | 定义 |
 |---|---|
-| **目标** | 集中管理所有输出目标配置 (SRS HLS / RTMP / WebRTC / File / UDP) |
+| **目标** | 集中管理所有输出目标配置 (SRS HLS / RTMP / WebRTC / SRT / UDP / RTP / File) |
 | **主要操作** | Create / Edit / Test Connection / Delete |
 | **权限** | R: 全部 · W: Engineer · A: Admin |
 | **跳转** | 入口: 顶部菜单"Profiles" · 出口: Channel 配置 / Output 监控 |
@@ -525,6 +556,7 @@ Codec → Encoder → Capability → Resource Estimate
 | **WebRTC** (SRS) | SRS WHIP endpoint | Stream path | UDP/QUIC |
 | **SRT** | Host:Port | Stream ID | UDP |
 | **UDP MPEG-TS** | Host:Port | Multicast group | UDP |
+| **RTP** (RTP over UDP) | Host:Port | SSRC / Stream ID | UDP |
 | **File** (Archive) | Local / S3 / NFS | Path template | — |
 
 #### Reserved / V0.4+ (UI 显示但标 "Reserved" — Backend 未实现)
@@ -538,7 +570,7 @@ Codec → Encoder → Capability → Resource Estimate
 **V0.2 约束 (重要):** UI 不能让 V0.2 用户误以为 DASH/DRM/SDI 已经可配置。Reserved 协议必须显式标 "[Reserved · V0.2 Disabled]"。
 
 #### Protocol & Destination (V0.2 supported 内的详细字段)
-- Protocol (HLS / RTMP / WebRTC / SRT / UDP / File) — **V0.2 限定 6 种**
+- Protocol (HLS / RTMP / WebRTC / SRT / UDP / RTP / File) — **V0.2 限定 7 种**（0.5B.2 P0-6 加入 RTP, 与 RTPAdapter 对齐; 详见 §20.2 3-Tier）
 - Host / IP
 - Port
 - Stream Key / Path
@@ -554,8 +586,12 @@ Codec → Encoder → Capability → Resource Estimate
 
 #### RTMP Specific
 - URL (rtmp://host:port/app/stream)
-- Backup URL (failover)
-- Reconnect Policy (immediate / 1s / 5s)
+- Backup URL (failover; 切换行为由 Edge Policy (P-27) 决定)
+
+#### RTP Specific (0.5B.2 P0-6)
+- Address (host:port) + SSRC
+- Payload Type ( MPEG-TS over RTP / RAW )
+- 与 UDP MPEG-TS 的区别: RTP 带 RTP 头 (序列号/时间戳), 供接收端排序与丢包检测
 
 #### WebRTC Specific
 - ICE Servers (STUN / TURN)
@@ -563,11 +599,11 @@ Codec → Encoder → Capability → Resource Estimate
 - DTLS / SRTP enabled
 - Bitrate cap
 
-#### Latency / Reliability
-- Latency Target (50 / 100 / 200 / 500ms)
-- Reconnect Policy
-- Failover Destination (URL)
-- CDN Endpoint (可选)
+#### Latency / Reliability (0.5B.2 P0-6 三拆 + Edge Policy 引用)
+- **Delivery Latency Target** — 协议本身延迟 (e.g. LL-HLS 2s segment / RTMP 1-3s)
+- **Channel E2E Latency Target** — 整链路端到端预算 (e.g. ≤ 200 ms)
+- **Failover Latency Target** — 只读引用 `hot_standby_levels.target_failover_time_ms` (e.g. Policy: HOT → 100 ms; Target 是预算, 实测看 failover_benchmarks)
+- **Edge Policy Profile** — 引用 P-27 (Retry / Reconnect / Failover 统一在 P-27 配置, P-22 仅持有引用, 不再独立配置)
 
 #### Player Capability
 - Player Hint (Safari / Chrome / Android / iOS)
@@ -630,9 +666,9 @@ P-22 Output Profiles
 ├── 列表 (Profile 定义)
 └── 详情 (Profile Definition)
     ├── Basic
-    ├── Protocol & Destination (V0.2 supported 字段)
-    ├── HLS / RTMP / WebRTC / SRT / UDP / File 特定字段
-    ├── Latency / Reliability
+    ├── Protocol & Destination (V0.2 supported 字段, 7 种协议)
+    ├── HLS / RTMP / WebRTC / SRT / UDP / RTP / File 特定字段
+    ├── Latency (三拆: Delivery / Channel E2E / Failover) + Edge Policy 引用 (P-27)
     └── Player Capability
 
 P-22 内部 子页 (新增)
@@ -1145,7 +1181,7 @@ PREPARING → APPLYING → COMMITTED
 | 维度 | 定义 |
 |---|---|
 | **目标** | 时钟参考管理 (PTP / TIMECODE / SYSTEM), Fallback Chain |
-| **主要操作** | Lock / Set Reference / Test / Fallback Trigger |
+| **主要操作** | Lock (L1) / Set Reference (L2 — 影响全部引用 Channel, 需 Impact Preview §24.2) / Test (L1) / Fallback Trigger (L3 — 影响全部 Channel, 必须审计, 见 §25.2 与 A-54) |
 | **权限** | R: 全部 · W: Engineer · A: Admin |
 
 ### 信息架构
@@ -1296,7 +1332,7 @@ Allowed Actions (read-only):
 
 ## O-44 · Replay 回放 *(= 0.5A #07 子页)*
 
-**状态:** 🟢 Phase 0.5A LOCK FINAL — Incident → Replay 自动定位工作流 (在 Recording 07 页面内)
+**状态:** 🟢 0.5B 新定义的独立表面（继承 0.5A #07 Replay 子区语义; wireframe 已随 0.5A #07 LOCK, 不需要 0.5E 重画）— Incident → Replay 自动定位工作流
 
 ---
 
@@ -1413,7 +1449,8 @@ Administration
 | Delete Asset | — | — | R+W | A |
 | Transcode Create | R | R+W | R+W | A |
 | **03 Profiles** | | | | |
-| Edit Profile | — | — | R+W | A |
+| Edit Profile (P-21/P-22/P-23/P-25/P-27) | — | — | R+W | A |
+| Edit Profile (P-24 Graphic / P-26 Rights) | — | R+W | R+W | A |
 | Delete Profile | — | — | — | A |
 | **04 Engineering** | | | | |
 | Edit Graph | — | R | R+W | A |
@@ -1446,13 +1483,17 @@ Administration
 
 **详情:** Full Action · Before/After · 关联 Change Set / Incident
 
-**危险操作清单 (强制审计):**
+**危险操作清单 (强制审计 — 0.5C.1 回写, 纳入 0.5B.2 新增 L3 操作):**
 - TAKE / FAILOVER / DISABLE OUTPUT
 - CHANGE SET APPLY / ROLLBACK
 - DELETE Asset / Profile / Output
 - EDIT Profile / Permission
 - LOCK / UNLOCK Device
 - USER CRUD
+- RIGHTS OVERRIDE (L3, M-12 — Who/Why/Scope/Expiry/Audit Reference 五字段)
+- ALERT SILENCE / ALERT RULE 修改 (O-42)
+- FALLBACK TRIGGER (E-37 Clock — 影响全部 Channel, 见 §25.2)
+- BATCH 批量操作 (M-11 批量转码/归档/删除)
 
 **Hash Chain:** 每条 log 含前一条 hash, 保证不可篡改
 
@@ -1509,7 +1550,7 @@ Administration
 - Default Language · Date Format · Time Format
 
 #### Operator Preferences
-- Default Dashboard Channel · Theme (Dark/Light)
+- Default Dashboard Channel · Theme: **Dark (V0.1 锁定 — 24/7 机房; Light 为 V0.4+ 预留, 此处只读显示, 不可切换, 见 DESIGN_SYSTEM §9.2)**
 
 **操作:** `[Edit]` (L2) · `[Reset to Default]` (L3) · `[Export Config]`
 
@@ -1535,6 +1576,7 @@ VBMF Console
 | 源页面 | 跳转 | 目标 |
 |---|---|---|
 | Dashboard | Channel 缩略图点击 | Sources (02) |
+| Dashboard / Output | Channel 名称点击 | **CD-01 Channel Detail (§17, 8 Tab)** |
 | Sources | Source.A 配置 | Encoding Profile (P-21) |
 | Switcher | TAKE 失败 | Health Tree (O-41) → Incident (O-43) |
 | Output | HLS DEGRADED | Output Profile (P-22) |
@@ -1543,6 +1585,9 @@ VBMF Console
 | Composition | 拖入 Asset | Media Library (M-11) → Asset Detail (M-12) |
 | Change Set | Impact 显示 | Resource / Capacity (E-36) |
 | Asset Detail | Transcode 按钮 | Transcode Center (M-14) |
+| Asset Detail | Used By → Channel | CD-01 Channel Detail |
+| Transcode Center | Profile 选择 / Profile Diff | Encoding Profile (P-21) |
+| Encoding Profile | Used By → Channel | CD-01 Channel Detail |
 | Profile Editor | Codec 不可用 | Device Registry (E-35) |
 
 ## 9.3 抽屉 / 子页 (不计入主导航)
@@ -1552,6 +1597,7 @@ VBMF Console
 | Media Library | Asset Detail (5 tab) |
 | Transcode Center | Jobs / Versions |
 | Asset Detail | Versions / QC / Rights / History (4 tab) |
+| Dashboard / Output / Sources | CD-01 Channel Detail (8 tab, §17) |
 | Health Tree | Operator / Engineering / Aggregation Rules (3 view) |
 | Output | HLS Detail / WebRTC Detail (3 view) |
 | Composition | Timeline / Composition (2 column) |
@@ -1562,14 +1608,14 @@ VBMF Console
 
 # 10. 实施顺序 (P0 / P1 / P2 / Defer)
 
-## 10.1 Phase 0.5B 内部优先级
+## 10.1 Phase 0.5B 内部优先级 (0.5C.1 回写实际交付状态)
 
-| 优先级 | UI 表面 | 原因 |
-|---|---|---|
-| 🔴 **P0 必做** | M-11 (Library) + M-12 (Detail) + M-14 (Transcode) + P-21 (Encoding) + P-22 (Output) | 这些是 V0.2 核心架构对象, 缺它们 Phase 1 实施会不断回头问"放哪里" |
-| 🟠 **P1 强烈建议** | M-13 (Upload) + M-15 (Jobs) + M-16 (Versions) + P-23~27 (其他 Profile) + E-32~37 (工程) | 让 Phase 1 / 4 有完整可参考 UI 表面 |
-| 🟡 **P2 锦上添花** | O-42~45 (Operations 后续) + A-51~55 (Admin) | 后期再做也来得及, Admin 可直接用 SQL 临时方案 |
-| ⚪ **Defer to Phase 4** | (无) | 0.5B 不实施 wireframe, 只定义; 实施在 Phase 4 |
+| 优先级 | UI 表面 | 原因 | 状态 |
+|---|---|---|---|
+| 🔴 **P0 必做** | M-11 (Library) + M-12 (Detail) + M-14 (Transcode) + P-21 (Encoding) + P-22 (Output) | 这些是 V0.2 核心架构对象, 缺它们 Phase 1 实施会不断回头问"放哪里" | ✅ Spec + wireframe 均已交付 (0.5B.1) |
+| 🟠 **P1 强烈建议** | CD-01 (Channel Detail §17) + M-13 (Upload) + M-15 (Jobs) + M-16 (Versions) + P-23~27 (其他 Profile) + E-32~37 (工程) | 让 Phase 1 / 4 有完整可参考 UI 表面 | ✅ Spec 已锁定; wireframe 0.5D+ (CD-01 含内) |
+| 🟡 **P2 锦上添花** | O-42 / O-43 / O-45 (Operations 后续) + A-51~55 (Admin) | 后期再做也来得及, Admin 可直接用 SQL 临时方案 (O-44 Replay 例外: 已随 0.5A #07 LOCK) | 📋 wireframe 0.5E+ / Phase 4 |
+| ⚪ **Defer to Phase 4** | (无) | 0.5B 不实施 wireframe, 只定义; 实施在 Phase 4 | — |
 
 ## 10.2 与其他阶段衔接
 
@@ -1903,10 +1949,11 @@ Reason: Runtime Alignment degraded
 > **V0.1 Design System 锁定。**
 > 0.5A wireframe 当前每页自己定义组件, 不统一; 0.5B 开始统一。
 
-## 16.1 4 套状态语义 (必须分离)
+## 16.1 4 组状态语义 (必须分离)
 
-> 之前 §2.1 "6 状态样例" 是 **UI Surface State**。这只是 4 套状态之一。
-> 整个 VBMF 有 **4 套不同维度的 State**, **不能混用**:
+> 之前 §2.1 "6 状态样例" 是 **UI Surface State**。这只是 4 组状态之一。
+> 整个 VBMF 有 **4 组不同维度的 State**, **不能混用**:
+> (0.5C.1 注: [`DESIGN_SYSTEM.md` §1](DESIGN_SYSTEM.md) 将 Runtime 3 轴拆开列成 6 行 = Lifecycle / Readiness / Health — 两处口径一致: **4 组 = 6 个模型**, 只是粒度不同)
 
 | 套 | 用途 | 枚举 | 例子 |
 |---|---|---|---|
@@ -1962,8 +2009,9 @@ Reason: Runtime Alignment degraded
 
 ## 16.3 核心组件清单 (V0.1 锁定 — Phase 0.5B.1 / Phase 4 实施)
 
+> **SoT 说明 (0.5C.1)**: 组件级**权威定义**以 [`DESIGN_SYSTEM.md` §6](DESIGN_SYSTEM.md)（20 个, 含 props/variants）为准; 本表为"组件 × 适用页面"的映射视角。两清单已对账: ConfigurationTriangle / ImpactPanel / PreflightPanel / DependencyGraph / ChannelStatusCard 已补入 DS §6.16-6.20。
+
 | 组件 | 用途 | 必备字段 |
-|---|---|---|
 | `StatusBadge` | 显示 Runtime HealthState | state / reason / last_changed |
 | `HealthDot` | 单点 Health 状态 | state / size / tooltip |
 | `RuntimeStateChip` | Lifecycle + Readiness + Health 三轴合一 | lifecycle / readiness / health / uptime |
@@ -2389,6 +2437,7 @@ V0.2 完整 3-Tier:
 | WebRTC | ● Available | ✓ (SRS WHIP) |
 | SRT | ● Available | ✓ |
 | UDP MPEG-TS | ● Available | ✓ |
+| RTP | ● Available | ✓ (RTP over UDP · 0.5B.2 P0-6 加入, 与 RTPAdapter 对齐) |
 | File | ● Available | ✓ |
 | DASH | ○ Reserved | V0.4+ |
 | SDI Master Output | ○ Reserved | V0.4 Target |
@@ -3181,17 +3230,17 @@ Runtime (参考)
 - ✅ Phase 1 Media Core (Rust)
 - ✅ Phase 4 Web Console (按本规范实施)
 
-## 28.5 实施文件清单 (本轮)
+## 28.5 实施文件清单 (0.5B.2 本轮; 0.5C 已归并目录)
 
-新增 / 修改:
-- `docs/phase-0.5b/SURFACE_SPEC.md` (本节 §28)
-- `docs/phase-0.5b/DESIGN_SYSTEM.md` (新增, P0-8)
-- `docs/phase-0.5b/product/M-11-media-library.html` (P1 Saved Views)
-- `docs/phase-0.5b/product/M-12-asset-detail.html` (P0-5 Asset Version 命名 + P1 Rights Override L3)
-- `docs/phase-0.5b/product/M-14-transcode-center.html` (P0-7 Mini Acceptance Test + P1 Profile Diff + Use in Playout Safety)
-- `docs/phase-0.5b/product/P-21-encoding-profile.html` (P0-4 EFFECTIVE 语义 + BMD port-by-port + P1 Compatibility Advisor)
-- `docs/phase-0.5b/product/P-22-output-profile.html` (P0-6 RTP + Latency 拆 + Edge Policy 边界)
-- `README.md` (顶层, 反映 6 domains / 30+ surfaces / UX BASELINE LOCK FINAL)
+新增 / 修改 (0.5C 归并后的现路径):
+- `docs/phase-0.5/SURFACE_SPEC.md` (本节 §28)
+- `docs/phase-0.5/DESIGN_SYSTEM.md` (新增, P0-8)
+- `docs/phase-0.5/product/M-11-media-library.html` (P1 Saved Views)
+- `docs/phase-0.5/product/M-12-asset-detail.html` (P0-5 Asset Version 命名 + P1 Rights Override L3)
+- `docs/phase-0.5/product/M-14-transcode-center.html` (P0-7 Mini Acceptance Test + P1 Profile Diff + Use in Playout Safety)
+- `docs/phase-0.5/product/P-21-encoding-profile.html` (P0-4 EFFECTIVE 语义 + BMD port-by-port + P1 Compatibility Advisor)
+- `docs/phase-0.5/product/P-22-output-profile.html` (P0-6 RTP + Latency 拆 + Edge Policy 边界)
+- `README.md` (顶层, 反映 38 surfaces / UX BASELINE LOCK FINAL)
 
 ---
 
@@ -3242,29 +3291,36 @@ UI 顶层导航**从数字改为业务域**:
 
 | 域 | 中文 | 主要用户 | 包含对象 (本域新增) |
 |---|---|---|---|
-| **BROADCAST** | 直播 | Operator / Director | Channel · Source · Graph · Route · Session (REALTIME) · Variant · 09 Health Tree |
-| **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (FILE_TRANSCODE / PROBE / QC / UPLOAD / ARCHIVE) |
-| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 6 Profile · ChangeSet · Preflight · Hardware (E-34 新增) · Clock (E-36 新增) · Health · Incident · Replay · Benchmark** |
+| **BROADCAST** | 直播 | Operator / Director | Channel · Source · Session (REALTIME) · Variant |
+| **MEDIA** | 媒体 | Content Manager / Editor | Asset · Asset Version · Job (6 kinds, 见 §29.5) |
+| **ENGINEERING** | 工程 | Engineer / SRE | **Profile Center (P-20 新增) · Profile Bundle (P-28 新增) · 6 Profile · Graph/Route (E-31) · ChangeSet · Preflight · Hardware (E-38 新增) · Clock (E-37 升级) · Health · Incident · Replay · Benchmark** |
 | **ADMIN** | 管理 | Admin | User · Role · Permission · Audit · System Setting |
 
-| 域 | 表面数 | 已 LOCK | Spec 锁定 (待 wireframe) | 0.5D 新增 |
-|---|---|---|---|---|
-| BROADCAST | 12 | 10 | 1 (CD-01) | 1 (**M-15 Realtime Transcode**) |
-| MEDIA | 7 | 2 | 3 | 2 (**M-14 重画 File Transcode** + **M-16 Job Detail**) |
-| ENGINEERING | 20 | 2 | 13 | 5 (**P-20 Profile Center** + **P-28 Profile Bundle** + **E-34 Hardware** + **E-36 Clock** + 改 1) |
-| ADMIN | 5 | 0 | 5 | 0 |
-| **TOTAL** | **44** | **14** | **22** | **8** |
+**计数表 (0.5C.1 重算 — 修正草稿与已锁定编号的撞号: E-34 已是 Capability Registry, E-36 已是 Resource/Capacity, E-37 本就是 Clock, M-15/M-16 已被占用; 新表面改用空闲编号 M-17 / M-18 / E-38):**
+
+| 域 | 已锁定表面 | 0.5D 新增 | 域内合计 |
+|---|---|---|---|
+| BROADCAST | 9 (01-07 Core + 08→E-31·09→O-41 归 ENGINEERING 后剩 7 + CD-01) | +1 (**M-17 Realtime Transcode**) | 9 |
+| MEDIA | 6 (M-11~16) | +1 (**M-18 Job Detail**, 由 M-15 子页升级为独立页; M-14 重画不加数) | 7 |
+| ENGINEERING | 19 (E-31~37 = 7 + O-41~45 = 5 + P-21~27 = 7) | +3 (**P-20** + **P-28** + **E-38 Hardware**; E-37 Clock 为升级不加数) | 22 |
+| ADMIN | 5 (A-51~55) | 0 | 5 |
+| 全局 | 1 (10-states Validation, 不属任何域) | 0 | 1 |
+| **TOTAL** | **40** | **+5** | **44** |
+
+> 计数口径: 已锁定 40 = 0.5A 10 (9 Core + 1 Validation) + 0.5B 新增 28 + CD-01 (Closure-1 新增, 此前未计入)。
+> 0.5D 交付 = 5 新表面 (M-17 / M-18 / P-20 / P-28 / E-38) + 1 升级 (E-37 Clock) + 1 重画 (M-14 → File Transcode)。
+> 禁止再使用 "M-15 Realtime / M-16 Job Detail / E-34 Hardware / E-36 Clock" 指代 0.5D 新表面 (它们是已锁定的其他表面)。
 
 ⛔ **Profiles 不再是顶层域** (归 ENGINEERING)
 ⛔ **Operations 不再是顶层域** (归 ENGINEERING)
 
-## 29.3 Realtime Encode / File Transcode 拆分 (M-14 / M-15)
+## 29.3 Realtime Encode / File Transcode 拆分 (M-14 / M-17)
 
 V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不增加 Engine):
 
 | 产品语义 | 底层 Engine | 运行时对象 | UI 表面 |
 |---|---|---|---|
-| **Realtime Transcode** (实时转码) | Encode Engine (REALTIME mode) | **Session (MEDIA_SESSION)** | **M-15 Realtime Transcode** (0.5D 新增) |
+| **Realtime Transcode** (实时转码) | Encode Engine (REALTIME mode) | **Session (MEDIA_SESSION)** | **M-17 Realtime Transcode** (0.5D 新增) |
 | **File Transcode** (文件转码) | Encode Engine (FILE mode) | **Job (FILE_TRANSCODE kind)** | **M-14 File Transcode** (0.5B.1 M-14 改名, 0.5D 重画) |
 
 详细 2 种语义对比:
@@ -3280,17 +3336,17 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 
 **P-21 Encoding Profile** 同时支持 2 种语义, 但 schema 分 Common / Realtime / File 3 段 (0.5D 实施)。
 
-## 29.4 新增 6 个 UI 表面 (0.5D 锁定 Spec, 0.5D 画 wireframe)
+## 29.4 0.5D 交付表面 (5 新增 + 1 升级 + 1 重画)
 
-| 表面 | 域 | 关键交付 |
-|---|---|---|
-| **P-20 Profile Center** | ENGINEERING | 7 Tab 切换 6 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
-| **P-28 Profile Bundle** | ENGINEERING | 1 Channel 1 Bundle, 6 Profile 引用, 不重新配置 6 套参数 |
-| **E-34 Hardware Inventory** | ENGINEERING | HOST 顶层 (CPU/GPU/BMD/NIC/Storage) → Device 详情 (Capabilities/Ports/Assignment/Health/Temperature/Firmware/Driver) |
-| **E-36 Clock** | ENGINEERING | Reference (PTP/TIMECODE/SYSTEM/MONOTONIC) + Fallback Chain + Offset/Drift/Lock + Fallback history |
-| **M-15 Realtime Transcode** | BROADCAST | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
-| **M-16 Transcode Job Detail** | MEDIA | Job #TR-1822 (Status/Input/Profile/Worker/Pipeline 6 步/Realtime 5 指标/Quality VMAF PSNR SSIM/Output/Attempts) |
-| **M-14 File Transcode** (重画) | MEDIA | 6 步 New File Transcode Wizard (Source / Output / Profile / QC / Schedule / Submit), 不再"贴实时 Worker" 形式 |
+| 表面 | 域 | 类型 | 关键交付 |
+|---|---|---|---|
+| **P-20 Profile Center** | ENGINEERING | 新增 | 7 Tab 切换 6 种 Profile Registry + Profile Bundle, 顶部 Used By 全域 |
+| **P-28 Profile Bundle** | ENGINEERING | 新增 | 1 Channel 1 Bundle, 6 Profile 引用, 不重新配置 6 套参数 |
+| **E-38 Hardware Inventory** | ENGINEERING | 新增 | HOST 顶层 (CPU/GPU/BMD/NIC/Storage) → Device 详情 (Capabilities/Ports/Assignment/Health/Temperature/Firmware/Driver); 与 E-35 Device Registry / E-36 Resource 互补 |
+| **E-37 Clock** (升级) | ENGINEERING | 升级 | Reference (PTP/TIMECODE/SYSTEM/MONOTONIC) + Fallback Chain + Offset/Drift/Lock + Fallback history (已有 Spec §E-37, 0.5D 补 wireframe) |
+| **M-17 Realtime Transcode** | BROADCAST | 新增 | 顶部 Live Encoder Runtime (RUNNING/READY/HEALTHY) + 主区 SOURCE→NORMALIZE→ENCODER→OUTPUT + 右侧实时指标 (FPS/Speed/CPU/RAM/PTS Drift/AV Offset/Latency/Dropped Frames) + Primary/Backup/Effective Mode/READY_TO_TAKE |
+| **M-18 Transcode Job Detail** | MEDIA | 新增 (由 M-15 子页升级为独立页) | Job #TR-1822 (Status/Input/Profile/Worker/Pipeline 6 步/Quality VMAF PSNR SSIM/Output/Attempts) |
+| **M-14 File Transcode** (重画) | MEDIA | 重画 | 6 步 New File Transcode Wizard (Source / Output / Profile / QC / Schedule / Submit), 不再"贴实时 Worker" 形式 |
 
 ## 29.5 Object Vocabulary (0.5C 新增文档)
 
@@ -3306,15 +3362,15 @@ V0.2 锁定的 1 个 Encode Engine, Phase 0.5C 拆为 2 个**产品语义** (不
 8. **Output Variant** (1 Channel N Variant) — CD-01 Tab 6
 9. **Output Destination** (host:port) — 06 Output
 10. **Output Adapter** (SRSAdapter/UDPAdapter/RTPAdapter/FileAdapter) — P-22
-11. **Job** (5 kinds: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE) — M-14 / M-15 / M-16
-12. **Session** (2 kinds: MEDIA_SESSION / OUTPUT_SESSION, 三轴状态) — M-15 / CD-01
+11. **Job** (6 kinds: FILE_TRANSCODE / REALTIME_ENCODE / PROBE / QC / UPLOAD / ARCHIVE; REALTIME_ENCODE 由 Session 包装 — 见 §29.3 与 [`OBJECT_VOCABULARY.md` §1.11](../OBJECT_VOCABULARY.md)) — M-14 / M-15 / M-18
+12. **Session** (2 kinds: MEDIA_SESSION / OUTPUT_SESSION, 三轴状态) — M-17 / CD-01
 13. **Revision** (不可变快照) — P-21 §10 / P-22 / CD-01
 14. **Change Set** (Logical Atomic Apply) — E-33
 
 ⛔ **典型易混术语对** (强制 UI 区分):
 - Asset Version vs Output Variant (M-12 + CD-01)
 - Profile vs Profile Bundle (P-20 + P-28)
-- Job vs Session (M-14/M-15 + M-16)
+- Job vs Session (M-14 / M-18 + M-17)
 - Revision vs Version (V0.2 强约束: Version 修改 = 新 Revision)
 - Graph vs Route (08 + E-32)
 
@@ -3343,7 +3399,7 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 
 简版:
 - ⛔ **0.5C LOCK FINAL** (本轮提交后, 需用户审过)
-- ⛔ **0.5D LOCK FINAL** (上面 6 个新表面 + M-14 重画)
+- ⛔ **0.5D LOCK FINAL** (5 个新表面 M-17/M-18/P-20/P-28/E-38 + E-37 升级 + M-14 重画)
 - ⛔ **0.5E LOCK FINAL** (Impact Preview + Configuration Diff + Command Palette 全部跨域落实)
 - ⛔ **README / ROADMAP / SURFACE_SPEC / Phase 0.6 README** 状态完全同步
 - ⛔ **Object Vocabulary + Product Object Model + Navigation** 3 文档 LOCK
@@ -3360,14 +3416,80 @@ Phase 0.6 README §0 已加 V0.2 语义对齐段, §A1 / §A2 验证项已修正
 - `README.md` (根, 修 Engine 列表 + 9 Core 残留 + 4 域导航)
 - `docs/phase-0.6/README.md` (修 `< 100ms` 语义)
 
-**0.5D 待做 (6 个新 wireframe + 1 个重画):**
-- `docs/phase-0.5/operator/M-15-realtime-transcode.html` (新)
-- `docs/phase-0.5/operator/E-34-hardware-inventory.html` (新)
-- `docs/phase-0.5/operator/E-36-clock.html` (新)
-- `docs/phase-0.5/operator/P-20-profile-center.html` (新)
-- `docs/phase-0.5/operator/P-28-profile-bundle.html` (新)
-- `docs/phase-0.5/operator/M-16-transcode-job-detail.html` (新)
-- `docs/phase-0.5/operator/M-14-file-transcode.html` (从 product/ 移过来 + 重画)
+**0.5D 待做 (5 个新 wireframe + 1 个升级 + 1 个重画, 全部放 `product/` — M/P/E 前缀的产品表面):**
+- `docs/phase-0.5/product/M-17-realtime-transcode.html` (新, BROADCAST 域)
+- `docs/phase-0.5/product/E-38-hardware-inventory.html` (新)
+- `docs/phase-0.5/product/E-37-clock.html` (升级, 已有 Spec 无 wireframe)
+- `docs/phase-0.5/product/P-20-profile-center.html` (新)
+- `docs/phase-0.5/product/P-28-profile-bundle.html` (新)
+- `docs/phase-0.5/product/M-18-transcode-job-detail.html` (新, 由 M-15 子页升级为独立页)
+- `docs/phase-0.5/product/M-14-file-transcode.html` (原 M-14 重画, 原地替换)
+
+---
+
+# 30. 附录：Phase 0.5B 语义收口项总清单（36 项 = 31 P0 + 5 P1）
+
+> **目的**: 让 "N 项语义收口" 的宣称可用本文档逐项核对（此前 README 宣称 28 项但正文无 1..28 清单, 实际合计 36 项）。
+> **口径**: 收口项 = 跨表面/全局语义决策; 不含各表面内部字段级定义。
+
+## 30.1 Phase 0.5B.0 — 13 项 P0 语义边界（commit `50cf5a6`, 标签 SP-P0-*）
+
+| # | 标签 | 内容 | 落点 |
+|---|---|---|---|
+| 1 | SP-P0-1 | Baseline metadata 对齐（V0.2.4 / 22 review / Errata-14 / 7 Health Invariants） | 文档头 YAML |
+| 2 | SP-P0-2 | 表面计数口径统一（0.5A 10 + 0.5B 28 = 38; Closure-1 后另加 CD-01） | §1 |
+| 3 | SP-P0-3 | Architecture Object Exposure Matrix（DIRECT / INDIRECT / SYSTEM_INTERNAL / NON_UI 四级） | §11 |
+| 4 | SP-P0-4 | Output Profile / Variant / Destination 三元组语义焊死（Closure-1 升格为 4 元组） | §4.1 + §20 |
+| 5 | SP-P0-5 | M-12 5 Tabs 锁定（Overview / Versions / QC / Rights / History） | M-12 |
+| 6 | SP-P0-6 | P-21 补广播级字段（SAR / Field Order / Color Space / HRD / Closed GOP / Ref Frames / Audio Layout / Bit Depth） | P-21 + §18 |
+| 7 | SP-P0-7 | P-21 Hardware Encoder 改为 Runtime Discovery 驱动 | P-21 + §18 Section 5 |
+| 8 | SP-P0-8 | P-22 V0.2 Supported 与 Reserved/Future 分开（DASH / DRM / SDI Master 入 Reserved） | P-22 + §20.2 |
+| 9 | SP-P0-9 | E-32 Resource Vector 9-Dim 完整表达 | §21.1 |
+| 10 | SP-P0-10 | E-35 / E-36 硬件样例改 [Sample Host] / [Runtime Discovered] | E-35 / E-36 |
+| 11 | SP-P0-11 | E-37 Clock 事件 vocabulary 收紧（CLOCK_DEGRADED / CLOCK_FAILED, 去 CLOCK_LOST） | E-37 |
+| 12 | SP-P0-12 | E-33 ChangeSet Business Status 与 Execution Phase 分离（ABORTED 是 Phase） | E-33 |
+| 13 | SP-P0-13 | O-42 Alert Rule Auto Action 从 §8.9 Failure Domain Policy 继承（UI 不可覆盖） | O-42 |
+
+## 30.2 Phase 0.5B Closure-1 — 10 项产品化收口（commit `270daa3`）
+
+| # | 内容 | 落点 |
+|---|---|---|
+| 1 | Configuration / Compiled / Effective 3-Layer Model（全局 pattern） | §15 |
+| 2 | VBMF Design System（4 套状态语义分离 + 颜色系统） | §16 + DESIGN_SYSTEM.md |
+| 3 | Channel Detail（CD-01）新增 8-Tab 子页 | §17 |
+| 4 | P-21 Profile Builder 10 Sections + Preset + Why Not Usable | §18 |
+| 5 | M-14 Transcode Workflow（Preview → Test → Submit）+ Worker=AUTO + Result 区 | §19 |
+| 6 | P-22 Output 4-Tuple（Profile/Variant/Destination/Adapter）+ 3-Tier | §20 |
+| 7 | E-32 Preflight 9D Required / Available / Delta / Headroom | §21 |
+| 8 | O-41 Health Tree H1-H7 + Failure Absorbed + redundancy_group 视觉化 | §22 |
+| 9 | E-34 Capability Why Compatible / Why Not + Static vs Runtime | §23 |
+| 10 | Dependency / Impact Preview 全局 pattern | §24 |
+
+## 30.3 Phase 0.5B.2 — 8 项 P0（commit `cec7407`）
+
+| # | 标签 | 内容 | 落点 |
+|---|---|---|---|
+| 1 | P0-1 | Signal Contract / timebase 输入来源闭合（架构层） | §28.1 |
+| 2 | P0-2 | Health Snapshot freshness / stale 语义（FRESH / STALE） | §28.1 |
+| 3 | P0-3 | NIC resource per-device（token + per-interface） | §28.1 |
+| 4 | P0-4 | P-21 wireframe DESIRED / COMPILED / EFFECTIVE 语义修正 | §28.1 + P-21 wireframe |
+| 5 | P0-5 | M-12 Asset Version vs Output Variant 命名分离 | §28.1 + M-12 wireframe |
+| 6 | P0-6 | P-22 RTP 加入 + Latency 三拆 + Edge Policy 移交 P-27 | §28.1 + §5 + §20.2 + P-22 wireframe |
+| 7 | P0-7 | M-14 Test Encode → Mini Acceptance Test | §28.1 + M-14 wireframe |
+| 8 | P0-8 | 全局 Design System + State Taxonomy（新文档） | DESIGN_SYSTEM.md |
+
+## 30.4 Phase 0.5B.2 — 5 项 P1（commit `cec7407`）
+
+| # | 内容 | 落点 |
+|---|---|---|
+| 1 | M-11 Saved Views（7 个预置视图） | §28.3 + M-11 wireframe |
+| 2 | Profile Diff（M-14 Wizard Step 2 显示 v3 vs v4） | §28.3 + M-14 wireframe |
+| 3 | M-14 Use in Playout Safety Gate（6 检查） | §28.3 + M-14 wireframe |
+| 4 | M-12 Rights Override 升 L3（Who / Why / Scope / Expiry / Audit Reference） | §28.3 + M-12 wireframe |
+| 5 | Delete Safety（Delete 检查 Used By 多维, 不只 Use Count） | §28.3 + P-21/P-22 wireframe |
+
+> **历史勘误**: 根 README 曾宣称 "28 项语义收口", 无从溯源（疑似 13+10+5 误算）。正确合计 = **13 + 10 + 8 + 5 = 36 项（31 P0 + 5 P1）**, 以本附录为准。
+> §26 的 92/100 是 0.5B.2 之前的中期自评, §28.4 的 94/100 是 0.5B.2 完成后的终评, 两者时点不同, 不构成矛盾; LOCK 判定以 §28.4 为准。
 
 ---
 

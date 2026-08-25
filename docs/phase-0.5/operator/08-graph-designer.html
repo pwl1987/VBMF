@@ -56,6 +56,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
 <div class="tabs">
   <div class="tab active">📐 [ DESIGN 设计 ]</div>
   <div class="tab">⚙ [ COMPILED 编译后 ]</div>
+  <div class="tab">✓ [ VALIDATION 验证 ]</div>
   <div class="btn" style="margin-left:auto;margin-right:8px;padding:4px 10px;background:var(--bg3);color:var(--fg)">+ 场景 Scenario</div>
 </div>
 
@@ -144,7 +145,7 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <div>编码 B</div>
       <div style="font-size:9px;color:var(--fgdim)">H.264 5Mbps</div>
     </div>
-    <div class="gnode process" style="left:580px;top:120px" style="border-color:var(--yellow);background:var(--bg3)">
+    <div class="gnode process" style="left:580px;top:120px;border-color:var(--yellow);background:var(--bg3)">
       <div class="type">SWITCHER · FRAME</div>
       <div>切播器</div>
       <div style="font-size:9px;color:var(--fgdim)">PACKET 不可用</div>
@@ -195,6 +196,19 @@ footer{text-align:center;color:var(--fgdim);font-size:11px;margin-top:12px;paddi
       <button class="btn primary">应用变更集 Apply Change Set</button>
     </div>
   </div>
+</div>
+
+<!-- VALIDATION Tab 内容 (ERRATA P0-1 承诺的第三 Tab; Inspector 内 Compile Preview / Preflight 为折叠前的摘要) -->
+<div class="panel" style="margin-top:12px">
+  <h3><span class="cn">验证</span> / VALIDATION (X2 Preflight — Change Set 应用前完整校验)</h3>
+  <div class="row" style="color:var(--green)"><span>✓ Graph 结构合法 (DAG · 无孤立节点 · 端点完整)</span></div>
+  <div class="row" style="color:var(--green)"><span>✓ Capability Contract: 全边 PASS (SDI-A/B → Normalize → Encode → Switcher → Master Join)</span></div>
+  <div class="row" style="color:var(--yellow)"><span>⚠ Switch Mode 决策: PACKET 不可用 (50p vs 25p 异帧率) → effective_switch_mode=FRAME_SWITCH</span></div>
+  <div class="row" style="color:var(--green)"><span>✓ 资源计划 9-Dim: 全维 PASS (CPU 42% · GPU 18% · BMD 2/3 port)</span></div>
+  <div class="row" style="color:var(--green)"><span>✓ 时钟可对齐 (PTP LOCKED · 全节点同 Clock Domain)</span></div>
+  <div class="row" style="color:var(--green)"><span>✓ 延迟估算 1.8s ≤ Budget 2.5s</span></div>
+  <div class="row" style="color:var(--yellow)"><span>⚠ 1 warning: SDI-A/B 不同帧率 (50 vs 25) → FRAME_SWITCH (非阻塞, Apply 需确认)</span></div>
+  <div class="row" style="color:var(--green)"><span>✓ 0 critical → 允许 Apply Change Set (L2 确认)</span></div>
 </div>
 
 <footer>
