@@ -10,7 +10,7 @@
 //! 真正的 C++ 接口 (IDeckLink / IDeckLinkInput) 集成放到 Gate 6/7。
 #![allow(dead_code)] // Gate 2.5: probe 仅 main 调用, 其余接口预留。
 
-use std::ffi::CString;
+use std::ffi::OsStr;
 
 type GetDeckLinkAPIVersion = unsafe extern "C" fn(version: *mut u32) -> i32;
 
@@ -19,8 +19,7 @@ type GetDeckLinkAPIVersion = unsafe extern "C" fn(version: *mut u32) -> i32;
 /// `version` 编码见 DeckLinkAPI.h: 高 16 位主版本, 低 16 位次版本
 /// (e.g. 0x000A0000 = 10.0)。实际 SDK 16.0 为 0x00100000。
 pub fn probe_sdk_version(lib_name: &str) -> Result<u32, String> {
-    let cname = CString::new(lib_name).map_err(|e| format!("bad lib name: {e}"))?;
-    let lib = unsafe { libloading::Library::new(cname) }
+    let lib = unsafe { libloading::Library::new(OsStr::new(lib_name)) }
         .map_err(|e| format!("load '{lib_name}' failed: {e}"))?;
     let sym: libloading::Symbol<GetDeckLinkAPIVersion> = unsafe {
         lib.get(b"GetDeckLinkAPIVersion\0")
