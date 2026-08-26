@@ -90,3 +90,23 @@ CI default/simulation → BMD `bmd` → 真机枚举 → Lease → GStreamer can
   - **#10**: `lm.is_valid` 在 `start` 与 `recover` 前均校验 (MEDIA-03 排他不变量)。
   - **#6/#7 已满足**: `SourcePlan` 最终收敛为 `{device_id, bmd_persistent_id, device_number}`; `materialize` 只读 `DeviceInfo`(含 VBMF UUID / BMD PersistentID / DeviceHandle / Serial / Model) 作桥梁, **不**二次枚举 BMD。
 - **仍为 BMD 验证项 (非代码可解, 用户既定"三件套"工作流)**: 真实 `GStreamer launch` 经 CI/BMD Linux 编译 (#2 P0); 真机首 video/audio GstBuffer + PTS + 短稳定 (#3); `gstreamer = 0.23` / `gstreamer-app = 0.23` / appsink builder 具体 API 以 BMD 编译器为准; Normalize/Switch/Encode/SRS/FI-08/09 顺序不变。本机 Windows 无法编译 `bmd,gstreamer` (缺 protoc/clang/SDK/系统 GStreamer), 故 gstreamer feature 代码须真机 `--features bmd,gstreamer` 验证。
+
+## BMD 真机验证 (commit ee26557, 2026-08-26)
+- **CI**: `Rust media-agent build + test` (default+simulation) 绿; 新增 `build-gstreamer` job 经 GitHub secret 注入 DeckLink SDK 头 + 装 GStreamer dev, `cargo build --features bmd,gstreamer` 绿, 产物 `media-agent-gstreamer-linux` 上传; `ffi-contract` (hardware-test) 绿。临时编译错误已修: HEALTH_ARCS 改 LazyLock / PipelineHandle 加 Hash / main.rs 补 `use pipeline::PipelineController` / `AgentState::Failed`→`ManualRequired` / 漏 `use lease::LeaseManager`(E0599 acquire)。
+- **下发**: 本机 Windows 不能编 → `gh run download` 产物 → `scp` 到 BMD `~/media-agent-gstreamer` (ee26557)。
+- **BMD 运行结果 (MEDIA_AGENT_MODE=diagnostic)**: device discovery=3 / lease×3 / SDK libDeckLinkAPI.so 可达 / supervisor watched=3 / **GStreamer runtime version (evidence) gst_version=(1,28,2,0)** / **canonical GStreamer pipeline 启动 (decklinkvideosrc+decklinkaudiosrc, diagnostic 走 device-number=0) PLAYING, 无 bus error** / health :8080 监听。
+- **MEDIA-RT-01 进度**: **A1(identity, diagnostic device-number)/A2(lease)/A3(PLAYING) 已达**; **A4(信号)/B(首帧)/C(稳定) 被硬件门控** —— `gst-launch-1.0 decklinkvideosrc device-number={0,1,2}` 三块卡均 **0 buffer**, 即 BMD 当前**无任何 DeckLink 设备接入 SDI 信号**。无信号 → 无首帧, 符合硬规则 (不伪造首帧)。
+- **关键发现 (P1 #11 来源)**: 该 DeckLink SDI 经 `IDeckLinkProfileAttributes::GetString(DeviceHandle)` 取到的 serial 为 `n/a`, 且示例 `46:00000000:002e4500` 中 PersistentID 字段本身为 0 → `bmd_persistent_id=0` → Production 物化按硬规则 `IdentityUnresolved` 正确拒绝。即此硬件经 DeviceHandle 拿不到非零 BMD PersistentID。已加 `MEDIA_AGENT_MODE=diagnostic` 显式回退 device-number (非静默) 用于验证; 真 persistent-id 提取需正确的 SDK 调用 (待办)。
+- **操作坑 (必记)**: 启动命令里写 `pkill -f media-agent-gstreamer` 会因该字符串也出现在 SSH 自身命令行而**自杀式匹配并杀掉自己的 shell**, 导致二进制根本没启动、SSH 输出全空。正确做法: 不 pkill, 或 `pkill -x`/按 PID; 后台启动用 `nohup ... </dev/null & disown` 或 `setsid`。
+- **下一步 (待用户决策)**: ① 接上 SDI 信号源后重跑 → 真正 MEDIA-RT-01 PASS; 或 ② 加 `videotestsrc` 自测模式演示 首帧→PTS→MEDIA-RT-01 全过 (验证媒体运行时链路, DeckLink 信号仍待接); 或 ③ 先记录证据, 等信号再跑。Normalize/Switch/Encode/SRS/FI-08/09 顺序不变。
+
+## BMD 真机验证（二次上机, 本回合提交, 2026-08-26）
+
+> **【现场订正 — 推翻本纪要第 29-34 行"二次纠偏"与第 98 行"无信号"结论】** 以下为 BMD `10.30.15.10` 真机实测事实, 优先级高于文档假设。
+
+- **用户主张复核 ("应该有 SDI 信号") → 基本成立**: device 0 (`dv0`, 两块 SDI 之一) **确有 SDI 信号**, 但信号在 `Signal lost` ↔ `Input source detected` 之间**闪动 (不稳定)**; device 1 (`dv1`) 无信号; device 2 (`io0` = Mini Monitor 4K **输出卡**) decklinkvideosrc 打不开 (`Failed to set pipeline to PAUSED`), 符合预期。
+- **推翻上一轮"三块卡均 0 buffer ⇒ 无信号"**: 0 buffer 真因是 (a) **信号闪动**导致 GStreamer 无法稳定锁定出流 (decklink 元素自身打印 `Signal lost` WARNING, 可靠); (b) 上一轮计数法 `grep -c chain` 在 GStreamer 1.28 失效 (fakesink silent=false 不打印 chain), 且彼时可能无稳定信号窗口。
+- **GStreamer 选卡属性现场实测 (推翻第 29-34 行)**: 本机 `gst-inspect-1.0 decklinkvideosrc` (GStreamer **1.28.2**) **没有 `persistent-id` 属性**; 选卡属性只有 `device-number` (Integer) 与 **`hw-serial-number`** (String, 硬件 ID, 可读写)。故 `pipeline.rs::src_props` 的 Canonical 分支已由 `persistent-id=` 改为 `hw-serial-number=`, 相关注释/日志同步订正。**架构护栏**: 不同 GStreamer 构建属性名可能不同 (`persistent-id` vs `hw-serial-number`), canonical 物化选卡属性应以目标机 `gst-inspect` 实测为准, 不可假设。
+- **媒体运行时链路本身健康 (证伪"运行时坏")**: `gst-launch-1.0 videotestsrc num-buffers=30 ! videoconvert ! fakesink` → 30 buffer / 19ms 跑完 EOS; 完整自测描述 `videotestsrc is-live=true ! videoconvert ! video/x-raw ! appsink + audiotestsrc is-live=true ! audio/x-raw ! appsink` 亦 PLAYING。证明 GStreamer 运行时 / appsink 闭环 / PTS 机制均正常, 卡点只在 DeckLink 信号稳定性。
+- **新增 MEDIA-RT-01 自测模式 (B)**: `main.rs` 支持 `MEDIA_AGENT_SELFTEST=1` → 物化 `PipelinePlan::self_test()` (videotestsrc/audiotestsrc) → `GStreamerPipelineController` launch → **复用既有 `spawn_ingest_watchdog`** 推导 A1-A4/B1-B4/C1-C4; 自测源稳定出帧 → `pass()` 达成即打印 `MEDIA-RT-01: A+B+C 全过`。此模式不依赖 DeckLink 信号, 用于证明采集/健康/验收闭环在运行时层面正确 (DeckLink 信号仍待接)。
+- **下一步**: ① rebuild (`--features bmd,gstreamer`) via CI → `gh run download` → `scp` 到 BMD → `MEDIA_AGENT_SELFTEST=1 ./media-agent-gstreamer` 拿**自测 MEDIA-RT-01 PASS**; ② 真实 A 需用户在 device 0 接 **稳定** SDI 信号 (当前闪动, GStreamer 无法锁定), 再 `MEDIA_AGENT_MODE=diagnostic` 重跑拿真首帧。Normalize/Switch/Encode/SRS/FI-08/09 顺序不变。

@@ -109,6 +109,32 @@ fn main() {
     //     first buffer) 由 `PipelineController` 拥有.
     #[cfg(feature = "bmd")]
     {
+        // MEDIA-RT-01 自测模式 (MEDIA_AGENT_SELFTEST=1): 用 videotestsrc/audiotestsrc
+        // 验证媒体运行时链路 (GStreamer launch → appsink 首帧 → PTS → MEDIA-RT-01 A/B/C),
+        // 不依赖 DeckLink 信号; 此时跳过下方 decklink canonical 路径.
+        #[cfg(feature = "gstreamer")]
+        let skip_decklink = std::env::var("MEDIA_AGENT_SELFTEST").is_ok();
+        #[cfg(not(feature = "gstreamer"))]
+        let skip_decklink = false;
+        #[cfg(feature = "gstreamer")]
+        if skip_decklink {
+            let plan = crate::pipeline::PipelinePlan::self_test();
+            let ctrl = std::sync::Arc::new(crate::pipeline::GStreamerPipelineController::new());
+            match ctrl.prepare(&plan) {
+                Ok(h) => match ctrl.start(&h) {
+                    Ok(()) => {
+                        tracing::info!(handle = %h.0, "MEDIA-RT-01 self-test 管线启动 (videotestsrc/audiotestsrc → appsink)");
+                        *agent_state.lock().unwrap() = health::AgentState::Capturing;
+                        // 复用生产 ingest watchdog, 完整推导 A1-A4/B1-B4/C1-C4;
+                        // 自测源稳定出帧 → pass() 达成即打印 "MEDIA-RT-01: A+B+C 全过".
+                        spawn_ingest_watchdog(ctrl, h, Uuid::nil(), sup.clone(), lm.clone(), agent_state.clone());
+                    }
+                    Err(e) => tracing::error!(error = %e, "MEDIA-RT-01 self-test 启动失败"),
+                },
+                Err(e) => tracing::error!(error = %e, "MEDIA-RT-01 self-test prepare 失败"),
+            }
+        }
+        if !skip_decklink {
         // (A) SDK 诊断探针 (仅 hardware-test; 真机已验证可行, 不用于生产媒体路径).
         //     与 canonical GStreamer 路径互斥, 避免同时打开同一块 DeckLink.
         //     注: `hardware-test` 与 `gstreamer` 已在编译期互斥 (见文件顶部 compile_error),
@@ -161,7 +187,7 @@ fn main() {
                         bmd_persistent_id = p.source.bmd_persistent_id,
                         device_number = p.source.device_number,
                         selection_mode = ?p.source.selection_mode,
-                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc persistent-id; launch pending)"
+                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc hw-serial-number; launch pending)"
                     );
                 }
                 *agent_state.lock().unwrap() = health::AgentState::Capturing;
@@ -184,7 +210,7 @@ fn main() {
                                     tracing::info!(
                                         handle = %h.0,
                                         device_id = %dev_id_str,
-                                        "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc persistent-id)"
+                                        "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
                                     );
                                     // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
                                     sup.lock().unwrap().register(h.0);
@@ -209,6 +235,7 @@ fn main() {
                 }
             }
             Err(e) => tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)"),
+        }
         }
     }
 

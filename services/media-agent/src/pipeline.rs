@@ -40,23 +40,28 @@ pub enum MaterializeMode {
 ///
 /// **注意**: `bmd_persistent_id` (BMDDeckLinkPersistentID) 与 `DeviceHandle`
 /// (RevisionID:PersistentID:TopologicalID) 是两回事; `Canonical` 模式把前者映射到
-/// GStreamer `persistent-id` (gint64, 1.22+ 官方支持, 优先级高于 `device-number`).
+/// GStreamer `hw-serial-number` (本机 gst-inspect 实测属性名; 部分 GStreamer 版本为
+/// `persistent-id`, gint64), 优先级高于 `device-number`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SourceSelectionMode {
-    /// 生产路径: 用 BMD PersistentID → GStreamer `persistent-id` (首选).
+    /// 生产路径: 用 BMD PersistentID → GStreamer `hw-serial-number` (首选; 本机 gst-inspect
+    /// 实测属性名为 `hw-serial-number`, 部分 GStreamer 版本为 `persistent-id`).
     Canonical,
     /// 仅 Diagnostic/Compatibility: BMD PersistentID 解析失败, 显式退回 `device-number`.
     DiagnosticFallback,
+    /// MEDIA-RT-01 自测: 用 `videotestsrc`/`audiotestsrc` 代替 DeckLink, 验证媒体运行时链路,
+    /// 不依赖真实 SDI 信号 (信号待接入时用于证明采集/健康闭环在运行时层面正确).
+    SelfTest,
 }
 
 /// Media Agent 在运行时对 `GraphRuntimeIntent` 的物化执行计划.
 ///
 /// 关键边界 (Phase 0.6 锁死):
 ///   * `PipelinePlan` **不是** 第二套 Graph Model; 它是 `GraphRuntimeIntent` 的物化.
-///   * GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 有 `persistent-id` 属性
-///     (gint64, 对应 `BMDDeckLinkPersistentID`), 优先级高于 `device-number` (1.22+).
-///     物化链路: VBMF `device_id` → Device Registry → BMD PersistentID → GStreamer
-///     `persistent-id`; `device-number` 仅作 Diagnostic 回退.
+///   * GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 选卡属性: 本机 gst-inspect 实测为
+///     `hw-serial-number` (String, 对应硬件 ID) / `device-number` (Integer); 部分版本为
+///     `persistent-id`. 物化链路: VBMF `device_id` → Device Registry → BMD PersistentID →
+///     GStreamer `hw-serial-number`; `device-number` 仅作 Diagnostic 回退.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
@@ -64,6 +69,42 @@ pub struct PipelinePlan {
     pub audio: AudioPlan,
     pub switch: SwitchPlan,
     pub output: OutputPlan,
+}
+
+impl PipelinePlan {
+    /// MEDIA-RT-01 自测源计划: 用 `videotestsrc`/`audiotestsrc` 代替 DeckLink,
+    /// 验证媒体运行时链路 (GStreamer launch → appsink 首帧 → PTS → MEDIA-RT-01 A/B/C),
+    /// 不依赖真实 SDI 信号.
+    pub fn self_test() -> Self {
+        PipelinePlan {
+            source: SourcePlan {
+                device_id: "self-test".into(),
+                bmd_persistent_id: 0,
+                device_number: 0,
+                selection_mode: SourceSelectionMode::SelfTest,
+                resolved_input: ResolvedInputContract {
+                    mode: "self-test".into(),
+                    pixel_format: "I420".into(),
+                    fps: 25.0,
+                    interlace: false,
+                },
+            },
+            video: VideoPlan {
+                normalize: true,
+                mode: "self-test".into(),
+                pixel_format: "I420".into(),
+                fps: 25.0,
+                interlace: false,
+            },
+            audio: AudioPlan {
+                enabled: true,
+                channels: 2,
+                sample_rate: 48_000,
+            },
+            switch: SwitchPlan { mode: "FRAME_SWITCH".into() },
+            output: OutputPlan { sink: "rtmp".into() },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -238,7 +279,7 @@ pub trait PipelineController {
 ///
 /// 物化链路 (Control Plane 不感知 GStreamer property):
 ///   VBMF `device_id` → Device Registry (`DeviceInfo`) → `bmd_persistent_id`
-///   → GStreamer `persistent-id` (首选) / `device-number` (Diagnostic 回退).
+///   → GStreamer `hw-serial-number` (首选) / `device-number` (Diagnostic 回退).
 ///
 /// **硬规则**: `MaterializeMode::Production` 下, 若 `device_id` 在 registry 中找不到,
 /// 或找到但 `bmd_persistent_id == 0` (PersistentID 解析失败), 直接 `IdentityUnresolved`
@@ -342,7 +383,8 @@ mod gst_runtime {
     /// 真实 GStreamer 管线控制器.
     ///
     /// 生命周期: `prepare` 存 plan; `start` 经 `gst::parse::launch`
-    /// 构造 `decklinkvideosrc/audiosrc persistent-id=<BMD PersistentID> → appsink`,
+    /// 构造 `decklinkvideosrc/audiosrc hw-serial-number=<BMD PersistentID> → appsink`
+    /// (SelfTest 模式则为 `videotestsrc`/`audiotestsrc` → appsink),
     /// 设 Playing, 由 appsink 回调捕获首帧/PTS; `recover` 先由调用方重校 lease 再重 launch.
     pub struct GStreamerPipelineController {
         plans: Mutex<HashMap<PipelineHandle, PipelinePlan>>,
@@ -410,12 +452,16 @@ mod gst_runtime {
         fn src_props(plan: &PipelinePlan) -> (String, String) {
             match plan.source.selection_mode {
                 SourceSelectionMode::Canonical => (
-                    format!("decklinkvideosrc persistent-id={}", plan.source.bmd_persistent_id),
-                    format!("decklinkaudiosrc persistent-id={}", plan.source.bmd_persistent_id),
+                    format!("decklinkvideosrc hw-serial-number={}", plan.source.bmd_persistent_id),
+                    format!("decklinkaudiosrc hw-serial-number={}", plan.source.bmd_persistent_id),
                 ),
                 SourceSelectionMode::DiagnosticFallback => (
                     format!("decklinkvideosrc device-number={}", plan.source.device_number),
                     format!("decklinkaudiosrc device-number={}", plan.source.device_number),
+                ),
+                SourceSelectionMode::SelfTest => (
+                    "videotestsrc is-live=true pattern=ball ! videoconvert".to_string(),
+                    "audiotestsrc is-live=true".to_string(),
                 ),
             }
         }
