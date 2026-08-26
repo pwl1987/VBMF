@@ -1,0 +1,10 @@
+[2m2026-08-26T12:27:46.846772Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-08-26T12:27:46.846923Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m578a04d1-0c77-55ff-b5c4-9c77390e7419
+[2m2026-08-26T12:27:46.846959Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m987f93c2-4120-5e54-a67c-29a5e4e209ed
+[2m2026-08-26T12:27:46.846981Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4b5d3e8c-5868-5573-9ead-0e079dc94476
+[2m2026-08-26T12:27:46.847011Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 578a04d1-0c77-55ff-b5c4-9c77390e7419 already leased
+[2m2026-08-26T12:27:46.847043Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+[2m2026-08-26T12:27:46.847072Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-08-26T12:27:46.847116Z[0m [31mERROR[0m [2mmedia_agent[0m[2m:[0m CAP-01 canonical ingest 物化失败 (identity 未解析) [3merror[0m[2m=[0midentity resolution failed: 578a04d1-0c77-55ff-b5c4-9c77390e7419: BMD PersistentID 未解析 (bmd_persistent_id=0)
+[2m2026-08-26T12:27:46.847201Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m media-agent canonical runtime loaded (health :8080; ingest via GStreamer started on lease acquire)
+[2m2026-08-26T12:27:46.847323Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m health endpoint listening on :8080
