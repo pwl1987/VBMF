@@ -41,9 +41,9 @@ mod imp {
             return Err(format!("CreateDeckLinkIteratorInstance_0004 failed hr={hr}"));
         }
 
-        // bindgen emits the COM vtable as the first struct field; the field name is
-        // `__bindgen_vtable` (the pointer type is `<Iface>__bindgen_vtable`).
-        let vtbl = unsafe { (*iter).__bindgen_vtable };
+        // Read the COM vtable pointer via the ABI: it is the first pointer-sized
+        // field of the object, regardless of bindgen's generated field name.
+        let vtbl = unsafe { *(iter as *mut *mut IDeckLinkIteratorVtbl) };
         let next = unsafe { (*vtbl).Next }.ok_or("IDeckLinkIterator::Next missing from vtable")?;
         let release_iter =
             unsafe { (*vtbl).Release }.ok_or("IDeckLinkIterator::Release missing from vtable")?;
@@ -55,7 +55,7 @@ mod imp {
             if hr != S_OK || decklink.is_null() {
                 break;
             }
-            let dv = unsafe { (*decklink).__bindgen_vtable };
+            let dv = unsafe { *(decklink as *mut *mut IDeckLinkVtbl) };
             let get_model =
                 unsafe { (*dv).GetModelName }.ok_or("IDeckLink::GetModelName missing from vtable")?;
             let get_serial = unsafe { (*dv).GetSerialNumber }
