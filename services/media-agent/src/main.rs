@@ -82,6 +82,12 @@ fn main() {
         Ok(table) => tracing::info!("DeckLink Device Registry:\n{table}"),
         Err(e) => tracing::warn!(error = %e, "registry unavailable"),
     }
+    // A0 纯身份核对模式: 仅打印注册表后退出, 不进入 SDK 采集探针 / 生产 materialize。
+    #[cfg(feature = "hardware-test")]
+    if std::env::var("VBMF_REGISTRY_ONLY").is_ok() {
+        tracing::info!("VBMF_REGISTRY_ONLY 已设置: 仅输出注册表, 进程退出。");
+        std::process::exit(0);
+    }
 
     // Gate 5: Supervisor seeded with device handles (watchdog state machine + budget/
     // backoff/circuit-breaker are unit-tested in supervisor.rs). 包 Arc<Mutex> 以便 watch

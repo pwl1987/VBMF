@@ -4,9 +4,13 @@
 //! 提供 COM 接口类型。我们用 libloading 动态加载 `libDeckLinkAPI.so`
 //!（Gate 2.5 已验证可达），调用 `CreateDeckLinkIteratorInstance_0004` 拿到
 //! `IDeckLinkIterator`，再遍历 `Next()` 读取 `GetModelName` / `GetDisplayName`。
-//! 序列号/设备唯一标识优先经 `IDeckLink::QueryInterface(IID_IDeckLinkProfileAttributes)`
-//! 取属性接口后, 调 `IDeckLinkProfileAttributes::GetString(@6)` 读
-//! `BMDDeckLinkDeviceHandle`(=0x64657668), 官方手册 (3.17) 认定的设备唯一标识字符串;
+//! 设备属性(`BMDDeckLinkAttributeID`: PersistentID / TopologicalID / DeviceHandle /
+//! DisplayName) 经 **`IDeckLink::QueryInterface(IID_IDeckLinkAttributes)`** 取属性接口后,
+//! 调 `IDeckLinkAttributes::GetInt(@4)` / `GetString(@6)` 读取。官方 SDK 明确:
+//! `BMDDeckLinkPersistentID` 属 `BMDDeckLinkAttributeID`, 由 `IDeckLinkAttributes` 读取,
+//! **不是** `IDeckLinkAPIInformation`(仅处理 `BMDDeckLinkAPIInformationID`, 如 SDK 版本),
+//! 也**不是** `IDeckLinkProfileAttributes`(旧实现误用的 IID, 见 A0 交叉校验)。
+//! `BMDDeckLinkDeviceHandle`(=0x64657668) 是官方手册 (3.17) 认定的设备唯一标识字符串;
 //! fallback 到 `IDeckLinkConfiguration::GetString(@10)` 读序列号项 (=0x6469736E)。
 //! bindgen 为这些接口生成的是“不透明 vtable 类型”，因此 vtable 槽位布局
 //! 需要按 SDK 头文件手工声明，并必须在 BMD 真机上用真实枚举来验证
@@ -143,20 +147,112 @@ mod imp {
     const S_OK: i32 = 0;
 
     /// DeckLink SDK `bmdDeckLinkPersistentID` 属性 ID (4CC 'pers' = 0x70657273) —— 设备稳定
-    /// 硬件身份, 官方建议经 `IDeckLinkProfileAttributes::GetInt` 读取, **不要**从 DeviceHandle
-    /// 字符串中段猜。
+    /// 硬件身份, 官方明确属 `BMDDeckLinkAttributeID`, 须经 **`IDeckLinkAttributes::GetInt`**
+    /// 读取 (而非 `IDeckLinkAPIInformation`, 也非 `IDeckLinkProfileAttributes`), **不要**从
+    /// DeviceHandle 字符串中段猜。
     const BMDDeckLinkPersistentID: u32 = 0x70657273;
+
+    /// DeckLink SDK `bmdDeckLinkTopologicalID` 属性 ID (4CC 'topl' = 0x746F706C) —— 设备拓扑身份,
+    /// 官方 `BMDDeckLinkAttributeID`, 经 `IDeckLinkAttributes::GetInt` 读取。身份解析回退链:
+    /// PersistentID → DeviceHandle → TopologicalID → 枚举序号。
+    const BMDDeckLinkTopologicalID: u32 = 0x746F706C;
+
+    /// DeckLink SDK `bmdDeckLinkDisplayName` 属性 ID (4CC 'name' = 0x6E616D65) —— 设备显示名,
+    /// 经 `IDeckLinkAttributes::GetString` 读取 (与 `IDeckLink::GetDisplayName` 方法交叉校验)。
+    const BMDDeckLinkDisplayName: u32 = 0x6E616D65;
+
+    // IID_IDeckLinkAttributes 的真实 GUID (SDK 16.0 权威值)。
+    // 来源: 真机 /home/lytv/Blackmagic_DeckLink_SDK_16.0/.../Linux/include/DeckLinkAPI.h:
+    //   IID_IDeckLinkAttributes = /* ADB82CE7-861B-4B61-81DA-A20B084A702E */
+    //     { 0xAD, 0xB8, 0x2C, 0xE7, 0x86, 0x1B, 0x4B, 0x61, 0x81, 0xDA, 0xA2, 0x0B, 0x08, 0x4A, 0x70, 0x2E };
+    // **权威身份读取接口**: `BMDDeckLinkAttributeID` (PersistentID / TopologicalID / DeviceHandle /
+    // DisplayName) 全部经此接口的 `GetInt`/`GetString` 读取。注: 本 SDK 中 `IDeckLinkAttributes`
+    // 与 `IDeckLinkProfileAttributes` 的 vtable 布局一致 (GetFlag@3 / GetInt@4 / GetFloat@5 /
+    // GetString@6 / GetStringWithParam@7), 故复用同一 vtable 结构; 区分点在于 **QueryInterface
+    // 的 IID** —— 此处改用权威 ADB82CE7 (旧实现误用 F47551D7 仅作交叉校验)。
+    const IID_DECKLINK_ATTRIBUTES: Guid16 = Guid16 {
+        b: [
+            0xAD, 0xB8, 0x2C, 0xE7, 0x86, 0x1B, 0x4B, 0x61, 0x81, 0xDA, 0xA2, 0x0B, 0x08, 0x4A,
+            0x70, 0x2E,
+        ],
+    };
+
+    // IID_IDeckLinkAPIInformation 的真实 GUID (SDK 16.0)。仅处理 `BMDDeckLinkAPIInformationID`
+    // (如 SDK 版本号), **不持有**设备属性。A0 交叉校验用: 证明它读不出 PersistentID。
+    const IID_DECKLINK_API_INFORMATION: Guid16 = Guid16 {
+        b: [
+            0xB9, 0x81, 0xED, 0x01, 0x51, 0xAB, 0x48, 0xDC, 0x98, 0x47, 0xF6, 0xE4, 0x27, 0x89,
+            0xC3, 0xDB,
+        ],
+    };
 
     // 注意: CreateDeckLinkIteratorInstance_0004 实际直接返回 `IDeckLinkIterator*`
     // 指针（不是 HRESULT + 出参）。真机实测(2026-08-26)确认: 若按出参解读,
     // 会把返回的指针误当成 hr, 而出参 iter 恒为 null。
     type CreateIter = unsafe extern "C" fn() -> *mut IDeckLinkIterator;
 
-    /// 遍历 IDeckLinkIterator::Next，按顺序返回 (型号, 显示名, 序列号, BMD PersistentID) 四元组。
+    /// 单个 BMD 属性读取的结果 (A0 诊断载体): 原始 HRESULT + 原始 int64 + 归一化 u32。
+    /// `normalized = None` 表示 `hr != S_OK`(SDK 未提供/不支持) ⇒ 该身份来源不可用。
+    struct AttrRead {
+        hr: i32,
+        raw: i64,
+        normalized: Option<u32>,
+    }
+    impl AttrRead {
+        fn unavailable(hr: i32) -> Self {
+            AttrRead { hr, raw: 0, normalized: None }
+        }
+    }
+
+    /// `IDeckLinkAttributes` 权威枚举下, 单台设备的完整身份真相 (A0 一次分清所有身份候选)。
+    /// 三套属性接口 (`IDeckLinkAttributes` / `IDeckLinkProfileAttributes` / `IDeckLinkAPIInformation`)
+    /// 全部做 QueryInterface + `GetInt(PersistentID)` 交叉校验, 直接回答本次争议。
+    struct RawDevice {
+        index: usize,
+        model: String,
+        display: String, // IDeckLink::GetDisplayName
+        hr_attributes: i32,        // QueryInterface(IID_IDeckLinkAttributes)  [官方正解]
+        hr_profile_attributes: i32, // QueryInterface(IID_IDeckLinkProfileAttributes) [旧路径]
+        hr_api_information: i32,    // QueryInterface(IID_IDeckLinkAPIInformation) [feared-wrong]
+        device_handle: String,     // IDeckLinkAttributes::GetString(BMDDeckLinkDeviceHandle)
+        display_name_attr: String, // IDeckLinkAttributes::GetString(BMDDeckLinkDisplayName)
+        persistent_id: AttrRead,   // IDeckLinkAttributes::GetInt(PersistentID)
+        topological_id: AttrRead,  // IDeckLinkAttributes::GetInt(TopologicalID)
+        persistent_id_via_profile: AttrRead,  // IDeckLinkProfileAttributes::GetInt [旧路径对照]
+        persistent_id_via_api_info: AttrRead, // IDeckLinkAPIInformation::GetInt [feared-wrong 对照]
+    }
+
+    // ── A0 接口读取辅助 (接口无关, 直接吃 vtable 函数指针) ──
+    unsafe fn read_int_attr<T>(
+        obj: *mut T,
+        get_int: unsafe extern "C" fn(*mut T, u32, *mut i64) -> i32,
+        attr_id: u32,
+    ) -> AttrRead {
+        let mut raw: i64 = 0;
+        let hr = get_int(obj, attr_id, &mut raw);
+        AttrRead {
+            hr,
+            raw,
+            normalized: if hr == S_OK { Some(raw as u32) } else { None },
+        }
+    }
+    unsafe fn read_str_attr<T>(
+        obj: *mut T,
+        get_str: unsafe extern "C" fn(*mut T, u32, *mut *mut c_char) -> i32,
+        attr_id: u32,
+    ) -> String {
+        let mut p: *mut c_char = std::ptr::null_mut();
+        let _ = get_str(obj, attr_id, &mut p);
+        read_cstr(p)
+    }
+
+    /// 遍历 IDeckLinkIterator::Next，对每台设备经 **权威接口 `IDeckLinkAttributes`** 读取完整身份真相
+    /// (A0 一次分清所有身份候选), 并保留 `IDeckLinkProfileAttributes` / `IDeckLinkAPIInformation`
+    /// 两个路径作为交叉校验。身份优先级 (官方 FAQ): PersistentID → DeviceHandle → TopologicalID → 枚举序号。
     /// 序列号经 IDeckLinkConfiguration::GetString 读取；若 QueryInterface/GetString
     /// 失败则回退为 "n/a"。BMD PersistentID 经 IDeckLinkProfileAttributes::GetInt 权威读取
     /// (None = SDK 未提供/不支持 ⇒ 身份未解析)。
-    fn iter_devices() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
+    fn iter_devices() -> Result<Vec<RawDevice>, String> {
         let lib = unsafe { Library::new(OsStr::new("libDeckLinkAPI.so")) }
             .map_err(|e| format!("加载 libDeckLinkAPI.so 失败: {e}"))?;
 
@@ -181,6 +277,7 @@ mod imp {
             unsafe { (*vtbl).Release }.ok_or("vtable 中缺少 IDeckLinkIterator::Release")?;
 
         let mut out = Vec::new();
+        let mut index: usize = 0;
         loop {
             let mut decklink: *mut IDeckLink = std::ptr::null_mut();
             let hr = unsafe { next(iter, &mut decklink) };
@@ -206,102 +303,118 @@ mod imp {
             let model = unsafe { read_cstr(model_ptr) };
             let display = unsafe { read_cstr(display_ptr) };
 
-            // 序列号/设备唯一标识: 优先经 IDeckLinkProfileAttributes::GetString 读
-            // BMDDeckLinkDeviceHandle(= 'devh' = 0x64657668), 官方手册 (3.17) 认定的
-            // "unique identifier for the device" 字符串。真机 2026-08-26 验证: 3 台设备
-            // 均返回非空 (如 DeckLink SDI -> "46:00000000:002e4500")。
-            // fallback: IDeckLinkConfiguration::GetString(0x6469736E) 序列号项
-            // (部分设备 E_INVALIDARG 或空串, 属 SDK/硬件行为)。
-            let serial = {
-                // —— 主路径: IDeckLinkProfileAttributes::GetString(DeviceHandle) ——
-                let handle = {
-                    let mut attr: *mut IDeckLinkProfileAttributes = std::ptr::null_mut();
-                    let attr_ptr: *mut *mut IDeckLinkProfileAttributes = &mut attr;
-                    let hr_attr = unsafe {
-                        query_iface(
-                            decklink,
-                            IID_DECKLINK_PROFILE_ATTRIBUTES,
-                            attr_ptr as *mut LPVOID,
-                        )
-                    };
-                    if hr_attr == S_OK && !attr.is_null() {
-                        let av = unsafe { *(attr as *mut *mut IDeckLinkProfileAttributesVtbl) };
-                        let get_string = unsafe { (*av).GetString }
-                            .ok_or("vtable 中缺少 IDeckLinkProfileAttributes::GetString")?;
-                        let release_attr = unsafe { (*av).Release }
-                            .ok_or("vtable 中缺少 IDeckLinkProfileAttributes::Release")?;
-                        let mut hptr: *mut c_char = std::ptr::null_mut();
-                        unsafe { let _ = get_string(attr, 0x64657668u32, &mut hptr); }
-                        let s = unsafe { read_cstr(hptr) };
-                        unsafe { let _ = release_attr(attr); }
-                        s
-                    } else {
-                        String::new()
-                    }
-                };
-                if !handle.is_empty() {
-                    handle
-                } else {
-                    // —— fallback: IDeckLinkConfiguration::GetString(SerialNumber) ——
-                    let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
-                    // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
-                    // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
-                    let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
-                    let hr_cfg = unsafe {
-                        query_iface(decklink, IID_DECKLINK_CONFIGURATION, cfg_ptr as *mut LPVOID)
-                    };
-                    if hr_cfg == S_OK && !cfg.is_null() {
-                        let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
-                        let get_string = unsafe { (*cv).GetString }
-                            .ok_or("vtable 中缺少 IDeckLinkConfiguration::GetString")?;
-                        let release_cfg = unsafe { (*cv).Release }
-                            .ok_or("vtable 中缺少 IDeckLinkConfiguration::Release")?;
-                        let mut serial_ptr: *mut c_char = std::ptr::null_mut();
-                        unsafe { let _ = get_string(cfg, 0x6469736Eu32, &mut serial_ptr); }
-                        let s = unsafe { read_cstr(serial_ptr) };
-                        unsafe { let _ = release_cfg(cfg); }
-                        if s.is_empty() { String::from("n/a") } else { s }
-                    } else {
-                        format!("n/a(hr=0x{hr_cfg:08X})")
-                    }
-                }
-            };
+            // —— 三套属性接口各自 QueryInterface (A0 权威交叉校验) ——
+            // 1) IDeckLinkAttributes (ADB82CE7) —— 官方正解, 持 BMDDeckLinkAttributeID
+            let mut attr_obj: LPVOID = std::ptr::null_mut();
+            let hr_attributes =
+                unsafe { query_iface(decklink, IID_DECKLINK_ATTRIBUTES, &mut attr_obj) };
+            // 2) IDeckLinkProfileAttributes (F47551D7) —— 旧实现误用路径, 仅对照
+            let mut pattr_obj: LPVOID = std::ptr::null_mut();
+            let hr_profile_attributes =
+                unsafe { query_iface(decklink, IID_DECKLINK_PROFILE_ATTRIBUTES, &mut pattr_obj) };
+            // 3) IDeckLinkAPIInformation (B981ED01) —— feared-wrong 接口, 仅对照
+            let mut api_obj: LPVOID = std::ptr::null_mut();
+            let hr_api_information =
+                unsafe { query_iface(decklink, IID_DECKLINK_API_INFORMATION, &mut api_obj) };
 
-            // 权威 BMD PersistentID 经 IDeckLinkProfileAttributes::GetInt(BMDDeckLinkPersistentID)
-            // 读取 (本处第二次 QueryInterface, 仅枚举期一次性开销)。None = SDK 未提供/不支持 ⇒
-            // 身份未解析 (生产路径将 IdentityUnresolved, 绝不盲开)。不再从 DeviceHandle 中段猜。
-            let persistent_id: Option<u32> = {
-                let mut attr: *mut IDeckLinkProfileAttributes = std::ptr::null_mut();
-                let attr_ptr: *mut *mut IDeckLinkProfileAttributes = &mut attr;
-                let hr_attr = unsafe {
-                    query_iface(decklink, IID_DECKLINK_PROFILE_ATTRIBUTES, attr_ptr as *mut LPVOID)
-                };
-                if hr_attr == S_OK && !attr.is_null() {
-                    let av = unsafe { *(attr as *mut *mut IDeckLinkProfileAttributesVtbl) };
-                    match unsafe { (*av).GetInt } {
-                        Some(get_int) => {
-                            let release_attr = unsafe { (*av).Release }
-                                .ok_or("vtable 中缺少 IDeckLinkProfileAttributes::Release")?;
-                            let mut pid_raw: i64 = 0;
-                            let pid = match unsafe { get_int(attr, BMDDeckLinkPersistentID, &mut pid_raw) } {
-                                S_OK => Some(pid_raw as u32),
-                                _ => None,
-                            };
-                            unsafe { let _ = release_attr(attr); }
-                            pid
-                        }
-                        None => {
-                            if let Some(release_attr) = unsafe { (*av).Release } {
-                                unsafe { let _ = release_attr(attr); }
-                            }
-                            None
-                        }
-                    }
-                } else {
-                    None
+            let mut device_handle = String::new();
+            let mut display_name_attr = String::new();
+            let mut persistent_id = AttrRead::unavailable(hr_attributes);
+            let mut topological_id = AttrRead::unavailable(hr_attributes);
+
+            if hr_attributes == S_OK && !attr_obj.is_null() {
+                let av = unsafe { *(attr_obj as *mut *mut IDeckLinkProfileAttributesVtbl) };
+                if let Some(gi) = unsafe { (*av).GetInt } {
+                    persistent_id = unsafe {
+                        read_int_attr(attr_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkPersistentID)
+                    };
+                    topological_id = unsafe {
+                        read_int_attr(attr_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkTopologicalID)
+                    };
                 }
-            };
-            out.push((model, display, serial, persistent_id));
+                if let Some(gs) = unsafe { (*av).GetString } {
+                    // BMDDeckLinkDeviceHandle = 'devh' = 0x64657668
+                    device_handle = unsafe {
+                        read_str_attr(attr_obj as *mut IDeckLinkProfileAttributes, gs, 0x64657668u32)
+                    };
+                    // BMDDeckLinkDisplayName = 'name' = 0x6E616D65
+                    display_name_attr = unsafe {
+                        read_str_attr(attr_obj as *mut IDeckLinkProfileAttributes, gs, 0x6E616D65u32)
+                    };
+                }
+                if let Some(rel) = unsafe { (*av).Release } {
+                    unsafe { let _ = rel(attr_obj); }
+                }
+            }
+
+            // device_handle 空时回退 IDeckLinkConfiguration::GetString(SerialNumber)
+            if device_handle.is_empty() {
+                let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
+                // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
+                // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
+                let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
+                let hr_cfg = unsafe {
+                    query_iface(decklink, IID_DECKLINK_CONFIGURATION, cfg_ptr as *mut LPVOID)
+                };
+                if hr_cfg == S_OK && !cfg.is_null() {
+                    let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
+                    if let Some(gs) = unsafe { (*cv).GetString } {
+                        let mut sp: *mut c_char = std::ptr::null_mut();
+                        unsafe { let _ = gs(cfg, 0x6469736Eu32, &mut sp); }
+                        device_handle = unsafe { read_cstr(sp) };
+                    }
+                    if let Some(rel) = unsafe { (*cv).Release } {
+                        unsafe { let _ = rel(cfg); }
+                    }
+                }
+                if device_handle.is_empty() {
+                    device_handle = "n/a".to_string();
+                }
+            }
+
+            // 旧路径对照: IDeckLinkProfileAttributes::GetInt(PersistentID)
+            let mut persistent_id_via_profile = AttrRead::unavailable(hr_profile_attributes);
+            if hr_profile_attributes == S_OK && !pattr_obj.is_null() {
+                let pv = unsafe { *(pattr_obj as *mut *mut IDeckLinkProfileAttributesVtbl) };
+                if let Some(gi) = unsafe { (*pv).GetInt } {
+                    persistent_id_via_profile = unsafe {
+                        read_int_attr(pattr_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkPersistentID)
+                    };
+                }
+                if let Some(rel) = unsafe { (*pv).Release } {
+                    unsafe { let _ = rel(pattr_obj); }
+                }
+            }
+
+            // feared-wrong 对照: IDeckLinkAPIInformation::GetInt(PersistentID)
+            let mut persistent_id_via_api_info = AttrRead::unavailable(hr_api_information);
+            if hr_api_information == S_OK && !api_obj.is_null() {
+                let pv = unsafe { *(api_obj as *mut *mut IDeckLinkProfileAttributesVtbl) };
+                if let Some(gi) = unsafe { (*pv).GetInt } {
+                    persistent_id_via_api_info = unsafe {
+                        read_int_attr(api_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkPersistentID)
+                    };
+                }
+                if let Some(rel) = unsafe { (*pv).Release } {
+                    unsafe { let _ = rel(api_obj); }
+                }
+            }
+
+            out.push(RawDevice {
+                index,
+                model,
+                display,
+                hr_attributes,
+                hr_profile_attributes,
+                hr_api_information,
+                device_handle,
+                display_name_attr,
+                persistent_id,
+                topological_id,
+                persistent_id_via_profile,
+                persistent_id_via_api_info,
+            });
+            index += 1;
 
             unsafe {
                 let _ = release_dev(decklink);
@@ -330,18 +443,57 @@ mod imp {
     }
 
     pub fn enumerate() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
-        iter_devices()
+        let devs = iter_devices()?;
+        Ok(devs
+            .into_iter()
+            .map(|d| (d.model, d.display, d.device_handle, d.persistent_id.normalized))
+            .collect())
     }
 
-    /// 生成人类可读的 “DeckLink 设备注册表” 表格（Gate 7 目标输出）。
+    /// 生成 A0 权威身份核对表 (Gate 7 目标输出): 三接口交叉核对 PersistentID,
+    /// 并列出 DeviceHandle / DisplayName / TopologicalID, 一次分清所有身份候选。
     pub fn registry() -> Result<String, String> {
         let devs = iter_devices()?;
-        let mut s = String::from("DeckLink 设备注册表\n────────────────────────\n");
-        for (i, (model, display, serial, pid)) in devs.iter().enumerate() {
+        let mut s = String::from(
+            "DeckLink 设备注册表 (A0 权威身份核对)\n══════════════════════════════════\n\
+             身份优先级 (官方 FAQ): PersistentID → DeviceHandle → TopologicalID → 枚举序号\n",
+        );
+        for d in &devs {
             s.push_str(&format!(
-                "ID: {i}\n型号: {model}\n显示名: {display}\n序列号: {serial}\n持久身份: {pid:?}\n状态: 可用\n\n"
+                "\n[设备 {idx}] {model}\n\
+                 ├─ 显示名(GetDisplayName): {display}\n\
+                 ├─ 属性接口 QI hr: Attributes(ADB82CE7)=0x{ah:08X} | ProfileAttributes(F47551D7)=0x{ph:08X} | APIInformation(B981ED01)=0x{ih:08X}\n\
+                 ├─ DeviceHandle (AttrGetString 'devh'): {dh}\n\
+                 ├─ DisplayName   (AttrGetString 'name'): {dn}\n\
+                 ├─ PersistentID  (AttrGetInt 'pers'): hr=0x{phr:08X} raw={praw} normalized={pn:?}\n\
+                 ├─ TopologicalID (AttrGetInt 'topl'): hr=0x{thr:08X} raw={traw} normalized={tn:?}\n\
+                 ├─ 对照 PersistentID via ProfileAttributes(旧路径): hr=0x{cphr:08X} raw={cpraw} normalized={cpn:?}\n\
+                 └─ 对照 PersistentID via APIInformation(feared-wrong): hr=0x{cihr:08X} raw={ciraw} normalized={cin:?}\n\
+                 ─────────────────────────────\n",
+                idx = d.index,
+                model = d.model,
+                display = d.display,
+                ah = d.hr_attributes,
+                ph = d.hr_profile_attributes,
+                ih = d.hr_api_information,
+                dh = d.device_handle,
+                dn = d.display_name_attr,
+                phr = d.persistent_id.hr,
+                praw = d.persistent_id.raw,
+                pn = d.persistent_id.normalized,
+                thr = d.topological_id.hr,
+                traw = d.topological_id.raw,
+                tn = d.topological_id.normalized,
+                cphr = d.persistent_id_via_profile.hr,
+                cpraw = d.persistent_id_via_profile.raw,
+                cpn = d.persistent_id_via_profile.normalized,
+                cihr = d.persistent_id_via_api_info.hr,
+                ciraw = d.persistent_id_via_api_info.raw,
+                cin = d.persistent_id_via_api_info.normalized,
             ));
         }
+        // 同时打到 stderr, 保证真机一次性捕获可见 (不被 tracing 缓冲吞掉)。
+        eprintln!("DeckLink Device Registry:\n{s}");
         Ok(s)
     }
 
