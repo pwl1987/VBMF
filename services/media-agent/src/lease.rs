@@ -117,7 +117,7 @@ impl LeaseManager for InMemoryLeaseManager {
         guard.retain(|_, l| {
             let expiry = l
                 .acquired_at
-                .checked_add_signed(Duration::from_std(l.ttl).unwrap_or(Duration::max_value()))
+                .checked_add_signed(Duration::from_std(l.ttl).unwrap_or(Duration::MAX))
                 .unwrap_or(now);
             now <= expiry
         });

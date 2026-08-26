@@ -74,7 +74,7 @@ fn main() {
             .into_iter()
             .enumerate()
             .map(|(i, mut d)| {
-                if let Some((model, serial)) = enumerated.get(i) {
+                if let Some((model, _display, serial)) = enumerated.get(i) {
                     d.model = model.clone();
                     d.serial = serial.clone();
                     tracing::info!(index = i, model = %model, serial = %serial, "device dv{i} real identity");
