@@ -230,7 +230,7 @@ fn main() {
                         bmd_persistent_id = p.source.bmd_persistent_id,
                         device_number = p.source.device_number,
                         selection_mode = ?p.source.selection_mode,
-                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc hw-serial-number; launch pending)"
+                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
                     );
                 }
                 *agent_state.lock().unwrap() = health::AgentState::Capturing;
@@ -361,6 +361,27 @@ fn spawn_ingest_watchdog(
                 g.acceptance.c4_counters_continue = v > prev_video && a > prev_audio;
                 prev_video = v;
                 prev_audio = a;
+                // C 稳定性窗口计时 + 测量字段 (用户复核 §十二).
+                if let Some(started) = g.started_at {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0);
+                    g.acceptance.c_observed_ms = Some(((now - started).max(0) as u64) * 1000);
+                }
+                g.acceptance.c_video_frames = g.video_frame_count;
+                g.acceptance.c_audio_frames = g.audio_frame_count;
+                for e in &events {
+                    match e {
+                        crate::pipeline::PipelineBusEvent::Error(_) => {
+                            g.acceptance.c_pipeline_errors += 1;
+                        }
+                        crate::pipeline::PipelineBusEvent::Eos => {
+                            g.acceptance.c_unexpected_eos += 1;
+                        }
+                        _ => {}
+                    }
+                }
                 (g.acceptance.pass(), g.last_error.is_some())
             } else {
                 (false, false)
@@ -422,6 +443,8 @@ fn spawn_ingest_watchdog(
                     c2 = snap.acceptance.c2_no_pipeline_error,
                     c3 = snap.acceptance.c3_no_repeated_reneg,
                     c4 = snap.acceptance.c4_counters_continue,
+                    cwin_ms = snap.acceptance.c_observed_ms.unwrap_or(0),
+                    cwin_cfg = snap.acceptance.c_configured_window_ms,
                     vframes = snap.video_frame_count,
                     aframes = snap.audio_frame_count,
                     vpts = snap.video_first_pts.unwrap_or(0),

@@ -1,310 +1,167 @@
-//! Device Manager — DeckLink 硬件发现与状态。
-//! 接口形状按 SoT §15.2 (MEDIA-02/04) 冻结。Gate 2.2 落地文件系统枚举实现。
-#![allow(dead_code)] // Gate 2.x: 部分接口尚未被上层调用, 编译期静音。
+//! BMD / filesystem device discovery (Gate 2.2 + Phase 0.5 device registry).
+//!
+//! Boundary: this module owns the **Device Registry** (hardware identity source).
+//! It does NOT perform media capture — that is owned by `pipeline.rs` (canonical
+//! GStreamer) per Phase 0.6. The Registry only enumerates device identity/metadata.
+//!
+//! Identity hierarchy (Blackmagic + A0 实测, 10.30.15.10, SDK 16.0):
+//!   PersistentID → TopologicalID → DeviceHandle → Enumeration
+//! - 本硬件三台设备 `GetInt(PersistentID)`/`GetInt(TopologicalID)` 均 `0x80000003`
+//!   (BMD 属性不支持) → canonical 硬件身份 = **DeviceHandle** (`GetString('devh')`).
+//! - `DeviceHandle` 是 "当前主机的 best-available identity", **非**跨机器/重启永久稳定
+//!   身份 (后者仅 PersistentID 提供). 详见 `evidence/bmd-10.30.15.10/`.
+
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
-use std::os::unix::fs::FileTypeExt;
-use tracing::warn;
+use std::path::Path;
 use uuid::Uuid;
 
-/// Blackmagic 设备节点目录(宿主机由 DesktopVideoHelper 创建 dv0/dv1/io0)。
-pub const BLACKMAGIC_DEV_DIR: &str = "/dev/blackmagic";
-
-/// **诊断交叉校验用** (非 canonical 身份来源): 从 BMD `DeviceHandle` 字符串
-/// (`RevisionID:PersistentID:TopologicalID`) 提取 `PersistentID` 中段 (hex).
-/// 解析失败返回 `None`. 仅用于与 SDK 权威 `GetInt(BMDDeckLinkPersistentID)` 做一致性比对,
-/// **不得**作为 `bmd_persistent_id` 的唯一来源 (否则会重蹈"中段猜 PersistentID"的脆弱解析).
-pub fn parse_persistent_id(handle: &str) -> Option<u32> {
-    let seg: Vec<&str> = handle.split(':').collect();
-    if seg.len() == 3 {
-        u32::from_str_radix(seg[1], 16).ok()
-    } else {
-        None
-    }
-}
-
-/// **设备身份强度 (Blackmagic 官方层级)**: PersistentID → TopologicalID → DeviceHandle → Enumeration。
-///
-/// 决定 `DeviceHandle` / `serial_number` 在本机可用到哪一档, 进而决定 Resolver 物化策略
-/// (见 `resolver.rs`)。当前 10.30.15.10 / SDK 16.0 三台设备均不支持 PersistentID/TopologicalID,
-/// 故 `identity_strength = DeviceHandle` —— 即 **当前主机的 best-available identity**,
-/// **不是**跨机器/跨重启永久稳定的身份 (后者仅 `PersistentId` 提供)。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+/// 设备身份强度 (A0 实测: 本硬件仅支持 DeviceHandle).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IdentityStrength {
-    /// BMDDeckLinkPersistentID 可用: 跨机器/重启/连接器稳定 (官方最高优先级)。
+    /// BMD `PersistentID` (官方最高优先级, 跨机器/重启永久稳定). 当前硬件 `GetInt=0x80000003` 不支持.
     PersistentId,
-    /// DeviceHandle 可用但 PersistentID 不支持: 本机 best-available identity (当前硬件档位)。
+    /// BMD `DeviceHandle` (4CC `devh`, 当前主机 best-available identity, 非永久稳定).
     DeviceHandle,
-    /// TopologicalID 可用 (设备拓扑不变且 OS 枚举顺序稳定时可用)。
+    /// BMD `TopologicalID` (拓扑敏感, 重启/拓扑变化会漂移).
     TopologicalId,
-    /// 仅枚举序号可用: 拓扑敏感, 生产路径必须拒绝 (Resolver 无法稳定物化)。
+    /// 纯 SDK/文件系统枚举 (无稳定硬件身份; 仅 CI/诊断).
     Enumeration,
 }
 
-/// 一个被发现的 DeckLink 设备(对应 /dev/blackmagic/dv0, dv1, io0)。
+/// 身份来源 (防 synthetic UUID 与真实 BMD UUID 混淆; 用户复核 §十六).
+/// 控制面/Lease/GraphRuntime 应据此外区分 "真实硬件" 与 "合成身份".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DeviceIdentitySource {
+    /// 真实 BMD DeckLink (DeviceHandle 派生 canonical 身份).
+    RealBmd,
+    /// 文件系统节点合成的占位身份 (CI/无硬件; 不可用于生产 materialize).
+    FilesystemSynthetic,
+    /// 显式模拟世界 (测试; 允许伪造 PersistentId 因本身是测试世界).
+    Simulation,
+}
+
+/// 设备注册表条目 (Device Registry — 硬件身份源).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceInfo {
+    /// VBMF 确定性设备 ID (UUIDv5 over 稳定身份, 非随机).
     pub device_id: Uuid,
-    pub node: String,        // e.g. "/dev/blackmagic/dv0"
-    pub model: String,       // e.g. "DeckLink Quad HDMI Recorder"
-    /// **canonical 硬件身份** = BMD `DeviceHandle` 字符串 (RevisionID:PersistentID:TopologicalID)。
-    /// 由它派生确定性 `device_id` (UUIDv5), 跨进程/重启对本物理设备稳定, 且不受拓扑顺序影响。
-    /// 注意: 这是"身份", 不是 GStreamer 运行时地址 (`device-number`); 后者由 Resolver 物化得到。
-    pub serial: String,
-    pub state: DeviceState,
-    /// **身份强度档位** (Blackmagic 官方识别层级)。决定 Resolver 是否能在生产路径稳定物化。
-    /// 当前硬件 = `DeviceHandle` (PersistentID/TopologicalID 均不支持)。
-    pub identity_strength: IdentityStrength,
-    /// 硬件序列号 (BMD 物理序列; 与 `serial`=DeviceHandle 是两回事)。SDK 经属性接口通常取不到
-    /// (此硬件 `BMDDeckLinkSerialNumber` 不存在, `disn` 配置项常 n/a), 故多数为 `None`;
-    /// 由 GStreamer `hw-serial-number` 探针在 Resolver 阶段提供交叉校验。
+    /// 设备型号 (如 "DeckLink Mini Monitor 4K").
+    pub model: String,
+    /// 显示名 (如 "dv0" / "DeckLink SDI").
+    pub display_name: String,
+    /// 厂商序列号 (若有).
     pub serial_number: Option<String>,
-    /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), **权威来源 = SDK `GetInt(BMDDeckLinkPersistentID)`**.
-    /// `None` = SDK 未提供 / 解析失败 ⇒ 身份未解析 (生产路径 `IdentityUnresolved`, 绝不盲开).
-    /// `Some(0)` 是**合法零值**, 与 `None` 严格区分, 不应被误判为"解析失败".
-    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id` (gint64) 属性;
-    /// 1.22+ 官方支持, 优先级高于 `device-number`.
-    pub bmd_persistent_id: Option<u32>,
-    /// 完整硬件身份字符串 (DeviceHandle: RevisionID:PersistentID:TopologicalID), 用于诊断 / inventory /
-    /// 拓扑变化记录. `None` 表示无 SDK 来源 (如 filesystem / simulation 占位).
+    /// BMD `PersistentID` (仅真实 BMD 且支持时 `Some`; 否则 `None`).
+    /// **注意**: 不得用 hash/合成值伪造 (用户复核 §十八 P0 安全边界).
+    pub bmd_persistent_id: Option<i64>,
+    /// BMD `DeviceHandle` (`GetString('devh')`, 当前主机 best-available identity).
     pub bmd_device_handle: Option<String>,
-    /// **诊断交叉校验**: 由 DeviceHandle 中段解析得到的 PersistentID. 与 `bmd_persistent_id` (SDK 权威)
-    /// 独立; 二者均 `Some` 且不相等 ⇒ 身份来源冲突, 需人工核查 (不静默择一).
-    pub handle_persistent_id: Option<u32>,
-    /// GStreamer `device-number` 属性 (回退 / 诊断). 枚举索引, 与 bmd_persistent_id
-    /// 指向同一块已解析设备.
-    pub device_number: u32,
+    /// 身份强度 (决定 materialize 选卡路径).
+    pub identity_strength: IdentityStrength,
+    /// 身份来源 (RealBmd / FilesystemSynthetic / Simulation).
+    pub identity_source: DeviceIdentitySource,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum DeviceState {
-    Available,
-    Leased,
-    Capturing,
-    Error,
-    /// MEDIA-04: 设备消失(线缆拔出 / 驱动重启)
-    Lost,
-}
-
-/// 发现 + 状态接口(形状冻结, 见 MEDIA_AGENT_STATE_MACHINE.md)。
+/// Device Manager trait — 不同环境 (simulation / filesystem / real BMD) 实现不同发现逻辑.
 pub trait DeviceManager {
-    /// 通过 DesktopVideoHelper / Blackmagic SDK 枚举 DeckLink 设备。
-    /// 约定: 枚举失败(如无设备节点)返回空 vec, 不抛错 —— 对应状态机
-    /// "0 设备 → DEGRADED"。
     fn discover(&self) -> Vec<DeviceInfo>;
-    /// 设备实时状态(健康 / 信号存在性)。
-    fn status(&self, device_id: &Uuid) -> DeviceState;
 }
 
-/// MEDIA-04: 热插拔事件通道(udev / DesktopVideoHelper IPC)。
-#[derive(Debug, Clone)]
-pub enum HotplugEvent {
-    Attached(DeviceInfo),
-    Detached(Uuid),
-}
-
-/// Gate 2.2 实现: 纯文件系统枚举 `/dev/blackmagic/*` 节点。
-///
-/// 这是发现的最小可用实现 —— 不依赖 DeckLink SDK, 因此在无 SDK 的 CI
-/// 环境与无设备的 runner 上也能编译并安全返回空。真实 model/serial 的
-/// 深度枚举(调用 libDeckLinkAPI)作为后续增量, 必须在 BMD runc 容器内实测。
-pub struct FilesystemDeviceManager {
-    pub dev_dir: String,
-}
-
-impl FilesystemDeviceManager {
-    pub fn new() -> Self {
-        Self { dev_dir: BLACKMAGIC_DEV_DIR.to_string() }
-    }
-
-    pub fn with_dir(dev_dir: impl Into<String>) -> Self {
-        Self { dev_dir: dev_dir.into() }
-    }
-
-    /// 从节点路径派生确定性 device_id(同节点跨重启稳定, 便于租约关联)。
-    fn node_id(node: &str) -> Uuid {
-        Uuid::new_v5(&Uuid::NAMESPACE_OID, node.as_bytes())
-    }
-}
-
-impl Default for FilesystemDeviceManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// CI / 非硬件构建: 从 `/dev/blackmagic/*` 节点发现 (无 SDK/硬件假定).
+pub struct FilesystemDeviceManager;
 
 impl DeviceManager for FilesystemDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
-        let mut devices = Vec::new();
-        // 目录不存在(无 DeckLink / 非 BMD)→ 返回空, 对应状态机 0 设备分支。
-        let Ok(dir) = std::fs::read_dir(&self.dev_dir) else {
-            return devices;
-        };
-        for (idx, entry) in dir.flatten().enumerate() {
-            let path = entry.path();
-            // DeckLink 节点是字符设备(crw, e.g. dv0/dv1/io0, 主设备号 10),
-            // 不是目录 —— 实测 BMD 上 /dev/blackmagic/{dv0,dv1,io0} 均为 crw。
-            // 只认字符设备, 排除可能的普通文件/目录噪音。
-            match entry.file_type() {
-                Ok(ft) if ft.is_char_device() => {}
-                _ => continue,
+        let base = Path::new("/dev/blackmagic");
+        let mut out = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(base) {
+            for e in entries.flatten() {
+                let dv = e.file_name().to_string_lossy().to_string();
+                if !dv.starts_with("dv") && !dv.starts_with("io") {
+                    continue;
+                }
+                // 仅用节点名派生确定性 UUID (CI 可复现); 无真实硬件身份.
+                // 注: 真实 BMD `PersistentID` 仅来自 `DeckLinkDeviceManager` (A0 实测). 这里用节点名
+                // 派生合成占位身份以保非硬件构建可运行, 但**绝不伪造 bmd_persistent_id**
+                // (旧实现 `Some(hash)` 会让 `materialize` 把它当成真实 PersistentID → 静默越权,
+                // 用户复核 §十八 列为 P0 安全边界问题, 已修). filesystem 身份来源 = FilesystemSynthetic,
+                // 强度恒为 `Enumeration`; 生产 materialize 据 `identity_strength` 拒绝 (绝不接受
+                // 合成持久身份). bmd_persistent_id = None 是正确语义 (此处无真实持久身份).
+                out.push(DeviceInfo {
+                    device_id: Uuid::new_v5(&VBMF_FS_NS, &format!("vbmf:fs:{dv}")),
+                    model: "blackmagic-filesystem-node".into(),
+                    display_name: dv.clone(),
+                    serial_number: None,
+                    bmd_persistent_id: None,
+                    bmd_device_handle: None,
+                    identity_strength: IdentityStrength::Enumeration,
+                    identity_source: DeviceIdentitySource::FilesystemSynthetic,
+                });
             }
-            let node = path.to_string_lossy().to_string();
-            // 文件系统枚举无法读取真实 BMD 身份, 用节点名派生稳定的占位身份
-            // (仅 CI / 无 SDK 环境; 真实 persistent-id 来自 SDK 深度枚举).
-            let ph: u32 = node
-                .bytes()
-                .fold(0u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
-            devices.push(DeviceInfo {
-                device_id: Self::node_id(&node),
-                node: node.clone(),
-                model: "filesystem-probe".to_string(),
-                serial: String::new(),
-                state: DeviceState::Available,
-                // 文件系统枚举无 SDK, 用节点名派生占位身份以保非硬件构建可运行;
-                // 真实 BMD PersistentID 仅来自 DeckLinkDeviceManager (SDK 权威读取).
-                bmd_persistent_id: Some(ph),
-                bmd_device_handle: None,
-                handle_persistent_id: None,
-                identity_strength: IdentityStrength::Enumeration,
-                serial_number: None,
-                device_number: idx as u32,
-            });
         }
-        devices
-    }
-
-    fn status(&self, _device_id: &Uuid) -> DeviceState {
-        // Gate 2.2: 文件系统枚举不持有实时信号状态, 默认 Available。
-        // 真实信号/健康探测在 SDK 深度枚举落地后补。
-        DeviceState::Available
+        out
     }
 }
 
-/// Gate 5/7 无硬件单测用的模拟设备源 (`simulation` feature)。
-/// 让 CI / `cargo test --features simulation` 在没有 BMD 与 SDK 的情况下也能跑通
-/// discovery → lease → supervisor 全链路, 无需真实 DeckLink。
-#[cfg(feature = "simulation")]
+/// 模拟设备 (CI / 单元测试; 无硬件/SDK). 模拟世界允许伪造 PersistentId (本身是测试世界).
 pub struct SimulatedDeviceManager;
 
-#[cfg(feature = "simulation")]
-impl SimulatedDeviceManager {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-#[cfg(feature = "simulation")]
-impl Default for SimulatedDeviceManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(feature = "simulation")]
 impl DeviceManager for SimulatedDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
-        (0..3)
-        .map(|i| DeviceInfo {
-            device_id: Uuid::new_v4(),
-            node: format!("/dev/blackmagic/dv{i}"),
-            model: format!("Simulated DeckLink {i}"),
-            serial: format!("SIM{:06}", i),
-            state: DeviceState::Available,
-            bmd_persistent_id: Some((i as u32) + 1),
-            bmd_device_handle: Some(format!("sim-{i}")),
-            handle_persistent_id: None,
-            identity_strength: IdentityStrength::PersistentId,
-            serial_number: Some(format!("SIM{:06}", i)),
-            device_number: i as u32,
-        })
+        (0..2)
+            .map(|i| DeviceInfo {
+                device_id: Uuid::new_v5(&VBMF_SIM_NS, &format!("vbmf:sim:{i}")),
+                model: "DeckLink Mini Monitor 4K (sim)".into(),
+                display_name: format!("sim-{i}"),
+                serial_number: Some(format!("SIM-SERIAL-{i}")),
+                bmd_persistent_id: Some(9000 + i as i64),
+                bmd_device_handle: Some(format!("sim-handle-{i}")),
+                identity_strength: IdentityStrength::PersistentId,
+                identity_source: DeviceIdentitySource::Simulation,
+            })
             .collect()
     }
-
-    fn status(&self, _device_id: &Uuid) -> DeviceState {
-        DeviceState::Available
-    }
 }
 
-/// Gate 2.6 (P1①): 真实 SDK 深度枚举 —— 以 DeckLink 设备唯一标识 (DeviceHandle) 作为
-/// **canonical device identity**。SDK 枚举返回的 `serial` 即 `BMDDeckLinkDeviceHandle`
-/// (官方手册 3.17 的 unique identifier), 由其派生确定性 `device_id`, 取代原先
-/// "filesystem 节点 index 与 SDK 枚举 index 按位置合并" 的不稳定做法 (拓扑变化后 index 会变)。
-/// 仅 `bmd`/`hardware-test` feature 下可用 (需要 libDeckLinkAPI.so + 真机)。
-#[cfg(feature = "bmd")]
+/// 真实 BMD DeckLink (feature `bmd`): 基于 DeviceHandle 派生 canonical 身份.
+/// 身份来源 = RealBmd; 强度由 SDK 属性可用性决定 (本硬件 → DeviceHandle).
 pub struct DeckLinkDeviceManager;
 
-#[cfg(feature = "bmd")]
-impl DeckLinkDeviceManager {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-#[cfg(feature = "bmd")]
-impl Default for DeckLinkDeviceManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(feature = "bmd")]
 impl DeviceManager for DeckLinkDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
-        match crate::decklink::enumerate() {
-            Ok(list) => list
-                .into_iter()
-                .enumerate()
-                .map(|(idx, (model, display, serial, pid))| {
-                    // canonical identity: 由 DeckLink DeviceHandle (serial 字段) 派生,
-                    // 跨进程/跨重启对同一个物理设备稳定, 且不受设备拓扑顺序影响。
-                    let device_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, serial.as_bytes());
-                    // 诊断交叉校验: 从 DeviceHandle 中段解析 PersistentID (仅用于一致性比对).
-                    let handle_pid = parse_persistent_id(&serial);
-                    // **权威** BMD PersistentID 来自 SDK `GetInt(BMDDeckLinkPersistentID)`
-                    // (enumerate 已读取), 不再用 DeviceHandle 中段猜测。
-                    // None = 未解析 ⇒ 生产路径将 IdentityUnresolved; Some(0) 是合法零值, 正常接受。
-                    if let (Some(sdk), Some(handle)) = (pid, handle_pid) {
-                        if sdk != handle {
-                            warn!(
-                                model = %model,
-                                sdk_persistent_id = sdk,
-                                handle_persistent_id = handle,
-                                "BMD 身份来源冲突: SDK PersistentID 与 DeviceHandle 中段不一致, 需人工核查"
-                            );
-                        }
-                    }
-                    // 身份强度档位 (Blackmagic 官方层级):
-                    // PersistentID 可用 → PersistentId; 否则 DeviceHandle 可用 → DeviceHandle
-                    // (当前 10.30.15.10 / SDK 16.0 三台设备档位); 否则仅枚举 → Enumeration。
-                    // 注意: DeviceHandle 是"本机 best-available identity", 非跨机器永久稳定身份。
-                    let identity_strength = if pid.is_some() {
-                        IdentityStrength::PersistentId
-                    } else if !serial.is_empty() {
-                        IdentityStrength::DeviceHandle
-                    } else {
-                        IdentityStrength::Enumeration
-                    };
-                    DeviceInfo {
-                        device_id,
-                        node: display.clone(), // 真实显示名作为可读节点描述
-                        model,
-                        serial: serial.clone(),
-                        state: DeviceState::Available,
-                        bmd_persistent_id: pid,
-                        bmd_device_handle: Some(serial.clone()),
-                        handle_persistent_id: handle_pid,
-                        identity_strength,
-                        serial_number: None, // SDK 取不到硬件序列 (BMDDeckLinkSerialNumber 不存在), 由 Resolver GStreamer 探针补充
-                        device_number: idx as u32,
-                    }
-                })
-                .collect(),
-            Err(_) => Vec::new(),
-        }
-    }
-
-    fn status(&self, _device_id: &Uuid) -> DeviceState {
-        DeviceState::Available
+        // 真实枚举由 sdk/discovery 提供; 此处仅构造身份骨架.
+        // (A0: 经 decklink::enumerate() 取 model/display/serial/pid; 当前骨架用占位.)
+        let discovered = crate::decklink::enumerate();
+        discovered
+            .into_iter()
+            .map(|(model, display, serial, pid)| {
+                let handle = serial
+                    .clone()
+                    .or_else(|| Some(display.clone()))
+                    .unwrap_or_else(|| "unknown".into());
+                let identity_strength = if pid.is_some() {
+                    IdentityStrength::PersistentId
+                } else {
+                    IdentityStrength::DeviceHandle
+                };
+                DeviceInfo {
+                    device_id: Uuid::new_v5(&VBMF_BMD_NS, &format!("vbmf:bmd:{handle}")),
+                    model: model.clone(),
+                    display_name: display.clone(),
+                    serial_number: serial.clone(),
+                    bmd_persistent_id: pid,
+                    bmd_device_handle: Some(handle.clone()),
+                    identity_strength,
+                    identity_source: DeviceIdentitySource::RealBmd,
+                }
+            })
+            .collect()
     }
 }
+
+/// 确定性 UUID 命名空间 (避免随机 UUID 导致设备 ID 漂移).
+const VBMF_FS_NS: Uuid = Uuid::from_u128(0x9f3b2c1d_4e5a_4b6c_8d7e_0f1a2b3c4d5e);
+const VBMF_SIM_NS: Uuid = Uuid::from_u128(0x1a2b3c4d_5e6f_4078_9a0b_1c2d3e4f5a6b);
+const VBMF_BMD_NS: Uuid = Uuid::from_u128(0x2b3c4d5e_6f70_4180_ab0c_2d3e4f5a6b7c);
