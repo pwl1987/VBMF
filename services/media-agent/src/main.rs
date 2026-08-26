@@ -377,7 +377,7 @@ fn spawn_ingest_watchdog(
                     b4 = snap.acceptance.b4_pts_monotonic,
                     c1 = snap.acceptance.c1_no_unexpected_eos,
                     c2 = snap.acceptance.c2_no_pipeline_error,
-                    c3 = snap.acceptance.c3_no_renegotiation,
+                    c3 = snap.acceptance.c3_no_repeated_reneg,
                     c4 = snap.acceptance.c4_counters_continue,
                     vframes = snap.video_frame_count,
                     aframes = snap.audio_frame_count,
