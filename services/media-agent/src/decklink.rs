@@ -137,11 +137,14 @@ mod imp {
             // 待 BMD 真机枚举验证。
             let serial = {
                 let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
+                // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
+                // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
+                let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
                 let hr_cfg = unsafe {
                     query_iface(
                         decklink,
                         &IID_IDeckLinkConfiguration as *const _ as *const std::ffi::c_void,
-                        &mut cfg as *mut LPVOID,
+                        cfg_ptr as *mut LPVOID,
                     )
                 };
                 if hr_cfg == S_OK && !cfg.is_null() {
