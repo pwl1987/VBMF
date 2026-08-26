@@ -1,18 +1,18 @@
-//! VBMF Rust Media Agent — Gate 2 skeleton.
-//! Interface shapes frozen (SoT §15.2 / §14). No business logic yet.
+//! VBMF Rust Media Agent — Gate 2 skeleton + Gate 5/6/7 scaffolding.
 //!
 //! Boundary (SoT §14): this binary owns the Hardware Plane only.
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod config;
 mod device;
+mod graph_intent;
 mod health;
 mod lease;
 mod pipeline;
 mod rpc;
 mod sdk;
 mod supervisor;
-mod decklink; // Gate 6/7: real DeckLink enumeration (feature `decklink`)
+mod decklink; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
@@ -20,14 +20,17 @@ use std::io::Write;
 use lease::LeaseManager;
 
 fn main() {
-    // TODO(Gate 2.1): bootstrap supervisor + device manager + RPC server.
-    // No logic in skeleton commit.
     tracing_subscriber::fmt::init();
 
     // Gate 2.1: load config shape from env (no behavior attached yet).
     let _cfg = config::Config::from_env();
 
-    // Gate 2.2: device discovery (filesystem probe; safe on CI / non-BMD hosts).
+    // Gate 2.2: device discovery.
+    // `simulation` => mock devices (CI/tests, no hardware or SDK).
+    // default / bmd => filesystem probe (safe on CI / non-BMD; real on BMD).
+    #[cfg(feature = "simulation")]
+    let dm = device::SimulatedDeviceManager::new();
+    #[cfg(not(feature = "simulation"))]
     let dm = device::FilesystemDeviceManager::new();
     let devices = dm.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
@@ -40,7 +43,7 @@ fn main() {
             Err(e) => tracing::warn!(error = %e, "lease acquire failed"),
         }
     }
-    // 排他性不变量: 同一设备重复 acquire 必须被拒 (防 host ffmpeg / 双采)。
+    // 排他性不变量: 同一设备重复 acquire 必须被拒 (防 host ffmpeg / 双采).
     if let Some(first) = devices.first() {
         match lm.acquire(&first.device_id, "second-owner", std::time::Duration::from_secs(60)) {
             Ok(_) => tracing::warn!("LEASE COLLISION — double-capture risk!"),
@@ -48,17 +51,16 @@ fn main() {
         }
     }
 
-    // Gate 2.5 (A): DeckLink SDK FFI smoke — 验证 libDeckLinkAPI.so 在运行环境可达。
-    // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期)。
+    // Gate 2.5 (A): DeckLink SDK FFI smoke — 验证 libDeckLinkAPI.so 在运行环境可达.
+    // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期).
     match sdk::probe_sdk("libDeckLinkAPI.so") {
         Ok(()) => tracing::info!("SDK libDeckLinkAPI.so reachable, entry symbols present"),
         Err(e) => tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)"),
     }
 
-    // Gate 6/7 (feature `decklink`): 真实型号/序列号枚举, 按索引回填到文件系统发现的设备。
-    // 注: 按索引合并是 smoke 近似; 生产应改用 SDK 设备 handle 与主发现对齐。
-    // 无 feature 时此块被编译期剔除, devices 保持原样。
-    #[cfg(feature = "decklink")]
+    // Gate 6/7 (feature `bmd`): 真实型号/序列号枚举, 按索引回填到发现的设备.
+    // 注: 按索引合并是 smoke 近似; 生产应改用 SDK 设备 handle 与主发现对齐.
+    #[cfg(feature = "bmd")]
     let devices = {
         let enumerated = match decklink::enumerate() {
             Ok(e) => e,
@@ -82,7 +84,23 @@ fn main() {
             .collect::<Vec<_>>()
     };
 
-    // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum)。
+    // Gate 7 (feature `hardware-test`): verbose Device Registry (model/serial/status) for BMD.
+    #[cfg(feature = "hardware-test")]
+    match decklink::registry() {
+        Ok(table) => tracing::info!("DeckLink Device Registry:\n{table}"),
+        Err(e) => tracing::warn!(error = %e, "registry unavailable"),
+    }
+
+    // Gate 5: Supervisor seeded with device handles (watchdog state machine + budget/
+    // backoff/circuit-breaker are unit-tested in supervisor.rs). The full health-driven
+    // restart loop attaches in Gate 5 integration.
+    let mut sup = supervisor::Supervisor::new(supervisor::RestartPolicy::default());
+    for d in &devices {
+        sup.register(d.device_id);
+    }
+    tracing::info!(watched = devices.len(), "supervisor initialized");
+
+    // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum).
     let device_count = devices.len();
     std::thread::spawn(move || {
         match std::net::TcpListener::bind("0.0.0.0:8080") {
@@ -107,7 +125,7 @@ fn main() {
     });
 
     tracing::info!("media-agent skeleton loaded; interfaces frozen, logic pending");
-    // 常驻以便 health 探测 (Gate 2.4 演示); 生产由 supervisor 管理生命周期。
+    // 常驻以便 health 探测 (Gate 2.4 演示); 生产由 supervisor 管理生命周期.
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
     }

@@ -29,17 +29,24 @@ libloading = "0.8"
 [dev-dependencies]
 # Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)
 
+# ── Build feature model (frozen) ───────────────────────────────────────────────
+# default        : filesystem discovery only (proven on BMD Gates 2-4). No SDK.
+# simulation     : mock DeckLink devices — CI / unit tests without hardware or SDK.
+# bmd            : real DeckLink SDK enumeration via bindgen-generated FFI.
+#                   Build: cargo build --features bmd
+#                     (needs DECKLINK_SDK_INCLUDE=<SDK Linux/include> + libclang;
+#                      offline via vendor/ — see .cargo/config.toml)
+# hardware-test  : bmd + verbose Device Registry probes (model/serial/status) for BMD.
+#                   BMD: cargo run --features hardware-test --offline
+# CI builds/tests default + simulation (no SDK, no hardware). BMD owns the real FFI build.
 [features]
 default = []
-# Gate 6/7: real DeckLink SDK enumeration (model/serial) via bindgen-generated FFI.
-# Build with: cargo build --features decklink
-#   (requires DECKLINK_SDK_INCLUDE=<SDK Linux/include> + libclang at build time).
-# OFF by default so CI / non-BMD builds stay green without the proprietary SDK header.
-# Real enumeration is validated on BMD (runc + Option B) once cargo is bootstrapped there.
-decklink = ["dep:bindgen"]
+simulation = []
+bmd = ["dep:bindgen"]
+hardware-test = ["bmd"]
 
 [build-dependencies]
-# Optional: only pulled when `decklink` feature is enabled (needs libclang at build time).
+# Optional: only pulled when `bmd` feature is enabled (needs libclang at build time).
 # See build.rs — generates src-level FFI bindings from DeckLinkAPI.h on demand.
 bindgen = { version = "0.70", optional = true }
 

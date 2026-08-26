@@ -1,23 +1,23 @@
 //! Build script — Gate 6/7 DeckLink SDK bindgen pipeline.
 //!
 //! Two modes:
-//! - `decklink` feature ON + `DECKLINK_SDK_INCLUDE` set  -> run bindgen on DeckLinkAPI.h,
+//! - `bmd` feature ON + `DECKLINK_SDK_INCLUDE` set  -> run bindgen on DeckLinkAPI.h,
 //!   emit real FFI bindings to `OUT_DIR/bindings.rs` (consumed by `src/decklink.rs`).
 //! - otherwise                                          -> emit an empty `bindings.rs` stub
 //!   (`src/decklink.rs` takes the stub/error path).
 //!
-//! The `decklink` feature is OFF by default so CI / non-BMD builds compile without the
+//! The `bmd` feature is OFF by default so CI / non-BMD builds compile without the
 //! proprietary SDK header or libclang. Real enumeration is validated on BMD (runc + Option B).
 
 fn main() {
-    #[cfg(feature = "decklink")]
+    #[cfg(feature = "bmd")]
     gen_real();
 
-    #[cfg(not(feature = "decklink"))]
+    #[cfg(not(feature = "bmd"))]
     gen_stub();
 }
 
-#[cfg(feature = "decklink")]
+#[cfg(feature = "bmd")]
 fn gen_real() {
     let include = std::env::var("DECKLINK_SDK_INCLUDE").expect(
         "DECKLINK_SDK_INCLUDE must point at the DeckLink SDK Linux/include dir (Gate 6/7)",
@@ -41,9 +41,9 @@ fn gen_real() {
         .expect("Couldn't write bindings.rs");
 }
 
-#[cfg(not(feature = "decklink"))]
+#[cfg(not(feature = "bmd"))]
 fn gen_stub() {
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    std::fs::write(out.join("bindings.rs"), "// stub: decklink feature disabled at build time\n")
+    std::fs::write(out.join("bindings.rs"), "// stub: bmd feature disabled at build time\n")
         .expect("Couldn't write stub bindings.rs");
 }

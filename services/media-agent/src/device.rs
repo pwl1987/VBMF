@@ -110,3 +110,42 @@ impl DeviceManager for FilesystemDeviceManager {
         DeviceState::Available
     }
 }
+
+/// Gate 5/7 无硬件单测用的模拟设备源 (`simulation` feature)。
+/// 让 CI / `cargo test --features simulation` 在没有 BMD 与 SDK 的情况下也能跑通
+/// discovery → lease → supervisor 全链路, 无需真实 DeckLink。
+#[cfg(feature = "simulation")]
+pub struct SimulatedDeviceManager;
+
+#[cfg(feature = "simulation")]
+impl SimulatedDeviceManager {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[cfg(feature = "simulation")]
+impl Default for SimulatedDeviceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "simulation")]
+impl DeviceManager for SimulatedDeviceManager {
+    fn discover(&self) -> Vec<DeviceInfo> {
+        (0..3)
+            .map(|i| DeviceInfo {
+                device_id: Uuid::new_v4(),
+                node: format!("/dev/blackmagic/dv{i}"),
+                model: format!("Simulated DeckLink {i}"),
+                serial: format!("SIM{:06}", i),
+                state: DeviceState::Available,
+            })
+            .collect()
+    }
+
+    fn status(&self, _device_id: &Uuid) -> DeviceState {
+        DeviceState::Available
+    }
+}
