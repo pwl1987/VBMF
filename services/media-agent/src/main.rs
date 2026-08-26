@@ -17,7 +17,8 @@ mod decklink; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
 use std::io::Write;
-use lease::LeaseManager;
+use std::sync::Arc;
+use uuid::Uuid;
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -38,7 +39,7 @@ fn main() {
     tracing::info!(count = devices.len(), "device discovery complete");
 
     // Gate 2.3: lease manager (in-memory; no hardware needed for the interface).
-    let lm = lease::InMemoryLeaseManager::new();
+    let lm = Arc::new(lease::InMemoryLeaseManager::new());
     for d in &devices {
         match lm.acquire(&d.device_id, "bootstrap", std::time::Duration::from_secs(60)) {
             Ok(l) => tracing::info!(device = %l.device_id, "lease acquired"),
@@ -72,29 +73,34 @@ fn main() {
     }
 
     // Gate 5: Supervisor seeded with device handles (watchdog state machine + budget/
-    // backoff/circuit-breaker are unit-tested in supervisor.rs). The full health-driven
-    // restart loop attaches in Gate 5 integration.
-    let mut sup = supervisor::Supervisor::new(supervisor::RestartPolicy::default());
+    // backoff/circuit-breaker are unit-tested in supervisor.rs). 包 Arc<Mutex> 以便 watch
+    // 线程与 GStreamer recover 接线共享 (Supervisor 只决策, 不碰 GStreamer).
+    let sup = Arc::new(std::sync::Mutex::new(supervisor::Supervisor::new(
+        supervisor::RestartPolicy::default(),
+    )));
     for d in &devices {
-        sup.register(d.device_id);
+        sup.lock().unwrap().register(d.device_id);
     }
     tracing::info!(watched = devices.len(), "supervisor initialized");
 
     // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum).
     // Gate 2.6 (P1②): 返回真实运行时状态, 与 Supervisor 状态机对齐 (不再固定 ready).
     let device_count = devices.len();
-    let agent_state = std::sync::Arc::new(std::sync::Mutex::new(health::AgentState::Ready));
+    let agent_state = Arc::new(std::sync::Mutex::new(health::AgentState::Ready));
 
     // Gate 2.6 (CAP-01) — 关键边界澄清 (Phase 0.6 锁死):
     //   * `decklink::start_capture` (IDeckLinkInput) = SDK 能力 / 诊断探针
     //     (Gate 6/7), 验证 SDK 能否打开设备 / callback 是否正常 / 格式是否可读.
     //     它**不是** canonical 媒体数据通道 (否则与 GStreamer 争夺设备 → 双采).
+    //     真机 GStreamer 启动后, 该探针仅限 `hardware-test` feature, 避免争用同一块卡.
     //   * canonical 媒体采集 = GStreamer `decklinkvideosrc` + `decklinkaudiosrc`
     //     (Phase 0.6). CAP-01 的 MEDIA-RT-01 (真实 SDI → GStreamer → RAW →
-    //     first buffer) 由 `PipelineController` 拥有, 下一步实现.
+    //     first buffer) 由 `PipelineController` 拥有.
     #[cfg(feature = "bmd")]
     {
-        // (A) SDK 诊断探针 (保留; 真机已验证可行, 不用于生产媒体路径):
+        // (A) SDK 诊断探针 (仅 hardware-test; 真机已验证可行, 不用于生产媒体路径).
+        //     与 canonical GStreamer 路径互斥, 避免同时打开同一块 DeckLink.
+        #[cfg(feature = "hardware-test")]
         match decklink::start_capture(0) {
             Ok(stats) => {
                 tracing::info!("CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)");
@@ -110,9 +116,7 @@ fn main() {
         }
 
         // (B) canonical 媒体采集路径 (GStreamer) — 物化 PipelinePlan, 由
-        //     PipelineController 拥有. 当前为冻结骨架: 仅构造计划并校验 identity
-        //     解析, 真实 GStreamer launch 待 gstreamer feature.
-        //     GraphRuntimeIntent 只带 VBMF device_id; bmd_persistent_id /
+        //     PipelineController 拥有. 控制面只带 VBMF device_id; bmd_persistent_id /
         //     device-number 由 materialize 经 Device Registry 解析得到.
         let first_id = devices.first().map(|d| d.device_id.to_string()).unwrap_or_default();
         let intent = crate::graph_intent::GraphRuntimeIntent {
@@ -126,21 +130,66 @@ fn main() {
                 },
             }],
         };
-        // 物化: VBMF device_id → Device Registry → BMD PersistentID → GStreamer.
-        // identity 解析失败直接报错, 绝不盲开 device 0.
-        // (注: 当真实 GStreamer 启动后, 上方 SDK 诊断探针须仅限 `hardware-test`
-        //  feature, 避免与 canonical 路径同时打开同一块 DeckLink.)
-        match crate::pipeline::materialize(&intent, &devices) {
+        // 物化 (Production 模式): VBMF device_id → Device Registry → BMD PersistentID
+        // → GStreamer persistent-id. identity 解析失败直接 IdentityUnresolved, 绝不盲开.
+        match crate::pipeline::materialize(
+            &intent,
+            &devices,
+            crate::pipeline::MaterializeMode::Production,
+        ) {
             Ok(plans) => {
                 for p in &plans {
                     tracing::info!(
-                        persistent_id = %p.source.persistent_id,
+                        device_id = %p.source.device_id,
                         bmd_persistent_id = p.source.bmd_persistent_id,
                         device_number = p.source.device_number,
-                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc persistent-id; launch pending)"
+                        selection_mode = ?p.source.selection_mode,
+                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc persistent-id; launch pending)"
                     );
                 }
                 *agent_state.lock().unwrap() = health::AgentState::Capturing;
+
+                // (C) 真实 GStreamer launch (feature = "gstreamer") + Supervisor→recover 接线.
+                #[cfg(feature = "gstreamer")]
+                {
+                    let dev_id_str = plans[0].source.device_id.clone();
+                    let device_uuid = Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
+                    // Lease→Pipeline: 启动前确认该设备的租约仍有效 (排他采集前置条件).
+                    if !lm.is_valid(&device_uuid) {
+                        tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
+                    } else {
+                        let ctrl = Arc::new(crate::pipeline::GStreamerPipelineController::new());
+                        // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
+                        tracing::info!(gst_version = ?gstreamer::version(), "GStreamer runtime version (evidence)");
+                        match ctrl.prepare(&plans[0]) {
+                            Ok(h) => match ctrl.start(&h) {
+                                Ok(()) => {
+                                    tracing::info!(
+                                        handle = %h.0,
+                                        device_id = %dev_id_str,
+                                        "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc persistent-id)"
+                                    );
+                                    // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
+                                    sup.lock().unwrap().register(h.0);
+                                    spawn_ingest_watchdog(
+                                        ctrl,
+                                        h,
+                                        device_uuid,
+                                        sup.clone(),
+                                        lm.clone(),
+                                        agent_state.clone(),
+                                    );
+                                }
+                                Err(e) => tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)"),
+                            },
+                            Err(e) => tracing::error!(error = %e, "canonical prepare 失败"),
+                        }
+                    }
+                }
+                #[cfg(not(feature = "gstreamer"))]
+                {
+                    tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                }
             }
             Err(e) => tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)"),
         }
@@ -180,4 +229,69 @@ fn main() {
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
     }
+}
+
+/// MEDIA-RT-01 watchdog (Supervisor → PipelineController.recover 运行时接线).
+///
+/// 周期巡检 GStreamer 健康 + bus 错误:
+///   * MEDIA-RT-01A (Ingest Open): 管线已启动 (start 成功后注册).
+///   * MEDIA-RT-01B (First Frame): video+audio 首帧 + PTS 有效 (见 `PipelineHealth`).
+///   * MEDIA-RT-01C (Short Stability): N 秒窗口内 frame_count>0 / 无意外 EOS /
+///     无 pipeline error / 无重协商.
+/// 检测到错误/总线错误 → 报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
+/// Supervisor 仅决策, 不碰 GStreamer (硬边界); 实际重启由这里执行.
+#[cfg(feature = "gstreamer")]
+fn spawn_ingest_watchdog(
+    ctrl: Arc<crate::pipeline::GStreamerPipelineController>,
+    handle: crate::pipeline::PipelineHandle,
+    device_uuid: Uuid,
+    sup: Arc<std::sync::Mutex<supervisor::Supervisor>>,
+    lm: Arc<lease::InMemoryLeaseManager>,
+    agent_state: Arc<std::sync::Mutex<health::AgentState>>,
+) {
+    std::thread::spawn(move || {
+        let start = std::time::Instant::now();
+        let stability_window = std::time::Duration::from_secs(10); // MEDIA-RT-01C 验收窗口
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let health = crate::pipeline::read_health(&handle).unwrap_or_default();
+
+            if health.last_error.is_some() {
+                // 报告 Supervisor (决策引擎); 它只返回动作, 不碰 GStreamer.
+                match sup.lock().unwrap().report_failure(&handle.0) {
+                    Ok(supervisor::SupervisorAction::Restart) => {
+                        // Lease→Pipeline: recover 前必须重校租约仍在有效期内.
+                        if !lm.is_valid(&device_uuid) {
+                            tracing::error!(device = %device_uuid, "recover 中止: lease 失效 (MEDIA-03 排他不变量)");
+                            *agent_state.lock().unwrap() = health::AgentState::Failed;
+                            continue;
+                        }
+                        let backoff = sup.lock().unwrap().backoff(&handle.0);
+                        let _ = sup.lock().unwrap().begin_restart(&handle.0);
+                        std::thread::sleep(backoff);
+                        match ctrl.recover(&handle) {
+                            Ok(()) => {
+                                sup.lock().unwrap().report_recovered(&handle.0).ok();
+                                tracing::warn!(handle = %handle.0, "MEDIA-RT-01 watchdog: recover 成功 (Supervisor→PipelineController.recover 接线)");
+                            }
+                            Err(e) => tracing::error!(error = %e, "recover 失败"),
+                        }
+                    }
+                    Ok(supervisor::SupervisorAction::Escalate) => {
+                        tracing::error!(handle = %handle.0, "MEDIA-RT-01 watchdog: Escalate (MANUAL_REQUIRED)");
+                        *agent_state.lock().unwrap() = health::AgentState::Failed;
+                    }
+                    Err(e) => tracing::error!(error = %e, "supervisor report_failure 失败"),
+                }
+            } else if health.first_frame_ok() && start.elapsed() >= stability_window {
+                // MEDIA-RT-01 = A + B + C 达成.
+                tracing::info!(
+                    handle = %handle.0,
+                    video_frames = health.video_frame_count,
+                    audio_frames = health.audio_frame_count,
+                    "MEDIA-RT-01: A+B+C 稳定窗口达成 (canonical first-buffer 路径健康)"
+                );
+            }
+        }
+    });
 }

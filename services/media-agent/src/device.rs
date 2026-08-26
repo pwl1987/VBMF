@@ -10,8 +10,12 @@ use uuid::Uuid;
 pub const BLACKMAGIC_DEV_DIR: &str = "/dev/blackmagic";
 
 /// 从 BMD `DeviceHandle` 字符串 (`RevisionID:PersistentID:TopologicalID`) 提取
-/// `PersistentID` 中段 (hex). 解析失败返回 `None` —— 该设备退化为 `device-number`
-/// 选择, 不强制 persistent-id. (DeviceHandle ≠ PersistentID, 二者都保存于 DeviceInfo.)
+/// `PersistentID` 中段 (hex). 解析失败返回 `None` ⇒ BMD PersistentID **未解析**.
+///
+/// 硬规则 (Phase 0.6 锁死): 生产路径 (`MaterializeMode::Production`) 下 PersistentID 未解析
+/// 直接导致 `materialize` 返回 `IdentityUnresolved`, **绝不**悄悄退回 `device-number` 盲开
+/// device 0 (广播系统最危险的是打开*错误*的输入, 而非打不开). 仅 `Diagnostic` 模式显式允许
+/// `device-number` 兜底, 且必须在证据中标注. (DeviceHandle ≠ PersistentID, 二者均保存于 DeviceInfo.)
 pub fn parse_persistent_id(handle: &str) -> Option<u32> {
     let seg: Vec<&str> = handle.split(':').collect();
     if seg.len() == 3 {

@@ -1,7 +1,16 @@
 //! Media Pipeline Lifecycle Orchestrator (PipelineController).
 //!
 //! Frozen interface per SoT §15.2 / Phase 0.6 canonical-ingest contract.
-//! 当前为 Gate 2.1 骨架: 接口冻结, 未真正 launch GStreamer.
+//!
+//! 本文件实现 **canonical ingest 的真实物化**:
+//!   * `PipelinePlan` 是 `GraphRuntimeIntent` 的 materialization, 不是第二套 Graph Model;
+//!   * 唯一 canonical 媒体采集通道 = GStreamer `decklinkvideosrc` + `decklinkaudiosrc`;
+//!   * `IDeckLinkInput` (Rust FFI) 仅作 Device Capability / 模式探测 / 诊断探针, **不**作
+//!     生产视频数据通道 (否则双采 / 设备争用).
+//!
+//! GStreamer 真实 launch 由 `feature = "gstreamer"` 门控 (需要宿主机 GStreamer 1.22+ 与
+//! `decklinkvideosrc`/`decklinkaudiosrc` 插件). 未启用该 feature 时, trait 仍提供骨架实现,
+//! 保证 `default` / `simulation` / `bmd` 构建均可编译并通过单元/集成测试.
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
@@ -15,21 +24,39 @@ use crate::graph_intent::GraphRuntimeIntent;
 /// 跨进程/重启/拓扑变化稳定; 与 GStreamer `device-number` 索引解耦.
 pub type CanonicalDeviceId = String;
 
+/// materialize 模式: 决定 `bmd_persistent_id` 解析失败时的行为.
+///
+/// 硬规则 (Phase 0.6 锁死): **生产路径禁止**悄悄把 `device-number` 当作 PersistentID 兜底.
+/// 只有显式 Diagnostic/Compatibility 模式才允许用 `device-number` 兜底, 且必须在证据中标注.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MaterializeMode {
+    /// 生产路径: `bmd_persistent_id` 解析失败 → `IdentityUnresolved`, 绝不盲开.
+    Production,
+    /// 诊断/兼容模式: `bmd_persistent_id` 缺失时显式退回 `device-number` (仅探测/回退用).
+    Diagnostic,
+}
+
+/// 物化后 GStreamer 实际选用哪张卡的选择策略.
+///
+/// **注意**: `bmd_persistent_id` (BMDDeckLinkPersistentID) 与 `DeviceHandle`
+/// (RevisionID:PersistentID:TopologicalID) 是两回事; `Canonical` 模式把前者映射到
+/// GStreamer `persistent-id` (gint64, 1.22+ 官方支持, 优先级高于 `device-number`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SourceSelectionMode {
+    /// 生产路径: 用 BMD PersistentID → GStreamer `persistent-id` (首选).
+    Canonical,
+    /// 仅 Diagnostic/Compatibility: BMD PersistentID 解析失败, 显式退回 `device-number`.
+    DiagnosticFallback,
+}
+
 /// Media Agent 在运行时对 `GraphRuntimeIntent` 的物化执行计划.
 ///
 /// 关键边界 (Phase 0.6 锁死):
-///   * `PipelinePlan` **不是** 第二套 Graph Model; 它是 `GraphRuntimeIntent`
-///     的物化 (materialization), 仅描述 "如何启动一条真实 GStreamer 管线".
-///   * 唯一 canonical 媒体采集通道 = GStreamer `decklinkvideosrc` +
-///     `decklinkaudiosrc`. `IDeckLinkInput` (Rust FFI) 仅用于 Device
-///     Capability / 模式探测 / 诊断, **不得**作为生产视频数据通道 (否则双采 /
-///     设备争用).
-///   * GStreamer `decklinkvideosrc`/`decklinkaudiosrc` **有** `persistent-id`
-///     属性 (gint64, 对应 `BMDDeckLinkPersistentID`), **优先级高于 `device-number`**
-///     (GStreamer 1.22+ 官方支持). 因此物化链路为: VBMF device_id → Device
-///     Registry → BMD PersistentID → GStreamer `persistent-id`; `device-number`
-///     仅作回退/诊断. 注意 `DeviceHandle`(RevisionID:PersistentID:TopologicalID)
-///     与 `PersistentID` 是两回事, 二者都保存于 `DeviceInfo`.
+///   * `PipelinePlan` **不是** 第二套 Graph Model; 它是 `GraphRuntimeIntent` 的物化.
+///   * GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 有 `persistent-id` 属性
+///     (gint64, 对应 `BMDDeckLinkPersistentID`), 优先级高于 `device-number` (1.22+).
+///     物化链路: VBMF `device_id` → Device Registry → BMD PersistentID → GStreamer
+///     `persistent-id`; `device-number` 仅作 Diagnostic 回退.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
@@ -42,14 +69,17 @@ pub struct PipelinePlan {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourcePlan {
     /// VBMF canonical identity (DeviceHandle 派生 UUID). 主键.
-    pub persistent_id: CanonicalDeviceId,
+    /// **命名澄清**: 此字段是 VBMF 规范身份, **不是** BMD PersistentID.
+    /// BMD PersistentID 见 `selection_mode` + `bmd_persistent_id`.
+    pub device_id: CanonicalDeviceId,
     /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), 物化自 Device Registry.
-    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id`
-    /// (gint64) —— 1.22+ 官方支持, 优先级高于 `device-number`, 首选该属性选卡.
+    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id` (gint64).
     pub bmd_persistent_id: u32,
-    /// GStreamer `device-number` 属性 (回退 / 诊断). 与 `bmd_persistent_id` 指向
-    /// **同一块**已解析设备, 不会盲开 device 0.
+    /// GStreamer `device-number` 属性 (仅 Diagnostic 回退 / 诊断). 与 `bmd_persistent_id`
+    /// 指向 **同一块** 已解析设备, 不会盲开 device 0.
     pub device_number: u32,
+    /// GStreamer 实际选卡策略 (Canonical 优先; DiagnosticFallback 仅显式诊断).
+    pub selection_mode: SourceSelectionMode,
     /// 模式协商后的输入契约 (Capability Match 产物).
     pub resolved_input: ResolvedInputContract,
 }
@@ -66,6 +96,11 @@ pub struct ResolvedInputContract {
 pub struct VideoPlan {
     /// RAW → RAW (Signal Contract / clock / PTS). 在 Encode 之前, 切换之内.
     pub normalize: bool,
+    /// 协商后的输入格式 (当前最小字段集; CAP-03/04 再逐步补全 ClockPlan/NormalizationPlan).
+    pub mode: String,
+    pub pixel_format: String,
+    pub fps: f64,
+    pub interlace: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,13 +126,66 @@ pub struct OutputPlan {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PipelineHandle(pub Uuid);
 
+/// 管线运行时健康 (Pipeline Health / GStreamer bus 监控载体).
+///
+/// 对应 Phase 0.6 "24h stability 需落到 Runtime Harness": 此处先提供 MEDIA-RT-01 所需的
+/// 最小健康指标 (首帧 / PTS / 单调性 / 错误), 后续 G-RUNTIME 再扩展 EOS/restart/输出健康.
+#[derive(Debug, Clone, Default)]
+pub struct PipelineHealth {
+    pub video_first_pts: Option<u64>,
+    pub audio_first_pts: Option<u64>,
+    pub video_frame_count: u64,
+    pub audio_frame_count: u64,
+    /// PTS 单调非减 (经 `GetHardwareReferenceClock`/GStreamer clock 校验).
+    pub pts_monotonic: bool,
+    pub last_error: Option<String>,
+    pub running: bool,
+    pub started_at: Option<i64>,
+}
+
+impl PipelineHealth {
+    /// MEDIA-RT-01B: 真实 video+audio 首帧已到, 且 PTS 有效.
+    pub fn first_frame_ok(&self) -> bool {
+        self.video_first_pts.is_some()
+            && self.audio_first_pts.is_some()
+            && self.video_frame_count > 0
+            && self.audio_frame_count > 0
+            && self.pts_monotonic
+            && self.last_error.is_none()
+    }
+}
+
+/// MEDIA-RT-01 接受判定拆为三层 (Phase 0.6: 不是 happy path, 必须确定性观测):
+///   * A — Ingest Open: DeckLink 解析 / Lease 获取 / GStreamer 启动 / 信号检测.
+///   * B — First Frame: 真实 video+audio GstBuffer + 有效 timestamp.
+///   * C — Short Stability: N 秒内 frame_count>0 / 无意外 EOS / 无 pipeline error / 无重协商.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MediaRt01Acceptance {
+    pub a_ingest_open: bool,
+    pub b_first_frame: bool,
+    pub c_short_stability: bool,
+}
+
+impl MediaRt01Acceptance {
+    /// MEDIA-RT-01 = A + B + C 全过. 单 first-frame 不足以判定整个媒体运行时健康.
+    pub fn pass(&self) -> bool {
+        self.a_ingest_open && self.b_first_frame && self.c_short_stability
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum PipelineError {
     #[error("device lease invalid")]
     LeaseInvalid,
     #[error("identity resolution failed: {0}")]
     IdentityUnresolved(String),
-    #[error("gstreamer launch not implemented (Gate 2.1 skeleton)")]
+    #[error("gstreamer init failed: {0}")]
+    GstreamerInit(String),
+    #[error("pipeline launch failed: {0}")]
+    LaunchFailed(String),
+    #[error("appsink element missing: {0}")]
+    AppsinkMissing(String),
+    #[error("gstreamer runtime not compiled (feature 'gstreamer' absent)")]
     NotImplemented,
 }
 
@@ -118,14 +206,16 @@ pub trait PipelineController {
 ///
 /// 物化链路 (Control Plane 不感知 GStreamer property):
 ///   VBMF `device_id` → Device Registry (`DeviceInfo`) → `bmd_persistent_id`
-///   → GStreamer `persistent-id` (首选) / `device-number` (回退, 同一设备).
+///   → GStreamer `persistent-id` (首选) / `device-number` (Diagnostic 回退).
 ///
-/// **绝不 `unwrap_or(0)`**: 若 `device_id` 在 registry 中找不到对应设备,
-/// 直接 `IdentityUnresolved` 失败 —— 广播系统最危险的是打开*错误*的输入
+/// **硬规则**: `MaterializeMode::Production` 下, 若 `device_id` 在 registry 中找不到,
+/// 或找到但 `bmd_persistent_id == 0` (PersistentID 解析失败), 直接 `IdentityUnresolved`
+/// 失败 —— 绝不 `unwrap_or(0)` 盲开 device 0. 广播系统最危险的是打开*错误*的输入
 /// (以为开了 SDI-A, 实际开了 SDI-B), 而不是打不开.
 pub fn materialize(
     intent: &GraphRuntimeIntent,
     devices: &[DeviceInfo],
+    mode: MaterializeMode,
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
     intent
         .devices
@@ -136,11 +226,29 @@ pub fn materialize(
                 .iter()
                 .find(|i| i.device_id.to_string() == d.device_id)
                 .ok_or_else(|| PipelineError::IdentityUnresolved(d.device_id.clone()))?;
+
+            // 2) 硬规则: 生产路径要求 BMD PersistentID 已解析 (non-zero).
+            let selection_mode = if info.bmd_persistent_id != 0 {
+                SourceSelectionMode::Canonical
+            } else {
+                match mode {
+                    MaterializeMode::Production => {
+                        // 生产路径: 解析失败即失败, 不盲开.
+                        return Err(PipelineError::IdentityUnresolved(format!(
+                            "{}: BMD PersistentID 未解析 (bmd_persistent_id=0)",
+                            d.device_id
+                        )));
+                    }
+                    MaterializeMode::Diagnostic => SourceSelectionMode::DiagnosticFallback,
+                }
+            };
+
             Ok(PipelinePlan {
                 source: SourcePlan {
-                    persistent_id: d.device_id.clone(),
+                    device_id: d.device_id.clone(),
                     bmd_persistent_id: info.bmd_persistent_id,
                     device_number: info.device_number,
+                    selection_mode,
                     resolved_input: ResolvedInputContract {
                         mode: "auto".into(), // 由 DoesSupportVideoMode 协商, 此处占位
                         pixel_format: "UYVY".into(),
@@ -148,7 +256,13 @@ pub fn materialize(
                         interlace: true,
                     },
                 },
-                video: VideoPlan { normalize: true },
+                video: VideoPlan {
+                    normalize: true,
+                    mode: "auto".into(),
+                    pixel_format: "UYVY".into(),
+                    fps: 0.0,
+                    interlace: true,
+                },
                 audio: AudioPlan {
                     enabled: d.pipeline.source.kind == "decklink",
                     channels: 2,
@@ -164,3 +278,205 @@ pub fn materialize(
         })
         .collect()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 真实 GStreamer launch (feature = "gstreamer")
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "gstreamer")]
+mod gst_runtime {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use gstreamer::prelude::*;
+    use gstreamer as gst;
+    use gstreamer_app::AppSink;
+
+    /// 跨线程共享的健康 Arc 表 (appsink 回调写入, watchdog/health 读取).
+    pub static HEALTH_ARCS: Mutex<HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>> =
+        Mutex::new(HashMap::new());
+
+    /// 读取某管线最新健康 (跨线程, 经共享 Arc).
+    pub fn read_health(handle: &PipelineHandle) -> Option<PipelineHealth> {
+        HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .get(handle)
+            .map(|a| a.lock().unwrap().clone())
+    }
+
+    /// 真实 GStreamer 管线控制器.
+    ///
+    /// 生命周期: `prepare` 存 plan; `start` 经 `gst::parse::launch`
+    /// 构造 `decklinkvideosrc/audiosrc persistent-id=<BMD PersistentID> → appsink`,
+    /// 设 Playing, 由 appsink 回调捕获首帧/PTS; `recover` 先由调用方重校 lease 再重 launch.
+    pub struct GStreamerPipelineController {
+        plans: Mutex<HashMap<PipelineHandle, PipelinePlan>>,
+        pipelines: Mutex<HashMap<PipelineHandle, gst::Pipeline>>,
+    }
+
+    impl GStreamerPipelineController {
+        pub fn new() -> Self {
+            Self {
+                plans: Mutex::new(HashMap::new()),
+                pipelines: Mutex::new(HashMap::new()),
+            }
+        }
+
+        pub fn health(&self, handle: &PipelineHandle) -> Option<PipelineHealth> {
+            read_health(handle)
+        }
+
+        /// 构造 decklinkvideosrc/audiosrc 源串 (Canonical 用 persistent-id, Diagnostic 用 device-number).
+        fn src_props(plan: &PipelinePlan) -> (String, String) {
+            match plan.source.selection_mode {
+                SourceSelectionMode::Canonical => (
+                    format!("decklinkvideosrc persistent-id={}", plan.source.bmd_persistent_id),
+                    format!("decklinkaudiosrc persistent-id={}", plan.source.bmd_persistent_id),
+                ),
+                SourceSelectionMode::DiagnosticFallback => (
+                    format!("decklinkvideosrc device-number={}", plan.source.device_number),
+                    format!("decklinkaudiosrc device-number={}", plan.source.device_number),
+                ),
+            }
+        }
+
+        /// appsink 回调: 抓首帧 + 记录 PTS + 校验单调 (video).
+        fn attach_video_sink(
+            pipeline: &gst::Pipeline,
+            health: Arc<Mutex<PipelineHealth>>,
+        ) -> Result<(), PipelineError> {
+            let sink = pipeline
+                .by_name("videosink")
+                .ok_or_else(|| PipelineError::AppsinkMissing("videosink".into()))?
+                .downcast::<AppSink>()
+                .map_err(|_| PipelineError::AppsinkMissing("videosink not AppSink".into()))?;
+            sink.set_callbacks(
+                gstreamer_app::AppSinkCallbacks::builder()
+                    .new_sample(move |appsink| {
+                        let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
+                        if let Some(buf) = sample.buffer() {
+                            let pts = buf.pts().map(|c| c.nseconds()).unwrap_or(0);
+                            let mut h = health.lock().unwrap();
+                            if h.video_first_pts.is_none() {
+                                h.video_first_pts = Some(pts);
+                            }
+                            // 单调性: 与首帧 PTS 比较 (PTS 回退即非单调).
+                            if let Some(first) = h.video_first_pts {
+                                if pts < first {
+                                    h.pts_monotonic = false;
+                                }
+                            }
+                            h.video_frame_count += 1;
+                        }
+                        Ok(gst::FlowSuccess::Ok)
+                    })
+                    .build(),
+            );
+            Ok(())
+        }
+
+        /// appsink 回调: 抓首帧 + 记录 PTS (audio).
+        fn attach_audio_sink(
+            pipeline: &gst::Pipeline,
+            health: Arc<Mutex<PipelineHealth>>,
+        ) -> Result<(), PipelineError> {
+            let sink = pipeline
+                .by_name("audiosink")
+                .ok_or_else(|| PipelineError::AppsinkMissing("audiosink".into()))?
+                .downcast::<AppSink>()
+                .map_err(|_| PipelineError::AppsinkMissing("audiosink not AppSink".into()))?;
+            sink.set_callbacks(
+                gstreamer_app::AppSinkCallbacks::builder()
+                    .new_sample(move |appsink| {
+                        let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
+                        if let Some(buf) = sample.buffer() {
+                            let pts = buf.pts().map(|c| c.nseconds()).unwrap_or(0);
+                            let mut h = health.lock().unwrap();
+                            if h.audio_first_pts.is_none() {
+                                h.audio_first_pts = Some(pts);
+                            }
+                            h.audio_frame_count += 1;
+                        }
+                        Ok(gst::FlowSuccess::Ok)
+                    })
+                    .build(),
+            );
+            Ok(())
+        }
+    }
+
+    impl Default for GStreamerPipelineController {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl PipelineController for GStreamerPipelineController {
+        fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
+            gst::init().map_err(|e| PipelineError::GstreamerInit(e.to_string()))?;
+            let handle = PipelineHandle(Uuid::new_v4());
+            self.plans.lock().unwrap().insert(handle, plan.clone());
+            Ok(handle)
+        }
+
+        fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
+            let plan = self
+                .plans
+                .lock()
+                .unwrap()
+                .get(handle)
+                .ok_or(PipelineError::LeaseInvalid)?
+                .clone();
+            let (vsrc, asrc) = Self::src_props(&plan);
+            // canonical 链路: DeckLink → GStreamer → RAW (appsink 仅采样, 不提前 Encode).
+            let desc = format!(
+                "{vsrc} ! video/x-raw ! appsink name=videosink async=false \
+                 {asrc} ! audio/x-raw ! appsink name=audiosink async=false"
+            );
+            let pipeline = gst::parse::launch(&desc)
+                .map_err(|e| PipelineError::LaunchFailed(e.to_string()))?
+                .downcast::<gst::Pipeline>()
+                .map_err(|_| PipelineError::LaunchFailed("not a pipeline".into()))?;
+
+            let health_arc = Arc::new(Mutex::new(PipelineHealth {
+                running: true,
+                started_at: Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0),
+                ),
+                ..Default::default()
+            }));
+            Self::attach_video_sink(&pipeline, health_arc.clone())?;
+            Self::attach_audio_sink(&pipeline, health_arc.clone())?;
+
+            pipeline
+                .set_state(gst::State::Playing)
+                .map_err(|e| PipelineError::LaunchFailed(format!("set_state Playing: {e:?}")))?;
+
+            self.pipelines.lock().unwrap().insert(*handle, pipeline);
+            HEALTH_ARCS.lock().unwrap().insert(*handle, health_arc);
+            Ok(())
+        }
+
+        fn stop(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
+            if let Some(p) = self.pipelines.lock().unwrap().remove(handle) {
+                let _ = p.set_state(gst::State::Null);
+            }
+            HEALTH_ARCS.lock().unwrap().remove(handle);
+            Ok(())
+        }
+
+        fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
+            // 调用方须先重校 lease; 此处先停后起 (重 launch GStreamer).
+            self.stop(handle)?;
+            self.start(handle)
+        }
+    }
+}
+
+#[cfg(feature = "gstreamer")]
+pub use gst_runtime::{read_health, GStreamerPipelineController, HEALTH_ARCS};

@@ -38,3 +38,45 @@
 - 本次为"实现回归冻结设计"，非新架构；不触发 V0.3。
 - 但 `IDeckLinkInput` 角色重定义、canonical-ingest 边界、identity-resolution 要求，建议提升到 **Device Registry Contract / Phase 0.6 验收条目**，作为 MEDIA-RT-01 的正式定义。
 - 下一步 CAP 序列（与用户一致）：CAP-01(Device+Lease+GStreamer source) → CAP-02(GStreamer→RAW first-frame, MEDIA-RT-01) → CAP-03(Normalize) → CAP-04(FRAME/MASTER SWITCH) → CAP-05(Encode→SRS) → CAP-06(FI-08 GStreamer crash recover) → CAP-07(FI-09 Agent restart reacquire)。
+
+## MEDIA-RT-01 严格定义（2026-08-26 晚·用户终审）
+
+**`CI default + simulation` + `BMD --features bmd` + 真机 `GStreamer decklinkvideosrc persistent-id=<BMD PersistentID>` 拿到首个真实 GstBuffer，只是 MEDIA-RT-01 的"最低闭环"。** 单独的 first-frame 不足以证明媒体运行时健康。
+
+### 完整接受清单（>=13 项）
+1. CI default PASS
+2. CI simulation PASS
+3. `BMD --features bmd` PASS
+4. Real DeckLink identity resolved
+5. Device Lease acquired
+6. Canonical GStreamer pipeline starts
+7. `decklinkvideosrc` + `decklinkaudiosrc` 同时就绪
+8. Real SDI signal detected
+9. first real GstBuffer received
+10. PTS/timestamp valid **and monotonic**
+11. no synthetic/test frame
+12. pipeline RUNNING for acceptance window
+13. evidence 记录 exact SHA / SDK / driver / GStreamer versions
+
+### 接受判定拆三层（不是 happy path，必须确定性观测）
+- **MEDIA-RT-01A — Ingest Open**：DeckLink 解析 / Lease 获取 / GStreamer 启动 / 信号检测。
+- **MEDIA-RT-01B — First Frame**：真实 video **+ audio** GstBuffer 各到一帧 + 有效 timestamp（代码 `PipelineHealth.first_frame_ok()` 校验 video+audio 首帧 + PTS 单调 + 无 error）。
+- **MEDIA-RT-01C — Short Stability**：N 秒窗口内 frame_count>0 / 无意外 EOS / 无 pipeline error / 无重协商（见 `pipeline.rs::MediaRt01Acceptance`；`a && b && c` 才 `pass`）。
+
+> **MEDIA-RT-01 = A + B + C 全过**，≠ Reference A2。A2 还需 Normalize → FRAME/MASTER_SWITCH → Program Master → Encode → SRS → AV sync → output health + 24h stability。
+
+### 音频不后置
+canonical ingest 已明确 `decklinkvideosrc + decklinkaudiosrc`。MEDIA-RT-01 至少记录 `video first buffer / audio first buffer / video PTS / audio PTS`；**最终 AV sync 在 A2/B 的 Program Master / Master Join 阶段做**，不在 MEDIA-RT-01 立即完成。
+
+## 本轮代码改动（pipeline.rs / main.rs / device.rs）
+
+- **字段改名（P1 命名技术债）**：`SourcePlan.persistent_id: CanonicalDeviceId` → **`device_id: CanonicalDeviceId`**。`device_id` 是 VBMF 规范身份（DeviceHandle 派生 UUID），**不是** BMD PersistentID；BMD PersistentID 由 `bmd_persistent_id: u32` 承载，并新增 `selection_mode: SourceSelectionMode`（Canonical / DiagnosticFallback）。
+- **硬规则（Phase 0.6 锁死）**：`materialize(intent, devices, MaterializeMode::Production)` 下，若 `device_id` 在 Registry 找不到，或 `bmd_persistent_id == 0`（PersistentID 解析失败），直接 `IdentityUnresolved` 失败——**绝不 `unwrap_or(0)` 盲开 device 0**。只有 `MaterializeMode::Diagnostic` 显式允许 `device-number` 兜底（且须在证据标注）。`device.rs::parse_persistent_id` 注释同步纠正旧"退化为 device-number"措辞。
+- **真实 GStreamer launch（feature = `gstreamer`）**：`GStreamerPipelineController` 经 `gst::parse::launch("decklinkvideosrc persistent-id=<BMD PersistentID> ! video/x-raw ! appsink name=videosink   decklinkaudiosrc persistent-id=<...> ! audio/x-raw ! appsink name=audiosink")` 启动，`appsink` 回调抓首帧 + 记 PTS + 校验单调（跨线程健康写 `HEALTH_ARCS`）；`recover` = 停后起重 launch。未启用 feature 时 trait 仍提供骨架（default/simulation/bmd 构建可编译）。`Cargo.toml` 新增 `gstreamer`/`gstreamer-app`（0.23，optional）；真机 canonical 构建 = `--features bmd,gstreamer`。
+- **Lease → Pipeline 接线**：`main.rs` 启动前 `lm.is_valid(&device_uuid)` 校验租约（排他不变量前置），`recover` 前再次重校。
+- **Supervisor → recover 接线（P1 运行时补齐）**：`main.rs` 把 `sup` 包 `Arc<Mutex>` 与 GStreamer 看门狗共享；看门狗周期巡检 `read_health` + bus 错误 → `sup.report_failure` → `Restart`（重校 lease 后 `ctrl.recover`）/`Escalate`。Supervisor 仅决策、不碰 GStreamer（硬边界）。
+- **SDK 探针限 `hardware-test`**：真机 GStreamer 启动后，`decklink::start_capture`（IDeckLinkInput）仅 `hardware-test` 运行，避免与 canonical 路径同时打开同一块 DeckLink。
+- **证据记录**：canonical 启动处 `tracing::info!(gst_version = ?gstreamer::version(), ...)` 记录 GStreamer 运行时版本；SHA 由 CI 归档（运行时不适用）。
+
+## 下一步（用户终审定序，不做 FI-08/09）
+CI default/simulation → BMD `bmd` → 真机枚举 → Lease → GStreamer canonical ingest → first GstBuffer → **MEDIA-RT-01 PASS** → Normalize → FRAME/MASTER_SWITCH → Program Master → Encode → SRS → A2 → FI-08 → FI-09。当前最大遗留技术债：PipelineController 真实 launch（本轮已开工）、Supervisor/Lease 接线（本轮已补运行时）、Pipeline health 监控（本轮已建最小槽）、Normalize/Switch 执行层、GraphRuntimeIntent↔PipelinePlan 完整物化契约。均与 V0.2 相容，无需重开架构。

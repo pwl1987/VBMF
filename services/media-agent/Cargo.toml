@@ -25,27 +25,41 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 # Dynamic loading of DeckLink SDK .so (Gate 2.5 FFI smoke; no link-time dep)
 libloading = "0.8"
+# Canonical ingest runtime: GStreamer 是 SDI ingest executor (Phase 0.6 锁死).
+# DeckLink 经 decklinkvideosrc/decklinkaudiosrc 接入 (persistent-id, gint64, 1.22+).
+# Feature-gated: 仅 `gstreamer` 构建链接系统 GStreamer; default/simulation/bmd 不拉 GStreamer,
+# 因此 CI default + bmd 构建仍可在无 GStreamer 的机器上编译 (真机 BMD 盒需 --features bmd,gstreamer).
+gstreamer = { version = "0.23", optional = true }
+gstreamer-app = { version = "0.23", optional = true }
 
 [dev-dependencies]
 # Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)
 
 # ── Build feature model (frozen semantics) ─────────────────────────────────────
 # default        : minimal compilable runtime — filesystem discovery only, no SDK,
-#                   no hardware. Plain `cargo build` / CI default target.
+#                   no hardware, no GStreamer. Plain `cargo build` / CI default target.
 # simulation     : mock DeckLink devices for CI / unit tests — NO hardware, NO SDK.
 # bmd            : compile the REAL DeckLink FFI (bindgen over DeckLinkAPI.h).
 #                   `cargo build --features bmd` (needs SDK include + libclang).
 # hardware-test  : bmd ⊕ real-hardware test ENTRY — NOT a separate implementation.
 #                   It only ADDS verbose Device Registry probes (model/serial/status)
 #                   on top of `bmd`. Must always imply `bmd` (enforced below).
+# gstreamer      : compile the REAL GStreamer ingest executor (decklinkvideosrc/audiosrc
+#                   persistent-id). Canonical media path (Phase 0.6). Requires system
+#                   GStreamer 1.22+ AND the decklink plugin. Orthogonal to bmd; on the
+#                   real BMD box the canonical build is `--features bmd,gstreamer`.
+#                   SDK 诊断探针仅限 hardware-test; 真机 GStreamer 启动后不得与 canonical
+#                   路径同时打开同一块 DeckLink (避免双采/争用).
 # Dependency: hardware-test IMPLIES bmd (i.e. hardware-test = ["bmd"]); simulation is
 # orthogonal (no-hardware). hardware-test adds only verbose registry probes on top of bmd.
+# gstreamer is orthogonal to bmd (discovery FFI) — both needed on real hardware.
 # CI builds/tests default + simulation only; BMD owns the real FFI + hardware build.
 [features]
 default = []
 simulation = []
 bmd = ["dep:bindgen"]
 hardware-test = ["bmd"]
+gstreamer = ["dep:gstreamer", "dep:gstreamer-app"]
 
 [build-dependencies]
 # Optional: only pulled when `bmd` feature is enabled (needs libclang at build time).
