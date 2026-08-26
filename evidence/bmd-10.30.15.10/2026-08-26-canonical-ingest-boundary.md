@@ -193,3 +193,17 @@ Normalize 完整实现 / FRAME_SWITCH / MASTER_SWITCH / Audio Master Join / FFmp
 | SRS | ⏳ | |
 | FI-08 | 🛔 | 暂缓 |
 | FI-09 | 🛔 | 暂缓 |
+
+## C1 真实 GStreamer 探测实现 (2026-08-26, `b52e2b6`)
+
+- `probe_gstreamer_devices` 由空占位改为真实 `gst::DeviceMonitor` 枚举 (`feature=gstreamer`):
+  读 `device-number`(guint=u32)/`hw-serial-number`/`persistent-id`/`model`; 同 `device-number`
+  的 video/audio 重复只记一次 (防 Resolver 误判 `Ambiguous`); `default`/`simulation` 构建留空占位.
+- C1 模式 (`VBMF_RESOLVER=1`) 现同时打印: ① 原始 GStreamer 枚举 ② Resolver 证据 ③ 解析绑定.
+  现场直接比对 **SDK `bmd_device_handle` ↔ GStreamer `hw-serial-number`** (C 设计待证关系, 用户 §二十/§二十一).
+- **盒上运行** (BMD 盒, `--features bmd,gstreamer`):
+  `VBMF_RESOLVER=1 ./media-agent`
+  - 若某设备 `match_kind=DeviceHandleExact` 且单值无歧义 → `HW-IDENT-02=PASS` → 进 MEDIA-RT-01.
+  - 若 `hw-serial-number` 与 `bmd_device_handle` 不一致 (`match_kind=Unresolved`/`TopologicalIdGuess`) →
+    **停 Resolver**, 据原始枚举重新判定映射键 (DeviceHandle vs topo 末段 vs serial), 不得猜 device-number.
+- ⚠️ 本机 (Windows) 无 cargo/GStreamer, 此 gated 代码未经本地编译; 待盒上 build 验证.
