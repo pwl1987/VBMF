@@ -23,14 +23,42 @@ pub fn parse_persistent_id(handle: &str) -> Option<u32> {
     }
 }
 
+/// **设备身份强度 (Blackmagic 官方层级)**: PersistentID → TopologicalID → DeviceHandle → Enumeration。
+///
+/// 决定 `DeviceHandle` / `serial_number` 在本机可用到哪一档, 进而决定 Resolver 物化策略
+/// (见 `resolver.rs`)。当前 10.30.15.10 / SDK 16.0 三台设备均不支持 PersistentID/TopologicalID,
+/// 故 `identity_strength = DeviceHandle` —— 即 **当前主机的 best-available identity**,
+/// **不是**跨机器/跨重启永久稳定的身份 (后者仅 `PersistentId` 提供)。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum IdentityStrength {
+    /// BMDDeckLinkPersistentID 可用: 跨机器/重启/连接器稳定 (官方最高优先级)。
+    PersistentId,
+    /// DeviceHandle 可用但 PersistentID 不支持: 本机 best-available identity (当前硬件档位)。
+    DeviceHandle,
+    /// TopologicalID 可用 (设备拓扑不变且 OS 枚举顺序稳定时可用)。
+    TopologicalId,
+    /// 仅枚举序号可用: 拓扑敏感, 生产路径必须拒绝 (Resolver 无法稳定物化)。
+    Enumeration,
+}
+
 /// 一个被发现的 DeckLink 设备(对应 /dev/blackmagic/dv0, dv1, io0)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceInfo {
     pub device_id: Uuid,
     pub node: String,        // e.g. "/dev/blackmagic/dv0"
     pub model: String,       // e.g. "DeckLink Quad HDMI Recorder"
-    pub serial: String,      // BMD DeviceHandle 字符串 (RevisionID:PersistentID:TopologicalID)
+    /// **canonical 硬件身份** = BMD `DeviceHandle` 字符串 (RevisionID:PersistentID:TopologicalID)。
+    /// 由它派生确定性 `device_id` (UUIDv5), 跨进程/重启对本物理设备稳定, 且不受拓扑顺序影响。
+    /// 注意: 这是"身份", 不是 GStreamer 运行时地址 (`device-number`); 后者由 Resolver 物化得到。
+    pub serial: String,
     pub state: DeviceState,
+    /// **身份强度档位** (Blackmagic 官方识别层级)。决定 Resolver 是否能在生产路径稳定物化。
+    /// 当前硬件 = `DeviceHandle` (PersistentID/TopologicalID 均不支持)。
+    pub identity_strength: IdentityStrength,
+    /// 硬件序列号 (BMD 物理序列; 与 `serial`=DeviceHandle 是两回事)。SDK 经属性接口通常取不到
+    /// (此硬件 `BMDDeckLinkSerialNumber` 不存在, `disn` 配置项常 n/a), 故多数为 `None`;
+    /// 由 GStreamer `hw-serial-number` 探针在 Resolver 阶段提供交叉校验。
+    pub serial_number: Option<String>,
     /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), **权威来源 = SDK `GetInt(BMDDeckLinkPersistentID)`**.
     /// `None` = SDK 未提供 / 解析失败 ⇒ 身份未解析 (生产路径 `IdentityUnresolved`, 绝不盲开).
     /// `Some(0)` 是**合法零值**, 与 `None` 严格区分, 不应被误判为"解析失败".
@@ -138,6 +166,8 @@ impl DeviceManager for FilesystemDeviceManager {
                 bmd_persistent_id: Some(ph),
                 bmd_device_handle: None,
                 handle_persistent_id: None,
+                identity_strength: IdentityStrength::Enumeration,
+                serial_number: None,
                 device_number: idx as u32,
             });
         }
@@ -175,17 +205,19 @@ impl Default for SimulatedDeviceManager {
 impl DeviceManager for SimulatedDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
         (0..3)
-            .map(|i| DeviceInfo {
-                device_id: Uuid::new_v4(),
-                node: format!("/dev/blackmagic/dv{i}"),
-                model: format!("Simulated DeckLink {i}"),
-                serial: format!("SIM{:06}", i),
-                state: DeviceState::Available,
-                bmd_persistent_id: Some((i as u32) + 1),
-                bmd_device_handle: Some(format!("sim-{i}")),
-                handle_persistent_id: None,
-                device_number: i as u32,
-            })
+        .map(|i| DeviceInfo {
+            device_id: Uuid::new_v4(),
+            node: format!("/dev/blackmagic/dv{i}"),
+            model: format!("Simulated DeckLink {i}"),
+            serial: format!("SIM{:06}", i),
+            state: DeviceState::Available,
+            bmd_persistent_id: Some((i as u32) + 1),
+            bmd_device_handle: Some(format!("sim-{i}")),
+            handle_persistent_id: None,
+            identity_strength: IdentityStrength::PersistentId,
+            serial_number: Some(format!("SIM{:06}", i)),
+            device_number: i as u32,
+        })
             .collect()
     }
 
@@ -242,6 +274,17 @@ impl DeviceManager for DeckLinkDeviceManager {
                             );
                         }
                     }
+                    // 身份强度档位 (Blackmagic 官方层级):
+                    // PersistentID 可用 → PersistentId; 否则 DeviceHandle 可用 → DeviceHandle
+                    // (当前 10.30.15.10 / SDK 16.0 三台设备档位); 否则仅枚举 → Enumeration。
+                    // 注意: DeviceHandle 是"本机 best-available identity", 非跨机器永久稳定身份。
+                    let identity_strength = if pid.is_some() {
+                        IdentityStrength::PersistentId
+                    } else if !serial.is_empty() {
+                        IdentityStrength::DeviceHandle
+                    } else {
+                        IdentityStrength::Enumeration
+                    };
                     DeviceInfo {
                         device_id,
                         node: display.clone(), // 真实显示名作为可读节点描述
@@ -251,6 +294,8 @@ impl DeviceManager for DeckLinkDeviceManager {
                         bmd_persistent_id: pid,
                         bmd_device_handle: Some(serial.clone()),
                         handle_persistent_id: handle_pid,
+                        identity_strength,
+                        serial_number: None, // SDK 取不到硬件序列 (BMDDeckLinkSerialNumber 不存在), 由 Resolver GStreamer 探针补充
                         device_number: idx as u32,
                     }
                 })

@@ -9,6 +9,7 @@ mod graph_intent;
 mod health;
 mod lease;
 mod pipeline;
+mod resolver;
 mod rpc;
 mod sdk;
 mod supervisor;
@@ -48,6 +49,32 @@ fn main() {
     let dm = device::FilesystemDeviceManager::new();
     let devices = dm.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
+
+    // C1: DeckLinkDeviceResolver —— DeviceHandle → GStreamer device-number 物化 (仅解析+证据, 不启动 pipeline).
+    // 设置 VBMF_RESOLVER=1 运行: 输出每台 SDK 设备与 GStreamer 实例的交叉映射证据,
+    // 供现场核对 "CH01 怎么采到了另一张卡" / "device-number 与正确输入设备未对应"。
+    // 与 CAP-01 生产路径严格隔离: 命中即 exit(0), 绝不进入媒体 launch。
+    #[cfg(feature = "gstreamer")]
+    if std::env::var("VBMF_RESOLVER").is_ok() {
+        let probes = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
+        let evidence = crate::resolver::resolve(&devices, &probes);
+        match serde_json::to_string_pretty(&evidence) {
+            Ok(json) => {
+                println!("=== C1 Resolver Evidence: VBMF DeviceHandle → GStreamer device-number ===");
+                println!("{json}");
+            }
+            Err(e) => eprintln!("resolver evidence 序列化失败: {e}"),
+        }
+        let bindings = crate::resolver::collect_bindings(&devices, &probes);
+        match serde_json::to_string_pretty(&bindings) {
+            Ok(json) => {
+                println!("=== C1 Resolved Bindings (喂给 decklinkvideosrc/audiosrc 的 device-number) ===");
+                println!("{json}");
+            }
+            Err(e) => eprintln!("bindings 序列化失败: {e}"),
+        }
+        std::process::exit(0);
+    }
 
     // Gate 2.3: lease manager (in-memory; no hardware needed for the interface).
     let lm = Arc::new(lease::InMemoryLeaseManager::new());
@@ -181,10 +208,20 @@ fn main() {
             Ok("diagnostic") => crate::pipeline::MaterializeMode::Diagnostic,
             _ => crate::pipeline::MaterializeMode::Production,
         };
+        // Resolver 绑定 (C1/D 物化前置): gstreamer 构建下探测 GStreamer device-number 并解析;
+        // 非 gstreamer 构建为空 map (不物化运行时地址, materialize 走 legacy/拒绝路径).
+        #[cfg(feature = "gstreamer")]
+        let gst_probes = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
+        #[cfg(feature = "gstreamer")]
+        let bindings = crate::resolver::collect_bindings(&devices, &gst_probes);
+        #[cfg(not(feature = "gstreamer"))]
+        let bindings: std::collections::HashMap<uuid::Uuid, crate::resolver::ResolvedDeviceBinding> =
+            std::collections::HashMap::new();
         match crate::pipeline::materialize(
             &intent,
             &devices,
             mode,
+            &bindings,
         ) {
             Ok(plans) => {
                 for p in &plans {

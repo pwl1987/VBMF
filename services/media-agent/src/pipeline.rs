@@ -16,8 +16,11 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 use crate::device::DeviceInfo;
 use crate::graph_intent::GraphRuntimeIntent;
+use crate::resolver::ResolvedDeviceBinding;
 
 /// VBMF canonical 设备身份 = DeckLink `DeviceHandle` 派生 UUID
 /// (见 `device.rs` `DeckLinkDeviceManager`, UUIDv5(serial)).
@@ -321,17 +324,21 @@ pub trait PipelineController {
 /// 把控制面 `GraphRuntimeIntent` 物化为 Media Agent 执行计划.
 ///
 /// 物化链路 (Control Plane 不感知 GStreamer property):
-///   VBMF `device_id` → Device Registry (`DeviceInfo`) → `bmd_persistent_id`
-///   → GStreamer `hw-serial-number` (首选) / `device-number` (Diagnostic 回退).
+///   VBMF `device_id` → Device Registry (`DeviceInfo`) →
+///     PersistentID 可用 → GStreamer `persistent-id` (首选)
+///     │ 否则 DeviceHandle 经 `DeckLinkDeviceResolver` 物化 → GStreamer `device-number`
+///        (`bindings` 由 `crate::resolver::collect_bindings` 提供,
+///         **绝不**用 SDK 枚举序号直接映射, 因 SDK index ≠ GStreamer device-number)
 ///
 /// **硬规则**: `MaterializeMode::Production` 下, 若 `device_id` 在 registry 中找不到,
-/// 或找到但 `bmd_persistent_id == 0` (PersistentID 解析失败), 直接 `IdentityUnresolved`
+/// 或找到但既无 `bmd_persistent_id` 也无 Resolver 绑定, 直接 `IdentityUnresolved`
 /// 失败 —— 绝不 `unwrap_or(0)` 盲开 device 0. 广播系统最危险的是打开*错误*的输入
 /// (以为开了 SDI-A, 实际开了 SDI-B), 而不是打不开.
 pub fn materialize(
     intent: &GraphRuntimeIntent,
     devices: &[DeviceInfo],
     mode: MaterializeMode,
+    bindings: &HashMap<Uuid, ResolvedDeviceBinding>,
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
     intent
         .devices
@@ -343,18 +350,24 @@ pub fn materialize(
                 .find(|i| i.device_id.to_string() == d.device_id)
                 .ok_or_else(|| PipelineError::IdentityUnresolved(d.device_id.clone()))?;
 
-            // 2) 硬规则: 生产路径要求 BMD PersistentID 已解析 (`Some`, 含合法零值 `Some(0)`);
-            //    `None` = 身份未解析 ⇒ 直接 `IdentityUnresolved`, 绝不盲开 device 0。
+            // 2) 身份解析 (Blackmagic 官方层级): PersistentID → DeviceHandle(经 Resolver) → 拒绝.
+            //    - PersistentID 可用 (`Some`, 含合法零值 `Some(0)`) → Canonical (`persistent-id`)。
+            //    - 否则需 Resolver 已把本机 `DeviceHandle` 物化为 GStreamer `device-number`
+            //      (bindings 中存在) → 用解析后的 `device-number` (DiagnosticFallback 机制)。
+            //    - 二者皆无 → 生产路径直接 `IdentityUnresolved`, **绝不** `unwrap_or(0)` 盲开 device 0。
             //    (`None` 与 `Some(0)` 严格区分: 后者是 SDK 明确返回的合法零值, 正常接受.)
+            let resolved_device_number = bindings.get(&info.device_id).map(|b| b.device_number);
             let selection_mode = if info.bmd_persistent_id.is_some() {
                 SourceSelectionMode::Canonical
+            } else if resolved_device_number.is_some() {
+                // DeviceHandle 经 Resolver 解析到确定 GStreamer device-number (当前硬件路径).
+                SourceSelectionMode::DiagnosticFallback
             } else {
                 match mode {
                     MaterializeMode::Production => {
-                        // 生产路径: 身份未解析即失败, 不盲开.
                         return Err(PipelineError::IdentityUnresolved(format!(
-                            "{}: BMD PersistentID 未解析 (bmd_persistent_id=None, SDK 未提供)",
-                            d.device_id
+                            "{}: 身份未解析 (bmd_persistent_id=None 且 Resolver 未物化 device-number; 本机身份强度={:?})",
+                            d.device_id, info.identity_strength
                         )));
                     }
                     MaterializeMode::Diagnostic => SourceSelectionMode::DiagnosticFallback,
@@ -365,7 +378,9 @@ pub fn materialize(
                 source: SourcePlan {
                     device_id: d.device_id.clone(),
                     bmd_persistent_id: info.bmd_persistent_id,
-                    device_number: info.device_number,
+                    // 关键: 使用 **Resolver 解析后的** GStreamer device-number,
+                    // 绝不(在生产/已解析时)直接用 SDK 枚举序号 (SDK index ≠ GStreamer device-number).
+                    device_number: resolved_device_number.unwrap_or(info.device_number),
                     selection_mode,
                     resolved_input: ResolvedInputContract {
                         mode: "auto".into(), // 由 DoesSupportVideoMode 协商, 此处占位
@@ -491,16 +506,33 @@ mod gst_runtime {
             events
         }
 
-        /// 构造 decklinkvideosrc/audiosrc 源串 (Canonical 用 persistent-id, Diagnostic 用 device-number).
+        /// 构造 decklinkvideosrc/audiosrc 源串 (Canonical 用 persistent-id, Diagnostic 用 device-number)。
+        /// 输入契约: 本项目 = SDI capture, `connection=sdi` 显式固定, 不让 `auto` 决定连接器。
         fn src_props(plan: &PipelinePlan) -> (String, String) {
+            const CONNECTION: &str = "connection=sdi";
             match plan.source.selection_mode {
+                // PersistentID 可用 → GStreamer `persistent-id` (官方优先级高于 device-number).
                 SourceSelectionMode::Canonical => (
-                    format!("decklinkvideosrc hw-serial-number={}", plan.source.bmd_persistent_id.unwrap_or(0)),
-                    format!("decklinkaudiosrc hw-serial-number={}", plan.source.bmd_persistent_id.unwrap_or(0)),
+                    format!(
+                        "decklinkvideosrc persistent-id={} {}",
+                        plan.source.bmd_persistent_id.unwrap_or(0),
+                        CONNECTION
+                    ),
+                    format!(
+                        "decklinkaudiosrc persistent-id={}",
+                        plan.source.bmd_persistent_id.unwrap_or(0)
+                    ),
                 ),
+                // 经 Resolver 解析的 device-number (DeviceHandle 路径 / 诊断回退).
                 SourceSelectionMode::DiagnosticFallback => (
-                    format!("decklinkvideosrc device-number={}", plan.source.device_number),
-                    format!("decklinkaudiosrc device-number={}", plan.source.device_number),
+                    format!(
+                        "decklinkvideosrc device-number={} {}",
+                        plan.source.device_number, CONNECTION
+                    ),
+                    format!(
+                        "decklinkaudiosrc device-number={}",
+                        plan.source.device_number
+                    ),
                 ),
                 SourceSelectionMode::SelfTest => (
                     "videotestsrc is-live=true pattern=ball ! videoconvert".to_string(),
