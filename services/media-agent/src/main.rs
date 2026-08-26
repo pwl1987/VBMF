@@ -56,31 +56,43 @@ fn main() {
     // 与 CAP-01 生产路径严格隔离: 命中即 exit(0), 绝不进入媒体 launch。
     #[cfg(feature = "gstreamer")]
     if std::env::var("VBMF_RESOLVER").is_ok() {
-        let probes = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
-        // 原始 GStreamer 枚举 (device-number / hw-serial-number / persistent-id) —
-        // 现场直接比对 SDK DeviceHandle 是否等于 GStreamer hw-serial-number (C 设计待证关系).
-        match serde_json::to_string_pretty(&probes) {
-            Ok(json) => {
-                println!("=== C1 Raw GStreamer Probes (decklink device-number / hw-serial-number 枚举) ===");
-                println!("{json}");
+        let outcome = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
+        match outcome {
+            crate::resolver::GstProbeOutcome::Available(probes) => {
+                // 原始 GStreamer 枚举 (device-number / hw-serial-number / persistent-id / signal) —
+                // 现场直接比对 SDK DeviceHandle / serial 是否等于 GStreamer hw-serial-number (C 设计待证关系).
+                match serde_json::to_string_pretty(&probes) {
+                    Ok(json) => {
+                        println!("=== C1 Raw GStreamer Probes (decklinkvideosrc 直接探测: device-number / hw-serial-number / signal) ===");
+                        println!("{json}");
+                    }
+                    Err(e) => eprintln!("gstreamer probes 序列化失败: {e}"),
+                }
+                let evidence = crate::resolver::resolve(&devices, &probes);
+                match serde_json::to_string_pretty(&evidence) {
+                    Ok(json) => {
+                        println!("=== C1 Resolver Evidence: VBMF DeviceHandle/serial → GStreamer device-number ===");
+                        println!("{json}");
+                    }
+                    Err(e) => eprintln!("resolver evidence 序列化失败: {e}"),
+                }
+                let bindings = crate::resolver::collect_bindings(&devices, &probes);
+                match serde_json::to_string_pretty(&bindings) {
+                    Ok(json) => {
+                        println!("=== C1 Resolved Bindings (喂给 decklinkvideosrc/audiosrc 的 device-number) ===");
+                        println!("{json}");
+                    }
+                    Err(e) => eprintln!("bindings 序列化失败: {e}"),
+                }
             }
-            Err(e) => eprintln!("gstreamer probes 序列化失败: {e}"),
-        }
-        let evidence = crate::resolver::resolve(&devices, &probes);
-        match serde_json::to_string_pretty(&evidence) {
-            Ok(json) => {
-                println!("=== C1 Resolver Evidence: VBMF DeviceHandle → GStreamer device-number ===");
-                println!("{json}");
+            crate::resolver::GstProbeOutcome::Unavailable(reason) => {
+                // 探测方法不适用 (GStreamer/decklink 插件不可用) — 与 "设备未解析" 严格区分 (用户复核 §九).
+                println!("=== C1 Probe UNAVAILABLE: 探测方法不适用本机 (非设备未解析, 不等同 Unresolved) ===");
+                println!("{reason}");
             }
-            Err(e) => eprintln!("resolver evidence 序列化失败: {e}"),
-        }
-        let bindings = crate::resolver::collect_bindings(&devices, &probes);
-        match serde_json::to_string_pretty(&bindings) {
-            Ok(json) => {
-                println!("=== C1 Resolved Bindings (喂给 decklinkvideosrc/audiosrc 的 device-number) ===");
-                println!("{json}");
+            crate::resolver::GstProbeOutcome::Empty => {
+                println!("=== C1 Probe EMPTY: 探测正常执行但枚举到 0 个 DeckLink 实例 (本机无可用采集卡) ===");
             }
-            Err(e) => eprintln!("bindings 序列化失败: {e}"),
         }
         std::process::exit(0);
     }
@@ -220,7 +232,11 @@ fn main() {
         // Resolver 绑定 (C1/D 物化前置): gstreamer 构建下探测 GStreamer device-number 并解析;
         // 非 gstreamer 构建为空 map (不物化运行时地址, materialize 走 legacy/拒绝路径).
         #[cfg(feature = "gstreamer")]
-        let gst_probes = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
+        let gst_probes = match crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES) {
+            crate::resolver::GstProbeOutcome::Available(v) => v,
+            // Unavailable / Empty → 无可用绑定; materialize 走拒绝路径, 绝不盲开 device 0.
+            _ => Vec::new(),
+        };
         #[cfg(feature = "gstreamer")]
         let bindings = crate::resolver::collect_bindings(&devices, &gst_probes);
         #[cfg(not(feature = "gstreamer"))]

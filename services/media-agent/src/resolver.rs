@@ -16,14 +16,18 @@ use crate::device::DeviceInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// GStreamer 探测到的 DeckLink 实例 (只读属性, 运行时采集).
+/// GStreamer 探测到的 DeckLink 实例 (经由直接创建 `decklinkvideosrc` 实例, READY 态读取只读属性).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GStreamerDeviceProbe {
     pub device_number: u32,
-    /// GStreamer `hw-serial-number` (硬件 ID, 可读写; 本机选卡关键属性).
+    /// GStreamer `hw-serial-number` — **只读** 硬件序列号 / hardware ID; Resolver 选卡关键属性.
+    /// 官方定义为只读, 绝不可写.
     pub hw_serial_number: Option<String>,
-    /// GStreamer `persistent-id` (若 SDK/GStreamer 支持且硬件有值).
+    /// GStreamer `persistent-id` (`gint64`, 对应 BMD `PersistentID`).本硬件 PersistentID 不支持 → 多为 `None`/0.
     pub persistent_id: Option<i64>,
+    /// GStreamer `signal` — 该卡当前是否锁定 SDI 信号 (与身份无关的独立维度; 见用户复核 §六/§十三).
+    /// `signal=false` **不**等于身份失败; 身份与信号是两个维度.
+    pub signal: Option<bool>,
     pub model: Option<String>,
 }
 
@@ -52,65 +56,124 @@ pub enum Confidence {
     None,
 }
 
-/// 探测 GStreamer DeckLink 实例 (运行时; 仅 C1 证据/物化前置使用).
+/// GStreamer Runtime Probe 结果 (用户复核 §九, P1: 必须区分失败原因, 不能全压成 `Unresolved`).
+#[derive(Debug, Clone)]
+pub enum GstProbeOutcome {
+    /// 探测成功 — 拿到 `decklinkvideosrc` 实例运行时属性列表.
+    Available(Vec<GStreamerDeviceProbe>),
+    /// 探测方法本身不可用 (GStreamer 未初始化 或 `decklinkvideosrc` 工厂缺失 / decklink 插件未安装).
+    /// 这是 "方法不可用", **不是** "设备未解析" — 绝不能等同 `Unresolved` 误导现场 (用户复核 §九).
+    Unavailable(String),
+    /// 探测正常执行但枚举到 0 个 DeckLink 实例 (本机确无可用采集卡). 与 `Unavailable` 完全不同.
+    Empty,
+}
+
+/// 直接 probe `decklinkvideosrc` 实例, 物化 SDK DeviceHandle → GStreamer `device-number`.
 ///
-/// 经 `gst::DeviceMonitor` 枚举所有 Source 设备, 读取 `device-number` 与 `hw-serial-number`
-/// (decklink 硬件 ID 属性). 同一 `device-number` 的 video/audio 重复只记一次, 避免 Resolver
-/// 误判 `Ambiguous`. 返回结果供 `resolve()` 与 `materialize()` 做 DeviceHandle↔device-number 映射.
+/// 为什么不用 `GstDeviceMonitor` (用户复核, 撤回 `b52e2b6`): 当前 DeckLink 官方插件只暴露
+/// `decklinkvideosrc` / `decklinkaudiosrc` **element**, 不提供 `GstDeviceProvider`; 实机验证
+/// `gst-device-monitor` 不列出 DeckLink. 故枚举入口改成**直接创建 element 实例**, 按 `device-number`
+/// 遍历, 打开到 READY (不 PLAYING, 不拉真实帧) 后读取只读属性.
 ///
-/// ⚠️ 此函数依赖系统 GStreamer + decklink 插件; 无 GStreamer 环境 (`default`/`simulation`) 编译
-/// 走 `#[cfg(not(feature="gstreamer"))]` 占位返回空. 生产物化前必须先成功探测, 否则
-/// `collect_bindings` 为空 → materialize 拒绝.
+/// 每序号读取: `device-number`(guint) / `hw-serial-number`(只读硬件 ID) / `persistent-id`(gint64) /
+/// `signal`(bool) / `model`(String). `connection`/`mode` 用 element 默认 (connection=auto 自动识别
+/// SDI, mode=auto 自动探测) — 满足 binding probe; 显式设置 enum 需插件专属 enum 类型, 核心 gstreamer
+/// crate 不暴露.
+///
+/// ⚠️ `device-number` **绝不默认 0**: GStreamer#0 在实机是 MiniMonitor 输出卡. 必须由 Resolver 经
+/// `hw-serial-number` 命中后确定. 命中失败 → 该序号 `None` (不计入), 绝不回退 0.
+///
+/// 返回 `GstProbeOutcome` 以区分 `Unavailable` / `Empty` / `Available` (见 §九).
 #[cfg(feature = "gstreamer")]
-pub fn probe_gstreamer_devices(max: usize) -> Vec<GStreamerDeviceProbe> {
+pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
     use gstreamer::prelude::*;
-    // GStreamer 初始化 (幂等; 已初始化则无副作用).
-    let _ = gstreamer::init();
-    let monitor = gstreamer::DeviceMonitor::new();
-    if monitor.start().is_err() {
-        return Vec::new();
+    // GStreamer 初始化 (幂等). 失败 → 探测方法不可用 (非设备失败).
+    if let Err(e) = gstreamer::init() {
+        return GstProbeOutcome::Unavailable(format!("gstreamer init 失败: {e}"));
     }
-    // 同一 device-number 的 video/audio 重复只记一次 (防 Resolver 误判 Ambiguous).
-    let mut by_number: std::collections::HashMap<u32, GStreamerDeviceProbe> =
-        std::collections::HashMap::new();
-    for dev in monitor.devices() {
-        let class = dev.device_class().to_string();
-        if !class.contains("Source") {
-            continue;
-        }
-        let Some(props) = dev.properties() else { continue };
-        // `device-number` 在 GStreamer 为 guint; 读不到则跳过该设备.
-        let device_number = match props.get::<u32>("device-number").ok() {
-            Some(n) => n,
-            None => continue,
-        };
-        if by_number.contains_key(&device_number) {
-            continue;
-        }
-        let hw_serial_number = props.get::<String>("hw-serial-number").ok();
-        let persistent_id = props.get::<i64>("persistent-id").ok();
-        let model = props.get::<String>("model").ok();
-        by_number.insert(
-            device_number,
-            GStreamerDeviceProbe {
-                device_number,
-                hw_serial_number,
-                persistent_id,
-                model,
-            },
+    // decklinkvideosrc 工厂存在 = decklink 插件安装; 否则探测方法不适用本机.
+    if gstreamer::ElementFactory::find("decklinkvideosrc").is_none() {
+        return GstProbeOutcome::Unavailable(
+            "decklinkvideosrc 工厂不存在 (GStreamer decklink 插件未安装); 探测方法不可用".to_string(),
         );
     }
-    monitor.stop();
-    let mut out: Vec<GStreamerDeviceProbe> = by_number.into_values().collect();
-    out.sort_by_key(|p| p.device_number);
-    out.truncate(max);
-    out
+    let mut probes = Vec::new();
+    for n in 0..(max as u32) {
+        if let Some(p) = probe_one_device_number(n) {
+            probes.push(p);
+        }
+    }
+    if probes.is_empty() {
+        return GstProbeOutcome::Empty;
+    }
+    GstProbeOutcome::Available(probes)
+}
+
+/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 READY 读只读属性; 不存在/打不开返回 `None`
+/// (视为该序号无可用采集卡, 不计入 probes, 避免 ghost 设备导致 `Ambiguous`).
+#[cfg(feature = "gstreamer")]
+fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
+    use gstreamer::prelude::*;
+    let el = gstreamer::ElementFactory::make("decklinkvideosrc", None).ok()?;
+    // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址). 只读属性前提是设备已打开 (READY).
+    el.set_property("device-number", n).ok()?;
+    // 打开设备 (READY 即打开; 无需 PLAYING, 不拉真实帧). 失败 = 该序号无此卡.
+    if el.set_state(gstreamer::State::Ready).is_err() {
+        let _ = el.set_state(gstreamer::State::Null);
+        return None;
+    }
+    // 读取只读属性 (hw-serial-number 等设备在 READY 后才可靠填充). 各属性用 `find_property` 守卫:
+    // 本机 GStreamer 1.28.2 decklink 插件的 `gst-inspect` 显示**只有 `device-number` 与 `hw-serial-number`
+    // 两个选卡属性**, 没有 `persistent-id` (且 `signal`/`model` 因版本而异). 缺属性直接读取会 panic,
+    // 故先确认存在再按类型读 (String/i64/bool 均实现 HasParamSpec, 编译稳定).
+    let hw_serial_number = el
+        .find_property("hw-serial-number")
+        .and_then(|_| non_empty(el.property::<String>("hw-serial-number")));
+    let persistent_id = el.find_property("persistent-id").and_then(|_| {
+        let v = el.property::<i64>("persistent-id");
+        if v > 0 {
+            Some(v)
+        } else {
+            None
+        }
+    });
+    let signal = el
+        .find_property("signal")
+        .and_then(|_| Some(el.property::<bool>("signal")));
+    let model = el
+        .find_property("model")
+        .and_then(|_| non_empty(el.property::<String>("model")));
+    // 释放设备.
+    let _ = el.set_state(gstreamer::State::Null);
+    // ghost 判定: 无任何身份线索说明该序号并非真实采集卡, 不计入 (防误判 Ambiguous).
+    if hw_serial_number.is_none() && model.is_none() && persistent_id.is_none() {
+        return None;
+    }
+    Some(GStreamerDeviceProbe {
+        device_number: n,
+        hw_serial_number,
+        persistent_id,
+        signal,
+        model,
+    })
+}
+
+/// 空串/未设置串归 `None` (GStreamer 字符串属性未设置时返回空串).
+#[cfg(feature = "gstreamer")]
+fn non_empty(s: String) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 #[cfg(not(feature = "gstreamer"))]
-pub fn probe_gstreamer_devices(_max: usize) -> Vec<GStreamerDeviceProbe> {
-    // 无 GStreamer 环境 (default/simulation): 占位返回空; 真实探测仅在 `gstreamer` feature 构建.
-    Vec::new()
+pub fn probe_gstreamer_devices(_max: usize) -> GstProbeOutcome {
+    // 非 gstreamer 构建: 探测方法不适用 (无 GStreamer 运行时). 真实探测仅 `gstreamer` feature 构建.
+    GstProbeOutcome::Unavailable(
+        "gstreamer feature 未启用; 非 gstreamer 构建不物化运行时地址".to_string(),
+    )
 }
 
 /// 从 SDK `DeviceHandle` 提取 `TopologicalID` 末段 (`:` 分隔最后一段) 作猜测键.
@@ -200,6 +263,8 @@ pub struct ResolverEvidence {
     pub bmd_device_handle: Option<String>,
     pub gst_device_number: Option<u32>,
     pub gst_hw_serial_number: Option<String>,
+    /// 命中实例的 `signal` 维度 (独立; 不为 false 时 identity 仍 PASS, 见用户复核 §六).
+    pub gst_signal: Option<bool>,
     pub match_kind: ResolverMatch,
     pub confidence: Confidence,
     pub note: String,
@@ -213,8 +278,9 @@ pub fn resolve(
     let mut evidence = Vec::new();
     for dev in devices {
         let (kind, conf, matched) = find_match(dev, probes);
-        let (gst_num, gst_serial, note) = match (matched, kind) {
+        let (gst_num, gst_serial, gst_sig, note) = match (matched, kind) {
             (_, ResolverMatch::Ambiguous) => (
+                None,
                 None,
                 None,
                 "AMBIGUOUS: same SDK device matches >=2 HIGH-confidence GStreamer instances; production MUST reject, never guess".to_string(),
@@ -222,12 +288,14 @@ pub fn resolve(
             (Some(p), _) => (
                 Some(p.device_number),
                 p.hw_serial_number.clone(),
+                p.signal,
                 format!(
                     "match={:?} via gstreamer device-number={}",
                     kind, p.device_number
                 ),
             ),
             (None, _) => (
+                None,
                 None,
                 None,
                 format!(
@@ -242,6 +310,7 @@ pub fn resolve(
             bmd_device_handle: dev.bmd_device_handle.clone(),
             gst_device_number: gst_num,
             gst_hw_serial_number: gst_serial,
+            gst_signal: gst_sig,
             match_kind: kind,
             confidence: conf,
             note,
