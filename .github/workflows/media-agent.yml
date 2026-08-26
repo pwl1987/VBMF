@@ -62,11 +62,14 @@ jobs:
   # Builds the `hardware-test` binary (implies `bmd`) and uploads it as the
   # `media-agent-linux` artifact for BMD acceptance runs.
   #
-  # Provisioning: the proprietary DeckLink SDK `Linux/include` headers are supplied
-  # as TWO repo secrets (GitHub secret value limit < full payload):
-  #   DECKLINK_SDK_HEADERS_1 = base64( gzip( tar of SDK Linux/include .h files ) ), part 1
-  #   DECKLINK_SDK_HEADERS_2 = base64( gzip( tar of SDK Linux/include .h files ) ), part 2
-  # Build on a host with the SDK:
+  # NOTE: the SDK header secrets are 30KB each (GitHub secret value limit < full
+  # payload, so split into _1/_2). A JOB-level `if: ${{ secrets.X != '' }}` is NOT
+  # used because GitHub evaluates that at workflow-load time and chokes on the large
+  # secret value (0s "workflow file issue"). Instead the secrets are injected as
+  # job-level env and each step is gated with `if: ${{ env.X != '' }}` (evaluated
+  # at step time).
+  #
+  # Provisioning (host with the SDK):
   #   cd <SDK>/Linux/include
   #   find . -name '*.h' -print0 | tar --null -cf - -T - | gzip -9 | base64 -w0 > sdk.b64
   #   # split sdk.b64 into two ~30KB halves sdk_a.b64 / sdk_b.b64
@@ -83,9 +86,11 @@ jobs:
   ffi-contract:
     name: ffi-contract (hardware-test bindgen, SDK-header secret)
     runs-on: ubuntu-latest
-    if: ${{ secrets.DECKLINK_SDK_VERSION != '' }}
     env:
       DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
+      DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
+      DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
+      DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
     defaults:
       run:
         working-directory: services/media-agent
@@ -95,17 +100,16 @@ jobs:
       - name: install libclang (bindgen runtime dependency)
         run: sudo apt-get update && sudo apt-get install -y libclang-dev
       - name: unpack DeckLink SDK headers from secret
-        env:
-          DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
-          DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
-          DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
+        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
         run: |
           mkdir -p "${{ github.workspace }}/.github/_private/decklink-sdk"
           printf '%s%s' "$DECKLINK_SDK_HEADERS_1" "$DECKLINK_SDK_HEADERS_2" | base64 -d | tar -xz -C "${{ github.workspace }}/.github/_private/decklink-sdk"
           echo "DeckLink SDK version: ${DECKLINK_SDK_VERSION:-<unset>}"
       - name: build --features hardware-test (bindgen parse + FFI compile)
+        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
         run: cargo build --features hardware-test
       - name: upload media-agent-linux (hardware-test binary for BMD)
+        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: media-agent-linux
