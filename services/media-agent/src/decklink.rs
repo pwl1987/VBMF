@@ -51,12 +51,15 @@ mod imp {
         GetDisplayName: Option<unsafe extern "C" fn(*mut IDeckLink, *mut *mut c_char) -> HRESULT>,
     }
 
-    // IDeckLinkConfiguration vtable。方法顺序按 SDK 16.0 头文件(2.5.15)推导,
-    // 已由 https://sdk-doc.blackmagicdesign.com/decklink-sdk/ 核对:
-    // SetFlag@3 / GetFlag@4 / SetInt@5 / GetInt@6 / SetFloat@7 / GetFloat@8 /
-    // SetString@9 / GetString@10 / ... / WriteConfigurationToPreferences@17。
-    // 我们只调用 GetString@10(读序列号)与 Release@2(释放配置接口)。
-    // 槽位均为 8 字节函数指针, 占位槽用 `Option<unsafe extern "C" fn()>` 不影响布局。
+    // IDeckLinkConfiguration vtable。方法顺序按官方手册 2.5.15 (Desktop Video 16.0),
+    // 计入 IUnknown 基类后的 0-based 索引:
+    //   0 QueryInterface / 1 AddRef / 2 Release / 3 SetFlag / 4 GetFlag / 5 SetInt /
+    //   6 GetInt / 7 SetFloat / 8 GetFloat / 9 SetString / 10 GetString /
+    //   11 SetFlagWithParam / 12 GetFlagWithParam / 13 SetIntWithParam /
+    //   14 GetIntWithParam / 15 SetFloatWithParam / 16 SetStringWithParam /
+    //   17 GetStringWithParam / 18 WriteConfigurationToPreferences。
+    // 我们只调用 GetString@10(读序列号 fallback)与 Release@2(释放配置接口)。
+    // 槽位均为 8 字节函数指针, 占位槽以 `Option<unsafe extern "C" fn()>` 声明, 不影响布局。
     #[repr(C)]
     struct IDeckLinkConfigurationVtbl {
         QueryInterface: Option<unsafe extern "C" fn()>,
@@ -101,8 +104,11 @@ mod imp {
     //   该值已用真机 g++ 标准调用序列验证: QueryInterface 返回 S_OK 且可取得配置接口。
     //   (注: 网络上其它仓库的 "16.0 头" 给出 912F634B-… 系版本错配, 不可用; 以真机
     //    完整 SDK 16.0 头为准。)
-    // ** ABI **: QueryInterface 的 riid 参数按标准 COM `const IID&` 传参 (指针, 8 字节),
-    //   即调用时传 `&IID` 的地址; 切勿按值传 16 字节 (那会错位导致 E_NOTIMPL/段错误)。
+    // ** ABI (已真机验证) **: IDeckLink::QueryInterface 的 riid 参数在本 SDK (Desktop
+    //   Video 16.0) 的 ABI 里是**按值传 16 字节 GUID** (占 rsi:rdx 两寄存器), 不是标准
+    //   COM 的 `const IID&` 指针! 真机 g++ 标准调用与手动 vtable[0] 调用均验证: 按值传
+    //   返回 S_OK, 按指针(8 字节地址)传则被当作垃圾 GUID 返回 E_NOTIMPL。故调用处
+    //   (第 211/239 行) **按值** 传 `IID_*` 静态量, 切勿按指针传 (那会错位导致 E_NOTIMPL/段错误)。
     // 若升级 SDK 大版本, 需用对应版本官方完整头重新核对此值。
     // GUID (SDK 16.0, 真机头权威): 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
     #[repr(C)]
@@ -267,9 +273,11 @@ mod imp {
         Ok(out)
     }
 
-    /// 读取 DeckLink 返回的 `char*`（可空）。SDK 用自有字符串分配器分配；
-    /// 生产环境应调用 `ReleaseString` 释放。枚举阶段只读取（一次性启动期
-    /// 轻微泄漏可接受）。
+    /// 读取 DeckLink 返回的 `char*`（可空）。注意: SDK 16.0 的 `IDeckLink`
+    /// (DeckLinkAPIDiscovery.h) 与 `IDeckLinkConfiguration` 头文件**未提供字符串释放接口**
+    /// (无 `ReleaseString` 方法, 已 grep 真机头确认), 官方 2.5.15 文字虽称
+    /// "must be freed by the caller", 但 16.0 头未暴露对应 API; 枚举为启动期一次性操作,
+    /// 此处仅复制字符串内容, 轻微泄漏可接受。
     unsafe fn read_cstr(p: *mut c_char) -> String {
         if p.is_null() {
             String::new()
