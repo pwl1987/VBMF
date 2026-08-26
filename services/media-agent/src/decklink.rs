@@ -69,31 +69,32 @@ mod imp {
         GetString: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut *mut c_char) -> HRESULT>,
     }
 
-    // IID_IDeckLinkConfiguration 的候选 GUID 列表。
+    // IID_IDeckLinkConfiguration 的真实 GUID (SDK 16.0 权威值)。
     // 注意: SDK 头文件只 `extern` 声明该 IID, 其定义在 libDeckLinkAPI.so 内部
     // (带内部链接符号 _ZL26IID_IDeckLinkConfiguration, 不进 dynsym, 真机确认 .so 为
     // stripped 且无 dynsym 导出), 既无法在构建期链接, 也不能运行时 dlsym。因此这里
-    // 自包含硬编码。
-    // ** 该 IID 随 SDK 主版本变化, 且 BMD 存在版本化接口 (真机 .so RTTI 含
-    //    IDeckLinkConfiguration_v10_11), 不同设备上 base / v10_11 返回行为不同
-    //    (base 曾实测 E_NOTIMPL=0x80000004, v10_11 才是 .so 实际注册的接口)。**
-    //    故 iter_devices 遍历下列候选, 取第一个 QueryInterface 成功者。
-    // 来源:
-    //   [0] 912F634B-2D4E-40A4-8AAB-8D80B73F1289 = Desktop Video 16.0 SDK (2026-03) 官方文档权威 base 值
-    //   [1] EF90380B-4AE5-4346-9077-E288E149F129 = 同代头 IDeckLinkConfiguration_v10_11 版本化 IID
-    //   [2] 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1 = 真机旧头误用值(诊断用, 应失效)
-    //   [3] CB71734A-FE37-4E8D-8E13-802133A1C3F2 = SDK 10.6.6 头值(诊断用, 应失效)
-    // 若升级 SDK 大版本, 需用对应版本官方头重新核对候选序。
+    // 自包含硬编码该 16 字节。
+    // ** 权威来源 **: 真机 /home/lytv/Blackmagic_DeckLink_SDK_16.0/.../Linux/include/
+    //   DeckLinkAPIConfiguration.h 第 53 行:
+    //     IID_IDeckLinkConfiguration = /* 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1 */
+    //       { 0x5A, 0x68, 0xFF, 0xD4, 0x1C, 0x12, 0x4E, 0xDE, 0xA6, 0xD2, 0x45, 0x45, 0x1D, 0x38, 0x5F, 0xC1 };
+    //   该值已用真机 g++ 标准调用序列验证: QueryInterface 返回 S_OK 且可取得配置接口。
+    //   (注: 网络上其它仓库的 "16.0 头" 给出 912F634B-… 系版本错配, 不可用; 以真机
+    //    完整 SDK 16.0 头为准。)
+    // ** ABI **: QueryInterface 的 riid 参数按标准 COM `const IID&` 传参 (指针, 8 字节),
+    //   即调用时传 `&IID` 的地址; 切勿按值传 16 字节 (那会错位导致 E_NOTIMPL/段错误)。
+    // 若升级 SDK 大版本, 需用对应版本官方完整头重新核对此值。
+    // GUID (SDK 16.0, 真机头权威): 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
     #[repr(C)]
     struct Guid16 {
         b: [u8; 16],
     }
-    static CANDIDATE_CONFIG_IIDS: &[Guid16] = &[
-        Guid16 { b: [0x91, 0x2F, 0x63, 0x4B, 0x2D, 0x4E, 0x40, 0xA4, 0x8A, 0xAB, 0x8D, 0x80, 0xB7, 0x3F, 0x12, 0x89] },
-        Guid16 { b: [0xEF, 0x90, 0x38, 0x0B, 0x4A, 0xE5, 0x43, 0x46, 0x90, 0x77, 0xE2, 0x88, 0xE1, 0x49, 0xF1, 0x29] },
-        Guid16 { b: [0x5A, 0x68, 0xFF, 0xD4, 0x1C, 0x12, 0x4E, 0xDE, 0xA6, 0xD2, 0x45, 0x45, 0x1D, 0x38, 0x5F, 0xC1] },
-        Guid16 { b: [0xCB, 0x71, 0x73, 0x4A, 0xFE, 0x37, 0x4E, 0x8D, 0x8E, 0x13, 0x80, 0x21, 0x33, 0xA1, 0xC3, 0xF2] },
-    ];
+    static IID_DECKLINK_CONFIGURATION: Guid16 = Guid16 {
+        b: [
+            0x5A, 0x68, 0xFF, 0xD4, 0x1C, 0x12, 0x4E, 0xDE, 0xA6, 0xD2, 0x45, 0x45, 0x1D, 0x38,
+            0x5F, 0xC1,
+        ],
+    };
 
     // HRESULT 的 S_OK
     const S_OK: i32 = 0;
@@ -131,7 +132,6 @@ mod imp {
             unsafe { (*vtbl).Release }.ok_or("vtable 中缺少 IDeckLinkIterator::Release")?;
 
         let mut out = Vec::new();
-        let mut dv_index: usize = 0;
         loop {
             let mut decklink: *mut IDeckLink = std::ptr::null_mut();
             let hr = unsafe { next(iter, &mut decklink) };
@@ -159,79 +159,39 @@ mod imp {
 
             // 序列号: 经 IDeckLink::QueryInterface(IID_IDeckLinkConfiguration)
             // 取配置接口, 再调 IDeckLinkConfiguration::GetString(@10) 读
-            // bmdDeckLinkConfigDeviceInformationSerialNumber (= 1684632430)。
-            // 注意: BMD 的 IDeckLinkConfiguration 接口随 SDK 演进有多个版本化 IID
-            // (真机 .so RTTI 含 _v10_11)。base IID 在某些设备上会返回 E_NOTIMPL(0x80000004),
-            // 故这里遍历候选 IID, 取第一个 QueryInterface 成功者; 并逐条打印 HRESULT
-            // 供真机定位。候选顺序: 16.0 base / v10_11 / 旧头误用值 / 10.6.6。
+            // bmdDeckLinkConfigDeviceInformationSerialNumber (= 0x6469736E = 1684632430)。
+            // IID 为 SDK 16.0 真机头权威值 (5A68FFD4-…); riid 按标准 COM 指针传参
+            // (传 &IID 的地址)。已用真机 g++ 标准调用序列验证 QueryInterface 返回 S_OK。
+            // 注意: 部分 DeckLink 设备 (如 DeckLink SDI) 的配置接口对该 String 项返回
+            // E_INVALIDARG, 或返回空串 — 属 BMD SDK/硬件行为, 此时回退 "n/a"。
             let serial = {
-                // 诊断探针: 写文件并立即 flush (eprintln 在非 tty 块缓冲, segfault 时不落盘)。
-                let probe = |tag: &str| {
-                    use std::io::Write;
-                    if let Ok(mut f) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("/tmp/serial_probe.log")
-                    {
-                        let _ = writeln!(f, "{tag}");
-                        let _ = f.flush();
-                    }
+                let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
+                // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
+                // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
+                let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
+                let hr_cfg = unsafe {
+                    query_iface(
+                        decklink,
+                        &IID_DECKLINK_CONFIGURATION as *const _ as *const std::ffi::c_void,
+                        cfg_ptr as *mut LPVOID,
+                    )
                 };
-                probe(&format!("ENTER serial block dv={dv_index}"));
-                let mut chosen: String = String::from("n/a");
-                let mut last_hr: i32 = 0;
-                for (idx, iid) in CANDIDATE_CONFIG_IIDS.iter().enumerate() {
-                    probe(&format!("candidate[{idx}] calling QueryInterface"));
-                    let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
-                    let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
-                    let hr_cfg = unsafe {
-                        query_iface(
-                            decklink,
-                            iid as *const _ as *const std::ffi::c_void,
-                            cfg_ptr as *mut LPVOID,
-                        )
-                    };
-                    last_hr = hr_cfg;
-                    probe(&format!(
-                        "candidate[{idx}] hr=0x{hr_cfg:08X} cfg_null={}",
-                        cfg.is_null()
-                    ));
-                    if hr_cfg == S_OK && !cfg.is_null() {
-                        probe(&format!("candidate[{idx}] got cfg, reading vtable"));
-                        let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
-                        let get_string = match unsafe { (*cv).GetString } {
-                            Some(f) => f,
-                            None => {
-                                probe(&format!("candidate[{idx}] GetString None"));
-                                break;
-                            }
-                        };
-                        let release_cfg = match unsafe { (*cv).Release } {
-                            Some(f) => f,
-                            None => {
-                                probe(&format!("candidate[{idx}] Release None"));
-                                break;
-                            }
-                        };
-                        probe(&format!("candidate[{idx}] calling GetString(1684632430)"));
-                        let mut serial_ptr: *mut c_char = std::ptr::null_mut();
-                        unsafe { let _ = get_string(cfg, 1684632430u32, &mut serial_ptr); }
-                        probe(&format!("candidate[{idx}] GetString returned serial_ptr_null={}", serial_ptr.is_null()));
-                        let s = unsafe { read_cstr(serial_ptr) };
-                        unsafe { let _ = release_cfg(cfg); }
-                        chosen = s;
-                        probe(&format!("candidate[{idx}] serial={chosen}"));
-                        break;
-                    }
-                }
-                if chosen == "n/a" {
-                    format!("n/a(hr=0x{last_hr:08X})")
+                if hr_cfg == S_OK && !cfg.is_null() {
+                    let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
+                    let get_string = unsafe { (*cv).GetString }
+                        .ok_or("vtable 中缺少 IDeckLinkConfiguration::GetString")?;
+                    let release_cfg = unsafe { (*cv).Release }
+                        .ok_or("vtable 中缺少 IDeckLinkConfiguration::Release")?;
+                    let mut serial_ptr: *mut c_char = std::ptr::null_mut();
+                    unsafe { let _ = get_string(cfg, 0x6469736Eu32, &mut serial_ptr); }
+                    let s = unsafe { read_cstr(serial_ptr) };
+                    unsafe { let _ = release_cfg(cfg); }
+                    if s.is_empty() { String::from("n/a") } else { s }
                 } else {
-                    chosen
+                    format!("n/a(hr=0x{hr_cfg:08X})")
                 }
             };
             out.push((model, display, serial));
-            dv_index += 1;
 
             unsafe {
                 let _ = release_dev(decklink);
