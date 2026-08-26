@@ -69,6 +69,23 @@ mod imp {
         GetString: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut *mut c_char) -> HRESULT>,
     }
 
+    // IID_IDeckLinkConfiguration 的真实 GUID。
+    // 注意: SDK 头文件只 `extern` 声明该 IID, 其定义在 libDeckLinkAPI.so 内部
+    // (带内部链接符号 _ZL26IID_IDeckLinkConfiguration, 不进 dynsym), 既无法在构建期
+    // 链接, 也不能运行时 dlsym。因此这里自包含硬编码该 16 字节(来自 BMD SDK Linux
+    // 头 DeckLinkAPIConfiguration.h, 接口 IID 跨 SDK 版本稳定不变)。
+    // GUID: CB71734A-FE37-4E8D-8E13-802133A1C3F2
+    #[repr(C)]
+    struct Guid16 {
+        b: [u8; 16],
+    }
+    static IID_DECKLINK_CONFIGURATION: Guid16 = Guid16 {
+        b: [
+            0xCB, 0x71, 0x73, 0x4A, 0xFE, 0x37, 0x4E, 0x8D, 0x8E, 0x13, 0x80, 0x21, 0x33, 0xA1,
+            0xC3, 0xF2,
+        ],
+    };
+
     // HRESULT 的 S_OK
     const S_OK: i32 = 0;
 
@@ -143,7 +160,7 @@ mod imp {
                 let hr_cfg = unsafe {
                     query_iface(
                         decklink,
-                        &IID_IDeckLinkConfiguration as *const _ as *const std::ffi::c_void,
+                        &IID_DECKLINK_CONFIGURATION as *const _ as *const std::ffi::c_void,
                         cfg_ptr as *mut LPVOID,
                     )
                 };
