@@ -84,6 +84,32 @@ fn main() {
     // Gate 2.6 (P1②): 返回真实运行时状态, 与 Supervisor 状态机对齐 (不再固定 ready).
     let device_count = devices.len();
     let agent_state = std::sync::Arc::new(std::sync::Mutex::new(health::AgentState::Ready));
+
+    // Gate 2.6 (CAP-01): bmd feature 下开启视频采集, 验证 MEDIA-RT-01 (首帧到达 + PTS 单调)
+    #[cfg(feature = "bmd")]
+    let capture_stats = match decklink::start_capture(0) {
+        Ok(stats) => {
+            *agent_state.lock().unwrap() = health::AgentState::Capturing;
+            tracing::info!("CAP-01 采集已启动 (device 0)");
+            Some(stats)
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "CAP-01 start_capture(0) 失败");
+            None
+        }
+    };
+
+    #[cfg(feature = "bmd")]
+    if let Some(stats) = capture_stats.clone() {
+        std::thread::spawn(move || loop {
+            let n = stats.frame_count.load(std::sync::atomic::Ordering::SeqCst);
+            let ff = stats.first_frame_at.lock().unwrap().is_some();
+            let mono = stats.monotonic.load(std::sync::atomic::Ordering::SeqCst);
+            tracing::info!(frame_count = n, first_frame = ff, pts_monotonic = mono, "CAP-01 capture live");
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        });
+    }
+
     std::thread::spawn({
         let agent_state = agent_state.clone();
         move || {

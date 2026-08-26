@@ -24,8 +24,8 @@ pub enum AgentState {
 
 impl AgentState {
     /// 从 Supervisor 的进程态映射 (Gate 5 wiring 用)。
-    pub fn from_process_state(s: supervisor::ProcessState) -> Self {
-        use supervisor::ProcessState::*;
+    pub fn from_process_state(s: crate::supervisor::ProcessState) -> Self {
+        use crate::supervisor::ProcessState::*;
         match s {
             Running => AgentState::Capturing,
             Unhealthy => AgentState::Degraded,

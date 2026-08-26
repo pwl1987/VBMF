@@ -22,7 +22,7 @@
 mod imp {
     use libloading::{Library, Symbol};
     use std::ffi::{CStr, OsStr};
-    use std::os::raw::c_char;
+    use std::os::raw::{c_char, c_void};
 
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -303,6 +303,258 @@ mod imp {
         }
         Ok(s)
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // CAP-01: IDeckLinkInput 视频采集封装 (Gate 2.6 → MEDIA-RT-01)
+    // vtable 槽位顺序严格对齐官方手册 DeckLinkAPI.h (真机头权威, 2026-08-26 校验):
+    //   IDeckLinkInput: QI@0/AddRef@1/Release@2/DoesSupportVideoMode@3/GetDisplayMode@4/
+    //     GetDisplayModeIterator@5/SetScreenPreviewCallback@6/EnableVideoInput@7/
+    //     EnableVideoInputWithAllocatorProvider@8/DisableVideoInput@9/
+    //     GetAvailableVideoFrameCount@10/EnableAudioInput@11/DisableAudioInput@12/
+    //     GetAvailableAudioSampleFrameCount@13/StartStreams@14/StopStreams@15/
+    //     PauseStreams@16/FlushStreams@17/SetCallback@18/GetHardwareReferenceClock@19
+    //   IDeckLinkInputCallback: QI@0/AddRef@1/Release@2/
+    //     VideoInputFormatChanged@3/VideoInputFrameArrived@4
+    // IID (真机头 DeckLinkAPI.h 权威):
+    //   IID_IDeckLinkInput = 6A515F8A-FBCE-4853-B0F7-2A09DB1ECA0B
+    // 复用 bindgen 生成的 IDeckLinkInput/IDeckLinkInputCallback 对象类型;
+    // vtable 槽位布局手工声明 (bindgen 生成不透明 vtable, 槽位需对齐官方头).
+    // ─────────────────────────────────────────────────────────────
+    const IID_DECKLINK_INPUT: Guid16 = Guid16 {
+        b: [0x6A,0x51,0x5F,0x8A,0xFB,0xCE,0x48,0x53,0xB0,0xF7,0x2A,0x09,0xDB,0x1E,0xCA,0x0B],
+    };
+
+    #[repr(C)]
+    struct RawIDeckLinkInputVtbl {
+        QueryInterface: Option<unsafe extern "C" fn(*mut c_void, Guid16, *mut *mut c_void) -> i32>,
+        AddRef: Option<unsafe extern "C" fn(*mut c_void) -> u32>,
+        Release: Option<unsafe extern "C" fn(*mut c_void) -> u32>,
+        // 官方 IDeckLinkInput::DoesSupportVideoMode 签名 (DeckLinkAPI.h:1161):
+        //   (this, BMDVideoConnection, BMDDisplayMode, BMDPixelFormat,
+        //    BMDVideoInputConversionMode, BMDSupportedVideoModeFlags,
+        //    BMDDisplayMode* actualMode, bool* supported) -> HRESULT
+        DoesSupportVideoMode: Option<unsafe extern "C" fn(*mut c_void, u32, u32, u32, u32, u32, *mut u32, *mut u8) -> i32>,
+        GetDisplayMode: Option<unsafe extern "C" fn()>,
+        GetDisplayModeIterator: Option<unsafe extern "C" fn()>,
+        SetScreenPreviewCallback: Option<unsafe extern "C" fn()>,
+        EnableVideoInput: Option<unsafe extern "C" fn(*mut c_void, u32, u32, u32) -> i32>,
+        EnableVideoInputWithAllocatorProvider: Option<unsafe extern "C" fn()>,
+        DisableVideoInput: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+        GetAvailableVideoFrameCount: Option<unsafe extern "C" fn()>,
+        EnableAudioInput: Option<unsafe extern "C" fn()>,
+        DisableAudioInput: Option<unsafe extern "C" fn()>,
+        GetAvailableAudioSampleFrameCount: Option<unsafe extern "C" fn()>,
+        StartStreams: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+        StopStreams: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+        PauseStreams: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+        FlushStreams: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+        SetCallback: Option<unsafe extern "C" fn(*mut c_void, *mut c_void) -> i32>,
+        GetHardwareReferenceClock: Option<unsafe extern "C" fn(*mut c_void, u32, *mut i64, *mut i64, *mut i64) -> i32>,
+    }
+
+    #[repr(C)]
+    struct RawIDeckLinkInputCallbackVtbl {
+        QueryInterface: Option<unsafe extern "C" fn(*mut c_void, Guid16, *mut *mut c_void) -> i32>,
+        AddRef: Option<unsafe extern "C" fn(*mut c_void) -> u32>,
+        Release: Option<unsafe extern "C" fn(*mut c_void) -> u32>,
+        VideoInputFormatChanged: Option<unsafe extern "C" fn(*mut c_void, u32, *mut c_void, u32) -> i32>,
+        VideoInputFrameArrived: Option<unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> i32>,
+    }
+
+    /// 采集统计 (MEDIA-RT-01 验证载体): 首帧到达、帧计数、PTS(硬件参考时钟) 单调性。
+    pub struct CaptureStats {
+        pub frame_count: std::sync::atomic::AtomicU64,
+        pub first_frame_at: std::sync::Mutex<Option<std::time::Instant>>,
+        pub last_pts: std::sync::Mutex<Option<i64>>,
+        pub monotonic: std::sync::atomic::AtomicBool,
+    }
+
+    #[repr(C)]
+    struct CaptureCallback {
+        vtbl: *const RawIDeckLinkInputCallbackVtbl,
+        input: *mut c_void,
+        stats: *const CaptureStats,
+    }
+
+    static CALLBACK_VTBL: RawIDeckLinkInputCallbackVtbl = RawIDeckLinkInputCallbackVtbl {
+        QueryInterface: Some(cb_query_interface),
+        AddRef: Some(cb_add_ref),
+        Release: Some(cb_release),
+        VideoInputFormatChanged: Some(cb_format_changed),
+        VideoInputFrameArrived: Some(cb_frame_arrived),
+    };
+
+    unsafe extern "C" fn cb_query_interface(_this: *mut c_void, _iid: Guid16, _out: *mut *mut c_void) -> i32 {
+        0x80004001u32 as i32 // E_NOTIMPL
+    }
+    unsafe extern "C" fn cb_add_ref(_this: *mut c_void) -> u32 { 1 }
+    unsafe extern "C" fn cb_release(_this: *mut c_void) -> u32 { 1 }
+    unsafe extern "C" fn cb_format_changed(_this: *mut c_void, _ev: u32, _mode: *mut c_void, _flags: u32) -> i32 { 0 }
+
+    unsafe extern "C" fn cb_frame_arrived(this: *mut c_void, _video: *mut c_void, _audio: *mut c_void) -> i32 {
+        let cb = &*(this as *const CaptureCallback);
+        let stats = &*cb.stats;
+        let n = stats.frame_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        let ivt = *(cb.input as *mut *mut RawIDeckLinkInputVtbl);
+        let mut hw: i64 = 0;
+        if let Some(f) = (*ivt).GetHardwareReferenceClock {
+            f(cb.input, 1_000_000_000, &mut hw, std::ptr::null_mut(), std::ptr::null_mut());
+        }
+        if n == 1 {
+            *stats.first_frame_at.lock().unwrap() = Some(std::time::Instant::now());
+            *stats.last_pts.lock().unwrap() = Some(hw);
+            eprintln!("[CAP-01] first frame arrived; hw_clock={hw}");
+        } else {
+            let mut last = stats.last_pts.lock().unwrap();
+            if let Some(prev) = *last {
+                if hw < prev {
+                    stats.monotonic.store(false, std::sync::atomic::Ordering::SeqCst);
+                }
+            }
+            *last = Some(hw);
+        }
+        eprintln!("[CAP-01] frame {n} hw={hw}");
+        0
+    }
+
+    /// 对指定索引的 DeckLink 设备开启视频采集 (EnableVideoInput + SetCallback + StartStreams)。
+    /// 返回 CaptureStats 共享句柄, 调用方轮询 frame_count / first_frame_at 验证 MEDIA-RT-01。
+    /// 默认采集格式 1080i50 / 8-bit YUV; 不同机型需在真机验证支持的模式。
+    pub fn start_capture(device_index: usize) -> Result<std::sync::Arc<CaptureStats>, String> {
+        let lib = unsafe { Library::new(OsStr::new("libDeckLinkAPI.so")) }
+            .map_err(|e| format!("加载 libDeckLinkAPI.so 失败: {e}"))?;
+        let create: Symbol<CreateIter> = unsafe {
+            lib.get(b"CreateDeckLinkIteratorInstance_0004\0")
+                .map_err(|e| format!("未找到符号 CreateDeckLinkIteratorInstance_0004: {e}"))?
+        };
+        let iter: *mut IDeckLinkIterator = unsafe { create() };
+        if iter.is_null() {
+            return Err("CreateDeckLinkIteratorInstance_0004 返回空指针（无 DeckLink 设备？）".into());
+        }
+        let ivt = unsafe { *(iter as *mut *mut IDeckLinkIteratorVtbl) };
+        let next = unsafe { (*ivt).Next }.ok_or("vtable 中缺少 IDeckLinkIterator::Next")?;
+        let release_iter = unsafe { (*ivt).Release }.ok_or("vtable 中缺少 IDeckLinkIterator::Release")?;
+
+        let mut dev: *mut IDeckLink = std::ptr::null_mut();
+        let mut idx = 0usize;
+        loop {
+            let mut d: *mut IDeckLink = std::ptr::null_mut();
+            let hr = unsafe { next(iter, &mut d) };
+            if hr != S_OK || d.is_null() {
+                break;
+            }
+            if idx == device_index {
+                dev = d;
+                break;
+            }
+            let dv = unsafe { *(d as *mut *mut IDeckLinkVtbl) };
+            unsafe { ((*dv).Release).unwrap()(d); }
+            idx += 1;
+        }
+        unsafe { release_iter(iter); }
+        if dev.is_null() {
+            return Err(format!("设备索引 {device_index} 不存在"));
+        }
+
+        let dv = unsafe { *(dev as *mut *mut IDeckLinkVtbl) };
+        let q = unsafe { (*dv).QueryInterface }.ok_or("vtable 中缺少 IDeckLink::QueryInterface")?;
+        let mut input: *mut c_void = std::ptr::null_mut();
+        let hr = unsafe { q(dev, IID_DECKLINK_INPUT, &mut input) };
+        unsafe { ((*dv).Release).unwrap()(dev); }
+        if hr != S_OK || input.is_null() {
+            return Err(format!("QueryInterface(IDeckLinkInput) 失败 hr=0x{hr:08X}"));
+        }
+
+        let stats = std::sync::Arc::new(CaptureStats {
+            frame_count: std::sync::atomic::AtomicU64::new(0),
+            first_frame_at: std::sync::Mutex::new(None),
+            last_pts: std::sync::Mutex::new(None),
+            monotonic: std::sync::atomic::AtomicBool::new(true),
+        });
+        let cb = Box::into_raw(Box::new(CaptureCallback {
+            vtbl: &CALLBACK_VTBL as *const RawIDeckLinkInputCallbackVtbl,
+            input,
+            stats: &*stats as *const CaptureStats,
+        }));
+
+        let ivt = unsafe { *(input as *mut *mut RawIDeckLinkInputVtbl) };
+        let does_support = unsafe { (*ivt).DoesSupportVideoMode }
+            .ok_or("vtable 中缺少 IDeckLinkInput::DoesSupportVideoMode")?;
+        let enable = unsafe { (*ivt).EnableVideoInput }.ok_or("vtable 中缺少 IDeckLinkInput::EnableVideoInput")?;
+        let set_cb = unsafe { (*ivt).SetCallback }.ok_or("vtable 中缺少 IDeckLinkInput::SetCallback")?;
+        let start = unsafe { (*ivt).StartStreams }.ok_or("vtable 中缺少 IDeckLinkInput::StartStreams")?;
+
+        // —— 动态探测设备支持的采集格式 (对齐官方 SDK 手册, 禁止硬编码) ——
+        // 不假设单一信号源模式: 用 IDeckLinkInput::DoesSupportVideoMode (vtable@3) 按优先级
+        // 遍历候选, 选第一个设备支持 (supported=true) 的 BMDDisplayMode。
+        // 权威枚举值来自 DeckLinkAPIModes.h (SDK 16.0):
+        //   bmdModeHD1080i50   = 'Hi50' = 0x48693530
+        //   bmdModeHD1080i5994 = 'Hi59' = 0x48693539
+        //   bmdModeHD1080i6000 = 'Hi60' = 0x48693630
+        //   bmdModeHD1080p50   = 'Hp50' = 0x48703530
+        //   bmdModeHD1080p30   = 'Hp30' = 0x48703330
+        //   bmdModeHD720p50    = 'hp50' = 0x68703530
+        // bmdFormat8BitYUV = '2vuy' = 0x32767579 (DeckLinkAPIModes.h:219)。
+        // 入参 (DeckLinkAPI.h:1161): connection=bmdVideoConnectionUnspecified(0),
+        //   conversionMode=bmdNoVideoInputConversion(0x6E6F6E65 'none', DeckLinkAPI.h:354),
+        //   flags=bmdSupportedVideoModeDefault(0)。
+        const BMD_FORMAT_8BIT_YUV: u32 = 0x32767579;
+        const BMD_NO_CONVERSION: u32 = 0x6E6F6E65;
+        const CANDIDATES: &[(u32, &str)] = &[
+            (0x48693530, "1080i50"),
+            (0x48693539, "1080i5994"),
+            (0x48693630, "1080i6000"),
+            (0x48703530, "1080p50"),
+            (0x48703330, "1080p30"),
+            (0x68703530, "720p50"),
+        ];
+        let mut chosen: Option<(u32, &str)> = None;
+        for &(mode, name) in CANDIDATES {
+            let mut actual_mode: u32 = 0;
+            let mut supported: u8 = 0;
+            let hr = unsafe {
+                does_support(
+                    input,
+                    0, // bmdVideoConnectionUnspecified
+                    mode,
+                    BMD_FORMAT_8BIT_YUV,
+                    BMD_NO_CONVERSION,
+                    0, // bmdSupportedVideoModeDefault
+                    &mut actual_mode,
+                    &mut supported,
+                )
+            };
+            eprintln!(
+                "[CAP-01] DoesSupportVideoMode({name})=hr=0x{hr:08X} supported={supported} actual=0x{actual_mode:08X}"
+            );
+            if hr == S_OK && supported != 0 {
+                chosen = Some((mode, name));
+                break;
+            }
+        }
+        let (mode, name) = chosen.ok_or_else(|| {
+            "DoesSupportVideoMode: 设备在候选列表中无任何支持的采集格式 (检查信号源/连接)".to_string()
+        })?;
+
+        // flags = bmdVideoInputEnableFormatDetection(0x01): 让 SDK 自动检测输入信号真实格式,
+        // 避免 EnableVideoInput 因模式与当前信号不符返回 E_INVALIDARG (hr=0x80000003)。
+        let hr = unsafe { enable(input, mode, BMD_FORMAT_8BIT_YUV, 1) };
+        if hr != S_OK {
+            return Err(format!(
+                "EnableVideoInput({name}/8bitYUV) 失败 hr=0x{hr:08X} (设备可能不支持该模式)"
+            ));
+        }
+        let hr = unsafe { set_cb(input, cb as *mut c_void) };
+        if hr != S_OK {
+            return Err(format!("SetCallback 失败 hr=0x{hr:08X}"));
+        }
+        let hr = unsafe { start(input) };
+        if hr != S_OK {
+            return Err(format!("StartStreams 失败 hr=0x{hr:08X}"));
+        }
+        eprintln!("[CAP-01] capture started on device {device_index} (mode={name}/8bitYUV, format-detection on)");
+        Ok(stats)
+    }
 }
 
 #[cfg(not(feature = "bmd"))]
@@ -317,6 +569,6 @@ mod imp {
 }
 
 #[cfg(feature = "bmd")]
-pub use imp::{enumerate, registry};
+pub use imp::{enumerate, registry, start_capture, CaptureStats};
 #[cfg(not(feature = "bmd"))]
 pub use imp::enumerate;
