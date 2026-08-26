@@ -410,12 +410,10 @@ mod gst_runtime {
             let mut events = Vec::new();
             if let Some(p) = self.pipelines.lock().unwrap().get(handle) {
                 if let Some(bus) = p.bus() {
-                    let types = [
-                        gst::MessageType::Error,
-                        gst::MessageType::Eos,
-                        gst::MessageType::StateChanged,
-                    ];
-                    while let Some(msg) = bus.pop_filtered(&types) {
+                    // 必须用非阻塞 `pop()`, 不能用 `pop_filtered()` —— 后者会阻塞等到匹配类型
+                    // 的消息到达; 稳定 PLAYING 的管线不再产生 Error/Eos/StateChanged, 会永久阻塞
+                    // 看门狗线程 (MEDIA-RT-01 永不判定). `pop()` 队列空时立即返回 None.
+                    while let Some(msg) = bus.pop() {
                         match msg.view() {
                             gst::MessageView::Error(e) => {
                                 let err = e.error().to_string();
