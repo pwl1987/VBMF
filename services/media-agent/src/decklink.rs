@@ -4,8 +4,10 @@
 //! 提供 COM 接口类型。我们用 libloading 动态加载 `libDeckLinkAPI.so`
 //!（Gate 2.5 已验证可达），调用 `CreateDeckLinkIteratorInstance_0004` 拿到
 //! `IDeckLinkIterator`，再遍历 `Next()` 读取 `GetModelName` / `GetDisplayName`。
-//! 序列号经 `IDeckLink::QueryInterface(IID_IDeckLinkConfiguration)` 取配置接口后,
-//! 调 `IDeckLinkConfiguration::GetString(@10)` 读 `bmdDeckLinkConfigDeviceInformationSerialNumber`(=1684632430)。
+//! 序列号/设备唯一标识优先经 `IDeckLink::QueryInterface(IID_IDeckLinkProfileAttributes)`
+//! 取属性接口后, 调 `IDeckLinkProfileAttributes::GetString(@6)` 读
+//! `BMDDeckLinkDeviceHandle`(=0x64657668), 官方手册 (3.17) 认定的设备唯一标识字符串;
+//! fallback 到 `IDeckLinkConfiguration::GetString(@10)` 读序列号项 (=0x6469736E)。
 //! bindgen 为这些接口生成的是“不透明 vtable 类型”，因此 vtable 槽位布局
 //! 需要按 SDK 头文件手工声明，并必须在 BMD 真机上用真实枚举来验证
 //!（槽位错一位会让 `Next`/`GetModelName`/`GetString` 落到错误函数上）。
@@ -70,6 +72,23 @@ mod imp {
         GetString: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut *mut c_char) -> HRESULT>,
     }
 
+    // IDeckLinkProfileAttributes vtable (SDK 16.0, 2.5.17)。方法顺序按官方头文件
+    // (DeckLinkAPI.h:1527) 严格一致, 已由真机 g++ 编译运行验证:
+    // QueryInterface@0 / AddRef@1 / Release@2 / GetFlag@3 / GetInt@4 / GetFloat@5 /
+    // GetString@6 / GetStringWithParam@7。我们只调用 GetString@6 读设备唯一标识
+    // (BMDDeckLinkDeviceHandle), 以及 Release@2 释放接口。
+    #[repr(C)]
+    struct IDeckLinkProfileAttributesVtbl {
+        QueryInterface: Option<unsafe extern "C" fn()>,
+        AddRef: Option<unsafe extern "C" fn()>,
+        Release: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes) -> ULONG>,
+        GetFlag: Option<unsafe extern "C" fn()>,
+        GetInt: Option<unsafe extern "C" fn()>,
+        GetFloat: Option<unsafe extern "C" fn()>,
+        GetString: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut *mut c_char) -> HRESULT>,
+        GetStringWithParam: Option<unsafe extern "C" fn()>,
+    }
+
     // IID_IDeckLinkConfiguration 的真实 GUID (SDK 16.0 权威值)。
     // 注意: SDK 头文件只 `extern` 声明该 IID, 其定义在 libDeckLinkAPI.so 内部
     // (带内部链接符号 _ZL26IID_IDeckLinkConfiguration, 不进 dynsym, 真机确认 .so 为
@@ -95,6 +114,22 @@ mod imp {
         b: [
             0x5A, 0x68, 0xFF, 0xD4, 0x1C, 0x12, 0x4E, 0xDE, 0xA6, 0xD2, 0x45, 0x45, 0x1D, 0x38,
             0x5F, 0xC1,
+        ],
+    };
+
+    // IID_IDeckLinkProfileAttributes 的真实 GUID (SDK 16.0 权威值)。
+    // 来源: 真机 /home/lytv/Blackmagic_DeckLink_SDK_16.0/.../Linux/include/DeckLinkAPI.h:118:
+    //   IID_IDeckLinkProfileAttributes = /* F47551D7-AD22-47AF-BCFD-6BE88AA879D9 */
+    //     { 0xF4,0x75,0x51,0xD7,0xAD,0x22,0x47,0xAF,0xBC,0xFD,0x6B,0xE8,0x8A,0xA8,0x79,0xD9 };
+    // 该接口提供 GetString(BMDDeckLinkDeviceHandle='devh'=0x64657668) 读取设备唯一标识
+    // 字符串, 这是官方手册 (3.17) 列出的真正可用于"设备唯一标识"的属性
+    // (BMDDeckLinkConfiguration 的序列号项在多数设备上不可读, 见上)。真机 2026-08-26
+    // 验证: QueryInterface 返回 S_OK, 且 3 台设备均返回非空 DeviceHandle
+    // (如 DeckLink SDI -> "46:00000000:002e4500")。
+    const IID_DECKLINK_PROFILE_ATTRIBUTES: Guid16 = Guid16 {
+        b: [
+            0xF4, 0x75, 0x51, 0xD7, 0xAD, 0x22, 0x47, 0xAF, 0xBC, 0xFD, 0x6B, 0xE8, 0x8A, 0xA8,
+            0x79, 0xD9,
         ],
     };
 
@@ -159,38 +194,64 @@ mod imp {
             let model = unsafe { read_cstr(model_ptr) };
             let display = unsafe { read_cstr(display_ptr) };
 
-            // 序列号: 经 IDeckLink::QueryInterface(IID_IDeckLinkConfiguration)
-            // 取配置接口, 再调 IDeckLinkConfiguration::GetString(@10) 读
-            // bmdDeckLinkConfigDeviceInformationSerialNumber (= 0x6469736E = 1684632430)。
-            // IID 为 SDK 16.0 真机头权威值 (5A68FFD4-…); riid 按标准 COM 指针传参
-            // (传 &IID 的地址)。已用真机 g++ 标准调用序列验证 QueryInterface 返回 S_OK。
-            // 注意: 部分 DeckLink 设备 (如 DeckLink SDI) 的配置接口对该 String 项返回
-            // E_INVALIDARG, 或返回空串 — 属 BMD SDK/硬件行为, 此时回退 "n/a"。
+            // 序列号/设备唯一标识: 优先经 IDeckLinkProfileAttributes::GetString 读
+            // BMDDeckLinkDeviceHandle(= 'devh' = 0x64657668), 官方手册 (3.17) 认定的
+            // "unique identifier for the device" 字符串。真机 2026-08-26 验证: 3 台设备
+            // 均返回非空 (如 DeckLink SDI -> "46:00000000:002e4500")。
+            // fallback: IDeckLinkConfiguration::GetString(0x6469736E) 序列号项
+            // (部分设备 E_INVALIDARG 或空串, 属 SDK/硬件行为)。
             let serial = {
-                let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
-                // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
-                // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
-                let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
-                let hr_cfg = unsafe {
-                    query_iface(
-                        decklink,
-                        IID_DECKLINK_CONFIGURATION,
-                        cfg_ptr as *mut LPVOID,
-                    )
+                // —— 主路径: IDeckLinkProfileAttributes::GetString(DeviceHandle) ——
+                let handle = {
+                    let mut attr: *mut IDeckLinkProfileAttributes = std::ptr::null_mut();
+                    let attr_ptr: *mut *mut IDeckLinkProfileAttributes = &mut attr;
+                    let hr_attr = unsafe {
+                        query_iface(
+                            decklink,
+                            IID_DECKLINK_PROFILE_ATTRIBUTES,
+                            attr_ptr as *mut LPVOID,
+                        )
+                    };
+                    if hr_attr == S_OK && !attr.is_null() {
+                        let av = unsafe { *(attr as *mut *mut IDeckLinkProfileAttributesVtbl) };
+                        let get_string = unsafe { (*av).GetString }
+                            .ok_or("vtable 中缺少 IDeckLinkProfileAttributes::GetString")?;
+                        let release_attr = unsafe { (*av).Release }
+                            .ok_or("vtable 中缺少 IDeckLinkProfileAttributes::Release")?;
+                        let mut hptr: *mut c_char = std::ptr::null_mut();
+                        unsafe { let _ = get_string(attr, 0x64657668u32, &mut hptr); }
+                        let s = unsafe { read_cstr(hptr) };
+                        unsafe { let _ = release_attr(attr); }
+                        s
+                    } else {
+                        String::new()
+                    }
                 };
-                if hr_cfg == S_OK && !cfg.is_null() {
-                    let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
-                    let get_string = unsafe { (*cv).GetString }
-                        .ok_or("vtable 中缺少 IDeckLinkConfiguration::GetString")?;
-                    let release_cfg = unsafe { (*cv).Release }
-                        .ok_or("vtable 中缺少 IDeckLinkConfiguration::Release")?;
-                    let mut serial_ptr: *mut c_char = std::ptr::null_mut();
-                    unsafe { let _ = get_string(cfg, 0x6469736Eu32, &mut serial_ptr); }
-                    let s = unsafe { read_cstr(serial_ptr) };
-                    unsafe { let _ = release_cfg(cfg); }
-                    if s.is_empty() { String::from("n/a") } else { s }
+                if !handle.is_empty() {
+                    handle
                 } else {
-                    format!("n/a(hr=0x{hr_cfg:08X})")
+                    // —— fallback: IDeckLinkConfiguration::GetString(SerialNumber) ——
+                    let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
+                    // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
+                    // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
+                    let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
+                    let hr_cfg = unsafe {
+                        query_iface(decklink, IID_DECKLINK_CONFIGURATION, cfg_ptr as *mut LPVOID)
+                    };
+                    if hr_cfg == S_OK && !cfg.is_null() {
+                        let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
+                        let get_string = unsafe { (*cv).GetString }
+                            .ok_or("vtable 中缺少 IDeckLinkConfiguration::GetString")?;
+                        let release_cfg = unsafe { (*cv).Release }
+                            .ok_or("vtable 中缺少 IDeckLinkConfiguration::Release")?;
+                        let mut serial_ptr: *mut c_char = std::ptr::null_mut();
+                        unsafe { let _ = get_string(cfg, 0x6469736Eu32, &mut serial_ptr); }
+                        let s = unsafe { read_cstr(serial_ptr) };
+                        unsafe { let _ = release_cfg(cfg); }
+                        if s.is_empty() { String::from("n/a") } else { s }
+                    } else {
+                        format!("n/a(hr=0x{hr_cfg:08X})")
+                    }
                 }
             };
             out.push((model, display, serial));
