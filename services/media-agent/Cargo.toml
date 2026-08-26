@@ -29,16 +29,18 @@ libloading = "0.8"
 [dev-dependencies]
 # Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)
 
-# ── Build feature model (frozen) ───────────────────────────────────────────────
-# default        : filesystem discovery only (proven on BMD Gates 2-4). No SDK.
-# simulation     : mock DeckLink devices — CI / unit tests without hardware or SDK.
-# bmd            : real DeckLink SDK enumeration via bindgen-generated FFI.
-#                   Build: cargo build --features bmd
-#                     (needs DECKLINK_SDK_INCLUDE=<SDK Linux/include> + libclang;
-#                      offline via vendor/ — see .cargo/config.toml)
-# hardware-test  : bmd + verbose Device Registry probes (model/serial/status) for BMD.
-#                   BMD: cargo run --features hardware-test --offline
-# CI builds/tests default + simulation (no SDK, no hardware). BMD owns the real FFI build.
+# ── Build feature model (frozen semantics) ─────────────────────────────────────
+# default        : minimal compilable runtime — filesystem discovery only, no SDK,
+#                   no hardware. Plain `cargo build` / CI default target.
+# simulation     : mock DeckLink devices for CI / unit tests — NO hardware, NO SDK.
+# bmd            : compile the REAL DeckLink FFI (bindgen over DeckLinkAPI.h).
+#                   `cargo build --features bmd` (needs SDK include + libclang).
+# hardware-test  : bmd ⊕ real-hardware test ENTRY — NOT a separate implementation.
+#                   It only ADDS verbose Device Registry probes (model/serial/status)
+#                   on top of `bmd`. Must always imply `bmd` (enforced below).
+# Dependency: hardware-test IMPLIES bmd (i.e. hardware-test = ["bmd"]); simulation is
+# orthogonal (no-hardware). hardware-test adds only verbose registry probes on top of bmd.
+# CI builds/tests default + simulation only; BMD owns the real FFI + hardware build.
 [features]
 default = []
 simulation = []

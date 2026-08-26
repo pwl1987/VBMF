@@ -1,12 +1,22 @@
-//! Runtime Supervisor — crash/hang/lost-device detection & restart (Gate 5, MEDIA-03).
+//! Runtime Supervisor — recovery-policy DECISION ENGINE for Gate 5 (MEDIA-03).
+//!
+//! ## Boundary (HARD RULE)
+//! The Supervisor ONLY *decides* a recovery strategy. It never touches GStreamer,
+//! FFmpeg, or the DeckLink SDK directly, and it does NOT spawn `ffmpeg` /
+//! `gst-launch` / device processes itself.
+//!
+//! ```text
+//! Supervisor ──(SupervisorAction)──▶ Pipeline / Device / Process Controller
+//! ```
+//!
+//! The Controller performs the actual restart / re-enumerate, then reports back via
+//! `report_recovered` / `report_failure`. This keeps Gate 5 out of the Media
+//! Runtime execution layer.
 //!
 //! Pure logic, hardware-independent: fully covered by unit tests (`cargo test`).
-//! The actual process spawning / health probes are wired in Gate 5 integration; this
-//! module owns the state machine, restart budget, backoff, circuit breaker, and
-//! escalation that those integrations drive.
-//!
-//! `#![allow(dead_code)]`: some transitions are only exercised by integration callers
-//! (Gate 5 wiring) and by `#[cfg(test)]`; removed once the watchdog loop is connected.
+//! `#![allow(dead_code)]`: some transitions are only exercised by integration
+//! callers (Gate 5 wiring) and by `#[cfg(test)]`; removed once the watchdog loop
+//! is connected.
 #![allow(dead_code)]
 
 use std::collections::HashMap;

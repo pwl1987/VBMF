@@ -1,18 +1,14 @@
-# Offline / reproducible build model (Gate 6/7 build supply chain).
+# Build supply chain (Gate 6/7).
 #
-# Default & CI builds use crates.io directly (no vendor/ required).
-# For BMD / air-gapped builds, run `scripts/vendor.sh` once on a crates.io-reachable
-# host to populate ./vendor (commit it + Cargo.lock), then build on BMD with:
+# Default & CI builds use crates.io directly — nothing to edit here.
 #
-#   cargo build --features bmd --offline \
-#     --config 'source.crates-io.replace-with="vendored-sources"'
+# BMD / air-gapped builds are driven by COMMAND-LINE FLAGS, not by editing this
+# file. After `scripts/vendor.sh` populates ./vendor (and you commit ./Cargo.lock):
 #
-# We keep the replace-with commented here so that default / CI builds keep using
-# crates.io without a pre-populated ./vendor (which would otherwise break resolution).
-# Activate it by uncommenting below OR by passing `--config` at build time as shown.
+#   cargo build --locked --offline \
+#     --config 'source.crates-io.replace-with="vendored-sources"' \
+#     --config 'source.vendored-sources.directory="vendor"' \
+#     --features bmd
 #
-# [source.crates-io]
-# replace-with = "vendored-sources"
-#
-# [source.vendored-sources]
-# directory = "vendor"
+# This keeps the offline mode env/command-selected instead of hand-edited, so the
+# committed config never needs a manual uncomment to switch build modes.

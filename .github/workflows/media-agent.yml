@@ -1,7 +1,8 @@
 name: media-agent CI
 
 # Validates the Rust Media Agent build without needing DeckLink hardware or the
-# proprietary SDK. The real FFI build (feature `bmd`) is owned by BMD (see below).
+# proprietary SDK. The real FFI build (feature `bmd` / `hardware-test`) produces the
+# `media-agent-linux` artifact for BMD acceptance runs.
 on:
   push:
     paths:
@@ -34,24 +35,55 @@ jobs:
       - name: test (simulation feature)
         run: cargo test --features simulation
 
-  # Bindgen / FFI contract build. Runs ONLY when the private SDK headers are
-  # provisioned as a repo secret (base64 tarball of the SDK Linux/include dir).
-  # CI needs NO DeckLink hardware and NO libDeckLinkAPI.so — it only verifies that
-  # bindgen can parse the SDK header and the FFI module (`src/decklink.rs`) compiles.
-  # The actual link/open against libDeckLinkAPI.so is validated on BMD (Gate 6/7).
+  # ── Bindgen / FFI contract build (Gate 6/7 INDEPENDENT verification) ─────────────
+  # Builds the `hardware-test` binary (implies `bmd`) and uploads it as the
+  # `media-agent-linux` artifact for BMD acceptance runs.
+  #
+  # Provisioning: the proprietary DeckLink SDK `Linux/include` headers are supplied as
+  # TWO repo secrets (GitHub secret value limit < full payload):
+  #   DECKLINK_SDK_HEADERS_1 = base64( gzip( tar of SDK Linux/include .h files ) ), part 1
+  #   DECKLINK_SDK_HEADERS_2 = base64( ... ), part 2
+  # Build on a host with the SDK:
+  #   cd <SDK>/Linux/include
+  #   find . -name '*.h' -print0 | tar --null -cf - -T - | gzip -9 | base64 -w0 > sdk.b64
+  #   # split sdk.b64 into two ~30KB halves sdk_a.b64 / sdk_b.b64
+  #   gh secret set DECKLINK_SDK_HEADERS_1 -b"$(cat sdk_a.b64)"
+  #   gh secret set DECKLINK_SDK_HEADERS_2 -b"$(cat sdk_b.b64)"
+  #   gh secret set DECKLINK_SDK_VERSION -b"16.0.0"
+  # CI concatenates both halves, base64-decodes, untars into .github/_private/decklink-sdk
+  # (gitignored, cleaned up) and builds `hardware-test`.
+  #
+  # CI needs NO DeckLink hardware and NO libDeckLinkAPI.so — it only verifies:
+  # SDK headers -> bindgen -> generated bindings -> Rust compile.
+  # The real link/open against libDeckLinkAPI.so + real enumeration is owned by BMD.
   ffi-contract:
-    name: bindgen / FFI contract build (SDK header injected)
+    name: ffi-contract (hardware-test bindgen, SDK-header secret)
     runs-on: ubuntu-latest
-    if: ${{ secrets.DECKLINK_SDK_HEADERS != '' }}
+    if: ${{ secrets.DECKLINK_SDK_HEADERS_1 != '' }}
+    env:
+      DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: install libclang (bindgen dependency)
+      - name: install libclang (bindgen runtime dependency)
         run: sudo apt-get update && sudo apt-get install -y libclang-dev
-      - name: provision SDK headers from secret
+      - name: unpack DeckLink SDK headers from secret
+        env:
+          DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
+          DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
+          DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
         run: |
-          mkdir -p /opt/vbmf-sdk/include
-          echo "${{ secrets.DECKLINK_SDK_HEADERS }}" | base64 -d | tar -xz -C /opt/vbmf-sdk/include
-          echo "DECKLINK_SDK_INCLUDE=/opt/vbmf-sdk/include" >> "$GITHUB_ENV"
-      - name: build --features bmd (bindgen parse + FFI compile)
-        run: cargo build --features bmd
+          mkdir -p "${{ github.workspace }}/.github/_private/decklink-sdk"
+          printf '%s%s' "$DECKLINK_SDK_HEADERS_1" "$DECKLINK_SDK_HEADERS_2" \
+            | base64 -d | tar -xz -C "${{ github.workspace }}/.github/_private/decklink-sdk"
+          echo "DeckLink SDK version: ${DECKLINK_SDK_VERSION:-<unset>}"
+      - name: build --features hardware-test (bindgen parse + FFI compile)
+        run: cargo build --features hardware-test
+      - name: upload media-agent-linux (hardware-test binary for BMD)
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-agent-linux
+          path: services/media-agent/target/debug/media-agent
+      - name: cleanup (never persist proprietary SDK assets)
+        if: always()
+        run: rm -rf "${{ github.workspace }}/.github/_private"
