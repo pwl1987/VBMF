@@ -171,7 +171,7 @@ pub struct PipelineHandle(pub Uuid);
 ///
 /// 对应 Phase 0.6 "24h stability 需落到 Runtime Harness": 此处先提供 MEDIA-RT-01 所需的
 /// 最小健康指标 (首帧 / PTS / 单调性 / 错误), 后续 G-RUNTIME 再扩展 EOS/restart/输出健康.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PipelineHealth {
     pub video_first_pts: Option<u64>,
     pub audio_first_pts: Option<u64>,
@@ -184,6 +184,25 @@ pub struct PipelineHealth {
     pub started_at: Option<i64>,
     /// MEDIA-RT-01 接受判定 (A1-A4 / B1-B4 / C1-C4), 由 watchdog 从 bus + 计数推导.
     pub acceptance: MediaRt01Acceptance,
+}
+
+impl Default for PipelineHealth {
+    /// `pts_monotonic` 起始为 `true` (absence-of-evidence = pass, 直到 appsink 回调观测到
+    /// PTS 回退才证伪); 其余字段取类型默认值. 注意 `acceptance.b4_pts_monotonic` 每轮由
+    /// watchdog 从 `pts_monotonic` 拷贝 (main.rs), 故此处 `true` 是 B4 可达标的真正来源.
+    fn default() -> Self {
+        Self {
+            video_first_pts: None,
+            audio_first_pts: None,
+            video_frame_count: 0,
+            audio_frame_count: 0,
+            pts_monotonic: true,
+            last_error: None,
+            running: false,
+            started_at: None,
+            acceptance: MediaRt01Acceptance::default(),
+        }
+    }
 }
 
 impl PipelineHealth {
