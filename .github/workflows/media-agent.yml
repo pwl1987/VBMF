@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: decklink-bindings-debug
-          path: target/*/build/*/out/bindings.rs
+          path: services/media-agent/target/**/out/bindings.rs
       - name: upload media-agent-linux (hardware-test binary for BMD)
         if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
         uses: actions/upload-artifact@v4
