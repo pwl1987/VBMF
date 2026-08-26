@@ -4,18 +4,16 @@
 
 use serde::{Deserialize, Serialize};
 use std::os::unix::fs::FileTypeExt;
+use tracing::warn;
 use uuid::Uuid;
 
 /// Blackmagic 设备节点目录(宿主机由 DesktopVideoHelper 创建 dv0/dv1/io0)。
 pub const BLACKMAGIC_DEV_DIR: &str = "/dev/blackmagic";
 
-/// 从 BMD `DeviceHandle` 字符串 (`RevisionID:PersistentID:TopologicalID`) 提取
-/// `PersistentID` 中段 (hex). 解析失败返回 `None` ⇒ BMD PersistentID **未解析**.
-///
-/// 硬规则 (Phase 0.6 锁死): 生产路径 (`MaterializeMode::Production`) 下 PersistentID 未解析
-/// 直接导致 `materialize` 返回 `IdentityUnresolved`, **绝不**悄悄退回 `device-number` 盲开
-/// device 0 (广播系统最危险的是打开*错误*的输入, 而非打不开). 仅 `Diagnostic` 模式显式允许
-/// `device-number` 兜底, 且必须在证据中标注. (DeviceHandle ≠ PersistentID, 二者均保存于 DeviceInfo.)
+/// **诊断交叉校验用** (非 canonical 身份来源): 从 BMD `DeviceHandle` 字符串
+/// (`RevisionID:PersistentID:TopologicalID`) 提取 `PersistentID` 中段 (hex).
+/// 解析失败返回 `None`. 仅用于与 SDK 权威 `GetInt(BMDDeckLinkPersistentID)` 做一致性比对,
+/// **不得**作为 `bmd_persistent_id` 的唯一来源 (否则会重蹈"中段猜 PersistentID"的脆弱解析).
 pub fn parse_persistent_id(handle: &str) -> Option<u32> {
     let seg: Vec<&str> = handle.split(':').collect();
     if seg.len() == 3 {
@@ -33,12 +31,18 @@ pub struct DeviceInfo {
     pub model: String,       // e.g. "DeckLink Quad HDMI Recorder"
     pub serial: String,      // BMD DeviceHandle 字符串 (RevisionID:PersistentID:TopologicalID)
     pub state: DeviceState,
-    /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), 物化自 DeviceHandle 中间段.
-    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id`
-    /// (gint64) 属性; 1.22+ 官方支持, 优先级高于 `device-number`.
-    pub bmd_persistent_id: u32,
-    /// 完整硬件身份字符串 (诊断 / inventory / 拓扑变化记录), 不直接作 GStreamer property.
-    pub bmd_device_handle: String,
+    /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), **权威来源 = SDK `GetInt(BMDDeckLinkPersistentID)`**.
+    /// `None` = SDK 未提供 / 解析失败 ⇒ 身份未解析 (生产路径 `IdentityUnresolved`, 绝不盲开).
+    /// `Some(0)` 是**合法零值**, 与 `None` 严格区分, 不应被误判为"解析失败".
+    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id` (gint64) 属性;
+    /// 1.22+ 官方支持, 优先级高于 `device-number`.
+    pub bmd_persistent_id: Option<u32>,
+    /// 完整硬件身份字符串 (DeviceHandle: RevisionID:PersistentID:TopologicalID), 用于诊断 / inventory /
+    /// 拓扑变化记录. `None` 表示无 SDK 来源 (如 filesystem / simulation 占位).
+    pub bmd_device_handle: Option<String>,
+    /// **诊断交叉校验**: 由 DeviceHandle 中段解析得到的 PersistentID. 与 `bmd_persistent_id` (SDK 权威)
+    /// 独立; 二者均 `Some` 且不相等 ⇒ 身份来源冲突, 需人工核查 (不静默择一).
+    pub handle_persistent_id: Option<u32>,
     /// GStreamer `device-number` 属性 (回退 / 诊断). 枚举索引, 与 bmd_persistent_id
     /// 指向同一块已解析设备.
     pub device_number: u32,
@@ -129,8 +133,11 @@ impl DeviceManager for FilesystemDeviceManager {
                 model: "filesystem-probe".to_string(),
                 serial: String::new(),
                 state: DeviceState::Available,
-                bmd_persistent_id: ph,
-                bmd_device_handle: String::new(),
+                // 文件系统枚举无 SDK, 用节点名派生占位身份以保非硬件构建可运行;
+                // 真实 BMD PersistentID 仅来自 DeckLinkDeviceManager (SDK 权威读取).
+                bmd_persistent_id: Some(ph),
+                bmd_device_handle: None,
+                handle_persistent_id: None,
                 device_number: idx as u32,
             });
         }
@@ -174,8 +181,9 @@ impl DeviceManager for SimulatedDeviceManager {
                 model: format!("Simulated DeckLink {i}"),
                 serial: format!("SIM{:06}", i),
                 state: DeviceState::Available,
-                bmd_persistent_id: (i as u32) + 1,
-                bmd_device_handle: format!("sim-{i}"),
+                bmd_persistent_id: Some((i as u32) + 1),
+                bmd_device_handle: Some(format!("sim-{i}")),
+                handle_persistent_id: None,
                 device_number: i as u32,
             })
             .collect()
@@ -215,21 +223,34 @@ impl DeviceManager for DeckLinkDeviceManager {
             Ok(list) => list
                 .into_iter()
                 .enumerate()
-                .map(|(idx, (model, display, serial))| {
+                .map(|(idx, (model, display, serial, pid))| {
                     // canonical identity: 由 DeckLink DeviceHandle (serial 字段) 派生,
                     // 跨进程/跨重启对同一个物理设备稳定, 且不受设备拓扑顺序影响。
                     let device_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, serial.as_bytes());
-                    // DeviceHandle 格式 = RevisionID:PersistentID:TopologicalID;
-                    // 中间段即 BMDDeckLinkPersistentID (GStreamer persistent-id).
-                    let bmd_persistent_id = parse_persistent_id(&serial).unwrap_or(0);
+                    // 诊断交叉校验: 从 DeviceHandle 中段解析 PersistentID (仅用于一致性比对).
+                    let handle_pid = parse_persistent_id(&serial);
+                    // **权威** BMD PersistentID 来自 SDK `GetInt(BMDDeckLinkPersistentID)`
+                    // (enumerate 已读取), 不再用 DeviceHandle 中段猜测。
+                    // None = 未解析 ⇒ 生产路径将 IdentityUnresolved; Some(0) 是合法零值, 正常接受。
+                    if let (Some(sdk), Some(handle)) = (pid, handle_pid) {
+                        if sdk != handle {
+                            warn!(
+                                model = %model,
+                                sdk_persistent_id = sdk,
+                                handle_persistent_id = handle,
+                                "BMD 身份来源冲突: SDK PersistentID 与 DeviceHandle 中段不一致, 需人工核查"
+                            );
+                        }
+                    }
                     DeviceInfo {
                         device_id,
                         node: display.clone(), // 真实显示名作为可读节点描述
                         model,
                         serial: serial.clone(),
                         state: DeviceState::Available,
-                        bmd_persistent_id,
-                        bmd_device_handle: serial.clone(),
+                        bmd_persistent_id: pid,
+                        bmd_device_handle: Some(serial.clone()),
+                        handle_persistent_id: handle_pid,
                         device_number: idx as u32,
                     }
                 })

@@ -86,7 +86,7 @@ mod imp {
         AddRef: Option<unsafe extern "C" fn()>,
         Release: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes) -> ULONG>,
         GetFlag: Option<unsafe extern "C" fn()>,
-        GetInt: Option<unsafe extern "C" fn()>,
+        GetInt: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut i64) -> HRESULT>,
         GetFloat: Option<unsafe extern "C" fn()>,
         GetString: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut *mut c_char) -> HRESULT>,
         GetStringWithParam: Option<unsafe extern "C" fn()>,
@@ -142,15 +142,21 @@ mod imp {
     // HRESULT 的 S_OK
     const S_OK: i32 = 0;
 
+    /// DeckLink SDK `bmdDeckLinkPersistentID` 属性 ID (4CC 'pers' = 0x70657273) —— 设备稳定
+    /// 硬件身份, 官方建议经 `IDeckLinkProfileAttributes::GetInt` 读取, **不要**从 DeviceHandle
+    /// 字符串中段猜。
+    const BMDDeckLinkPersistentID: u32 = 0x70657273;
+
     // 注意: CreateDeckLinkIteratorInstance_0004 实际直接返回 `IDeckLinkIterator*`
     // 指针（不是 HRESULT + 出参）。真机实测(2026-08-26)确认: 若按出参解读,
     // 会把返回的指针误当成 hr, 而出参 iter 恒为 null。
     type CreateIter = unsafe extern "C" fn() -> *mut IDeckLinkIterator;
 
-    /// 遍历 IDeckLinkIterator::Next，按顺序返回 (型号, 显示名, 序列号) 三元组。
+    /// 遍历 IDeckLinkIterator::Next，按顺序返回 (型号, 显示名, 序列号, BMD PersistentID) 四元组。
     /// 序列号经 IDeckLinkConfiguration::GetString 读取；若 QueryInterface/GetString
-    /// 失败则回退为 "n/a"。
-    fn iter_devices() -> Result<Vec<(String, String, String)>, String> {
+    /// 失败则回退为 "n/a"。BMD PersistentID 经 IDeckLinkProfileAttributes::GetInt 权威读取
+    /// (None = SDK 未提供/不支持 ⇒ 身份未解析)。
+    fn iter_devices() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
         let lib = unsafe { Library::new(OsStr::new("libDeckLinkAPI.so")) }
             .map_err(|e| format!("加载 libDeckLinkAPI.so 失败: {e}"))?;
 
@@ -260,7 +266,42 @@ mod imp {
                     }
                 }
             };
-            out.push((model, display, serial));
+
+            // 权威 BMD PersistentID 经 IDeckLinkProfileAttributes::GetInt(BMDDeckLinkPersistentID)
+            // 读取 (本处第二次 QueryInterface, 仅枚举期一次性开销)。None = SDK 未提供/不支持 ⇒
+            // 身份未解析 (生产路径将 IdentityUnresolved, 绝不盲开)。不再从 DeviceHandle 中段猜。
+            let persistent_id: Option<u32> = {
+                let mut attr: *mut IDeckLinkProfileAttributes = std::ptr::null_mut();
+                let attr_ptr: *mut *mut IDeckLinkProfileAttributes = &mut attr;
+                let hr_attr = unsafe {
+                    query_iface(decklink, IID_DECKLINK_PROFILE_ATTRIBUTES, attr_ptr as *mut LPVOID)
+                };
+                if hr_attr == S_OK && !attr.is_null() {
+                    let av = unsafe { *(attr as *mut *mut IDeckLinkProfileAttributesVtbl) };
+                    match unsafe { (*av).GetInt } {
+                        Some(get_int) => {
+                            let release_attr = unsafe { (*av).Release }
+                                .ok_or("vtable 中缺少 IDeckLinkProfileAttributes::Release")?;
+                            let mut pid_raw: i64 = 0;
+                            let pid = match unsafe { get_int(attr, BMDDeckLinkPersistentID, &mut pid_raw) } {
+                                S_OK => Some(pid_raw as u32),
+                                _ => None,
+                            };
+                            unsafe { let _ = release_attr(attr); }
+                            pid
+                        }
+                        None => {
+                            if let Some(release_attr) = unsafe { (*av).Release } {
+                                unsafe { let _ = release_attr(attr); }
+                            }
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            };
+            out.push((model, display, serial, persistent_id));
 
             unsafe {
                 let _ = release_dev(decklink);
@@ -288,7 +329,7 @@ mod imp {
         }
     }
 
-    pub fn enumerate() -> Result<Vec<(String, String, String)>, String> {
+    pub fn enumerate() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
         iter_devices()
     }
 
@@ -296,9 +337,9 @@ mod imp {
     pub fn registry() -> Result<String, String> {
         let devs = iter_devices()?;
         let mut s = String::from("DeckLink 设备注册表\n────────────────────────\n");
-        for (i, (model, display, serial)) in devs.iter().enumerate() {
+        for (i, (model, display, serial, pid)) in devs.iter().enumerate() {
             s.push_str(&format!(
-                "ID: {i}\n型号: {model}\n显示名: {display}\n序列号: {serial}\n状态: 可用\n\n"
+                "ID: {i}\n型号: {model}\n显示名: {display}\n序列号: {serial}\n持久身份: {pid:?}\n状态: 可用\n\n"
             ));
         }
         Ok(s)
@@ -559,7 +600,7 @@ mod imp {
 
 #[cfg(not(feature = "bmd"))]
 mod imp {
-    pub fn enumerate() -> Result<Vec<(String, String, String)>, String> {
+    pub fn enumerate() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
         Err(
             "未编译 bmd feature —— 请使用 `--features bmd` 并设 \
              DECKLINK_SDK_INCLUDE=<SDK 的 Linux/include 路径>（需要 libclang）重新构建"

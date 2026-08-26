@@ -79,7 +79,7 @@ impl PipelinePlan {
         PipelinePlan {
             source: SourcePlan {
                 device_id: "self-test".into(),
-                bmd_persistent_id: 0,
+                bmd_persistent_id: None,
                 device_number: 0,
                 selection_mode: SourceSelectionMode::SelfTest,
                 resolved_input: ResolvedInputContract {
@@ -114,8 +114,9 @@ pub struct SourcePlan {
     /// BMD PersistentID 见 `selection_mode` + `bmd_persistent_id`.
     pub device_id: CanonicalDeviceId,
     /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), 物化自 Device Registry.
+    /// `None` = 身份未解析 (生产路径 `MaterializeMode::Production` 下会 `IdentityUnresolved`)。
     /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id` (gint64).
-    pub bmd_persistent_id: u32,
+    pub bmd_persistent_id: Option<u32>,
     /// GStreamer `device-number` 属性 (仅 Diagnostic 回退 / 诊断). 与 `bmd_persistent_id`
     /// 指向 **同一块** 已解析设备, 不会盲开 device 0.
     pub device_number: u32,
@@ -342,15 +343,17 @@ pub fn materialize(
                 .find(|i| i.device_id.to_string() == d.device_id)
                 .ok_or_else(|| PipelineError::IdentityUnresolved(d.device_id.clone()))?;
 
-            // 2) 硬规则: 生产路径要求 BMD PersistentID 已解析 (non-zero).
-            let selection_mode = if info.bmd_persistent_id != 0 {
+            // 2) 硬规则: 生产路径要求 BMD PersistentID 已解析 (`Some`, 含合法零值 `Some(0)`);
+            //    `None` = 身份未解析 ⇒ 直接 `IdentityUnresolved`, 绝不盲开 device 0。
+            //    (`None` 与 `Some(0)` 严格区分: 后者是 SDK 明确返回的合法零值, 正常接受.)
+            let selection_mode = if info.bmd_persistent_id.is_some() {
                 SourceSelectionMode::Canonical
             } else {
                 match mode {
                     MaterializeMode::Production => {
-                        // 生产路径: 解析失败即失败, 不盲开.
+                        // 生产路径: 身份未解析即失败, 不盲开.
                         return Err(PipelineError::IdentityUnresolved(format!(
-                            "{}: BMD PersistentID 未解析 (bmd_persistent_id=0)",
+                            "{}: BMD PersistentID 未解析 (bmd_persistent_id=None, SDK 未提供)",
                             d.device_id
                         )));
                     }
@@ -492,8 +495,8 @@ mod gst_runtime {
         fn src_props(plan: &PipelinePlan) -> (String, String) {
             match plan.source.selection_mode {
                 SourceSelectionMode::Canonical => (
-                    format!("decklinkvideosrc hw-serial-number={}", plan.source.bmd_persistent_id),
-                    format!("decklinkaudiosrc hw-serial-number={}", plan.source.bmd_persistent_id),
+                    format!("decklinkvideosrc hw-serial-number={}", plan.source.bmd_persistent_id.unwrap_or(0)),
+                    format!("decklinkaudiosrc hw-serial-number={}", plan.source.bmd_persistent_id.unwrap_or(0)),
                 ),
                 SourceSelectionMode::DiagnosticFallback => (
                     format!("decklinkvideosrc device-number={}", plan.source.device_number),
