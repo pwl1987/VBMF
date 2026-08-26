@@ -4,9 +4,11 @@
 //! 提供 COM 接口类型。我们用 libloading 动态加载 `libDeckLinkAPI.so`
 //!（Gate 2.5 已验证可达），调用 `CreateDeckLinkIteratorInstance_0004` 拿到
 //! `IDeckLinkIterator`，再遍历 `Next()` 读取 `GetModelName` / `GetDisplayName`。
+//! 序列号经 `IDeckLink::QueryInterface(IID_IDeckLinkConfiguration)` 取配置接口后,
+//! 调 `IDeckLinkConfiguration::GetString(@10)` 读 `bmdDeckLinkConfigDeviceInformationSerialNumber`(=1684632430)。
 //! bindgen 为这些接口生成的是“不透明 vtable 类型”，因此 vtable 槽位布局
 //! 需要按 SDK 头文件手工声明，并必须在 BMD 真机上用真实枚举来验证
-//!（槽位错一位会让 `Next`/`GetModelName` 落到错误函数上）。
+//!（槽位错一位会让 `Next`/`GetModelName`/`GetString` 落到错误函数上）。
 //!
 //! `hardware-test` 额外输出一份详细的设备注册表（型号/序列号/状态）供 BMD 使用。
 //!
@@ -36,11 +38,35 @@ mod imp {
 
     #[repr(C)]
     struct IDeckLinkVtbl {
-        QueryInterface: Option<unsafe extern "C" fn(*mut IDeckLink, REFIID, *mut LPVOID) -> HRESULT>,
+        // 注意: QueryInterface 的 riid 在真实 libDeckLinkAPI.so ABI 里是
+        // `const IID&` = 指针(8 字节), 不是 bindgen 可能生成的按值 16 字节。
+        // 这里显式用 `*const c_void` 保证按指针 ABI 传参。
+        QueryInterface: Option<unsafe extern "C" fn(*mut IDeckLink, *const std::ffi::c_void, *mut LPVOID) -> HRESULT>,
         AddRef: Option<unsafe extern "C" fn(*mut IDeckLink) -> ULONG>,
         Release: Option<unsafe extern "C" fn(*mut IDeckLink) -> ULONG>,
         GetModelName: Option<unsafe extern "C" fn(*mut IDeckLink, *mut *mut c_char) -> HRESULT>,
         GetDisplayName: Option<unsafe extern "C" fn(*mut IDeckLink, *mut *mut c_char) -> HRESULT>,
+    }
+
+    // IDeckLinkConfiguration vtable。方法顺序按 SDK 16.0 头文件(2.5.15)推导,
+    // 已由 https://sdk-doc.blackmagicdesign.com/decklink-sdk/ 核对:
+    // SetFlag@3 / GetFlag@4 / SetInt@5 / GetInt@6 / SetFloat@7 / GetFloat@8 /
+    // SetString@9 / GetString@10 / ... / WriteConfigurationToPreferences@17。
+    // 我们只调用 GetString@10(读序列号)与 Release@2(释放配置接口)。
+    // 槽位均为 8 字节函数指针, 占位槽用 `Option<unsafe extern "C" fn()>` 不影响布局。
+    #[repr(C)]
+    struct IDeckLinkConfigurationVtbl {
+        QueryInterface: Option<unsafe extern "C" fn()>,
+        AddRef: Option<unsafe extern "C" fn()>,
+        Release: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration) -> ULONG>,
+        SetFlag: Option<unsafe extern "C" fn()>,
+        GetFlag: Option<unsafe extern "C" fn()>,
+        SetInt: Option<unsafe extern "C" fn()>,
+        GetInt: Option<unsafe extern "C" fn()>,
+        SetFloat: Option<unsafe extern "C" fn()>,
+        GetFloat: Option<unsafe extern "C" fn()>,
+        SetString: Option<unsafe extern "C" fn()>,
+        GetString: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut *mut c_char) -> HRESULT>,
     }
 
     // HRESULT 的 S_OK
@@ -52,7 +78,8 @@ mod imp {
     type CreateIter = unsafe extern "C" fn() -> *mut IDeckLinkIterator;
 
     /// 遍历 IDeckLinkIterator::Next，按顺序返回 (型号, 显示名, 序列号) 三元组。
-    /// 序列号在接入 IDeckLinkConfiguration::GetString 之前先记为 "n/a"。
+    /// 序列号经 IDeckLinkConfiguration::GetString 读取；若 QueryInterface/GetString
+    /// 失败则回退为 "n/a"。
     fn iter_devices() -> Result<Vec<(String, String, String)>, String> {
         let lib = unsafe { Library::new(OsStr::new("libDeckLinkAPI.so")) }
             .map_err(|e| format!("加载 libDeckLinkAPI.so 失败: {e}"))?;
@@ -89,6 +116,8 @@ mod imp {
                 unsafe { (*dv).GetModelName }.ok_or("vtable 中缺少 IDeckLink::GetModelName")?;
             let get_display = unsafe { (*dv).GetDisplayName }
                 .ok_or("vtable 中缺少 IDeckLink::GetDisplayName")?;
+            let query_iface = unsafe { (*dv).QueryInterface }
+                .ok_or("vtable 中缺少 IDeckLink::QueryInterface")?;
             let release_dev =
                 unsafe { (*dv).Release }.ok_or("vtable 中缺少 IDeckLink::Release")?;
 
@@ -100,10 +129,36 @@ mod imp {
             }
             let model = unsafe { read_cstr(model_ptr) };
             let display = unsafe { read_cstr(display_ptr) };
-            // 序列号需要 IDeckLinkConfiguration::GetString(
-            //   bmdDeckLinkConfigDeviceInformationSerialNumber)；
-            // 该接口的 vtable 槽位顺序尚未推导/验证，故暂省略。
-            let serial = String::from("n/a");
+
+            // 序列号: 经 IDeckLink::QueryInterface(IID_IDeckLinkConfiguration)
+            // 取配置接口, 再调 IDeckLinkConfiguration::GetString(@10) 读
+            // bmdDeckLinkConfigDeviceInformationSerialNumber (= 1684632430)。
+            // IID 由 bindings.rs 直接提供, 槽位顺序已按 SDK 16.0 头文件推导,
+            // 待 BMD 真机枚举验证。
+            let serial = {
+                let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
+                let hr_cfg = unsafe {
+                    query_iface(
+                        decklink,
+                        &IID_IDeckLinkConfiguration as *const _ as *const std::ffi::c_void,
+                        &mut cfg as *mut LPVOID,
+                    )
+                };
+                if hr_cfg == S_OK && !cfg.is_null() {
+                    let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
+                    let get_string = unsafe { (*cv).GetString }
+                        .ok_or("vtable 中缺少 IDeckLinkConfiguration::GetString")?;
+                    let release_cfg = unsafe { (*cv).Release }
+                        .ok_or("vtable 中缺少 IDeckLinkConfiguration::Release")?;
+                    let mut serial_ptr: *mut c_char = std::ptr::null_mut();
+                    unsafe { let _ = get_string(cfg, 1684632430u32, &mut serial_ptr); }
+                    let s = unsafe { read_cstr(serial_ptr) };
+                    unsafe { let _ = release_cfg(cfg); }
+                    s
+                } else {
+                    String::from("n/a")
+                }
+            };
             out.push((model, display, serial));
 
             unsafe {
