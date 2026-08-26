@@ -9,14 +9,35 @@ use uuid::Uuid;
 /// Blackmagic 设备节点目录(宿主机由 DesktopVideoHelper 创建 dv0/dv1/io0)。
 pub const BLACKMAGIC_DEV_DIR: &str = "/dev/blackmagic";
 
+/// 从 BMD `DeviceHandle` 字符串 (`RevisionID:PersistentID:TopologicalID`) 提取
+/// `PersistentID` 中段 (hex). 解析失败返回 `None` —— 该设备退化为 `device-number`
+/// 选择, 不强制 persistent-id. (DeviceHandle ≠ PersistentID, 二者都保存于 DeviceInfo.)
+pub fn parse_persistent_id(handle: &str) -> Option<u32> {
+    let seg: Vec<&str> = handle.split(':').collect();
+    if seg.len() == 3 {
+        u32::from_str_radix(seg[1], 16).ok()
+    } else {
+        None
+    }
+}
+
 /// 一个被发现的 DeckLink 设备(对应 /dev/blackmagic/dv0, dv1, io0)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceInfo {
     pub device_id: Uuid,
     pub node: String,        // e.g. "/dev/blackmagic/dv0"
     pub model: String,       // e.g. "DeckLink Quad HDMI Recorder"
-    pub serial: String,
+    pub serial: String,      // BMD DeviceHandle 字符串 (RevisionID:PersistentID:TopologicalID)
     pub state: DeviceState,
+    /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), 物化自 DeviceHandle 中间段.
+    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id`
+    /// (gint64) 属性; 1.22+ 官方支持, 优先级高于 `device-number`.
+    pub bmd_persistent_id: u32,
+    /// 完整硬件身份字符串 (诊断 / inventory / 拓扑变化记录), 不直接作 GStreamer property.
+    pub bmd_device_handle: String,
+    /// GStreamer `device-number` 属性 (回退 / 诊断). 枚举索引, 与 bmd_persistent_id
+    /// 指向同一块已解析设备.
+    pub device_number: u32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -83,7 +104,7 @@ impl DeviceManager for FilesystemDeviceManager {
         let Ok(dir) = std::fs::read_dir(&self.dev_dir) else {
             return devices;
         };
-        for entry in dir.flatten() {
+        for (idx, entry) in dir.flatten().enumerate() {
             let path = entry.path();
             // DeckLink 节点是字符设备(crw, e.g. dv0/dv1/io0, 主设备号 10),
             // 不是目录 —— 实测 BMD 上 /dev/blackmagic/{dv0,dv1,io0} 均为 crw。
@@ -93,12 +114,20 @@ impl DeviceManager for FilesystemDeviceManager {
                 _ => continue,
             }
             let node = path.to_string_lossy().to_string();
+            // 文件系统枚举无法读取真实 BMD 身份, 用节点名派生稳定的占位身份
+            // (仅 CI / 无 SDK 环境; 真实 persistent-id 来自 SDK 深度枚举).
+            let ph: u32 = node
+                .bytes()
+                .fold(0u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
             devices.push(DeviceInfo {
                 device_id: Self::node_id(&node),
-                node,
+                node: node.clone(),
                 model: "filesystem-probe".to_string(),
                 serial: String::new(),
                 state: DeviceState::Available,
+                bmd_persistent_id: ph,
+                bmd_device_handle: String::new(),
+                device_number: idx as u32,
             });
         }
         devices
@@ -141,6 +170,9 @@ impl DeviceManager for SimulatedDeviceManager {
                 model: format!("Simulated DeckLink {i}"),
                 serial: format!("SIM{:06}", i),
                 state: DeviceState::Available,
+                bmd_persistent_id: (i as u32) + 1,
+                bmd_device_handle: format!("sim-{i}"),
+                device_number: i as u32,
             })
             .collect()
     }
@@ -178,16 +210,23 @@ impl DeviceManager for DeckLinkDeviceManager {
         match crate::decklink::enumerate() {
             Ok(list) => list
                 .into_iter()
-                .map(|(model, display, serial)| {
+                .enumerate()
+                .map(|(idx, (model, display, serial))| {
                     // canonical identity: 由 DeckLink DeviceHandle (serial 字段) 派生,
                     // 跨进程/跨重启对同一个物理设备稳定, 且不受设备拓扑顺序影响。
                     let device_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, serial.as_bytes());
+                    // DeviceHandle 格式 = RevisionID:PersistentID:TopologicalID;
+                    // 中间段即 BMDDeckLinkPersistentID (GStreamer persistent-id).
+                    let bmd_persistent_id = parse_persistent_id(&serial).unwrap_or(0);
                     DeviceInfo {
                         device_id,
                         node: display.clone(), // 真实显示名作为可读节点描述
                         model,
                         serial: serial.clone(),
                         state: DeviceState::Available,
+                        bmd_persistent_id,
+                        bmd_device_handle: serial.clone(),
+                        device_number: idx as u32,
                     }
                 })
                 .collect(),

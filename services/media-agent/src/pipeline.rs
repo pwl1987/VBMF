@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::device::DeviceInfo;
 use crate::graph_intent::GraphRuntimeIntent;
 
 /// VBMF canonical 设备身份 = DeckLink `DeviceHandle` 派生 UUID
@@ -23,9 +24,12 @@ pub type CanonicalDeviceId = String;
 ///     `decklinkaudiosrc`. `IDeckLinkInput` (Rust FFI) 仅用于 Device
 ///     Capability / 模式探测 / 诊断, **不得**作为生产视频数据通道 (否则双采 /
 ///     设备争用).
-///   * GStreamer decklink 插件**没有 `persistent-id` 属性**; 设备选择只接受
-///     `device-number` (官方 decklinkvideosrc 文档). 因此 canonical identity
-///     必须在物化阶段**解析为 GStreamer `device-number`** (见 `materialize`).
+///   * GStreamer `decklinkvideosrc`/`decklinkaudiosrc` **有** `persistent-id`
+///     属性 (gint64, 对应 `BMDDeckLinkPersistentID`), **优先级高于 `device-number`**
+///     (GStreamer 1.22+ 官方支持). 因此物化链路为: VBMF device_id → Device
+///     Registry → BMD PersistentID → GStreamer `persistent-id`; `device-number`
+///     仅作回退/诊断. 注意 `DeviceHandle`(RevisionID:PersistentID:TopologicalID)
+///     与 `PersistentID` 是两回事, 二者都保存于 `DeviceInfo`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
@@ -39,9 +43,12 @@ pub struct PipelinePlan {
 pub struct SourcePlan {
     /// VBMF canonical identity (DeviceHandle 派生 UUID). 主键.
     pub persistent_id: CanonicalDeviceId,
-    /// GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `device-number`
-    /// 属性; 由 `materialize` 把 canonical identity 映射而来.
-    /// GStreamer 唯一接受的硬件选择方式 (无 persistent-id 属性).
+    /// BMD 硬件持久身份 (BMDDeckLinkPersistentID), 物化自 Device Registry.
+    /// 对应 GStreamer `decklinkvideosrc`/`decklinkaudiosrc` 的 `persistent-id`
+    /// (gint64) —— 1.22+ 官方支持, 优先级高于 `device-number`, 首选该属性选卡.
+    pub bmd_persistent_id: u32,
+    /// GStreamer `device-number` 属性 (回退 / 诊断). 与 `bmd_persistent_id` 指向
+    /// **同一块**已解析设备, 不会盲开 device 0.
     pub device_number: u32,
     /// 模式协商后的输入契约 (Capability Match 产物).
     pub resolved_input: ResolvedInputContract,
@@ -109,19 +116,31 @@ pub trait PipelineController {
 
 /// 把控制面 `GraphRuntimeIntent` 物化为 Media Agent 执行计划.
 ///
-/// 关键步骤: canonical identity (DeviceIntent.device_id) → GStreamer
-/// `device-number`. 当前为骨架: `device_number` 直接取自 `SourceIntent`
-/// (若提供), 否则回退 0; 真实环境应由 discovery 层做 identity→index 映射.
-pub fn materialize(intent: &GraphRuntimeIntent) -> Vec<PipelinePlan> {
+/// 物化链路 (Control Plane 不感知 GStreamer property):
+///   VBMF `device_id` → Device Registry (`DeviceInfo`) → `bmd_persistent_id`
+///   → GStreamer `persistent-id` (首选) / `device-number` (回退, 同一设备).
+///
+/// **绝不 `unwrap_or(0)`**: 若 `device_id` 在 registry 中找不到对应设备,
+/// 直接 `IdentityUnresolved` 失败 —— 广播系统最危险的是打开*错误*的输入
+/// (以为开了 SDI-A, 实际开了 SDI-B), 而不是打不开.
+pub fn materialize(
+    intent: &GraphRuntimeIntent,
+    devices: &[DeviceInfo],
+) -> Result<Vec<PipelinePlan>, PipelineError> {
     intent
         .devices
         .iter()
         .map(|d| {
-            let device_number = d.pipeline.source.device_number.unwrap_or(0);
-            PipelinePlan {
+            // 1) 用 VBMF device_id 在 Device Registry 中定位确定设备.
+            let info = devices
+                .iter()
+                .find(|i| i.device_id.to_string() == d.device_id)
+                .ok_or_else(|| PipelineError::IdentityUnresolved(d.device_id.clone()))?;
+            Ok(PipelinePlan {
                 source: SourcePlan {
                     persistent_id: d.device_id.clone(),
-                    device_number,
+                    bmd_persistent_id: info.bmd_persistent_id,
+                    device_number: info.device_number,
                     resolved_input: ResolvedInputContract {
                         mode: "auto".into(), // 由 DoesSupportVideoMode 协商, 此处占位
                         pixel_format: "UYVY".into(),
@@ -141,7 +160,7 @@ pub fn materialize(intent: &GraphRuntimeIntent) -> Vec<PipelinePlan> {
                 output: OutputPlan {
                     sink: d.pipeline.sink.kind.clone(),
                 },
-            }
+            })
         })
         .collect()
 }

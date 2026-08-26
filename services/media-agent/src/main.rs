@@ -112,26 +112,38 @@ fn main() {
         // (B) canonical 媒体采集路径 (GStreamer) — 物化 PipelinePlan, 由
         //     PipelineController 拥有. 当前为冻结骨架: 仅构造计划并校验 identity
         //     解析, 真实 GStreamer launch 待 gstreamer feature.
+        //     GraphRuntimeIntent 只带 VBMF device_id; bmd_persistent_id /
+        //     device-number 由 materialize 经 Device Registry 解析得到.
+        let first_id = devices.first().map(|d| d.device_id.to_string()).unwrap_or_default();
         let intent = crate::graph_intent::GraphRuntimeIntent {
             version: "1.0".into(),
             devices: vec![crate::graph_intent::DeviceIntent {
-                device_id: devices.first().map(|d| d.device_id.to_string()).unwrap_or_default(),
+                device_id: first_id.clone(),
                 role: "CAPTURE".into(),
                 pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent { kind: "decklink".into(), device_number: Some(0) },
+                    source: crate::graph_intent::SourceIntent { kind: "decklink".into(), device_id: first_id },
                     sink: crate::graph_intent::SinkIntent { kind: "rtmp".into() },
                 },
             }],
         };
-        let plans = crate::pipeline::materialize(&intent);
-        for p in &plans {
-            tracing::info!(
-                persistent_id = %p.source.persistent_id,
-                device_number = p.source.device_number,
-                "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc; launch pending)"
-            );
+        // 物化: VBMF device_id → Device Registry → BMD PersistentID → GStreamer.
+        // identity 解析失败直接报错, 绝不盲开 device 0.
+        // (注: 当真实 GStreamer 启动后, 上方 SDK 诊断探针须仅限 `hardware-test`
+        //  feature, 避免与 canonical 路径同时打开同一块 DeckLink.)
+        match crate::pipeline::materialize(&intent, &devices) {
+            Ok(plans) => {
+                for p in &plans {
+                    tracing::info!(
+                        persistent_id = %p.source.persistent_id,
+                        bmd_persistent_id = p.source.bmd_persistent_id,
+                        device_number = p.source.device_number,
+                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc persistent-id; launch pending)"
+                    );
+                }
+                *agent_state.lock().unwrap() = health::AgentState::Capturing;
+            }
+            Err(e) => tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)"),
         }
-        *agent_state.lock().unwrap() = health::AgentState::Capturing;
     }
 
     std::thread::spawn({

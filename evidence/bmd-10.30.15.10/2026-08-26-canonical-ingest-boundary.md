@@ -26,13 +26,12 @@
 
 用户原建议表第 3 行："Device Identity: index/handle 混用 → **Persistent ID 为 canonical identity**，且 GStreamer 官方明确支持 `persistent-id` 字段"。
 
-**该点有误，已核对官方文档：**
-- GStreamer 官方 `decklinkvideosrc` / `decklinkaudiosrc` **没有 `persistent-id` 属性**；设备选择只接受 `device-number`（外加 `connection`/`mode`/`duplex-mode`）。
-- `BMDDeckLinkPersistentID` 是 **Blackmagic SDK 层**概念（decklinkvideosrc 文档未暴露）。
-- 因此正确的设计是：
-  - **VBMF canonical identity = `device.rs` 的 DeviceHandle 派生 UUID**（`DeckLinkDeviceManager`，UUIDv5(serial)），跨进程/重启/拓扑稳定。
-  - 物化阶段把 canonical identity **解析为 GStreamer `device-number`**（discovery 层负责 canonical→index 映射；`materialize` 当前直接取 `SourceIntent.device_number`，缺省回退 0）。
-  - 不能把 `persistent-id` "直接喂给 GStreamer"。
+> ### ⚠️ 二次纠偏（2026-08-26 晚）：上一轮我认定"GStreamer 无 persistent-id 属性"是**错的**。
+> 经用**当前** GStreamer 官方文档 + Blackmagic SDK 手册交叉核对：
+> - GStreamer `decklinkvideosrc` / `decklinkaudiosrc` **确有 `persistent-id` 属性**（`gint64`，对应 `BMDDeckLinkPersistentID`），**优先级高于 `device-number`**，自 **GStreamer 1.22** 起可用。
+> - 因此正确设计是 **VBMF `device_id` → Device Registry → BMD `PersistentID` → GStreamer `persistent-id`**；`device-number` 仅作回退/诊断（见 `device.rs` `parse_persistent_id` + `pipeline::materialize`）。
+> - **`DeviceHandle` ≠ `PersistentID`**：BMD `DeviceHandle` 格式为 `RevisionID:PersistentID:TopologicalID`（官方手册 3.17），中间段才是 PersistentID。`device.rs` 的 `serial` 字段存的就是 DeviceHandle 字符串，已由 `parse_persistent_id` 提取中段；`DeviceInfo` 同时保存 `bmd_persistent_id` 与 `bmd_device_handle` 两路身份。
+> - 代码已落地：`GraphRuntimeIntent.SourceIntent` 只带 `device_id`（不泄露 GStreamer 属性）；`materialize(intent, devices)` 按 `device_id` 在 Device Registry 解析，**找不到直接 `IdentityUnresolved`，绝不 `unwrap_or(0)` 盲开**。
 
 ## 性质与治理
 

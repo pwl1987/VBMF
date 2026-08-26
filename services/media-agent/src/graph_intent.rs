@@ -28,12 +28,11 @@ pub struct PipelineIntent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SourceIntent {
     pub kind: String,
-    /// GStreamer decklinkvideosrc 的 `device-number` 属性 (可选).
-    /// canonical 身份由 `DeviceIntent.device_id` (DeviceHandle 派生 UUID) 承载;
-    /// 此处仅作临时 probe / fallback. **GStreamer decklink 插件无 `persistent-id`
-    /// 属性**, 因此物化时必须由 canonical identity 解析出 `device-number`
-    /// (见 `pipeline::materialize`).
-    pub device_number: Option<u32>,
+    /// VBMF canonical device identity (DeviceHandle 派生 UUID). **不**携带任何
+    /// GStreamer 专属属性 (如 `device-number` / `persistent-id`); 这些由 Media
+    /// Agent 经 Device Registry 物化得到 (见 `pipeline::materialize`). Control
+    /// Plane 无需感知底层采集硬件选择细节.
+    pub device_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -57,7 +56,7 @@ mod tests {
           "device_id": "decklink-0",
           "role": "CAPTURE",
           "pipeline": {
-            "source": { "kind": "decklink", "device_number": 0 },
+            "source": { "kind": "decklink", "device_id": "dev-a" },
             "sink":   { "kind": "rtmp" }
           }
         }
@@ -73,7 +72,7 @@ mod tests {
         assert_eq!(d.device_id, "decklink-0");
         assert_eq!(d.role, "CAPTURE");
         assert_eq!(d.pipeline.source.kind, "decklink");
-        assert_eq!(d.pipeline.source.device_number, Some(0));
+        assert_eq!(d.pipeline.source.device_id, "dev-a");
         assert_eq!(d.pipeline.sink.kind, "rtmp");
     }
 
