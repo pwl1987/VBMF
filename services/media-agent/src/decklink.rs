@@ -131,6 +131,7 @@ mod imp {
             unsafe { (*vtbl).Release }.ok_or("vtable 中缺少 IDeckLinkIterator::Release")?;
 
         let mut out = Vec::new();
+        let mut dv_index: usize = 0;
         loop {
             let mut decklink: *mut IDeckLink = std::ptr::null_mut();
             let hr = unsafe { next(iter, &mut decklink) };
@@ -164,9 +165,23 @@ mod imp {
             // 故这里遍历候选 IID, 取第一个 QueryInterface 成功者; 并逐条打印 HRESULT
             // 供真机定位。候选顺序: 16.0 base / v10_11 / 旧头误用值 / 10.6.6。
             let serial = {
+                // 诊断探针: 写文件并立即 flush (eprintln 在非 tty 块缓冲, segfault 时不落盘)。
+                let probe = |tag: &str| {
+                    use std::io::Write;
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("/tmp/serial_probe.log")
+                    {
+                        let _ = writeln!(f, "{tag}");
+                        let _ = f.flush();
+                    }
+                };
+                probe(&format!("ENTER serial block dv={dv_index}"));
                 let mut chosen: String = String::from("n/a");
                 let mut last_hr: i32 = 0;
                 for (idx, iid) in CANDIDATE_CONFIG_IIDS.iter().enumerate() {
+                    probe(&format!("candidate[{idx}] calling QueryInterface"));
                     let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
                     let cfg_ptr: *mut *mut IDeckLinkConfiguration = &mut cfg;
                     let hr_cfg = unsafe {
@@ -177,21 +192,35 @@ mod imp {
                         )
                     };
                     last_hr = hr_cfg;
-                    eprintln!(
-                        "dv serial probe: candidate[{idx}] hr=0x{hr_cfg:08X} cfg_null={}",
+                    probe(&format!(
+                        "candidate[{idx}] hr=0x{hr_cfg:08X} cfg_null={}",
                         cfg.is_null()
-                    );
+                    ));
                     if hr_cfg == S_OK && !cfg.is_null() {
+                        probe(&format!("candidate[{idx}] got cfg, reading vtable"));
                         let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
-                        let get_string = unsafe { (*cv).GetString }
-                            .ok_or("vtable 中缺少 IDeckLinkConfiguration::GetString")?;
-                        let release_cfg = unsafe { (*cv).Release }
-                            .ok_or("vtable 中缺少 IDeckLinkConfiguration::Release")?;
+                        let get_string = match unsafe { (*cv).GetString } {
+                            Some(f) => f,
+                            None => {
+                                probe(&format!("candidate[{idx}] GetString None"));
+                                break;
+                            }
+                        };
+                        let release_cfg = match unsafe { (*cv).Release } {
+                            Some(f) => f,
+                            None => {
+                                probe(&format!("candidate[{idx}] Release None"));
+                                break;
+                            }
+                        };
+                        probe(&format!("candidate[{idx}] calling GetString(1684632430)"));
                         let mut serial_ptr: *mut c_char = std::ptr::null_mut();
                         unsafe { let _ = get_string(cfg, 1684632430u32, &mut serial_ptr); }
+                        probe(&format!("candidate[{idx}] GetString returned serial_ptr_null={}", serial_ptr.is_null()));
                         let s = unsafe { read_cstr(serial_ptr) };
                         unsafe { let _ = release_cfg(cfg); }
                         chosen = s;
+                        probe(&format!("candidate[{idx}] serial={chosen}"));
                         break;
                     }
                 }
@@ -202,6 +231,7 @@ mod imp {
                 }
             };
             out.push((model, display, serial));
+            dv_index += 1;
 
             unsafe {
                 let _ = release_dev(decklink);
