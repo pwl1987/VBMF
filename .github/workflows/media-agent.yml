@@ -1,0 +1,57 @@
+name: media-agent CI
+
+# Validates the Rust Media Agent build without needing DeckLink hardware or the
+# proprietary SDK. The real FFI build (feature `bmd`) is owned by BMD (see below).
+on:
+  push:
+    paths:
+      - 'services/media-agent/**'
+      - '.github/workflows/media-agent.yml'
+  pull_request:
+    paths:
+      - 'services/media-agent/**'
+      - '.github/workflows/media-agent.yml'
+
+defaults:
+  run:
+    working-directory: services/media-agent
+
+jobs:
+  test:
+    name: fmt / clippy / test (default + simulation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --all-targets
+      - name: test (default features)
+        run: cargo test
+      - name: test (simulation feature)
+        run: cargo test --features simulation
+
+  # Bindgen / FFI contract build. Runs ONLY when the private SDK headers are
+  # provisioned as a repo secret (base64 tarball of the SDK Linux/include dir).
+  # CI needs NO DeckLink hardware and NO libDeckLinkAPI.so — it only verifies that
+  # bindgen can parse the SDK header and the FFI module (`src/decklink.rs`) compiles.
+  # The actual link/open against libDeckLinkAPI.so is validated on BMD (Gate 6/7).
+  ffi-contract:
+    name: bindgen / FFI contract build (SDK header injected)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.DECKLINK_SDK_HEADERS != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install libclang (bindgen dependency)
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: provision SDK headers from secret
+        run: |
+          mkdir -p /opt/vbmf-sdk/include
+          echo "${{ secrets.DECKLINK_SDK_HEADERS }}" | base64 -d | tar -xz -C /opt/vbmf-sdk/include
+          echo "DECKLINK_SDK_INCLUDE=/opt/vbmf-sdk/include" >> "$GITHUB_ENV"
+      - name: build --features bmd (bindgen parse + FFI compile)
+        run: cargo build --features bmd
