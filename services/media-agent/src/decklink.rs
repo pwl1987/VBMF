@@ -38,10 +38,11 @@ mod imp {
 
     #[repr(C)]
     struct IDeckLinkVtbl {
-        // 注意: QueryInterface 的 riid 在真实 libDeckLinkAPI.so ABI 里是
-        // `const IID&` = 指针(8 字节), 不是 bindgen 可能生成的按值 16 字节。
-        // 这里显式用 `*const c_void` 保证按指针 ABI 传参。
-        QueryInterface: Option<unsafe extern "C" fn(*mut IDeckLink, *const std::ffi::c_void, *mut LPVOID) -> HRESULT>,
+        // 注意: QueryInterface 的 riid 在本 SDK (Desktop Video 16.0) 的 ABI 里是
+        // **按值传 16 字节 GUID** (占 rsi:rdx 两个寄存器), 不是指针! 真机 g++ 标准
+        // 调用 (REFIID 即 16 字节结构体按值) 与手动 vtable[0] 调用均验证: 按值传
+        // S_OK, 按指针传则被当作垃圾 GUID 返回 E_NOTIMPL。故此处第 2 参数用 Guid16 按值。
+        QueryInterface: Option<unsafe extern "C" fn(*mut IDeckLink, Guid16, *mut LPVOID) -> HRESULT>,
         AddRef: Option<unsafe extern "C" fn(*mut IDeckLink) -> ULONG>,
         Release: Option<unsafe extern "C" fn(*mut IDeckLink) -> ULONG>,
         GetModelName: Option<unsafe extern "C" fn(*mut IDeckLink, *mut *mut c_char) -> HRESULT>,
@@ -172,7 +173,7 @@ mod imp {
                 let hr_cfg = unsafe {
                     query_iface(
                         decklink,
-                        &IID_DECKLINK_CONFIGURATION as *const _ as *const std::ffi::c_void,
+                        IID_DECKLINK_CONFIGURATION,
                         cfg_ptr as *mut LPVOID,
                     )
                 };
