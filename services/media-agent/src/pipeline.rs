@@ -123,7 +123,7 @@ pub struct OutputPlan {
 }
 
 /// 管线句柄 (物化后由 `prepare` 返回, 供 start/stop/recover 引用).
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PipelineHandle(pub Uuid);
 
 /// 管线运行时健康 (Pipeline Health / GStreamer bus 监控载体).
@@ -319,15 +319,16 @@ pub fn materialize(
 mod gst_runtime {
     use super::*;
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, LazyLock, Mutex};
 
     use gstreamer::prelude::*;
     use gstreamer as gst;
     use gstreamer_app::AppSink;
 
     /// 跨线程共享的健康 Arc 表 (appsink 回调写入, watchdog/health 读取).
-    pub static HEALTH_ARCS: Mutex<HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>> =
-        Mutex::new(HashMap::new());
+    /// `Mutex::new(HashMap::new())` 非 const, 不能用于 `static`, 用 `LazyLock` 懒初始化.
+    pub static HEALTH_ARCS: LazyLock<Mutex<HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
 
     /// 读取某管线最新健康 (跨线程, 经共享 Arc).
     pub fn read_health(handle: &PipelineHandle) -> Option<PipelineHealth> {

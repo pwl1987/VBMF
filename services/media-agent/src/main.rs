@@ -24,6 +24,9 @@ use device::DeviceManager;
 // Trait must be in scope to call `acquire`/`is_valid` on `Arc<InMemoryLeaseManager>`
 // (trait method, auto-deref via Arc; 否则 E0599 no method named `acquire`).
 use lease::LeaseManager;
+// Trait must be in scope to call `prepare`/`start`/`recover` on `Arc<GStreamerPipelineController>`
+// (trait 方法, 否则 E0599 no method named `recover`).
+use pipeline::PipelineController;
 use std::io::Write;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -297,7 +300,7 @@ fn spawn_ingest_watchdog(
                         // Lease→Pipeline: recover 前必须重校租约仍在有效期内 (MEDIA-03 排他不变量).
                         if !lm.is_valid(&device_uuid) {
                             tracing::error!(device = %device_uuid, "recover 中止: lease 失效 (排他不变量)");
-                            *agent_state.lock().unwrap() = health::AgentState::Failed;
+                            *agent_state.lock().unwrap() = health::AgentState::ManualRequired;
                             continue;
                         }
                         let backoff = sup.lock().unwrap().backoff(&handle.0);
@@ -313,7 +316,7 @@ fn spawn_ingest_watchdog(
                     }
                     Ok(supervisor::SupervisorAction::Escalate) => {
                         tracing::error!(handle = %handle.0, "MEDIA-RT-01 watchdog: Escalate (MANUAL_REQUIRED)");
-                        *agent_state.lock().unwrap() = health::AgentState::Failed;
+                        *agent_state.lock().unwrap() = health::AgentState::ManualRequired;
                     }
                     Err(e) => tracing::error!(error = %e, "supervisor report_failure 失败"),
                 }
