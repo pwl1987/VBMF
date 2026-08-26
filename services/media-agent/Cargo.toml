@@ -23,6 +23,8 @@ tracing-subscriber = { version = "0.3", features = ["fmt"] }
 chrono = { version = "0.4", features = ["serde"] }
 # UUID (lease/device ids)
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
+# Dynamic loading of DeckLink SDK .so (Gate 2.5 FFI smoke; no link-time dep)
+libloading = "0.8"
 
 [dev-dependencies]
 # Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)

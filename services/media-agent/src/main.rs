@@ -10,6 +10,7 @@ mod health;
 mod lease;
 mod pipeline;
 mod rpc;
+mod sdk;
 mod supervisor;
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
@@ -44,6 +45,16 @@ fn main() {
             Ok(_) => tracing::warn!("LEASE COLLISION — double-capture risk!"),
             Err(e) => tracing::info!(error = %e, "lease re-acquire correctly rejected"),
         }
+    }
+
+    // Gate 2.5 (A): DeckLink SDK FFI smoke — 验证 libDeckLinkAPI.so 在运行环境可达。
+    // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期)。
+    match sdk::probe_sdk_version("libDeckLinkAPI.so") {
+        Ok(v) => {
+            let (maj, min) = sdk::decode_version(v);
+            tracing::info!(encoded = v, major = maj, minor = min, "SDK libDeckLinkAPI.so loaded");
+        }
+        Err(e) => tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)"),
     }
 
     // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum)。
