@@ -35,6 +35,8 @@
 - `DeviceHandle` 三台**唯一且可用** → canonical 硬件身份 = DeviceHandle。
 - PersistentID / TopologicalID 均不可用 → 身份优先级在此硬件上收敛为 **DeviceHandle canonical**。
 
+> **EVID-01 标注 (2026-08-26 晚订正语义)**: `PersistentID 不支持` = **硬件能力限制** (该 BMD 型号/固件未实现 `BMDDeckLinkPersistentID`), **不是** VBMF 代码缺陷或实现错误。`0x80000003` = BMD 属性不支持, 与 Blackmagic 官方 FAQ ("PersistentID 非所有 DeckLink 均支持") 一致。文档/日志**不得**写 "实现错误 / 代码失败 / 解析失败" 等误导性措辞; 正确表述: "当前硬件不支持 PersistentID, canonical 身份降级为 DeviceHandle (best-available identity)"。Gate `HW-IDENT-02` 状态 = **OPEN** (Resolver 已落地 `8efd8ae`, 待盒上 `VBMF_RESOLVER=1` 证据确认 DeviceHandle↔`hw-serial-number` 匹配键)。
+
 ## 关键衍生事实（P0 架构风险）
 **SDK 枚举序号 ≠ GStreamer `device-number`**：
 - SDK 枚举：#0=SDI(1), #1=SDI(2), #2=MiniMonitor4K

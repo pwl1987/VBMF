@@ -110,3 +110,36 @@ CI default/simulation → BMD `bmd` → 真机枚举 → Lease → GStreamer can
 - **媒体运行时链路本身健康 (证伪"运行时坏")**: `gst-launch-1.0 videotestsrc num-buffers=30 ! videoconvert ! fakesink` → 30 buffer / 19ms 跑完 EOS; 完整自测描述 `videotestsrc is-live=true ! videoconvert ! video/x-raw ! appsink + audiotestsrc is-live=true ! audio/x-raw ! appsink` 亦 PLAYING。证明 GStreamer 运行时 / appsink 闭环 / PTS 机制均正常, 卡点只在 DeckLink 信号稳定性。
 - **新增 MEDIA-RT-01 自测模式 (B)**: `main.rs` 支持 `MEDIA_AGENT_SELFTEST=1` → 物化 `PipelinePlan::self_test()` (videotestsrc/audiotestsrc) → `GStreamerPipelineController` launch → **复用既有 `spawn_ingest_watchdog`** 推导 A1-A4/B1-B4/C1-C4; 自测源稳定出帧 → `pass()` 达成即打印 `MEDIA-RT-01: A+B+C 全过`。此模式不依赖 DeckLink 信号, 用于证明采集/健康/验收闭环在运行时层面正确 (DeckLink 信号仍待接)。
 - **下一步**: ① rebuild (`--features bmd,gstreamer`) via CI → `gh run download` → `scp` 到 BMD → `MEDIA_AGENT_SELFTEST=1 ./media-agent-gstreamer` 拿**自测 MEDIA-RT-01 PASS**; ② 真实 A 需用户在 device 0 接 **稳定** SDI 信号 (当前闪动, GStreamer 无法锁定), 再 `MEDIA_AGENT_MODE=diagnostic` 重跑拿真首帧。Normalize/Switch/Encode/SRS/FI-08/09 顺序不变。
+
+## C1 Resolver 落地 + 身份/选卡语义订正 (2026-08-26 晚, 提交 `8efd8ae`)
+
+> 本节能与上方第 29-34 行 / 第 109 行并存: 上方是历史现场记录, 本節是经 **A0 逐字 `gst-inspect` 证据** (见 `2026-08-26-a0-identity-verification.md` §"GStreamer 侧核实") 复核后的**权威结论**。
+
+### 1. A0 → C 决策 (已锁)
+- A0 = DONE。`PersistentID` 在三台设备均 `GetInt=0x80000003` (不支持) → 正式选 **C**: DeviceHandle canonical 身份 + GStreamer `device-number` materialization (经 `hw-serial-number` 解析)。
+- **DeviceHandle 语义订正 (关键)**: 它是"**当前主机的 best-available identity**", **不是**跨机器/重启永久稳定身份 (后者仅 `PersistentID` 提供)。Blackmagic 官方层级: `PersistentID → TopologicalID → DeviceHandle → Enumeration`。
+
+### 2. DOC-01 语义订正: PersistentID = preferred, NOT mandatory
+- ❌ 旧表述 ("PersistentID mandatory / 解析失败即 IdentityUnresolved"): 过于绝对, 与官方层级不符。
+- ✅ 新表述: **PersistentID 是首选身份 (官方最高优先级), 但非强制**; 当硬件不支持 PersistentID 时, canonical 身份**降级为 DeviceHandle** (经 Resolver 物化), 不得判 "代码失败"。
+- 代码落地 (`materialize`): Production 守卫放宽为 `PersistentID 可用` **或** `DeviceHandle 经 Resolver 解析到 device-number` → 允许; 二者皆无才 `IdentityUnresolved` (绝不 `unwrap_or(0)` 盲开)。
+
+### 3. SoT — Resolver 边界 (DeviceRegistry → Resolver → PipelinePlan)
+- `DeviceRegistry` (SDK, `device.rs`): 产出 **硬件身份** = DeviceHandle (`serial`), 派生确定性 `device_id` (UUIDv5)。本机 `identity_strength = DeviceHandle`。
+- `Resolver` (`resolver.rs`, 新增 C1): 运行时探测 GStreamer `hw-serial-number` (per `device-number`), 与 SDK DeviceHandle / TopologicalID 精确匹配 → 输出 `ResolvedDeviceBinding { device_number, hw_serial_number, confidence }`。匹配优先级: PersistentID 精确 → Serial 精确 → DeviceHandle 精确 → TopologicalID 猜测(MEDIUM) → **Unresolved** (生产拒绝, 永不回退 device-number=0)。
+- `PipelinePlan` (`pipeline.rs`): **只消费 Resolver 解析后的 `device-number`**, 绝不 (在生产/已解析时) 直接用 SDK 枚举序号 (SDK index ≠ GStreamer device-number, A0 实测)。`src_props`: Canonical 用 `persistent-id=<pid>` (持久身份可用时官方首选); 本机实走 `DiagnosticFallback` 用 `device-number=<resolved> connection=sdi`。
+- 运行: `VBMF_RESOLVER=1 ./media-agent` 仅输出 C1 证据 JSON (DeviceHandle ↔ GStreamer device-number 完整映射), 不启动 pipeline。
+
+### 4. EVID-01: PersistentID unsupported = 硬件能力, 非代码失败
+- 见 `2026-08-26-a0-identity-verification.md` 判定栏 EVID-01 标注。`0x80000003` = BMD 属性不支持 (官方 FAQ: PersistentID 非所有 DeckLink 均支持)。**不得**在文档/日志写 "实现错误 / 代码失败"。
+
+### 5. Gate 状态落档
+| Gate | 状态 | 说明 |
+|------|------|------|
+| `HW-IDENT-02` (Device Identity Resolution) | **OPEN** | Resolver 已实现 (`8efd8ae`); 待盒上 `VBMF_RESOLVER=1` 输出 C1 证据, 确认 DeviceHandle↔hw-serial-number 匹配键。 |
+| `MEDIA-RT-01` (First Frame / Ingest) | **BLOCKED** | 受两因素阻塞: ① 本机 SDI 信号闪动 (device 0), GStreamer 无法稳定锁定; ② 身份未最终解析 (待 C1 证据)。自测模式 `MEDIA_AGENT_SELFTEST=1` 可证运行时闭环, 但真首帧需稳定 SDI 信号。 |
+
+### 6. 证据矛盾复核 (第 109 行 vs A0 §GStreamer 侧核实)
+- 第 109 行称 "GStreamer 1.28.2 没有 `persistent-id` 属性"; A0 证据 (§"GStreamer 侧核实", 第 58-61 行) 逐字引用 `gst-inspect` 列出 **`persistent-id` 确为属性** (higher priority than device-number), 仅本机值恒 0 (`device 0 does not have persistent id. Value set to 0`) → 不可用。
+- **权威源 = A0 逐字 `gst-inspect`**: `persistent-id` 是属性, 但本硬件值=0 → 选卡不可用 → canonical 选卡落到 `hw-serial-number` / Resolver 解析的 `device-number`。
+- **行动项**: 盒上重跑 `gst-inspect-1.0 decklinkvideosrc` 以最终判定 (两证据文件矛盾须消); 无论结论, C1 Resolver 设计对两者均鲁棒 (运行时探测 `hw-serial-number`, 以解析后 `device-number` 为稳定选卡键)。`src_props` Canonical 分支维持 `persistent-id=<pid>` (持久身份可用时官方首选); 若读者据第 109 行改回 `hw-serial-number=`, 本机亦无影响 (实走 DiagnosticFallback)。
