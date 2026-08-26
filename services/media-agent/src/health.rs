@@ -4,12 +4,37 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Agent 运行时状态机 (Gate 2.6, P1②)。
+///
+/// 词汇与 `supervisor::ProcessState` / `MEDIA_AGENT_STATE_MACHINE.md` 对齐
+/// (Starting / Ready / Capturing / Degraded / Restarting / Backoff / Escalated /
+/// ManualRequired), 避免 /health 返回固定 `ready` 而 Supervisor 内部已是 8 态的
+/// 结构性不一致。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AgentState {
     Starting,
     Ready,
     Capturing,
-    Error,
+    Degraded,
+    Restarting,
+    Backoff,
+    Escalated,
+    ManualRequired,
+}
+
+impl AgentState {
+    /// 从 Supervisor 的进程态映射 (Gate 5 wiring 用)。
+    pub fn from_process_state(s: supervisor::ProcessState) -> Self {
+        use supervisor::ProcessState::*;
+        match s {
+            Running => AgentState::Capturing,
+            Unhealthy => AgentState::Degraded,
+            Restarting => AgentState::Restarting,
+            Recovered => AgentState::Capturing,
+            Backoff => AgentState::Backoff,
+            Escalated | ManualRequired => AgentState::ManualRequired,
+        }
+    }
 }
 
 /// Liveness/readiness payload (shape TBD with Fastify control plane, §14).

@@ -149,3 +149,53 @@ impl DeviceManager for SimulatedDeviceManager {
         DeviceState::Available
     }
 }
+
+/// Gate 2.6 (P1①): 真实 SDK 深度枚举 —— 以 DeckLink 设备唯一标识 (DeviceHandle) 作为
+/// **canonical device identity**。SDK 枚举返回的 `serial` 即 `BMDDeckLinkDeviceHandle`
+/// (官方手册 3.17 的 unique identifier), 由其派生确定性 `device_id`, 取代原先
+/// "filesystem 节点 index 与 SDK 枚举 index 按位置合并" 的不稳定做法 (拓扑变化后 index 会变)。
+/// 仅 `bmd`/`hardware-test` feature 下可用 (需要 libDeckLinkAPI.so + 真机)。
+#[cfg(feature = "bmd")]
+pub struct DeckLinkDeviceManager;
+
+#[cfg(feature = "bmd")]
+impl DeckLinkDeviceManager {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[cfg(feature = "bmd")]
+impl Default for DeckLinkDeviceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "bmd")]
+impl DeviceManager for DeckLinkDeviceManager {
+    fn discover(&self) -> Vec<DeviceInfo> {
+        match crate::decklink::enumerate() {
+            Ok(list) => list
+                .into_iter()
+                .map(|(model, display, serial)| {
+                    // canonical identity: 由 DeckLink DeviceHandle (serial 字段) 派生,
+                    // 跨进程/跨重启对同一个物理设备稳定, 且不受设备拓扑顺序影响。
+                    let device_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, serial.as_bytes());
+                    DeviceInfo {
+                        device_id,
+                        node: display.clone(), // 真实显示名作为可读节点描述
+                        model,
+                        serial: serial.clone(),
+                        state: DeviceState::Available,
+                    }
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    fn status(&self, _device_id: &Uuid) -> DeviceState {
+        DeviceState::Available
+    }
+}

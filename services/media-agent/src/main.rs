@@ -30,7 +30,9 @@ fn main() {
     // default / bmd => filesystem probe (safe on CI / non-BMD; real on BMD).
     #[cfg(feature = "simulation")]
     let dm = device::SimulatedDeviceManager::new();
-    #[cfg(not(feature = "simulation"))]
+    #[cfg(all(not(feature = "simulation"), feature = "bmd"))]
+    let dm = device::DeckLinkDeviceManager::new();
+    #[cfg(all(not(feature = "simulation"), not(feature = "bmd")))]
     let dm = device::FilesystemDeviceManager::new();
     let devices = dm.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
@@ -58,31 +60,9 @@ fn main() {
         Err(e) => tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)"),
     }
 
-    // Gate 6/7 (feature `bmd`): 真实型号/序列号枚举, 按索引回填到发现的设备.
-    // 注: 按索引合并是 smoke 近似; 生产应改用 SDK 设备 handle 与主发现对齐.
-    #[cfg(feature = "bmd")]
-    let devices = {
-        let enumerated = match decklink::enumerate() {
-            Ok(e) => e,
-            Err(err) => {
-                tracing::warn!(error = %err, "Gate6/7 real enumeration unavailable");
-                Vec::new()
-            }
-        };
-        tracing::info!(count = enumerated.len(), "Gate6/7 real DeckLink enumeration");
-        devices
-            .into_iter()
-            .enumerate()
-            .map(|(i, mut d)| {
-                if let Some((model, _display, serial)) = enumerated.get(i) {
-                    d.model = model.clone();
-                    d.serial = serial.clone();
-                    tracing::info!(index = i, model = %model, serial = %serial, "device dv{i} real identity");
-                }
-                d
-            })
-            .collect::<Vec<_>>()
-    };
+    // Gate 2.6 (P1①): bmd feature 下 `devices` 已直接来自 `DeckLinkDeviceManager`
+    // (基于 DeckLink DeviceHandle 派生的 canonical identity), 不再按索引把 SDK 枚举回填
+    // filesystem 列表 (拓扑变化后 index 会漂移, 见 device.rs).
 
     // Gate 7 (feature `hardware-test`): verbose Device Registry (model/serial/status) for BMD.
     #[cfg(feature = "hardware-test")]
@@ -101,26 +81,35 @@ fn main() {
     tracing::info!(watched = devices.len(), "supervisor initialized");
 
     // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum).
+    // Gate 2.6 (P1②): 返回真实运行时状态, 与 Supervisor 状态机对齐 (不再固定 ready).
     let device_count = devices.len();
-    std::thread::spawn(move || {
-        match std::net::TcpListener::bind("0.0.0.0:8080") {
-            Ok(listener) => {
-                tracing::info!("health endpoint listening on :8080");
-                for stream in listener.incoming() {
-                    if let Ok(mut s) = stream {
-                        let body = format!(
-                            "{{\"state\":\"ready\",\"devices\":{device_count},\"active_pipelines\":0}}"
-                        );
-                        let resp = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                            body.len(),
-                            body
-                        );
-                        let _ = s.write_all(resp.as_bytes());
+    let agent_state = std::sync::Arc::new(std::sync::Mutex::new(health::AgentState::Ready));
+    std::thread::spawn({
+        let agent_state = agent_state.clone();
+        move || {
+            match std::net::TcpListener::bind("0.0.0.0:8080") {
+                Ok(listener) => {
+                    tracing::info!("health endpoint listening on :8080");
+                    for stream in listener.incoming() {
+                        if let Ok(mut s) = stream {
+                            let st = *agent_state.lock().unwrap();
+                            let body = serde_json::json!({
+                                "state": st,
+                                "devices": device_count,
+                                "active_pipelines": 0
+                            })
+                            .to_string();
+                            let resp = format!(
+                                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                                body.len(),
+                                body
+                            );
+                            let _ = s.write_all(resp.as_bytes());
+                        }
                     }
                 }
+                Err(e) => tracing::error!(error = %e, "health bind failed"),
             }
-            Err(e) => tracing::error!(error = %e, "health bind failed"),
         }
     });
 
