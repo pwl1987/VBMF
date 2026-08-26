@@ -71,18 +71,23 @@ mod imp {
 
     // IID_IDeckLinkConfiguration 的真实 GUID。
     // 注意: SDK 头文件只 `extern` 声明该 IID, 其定义在 libDeckLinkAPI.so 内部
-    // (带内部链接符号 _ZL26IID_IDeckLinkConfiguration, 不进 dynsym), 既无法在构建期
-    // 链接, 也不能运行时 dlsym。因此这里自包含硬编码该 16 字节(来自 BMD SDK Linux
-    // 头 DeckLinkAPIConfiguration.h, 接口 IID 跨 SDK 版本稳定不变)。
-    // GUID: CB71734A-FE37-4E8D-8E13-802133A1C3F2
+    // (带内部链接符号 _ZL26IID_IDeckLinkConfiguration, 不进 dynsym, 真机确认 .so 为
+    // stripped 且无 dynsym 导出), 既无法在构建期链接, 也不能运行时 dlsym。因此这里
+    // 自包含硬编码该 16 字节。
+    // ** 该 IID 随 SDK 主版本变化 **: SDK 10.6.6 为 CB71734A-FE37-4E8D-8E13-802133A1C3F2,
+    // 真机 10.30.15.10 安装的是 SDK 16.0, 其值为下方 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
+    // (已用 `grep IID_IDeckLinkConfiguration /usr/local/include/blackmagic/DeckLinkAPIConfiguration.h`
+    // 核实, 且与 CI secrets.DECKLINK_SDK_VERSION=16.0.0 一致)。若升级 SDK 大版本, 需用
+    // 对应版本头文件重新核对此值。
+    // GUID (SDK 16.0): 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
     #[repr(C)]
     struct Guid16 {
         b: [u8; 16],
     }
     static IID_DECKLINK_CONFIGURATION: Guid16 = Guid16 {
         b: [
-            0xCB, 0x71, 0x73, 0x4A, 0xFE, 0x37, 0x4E, 0x8D, 0x8E, 0x13, 0x80, 0x21, 0x33, 0xA1,
-            0xC3, 0xF2,
+            0x5A, 0x68, 0xFF, 0xD4, 0x1C, 0x12, 0x4E, 0xDE, 0xA6, 0xD2, 0x45, 0x45, 0x1D, 0x38,
+            0x5F, 0xC1,
         ],
     };
 
