@@ -141,6 +141,8 @@ pub struct PipelineHealth {
     pub last_error: Option<String>,
     pub running: bool,
     pub started_at: Option<i64>,
+    /// MEDIA-RT-01 接受判定 (A1-A4 / B1-B4 / C1-C4), 由 watchdog 从 bus + 计数推导.
+    pub acceptance: MediaRt01Acceptance,
 }
 
 impl PipelineHealth {
@@ -155,21 +157,44 @@ impl PipelineHealth {
     }
 }
 
-/// MEDIA-RT-01 接受判定拆为三层 (Phase 0.6: 不是 happy path, 必须确定性观测):
-///   * A — Ingest Open: DeckLink 解析 / Lease 获取 / GStreamer 启动 / 信号检测.
-///   * B — First Frame: 真实 video+audio GstBuffer + 有效 timestamp.
-///   * C — Short Stability: N 秒内 frame_count>0 / 无意外 EOS / 无 pipeline error / 无重协商.
+/// MEDIA-RT-01 接受判定 (Phase 0.6: 不是 happy path, 必须确定性观测, 防"PLAYING 但无信号"误判).
+/// 拆为三层, 每层再细分可观测子项:
+///   * A — Ingest Open: A1 身份解析 / A2 租约获取 / A3 管线 PLAYING / A4 信号检测.
+///   * B — First Frame: B1 首视频帧 / B2 首音频帧 / B3 有效 PTS / B4 PTS 单调.
+///   * C — Short Stability: C1 无意外 EOS / C2 无 pipeline error / C3 无重复重协商 /
+///         C4 帧/音频计数持续增长.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MediaRt01Acceptance {
-    pub a_ingest_open: bool,
-    pub b_first_frame: bool,
-    pub c_short_stability: bool,
+    // A — Ingest Open
+    pub a1_identity_resolved: bool,
+    pub a2_lease_acquired: bool,
+    pub a3_pipeline_playing: bool,
+    pub a4_signal_detected: bool,
+    // B — First Frame
+    pub b1_first_video: bool,
+    pub b2_first_audio: bool,
+    pub b3_valid_pts: bool,
+    pub b4_pts_monotonic: bool,
+    // C — Short Stability
+    pub c1_no_unexpected_eos: bool,
+    pub c2_no_pipeline_error: bool,
+    pub c3_no_repeated_reneg: bool,
+    pub c4_counters_continue: bool,
 }
 
 impl MediaRt01Acceptance {
+    pub fn a_pass(&self) -> bool {
+        self.a1_identity_resolved && self.a2_lease_acquired && self.a3_pipeline_playing && self.a4_signal_detected
+    }
+    pub fn b_pass(&self) -> bool {
+        self.b1_first_video && self.b2_first_audio && self.b3_valid_pts && self.b4_pts_monotonic
+    }
+    pub fn c_pass(&self) -> bool {
+        self.c1_no_unexpected_eos && self.c2_no_pipeline_error && self.c3_no_repeated_reneg && self.c4_counters_continue
+    }
     /// MEDIA-RT-01 = A + B + C 全过. 单 first-frame 不足以判定整个媒体运行时健康.
     pub fn pass(&self) -> bool {
-        self.a_ingest_open && self.b_first_frame && self.c_short_stability
+        self.a_pass() && self.b_pass() && self.c_pass()
     }
 }
 
@@ -185,8 +210,15 @@ pub enum PipelineError {
     LaunchFailed(String),
     #[error("appsink element missing: {0}")]
     AppsinkMissing(String),
-    #[error("gstreamer runtime not compiled (feature 'gstreamer' absent)")]
-    NotImplemented,
+}
+
+/// GStreamer bus 事件 (Supervisor 只看事件决策, 不碰 GStreamer).
+/// 由 `GStreamerPipelineController::poll_bus` 从 `pipeline.bus()` 抽取.
+#[derive(Debug, Clone)]
+pub enum PipelineBusEvent {
+    Error(String),
+    Eos,
+    StatePlaying,
 }
 
 /// Media Agent = 媒体运行时生命周期 owner: 创建/配置/启动/停止/恢复 GStreamer.
@@ -326,6 +358,51 @@ mod gst_runtime {
 
         pub fn health(&self, handle: &PipelineHandle) -> Option<PipelineHealth> {
             read_health(handle)
+        }
+
+        /// 巡检 GStreamer bus (Error / EOS / StateChanged), 写回 PipelineHealth.last_error
+        /// 与 acceptance 子项; 返回事件序列供 watchdog 决策 (Supervisor 仅决策, 不碰 GStreamer).
+        /// 这是 #8/#9 的闭环关键: 没有真实 bus 监控, Supervisor 无法知道管线何时坏.
+        pub fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
+            let mut events = Vec::new();
+            if let Some(p) = self.pipelines.lock().unwrap().get(handle) {
+                if let Some(bus) = p.bus() {
+                    let types = [
+                        gst::MessageType::Error,
+                        gst::MessageType::Eos,
+                        gst::MessageType::StateChanged,
+                    ];
+                    while let Some(msg) = bus.pop_filtered(&types) {
+                        match msg.view() {
+                            gst::MessageView::Error(e) => {
+                                let err = e.error().to_string();
+                                if let Some(h) = HEALTH_ARCS.lock().unwrap().get(handle) {
+                                    let mut g = h.lock().unwrap();
+                                    g.last_error = Some(err.clone());
+                                    g.acceptance.c2_no_pipeline_error = false;
+                                }
+                                events.push(PipelineBusEvent::Error(err));
+                            }
+                            gst::MessageView::Eos(_) => {
+                                if let Some(h) = HEALTH_ARCS.lock().unwrap().get(handle) {
+                                    h.lock().unwrap().acceptance.c1_no_unexpected_eos = false;
+                                }
+                                events.push(PipelineBusEvent::Eos);
+                            }
+                            gst::MessageView::StateChanged(s) => {
+                                if s.current() == gst::State::Playing {
+                                    if let Some(h) = HEALTH_ARCS.lock().unwrap().get(handle) {
+                                        h.lock().unwrap().acceptance.a3_pipeline_playing = true;
+                                    }
+                                    events.push(PipelineBusEvent::StatePlaying);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            events
         }
 
         /// 构造 decklinkvideosrc/audiosrc 源串 (Canonical 用 persistent-id, Diagnostic 用 device-number).

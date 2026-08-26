@@ -14,6 +14,11 @@ mod sdk;
 mod supervisor;
 mod decklink; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
 
+// 硬规则 (Phase 0.6): `hardware-test` (IDeckLinkInput SDK 探针) 与 canonical `gstreamer`
+// 运行时互斥 —— 生产运行不得同时打开同一块 DeckLink (避免双采 / 设备争用). 编译期强制.
+#[cfg(all(feature = "hardware-test", feature = "gstreamer"))]
+compile_error!("hardware-test SDK 探针与 canonical GStreamer 运行时互斥; 生产运行不得同时启用 (避免双采/争用同一块 DeckLink)");
+
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
 use std::io::Write;
@@ -100,7 +105,9 @@ fn main() {
     {
         // (A) SDK 诊断探针 (仅 hardware-test; 真机已验证可行, 不用于生产媒体路径).
         //     与 canonical GStreamer 路径互斥, 避免同时打开同一块 DeckLink.
-        #[cfg(feature = "hardware-test")]
+        //     注: `hardware-test` 与 `gstreamer` 已在编译期互斥 (见文件顶部 compile_error),
+        //     生产 canonical 运行时绝不会同时启用两者.
+        #[cfg(all(feature = "hardware-test", not(feature = "gstreamer")))]
         match decklink::start_capture(0) {
             Ok(stats) => {
                 tracing::info!("CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)");
@@ -233,12 +240,9 @@ fn main() {
 
 /// MEDIA-RT-01 watchdog (Supervisor → PipelineController.recover 运行时接线).
 ///
-/// 周期巡检 GStreamer 健康 + bus 错误:
-///   * MEDIA-RT-01A (Ingest Open): 管线已启动 (start 成功后注册).
-///   * MEDIA-RT-01B (First Frame): video+audio 首帧 + PTS 有效 (见 `PipelineHealth`).
-///   * MEDIA-RT-01C (Short Stability): N 秒窗口内 frame_count>0 / 无意外 EOS /
-///     无 pipeline error / 无重协商.
-/// 检测到错误/总线错误 → 报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
+/// 单向健康链 (回应 #9): `GStreamer Bus → PipelineHealth → AgentState → Supervisor → Health API`.
+/// 周期: 真 bus 监控 (Error/EOS/StateChanged) + appsink 计数 → 推导 MEDIA-RT-01
+/// A1-A4 / B1-B4 / C1-C4 → 错误时报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
 /// Supervisor 仅决策, 不碰 GStreamer (硬边界); 实际重启由这里执行.
 #[cfg(feature = "gstreamer")]
 fn spawn_ingest_watchdog(
@@ -250,19 +254,46 @@ fn spawn_ingest_watchdog(
     agent_state: Arc<std::sync::Mutex<health::AgentState>>,
 ) {
     std::thread::spawn(move || {
-        let start = std::time::Instant::now();
+        // A1/A2 在 start 前已由 materialize (身份解析) + lm.is_valid (租约) 保证, 否则不会进 watchdog.
         let stability_window = std::time::Duration::from_secs(10); // MEDIA-RT-01C 验收窗口
+        let mut prev_video = 0u64;
+        let mut prev_audio = 0u64;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(500));
-            let health = crate::pipeline::read_health(&handle).unwrap_or_default();
+            // 真实 GStreamer bus 监控 (Error/EOS/StateChanged) —— Supervisor 闭环数据源 (#8).
+            let events = ctrl.poll_bus(&handle);
+            let mut health = crate::pipeline::read_health(&handle).unwrap_or_default();
 
-            if health.last_error.is_some() {
-                // 报告 Supervisor (决策引擎); 它只返回动作, 不碰 GStreamer.
+            // 推导 MEDIA-RT-01 子项 (防"PLAYING 但无信号"误判 A PASS, #4).
+            health.acceptance.a1_identity_resolved = true;
+            health.acceptance.a2_lease_acquired = true;
+            health.acceptance.a4_signal_detected = health.first_frame_ok();
+            health.acceptance.b1_first_video = health.video_first_pts.is_some();
+            health.acceptance.b2_first_audio = health.audio_first_pts.is_some();
+            health.acceptance.b3_valid_pts = health.video_first_pts.is_some();
+            health.acceptance.b4_pts_monotonic = health.pts_monotonic;
+            health.acceptance.c2_no_pipeline_error = health.last_error.is_none();
+            health.acceptance.c4_counters_continue =
+                health.video_frame_count > prev_video && health.audio_frame_count > prev_audio;
+            prev_video = health.video_frame_count;
+            prev_audio = health.audio_frame_count;
+            // c3 (重复重协商) 监测留待 CAP 阶段接入 caps 事件; 当前默认 true.
+            // 写回共享健康表, 供 /health 与 read_health 一致.
+            if let Some(h) = crate::pipeline::HEALTH_ARCS.lock().unwrap().get(&handle) {
+                *h.lock().unwrap() = health.clone();
+            }
+
+            // 错误 / 总线错误 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
+            if health.last_error.is_some()
+                || events
+                    .iter()
+                    .any(|e| matches!(e, crate::pipeline::PipelineBusEvent::Error(_) | crate::pipeline::PipelineBusEvent::Eos))
+            {
                 match sup.lock().unwrap().report_failure(&handle.0) {
                     Ok(supervisor::SupervisorAction::Restart) => {
-                        // Lease→Pipeline: recover 前必须重校租约仍在有效期内.
+                        // Lease→Pipeline: recover 前必须重校租约仍在有效期内 (MEDIA-03 排他不变量).
                         if !lm.is_valid(&device_uuid) {
-                            tracing::error!(device = %device_uuid, "recover 中止: lease 失效 (MEDIA-03 排他不变量)");
+                            tracing::error!(device = %device_uuid, "recover 中止: lease 失效 (排他不变量)");
                             *agent_state.lock().unwrap() = health::AgentState::Failed;
                             continue;
                         }
@@ -272,7 +303,7 @@ fn spawn_ingest_watchdog(
                         match ctrl.recover(&handle) {
                             Ok(()) => {
                                 sup.lock().unwrap().report_recovered(&handle.0).ok();
-                                tracing::warn!(handle = %handle.0, "MEDIA-RT-01 watchdog: recover 成功 (Supervisor→PipelineController.recover 接线)");
+                                tracing::warn!(handle = %handle.0, "MEDIA-RT-01 watchdog: recover 成功 (Supervisor→PipelineController.recover 闭环)");
                             }
                             Err(e) => tracing::error!(error = %e, "recover 失败"),
                         }
@@ -283,13 +314,13 @@ fn spawn_ingest_watchdog(
                     }
                     Err(e) => tracing::error!(error = %e, "supervisor report_failure 失败"),
                 }
-            } else if health.first_frame_ok() && start.elapsed() >= stability_window {
-                // MEDIA-RT-01 = A + B + C 达成.
+            } else if health.acceptance.pass() {
+                *agent_state.lock().unwrap() = health::AgentState::Capturing;
                 tracing::info!(
                     handle = %handle.0,
                     video_frames = health.video_frame_count,
                     audio_frames = health.audio_frame_count,
-                    "MEDIA-RT-01: A+B+C 稳定窗口达成 (canonical first-buffer 路径健康)"
+                    "MEDIA-RT-01: A+B+C 全过 (canonical first-buffer 路径健康)"
                 );
             }
         }

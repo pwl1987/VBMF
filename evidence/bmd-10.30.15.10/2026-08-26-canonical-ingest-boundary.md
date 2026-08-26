@@ -80,3 +80,13 @@ canonical ingest 已明确 `decklinkvideosrc + decklinkaudiosrc`。MEDIA-RT-01 �
 
 ## 下一步（用户终审定序，不做 FI-08/09）
 CI default/simulation → BMD `bmd` → 真机枚举 → Lease → GStreamer canonical ingest → first GstBuffer → **MEDIA-RT-01 PASS** → Normalize → FRAME/MASTER_SWITCH → Program Master → Encode → SRS → A2 → FI-08 → FI-09。当前最大遗留技术债：PipelineController 真实 launch（本轮已开工）、Supervisor/Lease 接线（本轮已补运行时）、Pipeline health 监控（本轮已建最小槽）、Normalize/Switch 执行层、GraphRuntimeIntent↔PipelinePlan 完整物化契约。均与 V0.2 相容，无需重开架构。
+
+## 同步澄清 + 本轮 refinement（`5966777` 之后）
+- **基线同步已确认**: `git ls-remote git@github.com:pwl1987/VBMF.git master` = `596677744ba9b65cdd7c7e268329c53926063d11` (即 `5966777`)。GitHub `master` HEAD **就是** `5966777`; raw.githubusercontent.com 显示旧骨架属 CDN 陈旧缓存, 非基线错位。公开 `master` 的 `pipeline.rs` 已无 "Gate 2.1 skeleton / 未真正 launch" 字样 (仅保留过 `PipelineError::NotImplemented` 枚举变体, 本轮已删除)。
+- **用户终审反馈 → 已在本轮落地的实现级修正 (P0/P1 子集, 其余为 BMD 验证项)**:
+  - **#8/#9 Supervisor 运行时闭环**: 新增 `GStreamerPipelineController::poll_bus` 真实监控 `pipeline.bus()` 的 `Error/EOS/StateChanged`, 写回 `PipelineHealth.last_error` + `acceptance.a3/c1/c2`; 看门狗形成单向链 `GStreamer Bus → PipelineHealth → AgentState → Supervisor → Health API`。
+  - **#4 MEDIA-RT-01 收紧**: `MediaRt01Acceptance` 拆 **A1-A4 / B1-B4 / C1-C4** (A1 身份解析 / A2 租约 / A3 PLAYING / A4 信号检测; B1 首视频 / B2 首音频 / B3 有效 PTS / B4 单调; C1 无 EOS / C2 无 error / C3 无重协商 / C4 计数增长), 防"PLAYING 但无信号"误判 A PASS。
+  - **#13 硬互斥**: `hardware-test`(IDeckLinkInput SDK 探针) 与 `gstreamer`(canonical 运行时) 在 **编译期** 互斥 (`compile_error!`); SDK 探针实际门控为 `#[cfg(all(feature="hardware-test", not(feature="gstreamer")))]`, 杜绝同卡双采。
+  - **#10**: `lm.is_valid` 在 `start` 与 `recover` 前均校验 (MEDIA-03 排他不变量)。
+  - **#6/#7 已满足**: `SourcePlan` 最终收敛为 `{device_id, bmd_persistent_id, device_number}`; `materialize` 只读 `DeviceInfo`(含 VBMF UUID / BMD PersistentID / DeviceHandle / Serial / Model) 作桥梁, **不**二次枚举 BMD。
+- **仍为 BMD 验证项 (非代码可解, 用户既定"三件套"工作流)**: 真实 `GStreamer launch` 经 CI/BMD Linux 编译 (#2 P0); 真机首 video/audio GstBuffer + PTS + 短稳定 (#3); `gstreamer = 0.23` / `gstreamer-app = 0.23` / appsink builder 具体 API 以 BMD 编译器为准; Normalize/Switch/Encode/SRS/FI-08/09 顺序不变。本机 Windows 无法编译 `bmd,gstreamer` (缺 protoc/clang/SDK/系统 GStreamer), 故 gstreamer feature 代码须真机 `--features bmd,gstreamer` 验证。
