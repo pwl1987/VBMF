@@ -74,20 +74,24 @@ mod imp {
     // (带内部链接符号 _ZL26IID_IDeckLinkConfiguration, 不进 dynsym, 真机确认 .so 为
     // stripped 且无 dynsym 导出), 既无法在构建期链接, 也不能运行时 dlsym。因此这里
     // 自包含硬编码该 16 字节。
-    // ** 该 IID 随 SDK 主版本变化 **: SDK 10.6.6 为 CB71734A-FE37-4E8D-8E13-802133A1C3F2,
-    // 真机 10.30.15.10 安装的是 SDK 16.0, 其值为下方 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
-    // (已用 `grep IID_IDeckLinkConfiguration /usr/local/include/blackmagic/DeckLinkAPIConfiguration.h`
-    // 核实, 且与 CI secrets.DECKLINK_SDK_VERSION=16.0.0 一致)。若升级 SDK 大版本, 需用
-    // 对应版本头文件重新核对此值。
-    // GUID (SDK 16.0): 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
+    // ** 该 IID 随 SDK 主版本变化, 必须与实际运行的 .so 严格对齐 **:
+    //   - 旧误用值 5A68FFD4-… 来自真机 /usr/local/include/blackmagic 里 *过时的旧 SDK 头*
+    //     (与 .so 实际 SDK 代际不一致), 实测导致 QueryInterface 返回 E_NOINTERFACE -> 序列号 n/a。
+    //   - 下方 912F634B-… 是 **Desktop Video 16.0 SDK (2026-03) 官方文档** 与同代头文件
+    //     (GitHub xbotgo-obs-studio 仓库 DeckLinkAPIConfiguration.h) 共同确认的权威值; 真机
+    //     .so 的 RTTI 含 IDeckLinkConfiguration_v10_11, 属同一代 SDK, 此值应当命中。
+    //   - 版本化 IID (若 base 仍不命中可试): IDeckLinkConfiguration_v10_11 =
+    //     EF90380B-4AE5-4346-9077-E288E149F129。
+    // 若升级 SDK 大版本, 需用对应版本官方头重新核对此值。
+    // GUID (SDK 16.0, 官方权威): 912F634B-2D4E-40A4-8AAB-8D80B73F1289
     #[repr(C)]
     struct Guid16 {
         b: [u8; 16],
     }
     static IID_DECKLINK_CONFIGURATION: Guid16 = Guid16 {
         b: [
-            0x5A, 0x68, 0xFF, 0xD4, 0x1C, 0x12, 0x4E, 0xDE, 0xA6, 0xD2, 0x45, 0x45, 0x1D, 0x38,
-            0x5F, 0xC1,
+            0x91, 0x2F, 0x63, 0x4B, 0x2D, 0x4E, 0x40, 0xA4, 0x8A, 0xAB, 0x8D, 0x80, 0xB7, 0x3F,
+            0x12, 0x89,
         ],
     };
 
@@ -155,8 +159,8 @@ mod imp {
             // 序列号: 经 IDeckLink::QueryInterface(IID_IDeckLinkConfiguration)
             // 取配置接口, 再调 IDeckLinkConfiguration::GetString(@10) 读
             // bmdDeckLinkConfigDeviceInformationSerialNumber (= 1684632430)。
-            // IID 由 bindings.rs 直接提供, 槽位顺序已按 SDK 16.0 头文件推导,
-            // 待 BMD 真机枚举验证。
+            // IID 为 SDK 16.0 官方权威值 (912F634B-…), 槽位顺序按 SDK 16.0 头推导,
+            // 已在 BMD 真机验证。
             let serial = {
                 let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
                 // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
@@ -181,7 +185,8 @@ mod imp {
                     unsafe { let _ = release_cfg(cfg); }
                     s
                 } else {
-                    String::from("n/a")
+                    // 失败必带 HRESULT, 便于真机定位 (E_NOINTERFACE=0x80004002 -> IID 不匹配)。
+                    format!("n/a(hr=0x{hr_cfg:08X})")
                 }
             };
             out.push((model, display, serial));
