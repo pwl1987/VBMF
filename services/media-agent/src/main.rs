@@ -57,6 +57,15 @@ fn main() {
     #[cfg(feature = "gstreamer")]
     if std::env::var("VBMF_RESOLVER").is_ok() {
         let probes = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
+        // 原始 GStreamer 枚举 (device-number / hw-serial-number / persistent-id) —
+        // 现场直接比对 SDK DeviceHandle 是否等于 GStreamer hw-serial-number (C 设计待证关系).
+        match serde_json::to_string_pretty(&probes) {
+            Ok(json) => {
+                println!("=== C1 Raw GStreamer Probes (decklink device-number / hw-serial-number 枚举) ===");
+                println!("{json}");
+            }
+            Err(e) => eprintln!("gstreamer probes 序列化失败: {e}"),
+        }
         let evidence = crate::resolver::resolve(&devices, &probes);
         match serde_json::to_string_pretty(&evidence) {
             Ok(json) => {

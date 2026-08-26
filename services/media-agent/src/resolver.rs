@@ -54,12 +54,62 @@ pub enum Confidence {
 
 /// 探测 GStreamer DeckLink 实例 (运行时; 仅 C1 证据/物化前置使用).
 ///
-/// ⚠️ 此函数依赖系统 GStreamer + decklink 插件; 无 GStreamer 环境返回空.
-/// 生产物化前必须先成功探测, 否则 `collect_bindings` 为空 → materialize 拒绝.
+/// 经 `gst::DeviceMonitor` 枚举所有 Source 设备, 读取 `device-number` 与 `hw-serial-number`
+/// (decklink 硬件 ID 属性). 同一 `device-number` 的 video/audio 重复只记一次, 避免 Resolver
+/// 误判 `Ambiguous`. 返回结果供 `resolve()` 与 `materialize()` 做 DeviceHandle↔device-number 映射.
+///
+/// ⚠️ 此函数依赖系统 GStreamer + decklink 插件; 无 GStreamer 环境 (`default`/`simulation`) 编译
+/// 走 `#[cfg(not(feature="gstreamer"))]` 占位返回空. 生产物化前必须先成功探测, 否则
+/// `collect_bindings` 为空 → materialize 拒绝.
+#[cfg(feature = "gstreamer")]
 pub fn probe_gstreamer_devices(max: usize) -> Vec<GStreamerDeviceProbe> {
-    // 真机由 `gstreamer` feature 的 decklinkvideosrc 枚举; 此处为基础设施占位.
-    // 占位实现: 返回空 (无 GStreamer 环境). 真实实现见 `gstreamer` feature 构建.
-    let _ = max;
+    use gstreamer::prelude::*;
+    // GStreamer 初始化 (幂等; 已初始化则无副作用).
+    let _ = gstreamer::init();
+    let monitor = gstreamer::DeviceMonitor::new();
+    if monitor.start().is_err() {
+        return Vec::new();
+    }
+    // 同一 device-number 的 video/audio 重复只记一次 (防 Resolver 误判 Ambiguous).
+    let mut by_number: std::collections::HashMap<u32, GStreamerDeviceProbe> =
+        std::collections::HashMap::new();
+    for dev in monitor.devices() {
+        let class = dev.device_class().to_string();
+        if !class.contains("Source") {
+            continue;
+        }
+        let Some(props) = dev.properties() else { continue };
+        // `device-number` 在 GStreamer 为 guint; 读不到则跳过该设备.
+        let device_number = match props.get::<u32>("device-number").ok() {
+            Some(n) => n,
+            None => continue,
+        };
+        if by_number.contains_key(&device_number) {
+            continue;
+        }
+        let hw_serial_number = props.get::<String>("hw-serial-number").ok();
+        let persistent_id = props.get::<i64>("persistent-id").ok();
+        let model = props.get::<String>("model").ok();
+        by_number.insert(
+            device_number,
+            GStreamerDeviceProbe {
+                device_number,
+                hw_serial_number,
+                persistent_id,
+                model,
+            },
+        );
+    }
+    monitor.stop();
+    let mut out: Vec<GStreamerDeviceProbe> = by_number.into_values().collect();
+    out.sort_by_key(|p| p.device_number);
+    out.truncate(max);
+    out
+}
+
+#[cfg(not(feature = "gstreamer"))]
+pub fn probe_gstreamer_devices(_max: usize) -> Vec<GStreamerDeviceProbe> {
+    // 无 GStreamer 环境 (default/simulation): 占位返回空; 真实探测仅在 `gstreamer` feature 构建.
     Vec::new()
 }
 
