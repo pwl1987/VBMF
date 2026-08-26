@@ -21,6 +21,9 @@ compile_error!("hardware-test SDK 探针与 canonical GStreamer 运行时互斥;
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
+// Trait must be in scope to call `acquire`/`is_valid` on `Arc<InMemoryLeaseManager>`
+// (trait method, auto-deref via Arc; 否则 E0599 no method named `acquire`).
+use lease::LeaseManager;
 use std::io::Write;
 use std::sync::Arc;
 use uuid::Uuid;
