@@ -143,3 +143,53 @@ CI default/simulation → BMD `bmd` → 真机枚举 → Lease → GStreamer can
 - 第 109 行称 "GStreamer 1.28.2 没有 `persistent-id` 属性"; A0 证据 (§"GStreamer 侧核实", 第 58-61 行) 逐字引用 `gst-inspect` 列出 **`persistent-id` 确为属性** (higher priority than device-number), 仅本机值恒 0 (`device 0 does not have persistent id. Value set to 0`) → 不可用。
 - **权威源 = A0 逐字 `gst-inspect`**: `persistent-id` 是属性, 但本硬件值=0 → 选卡不可用 → canonical 选卡落到 `hw-serial-number` / Resolver 解析的 `device-number`。
 - **行动项**: 盒上重跑 `gst-inspect-1.0 decklinkvideosrc` 以最终判定 (两证据文件矛盾须消); 无论结论, C1 Resolver 设计对两者均鲁棒 (运行时探测 `hw-serial-number`, 以解析后 `device-number` 为稳定选卡键)。`src_props` Canonical 分支维持 `persistent-id=<pid>` (持久身份可用时官方首选); 若读者据第 109 行改回 `hw-serial-number=`, 本机亦无影响 (实走 DiagnosticFallback)。
+
+## P0/P1 代码收口 (2026-08-26 晚, 提交 `4169a73`)
+
+> 用户复核 `master` (含 C1 `8efd8ae` + P2 文档 `0d6fa4a`) 后, 给出 "现在必须修" 清单 (§二-§十九)。本轮已落地, 宏观设计仍符合冻结 V0.2 / Phase 0.5 / Phase 0.6。
+
+### 已修 (按用户编号)
+1. **P0 安全边界 — Filesystem 伪 PersistentID** (`device.rs`): `bmd_persistent_id` 由 `Some(ph)` (节点名 hash) 改为 `None`; 强度维持 `Enumeration`。旧实现会让 `materialize` 把合成 hash 当真实 PersistentID 越权选卡 (§十八)。
+2. **materialize 严格按 `identity_strength`** (`pipeline.rs`): 不再只看 `bmd_persistent_id.is_some()`; 状态机 `PersistentId+Some→PersistentIdCanonical` / `DeviceHandle+resolved→DeviceHandleResolved` / `TopologicalId+resolved→Diagnostic(生产拒绝)` / `_→生产IdentityUnresolved`。合成身份 (Enumeration) 在生产路径恒拒绝, 绝不 `unwrap_or(0)` 盲开 device 0 (§二/§三/§十九)。
+3. **SourceSelectionMode 无歧义** (`pipeline.rs`): `Canonical` 改名 `PersistentIdCanonical` + 新增 `DeviceHandleResolved` (当前硬件正式生产路径)。生产运行态不再伪装成 "诊断 fallback" (§五)。
+4. **Resolver 多重 HIGH → Ambiguous** (`resolver.rs`): 同 SDK 设备命中 ≥2 个 HIGH 候选 → `ResolverMatch::Ambiguous` → 生产拒绝, 绝不猜设备 (§七)。
+5. **PTS 真正单调** (`pipeline.rs`): 由 "首帧对比" 改为逐帧 `last_pts`, video+audio 均查; 任一流回退即 `pts_monotonic=false` (§十一)。
+6. **audio PTS 单调**: 旧实现缺音频单调检查, 已补 (§十一)。
+7. **C 稳定性测量窗口** (`pipeline.rs`+`main.rs`): `MediaRt01Acceptance` 增 `c_observed_ms`/`c_configured_window_ms`(默认10s)/`c_video_frames`/`c_audio_frames`/`c_unexpected_eos`/`c_pipeline_errors`/`c_renegotiations`; `c_pass` 改为 `窗口达标 ∧ 无致命 error ∧ 计数增长 ∧ PTS 单调` (§十二)。
+- **结构性 (§十六)**: 新增 `DeviceIdentitySource { RealBmd / FilesystemSynthetic / Simulation }`, 三 manager 分别标注, 防 synthetic UUID 与真实 BMD UUID 混淆。
+- **注释订正 (§十/§十三)**: `src_props` 文档明确 `hw-serial-number` 是 **GStreamer 侧** 硬件 ID 探测属性 (非 BMD PersistentID 别名); appsink 当前仅作 MEDIA-RT-01 首帧/PTS 探针, 非最终生产媒体出口。
+- **编译依赖修正**: `ResolverMatch`/`Confidence` 补 `Deserialize` (`ResolverEvidence`/`ResolvedDeviceBinding` 反序列化所需, 原缺会导致编译失败)。
+
+### 暂缓 (用户明确 "不要现在修")
+Normalize 完整实现 / FRAME_SWITCH / MASTER_SWITCH / Audio Master Join / FFmpeg encoder / SRS Output / FI-08 / FI-09 / 24h HA — 全部留到 MEDIA-RT-01 之后。
+
+### 编译验证状态
+⚠️ **本机 (Windows) 无 cargo, 上述改动未经本地编译**; 必须在 BMD 盒 `cargo build --features bmd,gstreamer` 或 CI 编译验证后方可上机。gated (`#[cfg(feature="gstreamer")]`) 代码段 (launch/attach_*/src_props) 未经本机 rust-analyzer 检查。
+
+### 下一步 (用户 §二十/§二十一)
+1. 先跑 **C1** `VBMF_RESOLVER=1 ./media-agent` 拿证据: `BMD DeviceHandle ↔ GStreamer hw-serial-number ↔ device-number` 映射。
+2. 若获 `DeviceHandleExact`/HIGH 单值无歧义 → `HW-IDENT-02 = PASS` → 立即进 MEDIA-RT-01 A/B/C。
+3. 若 `Unresolved`/`Ambiguous` → 停在 Resolver, **不准**用 device-number 猜。
+
+## Gate 状态 (正式, 据用户 §22, 2026-08-26 晚)
+
+| Gate | 状态 | 说明 |
+|------|------|------|
+| Architecture V0.2 | ✅ LOCK FINAL | 未重开 |
+| Phase 0.5 | ✅ LOCK FINAL | 维持 |
+| Runtime Ownership | ✅ | Media Agent owns media runtime lifecycle |
+| Docker / BMD Runtime | ✅ | |
+| MEDIA-SEC-01 | ✅ Option B / runc | |
+| Gate 5 Policy | ✅ | |
+| Gate 6 BMD FFI | ✅ | 真机枚举通过 |
+| HW-IDENT-01 | ✅ | PersistentID unsupported confirmed (A0) |
+| **HW-IDENT-02 Resolver** | 🟡 **OPEN — next** | Resolver 已实现 + P0/P1 收口 `4169a73`; 待盒上 `VBMF_RESOLVER=1` 证据 |
+| **MEDIA-RT-01 A** | 🔴 BLOCKED | 受 SDI 信号闪动 + 身份待最终解析 |
+| MEDIA-RT-01 B | 🔴 BLOCKED | 同上 |
+| MEDIA-RT-01 C | 🔴 BLOCKED | 同上 (稳定性窗口已实现, 待真信号) |
+| Normalize | ⏳ 未实现 | 仅 intent, 非生产执行 |
+| Switch | ⏳ intent | FRAME_SWITCH 仅物化值 |
+| Encode | ⏳ | |
+| SRS | ⏳ | |
+| FI-08 | 🛔 | 暂缓 |
+| FI-09 | 🛔 | 暂缓 |
