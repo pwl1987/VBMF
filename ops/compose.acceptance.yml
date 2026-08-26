@@ -43,3 +43,10 @@ services:
     ipc: host                       # 共享 /dev/shm/com_blackmagicdesign_* (SDK IPC)
     shm_size: 1g
     # 注: compose 不支持 inline bind /dev/shm/com_blackmagicdesign_*, 由 ipc:host 覆盖(见 SoT §15.1)
+    # ---- Gate 2.5: DeckLink SDK 运行时库 (Gate 6/7 前置) ----
+    # BMD 宿主机 /usr/lib/libDeckLinkAPI.so (驱动自带, 8.8MB, C++ COM 工厂符号)。
+    # Option B 容器默认不含宿主库 → media-agent FFI probe 报 "cannot open shared object file"
+    # (隔离生效, 预期). 显式 bind-mount 后 Gate 2.5 场景3 才能 entry symbols present (✅).
+    # 仅 acceptance 实机(BMD)存在该路径; 非 BMD 主机(含 CI)运行时缺失仅 warn, 不 panic.
+    volumes:
+      - /usr/lib/libDeckLinkAPI.so:/usr/lib/libDeckLinkAPI.so:ro
