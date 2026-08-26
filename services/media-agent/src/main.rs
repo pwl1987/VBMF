@@ -14,6 +14,7 @@ mod supervisor;
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
+use std::io::Write;
 use lease::LeaseManager;
 
 fn main() {
