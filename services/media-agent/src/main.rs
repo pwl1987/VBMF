@@ -49,11 +49,8 @@ fn main() {
 
     // Gate 2.5 (A): DeckLink SDK FFI smoke — 验证 libDeckLinkAPI.so 在运行环境可达。
     // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期)。
-    match sdk::probe_sdk_version("libDeckLinkAPI.so") {
-        Ok(v) => {
-            let (maj, min) = sdk::decode_version(v);
-            tracing::info!(encoded = v, major = maj, minor = min, "SDK libDeckLinkAPI.so loaded");
-        }
+    match sdk::probe_sdk("libDeckLinkAPI.so") {
+        Ok(()) => tracing::info!("SDK libDeckLinkAPI.so reachable, entry symbols present"),
         Err(e) => tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)"),
     }
 
