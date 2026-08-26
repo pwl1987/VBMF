@@ -204,7 +204,10 @@ impl PipelineHealth {
 ///   * B — First Frame: B1 首视频帧 / B2 首音频帧 / B3 有效 PTS / B4 PTS 单调.
 ///   * C — Short Stability: C1 无意外 EOS / C2 无 pipeline error / C3 无重复重协商 /
 ///         C4 帧/音频计数持续增长.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// 默认 = "尚无失败证据" 语义: C 层 (无意外 EOS / 无 pipeline error / 无重复重协商)
+/// 与 B4 (PTS 单调) 起始为 `true` (absence-of-evidence = pass, 直到被 bus 事件 / 帧数据证伪);
+/// 其余子项需显式观测到位, 故起始 `false`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MediaRt01Acceptance {
     // A — Ingest Open
     pub a1_identity_resolved: bool,
@@ -236,6 +239,26 @@ impl MediaRt01Acceptance {
     /// MEDIA-RT-01 = A + B + C 全过. 单 first-frame 不足以判定整个媒体运行时健康.
     pub fn pass(&self) -> bool {
         self.a_pass() && self.b_pass() && self.c_pass()
+    }
+}
+
+impl Default for MediaRt01Acceptance {
+    /// C1/C2/C3 (无失败证据) 与 B4 (PTS 单调, 直到帧证伪) 起始为 true; 其余需观测置位.
+    fn default() -> Self {
+        Self {
+            a1_identity_resolved: false,
+            a2_lease_acquired: false,
+            a3_pipeline_playing: false,
+            a4_signal_detected: false,
+            b1_first_video: false,
+            b2_first_audio: false,
+            b3_valid_pts: false,
+            b4_pts_monotonic: true,
+            c1_no_unexpected_eos: true,
+            c2_no_pipeline_error: true,
+            c3_no_repeated_reneg: true,
+            c4_counters_continue: false,
+        }
     }
 }
 
@@ -479,18 +502,22 @@ mod gst_runtime {
                     .new_sample(move |appsink| {
                         let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                         if let Some(buf) = sample.buffer() {
-                            let pts = buf.pts().map(|c| c.nseconds()).unwrap_or(0);
                             let mut h = health.lock().unwrap();
-                            if h.video_first_pts.is_none() {
-                                h.video_first_pts = Some(pts);
-                            }
-                            // 单调性: 与首帧 PTS 比较 (PTS 回退即非单调).
-                            if let Some(first) = h.video_first_pts {
-                                if pts < first {
-                                    h.pts_monotonic = false;
+                            h.video_frame_count += 1;
+                            // 仅当 buffer 携带真实 PTS 时才参与首帧 / 单调判定.
+                            // 无 PTS 的帧 (如部分 SDI 黑场/内嵌) 若记 0, 会与首帧的大时钟值比较
+                            // 误判为非单调, 进而把 b4 翻成 false. 此处保持 monotonic=true, 不污染 B4.
+                            if let Some(pts) = buf.pts().map(|c| c.nseconds()) {
+                                if h.video_first_pts.is_none() {
+                                    h.video_first_pts = Some(pts);
+                                }
+                                // 单调性: 与首帧 PTS 比较 (PTS 回退即非单调).
+                                if let Some(first) = h.video_first_pts {
+                                    if pts < first {
+                                        h.pts_monotonic = false;
+                                    }
                                 }
                             }
-                            h.video_frame_count += 1;
                         }
                         Ok(gst::FlowSuccess::Ok)
                     })
@@ -514,12 +541,14 @@ mod gst_runtime {
                     .new_sample(move |appsink| {
                         let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                         if let Some(buf) = sample.buffer() {
-                            let pts = buf.pts().map(|c| c.nseconds()).unwrap_or(0);
                             let mut h = health.lock().unwrap();
-                            if h.audio_first_pts.is_none() {
-                                h.audio_first_pts = Some(pts);
-                            }
                             h.audio_frame_count += 1;
+                            // 同上: 仅当携带真实 PTS 时才记录, 避免无 PTS 帧记 0 污染首帧时间.
+                            if let Some(pts) = buf.pts().map(|c| c.nseconds()) {
+                                if h.audio_first_pts.is_none() {
+                                    h.audio_first_pts = Some(pts);
+                                }
+                            }
                         }
                         Ok(gst::FlowSuccess::Ok)
                     })
