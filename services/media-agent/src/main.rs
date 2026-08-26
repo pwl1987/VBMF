@@ -143,12 +143,16 @@ fn main() {
                 },
             }],
         };
-        // 物化 (Production 模式): VBMF device_id → Device Registry → BMD PersistentID
-        // → GStreamer persistent-id. identity 解析失败直接 IdentityUnresolved, 绝不盲开.
+        // 物化模式: 默认 Production (identity 解析失败直接 IdentityUnresolved, 绝不盲开);
+        // MEDIA_AGENT_MODE=diagnostic 时显式回退 device-number (仅验证/排障用, 非静默).
+        let mode = match std::env::var("MEDIA_AGENT_MODE").as_deref() {
+            Ok("diagnostic") => crate::pipeline::MaterializeMode::Diagnostic,
+            _ => crate::pipeline::MaterializeMode::Production,
+        };
         match crate::pipeline::materialize(
             &intent,
             &devices,
-            crate::pipeline::MaterializeMode::Production,
+            mode,
         ) {
             Ok(plans) => {
                 for p in &plans {
@@ -237,7 +241,7 @@ fn main() {
         }
     });
 
-    tracing::info!("media-agent skeleton loaded; interfaces frozen, logic pending");
+    tracing::info!("media-agent canonical runtime loaded (health :8080; ingest via GStreamer started on lease acquire)");
     // 常驻以便 health 探测 (Gate 2.4 演示); 生产由 supervisor 管理生命周期.
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
