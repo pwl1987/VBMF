@@ -295,33 +295,36 @@ fn spawn_ingest_watchdog(
         let stability_window = std::time::Duration::from_secs(10); // MEDIA-RT-01C 验收窗口
         let mut prev_video = 0u64;
         let mut prev_audio = 0u64;
+        let mut tick = 0u64;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(500));
             // 真实 GStreamer bus 监控 (Error/EOS/StateChanged) —— Supervisor 闭环数据源 (#8).
             let events = ctrl.poll_bus(&handle);
-            let mut health = crate::pipeline::read_health(&handle).unwrap_or_default();
-
-            // 推导 MEDIA-RT-01 子项 (防"PLAYING 但无信号"误判 A PASS, #4).
-            health.acceptance.a1_identity_resolved = true;
-            health.acceptance.a2_lease_acquired = true;
-            health.acceptance.a4_signal_detected = health.first_frame_ok();
-            health.acceptance.b1_first_video = health.video_first_pts.is_some();
-            health.acceptance.b2_first_audio = health.audio_first_pts.is_some();
-            health.acceptance.b3_valid_pts = health.video_first_pts.is_some();
-            health.acceptance.b4_pts_monotonic = health.pts_monotonic;
-            health.acceptance.c2_no_pipeline_error = health.last_error.is_none();
-            health.acceptance.c4_counters_continue =
-                health.video_frame_count > prev_video && health.audio_frame_count > prev_audio;
-            prev_video = health.video_frame_count;
-            prev_audio = health.audio_frame_count;
-            // c3 (重复重协商) 监测留待 CAP 阶段接入 caps 事件; 当前默认 true.
-            // 写回共享健康表, 供 /health 与 read_health 一致.
-            if let Some(h) = crate::pipeline::HEALTH_ARCS.lock().unwrap().get(&handle) {
-                *h.lock().unwrap() = health.clone();
-            }
+            // 在共享 Arc 上就地更新 acceptance 子项: 只读 live 状态→推导→写回 acceptance,
+            // 绝不覆盖 appsink 回调写入的 video_frame_count/audio_frame_count/PTS/pts_monotonic,
+            // 否则每轮 snapshot 写回会把实时计数回退, 破坏 c4(计数增长) 判定 (#4 回归).
+            let (pass, has_error) = if let Some(h) = crate::pipeline::HEALTH_ARCS.lock().unwrap().get(&handle) {
+                let mut g = h.lock().unwrap();
+                g.acceptance.a1_identity_resolved = true;
+                g.acceptance.a2_lease_acquired = true;
+                g.acceptance.a4_signal_detected = g.first_frame_ok();
+                g.acceptance.b1_first_video = g.video_first_pts.is_some();
+                g.acceptance.b2_first_audio = g.audio_first_pts.is_some();
+                g.acceptance.b3_valid_pts = g.video_first_pts.is_some();
+                g.acceptance.b4_pts_monotonic = g.pts_monotonic;
+                g.acceptance.c2_no_pipeline_error = g.last_error.is_none();
+                let v = g.video_frame_count;
+                let a = g.audio_frame_count;
+                g.acceptance.c4_counters_continue = v > prev_video && a > prev_audio;
+                prev_video = v;
+                prev_audio = a;
+                (g.acceptance.pass(), g.last_error.is_some())
+            } else {
+                (false, false)
+            };
 
             // 错误 / 总线错误 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
-            if health.last_error.is_some()
+            if has_error
                 || events
                     .iter()
                     .any(|e| matches!(e, crate::pipeline::PipelineBusEvent::Error(_) | crate::pipeline::PipelineBusEvent::Eos))
@@ -351,15 +354,39 @@ fn spawn_ingest_watchdog(
                     }
                     Err(e) => tracing::error!(error = %e, "supervisor report_failure 失败"),
                 }
-            } else if health.acceptance.pass() {
+            } else if pass {
                 *agent_state.lock().unwrap() = health::AgentState::Capturing;
                 tracing::info!(
                     handle = %handle.0,
-                    video_frames = health.video_frame_count,
-                    audio_frames = health.audio_frame_count,
+                    video_frames = prev_video,
+                    audio_frames = prev_audio,
                     "MEDIA-RT-01: A+B+C 全过 (canonical first-buffer 路径健康)"
                 );
+            } else if tick % 20 == 0 {
+                // 诊断: pass 未达成时打印各子项, 便于现场定位 (每 ~10s 一次, 防刷屏).
+                let snap = crate::pipeline::read_health(&handle).unwrap_or_default();
+                tracing::info!(
+                    tick = tick,
+                    a1 = snap.acceptance.a1_identity_resolved,
+                    a2 = snap.acceptance.a2_lease_acquired,
+                    a3 = snap.acceptance.a3_pipeline_playing,
+                    a4 = snap.acceptance.a4_signal_detected,
+                    b1 = snap.acceptance.b1_first_video,
+                    b2 = snap.acceptance.b2_first_audio,
+                    b3 = snap.acceptance.b3_valid_pts,
+                    b4 = snap.acceptance.b4_pts_monotonic,
+                    c1 = snap.acceptance.c1_no_unexpected_eos,
+                    c2 = snap.acceptance.c2_no_pipeline_error,
+                    c3 = snap.acceptance.c3_no_renegotiation,
+                    c4 = snap.acceptance.c4_counters_continue,
+                    vframes = snap.video_frame_count,
+                    aframes = snap.audio_frame_count,
+                    vpts = snap.video_first_pts.unwrap_or(0),
+                    apts = snap.audio_first_pts.unwrap_or(0),
+                    "MEDIA-RT-01 诊断 (未全过)"
+                );
             }
+            tick += 1;
         }
     });
 }
