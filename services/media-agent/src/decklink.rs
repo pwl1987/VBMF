@@ -46,7 +46,10 @@ mod imp {
     // HRESULT 的 S_OK
     const S_OK: i32 = 0;
 
-    type CreateIter = unsafe extern "C" fn(*mut *mut IDeckLinkIterator) -> i32;
+    // 注意: CreateDeckLinkIteratorInstance_0004 实际直接返回 `IDeckLinkIterator*`
+    // 指针（不是 HRESULT + 出参）。真机实测(2026-08-26)确认: 若按出参解读,
+    // 会把返回的指针误当成 hr, 而出参 iter 恒为 null。
+    type CreateIter = unsafe extern "C" fn() -> *mut IDeckLinkIterator;
 
     /// 遍历 IDeckLinkIterator::Next，按顺序返回 (型号, 显示名, 序列号) 三元组。
     /// 序列号在接入 IDeckLinkConfiguration::GetString 之前先记为 "n/a"。
@@ -59,10 +62,12 @@ mod imp {
                 .map_err(|e| format!("未找到符号 CreateDeckLinkIteratorInstance_0004: {e}"))?
         };
 
-        let mut iter: *mut IDeckLinkIterator = std::ptr::null_mut();
-        let hr = unsafe { create(&mut iter) };
-        if hr != S_OK || iter.is_null() {
-            return Err(format!("CreateDeckLinkIteratorInstance_0004 失败 hr={hr}"));
+        // 该函数直接返回迭代器指针（NULL 表示无设备或初始化失败）。
+        let iter: *mut IDeckLinkIterator = unsafe { create() };
+        if iter.is_null() {
+            return Err(
+                "CreateDeckLinkIteratorInstance_0004 返回空指针（未检测到 DeckLink 设备？）".into(),
+            );
         }
 
         // 通过 ABI 读取 COM vtable 指针：它是对象第一个指针大小字段，
