@@ -123,3 +123,47 @@ jobs:
       - name: cleanup (never persist proprietary SDK assets)
         if: always()
         run: rm -rf "${{ github.workspace }}/.github/_private"
+
+  # Canonical GStreamer runtime build (MEDIA-RT-01 accept on real BMD).
+  # Builds `--features bmd,gstreamer` (NOT hardware-test — mutually exclusive with
+  # gstreamer per the compile_error! in main.rs). Needs DeckLink SDK headers
+  # (bindgen, same secret as ffi-contract) + GStreamer dev (gstreamer-sys pkg-config).
+  # Real device open / first GstBuffer is owned by BMD at runtime
+  # (libDeckLinkAPI.so + decklink GStreamer plugin), not by CI.
+  build-gstreamer:
+    name: media-agent gstreamer (bmd+gstreamer)
+    runs-on: ubuntu-latest
+    env:
+      DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
+      DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
+      DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
+      DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        working-directory: services/media-agent
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install system deps (GStreamer dev + bindgen + protoc)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config libclang-dev protobuf-compiler
+      - name: unpack DeckLink SDK headers from secret
+        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
+        run: |
+          mkdir -p "${{ github.workspace }}/.github/_private/decklink-sdk"
+          printf '%s%s' "$DECKLINK_SDK_HEADERS_1" "$DECKLINK_SDK_HEADERS_2" | base64 -d | tar -xz -C "${{ github.workspace }}/.github/_private/decklink-sdk"
+          echo "DeckLink SDK version: ${DECKLINK_SDK_VERSION:-<unset>}"
+      - name: build --features bmd,gstreamer
+        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
+        run: cargo build --features bmd,gstreamer
+      - name: upload media-agent-gstreamer-linux
+        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-agent-gstreamer-linux
+          path: services/media-agent/target/debug/media-agent
+      - name: cleanup (never persist proprietary SDK assets)
+        if: always()
+        run: rm -rf "${{ github.workspace }}/.github/_private"
