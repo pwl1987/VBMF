@@ -28,7 +28,12 @@ pub struct PipelineIntent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SourceIntent {
     pub kind: String,
-    pub device_number: u32,
+    /// GStreamer decklinkvideosrc 的 `device-number` 属性 (可选).
+    /// canonical 身份由 `DeviceIntent.device_id` (DeviceHandle 派生 UUID) 承载;
+    /// 此处仅作临时 probe / fallback. **GStreamer decklink 插件无 `persistent-id`
+    /// 属性**, 因此物化时必须由 canonical identity 解析出 `device-number`
+    /// (见 `pipeline::materialize`).
+    pub device_number: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -68,7 +73,7 @@ mod tests {
         assert_eq!(d.device_id, "decklink-0");
         assert_eq!(d.role, "CAPTURE");
         assert_eq!(d.pipeline.source.kind, "decklink");
-        assert_eq!(d.pipeline.source.device_number, 0);
+        assert_eq!(d.pipeline.source.device_number, Some(0));
         assert_eq!(d.pipeline.sink.kind, "rtmp");
     }
 

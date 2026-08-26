@@ -15,7 +15,7 @@ pub enum AgentRequest {
     DiscoverDevices,
     AcquireLease { device_id: Uuid, owner: String, ttl_secs: u64 },
     ReleaseLease { device_id: Uuid },
-    StartPipeline { spec: crate::pipeline::PipelineSpec },
+    StartPipeline { intent: crate::graph_intent::GraphRuntimeIntent },
     StopPipeline { handle: Uuid },
     Health,
 }

@@ -85,29 +85,53 @@ fn main() {
     let device_count = devices.len();
     let agent_state = std::sync::Arc::new(std::sync::Mutex::new(health::AgentState::Ready));
 
-    // Gate 2.6 (CAP-01): bmd feature 下开启视频采集, 验证 MEDIA-RT-01 (首帧到达 + PTS 单调)
+    // Gate 2.6 (CAP-01) — 关键边界澄清 (Phase 0.6 锁死):
+    //   * `decklink::start_capture` (IDeckLinkInput) = SDK 能力 / 诊断探针
+    //     (Gate 6/7), 验证 SDK 能否打开设备 / callback 是否正常 / 格式是否可读.
+    //     它**不是** canonical 媒体数据通道 (否则与 GStreamer 争夺设备 → 双采).
+    //   * canonical 媒体采集 = GStreamer `decklinkvideosrc` + `decklinkaudiosrc`
+    //     (Phase 0.6). CAP-01 的 MEDIA-RT-01 (真实 SDI → GStreamer → RAW →
+    //     first buffer) 由 `PipelineController` 拥有, 下一步实现.
     #[cfg(feature = "bmd")]
-    let capture_stats = match decklink::start_capture(0) {
-        Ok(stats) => {
-            *agent_state.lock().unwrap() = health::AgentState::Capturing;
-            tracing::info!("CAP-01 采集已启动 (device 0)");
-            Some(stats)
+    {
+        // (A) SDK 诊断探针 (保留; 真机已验证可行, 不用于生产媒体路径):
+        match decklink::start_capture(0) {
+            Ok(stats) => {
+                tracing::info!("CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)");
+                std::thread::spawn(move || loop {
+                    let n = stats.frame_count.load(std::sync::atomic::Ordering::SeqCst);
+                    let ff = stats.first_frame_at.lock().unwrap().is_some();
+                    let mono = stats.monotonic.load(std::sync::atomic::Ordering::SeqCst);
+                    tracing::info!(frame_count = n, first_frame = ff, pts_monotonic = mono, "CAP-01 SDK probe live");
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                });
+            }
+            Err(e) => tracing::error!(error = %e, "CAP-01 SDK 诊断探针失败"),
         }
-        Err(e) => {
-            tracing::error!(error = %e, "CAP-01 start_capture(0) 失败");
-            None
-        }
-    };
 
-    #[cfg(feature = "bmd")]
-    if let Some(stats) = capture_stats.clone() {
-        std::thread::spawn(move || loop {
-            let n = stats.frame_count.load(std::sync::atomic::Ordering::SeqCst);
-            let ff = stats.first_frame_at.lock().unwrap().is_some();
-            let mono = stats.monotonic.load(std::sync::atomic::Ordering::SeqCst);
-            tracing::info!(frame_count = n, first_frame = ff, pts_monotonic = mono, "CAP-01 capture live");
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        });
+        // (B) canonical 媒体采集路径 (GStreamer) — 物化 PipelinePlan, 由
+        //     PipelineController 拥有. 当前为冻结骨架: 仅构造计划并校验 identity
+        //     解析, 真实 GStreamer launch 待 gstreamer feature.
+        let intent = crate::graph_intent::GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![crate::graph_intent::DeviceIntent {
+                device_id: devices.first().map(|d| d.device_id.to_string()).unwrap_or_default(),
+                role: "CAPTURE".into(),
+                pipeline: crate::graph_intent::PipelineIntent {
+                    source: crate::graph_intent::SourceIntent { kind: "decklink".into(), device_number: Some(0) },
+                    sink: crate::graph_intent::SinkIntent { kind: "rtmp".into() },
+                },
+            }],
+        };
+        let plans = crate::pipeline::materialize(&intent);
+        for p in &plans {
+            tracing::info!(
+                persistent_id = %p.source.persistent_id,
+                device_number = p.source.device_number,
+                "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc; launch pending)"
+            );
+        }
+        *agent_state.lock().unwrap() = health::AgentState::Capturing;
     }
 
     std::thread::spawn({
