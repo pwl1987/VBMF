@@ -31,12 +31,47 @@ fn main() {
 
     // Gate 2.3: lease manager (in-memory; no hardware needed for the interface).
     let lm = lease::InMemoryLeaseManager::new();
-    if let Some(first) = devices.first() {
-        match lm.acquire(&first.device_id, "bootstrap", std::time::Duration::from_secs(60)) {
+    for d in &devices {
+        match lm.acquire(&d.device_id, "bootstrap", std::time::Duration::from_secs(60)) {
             Ok(l) => tracing::info!(device = %l.device_id, "lease acquired"),
             Err(e) => tracing::warn!(error = %e, "lease acquire failed"),
         }
     }
+    // 排他性不变量: 同一设备重复 acquire 必须被拒 (防 host ffmpeg / 双采)。
+    if let Some(first) = devices.first() {
+        match lm.acquire(&first.device_id, "second-owner", std::time::Duration::from_secs(60)) {
+            Ok(_) => tracing::warn!("LEASE COLLISION — double-capture risk!"),
+            Err(e) => tracing::info!(error = %e, "lease re-acquire correctly rejected"),
+        }
+    }
+
+    // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum)。
+    let device_count = devices.len();
+    std::thread::spawn(move || {
+        match std::net::TcpListener::bind("0.0.0.0:8080") {
+            Ok(listener) => {
+                tracing::info!("health endpoint listening on :8080");
+                for stream in listener.incoming() {
+                    if let Ok(mut s) = stream {
+                        let body = format!(
+                            "{{\"state\":\"ready\",\"devices\":{device_count},\"active_pipelines\":0}}"
+                        );
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        let _ = s.write_all(resp.as_bytes());
+                    }
+                }
+            }
+            Err(e) => tracing::error!(error = %e, "health bind failed"),
+        }
+    });
 
     tracing::info!("media-agent skeleton loaded; interfaces frozen, logic pending");
+    // 常驻以便 health 探测 (Gate 2.4 演示); 生产由 supervisor 管理生命周期。
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
 }
