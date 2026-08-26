@@ -87,6 +87,7 @@ mod imp {
     // 若升级 SDK 大版本, 需用对应版本官方完整头重新核对此值。
     // GUID (SDK 16.0, 真机头权威): 5A68FFD4-1C12-4EDE-A6D2-45451D385FC1
     #[repr(C)]
+    #[derive(Copy, Clone)]
     struct Guid16 {
         b: [u8; 16],
     }
