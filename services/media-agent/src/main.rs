@@ -12,6 +12,7 @@ mod pipeline;
 mod rpc;
 mod sdk;
 mod supervisor;
+mod decklink; // Gate 6/7: real DeckLink enumeration (feature `decklink`)
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use device::DeviceManager;
@@ -53,6 +54,33 @@ fn main() {
         Ok(()) => tracing::info!("SDK libDeckLinkAPI.so reachable, entry symbols present"),
         Err(e) => tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)"),
     }
+
+    // Gate 6/7 (feature `decklink`): 真实型号/序列号枚举, 按索引回填到文件系统发现的设备。
+    // 注: 按索引合并是 smoke 近似; 生产应改用 SDK 设备 handle 与主发现对齐。
+    // 无 feature 时此块被编译期剔除, devices 保持原样。
+    #[cfg(feature = "decklink")]
+    let devices = {
+        let enumerated = match decklink::enumerate() {
+            Ok(e) => e,
+            Err(err) => {
+                tracing::warn!(error = %err, "Gate6/7 real enumeration unavailable");
+                Vec::new()
+            }
+        };
+        tracing::info!(count = enumerated.len(), "Gate6/7 real DeckLink enumeration");
+        devices
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut d)| {
+                if let Some((model, serial)) = enumerated.get(i) {
+                    d.model = model.clone();
+                    d.serial = serial.clone();
+                    tracing::info!(index = i, model = %model, serial = %serial, "device dv{i} real identity");
+                }
+                d
+            })
+            .collect::<Vec<_>>()
+    };
 
     // Gate 2.4: 最简 /health (std TcpListener, 无第三方依赖; 后续可换 axum)。
     let device_count = devices.len();
