@@ -69,7 +69,7 @@ pub enum ProcessState {
     ManualRequired,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SupervisorError {
     #[error("restart budget exhausted")]
     BudgetExhausted,

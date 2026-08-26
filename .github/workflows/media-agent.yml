@@ -1,16 +1,15 @@
 name: media-agent CI
 
+# Validates the Rust Media Agent build without needing DeckLink hardware.
+# The real FFI build (feature `bmd` / `hardware-test`) produces the
+# `media-agent-linux` artifact for BMD acceptance runs.
 on:
   push:
     branches: [master, main]
   pull_request:
 
-# Gate A (SoT section 10): pure-CI gates, no hardware required.
-# This workflow validates the Rust Media Agent skeleton compiles and is formatted.
-# BMD hardware acceptance (MEDIA-SEC-01 / MEDIA-RT-01 / FI-08/09) is a SEPARATE
-# remote gate and is NOT run here.
-
 jobs:
+  # Gate A (SoT section 10): pure-CI gates, no hardware required.
   test:
     name: Rust media-agent build + test
     runs-on: ubuntu-latest
@@ -58,3 +57,59 @@ jobs:
         with:
           name: media-agent-linux-default
           path: services/media-agent/target/debug/media-agent
+
+  # Bindgen / FFI contract build (Gate 6/7 INDEPENDENT verification).
+  # Builds the `hardware-test` binary (implies `bmd`) and uploads it as the
+  # `media-agent-linux` artifact for BMD acceptance runs.
+  #
+  # Provisioning: the proprietary DeckLink SDK `Linux/include` headers are supplied
+  # as TWO repo secrets (GitHub secret value limit < full payload):
+  #   DECKLINK_SDK_HEADERS_1 = base64( gzip( tar of SDK Linux/include .h files ) ), part 1
+  #   DECKLINK_SDK_HEADERS_2 = base64( gzip( tar of SDK Linux/include .h files ) ), part 2
+  # Build on a host with the SDK:
+  #   cd <SDK>/Linux/include
+  #   find . -name '*.h' -print0 | tar --null -cf - -T - | gzip -9 | base64 -w0 > sdk.b64
+  #   # split sdk.b64 into two ~30KB halves sdk_a.b64 / sdk_b.b64
+  #   gh secret set DECKLINK_SDK_HEADERS_1 -b"$(cat sdk_a.b64)"
+  #   gh secret set DECKLINK_SDK_HEADERS_2 -b"$(cat sdk_b.b64)"
+  #   gh secret set DECKLINK_SDK_VERSION -b"16.0.0"
+  # CI concatenates both halves, base64-decodes, untars into
+  # .github/_private/decklink-sdk (gitignored, cleaned up) and builds
+  # `hardware-test`.
+  #
+  # CI needs NO DeckLink hardware and NO libDeckLinkAPI.so - it only verifies:
+  # SDK headers -> bindgen -> generated bindings -> Rust compile.
+  # The real link/open against libDeckLinkAPI.so + real enumeration is owned by BMD.
+  ffi-contract:
+    name: ffi-contract (hardware-test bindgen, SDK-header secret)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.DECKLINK_SDK_VERSION != '' }}
+    env:
+      DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
+    defaults:
+      run:
+        working-directory: services/media-agent
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install libclang (bindgen runtime dependency)
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: unpack DeckLink SDK headers from secret
+        env:
+          DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
+          DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
+          DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
+        run: |
+          mkdir -p "${{ github.workspace }}/.github/_private/decklink-sdk"
+          printf '%s%s' "$DECKLINK_SDK_HEADERS_1" "$DECKLINK_SDK_HEADERS_2" | base64 -d | tar -xz -C "${{ github.workspace }}/.github/_private/decklink-sdk"
+          echo "DeckLink SDK version: ${DECKLINK_SDK_VERSION:-<unset>}"
+      - name: build --features hardware-test (bindgen parse + FFI compile)
+        run: cargo build --features hardware-test
+      - name: upload media-agent-linux (hardware-test binary for BMD)
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-agent-linux
+          path: services/media-agent/target/debug/media-agent
+      - name: cleanup (never persist proprietary SDK assets)
+        if: always()
+        run: rm -rf "${{ github.workspace }}/.github/_private"
