@@ -24,7 +24,7 @@
 //!
 //! 未编译 `bmd` feature 时，`enumerate()` 返回说明性错误，骨架仍能链接、CI 保持绿。
 
-#![allow(dead_code, non_snake_case, non_camel_case_types, non_upper_case_globals)]
+#![allow(dead_code, non_snake_case, non_camel_case_types, non_upper_case_globals, clippy::upper_case_acronyms)]
 
 /// 单台 BMD 设备的完整身份 (Identity Closure Patch: 真实 `DeviceHandle` 直接传出,
 /// 各字段独立、互不污染, 不再经 serial/display 伪装). `device.rs` 据此构造

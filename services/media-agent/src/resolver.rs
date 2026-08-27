@@ -14,7 +14,7 @@
 
 use crate::device::DeviceInfo;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 /// GStreamer 探测到的 DeckLink 实例 (经由直接创建 `decklinkvideosrc` 实例, READY 态读取只读属性).
@@ -97,7 +97,8 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
     // decklinkvideosrc 工厂存在 = decklink 插件安装; 否则探测方法不适用本机.
     if gstreamer::ElementFactory::find("decklinkvideosrc").is_none() {
         return GstProbeOutcome::Unavailable(
-            "decklinkvideosrc 工厂不存在 (GStreamer decklink 插件未安装); 探测方法不可用".to_string(),
+            "decklinkvideosrc 工厂不存在 (GStreamer decklink 插件未安装); 探测方法不可用"
+                .to_string(),
         );
     }
     let mut probes = Vec::new();
@@ -138,9 +139,12 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     // 少量延时兜底 live source 异步 preroll, 确保设备已打开、身份属性已填充.
     std::thread::sleep(std::time::Duration::from_millis(300));
     // 读取只读属性 (find_property 守卫防缺属性 panic; NULL 字符串用 Option<String> 归 None).
-    let hw_serial_number = el
-        .find_property("hw-serial-number")
-        .and_then(|_| non_empty(el.property::<Option<String>>("hw-serial-number").unwrap_or_default()));
+    let hw_serial_number = el.find_property("hw-serial-number").and_then(|_| {
+        non_empty(
+            el.property::<Option<String>>("hw-serial-number")
+                .unwrap_or_default(),
+        )
+    });
     let persistent_id = el.find_property("persistent-id").and_then(|_| {
         let v = el.property::<i64>("persistent-id");
         if v > 0 {
@@ -150,8 +154,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         }
     });
     let signal = el
-        .find_property("signal")
-        .and_then(|_| Some(el.property::<bool>("signal")));
+        .find_property("signal").map(|_| el.property::<bool>("signal"));
     let model = el
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
@@ -195,10 +198,13 @@ fn topo_of(handle: &str) -> Option<String> {
 /// 在 GStreamer `hw-serial-number`(只读属性) 上, 为**单个 probe** 判定该 SDK 设备的最佳匹配种类.
 /// 每 probe 至多返回一种 (按优先级 PersistentId > Serial > DeviceHandle > Topological);
 /// Topological 为 MEDIUM (拓扑敏感, 仅诊断可用).
-fn best_kind_for(sdk: &DeviceInfo, p: &GStreamerDeviceProbe) -> Option<(ResolverMatch, Confidence)> {
+fn best_kind_for(
+    sdk: &DeviceInfo,
+    p: &GStreamerDeviceProbe,
+) -> Option<(ResolverMatch, Confidence)> {
     // 1) PersistentID 精确 (HIGH)
     if let (Some(sdk_pid), Some(gst_pid)) = (sdk.bmd_persistent_id, p.persistent_id) {
-        if sdk_pid as i64 == gst_pid {
+        if sdk_pid == gst_pid {
             return Some((ResolverMatch::PersistentIdExact, Confidence::High));
         }
     }
@@ -281,10 +287,7 @@ pub struct ResolverEvidence {
 }
 
 /// 解析所有 SDK 设备 → GStreamer 实例映射 (C1 证据).
-pub fn resolve(
-    devices: &[DeviceInfo],
-    probes: &[GStreamerDeviceProbe],
-) -> Vec<ResolverEvidence> {
+pub fn resolve(devices: &[DeviceInfo], probes: &[GStreamerDeviceProbe]) -> Vec<ResolverEvidence> {
     let mut evidence = Vec::new();
     for dev in devices {
         let (kind, conf, matched) = find_match(dev, probes);
@@ -458,21 +461,66 @@ impl DeviceBindingManifest {
             .map_err(|e| format!("DeviceBindingManifest 解析失败 ({path}): {e}"))
     }
 
-    /// 环境一致性校验: 返回告警向量 (不阻断). 仅当 runtime 主机标识非空才比对 machine_id
-    /// (否则无法判定, 跳过而非误报).
+    /// 结构完整性校验 (用户 §六): 加载后立即调用, 失败即拒绝 (ManifestInvalid).
+    /// 检查项: manifest_version 非空 / machine_id 非空 / 至少一条绑定 /
+    /// bmd_device_handle 唯一 / gst_device_number 唯一 / 每条 handle 非空.
+    pub fn validate_manifest(&self) -> Result<(), String> {
+        if self.manifest_version.trim().is_empty() {
+            return Err("ManifestInvalid: manifest_version 为空 (schema 错误)".to_string());
+        }
+        if self.machine_id.trim().is_empty() {
+            return Err("ManifestInvalid: machine_id 为空 (无法绑定主机, 拒绝)".to_string());
+        }
+        if self.bindings.is_empty() {
+            return Err("ManifestInvalid: bindings 为空 (无绑定条目, 拒绝)".to_string());
+        }
+        let mut seen_handle = HashSet::new();
+        for b in &self.bindings {
+            if b.bmd_device_handle.trim().is_empty() {
+                return Err("ManifestInvalid: 存在空 bmd_device_handle 条目".to_string());
+            }
+            if !seen_handle.insert(b.bmd_device_handle.clone()) {
+                return Err(format!(
+                    "ManifestInvalid: 重复的 bmd_device_handle '{}' (设备身份冲突, 拒绝)",
+                    b.bmd_device_handle
+                ));
+            }
+        }
+        let mut seen_num = HashSet::new();
+        for b in &self.bindings {
+            if !seen_num.insert(b.gst_device_number) {
+                return Err(format!(
+                    "ManifestInvalid: 重复的 gst_device_number {} (运行时地址冲突, 拒绝)",
+                    b.gst_device_number
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// 主机身份校验 (用户 §五): 运行时主机标识非空且与声明 machine_id 不符 → 失败闭合
+    /// (拒绝, 非 warning). machine_id 不一致 = 误投/串机器, 绝不能只是警告.
+    /// 运行环境无法判定主机 (未设 VBMF_MACHINE_ID/HOSTNAME) → 跳过校验而非误报.
+    pub fn check_machine_identity(&self, runtime_machine_id: &str) -> Result<(), String> {
+        if runtime_machine_id.is_empty() {
+            return Ok(());
+        }
+        if self.machine_id != runtime_machine_id {
+            return Err(format!(
+                "ManifestEnvironmentMismatch: 清单 machine_id='{}' 与当前主机 '{}' 不符 (误投/串机器, 生产拒绝)",
+                self.machine_id, runtime_machine_id
+            ));
+        }
+        Ok(())
+    }
+
+    /// 软件版本一致性软校验 (不阻断): BMD SDK / GStreamer decklink 插件版本不符 → 告警.
     pub fn validate_environment(
         &self,
-        machine_id: &str,
         sdk_version: Option<&str>,
         plugin_version: Option<&str>,
     ) -> Vec<String> {
         let mut warns = Vec::new();
-        if !machine_id.is_empty() && self.machine_id != machine_id {
-            warns.push(format!(
-                "清单 machine_id='{}' 与当前主机 '{}' 不符; 若确为误投请拒绝 (失败闭合)",
-                self.machine_id, machine_id
-            ));
-        }
         if let (Some(decl), Some(actual)) = (&self.bmd_sdk_version, sdk_version) {
             if decl != actual {
                 warns.push(format!("清单 BMD SDK 版本 '{decl}' 与运行 '{actual}' 不符"));
@@ -480,7 +528,9 @@ impl DeviceBindingManifest {
         }
         if let (Some(decl), Some(actual)) = (&self.gst_decklink_plugin_version, plugin_version) {
             if decl != actual {
-                warns.push(format!("清单 GStreamer decklink 插件版本 '{decl}' 与运行 '{actual}' 不符"));
+                warns.push(format!(
+                    "清单 GStreamer decklink 插件版本 '{decl}' 与运行 '{actual}' 不符"
+                ));
             }
         }
         warns
@@ -727,5 +777,47 @@ mod tests {
         let ev = resolve_with_manifest(&devices, &probes, &manifest);
         assert_eq!(ev[0].match_kind, ResolverMatch::ManifestVerified);
         assert_eq!(ev[0].gst_device_number, Some(2));
+    }
+
+    #[test]
+    fn manifest_validate_rejects_duplicate_handle() {
+        let m = base_manifest(vec![
+            manifest_entry("46:00000000:002e4500", 1),
+            manifest_entry("46:00000000:002e4500", 2),
+        ]);
+        assert!(m.validate_manifest().is_err());
+    }
+
+    #[test]
+    fn manifest_validate_rejects_duplicate_device_number() {
+        let m = base_manifest(vec![
+            manifest_entry("46:00000000:002e4500", 1),
+            manifest_entry("46:00000000:002e4400", 1),
+        ]);
+        assert!(m.validate_manifest().is_err());
+    }
+
+    #[test]
+    fn manifest_validate_rejects_empty_machine_id() {
+        let mut m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
+        m.machine_id = String::new();
+        assert!(m.validate_manifest().is_err());
+    }
+
+    #[test]
+    fn manifest_validate_ok_on_well_formed() {
+        let m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
+        assert!(m.validate_manifest().is_ok());
+    }
+
+    #[test]
+    fn manifest_check_machine_identity_rejects_mismatch() {
+        let m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
+        // 主机一致 → Ok
+        assert!(m.check_machine_identity("box-a").is_ok());
+        // 主机不一致 → 失败闭合 (拒绝, 非 warning)
+        assert!(m.check_machine_identity("box-b").is_err());
+        // 运行环境无法判定主机 (空) → 跳过而非误报
+        assert!(m.check_machine_identity("").is_ok());
     }
 }

@@ -170,8 +170,8 @@ impl DeviceManager for DeckLinkDeviceManager {
             .map(|d: BmdDeviceIdentity| {
                 // canonical 派生键 = 真实 SDK 身份; 优先级 PersistentID > DeviceHandle > Serial > 枚举.
                 // 当前硬件 (10.30.15.10, SDK 16.0) 三台均无 PersistentID → canonical = DeviceHandle.
-                let canonical = if d.persistent_id.is_some() {
-                    format!("pid:{}", d.persistent_id.unwrap())
+                let canonical = if let Some(pid) = d.persistent_id {
+                    format!("pid:{pid}")
                 } else if !d.device_handle.is_empty() {
                     d.device_handle.clone()
                 } else if !d.serial.is_empty() {
@@ -181,18 +181,23 @@ impl DeviceManager for DeckLinkDeviceManager {
                 };
                 let identity_strength = if d.persistent_id.is_some() {
                     IdentityStrength::PersistentId
-                } else if !d.device_handle.is_empty() {
-                    IdentityStrength::DeviceHandle
-                } else if !d.serial.is_empty() {
+                } else if !d.device_handle.is_empty() || !d.serial.is_empty() {
                     IdentityStrength::DeviceHandle
                 } else {
                     IdentityStrength::Enumeration
                 };
                 DeviceInfo {
-                    device_id: Uuid::new_v5(&VBMF_BMD_NS, format!("vbmf:bmd:{canonical}").as_bytes()),
+                    device_id: Uuid::new_v5(
+                        &VBMF_BMD_NS,
+                        format!("vbmf:bmd:{canonical}").as_bytes(),
+                    ),
                     model: d.model.clone(),
                     display_name: d.display.clone(),
-                    serial_number: if d.serial.is_empty() { None } else { Some(d.serial.clone()) },
+                    serial_number: if d.serial.is_empty() {
+                        None
+                    } else {
+                        Some(d.serial.clone())
+                    },
                     bmd_persistent_id: d.persistent_id.map(|v| v as i64),
                     bmd_device_handle: if d.device_handle.is_empty() {
                         None

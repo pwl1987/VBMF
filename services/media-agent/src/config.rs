@@ -23,8 +23,9 @@ pub struct Config {
     pub health_poll_interval: Duration,
     /// Max restart attempts before `FAILED` (see state machine).
     pub max_recover_attempts: u32,
-    /// 显式绑定清单路径 (DeviceBindingManifest JSON). 生产 BMD 绑定权威来源; 缺失则回退
-    /// legacy auto-resolver (生产应禁用, 用户 §11/§12).
+    /// 显式绑定清单路径 (DeviceBindingManifest JSON). 生产 BMD 绑定**唯一**权威来源;
+    /// 生产模式缺失 → 失败闭合 (拒绝 materialize, 绝不回退 legacy 盲猜, 用户 §四).
+    /// 仅 `MEDIA_AGENT_MODE=diagnostic` 允许缺失时回退 legacy auto-resolver (排障用).
     pub device_binding_path: Option<String>,
 }
 
@@ -58,11 +59,19 @@ impl Config {
         let get = |k: &str| std::env::var(k).ok();
 
         let device_allowlist = get("MEDIA_AGENT_DEVICE_ALLOWLIST")
-            .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+            .map(|v| {
+                v.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
             .unwrap_or(d.device_allowlist);
 
         let parse_secs = |k: &str, fallback: Duration| {
-            get(k).and_then(|v| v.parse::<u64>().ok()).map(Duration::from_secs).unwrap_or(fallback)
+            get(k)
+                .and_then(|v| v.parse::<u64>().ok())
+                .map(Duration::from_secs)
+                .unwrap_or(fallback)
         };
 
         Self {
@@ -70,7 +79,10 @@ impl Config {
             device_allowlist,
             default_lease_ttl: parse_secs("MEDIA_AGENT_LEASE_TTL_SECS", d.default_lease_ttl),
             lease_renew_window: parse_secs("MEDIA_AGENT_LEASE_RENEW_SECS", d.lease_renew_window),
-            health_poll_interval: parse_secs("MEDIA_AGENT_HEALTH_POLL_SECS", d.health_poll_interval),
+            health_poll_interval: parse_secs(
+                "MEDIA_AGENT_HEALTH_POLL_SECS",
+                d.health_poll_interval,
+            ),
             max_recover_attempts: get("MEDIA_AGENT_MAX_RECOVER_ATTEMPTS")
                 .and_then(|v| v.parse::<u32>().ok())
                 .unwrap_or(d.max_recover_attempts),

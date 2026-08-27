@@ -4,6 +4,7 @@
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod config;
+mod decklink;
 mod device;
 mod graph_intent;
 mod health;
@@ -12,8 +13,7 @@ mod pipeline;
 mod resolver;
 mod rpc;
 mod sdk;
-mod supervisor;
-mod decklink; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
+mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
 
 // 硬规则 (Phase 0.6): `hardware-test` (IDeckLinkInput SDK 探针) 与 canonical `gstreamer`
 // 运行时互斥 —— 生产运行不得同时打开同一块 DeckLink (避免双采 / 设备争用). 编译期强制.
@@ -72,18 +72,36 @@ fn main() {
                 }
                 // 解析: 若提供 DeviceBindingManifest (MEDIA_AGENT_DEVICE_BINDING) 走权威路径,
                 // 否则回退 legacy runtime auto-resolver (生产应禁用, 用户 §11/§12).
-                let manifest = _cfg
-                    .device_binding_path
-                    .as_deref()
-                    .and_then(|p| match crate::resolver::DeviceBindingManifest::load(p) {
-                        Ok(m) => Some(m),
+                let manifest = _cfg.device_binding_path.as_deref().and_then(|p| {
+                    match crate::resolver::DeviceBindingManifest::load(p) {
+                        Ok(m) => {
+                            // 诊断模式: 结构/主机校验仅报告, 不阻断证据输出.
+                            if let Err(e) = m.validate_manifest() {
+                                eprintln!(
+                                    "DeviceBindingManifest 结构校验失败 (诊断模式仍输出证据): {e}"
+                                );
+                            }
+                            if let Err(e) =
+                                m.check_machine_identity(&crate::resolver::current_machine_id())
+                            {
+                                eprintln!(
+                                    "DeviceBindingManifest 主机身份不符 (诊断模式仍输出证据): {e}"
+                                );
+                            } else {
+                                for w in m.validate_environment(None, None) {
+                                    eprintln!("device-binding manifest 版本校验: {w}");
+                                }
+                            }
+                            Some(m)
+                        }
                         Err(e) => {
                             eprintln!("DeviceBindingManifest 加载失败: {e}");
                             None
                         }
-                    });
+                    }
+                });
                 if manifest.is_none() {
-                    eprintln!("WARNING: 未提供 DeviceBindingManifest, 回退 legacy runtime auto-resolution (生产禁用, 用户 §11/§12)");
+                    eprintln!("WARNING: 未提供 DeviceBindingManifest, 回退 legacy runtime auto-resolution (C1 诊断模式允许; 生产应禁用)");
                 }
                 let evidence = match &manifest {
                     Some(m) => crate::resolver::resolve_with_manifest(&devices, &probes, m),
@@ -97,7 +115,9 @@ fn main() {
                     Err(e) => eprintln!("resolver evidence 序列化失败: {e}"),
                 }
                 let bindings = match &manifest {
-                    Some(m) => crate::resolver::collect_bindings_from_manifest(&devices, &probes, m),
+                    Some(m) => {
+                        crate::resolver::collect_bindings_from_manifest(&devices, &probes, m)
+                    }
                     None => crate::resolver::collect_bindings(&devices, &probes),
                 };
                 match serde_json::to_string_pretty(&bindings) {
@@ -123,14 +143,22 @@ fn main() {
     // Gate 2.3: lease manager (in-memory; no hardware needed for the interface).
     let lm = Arc::new(lease::InMemoryLeaseManager::new());
     for d in &devices {
-        match lm.acquire(&d.device_id, "bootstrap", std::time::Duration::from_secs(60)) {
+        match lm.acquire(
+            &d.device_id,
+            "bootstrap",
+            std::time::Duration::from_secs(60),
+        ) {
             Ok(l) => tracing::info!(device = %l.device_id, "lease acquired"),
             Err(e) => tracing::warn!(error = %e, "lease acquire failed"),
         }
     }
     // 排他性不变量: 同一设备重复 acquire 必须被拒 (防 host ffmpeg / 双采).
     if let Some(first) = devices.first() {
-        match lm.acquire(&first.device_id, "second-owner", std::time::Duration::from_secs(60)) {
+        match lm.acquire(
+            &first.device_id,
+            "second-owner",
+            std::time::Duration::from_secs(60),
+        ) {
             Ok(_) => tracing::warn!("LEASE COLLISION — double-capture risk!"),
             Err(e) => tracing::info!(error = %e, "lease re-acquire correctly rejected"),
         }
@@ -140,7 +168,9 @@ fn main() {
     // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期).
     match sdk::probe_sdk("libDeckLinkAPI.so") {
         Ok(()) => tracing::info!("SDK libDeckLinkAPI.so reachable, entry symbols present"),
-        Err(e) => tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)"),
+        Err(e) => {
+            tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)")
+        }
     }
 
     // Gate 2.6 (P1①): bmd feature 下 `devices` 已直接来自 `DeckLinkDeviceManager`
@@ -204,7 +234,14 @@ fn main() {
                         *agent_state.lock().unwrap() = health::AgentState::Capturing;
                         // 复用生产 ingest watchdog, 完整推导 A1-A4/B1-B4/C1-C4;
                         // 自测源稳定出帧 → pass() 达成即打印 "MEDIA-RT-01: A+B+C 全过".
-                        spawn_ingest_watchdog(ctrl, h, Uuid::nil(), sup.clone(), lm.clone(), agent_state.clone());
+                        spawn_ingest_watchdog(
+                            ctrl,
+                            h,
+                            Uuid::nil(),
+                            sup.clone(),
+                            lm.clone(),
+                            agent_state.clone(),
+                        );
                     }
                     Err(e) => tracing::error!(error = %e, "MEDIA-RT-01 self-test 启动失败"),
                 },
@@ -212,170 +249,212 @@ fn main() {
             }
         }
         if !skip_decklink {
-        // (A) SDK 诊断探针 (仅 hardware-test; 真机已验证可行, 不用于生产媒体路径).
-        //     与 canonical GStreamer 路径互斥, 避免同时打开同一块 DeckLink.
-        //     注: `hardware-test` 与 `gstreamer` 已在编译期互斥 (见文件顶部 compile_error),
-        //     生产 canonical 运行时绝不会同时启用两者.
-        #[cfg(all(feature = "hardware-test", not(feature = "gstreamer")))]
-        match decklink::start_capture(0) {
-            Ok(stats) => {
-                tracing::info!("CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)");
-                std::thread::spawn(move || loop {
-                    let n = stats.frame_count.load(std::sync::atomic::Ordering::SeqCst);
-                    let ff = stats.first_frame_at.lock().unwrap().is_some();
-                    let mono = stats.monotonic.load(std::sync::atomic::Ordering::SeqCst);
-                    tracing::info!(frame_count = n, first_frame = ff, pts_monotonic = mono, "CAP-01 SDK probe live");
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                });
-            }
-            Err(e) => tracing::error!(error = %e, "CAP-01 SDK 诊断探针失败"),
-        }
-
-        // (B) canonical 媒体采集路径 (GStreamer) — 物化 PipelinePlan, 由
-        //     PipelineController 拥有. 控制面只带 VBMF device_id; bmd_persistent_id /
-        //     device-number 由 materialize 经 Device Registry 解析得到.
-        let first_id = devices.first().map(|d| d.device_id.to_string()).unwrap_or_default();
-        let intent = crate::graph_intent::GraphRuntimeIntent {
-            version: "1.0".into(),
-            devices: vec![crate::graph_intent::DeviceIntent {
-                device_id: first_id.clone(),
-                role: "CAPTURE".into(),
-                pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent { kind: "decklink".into(), device_id: first_id },
-                    sink: crate::graph_intent::SinkIntent { kind: "rtmp".into() },
-                },
-            }],
-        };
-        // 物化模式: 默认 Production (identity 解析失败直接 IdentityUnresolved, 绝不盲开);
-        // MEDIA_AGENT_MODE=diagnostic 时显式回退 device-number (仅验证/排障用, 非静默).
-        let mode = match std::env::var("MEDIA_AGENT_MODE").as_deref() {
-            Ok("diagnostic") => crate::pipeline::MaterializeMode::Diagnostic,
-            _ => crate::pipeline::MaterializeMode::Production,
-        };
-        // Resolver 绑定 (C1/D 物化前置): gstreamer 构建下探测 GStreamer device-number 并解析;
-        // 非 gstreamer 构建为空 map (不物化运行时地址, materialize 走 legacy/拒绝路径).
-        #[cfg(feature = "gstreamer")]
-        let gst_probes = match crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES) {
-            crate::resolver::GstProbeOutcome::Available(v) => v,
-            // Unavailable / Empty → 无可用绑定; materialize 走拒绝路径, 绝不盲开 device 0.
-            _ => Vec::new(),
-        };
-        #[cfg(feature = "gstreamer")]
-        let bindings = match &_cfg.device_binding_path {
-            // 生产 BMD 绑定权威路径: DeviceBindingManifest 显式契约. 加载失败 → 失败闭合
-            // (拒绝 materialize, 绝不盲开 device 0, 用户 §11/§12).
-            Some(p) => match crate::resolver::DeviceBindingManifest::load(p) {
-                Ok(m) => {
-                    for w in m.validate_environment(&crate::resolver::current_machine_id(), None, None) {
-                        tracing::warn!(warning = %w, "device-binding manifest 环境校验");
-                    }
-                    crate::resolver::collect_bindings_from_manifest(&devices, &gst_probes, &m)
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "DeviceBindingManifest 加载失败; 生产绑定失败闭合, 拒绝 materialize");
-                    std::collections::HashMap::new()
-                }
-            },
-            // 未提供清单 → 回退 legacy auto-resolver (生产应禁用, 用户 §11/§12).
-            None => {
-                tracing::warn!("未提供 DeviceBindingManifest; 回退 legacy auto-resolution (生产应禁用, 用户 §11/§12)");
-                crate::resolver::collect_bindings(&devices, &gst_probes)
-            }
-        };
-        #[cfg(not(feature = "gstreamer"))]
-        let bindings: std::collections::HashMap<uuid::Uuid, crate::resolver::ResolvedDeviceBinding> =
-            std::collections::HashMap::new();
-        match crate::pipeline::materialize(
-            &intent,
-            &devices,
-            mode,
-            &bindings,
-        ) {
-            Ok(plans) => {
-                for p in &plans {
+            // (A) SDK 诊断探针 (仅 hardware-test; 真机已验证可行, 不用于生产媒体路径).
+            //     与 canonical GStreamer 路径互斥, 避免同时打开同一块 DeckLink.
+            //     注: `hardware-test` 与 `gstreamer` 已在编译期互斥 (见文件顶部 compile_error),
+            //     生产 canonical 运行时绝不会同时启用两者.
+            #[cfg(all(feature = "hardware-test", not(feature = "gstreamer")))]
+            match decklink::start_capture(0) {
+                Ok(stats) => {
                     tracing::info!(
-                        device_id = %p.source.device_id,
-                        bmd_persistent_id = p.source.bmd_persistent_id,
-                        device_number = p.source.device_number,
-                        selection_mode = ?p.source.selection_mode,
-                        "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
+                        "CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)"
                     );
+                    std::thread::spawn(move || loop {
+                        let n = stats.frame_count.load(std::sync::atomic::Ordering::SeqCst);
+                        let ff = stats.first_frame_at.lock().unwrap().is_some();
+                        let mono = stats.monotonic.load(std::sync::atomic::Ordering::SeqCst);
+                        tracing::info!(
+                            frame_count = n,
+                            first_frame = ff,
+                            pts_monotonic = mono,
+                            "CAP-01 SDK probe live"
+                        );
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    });
                 }
-                *agent_state.lock().unwrap() = health::AgentState::Capturing;
+                Err(e) => tracing::error!(error = %e, "CAP-01 SDK 诊断探针失败"),
+            }
 
-                // (C) 真实 GStreamer launch (feature = "gstreamer") + Supervisor→recover 接线.
-                #[cfg(feature = "gstreamer")]
-                {
-                    let dev_id_str = plans[0].source.device_id.clone();
-                    let device_uuid = Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
-                    // Lease→Pipeline: 启动前确认该设备的租约仍有效 (排他采集前置条件).
-                    if !lm.is_valid(&device_uuid) {
-                        tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
-                    } else {
-                        let ctrl = Arc::new(crate::pipeline::GStreamerPipelineController::new());
-                        // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
-                        tracing::info!(gst_version = ?gstreamer::version(), "GStreamer runtime version (evidence)");
-                        match ctrl.prepare(&plans[0]) {
-                            Ok(h) => match ctrl.start(&h) {
-                                Ok(()) => {
-                                    tracing::info!(
-                                        handle = %h.0,
-                                        device_id = %dev_id_str,
-                                        "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
-                                    );
-                                    // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
-                                    sup.lock().unwrap().register(device_uuid);
-                                    spawn_ingest_watchdog(
-                                        ctrl,
-                                        h,
-                                        device_uuid,
-                                        sup.clone(),
-                                        lm.clone(),
-                                        agent_state.clone(),
-                                    );
-                                }
-                                Err(e) => tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)"),
-                            },
-                            Err(e) => tracing::error!(error = %e, "canonical prepare 失败"),
+            // (B) canonical 媒体采集路径 (GStreamer) — 物化 PipelinePlan, 由
+            //     PipelineController 拥有. 控制面只带 VBMF device_id; bmd_persistent_id /
+            //     device-number 由 materialize 经 Device Registry 解析得到.
+            let first_id = devices
+                .first()
+                .map(|d| d.device_id.to_string())
+                .unwrap_or_default();
+            let intent = crate::graph_intent::GraphRuntimeIntent {
+                version: "1.0".into(),
+                devices: vec![crate::graph_intent::DeviceIntent {
+                    device_id: first_id.clone(),
+                    role: "CAPTURE".into(),
+                    pipeline: crate::graph_intent::PipelineIntent {
+                        source: crate::graph_intent::SourceIntent {
+                            kind: "decklink".into(),
+                            device_id: first_id,
+                        },
+                        sink: crate::graph_intent::SinkIntent {
+                            kind: "rtmp".into(),
+                        },
+                    },
+                }],
+            };
+            // 物化模式: 默认 Production (identity 解析失败直接 IdentityUnresolved, 绝不盲开);
+            // MEDIA_AGENT_MODE=diagnostic 时显式回退 device-number (仅验证/排障用, 非静默).
+            let mode = match std::env::var("MEDIA_AGENT_MODE").as_deref() {
+                Ok("diagnostic") => crate::pipeline::MaterializeMode::Diagnostic,
+                _ => crate::pipeline::MaterializeMode::Production,
+            };
+            // Resolver 绑定 (C1/D 物化前置): gstreamer 构建下探测 GStreamer device-number 并解析;
+            // 非 gstreamer 构建为空 map (不物化运行时地址, materialize 走 legacy/拒绝路径).
+            #[cfg(feature = "gstreamer")]
+            let gst_probes = match crate::resolver::probe_gstreamer_devices(
+                crate::resolver::MAX_PROBE_DEVICES,
+            ) {
+                crate::resolver::GstProbeOutcome::Available(v) => v,
+                // Unavailable / Empty → 无可用绑定; materialize 走拒绝路径, 绝不盲开 device 0.
+                _ => Vec::new(),
+            };
+            #[cfg(feature = "gstreamer")]
+            let bindings = match &_cfg.device_binding_path {
+                // 生产 BMD 绑定权威路径: DeviceBindingManifest 显式契约.
+                // 加载/结构/machine 任一失败 → 失败闭合 (拒绝 materialize, 绝不盲开 device 0, 用户 §四/§五/§六).
+                Some(p) => match crate::resolver::DeviceBindingManifest::load(p) {
+                    Ok(m) => {
+                        // (a) 结构完整性校验 (唯一性/非空 machine_id): 失败即拒绝 (ManifestInvalid).
+                        let structural = m.validate_manifest();
+                        // (b) 主机身份校验: 不符 → 失败闭合 (拒绝, 非 warning, 用户 §五).
+                        let machine_ok =
+                            m.check_machine_identity(&crate::resolver::current_machine_id());
+                        if let Err(e) = &structural {
+                            tracing::error!(error = %e, "DeviceBindingManifest 结构校验失败; 生产绑定失败闭合, 拒绝 materialize");
+                            std::collections::HashMap::new()
+                        } else if let Err(e) = &machine_ok {
+                            tracing::error!(error = %e, "DeviceBindingManifest 主机身份不符; 生产绑定失败闭合, 拒绝 materialize (非 warning)");
+                            std::collections::HashMap::new()
+                        } else {
+                            // (c) 版本一致性软告警 (不阻断).
+                            for w in m.validate_environment(None, None) {
+                                tracing::warn!(warning = %w, "device-binding manifest 版本校验");
+                            }
+                            crate::resolver::collect_bindings_from_manifest(
+                                &devices,
+                                &gst_probes,
+                                &m,
+                            )
                         }
                     }
+                    Err(e) => {
+                        tracing::error!(error = %e, "DeviceBindingManifest 加载失败; 生产绑定失败闭合, 拒绝 materialize");
+                        std::collections::HashMap::new()
+                    }
+                },
+                // 未提供清单:
+                //  - 生产模式 → 失败闭合 (拒绝 materialize, 绝不回退 legacy 盲猜, 用户 §四).
+                //  - diagnostic 模式 (MEDIA_AGENT_MODE=diagnostic) → 显式回退 legacy (仅排障).
+                None => match mode {
+                    crate::pipeline::MaterializeMode::Diagnostic => {
+                        tracing::warn!("未提供 DeviceBindingManifest; diagnostic 模式显式回退 legacy auto-resolution (仅排障, 生产禁用)");
+                        crate::resolver::collect_bindings(&devices, &gst_probes)
+                    }
+                    crate::pipeline::MaterializeMode::Production => {
+                        tracing::error!("生产模式未提供 DeviceBindingManifest; 绑定失败闭合, 拒绝 materialize (不回退 legacy, 用户 §四)");
+                        std::collections::HashMap::new()
+                    }
+                },
+            };
+            #[cfg(not(feature = "gstreamer"))]
+            let bindings: std::collections::HashMap<
+                uuid::Uuid,
+                crate::resolver::ResolvedDeviceBinding,
+            > = std::collections::HashMap::new();
+            match crate::pipeline::materialize(&intent, &devices, mode, &bindings) {
+                Ok(plans) => {
+                    for p in &plans {
+                        tracing::info!(
+                            device_id = %p.source.device_id,
+                            bmd_persistent_id = p.source.bmd_persistent_id,
+                            device_number = p.source.device_number,
+                            selection_mode = ?p.source.selection_mode,
+                            "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
+                        );
+                    }
+                    *agent_state.lock().unwrap() = health::AgentState::Capturing;
+
+                    // (C) 真实 GStreamer launch (feature = "gstreamer") + Supervisor→recover 接线.
+                    #[cfg(feature = "gstreamer")]
+                    {
+                        let dev_id_str = plans[0].source.device_id.clone();
+                        let device_uuid = Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
+                        // Lease→Pipeline: 启动前确认该设备的租约仍有效 (排他采集前置条件).
+                        if !lm.is_valid(&device_uuid) {
+                            tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
+                        } else {
+                            let ctrl =
+                                Arc::new(crate::pipeline::GStreamerPipelineController::new());
+                            // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
+                            tracing::info!(gst_version = ?gstreamer::version(), "GStreamer runtime version (evidence)");
+                            match ctrl.prepare(&plans[0]) {
+                                Ok(h) => match ctrl.start(&h) {
+                                    Ok(()) => {
+                                        tracing::info!(
+                                            handle = %h.0,
+                                            device_id = %dev_id_str,
+                                            "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
+                                        );
+                                        // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
+                                        sup.lock().unwrap().register(device_uuid);
+                                        spawn_ingest_watchdog(
+                                            ctrl,
+                                            h,
+                                            device_uuid,
+                                            sup.clone(),
+                                            lm.clone(),
+                                            agent_state.clone(),
+                                        );
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)")
+                                    }
+                                },
+                                Err(e) => tracing::error!(error = %e, "canonical prepare 失败"),
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "gstreamer"))]
+                    {
+                        tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                    }
                 }
-                #[cfg(not(feature = "gstreamer"))]
-                {
-                    tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                Err(e) => {
+                    tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
                 }
             }
-            Err(e) => tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)"),
-        }
         }
     }
 
     std::thread::spawn({
         let agent_state = agent_state.clone();
-        move || {
-            match std::net::TcpListener::bind("0.0.0.0:8080") {
-                Ok(listener) => {
-                    tracing::info!("health endpoint listening on :8080");
-                    for stream in listener.incoming() {
-                        if let Ok(mut s) = stream {
-                            let st = *agent_state.lock().unwrap();
-                            let body = serde_json::json!({
-                                "state": st,
-                                "devices": device_count,
-                                "active_pipelines": 0
-                            })
-                            .to_string();
-                            let resp = format!(
-                                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                                body.len(),
-                                body
-                            );
-                            let _ = s.write_all(resp.as_bytes());
-                        }
-                    }
+        move || match std::net::TcpListener::bind("0.0.0.0:8080") {
+            Ok(listener) => {
+                tracing::info!("health endpoint listening on :8080");
+                for mut s in listener.incoming().flatten() {
+                    let st = *agent_state.lock().unwrap();
+                    let active = crate::pipeline::HEALTH_ARCS.lock().unwrap().len();
+                    let body = serde_json::json!({
+                        "state": st,
+                        "devices": device_count,
+                        "active_pipelines": active
+                    })
+                    .to_string();
+                    let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                    let _ = s.write_all(resp.as_bytes());
                 }
-                Err(e) => tracing::error!(error = %e, "health bind failed"),
             }
+            Err(e) => tracing::error!(error = %e, "health bind failed"),
         }
     });
 
@@ -416,7 +495,9 @@ fn spawn_ingest_watchdog(
             // 在共享 Arc 上就地更新 acceptance 子项: 只读 live 状态→推导→写回 acceptance,
             // 绝不覆盖 appsink 回调写入的 video_frame_count/audio_frame_count/PTS/video_pts_state/audio_pts_state,
             // 否则每轮 snapshot 写回会把实时计数回退, 破坏 c4(计数增长) 判定 (#4 回归).
-            let (pass, has_error) = if let Some(h) = crate::pipeline::HEALTH_ARCS.lock().unwrap().get(&handle) {
+            let (pass, has_error) = if let Some(h) =
+                crate::pipeline::HEALTH_ARCS.lock().unwrap().get(&handle)
+            {
                 let mut g = h.lock().unwrap();
                 g.acceptance.a1_identity_resolved = true;
                 g.acceptance.a2_lease_acquired = true;
@@ -427,7 +508,8 @@ fn spawn_ingest_watchdog(
                 g.acceptance.a3_pipeline_playing = g.playing;
                 // b4 由两路 PTS 三态推导 (P1-3): 仅当 video 与 audio 均 ValidMonotonic 才视为 PTS 单调通过.
                 // 绝不回退到单一 bool; Unknown/NonMonotonic 任一即不通过.
-                g.acceptance.b4_pts_monotonic = g.video_pts_state == crate::pipeline::PtsMonotonicity::ValidMonotonic
+                g.acceptance.b4_pts_monotonic = g.video_pts_state
+                    == crate::pipeline::PtsMonotonicity::ValidMonotonic
                     && g.audio_pts_state == crate::pipeline::PtsMonotonicity::ValidMonotonic;
                 g.acceptance.c1_no_unexpected_eos = g.acceptance.c_unexpected_eos == 0;
                 g.acceptance.c2_no_pipeline_error = g.last_error.is_none();
@@ -490,9 +572,13 @@ fn spawn_ingest_watchdog(
 
             // 错误 / 总线错误 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
             if has_error
-                || events
-                    .iter()
-                    .any(|e| matches!(e.kind, crate::pipeline::PipelineBusEventKind::Error | crate::pipeline::PipelineBusEventKind::Eos))
+                || events.iter().any(|e| {
+                    matches!(
+                        e.kind,
+                        crate::pipeline::PipelineBusEventKind::Error
+                            | crate::pipeline::PipelineBusEventKind::Eos
+                    )
+                })
             {
                 match sup.lock().unwrap().report_failure(&device_uuid) {
                     Ok(supervisor::SupervisorAction::Restart) => {
@@ -528,7 +614,7 @@ fn spawn_ingest_watchdog(
                     bus_events,
                     "MEDIA-RT-01: A+B+C 全过 (canonical first-buffer 路径健康)"
                 );
-            } else if tick % 20 == 0 {
+            } else if tick.is_multiple_of(20) {
                 // 诊断: pass 未达成时打印各子项, 便于现场定位 (每 ~10s 一次, 防刷屏).
                 let snap = crate::pipeline::read_health(&handle).unwrap_or_default();
                 tracing::info!(

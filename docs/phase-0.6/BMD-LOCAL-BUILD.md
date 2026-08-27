@@ -2,7 +2,7 @@
 
 > 适用范围：BMD 真机 `10.30.15.10`（`lytv`，Ubuntu 26.04 resolute）。
 > 目标：让服务器具备**完全独立的本地编译能力**，`cargo build --features bmd,gstreamer` 不再依赖 CI。
-> 已于 2026-08-27 在真机验证通过（**独立本地编译环境**已具备 + C1 探针**可执行**；但当前硬件 GStreamer 身份字段缺失，自动 Resolver 结果为 **BLOCKED/UNRESOLVED**，非“端到端跑通”，详见 §9）。
+> 已于 2026-08-27 在真机验证通过（**独立本地编译环境**已具备 + C1 探针**可执行** + **DeviceBindingManifest 权威路径已验证**）；当前 `hw-serial-number == SDK DeviceHandle` 已实测成立，`ManifestVerified` 真实通过。但 **MEDIA-RT-01 canonical 真实采集（真机 SDI 首帧 + PTS 单调）尚未完成**，详见 §9。
 
 ---
 
@@ -194,4 +194,4 @@ LD_LIBRARY_PATH=/usr/lib ./media-agent
 
 1. **盒上无法 `git clone` GitHub**：无 SSH 密钥，源码走 §6 本地 tar+scp 同步。
 2. **"最新稳定版本"边界**：Rust 为盒上 rustup 镜像提供的最新 stable（1.98.0）；GStreamer 为 Ubuntu 26.04 仓库最新（1.28.2，与运行期一致，未扰动生产）。若要更新的 Rust stable，须调整 rustup 镜像源。
-3. **C1 解析结论**：本硬件 GStreamer `hw-serial-number` 恒空串、`persistent-id=-1`、无 `model`，自动 Resolver 在现有属性集下不可行（生产正确拒绝）。待运营提供显式 SDK-handle→device-number 映射或插件改造。
+3. **C1 / DeviceBindingManifest 结论**：`hw-serial-number == SDK DeviceHandle` 已在当前 GStreamer 1.28.2/DeckLink 环境实测成立，`ManifestVerified` 真实通过（权威路径 verified）；**MEDIA-RT-01** canonical 真实采集（真机 SDI 首帧 + PTS 单调）**仍待 HW-IDENT-02 占设备跑通**（canonical gate 仍 BLOCKED）。建议多轮冷启动/重启复核 `hw-serial-number` 可复现性。

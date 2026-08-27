@@ -8,7 +8,7 @@
 
 `VBMF_RESOLVER`（C1 / HW-IDENT-02）在 BMD 盒上的真实结果：
 
-- BMD GStreamer `decklinkvideosrc` 的 `hw-serial-number` 实测恒为**空串**，`persistent-id=-1`，`model` 因版本而异（见 `c1-element-probe-correction.md`）。
+- BMD GStreamer `decklinkvideosrc` 的 `hw-serial-number`：**历史**探测曾为**空串**（`persistent-id=-1`，`model` 因版本而异，见 `c1-element-probe-correction.md`）；**后续 PLAYING+fakesink probe 已确认当前 GStreamer 1.28.2/DeckLink 环境可暴露 `hw-serial-number`，且本机实测值与 SDK `DeviceHandle` 一致**——`ManifestVerified` 已真实通过（见 evidence `2026-08-27-device-binding-manifest-abda19f.json`）；仍待 HW-IDENT-02 多轮重启/采集复核稳定性。
 - 因此 auto-resolver 没有任何"SDK 身份 ↔ GStreamer 属性"的交叉线索 → 全部 `Unresolved` → 生产正确拒绝（绝不盲开 `device-number=0`）。
 - 但这是**阻塞**，不是"能猜出来"：SDK 枚举序号 ≠ GStreamer `device-number`（A0：SDK#0=SDI 但 GStreamer#0=Mini Monitor 输出卡），且 `device-number`**绝不默认 0**。
 
@@ -25,9 +25,9 @@
 
 3. **加载失败即失败闭合**：生产路径 `MEDIA_AGENT_DEVICE_BINDING` 指向的清单若缺失/格式错 → 拒绝 `materialize`（不回退到猜）。
 
-4. **误投防护**：`machine_id` 字段绑定到声明主机；若与运行时主机不符（且运行时可判定主机）→ 告警（运维据此确认是否误投）。`bmd_sdk_version` / `gst_decklink_plugin_version` 为可选版本一致性告警。
+4. **误投防护**：`machine_id` 字段绑定到声明主机；若与运行时主机不符（且运行时可判定主机）→ **失败闭合（生产拒绝，非 warning）**（`check_machine_identity`，用户 §五）。版本不一致（`bmd_sdk_version` / `gst_decklink_plugin_version`）仍仅告警。`bmd_sdk_version` / `gst_decklink_plugin_version` 为可选版本一致性告警。
 
-5. **legacy auto-resolver 保留但降级**：未提供清单时回退 `collect_bindings`（原逻辑），并打 `WARN` 明确"生产应禁用"。下一步可翻转默认（无清单即拒绝）。
+5. **legacy auto-resolver 仅 diagnostic 模式允许**：生产模式**未提供清单即失败闭合（拒绝 materialize，绝不盲猜）**；仅 `MEDIA_AGENT_MODE=diagnostic` 显式回退 `collect_bindings`（排障用）。`resolve_with_manifest` 是唯一 Production path（用户 §四/§七）。
 
 ## Schema（`resolver.rs::DeviceBindingManifest` / `BindingEntry`，JSON 序列化）
 
@@ -45,7 +45,7 @@
       "label": "SDI-IN-1",
       "bmd_device_handle": "46:00000000:002e4500", // canonical 真实身份
       "gst_device_number": 1,                       // 现场核实的运行时地址
-      "expected_hw_serial_number": null,            // 可选交叉校验；当前恒空则留 null
+      "expected_hw_serial_number": null,            // 可选第二道保险：回填真实 hw-serial-number（本机实测==SDK DeviceHandle）后，即使拓扑变化/device-number 漂移，身份校验失败即不启动。建议先冷启动+重启+probe 多轮复核稳定性，再升级为长期强约束（用户 §九）。当前仍允许 null（不校验）。
       "expected_model": "DeckLink SDI"              // 可选交叉校验
     }
   ]

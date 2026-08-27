@@ -33,18 +33,16 @@ jobs:
             services/media-agent/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('services/media-agent/Cargo.toml') }}
 
-      - name: Format check (advisory)
+      - name: Format check (required)
         run: cargo fmt --all -- --check
-        continue-on-error: true
 
       - name: Build (skeleton must compile)
         env:
           CARGO_TERM_COLOR: always
         run: cargo build
 
-      - name: Clippy (advisory)
-        continue-on-error: true
-        run: cargo clippy --all-targets -- -W warnings
+      - name: Clippy (required)
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Test (default features)
         run: cargo test

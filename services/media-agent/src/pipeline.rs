@@ -251,7 +251,7 @@ impl MediaRt01Acceptance {
     pub fn c_pass(&self) -> bool {
         let window_ok = self
             .c_observed_ms
-            .map_or(false, |o| o >= self.c_configured_window_ms);
+            .is_some_and(|o| o >= self.c_configured_window_ms);
         window_ok
             && self.c1_no_unexpected_eos
             && self.c2_no_pipeline_error
@@ -348,7 +348,8 @@ struct GstInstance {
 impl GstInstance {
     /// 通知 Bus watch 线程退出并释放 DeckLink 设备 (recover / drop 前置).
     fn stop(&mut self) {
-        self.stop_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.stop_flag
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         if let Some(t) = self.thread.take() {
             let _ = t.join();
         }
@@ -441,14 +442,11 @@ impl PipelineController for GStreamerPipelineController {
         {
             let plan = {
                 let guard = self.instances.lock().unwrap();
-                guard
-                    .get(handle)
-                    .map(|i| i.plan.clone())
-                    .ok_or_else(|| {
-                        PipelineError::StartFailed(format!(
-                            "未知 pipeline handle (recover): {handle:?}"
-                        ))
-                    })?
+                guard.get(handle).map(|i| i.plan.clone()).ok_or_else(|| {
+                    PipelineError::StartFailed(format!(
+                        "未知 pipeline handle (recover): {handle:?}"
+                    ))
+                })?
             };
             // 停止并丢弃旧实例: 通知 GLib 线程退出 + join + 释放 DeckLink 设备.
             if let Some(mut old) = self.instances.lock().unwrap().remove(handle) {
@@ -673,10 +671,7 @@ impl GStreamerPipelineController {
             ),
             _ => return None,
         };
-        let source = msg
-            .src()
-            .map(|s| s.name().to_string())
-            .unwrap_or_default();
+        let source = msg.src().map(|s| s.name().to_string()).unwrap_or_default();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as i64)
@@ -694,7 +689,6 @@ impl GStreamerPipelineController {
     /// 注册视频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B).
     #[cfg(feature = "gstreamer")]
     fn attach_video_sink(&self, sink: &AppSink, handle: PipelineHandle) {
-        let handle = handle;
         sink.set_callbacks(
             gstreamer_app::AppSinkCallbacks::builder()
                 .new_sample(move |sink| {
@@ -723,7 +717,6 @@ impl GStreamerPipelineController {
     /// 注册音频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B, 含真实单调判定).
     #[cfg(feature = "gstreamer")]
     fn attach_audio_sink(&self, sink: &AppSink, handle: PipelineHandle) {
-        let handle = handle;
         sink.set_callbacks(
             gstreamer_app::AppSinkCallbacks::builder()
                 .new_sample(move |sink| {
@@ -938,11 +931,13 @@ mod tests {
 
     #[test]
     fn first_frame_ok_requires_both_valid() {
-        let mut h = PipelineHealth::default();
+        let mut h = PipelineHealth {
+            video_first_pts: Some(1000),
+            audio_first_pts: Some(1000),
+            ..PipelineHealth::default()
+        };
         // 仅 video 有效 -> 未过.
-        h.video_first_pts = Some(1000);
         h.observe_video_pts(1000);
-        h.audio_first_pts = Some(1000);
         h.observe_audio_pts(1000);
         assert!(h.first_frame_ok());
         // 任一回退 -> 不过.
