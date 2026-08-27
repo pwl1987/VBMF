@@ -407,7 +407,10 @@ fn spawn_ingest_watchdog(
                         _ => {}
                     }
                 }
-                (g.acceptance.pass(), g.last_error.is_some())
+                (
+                    g.acceptance.a_pass() && g.acceptance.b_pass() && g.acceptance.c_pass(),
+                    g.last_error.is_some(),
+                )
             } else {
                 (false, false)
             };

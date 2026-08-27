@@ -15,6 +15,7 @@
 use crate::device::DeviceInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// GStreamer 探测到的 DeckLink 实例 (经由直接创建 `decklinkvideosrc` 实例, READY 态读取只读属性).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,9 +115,11 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
 #[cfg(feature = "gstreamer")]
 fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     use gstreamer::prelude::*;
-    let el = gstreamer::ElementFactory::make("decklinkvideosrc", None).ok()?;
+    let el = gstreamer::ElementFactory::make("decklinkvideosrc")
+        .build()
+        .ok()?;
     // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址). 只读属性前提是设备已打开 (READY).
-    el.set_property("device-number", n).ok()?;
+    el.set_property("device-number", n as i32).ok()?;
     // 打开设备 (READY 即打开; 无需 PLAYING, 不拉真实帧). 失败 = 该序号无此卡.
     if el.set_state(gstreamer::State::Ready).is_err() {
         let _ = el.set_state(gstreamer::State::Null);
@@ -206,8 +209,8 @@ fn best_kind_for(sdk: &DeviceInfo, p: &GStreamerDeviceProbe) -> Option<(Resolver
     }
     // 4) TopologicalID 末段猜测 (MEDIUM, 拓扑敏感, 仅诊断).
     if let (Some(topo), Some(g)) = (
-        sdk.bmd_device_handle.as_deref().and_then(topo_of),
-        &p.hw_serial_number,
+        sdk.bmd_device_handle.as_deref().and_then(topo_of).as_ref(),
+        p.hw_serial_number.as_ref(),
     ) {
         if topo == g {
             return Some((ResolverMatch::TopologicalIdGuess, Confidence::Medium));

@@ -129,6 +129,12 @@ impl DeviceManager for SimulatedDeviceManager {
 /// 身份来源 = RealBmd; 强度由 SDK 属性可用性决定 (本硬件 → DeviceHandle).
 pub struct DeckLinkDeviceManager;
 
+impl DeckLinkDeviceManager {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl DeviceManager for DeckLinkDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
         // 真实枚举由 sdk/discovery 提供; 此处仅构造身份骨架.

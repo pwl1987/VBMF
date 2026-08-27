@@ -11,7 +11,7 @@
 
 #![allow(dead_code)]
 
-use crate::device::{DeviceInfo, DeviceManager, IdentityStrength, PipelineError};
+use crate::device::{DeviceInfo, DeviceManager, IdentityStrength};
 use crate::graph_intent::{DeviceIntent, GraphRuntimeIntent, PipelineIntent, SinkIntent, SourceIntent};
 use gstreamer::prelude::*;
 use gstreamer_app::AppSink;
@@ -248,7 +248,7 @@ pub trait PipelineController {
 }
 
 /// 管线句柄 (GStreamer 运行时实例标识).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PipelineHandle(pub u64);
 
 /// GStreamer 实现 (feature `gstreamer`).
@@ -325,9 +325,9 @@ impl GStreamerPipelineController {
         let audio_pipeline_str = format!(
             "{audio_src} ! audio/x-raw ! appsink name=audiosink async=false",
         );
-        let vp = gstreamer::parse_launch(&video_pipeline_str)
+        let vp = gstreamer::parse::launch(&video_pipeline_str)
             .map_err(|e| PipelineError::StartFailed(format!("video parse: {e}")))?;
-        let ap = gstreamer::parse_launch(&audio_pipeline_str)
+        let ap = gstreamer::parse::launch(&audio_pipeline_str)
             .map_err(|e| PipelineError::StartFailed(format!("audio parse: {e}")))?;
         let v_appsink = vp
             .by_name("videosink")
