@@ -26,6 +26,27 @@
 
 #![allow(dead_code, non_snake_case, non_camel_case_types, non_upper_case_globals)]
 
+/// 单台 BMD 设备的完整身份 (Identity Closure Patch: 真实 `DeviceHandle` 直接传出,
+/// 各字段独立、互不污染, 不再经 serial/display 伪装). `device.rs` 据此构造
+/// `DeviceInfo`, 使 `device_id = UUIDv5(DeviceHandle)` 真正闭合, 并在
+/// `Device Registry → Resolver → GStreamer device-number` 链路里保持身份一致。
+pub struct BmdDeviceIdentity {
+    /// 型号 (`IDeckLink::GetModelName`)。
+    pub model: String,
+    /// 显示名 (`IDeckLink::GetDisplayName`)。
+    pub display: String,
+    /// 真实序列号: 经 `IDeckLinkConfiguration::GetString(SerialNumber='disc'=0x6469736E)` 读取;
+    /// 多数 DeckLink 不可读 → 空串 (绝不回退成其它身份维度)。
+    pub serial: String,
+    /// `BMDDeckLinkPersistentID` (`GetInt 'pers'`); SDK 不支持时为 `None` (本 3 台设备实测 `0x80000003`)。
+    pub persistent_id: Option<u32>,
+    /// `BMDDeckLinkDeviceHandle` (`GetString 'devh'=0x64657668`); 当前主机 best-available 身份,
+    /// 作为 canonical 派生键 (不跨机器/重启永久稳定, 后者仅 PersistentID 提供)。
+    pub device_handle: String,
+    /// `BMDDeckLinkTopologicalID` (`GetInt 'topl'`); 拓扑敏感, 重启可能漂移; SDK 不支持时 `None`。
+    pub topological_id: Option<u32>,
+}
+
 #[cfg(feature = "bmd")]
 mod imp {
     use libloading::{Library, Symbol};
@@ -220,6 +241,7 @@ mod imp {
         hr_profile_attributes: i32, // QueryInterface(IID_IDeckLinkProfileAttributes) [旧路径]
         hr_api_information: i32,    // QueryInterface(IID_IDeckLinkAPIInformation) [feared-wrong]
         device_handle: String,     // IDeckLinkAttributes::GetString(BMDDeckLinkDeviceHandle)
+        serial: String,            // IDeckLinkConfiguration::GetString(SerialNumber='disc')
         display_name_attr: String, // IDeckLinkAttributes::GetString(BMDDeckLinkDisplayName)
         persistent_id: AttrRead,   // 可用属性接口 GetInt(PersistentID)
         topological_id: AttrRead,  // 可用属性接口 GetInt(TopologicalID)
@@ -327,6 +349,7 @@ mod imp {
             let mut persistent_id = AttrRead::unavailable(hr_attributes);
             let mut topological_id = AttrRead::unavailable(hr_attributes);
             let mut attr_source = String::from("none");
+            let mut serial = String::new(); // 真实序列号, 独立于 device_handle 读取
 
             // 选择实际可用的属性接口: 优先 IDeckLinkAttributes(ADB82CE7);
             // 本 SDK(16.0)设备仅暴露 IDeckLinkProfileAttributes(F47551D7) 时回退。
@@ -367,8 +390,9 @@ mod imp {
                 }
             }
 
-            // device_handle 空时回退 IDeckLinkConfiguration::GetString(SerialNumber)
-            if device_handle.is_empty() {
+            // 真实序列号: 始终经 IDeckLinkConfiguration::GetString(SerialNumber='disc'=0x6469736E)
+            // 独立读取, 即便 device_handle 已存在 —— 二者是不同身份维度, 互不污染.
+            {
                 let mut cfg: *mut IDeckLinkConfiguration = std::ptr::null_mut();
                 // 注意: Rust 不允许把 `&mut` 引用直接 `as` 成不同 pointee 的裸指针,
                 // 故先取一个类型明确的指针变量, 再做指针→指针 (`as`) 转换。
@@ -381,16 +405,23 @@ mod imp {
                     if let Some(gs) = unsafe { (*cv).GetString } {
                         let mut sp: *mut c_char = std::ptr::null_mut();
                         unsafe { let _ = gs(cfg, 0x6469736Eu32, &mut sp); }
-                        device_handle = unsafe { read_cstr(sp) };
+                        serial = unsafe { read_cstr(sp) };
                     }
                     if let Some(rel) = unsafe { (*cv).Release } {
                         unsafe { let _ = rel(cfg); }
                     }
                 }
-                if device_handle.is_empty() {
-                    device_handle = "n/a".to_string();
-                }
             }
+
+            // device_handle 仅当 'devh' 真正为空 (极个别设备) 才用 serial 兜底; 否则保留空串,
+            // 由 device.rs 据官方身份层级 (PersistentID → DeviceHandle → Serial → 枚举) 决定 canonical 键.
+            let device_handle = if !device_handle.is_empty() {
+                device_handle
+            } else if !serial.is_empty() {
+                serial.clone()
+            } else {
+                String::new()
+            };
 
             // feared-wrong 对照: IDeckLinkAPIInformation::GetInt(PersistentID)
             // (预期 E_NOINTERFACE / 无效 ID, 证明它读不到设备属性)
@@ -415,6 +446,7 @@ mod imp {
                 hr_profile_attributes,
                 hr_api_information,
                 device_handle,
+                serial,
                 display_name_attr,
                 persistent_id,
                 topological_id,
@@ -449,11 +481,18 @@ mod imp {
         }
     }
 
-    pub fn enumerate() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
+    pub fn enumerate() -> Result<Vec<BmdDeviceIdentity>, String> {
         let devs = iter_devices()?;
         Ok(devs
             .into_iter()
-            .map(|d| (d.model, d.display, d.device_handle, d.persistent_id.normalized))
+            .map(|d| BmdDeviceIdentity {
+                model: d.model,
+                display: d.display,
+                serial: d.serial,
+                persistent_id: d.persistent_id.normalized,
+                device_handle: d.device_handle,
+                topological_id: d.topological_id.normalized,
+            })
             .collect())
     }
 
@@ -472,6 +511,7 @@ mod imp {
                  ├─ 属性接口 QI hr: Attributes(ADB82CE7)=0x{ah:08X} | ProfileAttributes(F47551D7)=0x{ph:08X} | APIInformation(B981ED01)=0x{ih:08X}\n\
                  ├─ 实际可用属性接口: {src}\n\
                  ├─ DeviceHandle (AttrGetString 'devh'): {dh}\n\
+                 ├─ SerialNumber (Config GetString 'disc'): {ser}\n\
                  ├─ DisplayName   (AttrGetString 'name'): {dn}\n\
                  ├─ PersistentID  (GetInt 'pers'): hr=0x{phr:08X} raw={praw} normalized={pn:?}\n\
                  ├─ TopologicalID (GetInt 'topl'): hr=0x{thr:08X} raw={traw} normalized={tn:?}\n\
@@ -485,6 +525,7 @@ mod imp {
                 ih = d.hr_api_information,
                 src = d.attr_source,
                 dh = d.device_handle,
+                ser = d.serial,
                 dn = d.display_name_attr,
                 phr = d.persistent_id.hr,
                 praw = d.persistent_id.raw,
@@ -757,7 +798,7 @@ mod imp {
 
 #[cfg(not(feature = "bmd"))]
 mod imp {
-    pub fn enumerate() -> Result<Vec<(String, String, String, Option<u32>)>, String> {
+    pub fn enumerate() -> Result<Vec<BmdDeviceIdentity>, String> {
         Err(
             "未编译 bmd feature —— 请使用 `--features bmd` 并设 \
              DECKLINK_SDK_INCLUDE=<SDK 的 Linux/include 路径>（需要 libclang）重新构建"

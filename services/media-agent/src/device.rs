@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use uuid::Uuid;
 
+use crate::decklink::BmdDeviceIdentity;
+
 /// 设备身份强度 (A0 实测: 本硬件仅支持 DeviceHandle).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IdentityStrength {
@@ -58,6 +60,8 @@ pub struct DeviceInfo {
     pub bmd_persistent_id: Option<i64>,
     /// BMD `DeviceHandle` (`GetString('devh')`, 当前主机 best-available identity).
     pub bmd_device_handle: Option<String>,
+    /// BMD `TopologicalID` (`GetInt('topl')`, 拓扑敏感, 重启/拓扑变化会漂移; SDK 不支持时 `None`).
+    pub bmd_topological_id: Option<i64>,
     /// 身份强度 (决定 materialize 选卡路径).
     pub identity_strength: IdentityStrength,
     /// 身份来源 (RealBmd / FilesystemSynthetic / Simulation).
@@ -102,6 +106,7 @@ impl DeviceManager for FilesystemDeviceManager {
                     serial_number: None,
                     bmd_persistent_id: None,
                     bmd_device_handle: None,
+                    bmd_topological_id: None,
                     identity_strength: IdentityStrength::Enumeration,
                     identity_source: DeviceIdentitySource::FilesystemSynthetic,
                 });
@@ -130,6 +135,7 @@ impl DeviceManager for SimulatedDeviceManager {
                 serial_number: Some(format!("SIM-SERIAL-{i}")),
                 bmd_persistent_id: Some(9000 + i as i64),
                 bmd_device_handle: Some(format!("sim-handle-{i}")),
+                bmd_topological_id: None,
                 identity_strength: IdentityStrength::PersistentId,
                 identity_source: DeviceIdentitySource::Simulation,
             })
@@ -149,8 +155,11 @@ impl DeckLinkDeviceManager {
 
 impl DeviceManager for DeckLinkDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
-        // 真实枚举由 sdk/discovery 提供; 此处仅构造身份骨架.
-        // (A0: 经 decklink::enumerate() 取 model/display/serial/pid; 当前骨架用占位.)
+        // Identity Closure Patch: enumerate() 已返回独立、互不污染的
+        // model/display/serial/persistent_id/device_handle/topological_id. 这里严格按官方身份层级
+        // (PersistentID → DeviceHandle → TopologicalID → 枚举序号) 构造 canonical 派生键,
+        // 不再用 display/serial 伪装 DeviceHandle. 各身份维度独立写入 DeviceInfo,
+        // 使 `device_id = UUIDv5(DeviceHandle)`、`bmd_device_handle`=真实 devh 真正闭合.
         let discovered = match crate::decklink::enumerate() {
             Ok(d) => d,
             // 非 bmd 构建: enumerate 恒 Err, 无设备可派生身份 (绝不伪造).
@@ -158,26 +167,39 @@ impl DeviceManager for DeckLinkDeviceManager {
         };
         discovered
             .into_iter()
-            .map(|(model, display, serial, pid)| {
-                let handle = if !serial.is_empty() {
-                    serial.clone()
-                } else if !display.is_empty() {
-                    display.clone()
+            .map(|d: BmdDeviceIdentity| {
+                // canonical 派生键 = 真实 SDK 身份; 优先级 PersistentID > DeviceHandle > Serial > 枚举.
+                // 当前硬件 (10.30.15.10, SDK 16.0) 三台均无 PersistentID → canonical = DeviceHandle.
+                let canonical = if d.persistent_id.is_some() {
+                    format!("pid:{}", d.persistent_id.unwrap())
+                } else if !d.device_handle.is_empty() {
+                    d.device_handle.clone()
+                } else if !d.serial.is_empty() {
+                    d.serial.clone()
                 } else {
                     "unknown".to_string()
                 };
-                let identity_strength = if pid.is_some() {
+                let identity_strength = if d.persistent_id.is_some() {
                     IdentityStrength::PersistentId
-                } else {
+                } else if !d.device_handle.is_empty() {
                     IdentityStrength::DeviceHandle
+                } else if !d.serial.is_empty() {
+                    IdentityStrength::DeviceHandle
+                } else {
+                    IdentityStrength::Enumeration
                 };
                 DeviceInfo {
-                    device_id: Uuid::new_v5(&VBMF_BMD_NS, format!("vbmf:bmd:{handle}").as_bytes()),
-                    model: model.clone(),
-                    display_name: display.clone(),
-                    serial_number: Some(serial.clone()),
-                    bmd_persistent_id: pid.map(|v| v as i64),
-                    bmd_device_handle: Some(handle.clone()),
+                    device_id: Uuid::new_v5(&VBMF_BMD_NS, format!("vbmf:bmd:{canonical}").as_bytes()),
+                    model: d.model.clone(),
+                    display_name: d.display.clone(),
+                    serial_number: if d.serial.is_empty() { None } else { Some(d.serial.clone()) },
+                    bmd_persistent_id: d.persistent_id.map(|v| v as i64),
+                    bmd_device_handle: if d.device_handle.is_empty() {
+                        None
+                    } else {
+                        Some(d.device_handle.clone())
+                    },
+                    bmd_topological_id: d.topological_id.map(|v| v as i64),
                     identity_strength,
                     identity_source: DeviceIdentitySource::RealBmd,
                 }
