@@ -72,6 +72,12 @@ pub trait DeviceManager {
 /// CI / 非硬件构建: 从 `/dev/blackmagic/*` 节点发现 (无 SDK/硬件假定).
 pub struct FilesystemDeviceManager;
 
+impl FilesystemDeviceManager {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl DeviceManager for FilesystemDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
         let base = Path::new("/dev/blackmagic");
@@ -139,7 +145,11 @@ impl DeviceManager for DeckLinkDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
         // 真实枚举由 sdk/discovery 提供; 此处仅构造身份骨架.
         // (A0: 经 decklink::enumerate() 取 model/display/serial/pid; 当前骨架用占位.)
-        let discovered = crate::decklink::enumerate();
+        let discovered = match crate::decklink::enumerate() {
+            Ok(d) => d,
+            // 非 bmd 构建: enumerate 恒 Err, 无设备可派生身份 (绝不伪造).
+            Err(_) => return Vec::new(),
+        };
         discovered
             .into_iter()
             .map(|(model, display, serial, pid)| {
@@ -156,8 +166,8 @@ impl DeviceManager for DeckLinkDeviceManager {
                     device_id: Uuid::new_v5(&VBMF_BMD_NS, format!("vbmf:bmd:{handle}").as_bytes()),
                     model: model.clone(),
                     display_name: display.clone(),
-                    serial_number: serial.clone(),
-                    bmd_persistent_id: pid,
+                    serial_number: Some(serial.clone()),
+                    bmd_persistent_id: pid.map(|v| v as i64),
                     bmd_device_handle: Some(handle.clone()),
                     identity_strength,
                     identity_source: DeviceIdentitySource::RealBmd,

@@ -13,7 +13,9 @@
 
 use crate::device::{DeviceInfo, DeviceManager, IdentityStrength};
 use crate::graph_intent::{DeviceIntent, GraphRuntimeIntent, PipelineIntent, SinkIntent, SourceIntent};
+#[cfg(feature = "gstreamer")]
 use gstreamer::prelude::*;
+#[cfg(feature = "gstreamer")]
 use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, LazyLock, Mutex};

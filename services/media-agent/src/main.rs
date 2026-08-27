@@ -281,7 +281,7 @@ fn main() {
                                         "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
                                     );
                                     // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
-                                    sup.lock().unwrap().register(h.0);
+                                    sup.lock().unwrap().register(device_uuid);
                                     spawn_ingest_watchdog(
                                         ctrl,
                                         h,
@@ -421,7 +421,7 @@ fn spawn_ingest_watchdog(
                     .iter()
                     .any(|e| matches!(e, crate::pipeline::PipelineBusEvent::Error(_) | crate::pipeline::PipelineBusEvent::Eos))
             {
-                match sup.lock().unwrap().report_failure(&handle.0) {
+                match sup.lock().unwrap().report_failure(&device_uuid) {
                     Ok(supervisor::SupervisorAction::Restart) => {
                         // Lease→Pipeline: recover 前必须重校租约仍在有效期内 (MEDIA-03 排他不变量).
                         if !lm.is_valid(&device_uuid) {
@@ -429,12 +429,12 @@ fn spawn_ingest_watchdog(
                             *agent_state.lock().unwrap() = health::AgentState::ManualRequired;
                             continue;
                         }
-                        let backoff = sup.lock().unwrap().backoff(&handle.0);
-                        let _ = sup.lock().unwrap().begin_restart(&handle.0);
+                        let backoff = sup.lock().unwrap().backoff(&device_uuid);
+                        let _ = sup.lock().unwrap().begin_restart(&device_uuid);
                         std::thread::sleep(backoff);
                         match ctrl.recover(&handle) {
                             Ok(()) => {
-                                sup.lock().unwrap().report_recovered(&handle.0).ok();
+                                sup.lock().unwrap().report_recovered(&device_uuid).ok();
                                 tracing::warn!(handle = %handle.0, "MEDIA-RT-01 watchdog: recover 成功 (Supervisor→PipelineController.recover 闭环)");
                             }
                             Err(e) => tracing::error!(error = %e, "recover 失败"),
