@@ -284,7 +284,7 @@ impl PipelineController for GStreamerPipelineController {
 }
 
 /// 运行时健康共享状态 (GStreamer 回调/bus 监控/监控线程共享).
-static HEALTH_ARCS: LazyLock<
+pub(crate) static HEALTH_ARCS: LazyLock<
     Mutex<std::collections::HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>>,
 > = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 
@@ -327,8 +327,14 @@ impl GStreamerPipelineController {
         );
         let vp = gstreamer::parse::launch(&video_pipeline_str)
             .map_err(|e| PipelineError::StartFailed(format!("video parse: {e}")))?;
+        let vp = vp
+            .dynamic_cast::<gstreamer::Bin>()
+            .map_err(|_| PipelineError::StartFailed("video pipeline not a bin".into()))?;
         let ap = gstreamer::parse::launch(&audio_pipeline_str)
             .map_err(|e| PipelineError::StartFailed(format!("audio parse: {e}")))?;
+        let ap = ap
+            .dynamic_cast::<gstreamer::Bin>()
+            .map_err(|_| PipelineError::StartFailed("audio pipeline not a bin".into()))?;
         let v_appsink = vp
             .by_name("videosink")
             .and_then(|e| e.dynamic_cast::<AppSink>().ok())
