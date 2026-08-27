@@ -198,7 +198,10 @@ pub fn probe_gstreamer_devices(max: usize, require_identity: bool) -> GstProbeOu
 /// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 失败按 `ProbeError`
 /// 分类返回 (见枚举文档), **绝不** 把 "卡存在但打不开" 与 "无此卡" 混为一谈 (用户 §⑥).
 #[cfg(feature = "gstreamer")]
-fn probe_one_device_number(n: u32, require_identity: bool) -> Result<GStreamerDeviceProbe, ProbeError> {
+fn probe_one_device_number(
+    n: u32,
+    require_identity: bool,
+) -> Result<GStreamerDeviceProbe, ProbeError> {
     use gstreamer::prelude::*;
     let pipeline = gstreamer::Pipeline::default();
     // 元素创建/装配失败 = 插件或运行时问题, 与具体设备无关 → OpenFailed.
@@ -210,12 +213,17 @@ fn probe_one_device_number(n: u32, require_identity: bool) -> Result<GStreamerDe
     // live source 需置于 Pipeline (并接 fakesink) 才被驱动; 裸 Element 直接 set_state 不会执行
     // start(), 故 hw-serial-number 恒为 null. Pipeline 设 PLAYING 才 fully-active 并填充只读身份属性
     // (hw-serial-number 等); 即便无信号 (Signal lost) 设备也已打开, 身份属性应已可读.
-    let sink = gstreamer::ElementFactory::make("fakesink").build()
+    let sink = gstreamer::ElementFactory::make("fakesink")
+        .build()
         .map_err(|e| ProbeError::OpenFailed(format!("fakesink 创建失败: {e}")))?;
-    pipeline.add(&el).map_err(|e| ProbeError::OpenFailed(format!("pipeline.add(src) 失败: {e}")))?;
-    pipeline.add(&sink)
+    pipeline
+        .add(&el)
+        .map_err(|e| ProbeError::OpenFailed(format!("pipeline.add(src) 失败: {e}")))?;
+    pipeline
+        .add(&sink)
         .map_err(|e| ProbeError::OpenFailed(format!("pipeline.add(sink) 失败: {e}")))?;
-    el.link(&sink).map_err(|e| ProbeError::OpenFailed(format!("link 失败: {e}")))?;
+    el.link(&sink)
+        .map_err(|e| ProbeError::OpenFailed(format!("link 失败: {e}")))?;
     // 进 PLAYING 真正打开设备. set_state 同步结果 + 异步失败均可能在 bus 上报 GError:
     // 对 live source, 设备打开失败 (卡不存在/被占用/硬件错误) 通常以异步 Error message 送达 bus,
     // 故这里既看同步返回值也 drain bus.
@@ -247,7 +255,8 @@ fn probe_one_device_number(n: u32, require_identity: bool) -> Result<GStreamerDe
         }
     });
     let signal = el
-        .find_property("signal").map(|_| el.property::<bool>("signal"));
+        .find_property("signal")
+        .map(|_| el.property::<bool>("signal"));
     let model = el
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
@@ -256,7 +265,8 @@ fn probe_one_device_number(n: u32, require_identity: bool) -> Result<GStreamerDe
     // - 清单模式 (require_identity=false): 身份由 DeviceBindingManifest 显式契约提供, 不依赖
     //   GStreamer 只读属性 (本硬件 hw-serial-number 等恒空串, 见 abda19f / device-binding.example.json),
     //   故只要卡能打开 (set_state Playing 成功) 即计入 probe, 身份匹配交由 resolve_with_manifest.
-    if require_identity && hw_serial_number.is_none() && persistent_id.is_none() && model.is_none() {
+    if require_identity && hw_serial_number.is_none() && persistent_id.is_none() && model.is_none()
+    {
         let missing = vec![
             "hw-serial-number".to_string(),
             "persistent-id".to_string(),
@@ -312,13 +322,10 @@ fn read_negotiated_caps(el: &gstreamer::Element) -> Option<crate::port::VideoFor
         .nth(1)
         .and_then(|s| s.split([',', ')', ' ']).next())
         .map(|s| s.to_string());
-    let interlaced = text
-        .split("interlace-mode=(string)")
-        .nth(1)
-        .map(|s| {
-            let v = s.split([',', ')', ' ']).next().unwrap_or("");
-            v == "interleaved" || v == "mixed"
-        });
+    let interlaced = text.split("interlace-mode=(string)").nth(1).map(|s| {
+        let v = s.split([',', ')', ' ']).next().unwrap_or("");
+        v == "interleaved" || v == "mixed"
+    });
     Some(crate::port::VideoFormat {
         width,
         height,
@@ -774,10 +781,17 @@ fn resolve_decklink_lib() -> Option<String> {
     candidates.push("/Library/Blackmagic/DeckLink/libDeckLinkAPI.so".into());
     if let Some(inc) = option_env!("DECKLINK_SDK_INCLUDE") {
         if let Some(parent) = std::path::Path::new(inc).parent() {
-            candidates.push(parent.join("lib/libDeckLinkAPI.so").to_string_lossy().into_owned());
+            candidates.push(
+                parent
+                    .join("lib/libDeckLinkAPI.so")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
         }
     }
-    candidates.into_iter().find(|p| std::path::Path::new(p).exists())
+    candidates
+        .into_iter()
+        .find(|p| std::path::Path::new(p).exists())
 }
 
 /// 实际 GStreamer 运行时核心版本 (major.minor.micro); 用于 Manifest `gst_runtime_version` 软校验.
@@ -951,6 +965,8 @@ mod tests {
             identity_strength: IdentityStrength::DeviceHandle,
             identity_source: DeviceIdentitySource::RealBmd,
             capabilities: crate::port::DeviceCapabilities::default(),
+            video_input_connections: 0,
+            video_output_connections: 0,
             ports: Vec::new(),
         }
     }

@@ -68,7 +68,10 @@ fn main() {
     // 与 CAP-01 生产路径严格隔离: 命中即 exit(0), 绝不进入媒体 launch。
     #[cfg(feature = "gstreamer")]
     if std::env::var("VBMF_RESOLVER").is_ok() {
-        let outcome = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES, _cfg.device_binding_path.is_none());
+        let outcome = crate::resolver::probe_gstreamer_devices(
+            crate::resolver::MAX_PROBE_DEVICES,
+            _cfg.device_binding_path.is_none(),
+        );
         match outcome {
             crate::resolver::GstProbeOutcome::Available { probes, errors } => {
                 // 原始 GStreamer 枚举 (device-number / hw-serial-number / persistent-id / signal) —
@@ -112,8 +115,15 @@ fn main() {
                                 let plugin_v = crate::resolver::actual_decklink_plugin_version()
                                     .unwrap_or_else(|| "unknown".to_string());
                                 // P1-1: 真实运行时 SDK 身份 (build include + libDeckLinkAPI.so) 作为 provenance 输出.
-                                eprintln!("BMD SDK runtime identity (provenance): {}", crate::resolver::detected_bmd_sdk_version());
-                                for w in m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v)) {
+                                eprintln!(
+                                    "BMD SDK runtime identity (provenance): {}",
+                                    crate::resolver::detected_bmd_sdk_version()
+                                );
+                                for w in m.validate_environment(
+                                    Some(&sdk_v),
+                                    Some(&plugin_v),
+                                    Some(&gst_v),
+                                ) {
                                     eprintln!("device-binding manifest 版本校验: {w}");
                                 }
                             }
@@ -158,7 +168,9 @@ fn main() {
                 // DeviceHandle → Device → Port → Direction → Connector → Gst address → Signal 闭环.
                 // 绝不把当前 dn0/dn1/dn2 语义写死; 端口完全来自 Manifest + 运行时发现.
                 if let Some(m) = &manifest {
-                    let registry = crate::port::PortRegistry::build(&devices, &probes, m, &bindings);
+                    let registry =
+                        crate::port::PortRegistry::build(&devices, &probes, m, &bindings)
+                            .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)");
                     let report = crate::hw_port_01::verify(&registry, m);
                     match serde_json::to_string_pretty(&report) {
                         Ok(json) => {
@@ -370,7 +382,9 @@ fn main() {
                                 .unwrap_or_else(|| "unknown".to_string());
                             // P1-1: 真实运行时 SDK 身份 provenance (build include + libDeckLinkAPI.so).
                             tracing::info!(detected_sdk = %crate::resolver::detected_bmd_sdk_version(), "BMD SDK runtime identity (provenance)");
-                            for w in m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v)) {
+                            for w in
+                                m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v))
+                            {
                                 tracing::warn!(warning = %w, "device-binding manifest 版本校验");
                             }
                             crate::resolver::collect_bindings_from_manifest(
@@ -411,16 +425,20 @@ fn main() {
             let registry = _cfg.device_binding_path.as_ref().and_then(|p| {
                 crate::resolver::DeviceBindingManifest::load(p)
                     .ok()
-                    .map(|m| crate::port::PortRegistry::build(&devices, &gst_probes, &m, &bindings))
+                    .map(|m| {
+                        crate::port::PortRegistry::build(&devices, &gst_probes, &m, &bindings)
+                            .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
+                    })
             });
             #[cfg(not(feature = "gstreamer"))]
-            let registry: Option<crate::port::PortRegistry> = _cfg
-                .device_binding_path
-                .as_ref()
-                .and_then(|p| {
+            let registry: Option<crate::port::PortRegistry> =
+                _cfg.device_binding_path.as_ref().and_then(|p| {
                     crate::resolver::DeviceBindingManifest::load(p)
                         .ok()
-                        .map(|m| crate::port::PortRegistry::build(&devices, &[], &m, &bindings))
+                        .map(|m| {
+                            crate::port::PortRegistry::build(&devices, &[], &m, &bindings)
+                                .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
+                        })
                 });
 
             // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
@@ -450,7 +468,13 @@ fn main() {
                         },
                     }],
                 };
-                match crate::pipeline::materialize(&intent, &devices, mode, &bindings, registry.as_ref()) {
+                match crate::pipeline::materialize(
+                    &intent,
+                    &devices,
+                    mode,
+                    &bindings,
+                    registry.as_ref(),
+                ) {
                     Ok(plans) => {
                         for p in &plans {
                             tracing::info!(

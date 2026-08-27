@@ -63,6 +63,11 @@ pub struct DeviceInfo {
     pub bmd_device_handle: Option<String>,
     /// BMD `TopologicalID` (`GetInt('topl')`, 拓扑敏感, 重启/拓扑变化会漂移; SDK 不支持时 `None`).
     pub bmd_topological_id: Option<i64>,
+    /// BMD 真实输入连接位掩码 (来自 `BmdDeviceIdentity.video_input_connections`), 0 = 未探测/非 BMD.
+    /// HW-PORT-01A `discover_ports` 据此枚举真实端口 (§四).
+    pub video_input_connections: u64,
+    /// BMD 真实输出连接位掩码.
+    pub video_output_connections: u64,
     /// 身份强度 (决定 materialize 选卡路径).
     pub identity_strength: IdentityStrength,
     /// 身份来源 (RealBmd / FilesystemSynthetic / Simulation).
@@ -113,6 +118,8 @@ impl DeviceManager for FilesystemDeviceManager {
                     bmd_persistent_id: None,
                     bmd_device_handle: None,
                     bmd_topological_id: None,
+                    video_input_connections: 0,
+                    video_output_connections: 0,
                     identity_strength: IdentityStrength::Enumeration,
                     identity_source: DeviceIdentitySource::FilesystemSynthetic,
                     capabilities: DeviceCapabilities::default(),
@@ -144,6 +151,8 @@ impl DeviceManager for SimulatedDeviceManager {
                 bmd_persistent_id: Some(9000 + i as i64),
                 bmd_device_handle: Some(format!("sim-handle-{i}")),
                 bmd_topological_id: None,
+                video_input_connections: 0,
+                video_output_connections: 0,
                 identity_strength: IdentityStrength::PersistentId,
                 identity_source: DeviceIdentitySource::Simulation,
                 capabilities: DeviceCapabilities::default(),
@@ -215,6 +224,8 @@ impl DeviceManager for DeckLinkDeviceManager {
                         Some(d.device_handle.clone())
                     },
                     bmd_topological_id: d.topological_id.map(|v| v as i64),
+                    video_input_connections: d.video_input_connections,
+                    video_output_connections: d.video_output_connections,
                     identity_strength,
                     identity_source: DeviceIdentitySource::RealBmd,
                     capabilities: DeviceCapabilities::default(),

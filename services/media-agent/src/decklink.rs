@@ -24,7 +24,13 @@
 //!
 //! 未编译 `bmd` feature 时，`enumerate()` 返回说明性错误，骨架仍能链接、CI 保持绿。
 
-#![allow(dead_code, non_snake_case, non_camel_case_types, non_upper_case_globals, clippy::upper_case_acronyms)]
+#![allow(
+    dead_code,
+    non_snake_case,
+    non_camel_case_types,
+    non_upper_case_globals,
+    clippy::upper_case_acronyms
+)]
 
 /// 单台 BMD 设备的完整身份 (Identity Closure Patch: 真实 `DeviceHandle` 直接传出,
 /// 各字段独立、互不污染, 不再经 serial/display 伪装). `device.rs` 据此构造
@@ -45,6 +51,12 @@ pub struct BmdDeviceIdentity {
     pub device_handle: String,
     /// `BMDDeckLinkTopologicalID` (`GetInt 'topl'`); 拓扑敏感, 重启可能漂移; SDK 不支持时 `None`。
     pub topological_id: Option<u32>,
+    /// `BMDDeckLinkVideoInputConnections` (`GetInt 'vicn'=0x7669636E`): 输入连接位掩码
+    /// (BMDVideoConnection 位: SDI=1<<0, HDMI=1<<1, OpticalSDI=1<<2, Component=1<<3,
+    /// Composite=1<<4, SVideo=1<<5). 0 = 未探测/不支持. HW-PORT-01A `discover_ports` 据此枚举端口 (§四).
+    pub video_input_connections: u64,
+    /// `BMDDeckLinkVideoOutputConnections` (`GetInt 'vocn'=0x766F636E`): 输出连接位掩码。
+    pub video_output_connections: u64,
 }
 
 #[cfg(feature = "bmd")]
@@ -62,7 +74,8 @@ mod imp {
     // 落到错误函数上，导致崩溃或返回垃圾数据）。
     #[repr(C)]
     struct IDeckLinkIteratorVtbl {
-        QueryInterface: Option<unsafe extern "C" fn(*mut IDeckLinkIterator, REFIID, *mut LPVOID) -> HRESULT>,
+        QueryInterface:
+            Option<unsafe extern "C" fn(*mut IDeckLinkIterator, REFIID, *mut LPVOID) -> HRESULT>,
         AddRef: Option<unsafe extern "C" fn(*mut IDeckLinkIterator) -> ULONG>,
         Release: Option<unsafe extern "C" fn(*mut IDeckLinkIterator) -> ULONG>,
         Next: Option<unsafe extern "C" fn(*mut IDeckLinkIterator, *mut *mut IDeckLink) -> HRESULT>,
@@ -74,7 +87,8 @@ mod imp {
         // **按值传 16 字节 GUID** (占 rsi:rdx 两个寄存器), 不是指针! 真机 g++ 标准
         // 调用 (REFIID 即 16 字节结构体按值) 与手动 vtable[0] 调用均验证: 按值传
         // S_OK, 按指针传则被当作垃圾 GUID 返回 E_NOTIMPL。故此处第 2 参数用 Guid16 按值。
-        QueryInterface: Option<unsafe extern "C" fn(*mut IDeckLink, Guid16, *mut LPVOID) -> HRESULT>,
+        QueryInterface:
+            Option<unsafe extern "C" fn(*mut IDeckLink, Guid16, *mut LPVOID) -> HRESULT>,
         AddRef: Option<unsafe extern "C" fn(*mut IDeckLink) -> ULONG>,
         Release: Option<unsafe extern "C" fn(*mut IDeckLink) -> ULONG>,
         GetModelName: Option<unsafe extern "C" fn(*mut IDeckLink, *mut *mut c_char) -> HRESULT>,
@@ -102,7 +116,9 @@ mod imp {
         SetFloat: Option<unsafe extern "C" fn()>,
         GetFloat: Option<unsafe extern "C" fn()>,
         SetString: Option<unsafe extern "C" fn()>,
-        GetString: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut *mut c_char) -> HRESULT>,
+        GetString: Option<
+            unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut *mut c_char) -> HRESULT,
+        >,
     }
 
     // IDeckLinkProfileAttributes vtable (SDK 16.0, 2.5.17)。方法顺序按官方头文件
@@ -116,9 +132,12 @@ mod imp {
         AddRef: Option<unsafe extern "C" fn()>,
         Release: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes) -> ULONG>,
         GetFlag: Option<unsafe extern "C" fn()>,
-        GetInt: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut i64) -> HRESULT>,
+        GetInt:
+            Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut i64) -> HRESULT>,
         GetFloat: Option<unsafe extern "C" fn()>,
-        GetString: Option<unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut *mut c_char) -> HRESULT>,
+        GetString: Option<
+            unsafe extern "C" fn(*mut IDeckLinkProfileAttributes, u32, *mut *mut c_char) -> HRESULT,
+        >,
         GetStringWithParam: Option<unsafe extern "C" fn()>,
     }
 
@@ -227,7 +246,11 @@ mod imp {
     }
     impl AttrRead {
         fn unavailable(hr: i32) -> Self {
-            AttrRead { hr, raw: 0, normalized: None }
+            AttrRead {
+                hr,
+                raw: 0,
+                normalized: None,
+            }
         }
     }
 
@@ -237,17 +260,19 @@ mod imp {
     struct RawDevice {
         index: usize,
         model: String,
-        display: String, // IDeckLink::GetDisplayName
-        hr_attributes: i32,        // QueryInterface(IID_IDeckLinkAttributes)  [官方正解]
+        display: String,                      // IDeckLink::GetDisplayName
+        hr_attributes: i32,                   // QueryInterface(IID_IDeckLinkAttributes)  [官方正解]
         hr_profile_attributes: i32, // QueryInterface(IID_IDeckLinkProfileAttributes) [旧路径]
         hr_api_information: i32,    // QueryInterface(IID_IDeckLinkAPIInformation) [feared-wrong]
-        device_handle: String,     // IDeckLinkAttributes::GetString(BMDDeckLinkDeviceHandle)
-        serial: String,            // IDeckLinkConfiguration::GetString(SerialNumber='disc')
-        display_name_attr: String, // IDeckLinkAttributes::GetString(BMDDeckLinkDisplayName)
-        persistent_id: AttrRead,   // 可用属性接口 GetInt(PersistentID)
-        topological_id: AttrRead,  // 可用属性接口 GetInt(TopologicalID)
-        attr_source: String,       // 实际提供身份的接口 (IDeckLinkAttributes / IDeckLinkProfileAttributes)
+        device_handle: String,      // IDeckLinkAttributes::GetString(BMDDeckLinkDeviceHandle)
+        serial: String,             // IDeckLinkConfiguration::GetString(SerialNumber='disc')
+        display_name_attr: String,  // IDeckLinkAttributes::GetString(BMDDeckLinkDisplayName)
+        persistent_id: AttrRead,    // 可用属性接口 GetInt(PersistentID)
+        topological_id: AttrRead,   // 可用属性接口 GetInt(TopologicalID)
+        attr_source: String, // 实际提供身份的接口 (IDeckLinkAttributes / IDeckLinkProfileAttributes)
         persistent_id_via_api_info: AttrRead, // IDeckLinkAPIInformation::GetInt [feared-wrong 对照]
+        video_input_connections: AttrRead,
+        video_output_connections: AttrRead,
     }
 
     // ── A0 接口读取辅助 (接口无关, 直接吃 vtable 函数指针) ──
@@ -315,12 +340,11 @@ mod imp {
             let dv = unsafe { *(decklink as *mut *mut IDeckLinkVtbl) };
             let get_model =
                 unsafe { (*dv).GetModelName }.ok_or("vtable 中缺少 IDeckLink::GetModelName")?;
-            let get_display = unsafe { (*dv).GetDisplayName }
-                .ok_or("vtable 中缺少 IDeckLink::GetDisplayName")?;
-            let query_iface = unsafe { (*dv).QueryInterface }
-                .ok_or("vtable 中缺少 IDeckLink::QueryInterface")?;
-            let release_dev =
-                unsafe { (*dv).Release }.ok_or("vtable 中缺少 IDeckLink::Release")?;
+            let get_display =
+                unsafe { (*dv).GetDisplayName }.ok_or("vtable 中缺少 IDeckLink::GetDisplayName")?;
+            let query_iface =
+                unsafe { (*dv).QueryInterface }.ok_or("vtable 中缺少 IDeckLink::QueryInterface")?;
+            let release_dev = unsafe { (*dv).Release }.ok_or("vtable 中缺少 IDeckLink::Release")?;
 
             let mut model_ptr: *mut c_char = std::ptr::null_mut();
             let mut display_ptr: *mut c_char = std::ptr::null_mut();
@@ -349,6 +373,9 @@ mod imp {
             let mut display_name_attr = String::new();
             let mut persistent_id = AttrRead::unavailable(hr_attributes);
             let mut topological_id = AttrRead::unavailable(hr_attributes);
+            // 连接位掩码: 供 HW-PORT-01A `discover_ports` 枚举真实端口 (§四, 不靠 manifest/device-number 猜).
+            let mut video_input_connections = AttrRead::unavailable(hr_attributes);
+            let mut video_output_connections = AttrRead::unavailable(hr_attributes);
             let mut attr_source = String::from("none");
             let mut serial = String::new(); // 真实序列号, 独立于 device_handle 读取
 
@@ -358,10 +385,16 @@ mod imp {
             let (avail_obj, avail_vtbl): (LPVOID, *mut *mut IDeckLinkProfileAttributesVtbl) =
                 if hr_attributes == S_OK && !attr_obj.is_null() {
                     attr_source = "IDeckLinkAttributes(ADB82CE7)".into();
-                    (attr_obj, attr_obj as *mut *mut IDeckLinkProfileAttributesVtbl)
+                    (
+                        attr_obj,
+                        attr_obj as *mut *mut IDeckLinkProfileAttributesVtbl,
+                    )
                 } else if hr_profile_attributes == S_OK && !pattr_obj.is_null() {
                     attr_source = "IDeckLinkProfileAttributes(F47551D7)".into();
-                    (pattr_obj, pattr_obj as *mut *mut IDeckLinkProfileAttributesVtbl)
+                    (
+                        pattr_obj,
+                        pattr_obj as *mut *mut IDeckLinkProfileAttributesVtbl,
+                    )
                 } else {
                     (std::ptr::null_mut(), std::ptr::null_mut())
                 };
@@ -370,24 +403,49 @@ mod imp {
                 let av: *mut IDeckLinkProfileAttributesVtbl = unsafe { *avail_vtbl };
                 if let Some(gi) = unsafe { (*av).GetInt } {
                     persistent_id = unsafe {
-                        read_int_attr(avail_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkPersistentID)
+                        read_int_attr(
+                            avail_obj as *mut IDeckLinkProfileAttributes,
+                            gi,
+                            BMDDeckLinkPersistentID,
+                        )
                     };
                     topological_id = unsafe {
-                        read_int_attr(avail_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkTopologicalID)
+                        read_int_attr(
+                            avail_obj as *mut IDeckLinkProfileAttributes,
+                            gi,
+                            BMDDeckLinkTopologicalID,
+                        )
+                    };
+                    // BMDDeckLinkVideoInputConnections='vicn'=0x7669636E / VideoOutputConnections='vocn'=0x766F636E
+                    video_input_connections = unsafe {
+                        read_int_attr(avail_obj as *mut IDeckLinkProfileAttributes, gi, 0x7669636E)
+                    };
+                    video_output_connections = unsafe {
+                        read_int_attr(avail_obj as *mut IDeckLinkProfileAttributes, gi, 0x766F636E)
                     };
                 }
                 if let Some(gs) = unsafe { (*av).GetString } {
                     // BMDDeckLinkDeviceHandle = 'devh' = 0x64657668
                     device_handle = unsafe {
-                        read_str_attr(avail_obj as *mut IDeckLinkProfileAttributes, gs, 0x64657668u32)
+                        read_str_attr(
+                            avail_obj as *mut IDeckLinkProfileAttributes,
+                            gs,
+                            0x64657668u32,
+                        )
                     };
                     // BMDDeckLinkDisplayName = 'name' = 0x6E616D65
                     display_name_attr = unsafe {
-                        read_str_attr(avail_obj as *mut IDeckLinkProfileAttributes, gs, 0x6E616D65u32)
+                        read_str_attr(
+                            avail_obj as *mut IDeckLinkProfileAttributes,
+                            gs,
+                            0x6E616D65u32,
+                        )
                     };
                 }
                 if let Some(rel) = unsafe { (*av).Release } {
-                    unsafe { let _ = rel(avail_obj as *mut IDeckLinkProfileAttributes); }
+                    unsafe {
+                        let _ = rel(avail_obj as *mut IDeckLinkProfileAttributes);
+                    }
                 }
             }
 
@@ -405,11 +463,15 @@ mod imp {
                     let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
                     if let Some(gs) = unsafe { (*cv).GetString } {
                         let mut sp: *mut c_char = std::ptr::null_mut();
-                        unsafe { let _ = gs(cfg, 0x6469736Eu32, &mut sp); }
+                        unsafe {
+                            let _ = gs(cfg, 0x6469736Eu32, &mut sp);
+                        }
                         serial = unsafe { read_cstr(sp) };
                     }
                     if let Some(rel) = unsafe { (*cv).Release } {
-                        unsafe { let _ = rel(cfg); }
+                        unsafe {
+                            let _ = rel(cfg);
+                        }
                     }
                 }
             }
@@ -431,11 +493,17 @@ mod imp {
                 let pv = unsafe { *(api_obj as *mut *mut IDeckLinkProfileAttributesVtbl) };
                 if let Some(gi) = unsafe { (*pv).GetInt } {
                     persistent_id_via_api_info = unsafe {
-                        read_int_attr(api_obj as *mut IDeckLinkProfileAttributes, gi, BMDDeckLinkPersistentID)
+                        read_int_attr(
+                            api_obj as *mut IDeckLinkProfileAttributes,
+                            gi,
+                            BMDDeckLinkPersistentID,
+                        )
                     };
                 }
                 if let Some(rel) = unsafe { (*pv).Release } {
-                    unsafe { let _ = rel(api_obj as *mut IDeckLinkProfileAttributes); }
+                    unsafe {
+                        let _ = rel(api_obj as *mut IDeckLinkProfileAttributes);
+                    }
                 }
             }
 
@@ -453,6 +521,8 @@ mod imp {
                 topological_id,
                 attr_source,
                 persistent_id_via_api_info,
+                video_input_connections,
+                video_output_connections,
             });
             index += 1;
 
@@ -493,6 +563,8 @@ mod imp {
                 persistent_id: d.persistent_id.normalized,
                 device_handle: d.device_handle,
                 topological_id: d.topological_id.normalized,
+                video_input_connections: d.video_input_connections.raw as u64,
+                video_output_connections: d.video_output_connections.raw as u64,
             })
             .collect())
     }
@@ -561,7 +633,10 @@ mod imp {
     // vtable 槽位布局手工声明 (bindgen 生成不透明 vtable, 槽位需对齐官方头).
     // ─────────────────────────────────────────────────────────────
     const IID_DECKLINK_INPUT: Guid16 = Guid16 {
-        b: [0x6A,0x51,0x5F,0x8A,0xFB,0xCE,0x48,0x53,0xB0,0xF7,0x2A,0x09,0xDB,0x1E,0xCA,0x0B],
+        b: [
+            0x6A, 0x51, 0x5F, 0x8A, 0xFB, 0xCE, 0x48, 0x53, 0xB0, 0xF7, 0x2A, 0x09, 0xDB, 0x1E,
+            0xCA, 0x0B,
+        ],
     };
 
     #[repr(C)]
@@ -573,7 +648,9 @@ mod imp {
         //   (this, BMDVideoConnection, BMDDisplayMode, BMDPixelFormat,
         //    BMDVideoInputConversionMode, BMDSupportedVideoModeFlags,
         //    BMDDisplayMode* actualMode, bool* supported) -> HRESULT
-        DoesSupportVideoMode: Option<unsafe extern "C" fn(*mut c_void, u32, u32, u32, u32, u32, *mut u32, *mut u8) -> i32>,
+        DoesSupportVideoMode: Option<
+            unsafe extern "C" fn(*mut c_void, u32, u32, u32, u32, u32, *mut u32, *mut u8) -> i32,
+        >,
         GetDisplayMode: Option<unsafe extern "C" fn()>,
         GetDisplayModeIterator: Option<unsafe extern "C" fn()>,
         SetScreenPreviewCallback: Option<unsafe extern "C" fn()>,
@@ -589,7 +666,8 @@ mod imp {
         PauseStreams: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
         FlushStreams: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
         SetCallback: Option<unsafe extern "C" fn(*mut c_void, *mut c_void) -> i32>,
-        GetHardwareReferenceClock: Option<unsafe extern "C" fn(*mut c_void, u32, *mut i64, *mut i64, *mut i64) -> i32>,
+        GetHardwareReferenceClock:
+            Option<unsafe extern "C" fn(*mut c_void, u32, *mut i64, *mut i64, *mut i64) -> i32>,
     }
 
     #[repr(C)]
@@ -597,8 +675,10 @@ mod imp {
         QueryInterface: Option<unsafe extern "C" fn(*mut c_void, Guid16, *mut *mut c_void) -> i32>,
         AddRef: Option<unsafe extern "C" fn(*mut c_void) -> u32>,
         Release: Option<unsafe extern "C" fn(*mut c_void) -> u32>,
-        VideoInputFormatChanged: Option<unsafe extern "C" fn(*mut c_void, u32, *mut c_void, u32) -> i32>,
-        VideoInputFrameArrived: Option<unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> i32>,
+        VideoInputFormatChanged:
+            Option<unsafe extern "C" fn(*mut c_void, u32, *mut c_void, u32) -> i32>,
+        VideoInputFrameArrived:
+            Option<unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> i32>,
     }
 
     /// 采集统计 (MEDIA-RT-01 验证载体): 首帧到达、帧计数、PTS(硬件参考时钟) 单调性。
@@ -624,21 +704,49 @@ mod imp {
         VideoInputFrameArrived: Some(cb_frame_arrived),
     };
 
-    unsafe extern "C" fn cb_query_interface(_this: *mut c_void, _iid: Guid16, _out: *mut *mut c_void) -> i32 {
+    unsafe extern "C" fn cb_query_interface(
+        _this: *mut c_void,
+        _iid: Guid16,
+        _out: *mut *mut c_void,
+    ) -> i32 {
         0x80004001u32 as i32 // E_NOTIMPL
     }
-    unsafe extern "C" fn cb_add_ref(_this: *mut c_void) -> u32 { 1 }
-    unsafe extern "C" fn cb_release(_this: *mut c_void) -> u32 { 1 }
-    unsafe extern "C" fn cb_format_changed(_this: *mut c_void, _ev: u32, _mode: *mut c_void, _flags: u32) -> i32 { 0 }
+    unsafe extern "C" fn cb_add_ref(_this: *mut c_void) -> u32 {
+        1
+    }
+    unsafe extern "C" fn cb_release(_this: *mut c_void) -> u32 {
+        1
+    }
+    unsafe extern "C" fn cb_format_changed(
+        _this: *mut c_void,
+        _ev: u32,
+        _mode: *mut c_void,
+        _flags: u32,
+    ) -> i32 {
+        0
+    }
 
-    unsafe extern "C" fn cb_frame_arrived(this: *mut c_void, _video: *mut c_void, _audio: *mut c_void) -> i32 {
+    unsafe extern "C" fn cb_frame_arrived(
+        this: *mut c_void,
+        _video: *mut c_void,
+        _audio: *mut c_void,
+    ) -> i32 {
         let cb = &*(this as *const CaptureCallback);
         let stats = &*cb.stats;
-        let n = stats.frame_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        let n = stats
+            .frame_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            + 1;
         let ivt = *(cb.input as *mut *mut RawIDeckLinkInputVtbl);
         let mut hw: i64 = 0;
         if let Some(f) = (*ivt).GetHardwareReferenceClock {
-            f(cb.input, 1_000_000_000, &mut hw, std::ptr::null_mut(), std::ptr::null_mut());
+            f(
+                cb.input,
+                1_000_000_000,
+                &mut hw,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            );
         }
         if n == 1 {
             *stats.first_frame_at.lock().unwrap() = Some(std::time::Instant::now());
@@ -648,7 +756,9 @@ mod imp {
             let mut last = stats.last_pts.lock().unwrap();
             if let Some(prev) = *last {
                 if hw < prev {
-                    stats.monotonic.store(false, std::sync::atomic::Ordering::SeqCst);
+                    stats
+                        .monotonic
+                        .store(false, std::sync::atomic::Ordering::SeqCst);
                 }
             }
             *last = Some(hw);
@@ -669,11 +779,14 @@ mod imp {
         };
         let iter: *mut IDeckLinkIterator = unsafe { create() };
         if iter.is_null() {
-            return Err("CreateDeckLinkIteratorInstance_0004 返回空指针（无 DeckLink 设备？）".into());
+            return Err(
+                "CreateDeckLinkIteratorInstance_0004 返回空指针（无 DeckLink 设备？）".into(),
+            );
         }
         let ivt = unsafe { *(iter as *mut *mut IDeckLinkIteratorVtbl) };
         let next = unsafe { (*ivt).Next }.ok_or("vtable 中缺少 IDeckLinkIterator::Next")?;
-        let release_iter = unsafe { (*ivt).Release }.ok_or("vtable 中缺少 IDeckLinkIterator::Release")?;
+        let release_iter =
+            unsafe { (*ivt).Release }.ok_or("vtable 中缺少 IDeckLinkIterator::Release")?;
 
         let mut dev: *mut IDeckLink = std::ptr::null_mut();
         let mut idx = 0usize;
@@ -688,10 +801,14 @@ mod imp {
                 break;
             }
             let dv = unsafe { *(d as *mut *mut IDeckLinkVtbl) };
-            unsafe { ((*dv).Release).unwrap()(d); }
+            unsafe {
+                ((*dv).Release).unwrap()(d);
+            }
             idx += 1;
         }
-        unsafe { release_iter(iter); }
+        unsafe {
+            release_iter(iter);
+        }
         if dev.is_null() {
             return Err(format!("设备索引 {device_index} 不存在"));
         }
@@ -700,7 +817,9 @@ mod imp {
         let q = unsafe { (*dv).QueryInterface }.ok_or("vtable 中缺少 IDeckLink::QueryInterface")?;
         let mut input: *mut c_void = std::ptr::null_mut();
         let hr = unsafe { q(dev, IID_DECKLINK_INPUT, &mut input) };
-        unsafe { ((*dv).Release).unwrap()(dev); }
+        unsafe {
+            ((*dv).Release).unwrap()(dev);
+        }
         if hr != S_OK || input.is_null() {
             return Err(format!("QueryInterface(IDeckLinkInput) 失败 hr=0x{hr:08X}"));
         }
@@ -720,9 +839,12 @@ mod imp {
         let ivt = unsafe { *(input as *mut *mut RawIDeckLinkInputVtbl) };
         let does_support = unsafe { (*ivt).DoesSupportVideoMode }
             .ok_or("vtable 中缺少 IDeckLinkInput::DoesSupportVideoMode")?;
-        let enable = unsafe { (*ivt).EnableVideoInput }.ok_or("vtable 中缺少 IDeckLinkInput::EnableVideoInput")?;
-        let set_cb = unsafe { (*ivt).SetCallback }.ok_or("vtable 中缺少 IDeckLinkInput::SetCallback")?;
-        let start = unsafe { (*ivt).StartStreams }.ok_or("vtable 中缺少 IDeckLinkInput::StartStreams")?;
+        let enable = unsafe { (*ivt).EnableVideoInput }
+            .ok_or("vtable 中缺少 IDeckLinkInput::EnableVideoInput")?;
+        let set_cb =
+            unsafe { (*ivt).SetCallback }.ok_or("vtable 中缺少 IDeckLinkInput::SetCallback")?;
+        let start =
+            unsafe { (*ivt).StartStreams }.ok_or("vtable 中缺少 IDeckLinkInput::StartStreams")?;
 
         // —— 动态探测设备支持的采集格式 (对齐官方 SDK 手册, 禁止硬编码) ——
         // 不假设单一信号源模式: 用 IDeckLinkInput::DoesSupportVideoMode (vtable@3) 按优先级
@@ -773,7 +895,8 @@ mod imp {
             }
         }
         let (mode, name) = chosen.ok_or_else(|| {
-            "DoesSupportVideoMode: 设备在候选列表中无任何支持的采集格式 (检查信号源/连接)".to_string()
+            "DoesSupportVideoMode: 设备在候选列表中无任何支持的采集格式 (检查信号源/连接)"
+                .to_string()
         })?;
 
         // flags = bmdVideoInputEnableFormatDetection(0x01): 让 SDK 自动检测输入信号真实格式,
@@ -801,11 +924,9 @@ mod imp {
 mod imp {
     use super::BmdDeviceIdentity;
     pub fn enumerate() -> Result<Vec<BmdDeviceIdentity>, String> {
-        Err(
-            "未编译 bmd feature —— 请使用 `--features bmd` 并设 \
+        Err("未编译 bmd feature —— 请使用 `--features bmd` 并设 \
              DECKLINK_SDK_INCLUDE=<SDK 的 Linux/include 路径>（需要 libclang）重新构建"
-                .into(),
-        )
+            .into())
     }
 }
 

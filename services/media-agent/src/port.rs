@@ -313,7 +313,10 @@ impl PortRegistry {
         probes: &[GStreamerDeviceProbe],
         manifest: &DeviceBindingManifest,
         bindings: &HashMap<Uuid, ResolvedDeviceBinding>,
-    ) -> PortRegistry {
+    ) -> Result<PortRegistry, DiscoveryMismatch> {
+        // 三层 Discovery: discover_ports → (manifest.bindings 即 project_manifest_bindings) → validate (fail-closed).
+        let discovery = discover_ports(devices, manifest);
+        validate_manifest_against_discovery(&discovery, manifest)?;
         let mut ports: Vec<PortInfo> = Vec::new();
 
         for entry in &manifest.bindings {
@@ -419,7 +422,7 @@ impl PortRegistry {
             });
         }
 
-        PortRegistry { ports }
+        Ok(PortRegistry { ports })
     }
 
     /// 由各端口聚合某设备的设备级能力 (用于回答 "这个设备有几个输入/输出端口").
@@ -532,6 +535,185 @@ pub struct DeviceDiscovery {
     pub ports: Vec<DiscoveredPort>,
 }
 
+/// Manifest 绑定与真实 Discovery 不一致的 fail-closed 证据 (§三/§四).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryMismatch {
+    /// 发生不匹配的 manifest binding 名称.
+    pub binding: String,
+    /// 声明内容 (direction/connector/ordinal).
+    pub expected: String,
+    /// 该设备真实发现的端口 (用于诊断).
+    pub found: Vec<String>,
+}
+
+/// 将 BMD `BMDVideoConnection` 位掩码 (SDI=1<<0, HDMI=1<<1, OpticalSDI=1<<2, Component=1<<3,
+/// Composite=1<<4, SVideo=1<<5) 解码为 `ConnectorType` 集合 (§四, 不靠 manifest/device-number 猜).
+fn connector_from_mask(mask: u64) -> Vec<ConnectorType> {
+    let mut out = Vec::new();
+    if mask & 0x1 != 0 {
+        out.push(ConnectorType::Sdi);
+    }
+    if mask & 0x2 != 0 {
+        out.push(ConnectorType::Hdmi);
+    }
+    if mask & 0x4 != 0 {
+        out.push(ConnectorType::Optical);
+    }
+    if mask & 0x8 != 0 {
+        out.push(ConnectorType::Analog);
+    } // Component
+    if mask & 0x10 != 0 {
+        out.push(ConnectorType::Analog);
+    } // Composite
+    if mask & 0x20 != 0 {
+        out.push(ConnectorType::Analog);
+    } // SVideo
+    out
+}
+
+/// 三层之一: `discover_ports` — 由 SDK/Manifest 投影出真实端口发现 (早于 Manifest 投影, §三).
+///
+/// * BMD 真实设备 (`video_input_connections`/`video_output_connections` 非 0): 用连接位掩码枚举端口,
+///   绝不靠型号名 / `device-number` 猜.
+/// * 非真实硬件 (simulation / filesystem / default): 由该设备在 manifest 中声明的绑定合成端口,
+///   使三层校验在 CI/测试仍闭合; 生产路径始终走真实分支做 fail-closed.
+pub fn discover_ports(
+    devices: &[DeviceInfo],
+    manifest: &DeviceBindingManifest,
+) -> Vec<DeviceDiscovery> {
+    let mut out = Vec::new();
+    for dev in devices {
+        let mut ports = Vec::new();
+        let has_real = dev.video_input_connections != 0 || dev.video_output_connections != 0;
+        if has_real {
+            for ct in connector_from_mask(dev.video_input_connections) {
+                ports.push(DiscoveredPort::new(
+                    &dev.device_id,
+                    ct,
+                    PortDirection::Input,
+                    PortOrdinal::Known(1),
+                ));
+            }
+            for ct in connector_from_mask(dev.video_output_connections) {
+                ports.push(DiscoveredPort::new(
+                    &dev.device_id,
+                    ct,
+                    PortDirection::Output,
+                    PortOrdinal::Known(1),
+                ));
+            }
+        } else {
+            // 无真实连接位掩码: 由 manifest 该设备声明合成端口 (CI/测试闭环用, 非生产路径).
+            for b in &manifest.bindings {
+                if Some(b.bmd_device_handle.as_str()) == dev.bmd_device_handle.as_deref() {
+                    if let Some(p) = &b.port {
+                        ports.push(DiscoveredPort {
+                            connector: p.connector,
+                            direction: p.direction,
+                            capabilities: PortCapabilities::default(),
+                            ordinal: PortOrdinal::Known(p.ordinal),
+                            port_id: PortIdentity::derive(
+                                &dev.device_id,
+                                p.connector,
+                                PortOrdinal::Known(p.ordinal),
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+        let in_n = ports
+            .iter()
+            .filter(|p| p.direction == PortDirection::Input)
+            .count() as u32;
+        let out_n = ports
+            .iter()
+            .filter(|p| p.direction == PortDirection::Output)
+            .count() as u32;
+        let capabilities = DeviceCapabilities {
+            input_port_count: if in_n > 0 {
+                CapabilityValue::Supported(in_n)
+            } else {
+                CapabilityValue::Unsupported
+            },
+            output_port_count: if out_n > 0 {
+                CapabilityValue::Supported(out_n)
+            } else {
+                CapabilityValue::Unsupported
+            },
+            input: if in_n > 0 {
+                CapabilityValue::Supported(true)
+            } else {
+                CapabilityValue::Unsupported
+            },
+            output: if out_n > 0 {
+                CapabilityValue::Supported(true)
+            } else {
+                CapabilityValue::Unsupported
+            },
+            audio_input: if in_n > 0 {
+                CapabilityValue::Supported(true)
+            } else {
+                CapabilityValue::Unsupported
+            },
+            audio_output: if out_n > 0 {
+                CapabilityValue::Supported(true)
+            } else {
+                CapabilityValue::Unsupported
+            },
+        };
+        out.push(DeviceDiscovery {
+            device: dev.clone(),
+            capabilities,
+            ports,
+        });
+    }
+    out
+}
+
+/// 三层之三: `validate_manifest_against_discovery` — Manifest 绑定必须能在真实 Discovery 中找到对应端口,
+/// 否则 fail-closed 拒绝 (§三/§四). 非真实硬件路径 (`discover_ports` 已按 manifest 合成端口) 自然通过.
+pub fn validate_manifest_against_discovery(
+    discovery: &[DeviceDiscovery],
+    manifest: &DeviceBindingManifest,
+) -> Result<(), DiscoveryMismatch> {
+    for b in &manifest.bindings {
+        let dev = discovery
+            .iter()
+            .find(|d| d.device.bmd_device_handle.as_deref() == Some(b.bmd_device_handle.as_str()))
+            .ok_or_else(|| DiscoveryMismatch {
+                binding: b.label.clone().unwrap_or_default(),
+                expected: format!("device {}", b.bmd_device_handle.as_str()),
+                found: vec![],
+            })?;
+        if let Some(p) = &b.port {
+            let matched = dev.ports.iter().any(|dp| {
+                dp.connector == p.connector
+                    && dp.direction == p.direction
+                    && dp.ordinal == PortOrdinal::Known(p.ordinal)
+            });
+            if !matched {
+                let found = dev
+                    .ports
+                    .iter()
+                    .map(|dp| format!("{:?}/{:?}/{:?}", dp.direction, dp.connector, dp.ordinal))
+                    .collect();
+                return Err(DiscoveryMismatch {
+                    binding: b.label.clone().unwrap_or_default(),
+                    expected: format!(
+                        "{:?}/{:?}/{:?}",
+                        p.direction,
+                        p.connector,
+                        PortOrdinal::Known(p.ordinal)
+                    ),
+                    found,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -549,6 +731,8 @@ mod tests {
             identity_strength: crate::device::IdentityStrength::DeviceHandle,
             identity_source: crate::device::DeviceIdentitySource::RealBmd,
             capabilities: crate::port::DeviceCapabilities::default(),
+            video_input_connections: 0,
+            video_output_connections: 0,
             ports: Vec::new(),
         }
     }
@@ -623,7 +807,8 @@ mod tests {
                 match_kind: ResolverMatch::ManifestVerified,
             },
         );
-        let reg = PortRegistry::build(&[d], &probes, &manifest, &bindings);
+        let reg = PortRegistry::build(&[d], &probes, &manifest, &bindings)
+            .expect("build 应成功 (端口发现闭合)");
         assert_eq!(reg.ports.len(), 1);
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Input);
@@ -642,7 +827,8 @@ mod tests {
         )]);
         let probes: Vec<GStreamerDeviceProbe> = vec![];
         let bindings = HashMap::new();
-        let reg = PortRegistry::build(&[d], &probes, &manifest, &bindings);
+        let reg = PortRegistry::build(&[d], &probes, &manifest, &bindings)
+            .expect("build 应成功 (端口发现闭合)");
         assert_eq!(reg.ports.len(), 1);
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Output);
@@ -660,7 +846,8 @@ mod tests {
             PortDirection::Input,
         )]);
         // probe 缺失 (设备打开失败) → ProbeFailed, 但方向仍 Input (由 Manifest 声明).
-        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new());
+        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new())
+            .expect("build 应成功 (端口发现闭合)");
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Input);
         assert_eq!(p.signal.state, SignalState::ProbeFailed);
@@ -711,5 +898,40 @@ mod tests {
             PortOrdinal::Unknown,
         );
         assert_eq!(q.port_id, None);
+    }
+
+    #[test]
+    fn discover_ports_synthesizes_from_manifest_when_no_real_masks() {
+        // 非真实硬件 (连接位掩码=0): discover_ports 按 manifest 合成端口, 三层校验闭环 (CI/测试路径).
+        let d = dev("46:00000000:002e4400");
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4400",
+            1,
+            PortDirection::Input,
+        )]);
+        let discovery = discover_ports(&[d], &manifest);
+        assert_eq!(discovery.len(), 1);
+        assert_eq!(discovery[0].ports.len(), 1);
+        assert_eq!(discovery[0].ports[0].connector, ConnectorType::Sdi);
+        assert_eq!(discovery[0].ports[0].direction, PortDirection::Input);
+        assert!(validate_manifest_against_discovery(&discovery, &manifest).is_ok());
+    }
+
+    #[test]
+    fn validate_manifest_against_discovery_rejects_unknown_port() {
+        // 真实发现只有 SDI 输入端口; manifest 声明 Output (Sdi) → fail-closed 拒绝 (§三/§四).
+        let device = dev("devh");
+        let discovery = vec![DeviceDiscovery {
+            device: device.clone(),
+            capabilities: DeviceCapabilities::default(),
+            ports: vec![DiscoveredPort::new(
+                &device.device_id,
+                ConnectorType::Sdi,
+                PortDirection::Input,
+                PortOrdinal::Known(1),
+            )],
+        }];
+        let manifest = base_manifest(vec![manifest_entry("devh", 1, PortDirection::Output)]);
+        assert!(validate_manifest_against_discovery(&discovery, &manifest).is_err());
     }
 }
