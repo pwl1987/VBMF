@@ -130,7 +130,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     el.link(&sink).ok()?;
     let playing = pipeline.set_state(gstreamer::State::Playing);
     eprintln!("[C1DBG] dn={} set_state_playing={:?}", n, playing);
-    if paused.is_err() {
+    if playing.is_err() {
         let _ = pipeline.set_state(gstreamer::State::Null);
         return None;
     }
