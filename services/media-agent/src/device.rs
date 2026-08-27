@@ -90,7 +90,7 @@ impl DeviceManager for FilesystemDeviceManager {
                 // 强度恒为 `Enumeration`; 生产 materialize 据 `identity_strength` 拒绝 (绝不接受
                 // 合成持久身份). bmd_persistent_id = None 是正确语义 (此处无真实持久身份).
                 out.push(DeviceInfo {
-                    device_id: Uuid::new_v5(&VBMF_FS_NS, &format!("vbmf:fs:{dv}")),
+                    device_id: Uuid::new_v5(&VBMF_FS_NS, format!("vbmf:fs:{dv}").as_bytes()),
                     model: "blackmagic-filesystem-node".into(),
                     display_name: dv.clone(),
                     serial_number: None,
@@ -112,7 +112,7 @@ impl DeviceManager for SimulatedDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
         (0..2)
             .map(|i| DeviceInfo {
-                device_id: Uuid::new_v5(&VBMF_SIM_NS, &format!("vbmf:sim:{i}")),
+                device_id: Uuid::new_v5(&VBMF_SIM_NS, format!("vbmf:sim:{i}").as_bytes()),
                 model: "DeckLink Mini Monitor 4K (sim)".into(),
                 display_name: format!("sim-{i}"),
                 serial_number: Some(format!("SIM-SERIAL-{i}")),
@@ -153,7 +153,7 @@ impl DeviceManager for DeckLinkDeviceManager {
                     IdentityStrength::DeviceHandle
                 };
                 DeviceInfo {
-                    device_id: Uuid::new_v5(&VBMF_BMD_NS, &format!("vbmf:bmd:{handle}")),
+                    device_id: Uuid::new_v5(&VBMF_BMD_NS, format!("vbmf:bmd:{handle}").as_bytes()),
                     model: model.clone(),
                     display_name: display.clone(),
                     serial_number: serial.clone(),
