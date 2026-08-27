@@ -195,6 +195,16 @@ mod tests {
     }
 
     #[test]
+    fn expected_signal_deserializes_old_json_without_content_as_none() {
+        // 向后兼容 (STEP 9, Spec 评审需求 4): 旧 Fixture JSON 缺 content 字段须解析为 None, 不报错.
+        let json = r#"{"state":"locked","format":"1080i50"}"#;
+        let es: ExpectedSignal =
+            serde_json::from_str(json).expect("旧 JSON 无 content 须可反序列化");
+        assert_eq!(es.content, None);
+        assert_eq!(es.state, SignalState::Locked);
+    }
+
+    #[test]
     fn resolve_finds_locked_input_as_sink() {
         let d = Uuid::new_v4();
         let reg = PortRegistry {
