@@ -1,8 +1,11 @@
 {
   "schema": "vbmf.c1-resolver/v1",
   "test_id": "HW-IDENT-02",
-  "test_subject_sha": "41e0931",
-  "environment_base_sha": "41e0931",
+  "test_subject_sha": "a9fcc7e",
+  "environment_base_sha": "a9fcc7e",
+  "verified_on_box": "2026-08-27",
+  "verified_sha": "a9fcc7e",
+  "verified_note": "VBMF_RESOLVER=1 真机探针于 10.30.15.10 实跑确认: 3 台真实设备枚举到真实 DeviceHandle (46:00000000:002e4500 等), devh 不再被 serial 污染; C1 因 GStreamer hw-serial 恒空仍 UNRESOLVED (硬件现实)。a9fcc7e = 41e0931 + 修复 BmdDeviceIdentity 在 mod imp 作用域不可见 (41e0931 本身不编译)。",
   "probe_method": "GStreamer decklinkvideosrc Element Probe (READY state, 遍历 device-number), 非 GstDeviceMonitor",
   "status": "UNRESOLVED",
   "verdict": "HW-IDENT-02 NOT PASS — 无唯一 HIGH-confidence SDK↔GStreamer 映射",

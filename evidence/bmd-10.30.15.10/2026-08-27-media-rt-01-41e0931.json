@@ -2,8 +2,11 @@
   "schema": "vbmf.media-rt-01/v1",
   "test_id": "MEDIA-RT-01",
   "title": "Canonical GStreamer Ingest — 首帧到达 + 短时稳定",
-  "test_subject_sha": "41e0931",
-  "environment_base_sha": "41e0931",
+  "test_subject_sha": "a9fcc7e",
+  "environment_base_sha": "a9fcc7e",
+  "verified_on_box": "2026-08-27",
+  "verified_sha": "a9fcc7e",
+  "verified_note": "真机探针确认 C1 仍 UNRESOLVED → MEDIA-RT-01 维持 NOT PASS (受 C1 阻塞, 非代码缺陷)。a9fcc7e = 41e0931 + 编译修复。",
   "status": "NOT PASS (PENDING — 受 C1 Resolver UNRESOLVED 阻塞)",
   "canonical_definition": "DeckLink → GStreamer (decklinkvideosrc/audiosrc) → RAW → first GstBuffer。首帧须来自 GStreamer ingest, 非 IDeckLinkInput 直接 FFI (后者见 cap01 LEGACY)。",
   "criteria": {

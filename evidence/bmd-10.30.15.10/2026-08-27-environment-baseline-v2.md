@@ -17,7 +17,7 @@ host:
   address: 10.30.15.10
   user: lytv
   os: "Ubuntu 26.04 (per operator baseline; 以盒上 `cat /etc/os-release` 为准)"
-  kernel: "VERIFY ON BOX — `uname -a`"
+  kernel: "Linux 7.0.0-30-generic #30-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 31 18:22:54 UTC 2026 x86_64"
   arch: x86_64
 
 docker:
@@ -44,8 +44,8 @@ blackmagic:
 repository:
   remote: git@github.com:pwl1987/VBMF.git
   branch: master
-  test_subject_sha: 41e0931     # fix(media-agent): Device Registry 身份闭合 (Identity Closure Patch)
-  environment_base_sha: 41e0931  # 本基线对应的代码态
+  test_subject_sha: a9fcc7e     # fix(media-agent): Device Registry 身份闭合 (41e0931) + 修复 BmdDeviceIdentity 作用域 (a9fcc7e)
+  environment_base_sha: a9fcc7e  # 本基线对应的代码态
 
 toolchain:
   libclang: "LLVM 21 (LIBCLANG_PATH=/usr/lib/llvm-21/lib, 持久化 ~/.bashrc)"
@@ -65,9 +65,10 @@ network:
 盒上可脱离 CI 直接构建 + 真机验证:
 
 ```bash
-# 环境变量 (持久化于 ~/.bashrc)
+# 环境变量 (持久化于 ~/.bashrc; 注意 login/非交互 shell 不加载 ~/.bashrc, 需显式 export 或走 build-bmd.sh)
 export DECKLINK_SDK_INCLUDE=/home/lytv/decklink-sdk-include
 export LIBCLANG_PATH=/usr/lib/llvm-21/lib
+export PATH="$HOME/.cargo/bin:$PATH"
 # 二进制运行需注入 SDK 运行时
 LD_LIBRARY_PATH=/usr/lib ~/.cargo/bin/cargo build --features bmd,gstreamer
 LD_LIBRARY_PATH=/usr/lib ./target/debug/media-agent
@@ -86,11 +87,19 @@ BMD 真机  : 实际 SDK + libDeckLinkAPI.so + 硬件; canonical 构建 = --feat
 GStreamer : media-agent 执行层, 非控制面 (Node/Fastify 管控制面)
 ```
 
+## 真机复验 (2026-08-27, a9fcc7e)
+
+`VBMF_RESOLVER=1 ./target/debug/media-agent` (build `--features bmd,gstreamer`) 于 10.30.15.10 实跑:
+- `cargo build --features bmd,gstreamer` Finished (0 error); `cargo build --features bmd,hardware-test` Finished (registry/start_capture 真实路径编译通过)。
+- 设备发现 `count=3`: 真实 `bmd_device_handle` = `46:00000000:002e4500` / `46:00000000:002e4400` / `83:1a66443b:00000000` (与 FFI ABI 基线一致, serial 不再污染 DeviceHandle)。
+- C1 Resolver 仍 `UNRESOLVED` (GStreamer `hw-serial-number` 恒空串) → 生产正确拒绝, 绝不回退 device 0。
+- 注意: 非交互 shell 不加载 `~/.bashrc`, 远程跑构建须显式 `export PATH="$HOME/.cargo/bin:$PATH"` 与 `DECKLINK_SDK_INCLUDE`/`LIBCLANG_PATH`, 否则报 `cargo: command not found` 或 build.rs `NotPresent(101)`。
+
 ## 与旧基线的关系
 
-| 项目 | 旧 (7cc33dd, 2026-08-25) | 当前 v2 (41e0931, 2026-08-27) |
+| 项目 | 旧 (7cc33dd, 2026-08-25) | 当前 v2 (a9fcc7e, 2026-08-27) |
 |------|--------------------------|-------------------------------|
 | Runtime | runsc 未安装 / Option A 待裁决 | runc (已裁决) |
 | 编译环境 | 仅 CI 矩阵, 本地独立编译未就绪 | 盒上本地独立编译已具备 |
-| DeviceHandle | 未实测闭环 | 已实测并进入 DeviceRegistry (Identity Closure) |
-| C1 Resolver | 未基于真实 Registry 身份 | 代码已闭合, 但 GStreamer hw-serial 实测为空 → 仍 UNRESOLVED |
+| DeviceHandle | 未实测闭环 | 已实测并进入 DeviceRegistry (Identity Closure); 真机确认 3 台真实 devh |
+| C1 Resolver | 未基于真实 Registry 身份 | 代码已闭合且真机验证; GStreamer hw-serial 实测为空 → 仍 UNRESOLVED |

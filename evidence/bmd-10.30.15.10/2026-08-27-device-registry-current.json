@@ -1,8 +1,11 @@
 {
   "schema": "vbmf.device-registry.current/v1",
-  "generated_by": "DeckLinkDeviceManager::discover() (post Identity Closure Patch, commit 41e0931)",
-  "environment_base_sha": "41e0931",
-  "test_subject_sha": "41e0931",
+  "generated_by": "DeckLinkDeviceManager::discover() (post Identity Closure Patch, commit a9fcc7e)",
+  "environment_base_sha": "a9fcc7e",
+  "test_subject_sha": "a9fcc7e",
+  "verified_on_box": "2026-08-27",
+  "verified_sha": "a9fcc7e",
+  "verified_note": "VBMF_RESOLVER=1 真机探针 (10.30.15.10) 实跑回填: model/device_id 为 media-agent discover() 实时派生真实值; devh 与 FFI ABI 基线一致。a9fcc7e = 41e0931 + 修复 BmdDeviceIdentity 在 mod imp 作用域不可见 (41e0931 本身不编译)。",
   "host": "10.30.15.10",
   "identity_model": {
     "priority": ["PersistentID", "DeviceHandle", "TopologicalID", "Enumeration"],
@@ -12,14 +15,14 @@
   "devices": [
     {
       "sdk_index": 0,
-      "model": "DeckLink SDI (verify via GetModelName)",
-      "display_name": "verify via GetDisplayName",
+      "model": "DeckLink SDI",
+      "display_name": "DeckLink SDI",
       "bmd_device_handle": "46:00000000:002e4500",
       "bmd_persistent_id": null,
       "bmd_topological_id": null,
       "serial_number": "",
       "identity_strength": "DeviceHandle",
-      "vbmf_device_id": "assigned-by-media-agent-at-discover (UUIDv5 over device_handle)",
+      "vbmf_device_id": "4fa33dcb-5f76-5f76-aea8-330df7ada03e",
       "gst_mapping": {
         "resolved": false,
         "gst_device_number": null,
@@ -29,14 +32,14 @@
     },
     {
       "sdk_index": 1,
-      "model": "DeckLink SDI (verify via GetModelName)",
-      "display_name": "verify via GetDisplayName",
+      "model": "DeckLink SDI",
+      "display_name": "DeckLink SDI",
       "bmd_device_handle": "46:00000000:002e4400",
       "bmd_persistent_id": null,
       "bmd_topological_id": null,
       "serial_number": "",
       "identity_strength": "DeviceHandle",
-      "vbmf_device_id": "assigned-by-media-agent-at-discover (UUIDv5 over device_handle)",
+      "vbmf_device_id": "6ede00d0-baf4-573f-a0dd-4a503bf7f766",
       "gst_mapping": {
         "resolved": false,
         "gst_device_number": null,
@@ -46,14 +49,14 @@
     },
     {
       "sdk_index": 2,
-      "model": "DeckLink Mini Monitor 4K (verify via GetModelName)",
-      "display_name": "verify via GetDisplayName",
+      "model": "DeckLink Mini Monitor 4K",
+      "display_name": "DeckLink Mini Monitor 4K",
       "bmd_device_handle": "83:1a66443b:00000000",
       "bmd_persistent_id": null,
       "bmd_topological_id": null,
       "serial_number": "",
       "identity_strength": "DeviceHandle",
-      "vbmf_device_id": "assigned-by-media-agent-at-discover (UUIDv5 over device_handle)",
+      "vbmf_device_id": "1afe2dcc-6d85-5b46-b7d6-e14102501c77",
       "gst_mapping": {
         "resolved": false,
         "gst_device_number": null,
@@ -63,8 +66,7 @@
     }
   ],
   "open_items": [
-    "model/display_name/serial_number 为盒上 GetModelName/GetDisplayName/Config.GetString(SerialNumber) 实时值, 本 JSON 为骨架, 须以 --features hardware-test 实测回填",
     "bmd_topological_id 当前为 null (SDK 不支持 GetInt TopologicalID); 若后续驱动暴露则回填",
-    "device_id 由 media-agent 在 discover() 实时派生, 不在此硬编码"
+    "device_id 由 media-agent 在 discover() 实时派生 (UUIDv5 over device_handle), 本 JSON 已回填真机实测值"
   ]
 }
