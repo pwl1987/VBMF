@@ -832,7 +832,8 @@ fn src_props(plan: &PipelinePlan) -> (String, String) {
     let connection = match plan.source.connector {
         Some(ConnectorType::Sdi) => " connection=sdi",
         Some(ConnectorType::Hdmi) => " connection=hdmi",
-        Some(ConnectorType::Optical) => " connection=optical",
+        // GStreamer `decklinkvideosrc` 连接枚举 nick 为 "optical-sdi" (对应 BMD bmdVideoConnectionOpticalSDI), 绝非 "optical".
+        Some(ConnectorType::Optical) => " connection=optical-sdi",
         Some(ConnectorType::DisplayPort)
         | Some(ConnectorType::Analog)
         | Some(ConnectorType::Unknown)
