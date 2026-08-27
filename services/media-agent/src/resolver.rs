@@ -74,7 +74,7 @@ pub enum GstProbeOutcome {
 /// 为什么不用 `GstDeviceMonitor` (用户复核, 撤回 `b52e2b6`): 当前 DeckLink 官方插件只暴露
 /// `decklinkvideosrc` / `decklinkaudiosrc` **element**, 不提供 `GstDeviceProvider`; 实机验证
 /// `gst-device-monitor` 不列出 DeckLink. 故枚举入口改成**直接创建 element 实例**, 按 `device-number`
-/// 遍历, 打开到 READY (不 PLAYING, 不拉真实帧) 后读取只读属性.
+/// 遍历, 打开到 PAUSED (不 PLAYING, 不拉真实帧) 后读取只读属性 (decklink 插件在 PAUSED 才填充身份属性).
 ///
 /// 每序号读取: `device-number`(guint) / `hw-serial-number`(只读硬件 ID) / `persistent-id`(gint64) /
 /// `signal`(bool) / `model`(String). `connection`/`mode` 用 element 默认 (connection=auto 自动识别
@@ -110,7 +110,7 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
     GstProbeOutcome::Available(probes)
 }
 
-/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 READY 读只读属性; 不存在/打不开返回 `None`
+/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PAUSED 读只读属性; 不存在/打不开返回 `None`
 /// (视为该序号无可用采集卡, 不计入 probes, 避免 ghost 设备导致 `Ambiguous`).
 #[cfg(feature = "gstreamer")]
 fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
@@ -120,11 +120,15 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         .ok()?;
     // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址). 只读属性前提是设备已打开 (READY).
     el.set_property("device-number", n as i32);
-    // 打开设备 (READY 即打开; 无需 PLAYING, 不拉真实帧). 失败 = 该序号无此卡.
-    if el.set_state(gstreamer::State::Ready).is_err() {
+    // 打开设备到 PAUSED: decklink 插件在 PAUSED (start()) 才真正打开设备并填充只读身份属性
+    // (hw-serial-number 等); READY 仅分配资源不识别设备, 故 hw-serial-number 仍为 null.
+    // 不进入 PLAYING, 不拉真实帧. 打开失败 = 该序号无此采集卡.
+    if el.set_state(gstreamer::State::Paused).is_err() {
         let _ = el.set_state(gstreamer::State::Null);
         return None;
     }
+    // 等待状态切换完成, 确保设备已打开、身份属性已填充 (live source PAUSED 立即 preroll).
+    let _ = el.get_state(Some(gstreamer::ClockTime::from_seconds(2)));
     // 读取只读属性 (hw-serial-number 等设备在 READY 后才可靠填充). 各属性用 `find_property` 守卫:
     // 本机 GStreamer 1.28.2 decklink 插件的 `gst-inspect` 显示**只有 `device-number` 与 `hw-serial-number`
     // 两个选卡属性**, 没有 `persistent-id` (且 `signal`/`model` 因版本而异). 缺属性直接读取会 panic,
