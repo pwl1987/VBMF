@@ -18,6 +18,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use crate::decklink::BmdDeviceIdentity;
+use crate::port::{DeviceCapabilities, PortInfo};
 
 /// 设备身份强度 (A0 实测: 本硬件仅支持 DeviceHandle).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +67,11 @@ pub struct DeviceInfo {
     pub identity_strength: IdentityStrength,
     /// 身份来源 (RealBmd / FilesystemSynthetic / Simulation).
     pub identity_source: DeviceIdentitySource,
+    /// 设备级能力 (由 Port Discovery 归并; 当前 Runtime 多为 Unknown — 见 `PortRegistry`).
+    /// HARD RULE: 绝不得写死当前拓扑 (禁止硬编码 dn0/dn1/dn2 语义).
+    pub capabilities: DeviceCapabilities,
+    /// 该设备的物理端口注册表 (Port Discovery 结果; 属于 Runtime Discovery Evidence).
+    pub ports: Vec<PortInfo>,
 }
 
 /// Device Manager trait — 不同环境 (simulation / filesystem / real BMD) 实现不同发现逻辑.
@@ -109,6 +115,8 @@ impl DeviceManager for FilesystemDeviceManager {
                     bmd_topological_id: None,
                     identity_strength: IdentityStrength::Enumeration,
                     identity_source: DeviceIdentitySource::FilesystemSynthetic,
+                    capabilities: DeviceCapabilities::default(),
+                    ports: Vec::new(),
                 });
             }
         }
@@ -138,6 +146,8 @@ impl DeviceManager for SimulatedDeviceManager {
                 bmd_topological_id: None,
                 identity_strength: IdentityStrength::PersistentId,
                 identity_source: DeviceIdentitySource::Simulation,
+                capabilities: DeviceCapabilities::default(),
+                ports: Vec::new(),
             })
             .collect()
     }
@@ -207,6 +217,8 @@ impl DeviceManager for DeckLinkDeviceManager {
                     bmd_topological_id: d.topological_id.map(|v| v as i64),
                     identity_strength,
                     identity_source: DeviceIdentitySource::RealBmd,
+                    capabilities: DeviceCapabilities::default(),
+                    ports: Vec::new(),
                 }
             })
             .collect()

@@ -13,15 +13,17 @@
 
 use crate::device::{DeviceInfo, IdentityStrength};
 use crate::graph_intent::GraphRuntimeIntent;
+use crate::port::{ConnectorType, PortDirection};
 #[cfg(feature = "gstreamer")]
 use gstreamer::prelude::*;
 #[cfg(feature = "gstreamer")]
 use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "gstreamer")]
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+#[cfg(feature = "gstreamer")]
+use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use uuid::Uuid;
 
@@ -64,7 +66,7 @@ pub enum SourceSelectionMode {
     /// DeviceHandle 经 Resolver 解析到确定 GStreamer `device-number`
     /// (`hw-serial-number` 探测匹配) — **当前硬件的正式生产物化路径**, 不是诊断 fallback.
     DeviceHandleResolved,
-    /// Diagnostic 显式模式: `device-number=<resolved>` (含 connection=sdi) — 仅验证/排障用, 非静默.
+    /// Diagnostic 显式模式: `device-number=<resolved>` (videosrc 含 connection=sdi; audiosrc 无此属性) — 仅验证/排障用, 非静默.
     DiagnosticFallback,
     /// MEDIA-RT-01 自测: videotestsrc/audiotestsrc (不依赖 DeckLink).
     SelfTest,
@@ -78,6 +80,10 @@ pub struct SourcePlan {
     pub bmd_persistent_id: Option<i64>,
     /// Resolver 解析后的 GStreamer `device-number` (DeviceHandleResolved/DiagnosticFallback 使用).
     pub device_number: u32,
+    /// 物理连接器类型 (由 PortRegistry 经 Manifest 声明 + 运行时探测推导得到). 决定 GStreamer
+    /// `decklinkvideosrc` 的 `connection=<...>` 属性; `None`/无对应枚举的连接器 → 不显式指定, 由插件默认探测.
+    /// **绝不硬编码** 成 `sdi` (见 `src_props`).
+    pub connector: Option<ConnectorType>,
     pub selection_mode: SourceSelectionMode,
 }
 
@@ -99,8 +105,9 @@ impl PipelinePlan {
         devices: &[DeviceInfo],
         bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
         mode: MaterializeMode,
+        registry: Option<&crate::port::PortRegistry>,
     ) -> Result<Vec<PipelinePlan>, PipelineError> {
-        materialize(intent, devices, mode, bindings)
+        materialize(intent, devices, mode, bindings, registry)
     }
 
     /// MEDIA-RT-01 自测计划 (videotestsrc/audiotestsrc, 不依赖 DeckLink).
@@ -110,6 +117,7 @@ impl PipelinePlan {
                 device_id: "self-test".into(),
                 bmd_persistent_id: None,
                 device_number: 0,
+                connector: None,
                 selection_mode: SourceSelectionMode::SelfTest,
             },
             normalize: true,
@@ -818,15 +826,30 @@ impl GStreamerPipelineController {
 /// - `hw-serial-number` 是 **GStreamer 侧** 硬件序列号/硬件 ID 探测属性 (只读), 与 "BMD PersistentID"
 ///   是两回事; 它不是 PersistentID 的别名. SDK 枚举 index 绝不直接当 device-number.
 fn src_props(plan: &PipelinePlan) -> (String, String) {
+    // 连接类型 → GStreamer `connection=` 属性. 仅 decklinkvideosrc 需要; decklinkaudiosrc 无此属性
+    // (音频内嵌于视频 SDI/HDMI 流, 跟随视频连接). `None` 或无对应枚举的连接器 → 不显式指定, 由插件默认
+    // (auto) 探测, 绝不硬编码 `connection=sdi`.
+    let connection = match plan.source.connector {
+        Some(ConnectorType::Sdi) => " connection=sdi",
+        Some(ConnectorType::Hdmi) => " connection=hdmi",
+        Some(ConnectorType::Optical) => " connection=optical",
+        Some(ConnectorType::DisplayPort)
+        | Some(ConnectorType::Analog)
+        | Some(ConnectorType::Unknown)
+        | None => "",
+    };
     let (video_src, audio_src) = match plan.source.selection_mode {
         // PersistentID 可用 → 官方首选 `persistent-id`.
         SourceSelectionMode::PersistentIdCanonical => (
             format!(
-                "decklinkvideosrc persistent-id={} connection=sdi",
-                plan.source.bmd_persistent_id.unwrap_or(0)
+                "decklinkvideosrc persistent-id={}{}",
+                plan.source.bmd_persistent_id.unwrap_or(0),
+                connection
             ),
+            // 注: decklinkaudiosrc 无 `connection` 属性 (音频内嵌于 SDI 视频流, 跟随视频连接),
+            // 绝不可像 videosrc 那样设 `connection=sdi`, 否则 launch 串解析失败 (MEDIA-RT-01 真机实测).
             format!(
-                "decklinkaudiosrc persistent-id={} connection=sdi",
+                "decklinkaudiosrc persistent-id={}",
                 plan.source.bmd_persistent_id.unwrap_or(0)
             ),
         ),
@@ -835,11 +858,13 @@ fn src_props(plan: &PipelinePlan) -> (String, String) {
         // 与 "BMD PersistentID" 是两回事; 此处经 Resolver 已映射到 device-number.
         SourceSelectionMode::DeviceHandleResolved | SourceSelectionMode::DiagnosticFallback => (
             format!(
-                "decklinkvideosrc device-number={} connection=sdi",
-                plan.source.device_number
+                "decklinkvideosrc device-number={}{}",
+                plan.source.device_number,
+                connection
             ),
+            // 同上: decklinkaudiosrc 无 `connection` 属性, 仅 device-number 选卡, 音频跟随视频 SDI 连接.
             format!(
-                "decklinkaudiosrc device-number={} connection=sdi",
+                "decklinkaudiosrc device-number={}",
                 plan.source.device_number
             ),
         ),
@@ -864,6 +889,7 @@ pub fn materialize(
     devices: &[DeviceInfo],
     mode: MaterializeMode,
     bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+    registry: Option<&crate::port::PortRegistry>,
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
     let mut plans = Vec::new();
     for d in &intent.devices {
@@ -912,10 +938,29 @@ pub fn materialize(
             }
         };
 
+        // 连接类型: 优先按 Control Plane 显式声明的 `port_id` 精确定位端口; 否则回退到该设备
+        // 的首个输入端口. 二者皆无 (无 registry / 端口未注册) → `None`, `src_props` 不显式指定 connection.
+        let connector = registry.and_then(|r| {
+            if let Some(pid) = &d.pipeline.source.port_id {
+                if let Ok(u) = Uuid::parse_str(pid) {
+                    return r
+                        .ports
+                        .iter()
+                        .find(|p| p.identity.port_id == u)
+                        .map(|p| p.identity.connector);
+                }
+            }
+            r.ports
+                .iter()
+                .find(|p| p.device_id == info.device_id && p.direction == PortDirection::Input)
+                .map(|p| p.identity.connector)
+        });
+
         let source = SourcePlan {
             device_id: d.device_id.clone(),
             bmd_persistent_id: info.bmd_persistent_id,
             device_number: resolved_device_number.unwrap_or(0),
+            connector,
             selection_mode,
         };
         plans.push(PipelinePlan {

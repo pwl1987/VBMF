@@ -33,6 +33,11 @@ pub struct SourceIntent {
     /// Agent 经 Device Registry 物化得到 (见 `pipeline::materialize`). Control
     /// Plane 无需感知底层采集硬件选择细节.
     pub device_id: String,
+    /// VBMF 物理端口身份 (port_id, UUIDv5 over `device_id+connector+ordinal`).
+    /// 同样绝不携带 GStreamer `device-number`; 端口物化由 Media Agent 经
+    /// Port Registry 完成 (见 `port::PortRegistry`). Control Plane 仅声明
+    /// "用哪块设备的哪个端口", 不关心底层 runtime 地址.
+    pub port_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

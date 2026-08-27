@@ -6,13 +6,17 @@
 mod config;
 mod decklink;
 mod device;
+mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
 mod graph_intent;
 mod health;
+mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
 mod lease;
 mod pipeline;
+mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
 mod resolver;
 mod rpc;
 mod sdk;
+mod signal; // 信号探测 + 亮度黑场检测
 mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
 
 // 硬规则 (Phase 0.6): `hardware-test` (IDeckLinkInput SDK 探针) 与 canonical `gstreamer`
@@ -147,6 +151,23 @@ fn main() {
                         println!("{json}");
                     }
                     Err(e) => eprintln!("bindings 序列化失败: {e}"),
+                }
+
+                // HW-PORT-01 (用户下一阶段实施任务): 端口级绑定闭环验收.
+                // Manifest 声明 + 实时 probe → PortRegistry → 验证
+                // DeviceHandle → Device → Port → Direction → Connector → Gst address → Signal 闭环.
+                // 绝不把当前 dn0/dn1/dn2 语义写死; 端口完全来自 Manifest + 运行时发现.
+                if let Some(m) = &manifest {
+                    let registry = crate::port::PortRegistry::build(&devices, &probes, m, &bindings);
+                    let report = crate::hw_port_01::verify(&registry, m);
+                    match serde_json::to_string_pretty(&report) {
+                        Ok(json) => {
+                            println!("=== C1: Runtime Port Binding Verification (HW-PORT-01) ===");
+                            println!("{json}");
+                            println!("=== HW-PORT-01 PASS = {} ===", report.pass);
+                        }
+                        Err(e) => eprintln!("HW-PORT-01 报告序列化失败: {e}"),
+                    }
                 }
             }
             crate::resolver::GstProbeOutcome::Unavailable(reason) => {
@@ -384,6 +405,24 @@ fn main() {
                 crate::resolver::ResolvedDeviceBinding,
             > = std::collections::HashMap::new();
 
+            // 端口注册表 (供 materialize 经 Manifest 声明 + 运行时探测推导连接类型, 不硬编码 connection=sdi):
+            // 仅当提供 manifest 时构建; 诊断 auto-start 无 manifest 回退 legacy → registry=None → connection 由插件默认探测.
+            #[cfg(feature = "gstreamer")]
+            let registry = _cfg.device_binding_path.as_ref().and_then(|p| {
+                crate::resolver::DeviceBindingManifest::load(p)
+                    .ok()
+                    .map(|m| crate::port::PortRegistry::build(&devices, &gst_probes, &m, &bindings))
+            });
+            #[cfg(not(feature = "gstreamer"))]
+            let registry: Option<crate::port::PortRegistry> = _cfg
+                .device_binding_path
+                .as_ref()
+                .and_then(|p| {
+                    crate::resolver::DeviceBindingManifest::load(p)
+                        .ok()
+                        .map(|m| crate::port::PortRegistry::build(&devices, &[], &m, &bindings))
+                });
+
             // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
             // Production **绝不**自行取 first device 制造 GraphRuntimeIntent —— 必须等待 Control Plane
             // 显式 StartPipeline Intent. (rpc.rs 当前 No transport yet, 故 Production 在此 idle:
@@ -403,6 +442,7 @@ fn main() {
                             source: crate::graph_intent::SourceIntent {
                                 kind: "decklink".into(),
                                 device_id: first_id,
+                                port_id: None,
                             },
                             sink: crate::graph_intent::SinkIntent {
                                 kind: "rtmp".into(),
@@ -410,13 +450,14 @@ fn main() {
                         },
                     }],
                 };
-                match crate::pipeline::materialize(&intent, &devices, mode, &bindings) {
+                match crate::pipeline::materialize(&intent, &devices, mode, &bindings, registry.as_ref()) {
                     Ok(plans) => {
                         for p in &plans {
                             tracing::info!(
                                 device_id = %p.source.device_id,
                                 bmd_persistent_id = p.source.bmd_persistent_id,
                                 device_number = p.source.device_number,
+                                connector = ?p.source.connector,
                                 selection_mode = ?p.source.selection_mode,
                                 "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
                             );

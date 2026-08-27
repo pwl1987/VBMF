@@ -13,6 +13,7 @@
 #![allow(dead_code)]
 
 use crate::device::DeviceInfo;
+use crate::port::{ConnectorType, PortDirection};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -30,6 +31,9 @@ pub struct GStreamerDeviceProbe {
     /// `signal=false` **不**等于身份失败; 身份与信号是两个维度.
     pub signal: Option<bool>,
     pub model: Option<String>,
+    /// 协商后的视频格式 (仅 gstreamer 构建, 有信号时方可读; 否则 None).
+    /// 属于 Runtime Signal State, 不入 Manifest 永久状态.
+    pub caps: Option<crate::port::VideoFormat>,
 }
 
 /// 匹配种类 (置信度语义见 `Confidence`).
@@ -264,12 +268,14 @@ fn probe_one_device_number(n: u32, require_identity: bool) -> Result<GStreamerDe
     // 释放设备. 只要 set_state(Playing) 成功 (=设备已打开=真实采集卡) 即计入 probe,
     // 即便 hw-serial-number 为空 (本硬件可能不暴露 serial); 最终匹配/Unresolved 由 resolve() 决定.
     let _ = pipeline.set_state(gstreamer::State::Null);
+    let caps = read_negotiated_caps(&el);
     Ok(GStreamerDeviceProbe {
         device_number: n,
         hw_serial_number,
         persistent_id,
         signal,
         model,
+        caps,
     })
 }
 
@@ -281,6 +287,53 @@ fn non_empty(s: String) -> Option<String> {
     } else {
         Some(s)
     }
+}
+
+/// 读取已协商的源 pad caps → 视频格式 (best-effort; 仅 gstreamer 构建, 有信号时可读).
+/// 仅用 `caps.to_string()` 做轻量解析, 避免引入 GStreamer Fraction 类型依赖风险.
+#[cfg(feature = "gstreamer")]
+fn read_negotiated_caps(el: &gstreamer::Element) -> Option<crate::port::VideoFormat> {
+    use gstreamer::prelude::*;
+    let pad = el.static_pad("src")?;
+    let caps = pad.current_caps()?;
+    if caps.is_empty() {
+        return None;
+    }
+    let text = caps.to_string();
+    let width = parse_int(&text, "width=(int)")?;
+    let height = parse_int(&text, "height=(int)")?;
+    let frame_rate = text
+        .split("framerate=(fraction)")
+        .nth(1)
+        .and_then(|s| s.split([',', ')', ' ']).next())
+        .map(|s| s.to_string());
+    let pixel_format = text
+        .split("format=(string)")
+        .nth(1)
+        .and_then(|s| s.split([',', ')', ' ']).next())
+        .map(|s| s.to_string());
+    let interlaced = text
+        .split("interlace-mode=(string)")
+        .nth(1)
+        .map(|s| {
+            let v = s.split([',', ')', ' ']).next().unwrap_or("");
+            v == "interleaved" || v == "mixed"
+        });
+    Some(crate::port::VideoFormat {
+        width,
+        height,
+        frame_rate,
+        interlaced,
+        pixel_format,
+    })
+}
+
+#[cfg(feature = "gstreamer")]
+fn parse_int(text: &str, key: &str) -> Option<u32> {
+    text.split(key)
+        .nth(1)
+        .and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|s| s.parse::<u32>().ok())
 }
 
 #[cfg(not(feature = "gstreamer"))]
@@ -542,8 +595,23 @@ pub struct DeviceBindingManifest {
     pub bindings: Vec<BindingEntry>,
 }
 
+/// 端口级绑定 (v2 schema): 把 "某块设备的某个物理端口" 显式声明, 而非仅 device-level。
+///
+/// HARD RULE: 绝不把 `SDI1` 定义成 `ConnectorType`; 物理 SDI #1/#2 是 `ConnectorType=SDI`
+/// + `ordinal=1/2`。`required=true` 的端口若 HW-PORT-01 验收时 signal 未 Locked → 失败闭合。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PortBinding {
+    pub connector: ConnectorType,
+    /// 物理端口序号 (1-based; 与 `ConnectorType` 共同构成端口身份).
+    pub ordinal: u32,
+    /// 端口方向 (由 SDK 能力/Manifest 声明, 绝不由 device-number/信号推断).
+    pub direction: PortDirection,
+    /// 是否参与 HW-PORT-01 验收必需项 (required 且 signal 未 Locked → 验收失败).
+    pub required: bool,
+}
+
 /// 单条 `SDK-handle → GStreamer device-number` 绑定.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BindingEntry {
     /// 人类可读标签 (如 "SDI-IN-1").
     pub label: Option<String>,
@@ -555,6 +623,10 @@ pub struct BindingEntry {
     pub expected_hw_serial_number: Option<String>,
     /// 可选交叉校验: 期望型号.
     pub expected_model: Option<String>,
+    /// v2: 端口级绑定 (ConnectorType + ordinal + direction + required). 缺省 = device-level (v1) 兼容.
+    /// 绝不得含除运行时地址外的硬编码语义; 物理 SDI #1/#2 = `SDI` + ordinal.
+    #[serde(default)]
+    pub port: Option<PortBinding>,
 }
 
 impl DeviceBindingManifest {
@@ -878,6 +950,8 @@ mod tests {
             bmd_topological_id: None,
             identity_strength: IdentityStrength::DeviceHandle,
             identity_source: DeviceIdentitySource::RealBmd,
+            capabilities: crate::port::DeviceCapabilities::default(),
+            ports: Vec::new(),
         }
     }
 
@@ -888,6 +962,7 @@ mod tests {
             persistent_id: None,
             signal: Some(true),
             model: Some("DeckLink SDI".to_string()),
+            caps: None,
         }
     }
 
@@ -898,6 +973,7 @@ mod tests {
             gst_device_number: num,
             expected_hw_serial_number: None,
             expected_model: None,
+            port: None,
         }
     }
 
