@@ -110,7 +110,7 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
     GstProbeOutcome::Available(probes)
 }
 
-/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PAUSED 读只读属性; 不存在/打不开返回 `None`
+/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 不存在/打不开返回 `None`
 /// (视为该序号无可用采集卡, 不计入 probes, 避免 ghost 设备导致 `Ambiguous`).
 #[cfg(feature = "gstreamer")]
 fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
@@ -122,14 +122,14 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址).
     el.set_property("device-number", n as i32);
     // live source 需置于 Pipeline (并接 fakesink) 才被驱动; 裸 Element 直接 set_state 不会执行
-    // start(), 故 hw-serial-number 恒为 null. Pipeline 设 PAUSED 才触发 start() 打开设备并填充
-    // 只读身份属性 (hw-serial-number 等). 不进入 PLAYING, 不拉真实帧.
+    // start(), 故 hw-serial-number 恒为 null. Pipeline 设 PLAYING 才 fully-active 并填充只读身份属性
+    // (hw-serial-number 等); 即便无信号 (Signal lost) 设备也已打开, 身份属性应已可读.
     let sink = gstreamer::ElementFactory::make("fakesink").build().ok()?;
     pipeline.add(&el).ok()?;
     pipeline.add(&sink).ok()?;
     el.link(&sink).ok()?;
-    let paused = pipeline.set_state(gstreamer::State::Paused);
-    eprintln!("[C1DBG] dn={} set_state_paused={:?}", n, paused);
+    let playing = pipeline.set_state(gstreamer::State::Playing);
+    eprintln!("[C1DBG] dn={} set_state_playing={:?}", n, playing);
     if paused.is_err() {
         let _ = pipeline.set_state(gstreamer::State::Null);
         return None;
@@ -164,12 +164,10 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     let model = el
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
-    // 释放设备.
+    // 释放设备. 注: 只要 set_state(Playing) 成功 (=设备已打开=真实采集卡) 即计入 probe,
+    // 即便 hw-serial-number 为空 (本硬件可能不暴露 serial); 最终匹配/Unresolved 由 resolve() 决定,
+    // 绝不在此静默丢弃已打开的卡 (曾因空 serial 被 ghost 判定吞掉, 导致 C1 输出恒为 Empty).
     let _ = pipeline.set_state(gstreamer::State::Null);
-    // ghost 判定: 无任何身份线索说明该序号并非真实采集卡, 不计入 (防误判 Ambiguous).
-    if hw_serial_number.is_none() && model.is_none() && persistent_id.is_none() {
-        return None;
-    }
     Some(GStreamerDeviceProbe {
         device_number: n,
         hw_serial_number,
