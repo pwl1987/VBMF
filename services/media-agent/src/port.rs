@@ -233,10 +233,11 @@ pub struct RuntimePortBinding {
 
 /// 绑定/验证等级 (§十八). 输出端口不能仅靠 `ManifestVerified` 宣称 Runtime Verified;
 /// 须走到对应等级的运行时证据.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationLevel {
     /// Manifest 声明 (尚未运行时验证).
+    #[default]
     Declared,
     /// 运行时已 `open` (输入设备打开 / 输出 sink 打开).
     RuntimeOpened,
@@ -760,6 +761,7 @@ mod tests {
                 ordinal: num.max(1),
                 direction,
                 required: false,
+                verification: VerificationLevel::Declared,
             }),
         }
     }

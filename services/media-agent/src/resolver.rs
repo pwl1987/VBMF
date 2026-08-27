@@ -13,7 +13,7 @@
 #![allow(dead_code)]
 
 use crate::device::DeviceInfo;
-use crate::port::{ConnectorType, PortDirection};
+use crate::port::{ConnectorType, PortDirection, VerificationLevel};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -615,6 +615,10 @@ pub struct PortBinding {
     pub direction: PortDirection,
     /// 是否参与 HW-PORT-01 验收必需项 (required 且 signal 未 Locked → 验收失败).
     pub required: bool,
+    /// 该端口在 HW-PORT-01 验收中所需最低验证等级 (§十八): 声明/运行时打开/信号锁定/环回验证.
+    /// 缺省 `Declared` (仅声明); 越高越严, 验收须收集到对应等级运行时证据 (fail-closed).
+    #[serde(default)]
+    pub verification: VerificationLevel,
 }
 
 /// 单条 `SDK-handle → GStreamer device-number` 绑定.
@@ -645,19 +649,30 @@ impl DeviceBindingManifest {
             .map_err(|e| format!("DeviceBindingManifest 解析失败 ({path}): {e}"))
     }
 
-    /// 结构完整性校验 (用户 §六): 加载后立即调用, 失败即拒绝 (ManifestInvalid).
-    /// 检查项: manifest_version 非空 / machine_id 非空 / 至少一条绑定 /
-    /// bmd_device_handle 唯一 / gst_device_number 唯一 / 每条 handle 非空.
+    /// 结构完整性校验 (用户 §六 / Manifest v2, STEP 4): 加载后立即调用, 失败即拒绝 (ManifestInvalid).
+    /// 检查项:
+    /// - `manifest_version` 须能解析为版本号, 且 **v2 (major>=2) 强制端口级绑定** (`port` 字段非空);
+    ///   v1 (major<2) 保持 device-level 向后兼容 (port 可空).
+    /// - `machine_id` 非空 / 至少一条绑定 / `bmd_device_handle` 唯一且非空 / `gst_device_number` 唯一.
+    /// - 端口级绑定 (`port`) 内部一致: connector 不得 Unknown、ordinal>=1、direction 不得 Unknown.
     pub fn validate_manifest(&self) -> Result<(), String> {
-        if self.manifest_version.trim().is_empty() {
-            return Err("ManifestInvalid: manifest_version 为空 (schema 错误)".to_string());
-        }
+        let major = self
+            .manifest_version
+            .trim()
+            .split('.')
+            .next()
+            .and_then(|s| s.parse::<u32>().ok())
+            .ok_or_else(|| {
+                "ManifestInvalid: manifest_version 无法解析为版本号 (应为 \"2\" / \"2.0\" 等)"
+                    .to_string()
+            })?;
         if self.machine_id.trim().is_empty() {
             return Err("ManifestInvalid: machine_id 为空 (无法绑定主机, 拒绝)".to_string());
         }
         if self.bindings.is_empty() {
             return Err("ManifestInvalid: bindings 为空 (无绑定条目, 拒绝)".to_string());
         }
+        let is_v2 = major >= 2;
         let mut seen_handle = HashSet::new();
         for b in &self.bindings {
             if b.bmd_device_handle.trim().is_empty() {
@@ -668,6 +683,32 @@ impl DeviceBindingManifest {
                     "ManifestInvalid: 重复的 bmd_device_handle '{}' (设备身份冲突, 拒绝)",
                     b.bmd_device_handle
                 ));
+            }
+            if is_v2 && b.port.is_none() {
+                return Err(format!(
+                    "ManifestInvalid: v2 清单绑定 '{}' 缺少端口级 port 声明 (拒绝 device-level-only)",
+                    b.bmd_device_handle
+                ));
+            }
+            if let Some(p) = &b.port {
+                if p.connector == ConnectorType::Unknown {
+                    return Err(format!(
+                        "ManifestInvalid: 绑定 '{}' port.connector=Unknown (不得声明未知连接器)",
+                        b.bmd_device_handle
+                    ));
+                }
+                if p.ordinal < 1 {
+                    return Err(format!(
+                        "ManifestInvalid: 绑定 '{}' port.ordinal={} < 1",
+                        b.bmd_device_handle, p.ordinal
+                    ));
+                }
+                if p.direction == PortDirection::Unknown {
+                    return Err(format!(
+                        "ManifestInvalid: 绑定 '{}' port.direction=Unknown (必须显式 Input/Output)",
+                        b.bmd_device_handle
+                    ));
+                }
             }
         }
         let mut seen_num = HashSet::new();
@@ -1101,5 +1142,61 @@ mod tests {
         assert!(m.check_machine_identity("box-b").is_err());
         // 运行环境无法判定主机 (空) → 跳过而非误报
         assert!(m.check_machine_identity("").is_ok());
+    }
+
+    // ---- STEP 4: Manifest v2 版本化 + 端口级绑定 fail-closed ----
+
+    #[test]
+    fn manifest_v2_requires_port_level_binding() {
+        // v2 (major>=2) 清单若仍是 device-level (port: None) → 失败闭合拒绝.
+        let mut m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
+        m.manifest_version = "2".into();
+        assert!(m.validate_manifest().is_err());
+    }
+
+    #[test]
+    fn manifest_v2_with_valid_port_ok() {
+        let mut m = base_manifest(vec![BindingEntry {
+            port: Some(PortBinding {
+                connector: ConnectorType::Sdi,
+                ordinal: 1,
+                direction: PortDirection::Input,
+                required: true,
+                verification: VerificationLevel::SignalVerified,
+            }),
+            ..manifest_entry("46:00000000:002e4500", 1)
+        }]);
+        m.manifest_version = "2".into();
+        assert!(m.validate_manifest().is_ok());
+    }
+
+    #[test]
+    fn manifest_v2_rejects_unknown_direction() {
+        let mut m = base_manifest(vec![BindingEntry {
+            port: Some(PortBinding {
+                connector: ConnectorType::Sdi,
+                ordinal: 1,
+                direction: PortDirection::Unknown,
+                required: true,
+                verification: VerificationLevel::Declared,
+            }),
+            ..manifest_entry("46:00000000:002e4500", 1)
+        }]);
+        m.manifest_version = "2".into();
+        assert!(m.validate_manifest().is_err());
+    }
+
+    #[test]
+    fn manifest_v1_device_level_still_ok() {
+        // v1 (major<2) 仍允许 device-level 绑定 (向后兼容, port 可空).
+        let m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
+        assert!(m.validate_manifest().is_ok());
+    }
+
+    #[test]
+    fn manifest_version_unparseable_rejected() {
+        let mut m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
+        m.manifest_version = "v2".into();
+        assert!(m.validate_manifest().is_err());
     }
 }

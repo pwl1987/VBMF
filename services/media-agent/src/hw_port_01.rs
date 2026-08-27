@@ -209,6 +209,7 @@ mod tests {
                     ordinal,
                     direction: PortDirection::Input,
                     required,
+                    verification: crate::port::VerificationLevel::Declared,
                 }),
             }],
         }
