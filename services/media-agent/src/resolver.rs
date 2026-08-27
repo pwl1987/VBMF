@@ -119,7 +119,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         .build()
         .ok()?;
     // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址). 只读属性前提是设备已打开 (READY).
-    el.set_property("device-number", n as i32);
+    el.set_property("device-number", n);
     // 打开设备 (READY 即打开; 无需 PLAYING, 不拉真实帧). 失败 = 该序号无此卡.
     if el.set_state(gstreamer::State::Ready).is_err() {
         let _ = el.set_state(gstreamer::State::Null);
@@ -131,7 +131,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     // 故先确认存在再按类型读 (String/i64/bool 均实现 HasParamSpec, 编译稳定).
     let hw_serial_number = el
         .find_property("hw-serial-number")
-        .and_then(|_| non_empty(el.property::<String>("hw-serial-number")));
+        .and_then(|_| non_empty(el.property::<Option<String>>("hw-serial-number").unwrap_or_default()));
     let persistent_id = el.find_property("persistent-id").and_then(|_| {
         let v = el.property::<i64>("persistent-id");
         if v > 0 {
@@ -145,7 +145,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         .and_then(|_| Some(el.property::<bool>("signal")));
     let model = el
         .find_property("model")
-        .and_then(|_| non_empty(el.property::<String>("model")));
+        .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
     // 释放设备.
     let _ = el.set_state(gstreamer::State::Null);
     // ghost 判定: 无任何身份线索说明该序号并非真实采集卡, 不计入 (防误判 Ambiguous).
