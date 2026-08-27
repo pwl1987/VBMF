@@ -26,10 +26,12 @@ use device::DeviceManager;
 // (trait method, auto-deref via Arc; 否则 E0599 no method named `acquire`).
 use lease::LeaseManager;
 // Trait must be in scope to call `prepare`/`start`/`recover` on `Arc<GStreamerPipelineController>`
-// (trait 方法, 否则 E0599 no method named `recover`).
+// (trait 方法, 否则 E0599 no method named `recover`). 调用点均在 `#[cfg(feature = "bmd")]` 块内 → bmd && gstreamer 才编译.
+#[cfg(all(feature = "bmd", feature = "gstreamer"))]
 use pipeline::PipelineController;
 use std::io::Write;
 use std::sync::Arc;
+#[cfg(all(feature = "bmd", feature = "gstreamer"))]
 use uuid::Uuid;
 
 fn main() {
@@ -349,7 +351,8 @@ fn main() {
 /// 周期: 真 bus 监控 (Error/EOS/StateChanged) + appsink 计数 → 推导 MEDIA-RT-01
 /// A1-A4 / B1-B4 / C1-C4 → 错误时报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
 /// Supervisor 仅决策, 不碰 GStreamer (硬边界); 实际重启由这里执行.
-#[cfg(feature = "gstreamer")]
+/// 调用点 (self-test / canonical) 均在 `#[cfg(feature = "bmd")]` 块内, 故本函数仅在 bmd && gstreamer 时编译.
+#[cfg(all(feature = "bmd", feature = "gstreamer"))]
 fn spawn_ingest_watchdog(
     ctrl: Arc<crate::pipeline::GStreamerPipelineController>,
     handle: crate::pipeline::PipelineHandle,
@@ -360,7 +363,7 @@ fn spawn_ingest_watchdog(
 ) {
     std::thread::spawn(move || {
         // A1/A2 在 start 前已由 materialize (身份解析) + lm.is_valid (租约) 保证, 否则不会进 watchdog.
-        let stability_window = std::time::Duration::from_secs(10); // MEDIA-RT-01C 验收窗口
+        let _stability_window = std::time::Duration::from_secs(10); // MEDIA-RT-01C 验收窗口
         let mut prev_video = 0u64;
         let mut prev_audio = 0u64;
         let mut tick = 0u64;

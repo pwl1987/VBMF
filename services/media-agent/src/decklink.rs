@@ -766,7 +766,6 @@ mod imp {
     }
 }
 
-#[cfg(feature = "bmd")]
-pub use imp::{enumerate, registry, start_capture, CaptureStats};
-#[cfg(not(feature = "bmd"))]
 pub use imp::enumerate;
+#[cfg(feature = "hardware-test")]
+pub use imp::{registry, start_capture};

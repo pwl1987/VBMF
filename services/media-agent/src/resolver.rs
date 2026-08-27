@@ -74,7 +74,7 @@ pub enum GstProbeOutcome {
 /// 为什么不用 `GstDeviceMonitor` (用户复核, 撤回 `b52e2b6`): 当前 DeckLink 官方插件只暴露
 /// `decklinkvideosrc` / `decklinkaudiosrc` **element**, 不提供 `GstDeviceProvider`; 实机验证
 /// `gst-device-monitor` 不列出 DeckLink. 故枚举入口改成**直接创建 element 实例**, 按 `device-number`
-/// 遍历, 打开到 PAUSED (不 PLAYING, 不拉真实帧) 后读取只读属性 (decklink 插件在 PAUSED 才填充身份属性).
+/// 遍历, 打开到 PLAYING 读取只读身份属性: decklink 为 live source, 裸 Element 直接 set_state 不执行 start() 故身份属性恒 null, 须置于 Pipeline+fakesink 设 PLAYING 真正打开设备并填充属性 (即便无信号设备也已打开, 身份属性仍可读).
 ///
 /// 每序号读取: `device-number`(guint) / `hw-serial-number`(只读硬件 ID) / `persistent-id`(gint64) /
 /// `signal`(bool) / `model`(String). `connection`/`mode` 用 element 默认 (connection=auto 自动识别
@@ -87,7 +87,6 @@ pub enum GstProbeOutcome {
 /// 返回 `GstProbeOutcome` 以区分 `Unavailable` / `Empty` / `Available` (见 §九).
 #[cfg(feature = "gstreamer")]
 pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
-    use gstreamer::prelude::*;
     // GStreamer 初始化 (幂等). 失败 → 探测方法不可用 (非设备失败).
     if let Err(e) = gstreamer::init() {
         return GstProbeOutcome::Unavailable(format!("gstreamer init 失败: {e}"));
@@ -129,23 +128,12 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     pipeline.add(&sink).ok()?;
     el.link(&sink).ok()?;
     let playing = pipeline.set_state(gstreamer::State::Playing);
-    eprintln!("[C1DBG] dn={} set_state_playing={:?}", n, playing);
     if playing.is_err() {
         let _ = pipeline.set_state(gstreamer::State::Null);
         return None;
     }
     // 少量延时兜底 live source 异步 preroll, 确保设备已打开、身份属性已填充.
     std::thread::sleep(std::time::Duration::from_millis(300));
-    eprintln!(
-        "[C1DBG] dn={} hw_serial={:?} persistent_id={:?} signal={:?} model={:?}",
-        n,
-        el.find_property("hw-serial-number")
-            .map(|_| el.property::<Option<String>>("hw-serial-number").unwrap_or_default()),
-        el.find_property("persistent-id").map(|_| el.property::<i64>("persistent-id")),
-        el.find_property("signal").map(|_| el.property::<bool>("signal")),
-        el.find_property("model")
-            .map(|_| el.property::<Option<String>>("model").unwrap_or_default()),
-    );
     // 读取只读属性 (find_property 守卫防缺属性 panic; NULL 字符串用 Option<String> 归 None).
     let hw_serial_number = el
         .find_property("hw-serial-number")

@@ -74,7 +74,7 @@ impl Default for InMemoryLeaseManager {
 fn is_expired(l: &DeviceLease) -> bool {
     let expiry = l
         .acquired_at
-        .checked_add_signed(Duration::from_std(l.ttl).unwrap_or(Duration::max_value()))
+        .checked_add_signed(Duration::from_std(l.ttl).unwrap_or(Duration::MAX))
         .unwrap_or(Utc::now());
     Utc::now() > expiry
 }

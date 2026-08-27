@@ -11,10 +11,8 @@
 
 #![allow(dead_code)]
 
-use crate::device::{DeviceInfo, DeviceManager, IdentityStrength};
-use crate::graph_intent::{DeviceIntent, GraphRuntimeIntent, PipelineIntent, SinkIntent, SourceIntent};
-#[cfg(feature = "gstreamer")]
-use gstreamer::prelude::*;
+use crate::device::{DeviceInfo, IdentityStrength};
+use crate::graph_intent::GraphRuntimeIntent;
 #[cfg(feature = "gstreamer")]
 use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
