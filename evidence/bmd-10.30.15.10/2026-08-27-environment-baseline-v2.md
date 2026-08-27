@@ -21,23 +21,23 @@ host:
   arch: x86_64
 
 docker:
-  version: "VERIFY ON BOX — `docker --version`"
-  compose: "VERIFY ON BOX — `docker compose version`"
+  version: "29.7.2"
+  compose: "v5.5.0"
   runtime: runc            # runsc 未安装 (见历史 environment-prep); Runtime 选择已裁决 = runc
 
 gstreamer:
   version: 1.28.2          # 与运行时一致, 未扰动生产 (apt libgstreamer1.0-dev 等)
   decklink_plugin: present # decklinkvideosrc / decklinkaudiosrc (Desktop Video 驱动自带)
-  gst_launch: "VERIFY — `gst-inspect-1.0 decklinkvideosrc`"
+  gst_launch: "decklinkvideosrc 存在 (gst-inspect-1.0 1.28.2; plugin present)"
 
 rust:
   toolchain: stable (edition 2021)
-  rustc: "VERIFY ON BOX — `rustc --version`"
-  cargo: "VERIFY ON BOX — `cargo --version`"
+  rustc: "1.98.0"
+  cargo: "1.98.0"
 
 blackmagic:
   desktop_video_sdk: 16.0
-  driver: "Desktop Video 16.0 (VERIFY — `dpkg -l | grep desktopvideo` 或盒上 About)"
+  driver: "Desktop Video 16.2a1 (dpkg: desktopvideo 16.2a1)"
   libDeckLinkAPI_so: present   # LD_LIBRARY_PATH=/usr/lib 注入
   sdk_include: /home/lytv/decklink-sdk-include  # DECKLINK_SDK_INCLUDE (软链)
 

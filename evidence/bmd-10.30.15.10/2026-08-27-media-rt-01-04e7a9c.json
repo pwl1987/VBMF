@@ -1,0 +1,29 @@
+{
+  "schema": "vbmf.media-rt-01/v1",
+  "test_subject_sha": "04e7a9c",
+  "environment_base_sha": "04e7a9c",
+  "verified_on_box": "2026-08-27",
+  "verified_sha": "04e7a9c",
+  "verified_note": "MEDIA_AGENT_SELFTEST=1 于 10.30.15.10 实测: prepare->start 真实启动 GStreamer pipeline (videotestsrc/audiotestsrc->appsink), 持续产出 video/audio 帧, MEDIA-RT-01 A+B+C 全过 (基于真实运行时状态, 非 default=true). 修复 P0-2 (pipeline 未启动)/P1-1 (handle 唯一)/P1-2 (健康默认非 PASS).",
+  "gate": "MEDIA-RT-01 (canonical first-buffer)",
+  "status": "SELFTEST_PASS",
+  "blocking": {
+    "c1_resolver": "UNRESOLVED (GStreamer hw-serial 恒空) — 仍阻塞真实 DeckLink 身份绑定, 但不再阻塞 SelfTest 路径",
+    "real_decklink_launch": "canonical 真实 DeckLink 采集路径 (DeviceHandleResolved) 尚未在盒上以真机采集跑通 (需占用设备); 启动链代码与 SelfTest 同源, 待 HW-IDENT-02 真机采集验证"
+  },
+  "self_test_result": {
+    "source": "SelfTest (videotestsrc/audiotestsrc)",
+    "a_pass": true,
+    "b_pass": true,
+    "c_pass": true,
+    "video_frames": 436,
+    "audio_frames": 625,
+    "a3_pipeline_playing": true,
+    "pts_monotonic": true
+  },
+  "open_items": [
+    "P1-3: pts_monotonic 仍用 bool (默认 false + 首帧有效 PTS 置 true); 建议升级为 Unknown/ValidMonotonic/NonMonotonic 枚举 (用户 §十一)",
+    "P1-4: GStreamer bus 仍 poll_bus()=Vec::new() stub; Supervisor 真实错误源未接入 (Gate 5 Runtime Wiring 仍占位)",
+    "canonical 真实 DeckLink 采集路径待盒上真机采集验证 (HW-IDENT-02)"
+  ]
+}
