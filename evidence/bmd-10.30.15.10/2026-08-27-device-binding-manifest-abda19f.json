@@ -1,0 +1,59 @@
+{
+  "schema": "vbmf.device-binding-manifest/v1",
+  "design_decision": "DeviceBindingManifest: 由 Provisioning 维护的显式 SDK-handle -> GStreamer device-number 运行时契约, 取代 runtime 猜测 (用户 第11/12节).",
+  "test_subject_sha": "abda19f",
+  "environment_base_sha": "5d5f6cb",
+  "verified_on_box": "2026-08-27",
+  "verified_sha": "abda19f",
+  "verified_note": "VBMF_RESOLVER=1 + MEDIA_AGENT_DEVICE_BINDING=/tmp/manifest.json 于 10.30.15.10 实跑确认 authority path: 清单声明 device-number 0(Mini Monitor, handle 83:1a66443b:00000000) 与 1(SDI1, handle 46:00000000:002e4500) 均 ManifestVerified; device-number 2(SDI2, 未在清单声明) 失败闭合 Unresolved. GStreamer decklinkvideosrc 本次实跑暴露 hw-serial-number == SDK DeviceHandle, 使交叉校验通过 (详见 notable_finding).",
+  "status": "IMPLEMENTED_AUTHORITY_PATH_VERIFIED",
+  "canonical_gate_status": "BLOCKED (HW-IDENT-02 真机采集仍待占设备跑通采集路径)",
+  "summary": "新增 DeviceBindingManifest / BindingEntry (JSON serde, 由 Provisioning 维护). resolve_with_manifest 以清单为权威: 遍历声明条目 -> 用 GStreamer 探测对应 device-number 作为校验器 -> 交叉校验 probe.hw_serial_number == entry.sdk_device_handle. 任一失败(序号未打开 / 校验不符 / 设备不在清单) -> 失败闭合 Unresolved, 绝不猜. 生产 materialize 与 VBMF_RESOLVER 均支持 MEDIA_AGENT_DEVICE_BINDING; 缺失则 WARN 回退 legacy auto-resolver (生产应禁用); 清单加载失败 -> 拒绝 materialize. 盒上 VBMF_RESOLVER 实测 authority path 通过; 24 个 gstreamer 单测全绿; 5 个 manifest 单测覆盖 verified / fail-closed.",
+  "manifest_schema": {
+    "version": "u32 (当前 1)",
+    "bindings": [
+      {
+        "device_number": "u32 — GStreamer decklinkvideosrc device-number",
+        "sdk_device_handle": "String — SDK IDeckLinkProfileAttributes::GetString(BMDDeckLinkDeviceHandle), 例 46:00000000:002e4500",
+        "role": "String (可选) — monitor / sdi-in / sdi-out ...",
+        "label": "String (可选) — 运维可读名"
+      }
+    ]
+  },
+  "authority_path": [
+    "1. 加载 MEDIA_AGENT_DEVICE_BINDING 指向的 JSON; 失败 -> materialize 拒绝 (失败闭合), VBMF_RESOLVER 打印错误退出.",
+    "2. 遍历 manifest.bindings: 对每条 entry 调 GStreamer probe_one_device_number(entry.device_number).",
+    "3. probe 未打开该 device-number -> 此 entry Unresolved (声明了但硬件未枚举到).",
+    "4. probe 已打开 -> 交叉校验 probe.hw_serial_number == entry.sdk_device_handle; 不符 -> Unresolved (硬件身份漂移, 绝不盲开).",
+    "5. 校验通过 -> ManifestVerified, 生成 ResolvedBinding{ device_number, sdk_device_handle, gst_hw_serial_number, role, label, match_kind }.",
+    "6. 收集所有 ManifestVerified 作为最终绑定集合; 任一条目 Unresolved 均计入证据 (失败闭合)."
+  ],
+  "fail_closed_cases": [
+    "MEDIA_AGENT_DEVICE_BINDING 指向文件不存在/JSON 非法 -> materialize 返回 Err(拒绝启动), VBMF_RESOLVER 退出码非 0.",
+    "声明的 device_number 在 GStreamer probe 中未打开 (设备未接/被占用) -> 该 entry Unresolved.",
+    "probe.hw_serial_number != entry.sdk_device_handle (硬件身份漂移) -> 该 entry Unresolved.",
+    "清单未声明某 SDK 设备 (如 SDI2#2) -> 该 device-number 不被打开, 不 guess, 不回退 device 0."
+  ],
+  "box_run_evidence": {
+    "manifest_used": {
+      "version": 1,
+      "bindings": [
+        {"device_number": 0, "sdk_device_handle": "83:1a66443b:00000000", "role": "monitor", "label": "Mini Monitor 4K"},
+        {"device_number": 1, "sdk_device_handle": "46:00000000:002e4500", "role": "sdi-in", "label": "SDI Input 1"}
+      ]
+    },
+    "observed_match_kinds": [
+      {"device_number": 0, "sdk_device_handle": "83:1a66443b:00000000", "match": "ManifestVerified", "probe_hw_serial": "83:1a66443b:00000000"},
+      {"device_number": 1, "sdk_device_handle": "46:00000000:002e4500", "match": "ManifestVerified", "probe_hw_serial": "46:00000000:002e4500"},
+      {"device_number": 2, "sdk_device_handle": "46:00000000:002e4400", "match": "Unresolved", "reason": "未在 manifest 声明 (失败闭合, 不 guess)"}
+    ]
+  },
+  "notable_finding": "本次盒上实跑, GStreamer decklinkvideosrc 的 hw-serial-number 属性 == SDK DeviceHandle 字符串 (此前 2026-08-27-c1-resolver 证据记录该属性恒空, 列为 open item 'DeviceHandle <-> hw-serial-number 等价关系无实机证据'). 本次 run 该等价关系在真实硬件成立, 使 ManifestVerified 交叉校验通过 — 既验证了 manifest 权威路径, 也補全了 prior open item. 注意: 该属性是否稳定可复现仍待后续多次采集确认 (建议 HW-IDENT-02 占设备时复核).",
+  "open_items": [
+    "HW-IDENT-02: 真机 DeckLink 采集路径 (DeviceHandleResolved + manifest) 仍待占设备跑通采集 + 帧验证 (canonical gate 仍 BLOCKED).",
+    "Resolver Probe Error Model: probe_one_device_number 的 None 仍混淆 不存在/busy/state-failed/probe-error (用户 第12节 RESOLVER-ERR-01) — manifest 路径同样受影响, 待细化.",
+    "hw-serial-number == DeviceHandle 的可复现性待 HW-IDENT-02 多轮采集确认.",
+    "生产 materialize 当前 return Ok(()) 仅占位; 实际 Pipeline 装配 (PIPELINE-AV-01 后) 待接入 resolved bindings.",
+    "MEDIA_AGENT_DEVICE_BINDING 缺失时 WARN 回退 legacy auto-resolver — 生产部署须显式禁用 (避免无清单盲跑)."
+  ]
+}
