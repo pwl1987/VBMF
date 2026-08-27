@@ -11,7 +11,7 @@
 
 #![allow(dead_code)]
 
-use crate::port::{PortDirection, PortRegistry, SignalState};
+use crate::port::{PortDirection, PortOrdinal, PortRegistry, SignalState};
 use crate::resolver::DeviceBindingManifest;
 use serde::{Deserialize, Serialize};
 
@@ -77,7 +77,11 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
             device_handle: p.device_handle.clone(),
             port: PortAcceptance {
                 connector: p.identity.connector,
-                ordinal: p.identity.ordinal,
+                // 报告字段用 u32; Unknown 序号无稳定序号, 以 0 表达"未声明" (身份层已由 PortOrdinal 区分).
+                ordinal: match p.identity.ordinal {
+                    PortOrdinal::Known(n) => n,
+                    PortOrdinal::Unknown => 0,
+                },
                 direction: p.direction,
             },
             gstreamer: GstAddress {
@@ -112,7 +116,7 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
         let matched = registry.ports.iter().find(|p| {
             p.device_handle.as_deref() == Some(entry.bmd_device_handle.as_str())
                 && p.identity.connector == port.connector
-                && p.identity.ordinal == port.ordinal
+                && p.identity.ordinal == PortOrdinal::Known(port.ordinal)
         });
         match matched {
             Some(p) if p.signal.state == SignalState::Locked && p.runtime_binding.is_some() => {}
@@ -140,7 +144,9 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::port::{PortCapabilities, PortIdentity, PortInfo, RuntimePortBinding, SignalStatus};
+    use crate::port::{
+        PortCapabilities, PortIdentity, PortInfo, PortOrdinal, RuntimePortBinding, SignalStatus,
+    };
     use crate::resolver::{BindingEntry, Confidence, ResolverMatch};
     use uuid::Uuid;
 
@@ -150,9 +156,13 @@ mod tests {
             device_id: dev,
             device_handle: Some(format!("handle-{ordinal}")),
             identity: PortIdentity {
-                port_id: PortIdentity::derive(&dev, crate::port::ConnectorType::Sdi, ordinal),
+                port_id: PortIdentity::derive(
+                    &dev,
+                    crate::port::ConnectorType::Sdi,
+                    PortOrdinal::Known(ordinal),
+                ),
                 connector: crate::port::ConnectorType::Sdi,
-                ordinal,
+                ordinal: PortOrdinal::Known(ordinal),
             },
             direction: PortDirection::Input,
             capabilities: PortCapabilities {
@@ -235,9 +245,13 @@ mod tests {
                 device_id: dev,
                 device_handle: Some("out".into()),
                 identity: PortIdentity {
-                    port_id: PortIdentity::derive(&dev, crate::port::ConnectorType::Sdi, 0),
+                    port_id: PortIdentity::derive(
+                        &dev,
+                        crate::port::ConnectorType::Sdi,
+                        PortOrdinal::Known(0),
+                    ),
                     connector: crate::port::ConnectorType::Sdi,
-                    ordinal: 0,
+                    ordinal: PortOrdinal::Known(0),
                 },
                 direction: PortDirection::Output,
                 capabilities: PortCapabilities {

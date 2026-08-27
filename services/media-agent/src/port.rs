@@ -46,15 +46,28 @@ pub enum PortDirection {
     Unknown,
 }
 
-/// 能力三态 — 显式区分 `支持 / 不支持 / 未知`, 禁止用 `0` 同时表达"无/未探测/不支持/失败".
+/// 物理端口序号 — 显式区分"已知序号"与"未知" (§七/§八).
+/// 禁止用 `0` 表达未知: 否则同设备同连接器多个 unknown 端口会派生出相同 `port_id` (碰撞).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PortOrdinal {
+    /// 硬件 / Manifest 明确声明的 1-based 序号.
+    Known(u32),
+    /// 未声明 / 未探测到具体序号. 不得据此伪造稳定 `port_id`.
+    Unknown,
+}
+
+/// 能力三态 — 显式区分 `支持 / 不支持 / 未知 / 探测失败`, 禁止用 `0` 或 `false` 同时表达
+/// "无/未探测/不支持/失败" (§五).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CapabilityValue<T: Serialize> {
     /// 真实支持, 携带值 (例如 `Supported(true)` / `Supported(2)` 表示 2 个端口).
     Supported(T),
     /// 明确探测为不支持.
     Unsupported,
-    /// 未探测 / 探测失败 / SDK 未暴露该能力 (当前 10.30.15.10 多通道卡即此情况).
+    /// 未探测 / SDK 未暴露该能力 (当前 10.30.15.10 多通道卡即此情况).
     Unknown,
+    /// 探测执行过但失败 (携带原因). 与 `Unknown` 区分: Unknown=未探测/未暴露, ProbeFailed=探测过但失败.
+    ProbeFailed(String),
 }
 
 impl<T: Serialize> CapabilityValue<T> {
@@ -183,17 +196,29 @@ pub enum VideoContentState {
 /// 端口稳定身份 (跨重启不变, 由 `device_id + connector + ordinal` 派生).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortIdentity {
-    pub port_id: Uuid,
+    /// 稳定 port_id (UUID v5). **仅当 `ordinal = Known` 时存在**; `Unknown` 序号无法生成稳定身份,
+    /// 必须标记为 unresolved discovery object, 不得伪造 (§八).
+    pub port_id: Option<Uuid>,
     pub connector: ConnectorType,
-    /// 物理端口序号 (1-based; 0 = 由 probe 派生且未知具体序号).
-    pub ordinal: u32,
+    /// 物理端口序号 (Known = 硬件/Manifest 声明; Unknown = 未声明/未探测).
+    pub ordinal: PortOrdinal,
 }
 
 impl PortIdentity {
     /// 由 `device_id + connector + ordinal` 派生稳定 port_id (UUID v5, 确定性).
-    pub fn derive(device_id: &Uuid, connector: ConnectorType, ordinal: u32) -> Uuid {
-        let key = format!("{}:{:?}:{}", device_id, connector, ordinal);
-        Uuid::new_v5(&PORT_NAMESPACE, key.as_bytes())
+    /// 仅 `Known` ordinal 可派生并返回 `Some`; `Unknown` 返回 `None` (不得伪造稳定 ID, §八).
+    pub fn derive(
+        device_id: &Uuid,
+        connector: ConnectorType,
+        ordinal: PortOrdinal,
+    ) -> Option<Uuid> {
+        match ordinal {
+            PortOrdinal::Known(n) => {
+                let key = format!("{}:{:?}:{}", device_id, connector, n);
+                Some(Uuid::new_v5(&PORT_NAMESPACE, key.as_bytes()))
+            }
+            PortOrdinal::Unknown => None,
+        }
     }
 }
 
@@ -204,6 +229,21 @@ pub struct RuntimePortBinding {
     pub hw_serial_number: Option<String>,
     pub confidence: crate::resolver::Confidence,
     pub match_kind: crate::resolver::ResolverMatch,
+}
+
+/// 绑定/验证等级 (§十八). 输出端口不能仅靠 `ManifestVerified` 宣称 Runtime Verified;
+/// 须走到对应等级的运行时证据.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VerificationLevel {
+    /// Manifest 声明 (尚未运行时验证).
+    Declared,
+    /// 运行时已 `open` (输入设备打开 / 输出 sink 打开).
+    RuntimeOpened,
+    /// 信号已探测到 (输入 Locked / 输出模式已设).
+    SignalVerified,
+    /// Loopback 已验证 (输出→SDI→输入 收到预期信号).
+    LoopbackVerified,
 }
 
 /// 单端口完整描述 (五层聚合).
@@ -258,7 +298,9 @@ impl PortRegistry {
 
     /// 按 port_id 查找.
     pub fn get(&self, port_id: &Uuid) -> Option<&PortInfo> {
-        self.ports.iter().find(|p| &p.identity.port_id == port_id)
+        self.ports
+            .iter()
+            .find(|p| p.identity.port_id.as_ref() == Some(port_id))
     }
 
     /// 由 Manifest 声明 + GStreamer 实时 probe + 已解析的绑定构建端口注册表.
@@ -289,7 +331,12 @@ impl PortRegistry {
                 .as_ref()
                 .map(|p| p.connector)
                 .unwrap_or(ConnectorType::Unknown);
-            let ordinal = entry.port.as_ref().map(|p| p.ordinal).unwrap_or(0);
+            // 声明序号 → Known; 未声明 → Unknown (不得用 0 冒充已知序号, §七).
+            let ordinal = entry
+                .port
+                .as_ref()
+                .map(|p| PortOrdinal::Known(p.ordinal))
+                .unwrap_or(PortOrdinal::Unknown);
             // 方向必须来自 Manifest 声明或 SDK 硬件发现, 绝不从 binding_ok / 当前信号推断 (HARD RULE, §二十一 P1#2).
             // 未声明方向 → Unknown, 交由 HW-PORT-01A SDK Discovery 填充, 不得隐式推断为 Input.
             let direction = entry
@@ -342,8 +389,8 @@ impl PortRegistry {
                 },
                 direction,
                 capabilities: PortCapabilities {
-                    input: can_input,
-                    output: can_output,
+                    input: can_input.clone(),
+                    output: can_output.clone(),
                     audio_input: if can_input.is_supported() {
                         CapabilityValue::Supported(true)
                     } else {
@@ -441,6 +488,48 @@ pub enum PortProbeError {
     UnsupportedConnector(String),
     BindingConflict(String),
     SignalProbeFailed(String),
+}
+
+/// SDK 真实发现的端口 (`discover_ports` 产物, 早于 Manifest 投影).
+///
+/// `direction` / `connector` / `capabilities` 完全来自 SDK 连接位掩码与设备属性, **绝不**靠
+/// Manifest / `device-number` / 当前信号推测 (§四). `port_id` 仅 `Known` ordinal 可派生.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredPort {
+    pub connector: ConnectorType,
+    pub direction: PortDirection,
+    pub capabilities: PortCapabilities,
+    pub ordinal: PortOrdinal,
+    /// 派生稳定 port_id (仅 Known ordinal 有; Unknown → None).
+    pub port_id: Option<Uuid>,
+}
+
+impl DiscoveredPort {
+    /// 由 SDK 发现结果构造单端口 (自动派生 port_id).
+    pub fn new(
+        device_id: &Uuid,
+        connector: ConnectorType,
+        direction: PortDirection,
+        ordinal: PortOrdinal,
+    ) -> Self {
+        let port_id = PortIdentity::derive(device_id, connector, ordinal);
+        Self {
+            connector,
+            direction,
+            capabilities: PortCapabilities::default(),
+            ordinal,
+            port_id,
+        }
+    }
+}
+
+/// SDK 真实发现的设备 (`discover_ports` 产物). `ports` 完全由 SDK 枚举 + 连接位掩码派生,
+/// 不靠型号名 / `device-number` 猜 (§四).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceDiscovery {
+    pub device: DeviceInfo,
+    pub capabilities: DeviceCapabilities,
+    pub ports: Vec<DiscoveredPort>,
 }
 
 #[cfg(test)]
@@ -575,5 +664,52 @@ mod tests {
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Input);
         assert_eq!(p.signal.state, SignalState::ProbeFailed);
+    }
+
+    #[test]
+    fn port_ordinal_unknown_has_no_stable_id() {
+        let dev = Uuid::new_v4();
+        // Known 序号可派生稳定 port_id; 不同 Known 序号 → 不同 ID.
+        let a = PortIdentity::derive(&dev, ConnectorType::Sdi, PortOrdinal::Known(1));
+        let b = PortIdentity::derive(&dev, ConnectorType::Sdi, PortOrdinal::Known(2));
+        assert_ne!(a, b);
+        assert!(a.is_some() && b.is_some());
+        // Unknown 序号 → 不得伪造稳定 ID (返回 None, 且无碰撞).
+        let u1 = PortIdentity::derive(&dev, ConnectorType::Sdi, PortOrdinal::Unknown);
+        let u2 = PortIdentity::derive(&dev, ConnectorType::Sdi, PortOrdinal::Unknown);
+        assert_eq!(u1, None);
+        assert_eq!(u2, None);
+    }
+
+    #[test]
+    fn capability_value_probe_failed_distinct_from_unknown() {
+        let failed = CapabilityValue::<bool>::ProbeFailed("open timeout".into());
+        let unknown = CapabilityValue::<bool>::Unknown;
+        assert_ne!(failed, unknown);
+        assert!(!failed.is_supported());
+        assert!(!unknown.is_supported());
+        assert_eq!(failed.value(), None);
+    }
+
+    #[test]
+    fn discovered_port_derives_port_id_only_for_known_ordinal() {
+        let dev = Uuid::new_v4();
+        let p = DiscoveredPort::new(
+            &dev,
+            ConnectorType::Sdi,
+            PortDirection::Input,
+            PortOrdinal::Known(1),
+        );
+        assert_eq!(
+            p.port_id,
+            PortIdentity::derive(&dev, ConnectorType::Sdi, PortOrdinal::Known(1))
+        );
+        let q = DiscoveredPort::new(
+            &dev,
+            ConnectorType::Sdi,
+            PortDirection::Input,
+            PortOrdinal::Unknown,
+        );
+        assert_eq!(q.port_id, None);
     }
 }

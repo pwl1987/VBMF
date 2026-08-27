@@ -19,11 +19,11 @@ use gstreamer::prelude::*;
 #[cfg(feature = "gstreamer")]
 use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gstreamer")]
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "gstreamer")]
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
-#[cfg(feature = "gstreamer")]
-use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use uuid::Uuid;
 
@@ -860,8 +860,7 @@ fn src_props(plan: &PipelinePlan) -> (String, String) {
         SourceSelectionMode::DeviceHandleResolved | SourceSelectionMode::DiagnosticFallback => (
             format!(
                 "decklinkvideosrc device-number={}{}",
-                plan.source.device_number,
-                connection
+                plan.source.device_number, connection
             ),
             // 同上: decklinkaudiosrc 无 `connection` 属性, 仅 device-number 选卡, 音频跟随视频 SDI 连接.
             format!(
@@ -947,7 +946,7 @@ pub fn materialize(
                     return r
                         .ports
                         .iter()
-                        .find(|p| p.identity.port_id == u)
+                        .find(|p| p.identity.port_id == Some(u))
                         .map(|p| p.identity.connector);
                 }
             }

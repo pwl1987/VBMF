@@ -79,23 +79,27 @@ impl Fixture {
         let sink = if let Some(pid) = &self.sink.port_id {
             registry
                 .get(&Uuid::parse_str(pid).ok()?)
-                .map(|p| p.identity.port_id.to_string())
+                .and_then(|p| p.identity.port_id)
+                .map(|u| u.to_string())
         } else {
             registry
                 .input_ports()
                 .iter()
                 .find(|p| p.signal.state == SignalState::Locked)
-                .map(|p| p.identity.port_id.to_string())
+                .and_then(|p| p.identity.port_id)
+                .map(|u| u.to_string())
         }?;
         let source = if let Some(pid) = &self.source.port_id {
             registry
                 .get(&Uuid::parse_str(pid).ok()?)
-                .map(|p| p.identity.port_id.to_string())
+                .and_then(|p| p.identity.port_id)
+                .map(|u| u.to_string())
         } else {
             registry
                 .output_ports()
                 .first()
-                .map(|p| p.identity.port_id.to_string())
+                .and_then(|p| p.identity.port_id)
+                .map(|u| u.to_string())
         }?;
         Some((source, sink))
     }
@@ -122,7 +126,8 @@ pub fn default_sdi_loopback() -> Fixture {
 mod tests {
     use super::*;
     use crate::port::{
-        ConnectorType, PortCapabilities, PortDirection, PortIdentity, PortInfo, RuntimePortBinding,
+        ConnectorType, PortCapabilities, PortDirection, PortIdentity, PortInfo, PortOrdinal,
+        RuntimePortBinding,
     };
     use crate::resolver::{Confidence, ResolverMatch};
     use uuid::Uuid;
@@ -138,9 +143,9 @@ mod tests {
             device_id,
             device_handle: None,
             identity: PortIdentity {
-                port_id: PortIdentity::derive(&device_id, connector, ordinal),
+                port_id: PortIdentity::derive(&device_id, connector, PortOrdinal::Known(ordinal)),
                 connector,
-                ordinal,
+                ordinal: PortOrdinal::Known(ordinal),
             },
             direction: dir,
             capabilities: PortCapabilities {
@@ -207,10 +212,36 @@ mod tests {
         };
         let mut f = default_sdi_loopback();
         // 已声明拓扑: source=输出端口(SDI#0), sink=Locked 输入端口(SDI#1) → 精确匹配, 不猜.
-        f.source.port_id = Some(reg.ports[0].identity.port_id.to_string());
-        f.sink.port_id = Some(reg.ports[1].identity.port_id.to_string());
+        f.source.port_id = Some(
+            reg.ports[0]
+                .identity
+                .port_id
+                .map(|u| u.to_string())
+                .unwrap(),
+        );
+        f.sink.port_id = Some(
+            reg.ports[1]
+                .identity
+                .port_id
+                .map(|u| u.to_string())
+                .unwrap(),
+        );
         let (source, sink) = f.resolve(&reg).expect("应解析出 source/sink");
-        assert_eq!(source, reg.ports[0].identity.port_id.to_string());
-        assert_eq!(sink, reg.ports[1].identity.port_id.to_string());
+        assert_eq!(
+            source,
+            reg.ports[0]
+                .identity
+                .port_id
+                .map(|u| u.to_string())
+                .unwrap()
+        );
+        assert_eq!(
+            sink,
+            reg.ports[1]
+                .identity
+                .port_id
+                .map(|u| u.to_string())
+                .unwrap()
+        );
     }
 }
