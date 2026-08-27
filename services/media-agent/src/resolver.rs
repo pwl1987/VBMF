@@ -128,12 +128,22 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     pipeline.add(&el).ok()?;
     pipeline.add(&sink).ok()?;
     el.link(&sink).ok()?;
-    if pipeline.set_state(gstreamer::State::Paused).is_err() {
+    let paused = pipeline.set_state(gstreamer::State::Paused);
+    eprintln!("[C1DBG] dn={} set_state_paused={:?}", n, paused);
+    if paused.is_err() {
         let _ = pipeline.set_state(gstreamer::State::Null);
         return None;
     }
     // 少量延时兜底 live source 异步 preroll, 确保设备已打开、身份属性已填充.
     std::thread::sleep(std::time::Duration::from_millis(300));
+    eprintln!(
+        "[C1DBG] dn={} hw_serial={:?} persistent_id={:?} signal={:?} model={:?}",
+        n,
+        el.property::<Option<String>>("hw-serial-number").unwrap_or_default(),
+        el.property::<i64>("persistent-id"),
+        el.find_property("signal").map(|_| el.property::<bool>("signal")),
+        el.property::<Option<String>>("model").unwrap_or_default(),
+    );
     // 读取只读属性 (find_property 守卫防缺属性 panic; NULL 字符串用 Option<String> 归 None).
     let hw_serial_number = el
         .find_property("hw-serial-number")
