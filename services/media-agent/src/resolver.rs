@@ -119,7 +119,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         .build()
         .ok()?;
     // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址). 只读属性前提是设备已打开 (READY).
-    el.try_set_property("device-number", n as i32)?;
+    el.set_property("device-number", n as i32);
     // 打开设备 (READY 即打开; 无需 PLAYING, 不拉真实帧). 失败 = 该序号无此卡.
     if el.set_state(gstreamer::State::Ready).is_err() {
         let _ = el.set_state(gstreamer::State::Null);

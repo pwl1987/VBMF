@@ -153,10 +153,13 @@ impl DeviceManager for DeckLinkDeviceManager {
         discovered
             .into_iter()
             .map(|(model, display, serial, pid)| {
-                let handle = serial
-                    .clone()
-                    .or_else(|| Some(display.clone()))
-                    .unwrap_or_else(|| "unknown".into());
+                let handle = if !serial.is_empty() {
+                    serial.clone()
+                } else if !display.is_empty() {
+                    display.clone()
+                } else {
+                    "unknown".to_string()
+                };
                 let identity_strength = if pid.is_some() {
                     IdentityStrength::PersistentId
                 } else {
