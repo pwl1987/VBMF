@@ -178,6 +178,49 @@ pub fn evaluate_fixture_signal(
     Ok(())
 }
 
+/// 单条 Fixture 的 loopback 验收结果 (失败闭合汇总, 供诊断/验收 JSON 输出).
+#[derive(Debug, PartialEq)]
+pub struct FixtureVerification {
+    /// Fixture 标识.
+    pub fixture_id: String,
+    /// 是否通过 (信号态门 + 内容门 双通过).
+    pub passed: bool,
+    /// 实际信号态 (便于诊断输出).
+    pub state: Option<SignalState>,
+    /// 实际内容态 (便于诊断输出).
+    pub content: Option<VideoContentState>,
+    /// 失败原因 (通过时为 None).
+    pub error: Option<FixtureSignalError>,
+}
+
+/// loopback 验收主路径: 对每个 `Fixture`, 由 `probe` 注入取得其 source 端口的当前信号探测结果,
+/// 再走 `evaluate_fixture_signal` 对照 `ExpectedSignal` (信号态门 + 内容门, 失败闭合), 汇总为
+/// `FixtureVerification`.
+///
+/// `probe` 由调用方注入: gstreamer 构建注入真实 `probe_signal` (按 `fixture.source` 解析 gst device-number);
+/// 测试/诊断注入 stub. 验收编排与采集实现解耦, 故可在无硬件/无 gstreamer 的 sim/default 构建下完整测试.
+pub fn verify_fixtures<F>(fixtures: &[Fixture], mut probe: F) -> Vec<FixtureVerification>
+where
+    F: FnMut(&Fixture) -> SignalProbeResult,
+{
+    let mut out = Vec::with_capacity(fixtures.len());
+    for f in fixtures {
+        let result = probe(f);
+        let (passed, error) = match evaluate_fixture_signal(f, &result) {
+            Ok(()) => (true, None),
+            Err(e) => (false, Some(e)),
+        };
+        out.push(FixtureVerification {
+            fixture_id: f.fixture_id.clone(),
+            passed,
+            state: Some(result.state),
+            content: Some(result.content),
+            error,
+        });
+    }
+    out
+}
+
 /// 探测某 GStreamer device-number 的当前信号状态 + 内容 (gstreamer 构建).
 ///
 /// 先读 `signal` 属性与协商 caps; 若信号锁定, 拉取少量 I420 样本做亮度统计并分类黑场/活动.
@@ -672,5 +715,81 @@ mod tests {
             evaluate_fixture_signal(&f, &r),
             Err(FixtureSignalError::State(_))
         ));
+    }
+
+    // ---- STEP 10: loopback 验收主路径 (verify_fixtures) ----
+    #[test]
+    fn verify_fixtures_accepts_locked_active() {
+        // 回归: 期望 Locked+Active, 注入 probe 返回 Locked+Active ⇒ 单条 fixture 通过.
+        let fixtures = vec![default_sdi_loopback()];
+        let results = verify_fixtures(&fixtures, |_f| SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Active,
+        });
+        assert_eq!(results.len(), 1);
+        assert!(results[0].passed);
+        assert!(results[0].error.is_none());
+    }
+
+    #[test]
+    fn verify_fixtures_rejects_content_black() {
+        // TDD(RED→GREEN): 注入 probe 返回 Black ⇒ 内容门失败闭合, passed=false, error=Content.
+        let fixtures = vec![default_sdi_loopback()];
+        let results = verify_fixtures(&fixtures, |_f| SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Black,
+        });
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].passed);
+        assert!(matches!(
+            results[0].error,
+            Some(FixtureSignalError::Content(_))
+        ));
+    }
+
+    #[test]
+    fn verify_fixtures_rejects_state_nosignal() {
+        // TDD(RED→GREEN): 注入 probe 返回 NoSignal ⇒ 信号态门失败闭合, error=State.
+        let fixtures = vec![default_sdi_loopback()];
+        let results = verify_fixtures(&fixtures, |_f| SignalProbeResult {
+            state: SignalState::NoSignal,
+            video_format: None,
+            content: VideoContentState::NoSignal,
+        });
+        assert!(!results[0].passed);
+        assert!(matches!(
+            results[0].error,
+            Some(FixtureSignalError::State(_))
+        ));
+    }
+
+    #[test]
+    fn verify_fixtures_multiple_mixed() {
+        // 多条 fixture: 一条通过、一条内容门拒 ⇒ 结果按序对应, 互不掩盖.
+        let pass = default_sdi_loopback();
+        let mut fail = default_sdi_loopback();
+        fail.fixture_id = "FAIL-FIXTURE".into();
+        let fixtures = vec![pass, fail];
+        let results = verify_fixtures(&fixtures, |f| {
+            if f.fixture_id == "FAIL-FIXTURE" {
+                SignalProbeResult {
+                    state: SignalState::Locked,
+                    video_format: None,
+                    content: VideoContentState::Black,
+                }
+            } else {
+                SignalProbeResult {
+                    state: SignalState::Locked,
+                    video_format: None,
+                    content: VideoContentState::Active,
+                }
+            }
+        });
+        assert_eq!(results.len(), 2);
+        assert!(results[0].passed);
+        assert!(!results[1].passed);
+        assert_eq!(results[1].fixture_id, "FAIL-FIXTURE");
     }
 }
