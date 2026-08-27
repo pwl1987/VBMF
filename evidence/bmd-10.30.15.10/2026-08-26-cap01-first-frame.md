@@ -1,4 +1,6 @@
-# CAP-01 视频采集首帧到达验证 (MEDIA-RT-01) — BMD 真机 2026-08-26
+# CAP-01 视频采集首帧到达验证 (LEGACY / SDK-DIRECT-PROBE) — BMD 真机 2026-08-26
+
+> ⚠️ **重打标签 (2026-08-27)**: 本证据为 `IDeckLinkInput` 直接 FFI 采集首帧, 属 **PROBE / 诊断** 级证据, **不是 canonical MEDIA-RT-01**。Phase 0.6 锁死 canonical first-frame 必须来自 GStreamer ingest (`DeckLink→GStreamer→RAW→first GstBuffer`)。故此处结论重标为 **SDK-DIRECT-PROBE PASS (LEGACY)**, 不得计入 MEDIA-RT-01 canonical PASS。
 
 ## 背景与目标
 - Gate 2.6 进入采集闭环，验收项 **MEDIA-RT-01（首帧到达）** 须在真实 DeckLink 设备 + 真实 SDI 信号下验证。
@@ -41,12 +43,12 @@ INFO media_agent: CAP-01 capture live frame_count=194 first_frame=true pts_monot
 
 ## 数据核对
 - **信号格式探测**：`DoesSupportVideoMode(1080i50)` 返回 `S_OK supported=1`，实测 `actual=0x48693530`（`bmdModeHD1080i50` 官方枚举值，非此前误用的魔法数字 `12`）。
-- **首帧到达**：`[CAP-01] first frame arrived; hw_clock=165810169361530` → MEDIA-RT-01 达成。
+- **首帧到达**：`[CAP-01] first frame arrived; hw_clock=165810169361530` → SDK-DIRECT-PROBE 首帧达成 (LEGACY; 非 canonical MEDIA-RT-01)。
 - **帧率**：9 秒内 `frame_count` 0→194，平均 ≈ 21.5fps 净增，稳态 ~25fps，符合 1080i50 标准（采集回调按帧交付，每帧 ≈ 39.9ms）。
 - **PTS 单调性**：每秒 `pts_monotonic=true`，经 `GetHardwareReferenceClock(1e9)` 校验硬件时钟严格递增，无回退。
 
 ## 判定
-- **MEDIA-RT-01（首帧到达）= PASS** ✅
+- **SDK-DIRECT-PROBE 首帧 = PASS (LEGACY)** ⚠️ — 此为 `IDeckLinkInput` 直接 FFI 诊断证据, **不计入 canonical MEDIA-RT-01** (后者须 GStreamer ingest 首帧)。
 - 关联修复：硬编码 `mode=12`（误为 `bmdModeHD1080i6000`）→ 改为 `DoesSupportVideoMode` 动态探测 + 正确枚举 `0x48693530`；`IDeckLinkInput::DoesSupportVideoMode` vtable 补为 8 参数（含 connection/conversionMode/flags + actualMode*/supported*）。
 - 关联提交：`15025c9`「feat(media-agent): CAP-01 DeckLink video capture (MEDIA-RT-01 first frame)」，已 push 至 origin/master。
 

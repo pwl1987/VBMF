@@ -1,0 +1,53 @@
+{
+  "schema": "vbmf.c1-resolver/v1",
+  "test_id": "HW-IDENT-02",
+  "test_subject_sha": "41e0931",
+  "environment_base_sha": "41e0931",
+  "probe_method": "GStreamer decklinkvideosrc Element Probe (READY state, 遍历 device-number), 非 GstDeviceMonitor",
+  "status": "UNRESOLVED",
+  "verdict": "HW-IDENT-02 NOT PASS — 无唯一 HIGH-confidence SDK↔GStreamer 映射",
+  "summary": "SDK 三台设备均暴露真实 DeviceHandle (46:00000000:002e4500 / 46:00000000:002e4400 / 83:1a66443b:00000000), 但 GStreamer decklinkvideosrc 在三台上 hw-serial-number 恒为空串、persistent-id=-1、无 model。Resolver 的 SerialExact / DeviceHandleExact 均无从比对 → 全部 Unresolved。生产正确拒绝, 绝不盲开 device 0。",
+  "matches": [
+    {
+      "sdk_device_handle": "46:00000000:002e4500",
+      "gst_device_number": null,
+      "gst_hw_serial_number": "",
+      "gst_persistent_id": -1,
+      "gst_model": null,
+      "match": "Unresolved",
+      "confidence": "none",
+      "reason": "SDK serial/device_handle 无 GStreamer 侧对应值可比对 (hw-serial 空)"
+    },
+    {
+      "sdk_device_handle": "46:00000000:002e4400",
+      "gst_device_number": null,
+      "gst_hw_serial_number": "",
+      "gst_persistent_id": -1,
+      "gst_model": null,
+      "match": "Unresolved",
+      "confidence": "none",
+      "reason": "SDK serial/device_handle 无 GStreamer 侧对应值可比对 (hw-serial 空)"
+    },
+    {
+      "sdk_device_handle": "83:1a66443b:00000000",
+      "gst_device_number": null,
+      "gst_hw_serial_number": "",
+      "gst_persistent_id": -1,
+      "gst_model": null,
+      "match": "Unresolved",
+      "confidence": "none",
+      "reason": "SDK serial/device_handle 无 GStreamer 侧对应值可比对 (hw-serial 空)"
+    }
+  ],
+  "match_kind_semantics": {
+    "SerialExact": "SDK serial_number == GStreamer hw-serial-number (HIGH). 注意: 修复前 serial_number 字段曾被 device_handle 值污染, 现已修正为真实 serial (当前硬件 serial 多为空)。",
+    "DeviceHandleExact": "SDK bmd_device_handle == GStreamer hw-serial-number (HIGH). 当前硬件 hw-serial 为空 → 不适用。",
+    "Ambiguous": "多重 HIGH 候选 → 拒绝 (绝不默认 device 0)。",
+    "Unresolved": "无候选 → 拒绝。"
+  },
+  "next_step": "需显式 SDK-handle → GStreamer device-number 映射 (插件改造, 使 decklinkvideosrc 暴露 DeviceHandle 或 serial), 或在 Resolver 增加基于 device-number 序数的受控映射策略, 方可达到唯一 HIGH-confidence → HW-IDENT-02 PASS。",
+  "open_items": [
+    "DeviceHandle ↔ hw-serial-number 的直接等价关系仍无实机证据 (仅推测)",
+    "建议先用 SerialExact (若未来 SDK serial 可读) 再 DeviceHandleExact 的顺序复核"
+  ]
+}

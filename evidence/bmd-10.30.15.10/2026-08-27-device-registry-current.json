@@ -1,0 +1,70 @@
+{
+  "schema": "vbmf.device-registry.current/v1",
+  "generated_by": "DeckLinkDeviceManager::discover() (post Identity Closure Patch, commit 41e0931)",
+  "environment_base_sha": "41e0931",
+  "test_subject_sha": "41e0931",
+  "host": "10.30.15.10",
+  "identity_model": {
+    "priority": ["PersistentID", "DeviceHandle", "TopologicalID", "Enumeration"],
+    "note": "本硬件三台设备 GetInt(PersistentID)/GetInt(TopologicalID) 均 0x80000003 (SDK 不支持); canonical 硬件身份 = DeviceHandle (GetString 'devh'). DeviceHandle 是当前主机 best-available, 非跨机器/重启永久稳定."
+  },
+  "device_id_rule": "UUIDv5(VBMF_BMD_NS, 'vbmf:bmd:'+canonical); canonical = PersistentID|DeviceHandle|Serial|枚举 (按优先级首个可用)",
+  "devices": [
+    {
+      "sdk_index": 0,
+      "model": "DeckLink SDI (verify via GetModelName)",
+      "display_name": "verify via GetDisplayName",
+      "bmd_device_handle": "46:00000000:002e4500",
+      "bmd_persistent_id": null,
+      "bmd_topological_id": null,
+      "serial_number": "",
+      "identity_strength": "DeviceHandle",
+      "vbmf_device_id": "assigned-by-media-agent-at-discover (UUIDv5 over device_handle)",
+      "gst_mapping": {
+        "resolved": false,
+        "gst_device_number": null,
+        "gst_hw_serial_number": "",
+        "reason": "GStreamer decklinkvideosrc hw-serial-number 实测为空串, persistent-id=-1, 无 model → Resolver 无法唯一绑定 (见 c1-resolver)"
+      }
+    },
+    {
+      "sdk_index": 1,
+      "model": "DeckLink SDI (verify via GetModelName)",
+      "display_name": "verify via GetDisplayName",
+      "bmd_device_handle": "46:00000000:002e4400",
+      "bmd_persistent_id": null,
+      "bmd_topological_id": null,
+      "serial_number": "",
+      "identity_strength": "DeviceHandle",
+      "vbmf_device_id": "assigned-by-media-agent-at-discover (UUIDv5 over device_handle)",
+      "gst_mapping": {
+        "resolved": false,
+        "gst_device_number": null,
+        "gst_hw_serial_number": "",
+        "reason": "GStreamer decklinkvideosrc hw-serial-number 实测为空串, persistent-id=-1, 无 model → Resolver 无法唯一绑定 (见 c1-resolver)"
+      }
+    },
+    {
+      "sdk_index": 2,
+      "model": "DeckLink Mini Monitor 4K (verify via GetModelName)",
+      "display_name": "verify via GetDisplayName",
+      "bmd_device_handle": "83:1a66443b:00000000",
+      "bmd_persistent_id": null,
+      "bmd_topological_id": null,
+      "serial_number": "",
+      "identity_strength": "DeviceHandle",
+      "vbmf_device_id": "assigned-by-media-agent-at-discover (UUIDv5 over device_handle)",
+      "gst_mapping": {
+        "resolved": false,
+        "gst_device_number": null,
+        "gst_hw_serial_number": "",
+        "reason": "GStreamer decklinkvideosrc hw-serial-number 实测为空串, persistent-id=-1, 无 model → Resolver 无法唯一绑定 (见 c1-resolver)"
+      }
+    }
+  ],
+  "open_items": [
+    "model/display_name/serial_number 为盒上 GetModelName/GetDisplayName/Config.GetString(SerialNumber) 实时值, 本 JSON 为骨架, 须以 --features hardware-test 实测回填",
+    "bmd_topological_id 当前为 null (SDK 不支持 GetInt TopologicalID); 若后续驱动暴露则回填",
+    "device_id 由 media-agent 在 discover() 实时派生, 不在此硬编码"
+  ]
+}
