@@ -247,6 +247,19 @@ pub enum VerificationLevel {
     LoopbackVerified,
 }
 
+impl VerificationLevel {
+    /// 等级序数 (§十八): Declared < RuntimeOpened < SignalVerified < LoopbackVerified.
+    /// 用于运行时实际达成等级与 Manifest 声明等级的 fail-closed 比较.
+    pub fn rank(self) -> u8 {
+        match self {
+            VerificationLevel::Declared => 0,
+            VerificationLevel::RuntimeOpened => 1,
+            VerificationLevel::SignalVerified => 2,
+            VerificationLevel::LoopbackVerified => 3,
+        }
+    }
+}
+
 /// 单端口完整描述 (五层聚合).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortInfo {
@@ -262,6 +275,22 @@ pub struct PortInfo {
     pub runtime_binding: Option<RuntimePortBinding>,
     pub signal: SignalStatus,
     pub content: VideoContentState,
+}
+
+impl PortInfo {
+    /// 由运行时证据推导实际达成的验证等级 (§十八): 有 `runtime_binding` ⇒ `RuntimeOpened`;
+    /// 输入端口再叠加 signal `Locked` ⇒ `SignalVerified`. `LoopbackVerified` 需 STEP 8 loopback probe,
+    /// 当前不可由本 Gate 达成 (非伪造: 不可达即低等级, 由 `verify` 失败闭合).
+    pub fn achieved_verification(&self) -> VerificationLevel {
+        if self.runtime_binding.is_none() {
+            return VerificationLevel::Declared;
+        }
+        if self.direction == PortDirection::Input && self.signal.state == SignalState::Locked {
+            VerificationLevel::SignalVerified
+        } else {
+            VerificationLevel::RuntimeOpened
+        }
+    }
 }
 
 /// 端口注册表 — 当前 Runtime 发现到的全部 Port (Discovery Evidence, 非架构事实).

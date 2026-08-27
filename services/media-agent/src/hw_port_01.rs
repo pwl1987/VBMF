@@ -11,7 +11,7 @@
 
 #![allow(dead_code)]
 
-use crate::port::{PortDirection, PortOrdinal, PortRegistry, SignalState};
+use crate::port::{PortDirection, PortOrdinal, PortRegistry, SignalState, VerificationLevel};
 use crate::resolver::DeviceBindingManifest;
 use serde::{Deserialize, Serialize};
 
@@ -137,7 +137,30 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
         }
     }
 
-    let pass = closed_loop && required_ok;
+    // 验证等级 fail-closed (§十八): Manifest 声明的 `verification` 等级须有运行时证据支撑;
+    // 实际达成等级低于声明 ⇒ 拒绝 (绝不靠声明冒充运行时验证).
+    let mut verify_ok = true;
+    for entry in &manifest.bindings {
+        let Some(port) = &entry.port else { continue };
+        let declared = port.verification;
+        let achieved = match registry.ports.iter().find(|p| {
+            p.device_handle.as_deref() == Some(entry.bmd_device_handle.as_str())
+                && p.identity.connector == port.connector
+                && p.identity.ordinal == PortOrdinal::Known(port.ordinal)
+        }) {
+            Some(p) => p.achieved_verification(),
+            None => VerificationLevel::Declared,
+        };
+        if achieved.rank() < declared.rank() {
+            verify_ok = false;
+            notes.push(format!(
+                "端口 {:?}#{} 声明验证等级 {:?} 高于实际达成 {:?} (缺运行时证据, 失败闭合)",
+                port.connector, port.ordinal, declared, achieved
+            ));
+        }
+    }
+
+    let pass = closed_loop && required_ok && verify_ok;
     HwPort01Report { ports, pass, notes }
 }
 
@@ -272,5 +295,73 @@ mod tests {
         let report = verify(&reg, &manifest_with_required(0, false));
         assert!(!report.pass);
         assert!(report.notes.iter().any(|n| n.contains("闭环")));
+    }
+
+    fn manifest_with_level(ordinal: u32, level: VerificationLevel) -> DeviceBindingManifest {
+        DeviceBindingManifest {
+            manifest_version: "2".into(),
+            machine_id: "host-x".into(),
+            generated_by: "ops".into(),
+            generated_at: "2026-08-27".into(),
+            bmd_sdk_version: None,
+            gst_decklink_plugin_version: None,
+            gst_runtime_version: None,
+            notes: None,
+            bindings: vec![BindingEntry {
+                label: None,
+                bmd_device_handle: format!("handle-{ordinal}"),
+                gst_device_number: ordinal,
+                expected_hw_serial_number: None,
+                expected_model: None,
+                port: Some(crate::resolver::PortBinding {
+                    connector: crate::port::ConnectorType::Sdi,
+                    ordinal,
+                    direction: PortDirection::Input,
+                    required: true,
+                    verification: level,
+                }),
+            }],
+        }
+    }
+
+    #[test]
+    fn fail_when_declared_signal_verified_but_not_locked() {
+        // TDD(RED→GREEN): 声明 SignalVerified 但仅 open 未 Locked ⇒ 实际达成 RuntimeOpened < 声明 ⇒ 失败闭合.
+        let reg = PortRegistry {
+            ports: vec![input_port(1, false)],
+        };
+        let report = verify(
+            &reg,
+            &manifest_with_level(1, VerificationLevel::SignalVerified),
+        );
+        assert!(!report.pass);
+        assert!(report.notes.iter().any(|n| n.contains("验证等级")));
+    }
+
+    #[test]
+    fn fail_when_declared_runtime_opened_but_not_opened() {
+        // TDD(RED→GREEN): 声明 RuntimeOpened 但无 runtime_binding ⇒ 实际达成 Declared < 声明 ⇒ 失败闭合.
+        let mut p = input_port(1, true);
+        p.runtime_binding = None;
+        let reg = PortRegistry { ports: vec![p] };
+        let report = verify(
+            &reg,
+            &manifest_with_level(1, VerificationLevel::RuntimeOpened),
+        );
+        assert!(!report.pass);
+        assert!(report.notes.iter().any(|n| n.contains("验证等级")));
+    }
+
+    #[test]
+    fn pass_when_declared_signal_verified_and_locked() {
+        // 回归守卫: 声明 SignalVerified 且实际 Locked ⇒ 达成等级满足 ⇒ 通过.
+        let reg = PortRegistry {
+            ports: vec![input_port(1, true)],
+        };
+        let report = verify(
+            &reg,
+            &manifest_with_level(1, VerificationLevel::SignalVerified),
+        );
+        assert!(report.pass);
     }
 }
