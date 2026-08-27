@@ -9,7 +9,7 @@
 
 #![allow(dead_code)]
 
-use crate::fixture::ExpectedSignal;
+use crate::fixture::{ExpectedSignal, Fixture};
 use crate::port::{SignalState, VideoContentState, VideoFormat};
 use serde::{Deserialize, Serialize};
 
@@ -151,6 +151,31 @@ pub fn evaluate_signal_content(
         }
         other => Err(SignalContentError::Insufficient(other)),
     }
+}
+
+/// Fixture 信号验收失败原因 (信号态门 + 内容门 双门汇总, 失败闭合).
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum FixtureSignalError {
+    /// 信号态门失败 (STEP 7 验收).
+    #[error("信号态验收失败: {0}")]
+    State(#[from] SignalProbeError),
+    /// 内容门失败 (STEP 8 验收).
+    #[error("内容验收失败: {0}")]
+    Content(#[from] SignalContentError),
+}
+
+/// 失败闭合的 Fixture 信号验收: 把 STEP 7 信号态门与 STEP 8 内容门接入 `Fixture::ExpectedSignal`,
+/// 作为 loopback / 信号维度验收的汇总结算. 信号态门始终生效; 内容门仅当 `ExpectedSignal.content`
+/// 为 `Some` 时强制, `None` 跳过. 任一门拒即整体拒 (绝不部分通过假装健康).
+pub fn evaluate_fixture_signal(
+    fixture: &Fixture,
+    result: &SignalProbeResult,
+) -> Result<(), FixtureSignalError> {
+    evaluate_signal_probe(result, &fixture.expected)?;
+    if let Some(expected_content) = fixture.expected.content {
+        evaluate_signal_content(result, expected_content)?;
+    }
+    Ok(())
 }
 
 /// 探测某 GStreamer device-number 的当前信号状态 + 内容 (gstreamer 构建).
@@ -437,6 +462,7 @@ mod tests {
         let exp = ExpectedSignal {
             state: SignalState::Locked,
             format: None,
+            content: None,
         };
         assert!(evaluate_signal_probe(&r, &exp).is_ok());
     }
@@ -452,6 +478,7 @@ mod tests {
         let exp = ExpectedSignal {
             state: SignalState::Locked,
             format: None,
+            content: None,
         };
         assert!(matches!(
             evaluate_signal_probe(&r, &exp),
@@ -470,6 +497,7 @@ mod tests {
         let exp = ExpectedSignal {
             state: SignalState::Locked,
             format: None,
+            content: None,
         };
         assert!(matches!(
             evaluate_signal_probe(&r, &exp),
@@ -488,6 +516,7 @@ mod tests {
         let exp = ExpectedSignal {
             state: SignalState::Locked,
             format: None,
+            content: None,
         };
         assert!(matches!(
             evaluate_signal_probe(&r, &exp),
@@ -570,6 +599,78 @@ mod tests {
         assert!(matches!(
             evaluate_signal_content(&r, VideoContentState::Active),
             Err(SignalContentError::Insufficient(_))
+        ));
+    }
+
+    use crate::fixture::default_sdi_loopback;
+
+    #[test]
+    fn fixture_signal_accepts_locked_active() {
+        // 回归: 期望 Locked+Active, 实测 Locked+Active ⇒ 信号态门+内容门双通过.
+        let f = default_sdi_loopback(); // expected.state=Locked, content=Some(Active)
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Active,
+        };
+        assert!(evaluate_fixture_signal(&f, &r).is_ok());
+    }
+
+    #[test]
+    fn fixture_signal_rejects_state_nosignal() {
+        // TDD(RED→GREEN): 期望 Locked 但实测 NoSignal ⇒ 信号态门失败闭合.
+        let f = default_sdi_loopback();
+        let r = SignalProbeResult {
+            state: SignalState::NoSignal,
+            video_format: None,
+            content: VideoContentState::NoSignal,
+        };
+        assert!(matches!(
+            evaluate_fixture_signal(&f, &r),
+            Err(FixtureSignalError::State(_))
+        ));
+    }
+
+    #[test]
+    fn fixture_signal_rejects_content_black_when_expected_active() {
+        // TDD(RED→GREEN): 期望 Active 但实测 Black ⇒ 内容门失败闭合.
+        let f = default_sdi_loopback();
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Black,
+        };
+        assert!(matches!(
+            evaluate_fixture_signal(&f, &r),
+            Err(FixtureSignalError::Content(_))
+        ));
+    }
+
+    #[test]
+    fn fixture_signal_skips_content_when_none() {
+        // 期望 content=None 时跳过内容门 (仅信号态门生效); 实测 Black 仍通过.
+        let mut f = default_sdi_loopback();
+        f.expected.content = None;
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Black,
+        };
+        assert!(evaluate_fixture_signal(&f, &r).is_ok());
+    }
+
+    #[test]
+    fn fixture_signal_rejects_unsupported_fails_closed() {
+        // 失败闭合: 非 gstreamer 构建返回 Unsupported ⇒ 信号态门显式拒.
+        let f = default_sdi_loopback();
+        let r = SignalProbeResult {
+            state: SignalState::Unsupported,
+            video_format: None,
+            content: VideoContentState::Unknown,
+        };
+        assert!(matches!(
+            evaluate_fixture_signal(&f, &r),
+            Err(FixtureSignalError::State(_))
         ));
     }
 }

@@ -7,7 +7,7 @@
 
 #![allow(dead_code)]
 
-use crate::port::{PortRegistry, SignalState};
+use crate::port::{PortRegistry, SignalState, VideoContentState};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use uuid::Uuid;
@@ -39,6 +39,10 @@ pub struct ExpectedSignal {
     pub state: SignalState,
     /// 期望视频格式 (如 "1080i50"); 仅报告/告警, 不强制.
     pub format: Option<String>,
+    /// 期望内容态 (loopback 应为 Active); 仅当 `Some` 时强制验收, `None` 不检查内容.
+    /// 旧版 Fixture JSON 缺此字段时反序列化为 `None` (向后兼容, 见 STEP 9).
+    #[serde(default)]
+    pub content: Option<VideoContentState>,
 }
 
 /// 单条测试 Fixture.
@@ -115,6 +119,7 @@ pub fn default_sdi_loopback() -> Fixture {
         expected: ExpectedSignal {
             state: SignalState::Locked,
             format: Some("1080i50".into()),
+            content: Some(VideoContentState::Active),
         },
         notes: Some(
             "HOST_SPECIFIC / OBSERVED: 真实 SDI 环路 (BMD 输出端口 → BMD 输入端口). 具体 device/port UUID 由 Discovery 运行时填充.".to_string(),
