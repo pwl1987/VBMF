@@ -528,8 +528,11 @@ pub struct DeviceBindingManifest {
     pub generated_at: String,
     /// BMD SDK 版本 (如 "16.0"); 与运行环境不符 → 告警.
     pub bmd_sdk_version: Option<String>,
-    /// GStreamer decklink 插件版本; 不符 → 告警.
+    /// GStreamer decklink 插件版本; 实际运行时版本已接入软校验 (用户 §五 P1-2), 不符 → 告警.
     pub gst_decklink_plugin_version: Option<String>,
+    /// GStreamer 运行时核心版本 (major.minor.micro); 实际运行时版本已接入软校验, 不符 → 告警.
+    /// 留空表示不校验 (旧清单向后兼容).
+    pub gst_runtime_version: Option<String>,
     /// 备注 (可选).
     pub notes: Option<String>,
     /// 绑定条目.
@@ -613,11 +616,18 @@ impl DeviceBindingManifest {
         Ok(())
     }
 
-    /// 软件版本一致性软校验 (不阻断): BMD SDK / GStreamer decklink 插件版本不符 → 告警.
+    /// 校验运行环境版本一致性 (软校验: 仅返回告警, 不阻断启动).
+    ///
+    /// 用户 §五 P1-2: **必须传入真实 runtime 版本**, 不能再用 `None`. 此前调用方传 `(None, None)`
+    /// 使 `bmd_sdk_version` / `gst_decklink_plugin_version` 形同虚设. 现三参数分别接:
+    /// - `sdk_version`    : 实际 BMD SDK 版本 (`actual_bmd_sdk_version`, 由 Provisioning 经 env 声明)
+    /// - `plugin_version` : 实际 GStreamer decklink 插件版本 (`actual_decklink_plugin_version`)
+    /// - `gst_version`    : 实际 GStreamer 运行时核心版本 (`actual_gstreamer_version`)
     pub fn validate_environment(
         &self,
         sdk_version: Option<&str>,
         plugin_version: Option<&str>,
+        gst_version: Option<&str>,
     ) -> Vec<String> {
         let mut warns = Vec::new();
         if let (Some(decl), Some(actual)) = (&self.bmd_sdk_version, sdk_version) {
@@ -632,6 +642,13 @@ impl DeviceBindingManifest {
                 ));
             }
         }
+        if let (Some(decl), Some(actual)) = (&self.gst_runtime_version, gst_version) {
+            if decl != actual {
+                warns.push(format!(
+                    "清单 GStreamer 运行时版本 '{decl}' 与运行 '{actual}' 不符"
+                ));
+            }
+        }
         warns
     }
 
@@ -641,6 +658,28 @@ impl DeviceBindingManifest {
             .iter()
             .find(|b| b.bmd_device_handle == bmd_device_handle)
     }
+}
+
+/// 实际运行时版本探测 (用于 Manifest 版本软校验, 用户 §五 P1-2). 模块级自由函数,
+/// 经 `crate::resolver::actual_*` 调用, 不再是 `validate_environment(None, None)` 的空壳.
+pub fn actual_bmd_sdk_version() -> String {
+    std::env::var("VBMF_BMD_SDK_VERSION").unwrap_or_else(|_| "unknown".to_string())
+}
+
+/// 实际 GStreamer 运行时核心版本 (major.minor.micro); 用于 Manifest `gst_runtime_version` 软校验.
+#[cfg(feature = "gstreamer")]
+pub fn actual_gstreamer_version() -> String {
+    let (maj, min, mic, _) = gstreamer::version();
+    format!("{maj}.{min}.{mic}")
+}
+
+/// 实际 GStreamer decklink 插件版本 (从已加载插件元数据读取); 读不到 (插件未加载) → `None`.
+#[cfg(feature = "gstreamer")]
+pub fn actual_decklink_plugin_version() -> Option<String> {
+    use gstreamer::prelude::*;
+    gstreamer::ElementFactory::find("decklinkvideosrc")
+        .and_then(|f| f.plugin())
+        .map(|p| p.version().to_string())
 }
 
 /// 基于 `DeviceBindingManifest` 解析 (权威路径). GStreamer 探测仅作**校验**:
@@ -819,6 +858,7 @@ mod tests {
             generated_at: "2026-08-27".into(),
             bmd_sdk_version: None,
             gst_decklink_plugin_version: None,
+            gst_runtime_version: None,
             notes: None,
             bindings: entries,
         }

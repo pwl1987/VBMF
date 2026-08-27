@@ -28,6 +28,23 @@ use uuid::Uuid;
 /// 全局唯一 pipeline 句柄计数器 (P1-1: 多 controller 共用全局 `HEALTH_ARCS` 时避免 handle 碰撞).
 static NEXT_PIPELINE_ID: AtomicU64 = AtomicU64::new(1);
 
+/// Bus 事件因 channel 满被丢弃的累计计数 (P1 §十三: 溢出策略).
+/// 关键 ERROR/EOS 事件溢出时仍存 sticky (`LAST_FATAL_BUS_EVENT`), 此处仅计数, 不静默丢失语义.
+pub static DROPPED_BUS_EVENTS: AtomicU64 = AtomicU64::new(0);
+/// 最近一次致命 Bus 事件 (Error/EOS) 的 sticky 副本 — 即便 channel 满也不丢失,
+/// watchdog / 运维可通过 `last_fatal_bus_event()` 读取, 避免关键错误被溢出吞掉.
+pub static LAST_FATAL_BUS_EVENT: Mutex<Option<PipelineBusEvent>> = Mutex::new(None);
+
+/// Bus channel 累计丢弃事件数 (P1 §十三 溢出 metric), 由 `/health` 暴露.
+pub fn dropped_bus_events() -> u64 {
+    DROPPED_BUS_EVENTS.load(Ordering::SeqCst)
+}
+
+/// 最近一次 sticky 致命 Bus 事件 (Error/EOS); channel 溢出也不会丢失. `None` 表示尚未发生过.
+pub fn last_fatal_bus_event() -> Option<PipelineBusEvent> {
+    LAST_FATAL_BUS_EVENT.lock().unwrap().clone()
+}
+
 /// 媒体源选择模式 — 决定 GStreamer `decklinkvideosrc` 的选卡属性.
 /// 语义必须无歧义 (用户复核 §五): 生产路径不得伪装成 "诊断 fallback".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -613,7 +630,23 @@ impl GStreamerPipelineController {
                 let _watch = bus
                     .add_watch(move |_, msg| {
                         if let Some(evt) = GStreamerPipelineController::translate_bus(msg, h) {
-                            let _ = tx.send(evt);
+                            // 致命事件 (Error/EOS) 永不静默丢弃: 先存 sticky 副本 (即便 channel 满也能被读取).
+                            if evt.kind == PipelineBusEventKind::Error
+                                || evt.kind == PipelineBusEventKind::Eos
+                            {
+                                *LAST_FATAL_BUS_EVENT.lock().unwrap() = Some(evt.clone());
+                            }
+                            // 非阻塞投递: 满则计数丢弃 (不阻塞 GLib watch 线程); 但致命事件已留存 sticky.
+                            match tx.try_send(evt) {
+                                Ok(()) => {}
+                                Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                                    DROPPED_BUS_EVENTS.fetch_add(1, Ordering::SeqCst);
+                                    tracing::warn!(handle = %h.0, "Bus channel 溢出: 事件被计数为丢弃 (ERROR/EOS 已存 sticky, 不静默丢失)");
+                                }
+                                Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+                                    tracing::warn!(handle = %h.0, "Bus channel 已断开 (controller dropped)");
+                                }
+                            }
                         }
                         glib::ControlFlow::Continue
                     })

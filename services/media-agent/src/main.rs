@@ -96,7 +96,12 @@ fn main() {
                                     "DeviceBindingManifest 主机身份不符 (诊断模式仍输出证据): {e}"
                                 );
                             } else {
-                                for w in m.validate_environment(None, None) {
+                                // P1-2: 传入真实 runtime 版本 (不再 None), 真正校验 SDK/decklink 插件/GStreamer 版本.
+                                let sdk_v = crate::resolver::actual_bmd_sdk_version();
+                                let gst_v = crate::resolver::actual_gstreamer_version();
+                                let plugin_v = crate::resolver::actual_decklink_plugin_version()
+                                    .unwrap_or_else(|| "unknown".to_string());
+                                for w in m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v)) {
                                     eprintln!("device-binding manifest 版本校验: {w}");
                                 }
                             }
@@ -283,37 +288,14 @@ fn main() {
                 Err(e) => tracing::error!(error = %e, "CAP-01 SDK 诊断探针失败"),
             }
 
-            // (B) canonical 媒体采集路径 (GStreamer) — 物化 PipelinePlan, 由
-            //     PipelineController 拥有. 控制面只带 VBMF device_id; bmd_persistent_id /
-            //     device-number 由 materialize 经 Device Registry 解析得到.
-            let first_id = devices
-                .first()
-                .map(|d| d.device_id.to_string())
-                .unwrap_or_default();
-            let intent = crate::graph_intent::GraphRuntimeIntent {
-                version: "1.0".into(),
-                devices: vec![crate::graph_intent::DeviceIntent {
-                    device_id: first_id.clone(),
-                    role: "CAPTURE".into(),
-                    pipeline: crate::graph_intent::PipelineIntent {
-                        source: crate::graph_intent::SourceIntent {
-                            kind: "decklink".into(),
-                            device_id: first_id,
-                        },
-                        sink: crate::graph_intent::SinkIntent {
-                            kind: "rtmp".into(),
-                        },
-                    },
-                }],
-            };
-            // 物化模式: 默认 Production (identity 解析失败直接 IdentityUnresolved, 绝不盲开);
-            // MEDIA_AGENT_MODE=diagnostic 时显式回退 device-number (仅验证/排障用, 非静默).
+            // (B) canonical 媒体采集路径 (GStreamer). 控制面只带 VBMF device_id;
+            // bmd_persistent_id / device-number 由 materialize 经 Device Registry 解析得到.
+            // 物化模式: 默认 Production; MEDIA_AGENT_MODE=diagnostic 时显式回退 (仅验证/排障).
             let mode = match std::env::var("MEDIA_AGENT_MODE").as_deref() {
                 Ok("diagnostic") => crate::pipeline::MaterializeMode::Diagnostic,
                 _ => crate::pipeline::MaterializeMode::Production,
             };
-            // Resolver 绑定 (C1/D 物化前置): gstreamer 构建下探测 GStreamer device-number 并解析;
-            // 非 gstreamer 构建为空 map (不物化运行时地址, materialize 走 legacy/拒绝路径).
+            // Resolver 绑定 (物化前置): gstreamer 构建下探测并解析; 非 gstreamer 构建为空 map.
             #[cfg(feature = "gstreamer")]
             let gst_probes = match crate::resolver::probe_gstreamer_devices(
                 crate::resolver::MAX_PROBE_DEVICES,
@@ -324,7 +306,7 @@ fn main() {
                         tracing::warn!(
                             device_number = n,
                             error = %e,
-                            "GStreamer 单设备探测失败 (已分类, 不再静默丢弃)"
+                            "GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃)"
                         );
                     }
                     probes
@@ -332,6 +314,7 @@ fn main() {
                 // Unavailable / Empty → 无可用绑定; materialize 走拒绝路径, 绝不盲开 device 0.
                 _ => Vec::new(),
             };
+            // 绑定解析: 生产/诊断都执行 (用于 manifest 校验与诊断启动), 但**不在此启动任何管线**.
             #[cfg(feature = "gstreamer")]
             let bindings = match &_cfg.device_binding_path {
                 // 生产 BMD 绑定权威路径: DeviceBindingManifest 显式契约.
@@ -350,8 +333,12 @@ fn main() {
                             tracing::error!(error = %e, "DeviceBindingManifest 主机身份不符; 生产绑定失败闭合, 拒绝 materialize (非 warning)");
                             std::collections::HashMap::new()
                         } else {
-                            // (c) 版本一致性软告警 (不阻断).
-                            for w in m.validate_environment(None, None) {
+                            // (c) 版本一致性软告警 (P1-2: 已接真实 runtime 版本, 非 None).
+                            let sdk_v = crate::resolver::actual_bmd_sdk_version();
+                            let gst_v = crate::resolver::actual_gstreamer_version();
+                            let plugin_v = crate::resolver::actual_decklink_plugin_version()
+                                .unwrap_or_else(|| "unknown".to_string());
+                            for w in m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v)) {
                                 tracing::warn!(warning = %w, "device-binding manifest 版本校验");
                             }
                             crate::resolver::collect_bindings_from_manifest(
@@ -385,83 +372,122 @@ fn main() {
                 uuid::Uuid,
                 crate::resolver::ResolvedDeviceBinding,
             > = std::collections::HashMap::new();
-            match crate::pipeline::materialize(&intent, &devices, mode, &bindings) {
-                Ok(plans) => {
-                    for p in &plans {
-                        tracing::info!(
-                            device_id = %p.source.device_id,
-                            bmd_persistent_id = p.source.bmd_persistent_id,
-                            device_number = p.source.device_number,
-                            selection_mode = ?p.source.selection_mode,
-                            "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
-                        );
-                    }
-                    *agent_state.lock().unwrap() = health::AgentState::Capturing;
 
-                    // (C) 真实 GStreamer launch (feature = "gstreamer") + Supervisor→recover 接线.
-                    #[cfg(feature = "gstreamer")]
-                    {
-                        let dev_id_str = plans[0].source.device_id.clone();
-                        let device_uuid = Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
-                        // Lease→Pipeline: 启动前确认该设备的租约仍有效 (排他采集前置条件).
-                        if !lm.is_valid(&device_uuid) {
-                            tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
-                        } else {
-                            let ctrl =
-                                Arc::new(crate::pipeline::GStreamerPipelineController::new());
-                            // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
-                            tracing::info!(gst_version = ?gstreamer::version(), "GStreamer runtime version (evidence)");
-                            match ctrl.prepare(&plans[0]) {
-                                Ok(h) => match ctrl.start(&h) {
-                                    Ok(()) => {
-                                        tracing::info!(
-                                            handle = %h.0,
-                                            device_id = %dev_id_str,
-                                            "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
-                                        );
-                                        // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
-                                        sup.lock().unwrap().register(device_uuid);
-                                        spawn_ingest_watchdog(
-                                            ctrl,
-                                            h,
-                                            device_uuid,
-                                            sup.clone(),
-                                            lm.clone(),
-                                            agent_state.clone(),
-                                        );
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)")
-                                    }
-                                },
-                                Err(e) => tracing::error!(error = %e, "canonical prepare 失败"),
+            // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
+            // Production **绝不**自行取 first device 制造 GraphRuntimeIntent —— 必须等待 Control Plane
+            // 显式 StartPipeline Intent. (rpc.rs 当前 No transport yet, 故 Production 在此 idle:
+            // 仅校验 manifest + 提供 /health, 不自动启动任何媒体管线.)
+            let auto_start = matches!(mode, crate::pipeline::MaterializeMode::Diagnostic);
+            if auto_start {
+                let first_id = devices
+                    .first()
+                    .map(|d| d.device_id.to_string())
+                    .unwrap_or_default();
+                let intent = crate::graph_intent::GraphRuntimeIntent {
+                    version: "1.0".into(),
+                    devices: vec![crate::graph_intent::DeviceIntent {
+                        device_id: first_id.clone(),
+                        role: "CAPTURE".into(),
+                        pipeline: crate::graph_intent::PipelineIntent {
+                            source: crate::graph_intent::SourceIntent {
+                                kind: "decklink".into(),
+                                device_id: first_id,
+                            },
+                            sink: crate::graph_intent::SinkIntent {
+                                kind: "rtmp".into(),
+                            },
+                        },
+                    }],
+                };
+                match crate::pipeline::materialize(&intent, &devices, mode, &bindings) {
+                    Ok(plans) => {
+                        for p in &plans {
+                            tracing::info!(
+                                device_id = %p.source.device_id,
+                                bmd_persistent_id = p.source.bmd_persistent_id,
+                                device_number = p.source.device_number,
+                                selection_mode = ?p.source.selection_mode,
+                                "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
+                            );
+                        }
+                        *agent_state.lock().unwrap() = health::AgentState::Capturing;
+
+                        // (C) 真实 GStreamer launch (feature = "gstreamer") + Supervisor→recover 接线.
+                        #[cfg(feature = "gstreamer")]
+                        {
+                            let dev_id_str = plans[0].source.device_id.clone();
+                            let device_uuid = Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
+                            // Lease→Pipeline: 启动前确认该设备的租约仍有效 (排他采集前置条件).
+                            if !lm.is_valid(&device_uuid) {
+                                tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
+                            } else {
+                                let ctrl =
+                                    Arc::new(crate::pipeline::GStreamerPipelineController::new());
+                                // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
+                                tracing::info!(gst_version = ?gstreamer::version(), "GStreamer runtime version (evidence)");
+                                match ctrl.prepare(&plans[0]) {
+                                    Ok(h) => match ctrl.start(&h) {
+                                        Ok(()) => {
+                                            tracing::info!(
+                                                handle = %h.0,
+                                                device_id = %dev_id_str,
+                                                "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
+                                            );
+                                            // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
+                                            sup.lock().unwrap().register(device_uuid);
+                                            spawn_ingest_watchdog(
+                                                ctrl,
+                                                h,
+                                                device_uuid,
+                                                sup.clone(),
+                                                lm.clone(),
+                                                agent_state.clone(),
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)")
+                                        }
+                                    },
+                                    Err(e) => tracing::error!(error = %e, "canonical prepare 失败"),
+                                }
                             }
                         }
+                        #[cfg(not(feature = "gstreamer"))]
+                        {
+                            tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                        }
                     }
-                    #[cfg(not(feature = "gstreamer"))]
-                    {
-                        tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                    Err(e) => {
+                        tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
                     }
                 }
-                Err(e) => {
-                    tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
-                }
+            } else {
+                // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
+                tracing::info!(
+                    "production runtime ready: manifest 已校验, 等待 Control Plane 显式 StartPipeline Intent (不自动启动 media pipeline; RPC transport 待接, 见 rpc.rs)"
+                );
+                *agent_state.lock().unwrap() = health::AgentState::Ready;
             }
         }
     }
 
     std::thread::spawn({
         let agent_state = agent_state.clone();
-        move || match std::net::TcpListener::bind("0.0.0.0:8080") {
+        // 管理面绑定 (用户 §二十二 P1 Security): 默认 127.0.0.1:8080 (仅本机回环), 不裸露公网;
+        // 生产部署由 `MEDIA_AGENT_HEALTH_BIND` 覆盖为内网接口/经 Fastify/Nginx 反向代理 + 认证.
+        move || match std::net::TcpListener::bind(&_cfg.health_bind) {
             Ok(listener) => {
-                tracing::info!("health endpoint listening on :8080");
+                tracing::info!(bind = %_cfg.health_bind, "health endpoint listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
                 for mut s in listener.incoming().flatten() {
                     let st = *agent_state.lock().unwrap();
                     let active = crate::pipeline::HEALTH_ARCS.lock().unwrap().len();
+                    // Bus channel 溢出计数 (P1 §十三): 暴露为 metric, 非零代表曾发生事件丢弃.
+                    let dropped = crate::pipeline::dropped_bus_events();
                     let body = serde_json::json!({
                         "state": st,
                         "devices": device_count,
-                        "active_pipelines": active
+                        "active_pipelines": active,
+                        "dropped_bus_events": dropped
                     })
                     .to_string();
                     let resp = format!(
