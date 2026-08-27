@@ -115,25 +115,26 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
 #[cfg(feature = "gstreamer")]
 fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     use gstreamer::prelude::*;
+    let pipeline = gstreamer::Pipeline::default();
     let el = gstreamer::ElementFactory::make("decklinkvideosrc")
         .build()
         .ok()?;
-    // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址). 只读属性前提是设备已打开 (READY).
+    // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址).
     el.set_property("device-number", n as i32);
-    // 打开设备到 PAUSED: decklink 插件在 PAUSED (start()) 才真正打开设备并填充只读身份属性
-    // (hw-serial-number 等); READY 仅分配资源不识别设备, 故 hw-serial-number 仍为 null.
-    // 不进入 PLAYING, 不拉真实帧. 打开失败 = 该序号无此采集卡.
-    if el.set_state(gstreamer::State::Paused).is_err() {
-        let _ = el.set_state(gstreamer::State::Null);
+    // live source 需置于 Pipeline (并接 fakesink) 才被驱动; 裸 Element 直接 set_state 不会执行
+    // start(), 故 hw-serial-number 恒为 null. Pipeline 设 PAUSED 才触发 start() 打开设备并填充
+    // 只读身份属性 (hw-serial-number 等). 不进入 PLAYING, 不拉真实帧.
+    let sink = gstreamer::ElementFactory::make("fakesink").build().ok()?;
+    pipeline.add(&el).ok()?;
+    pipeline.add(&sink).ok()?;
+    el.link(&sink).ok()?;
+    if pipeline.set_state(gstreamer::State::Paused).is_err() {
+        let _ = pipeline.set_state(gstreamer::State::Null);
         return None;
     }
-    // PAUSED 触发 start() 同步打开设备并填充只读身份属性 (hw-serial-number 等);
-    // 少量延时兜底 live source 异步 preroll. 不进入 PLAYING, 不拉真实帧.
+    // 少量延时兜底 live source 异步 preroll, 确保设备已打开、身份属性已填充.
     std::thread::sleep(std::time::Duration::from_millis(300));
-    // 读取只读属性 (hw-serial-number 等设备在 READY 后才可靠填充). 各属性用 `find_property` 守卫:
-    // 本机 GStreamer 1.28.2 decklink 插件的 `gst-inspect` 显示**只有 `device-number` 与 `hw-serial-number`
-    // 两个选卡属性**, 没有 `persistent-id` (且 `signal`/`model` 因版本而异). 缺属性直接读取会 panic,
-    // 故先确认存在再按类型读 (String/i64/bool 均实现 HasParamSpec, 编译稳定).
+    // 读取只读属性 (find_property 守卫防缺属性 panic; NULL 字符串用 Option<String> 归 None).
     let hw_serial_number = el
         .find_property("hw-serial-number")
         .and_then(|_| non_empty(el.property::<Option<String>>("hw-serial-number").unwrap_or_default()));
@@ -152,7 +153,7 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
     // 释放设备.
-    let _ = el.set_state(gstreamer::State::Null);
+    let _ = pipeline.set_state(gstreamer::State::Null);
     // ghost 判定: 无任何身份线索说明该序号并非真实采集卡, 不计入 (防误判 Ambiguous).
     if hw_serial_number.is_none() && model.is_none() && persistent_id.is_none() {
         return None;
