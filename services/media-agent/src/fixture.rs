@@ -10,6 +10,7 @@
 use crate::port::{PortRegistry, SignalState};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use uuid::Uuid;
 
 /// 传输介质.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,30 +58,45 @@ pub struct Fixture {
 impl Fixture {
     /// 保存为 JSON 证据文件.
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        let s = serde_json::to_string_pretty(self).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-        })?;
+        let s = serde_json::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         std::fs::write(path, s)
     }
 
     /// 从 JSON 证据文件加载.
     pub fn load(path: &Path) -> std::io::Result<Self> {
         let s = std::fs::read_to_string(path)?;
-        serde_json::from_str(&s).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        serde_json::from_str(&s)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
     /// 由 PortRegistry 解析出 loopback 的 source(输出端口)/sink(已锁定输入端口).
     /// 返回 (source_port_id, sink_port_id) 若可解析; 否则 None (诊断信息不足).
+    /// 按 Fixture 显式声明的 `source`/`sink` `PortRef` 精确匹配端口; 仅当 Fixture 为空模板
+    /// (port_id 均未填, 即 host-specific provisioning 阶段) 才回退到 "第一个 Locked 输入 / 第一个输出"
+    /// 的启发式 (绝不在已声明拓扑时猜, §二十一 P1#4).
     pub fn resolve(&self, registry: &PortRegistry) -> Option<(String, String)> {
-        let sink = registry
-            .input_ports()
-            .iter()
-            .find(|p| p.signal.state == SignalState::Locked)
-            .map(|p| p.identity.port_id.to_string())?;
-        let source = registry
-            .output_ports()
-            .first()
-            .map(|p| p.identity.port_id.to_string())?;
+        let sink = if let Some(pid) = &self.sink.port_id {
+            registry
+                .get(&Uuid::parse_str(pid).ok()?)
+                .map(|p| p.identity.port_id.to_string())
+        } else {
+            registry
+                .input_ports()
+                .iter()
+                .find(|p| p.signal.state == SignalState::Locked)
+                .map(|p| p.identity.port_id.to_string())
+        }?;
+        let source = if let Some(pid) = &self.source.port_id {
+            registry
+                .get(&Uuid::parse_str(pid).ok()?)
+                .map(|p| p.identity.port_id.to_string())
+        } else {
+            registry
+                .output_ports()
+                .first()
+                .map(|p| p.identity.port_id.to_string())
+        }?;
         Some((source, sink))
     }
 }
@@ -105,11 +121,19 @@ pub fn default_sdi_loopback() -> Fixture {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::port::{ConnectorType, PortCapabilities, PortDirection, PortIdentity, PortInfo, RuntimePortBinding};
+    use crate::port::{
+        ConnectorType, PortCapabilities, PortDirection, PortIdentity, PortInfo, RuntimePortBinding,
+    };
     use crate::resolver::{Confidence, ResolverMatch};
     use uuid::Uuid;
 
-    fn port(device_id: Uuid, connector: ConnectorType, ordinal: u32, dir: PortDirection, signal: SignalState) -> PortInfo {
+    fn port(
+        device_id: Uuid,
+        connector: ConnectorType,
+        ordinal: u32,
+        dir: PortDirection,
+        signal: SignalState,
+    ) -> PortInfo {
         PortInfo {
             device_id,
             device_handle: None,
@@ -165,13 +189,28 @@ mod tests {
         let d = Uuid::new_v4();
         let reg = PortRegistry {
             ports: vec![
-                port(d, ConnectorType::Sdi, 0, PortDirection::Output, SignalState::Unknown),
-                port(d, ConnectorType::Sdi, 1, PortDirection::Input, SignalState::Locked),
+                port(
+                    d,
+                    ConnectorType::Sdi,
+                    0,
+                    PortDirection::Output,
+                    SignalState::Unknown,
+                ),
+                port(
+                    d,
+                    ConnectorType::Sdi,
+                    1,
+                    PortDirection::Input,
+                    SignalState::Locked,
+                ),
             ],
         };
-        let f = default_sdi_loopback();
+        let mut f = default_sdi_loopback();
+        // 已声明拓扑: source=输出端口(SDI#0), sink=Locked 输入端口(SDI#1) → 精确匹配, 不猜.
+        f.source.port_id = Some(reg.ports[0].identity.port_id.to_string());
+        f.sink.port_id = Some(reg.ports[1].identity.port_id.to_string());
         let (source, sink) = f.resolve(&reg).expect("应解析出 source/sink");
-        assert!(!source.is_empty());
-        assert!(!sink.is_empty());
+        assert_eq!(source, reg.ports[0].identity.port_id.to_string());
+        assert_eq!(sink, reg.ports[1].identity.port_id.to_string());
     }
 }

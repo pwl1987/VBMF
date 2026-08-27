@@ -16,9 +16,7 @@
 #![allow(dead_code)] // 部分字段/分支仅在特定 feature / 测试路径使用
 
 use crate::device::DeviceInfo;
-use crate::resolver::{
-    DeviceBindingManifest, GStreamerDeviceProbe, ResolvedDeviceBinding,
-};
+use crate::resolver::{DeviceBindingManifest, GStreamerDeviceProbe, ResolvedDeviceBinding};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -237,8 +235,10 @@ impl PortRegistry {
         self.ports
             .iter()
             .filter(|p| {
-                matches!(p.direction, PortDirection::Input | PortDirection::Bidirectional)
-                    || p.capabilities.input.is_supported()
+                matches!(
+                    p.direction,
+                    PortDirection::Input | PortDirection::Bidirectional
+                ) || p.capabilities.input.is_supported()
             })
             .collect()
     }
@@ -248,8 +248,10 @@ impl PortRegistry {
         self.ports
             .iter()
             .filter(|p| {
-                matches!(p.direction, PortDirection::Output | PortDirection::Bidirectional)
-                    || p.capabilities.output.is_supported()
+                matches!(
+                    p.direction,
+                    PortDirection::Output | PortDirection::Bidirectional
+                ) || p.capabilities.output.is_supported()
             })
             .collect()
     }
@@ -281,10 +283,6 @@ impl PortRegistry {
                 continue;
             };
             let binding = bindings.get(&device.device_id);
-            let binding_ok = binding.is_some_and(|b| {
-                b.device_number == entry.gst_device_number
-                    && b.match_kind == crate::resolver::ResolverMatch::ManifestVerified
-            });
 
             let connector = entry
                 .port
@@ -292,18 +290,13 @@ impl PortRegistry {
                 .map(|p| p.connector)
                 .unwrap_or(ConnectorType::Unknown);
             let ordinal = entry.port.as_ref().map(|p| p.ordinal).unwrap_or(0);
+            // 方向必须来自 Manifest 声明或 SDK 硬件发现, 绝不从 binding_ok / 当前信号推断 (HARD RULE, §二十一 P1#2).
+            // 未声明方向 → Unknown, 交由 HW-PORT-01A SDK Discovery 填充, 不得隐式推断为 Input.
             let direction = entry
                 .port
                 .as_ref()
                 .map(|p| p.direction)
-                .unwrap_or_else(|| {
-                    // 未声明方向: 若绑定成功 (decklinkvideosrc 输入能力) → Input; 否则 Unknown.
-                    if binding_ok {
-                        PortDirection::Input
-                    } else {
-                        PortDirection::Unknown
-                    }
-                });
+                .unwrap_or(PortDirection::Unknown);
 
             let probe = probes
                 .iter()
@@ -316,15 +309,9 @@ impl PortRegistry {
                 _ => (SignalState::Unknown, None),
             };
 
-            let (can_input, can_output) = match direction {
-                PortDirection::Input => (CapabilityValue::Supported(true), CapabilityValue::Unknown),
-                PortDirection::Output => (CapabilityValue::Unknown, CapabilityValue::Supported(true)),
-                PortDirection::Bidirectional => (
-                    CapabilityValue::Supported(true),
-                    CapabilityValue::Supported(true),
-                ),
-                PortDirection::Unknown => (CapabilityValue::Unknown, CapabilityValue::Unknown),
-            };
+            // 能力须来自 SDK 硬件发现 (HW-PORT-01A), 不由 Direction 反推 (§二十一 P1#3).
+            // 未发现前标记 Unknown; 输入/输出判定仍以 `direction` 为准 (input_ports/output_ports 已兼容).
+            let (can_input, can_output) = (CapabilityValue::Unknown, CapabilityValue::Unknown);
 
             let runtime_binding = match direction {
                 PortDirection::Input => binding
@@ -336,14 +323,12 @@ impl PortRegistry {
                         match_kind: b.match_kind,
                     }),
                 // 输出端口无输入 probe, 运行时地址由 Manifest 权威声明.
-                PortDirection::Output | PortDirection::Bidirectional => {
-                    Some(RuntimePortBinding {
-                        gst_device_number: entry.gst_device_number,
-                        hw_serial_number: None,
-                        confidence: crate::resolver::Confidence::High,
-                        match_kind: crate::resolver::ResolverMatch::ManifestVerified,
-                    })
-                }
+                PortDirection::Output | PortDirection::Bidirectional => Some(RuntimePortBinding {
+                    gst_device_number: entry.gst_device_number,
+                    hw_serial_number: None,
+                    confidence: crate::resolver::Confidence::High,
+                    match_kind: crate::resolver::ResolverMatch::ManifestVerified,
+                }),
                 PortDirection::Unknown => None,
             };
 
@@ -392,20 +377,29 @@ impl PortRegistry {
 
     /// 由各端口聚合某设备的设备级能力 (用于回答 "这个设备有几个输入/输出端口").
     pub fn device_capabilities(&self, device_id: &Uuid) -> DeviceCapabilities {
-        let ports: Vec<&PortInfo> =
-            self.ports.iter().filter(|p| &p.device_id == device_id).collect();
+        let ports: Vec<&PortInfo> = self
+            .ports
+            .iter()
+            .filter(|p| &p.device_id == device_id)
+            .collect();
         let in_count = ports
             .iter()
             .filter(|p| {
                 p.capabilities.input.is_supported()
-                    || matches!(p.direction, PortDirection::Input | PortDirection::Bidirectional)
+                    || matches!(
+                        p.direction,
+                        PortDirection::Input | PortDirection::Bidirectional
+                    )
             })
             .count() as u32;
         let out_count = ports
             .iter()
             .filter(|p| {
                 p.capabilities.output.is_supported()
-                    || matches!(p.direction, PortDirection::Output | PortDirection::Bidirectional)
+                    || matches!(
+                        p.direction,
+                        PortDirection::Output | PortDirection::Bidirectional
+                    )
             })
             .count() as u32;
         let empty = ports.is_empty();
@@ -452,7 +446,7 @@ pub enum PortProbeError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resolver::{ResolverMatch, Confidence, BindingEntry};
+    use crate::resolver::{BindingEntry, Confidence, ResolverMatch};
 
     fn dev(handle: &str) -> DeviceInfo {
         DeviceInfo {
@@ -524,7 +518,11 @@ mod tests {
     #[test]
     fn build_manifest_input_port_locked() {
         let d = dev("46:00000000:002e4500");
-        let manifest = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1, PortDirection::Input)]);
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4500",
+            1,
+            PortDirection::Input,
+        )]);
         let probes = vec![probe(1, Some(true))];
         let mut bindings = HashMap::new();
         bindings.insert(
@@ -540,7 +538,6 @@ mod tests {
         assert_eq!(reg.ports.len(), 1);
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Input);
-        assert!(p.capabilities.input.is_supported());
         assert_eq!(p.signal.state, SignalState::Locked);
         assert!(p.runtime_binding.is_some());
         assert_eq!(p.runtime_binding.as_ref().unwrap().gst_device_number, 1);
@@ -549,14 +546,17 @@ mod tests {
     #[test]
     fn build_output_port_no_input_probe_is_unknown() {
         let d = dev("83:1a66443b:00000000");
-        let manifest = base_manifest(vec![manifest_entry("83:1a66443b:00000000", 0, PortDirection::Output)]);
+        let manifest = base_manifest(vec![manifest_entry(
+            "83:1a66443b:00000000",
+            0,
+            PortDirection::Output,
+        )]);
         let probes: Vec<GStreamerDeviceProbe> = vec![];
         let bindings = HashMap::new();
         let reg = PortRegistry::build(&[d], &probes, &manifest, &bindings);
         assert_eq!(reg.ports.len(), 1);
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Output);
-        assert!(p.capabilities.output.is_supported());
         // 输出端口无输入 probe → 信号未知 (绝不解释成"无信号=非输入").
         assert_eq!(p.signal.state, SignalState::Unknown);
     }
@@ -565,12 +565,15 @@ mod tests {
     fn no_signal_is_not_interpreted_as_non_input() {
         // 关键 HARD RULE: signal=false 不得推断 direction.
         let d = dev("46:00000000:002e4400");
-        let manifest = base_manifest(vec![manifest_entry("46:00000000:002e4400", 2, PortDirection::Input)]);
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4400",
+            2,
+            PortDirection::Input,
+        )]);
         // probe 缺失 (设备打开失败) → ProbeFailed, 但方向仍 Input (由 Manifest 声明).
         let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new());
         let p = &reg.ports[0];
         assert_eq!(p.direction, PortDirection::Input);
         assert_eq!(p.signal.state, SignalState::ProbeFailed);
-        assert!(p.capabilities.input.is_supported());
     }
 }

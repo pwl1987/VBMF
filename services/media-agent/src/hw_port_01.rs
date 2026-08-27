@@ -80,7 +80,9 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
                 ordinal: p.identity.ordinal,
                 direction: p.direction,
             },
-            gstreamer: GstAddress { device_number: gst_num },
+            gstreamer: GstAddress {
+                device_number: gst_num,
+            },
             signal: SignalAcceptance {
                 state: p.signal.state,
                 format: fmt,
@@ -89,9 +91,10 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
     }
 
     // 闭环成立: 至少一个已验证且 Locked 的输入端口.
-    let closed_loop = registry.input_ports().iter().any(|p| {
-        p.signal.state == SignalState::Locked && p.runtime_binding.is_some()
-    });
+    let closed_loop = registry
+        .input_ports()
+        .iter()
+        .any(|p| p.signal.state == SignalState::Locked && p.runtime_binding.is_some());
     if !closed_loop {
         notes.push(
             "闭环未成立: 无已验证且信号 Locked 的输入端口 (Device→Port→Direction→Connector→Gst address→Signal 未闭合)".into(),
@@ -105,8 +108,11 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
         if !port.required || port.direction != PortDirection::Input {
             continue;
         }
+        // 必须带设备作用域, 避免两张不同设备都含 "SDI #1" 时跨设备误匹配 (§二十一 P1#5).
         let matched = registry.ports.iter().find(|p| {
-            p.identity.connector == port.connector && p.identity.ordinal == port.ordinal
+            p.device_handle.as_deref() == Some(entry.bmd_device_handle.as_str())
+                && p.identity.connector == port.connector
+                && p.identity.ordinal == port.ordinal
         });
         match matched {
             Some(p) if p.signal.state == SignalState::Locked && p.runtime_binding.is_some() => {}
@@ -160,7 +166,11 @@ mod tests {
                 match_kind: ResolverMatch::ManifestVerified,
             }),
             signal: SignalStatus {
-                state: if locked { SignalState::Locked } else { SignalState::NoSignal },
+                state: if locked {
+                    SignalState::Locked
+                } else {
+                    SignalState::NoSignal
+                },
                 video_locked: Some(locked),
                 ..Default::default()
             },
@@ -196,7 +206,9 @@ mod tests {
 
     #[test]
     fn pass_when_required_input_locked() {
-        let reg = PortRegistry { ports: vec![input_port(1, true)] };
+        let reg = PortRegistry {
+            ports: vec![input_port(1, true)],
+        };
         let report = verify(&reg, &manifest_with_required(1, true));
         assert!(report.pass);
         assert_eq!(report.ports.len(), 1);
@@ -206,7 +218,9 @@ mod tests {
     #[test]
     fn fail_when_required_input_no_signal() {
         // 必需输入端口无信号 → 失败闭合 (绝不回退).
-        let reg = PortRegistry { ports: vec![input_port(1, false)] };
+        let reg = PortRegistry {
+            ports: vec![input_port(1, false)],
+        };
         let report = verify(&reg, &manifest_with_required(1, true));
         assert!(!report.pass);
         assert!(report.notes.iter().any(|n| n.contains("未 Locked")));
