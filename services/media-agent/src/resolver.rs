@@ -127,8 +127,9 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
         let _ = el.set_state(gstreamer::State::Null);
         return None;
     }
-    // 等待状态切换完成, 确保设备已打开、身份属性已填充 (live source PAUSED 立即 preroll).
-    let _ = el.get_state(Some(gstreamer::ClockTime::from_seconds(2)));
+    // PAUSED 触发 start() 同步打开设备并填充只读身份属性 (hw-serial-number 等);
+    // 少量延时兜底 live source 异步 preroll. 不进入 PLAYING, 不拉真实帧.
+    std::thread::sleep(std::time::Duration::from_millis(300));
     // 读取只读属性 (hw-serial-number 等设备在 READY 后才可靠填充). 各属性用 `find_property` 守卫:
     // 本机 GStreamer 1.28.2 decklink 插件的 `gst-inspect` 显示**只有 `device-number` 与 `hw-serial-number`
     // 两个选卡属性**, 没有 `persistent-id` (且 `signal`/`model` 因版本而异). 缺属性直接读取会 panic,
