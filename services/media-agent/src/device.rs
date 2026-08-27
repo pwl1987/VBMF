@@ -114,6 +114,12 @@ impl DeviceManager for FilesystemDeviceManager {
 /// 模拟设备 (CI / 单元测试; 无硬件/SDK). 模拟世界允许伪造 PersistentId (本身是测试世界).
 pub struct SimulatedDeviceManager;
 
+impl SimulatedDeviceManager {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl DeviceManager for SimulatedDeviceManager {
     fn discover(&self) -> Vec<DeviceInfo> {
         (0..2)
