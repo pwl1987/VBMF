@@ -90,6 +90,21 @@ impl PipelinePlan {
     }
 }
 
+/// PTS 单调性三态 (P1-3, 用户复核 §三/§十一):
+/// 区分 "未观测任何有效 PTS" / "已观测且帧间非回退" / "观测到回退".
+/// 旧 `pts_monotonic: bool` 把 `Unknown` 与 `NonMonotonic` 压成一个 `false`,
+/// 导致 UI/Evidence/Supervisor 无法区分 "没收到帧" 与 "流损坏", 故升级为枚举.
+/// 语义独立到 video/audio 两路 (PIPELINE-AV 之前的最小解耦, 用户 §三).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PtsMonotonicity {
+    /// 尚未收到任何有效 PTS — 无证据, 不得等同于 NonMonotonic 或 PASS (absence≠evidence).
+    Unknown,
+    /// 已收到且帧间严格非回退 (`pts >= last_pts`) — 流时间戳健康.
+    ValidMonotonic,
+    /// 观测到 PTS 回退 (`pts < last_pts`) — 流损坏/时间戳错乱; sticky (一旦回退不再自动恢复).
+    NonMonotonic,
+}
+
 /// 管线运行时健康状态 + MEDIA-RT-01 acceptance 现场.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineHealth {
@@ -98,10 +113,13 @@ pub struct PipelineHealth {
     pub video_first_pts: Option<u64>,
     pub audio_first_pts: Option<u64>,
     /// 上一帧已观测 PTS (video/audio 分别) — 真正单调性判定基准 (用户复核 §十一):
-    /// 每帧 `pts >= last_pts` 才维持 monotonic; 否则 `pts_monotonic = false`.
+    /// 由 `observe_video_pts`/`observe_audio_pts` 推进 `video_pts_state`/`audio_pts_state`.
     pub video_last_pts: Option<u64>,
     pub audio_last_pts: Option<u64>,
-    pub pts_monotonic: bool,
+    /// PTS 单调性三态 (P1-3), video/audio 独立: Unknown/ValidMonotonic/NonMonotonic.
+    /// 旧版单一 `pts_monotonic: bool` 无法区分 "未观测" 与 "回退", 已被此取代.
+    pub video_pts_state: PtsMonotonicity,
+    pub audio_pts_state: PtsMonotonicity,
     pub last_error: Option<String>,
     pub acceptance: MediaRt01Acceptance,
     /// 管线启动时刻 (UNIX 秒) — C 稳定性窗口计时起点 (watchdog 计算 observed_ms).
@@ -116,12 +134,43 @@ impl PipelineHealth {
     pub fn first_frame_ok(&self) -> bool {
         self.video_first_pts.is_some()
             && self.audio_first_pts.is_some()
-            && self.pts_monotonic
+            && self.video_pts_state == PtsMonotonicity::ValidMonotonic
+            && self.audio_pts_state == PtsMonotonicity::ValidMonotonic
     }
 
     /// 完整 acceptance (A+B+C 全过).
     pub fn pass(&self) -> bool {
         self.acceptance.a_pass() && self.acceptance.b_pass() && self.acceptance.c_pass()
+    }
+
+    /// 观测一帧 video PTS, 推进 `video_pts_state` 三态机 (P1-3).
+    /// 规则: 首有效 PTS → ValidMonotonic; 之后 `pts < last` → NonMonotonic (sticky);
+    /// 否则保持 (ValidMonotonic 或已 NonMonotonic). 无 PTS 帧 (None) 不参与 (调用方已过滤).
+    /// 与 `video_first_pts` 解耦: 首帧 PTS 记录由 appsink 回调单独维护, 本方法只管单调性状态.
+    pub fn observe_video_pts(&mut self, pts: u64) {
+        if let Some(last) = self.video_last_pts {
+            if pts < last {
+                self.video_pts_state = PtsMonotonicity::NonMonotonic;
+            }
+            // 否则保持当前状态 (ValidMonotonic / 已 NonMonotonic 均 sticky).
+        } else {
+            self.video_pts_state = PtsMonotonicity::ValidMonotonic;
+        }
+        self.video_last_pts = Some(pts);
+    }
+
+    /// 观测一帧 audio PTS, 推进 `audio_pts_state` 三态机 (P1-3). 语义同 `observe_video_pts`,
+    /// 独立维护 audio 一路 (PIPELINE-AV 之前的最小解耦, 用户 §三).
+    pub fn observe_audio_pts(&mut self, pts: u64) {
+        if let Some(last) = self.audio_last_pts {
+            if pts < last {
+                self.audio_pts_state = PtsMonotonicity::NonMonotonic;
+            }
+            // 否则保持当前状态 (sticky).
+        } else {
+            self.audio_pts_state = PtsMonotonicity::ValidMonotonic;
+        }
+        self.audio_last_pts = Some(pts);
     }
 }
 
@@ -134,9 +183,11 @@ impl Default for PipelineHealth {
             audio_first_pts: None,
             video_last_pts: None,
             audio_last_pts: None,
-            // `pts_monotonic` 起始 `false`: 无帧即"未观测到单调", 不得 absence-of-evidence = pass
-            // (用户复核 §十一/§十 P1-2). appsink 回调在观测到首帧有效 PTS 时置 `true`, 回退时置 `false`.
-            pts_monotonic: false,
+            // 两路 PTS 三态起始 `Unknown`: 无帧即"未观测", 不得 absence-of-evidence = pass
+            // (用户复核 §十一/§十 P1-2 / P1-3). appsink 回调经 `observe_*_pts` 推进状态:
+            // 首有效 PTS → ValidMonotonic; 回退 → NonMonotonic (sticky).
+            video_pts_state: PtsMonotonicity::Unknown,
+            audio_pts_state: PtsMonotonicity::Unknown,
             last_error: None,
             acceptance: MediaRt01Acceptance::default(),
             started_at: None,
@@ -483,20 +534,13 @@ impl GStreamerPipelineController {
                         h.video_frame_count += 1;
                         let pts = buf.pts().map(|c| c.nseconds());
                         if let Some(pts) = pts {
-                            // 记录首帧 PTS.
+                            // 记录首帧 PTS (与单调性状态解耦, P1-3).
                             if h.video_first_pts.is_none() {
                                 h.video_first_pts = Some(pts);
                             }
-                            // 真正单调性 (用户复核 §十一): 首帧有效 PTS 即视为单调起点,
-                            // 与上一帧比较, 回退即非单调. 无 PTS 帧 (None) 已在上方跳过, 不污染判定.
-                            if let Some(last) = h.video_last_pts {
-                                if pts < last {
-                                    h.pts_monotonic = false;
-                                }
-                            } else {
-                                h.pts_monotonic = true;
-                            }
-                            h.video_last_pts = Some(pts);
+                            // 真正单调性三态机 (用户复核 §十一/§三 P1-3): 首有效 PTS → ValidMonotonic,
+                            // 回退 → NonMonotonic (sticky). 无 PTS 帧 (None) 已在上方跳过, 不污染判定.
+                            h.observe_video_pts(pts);
                         }
                     }
                     Ok(gstreamer::FlowSuccess::Ok)
@@ -519,16 +563,12 @@ impl GStreamerPipelineController {
                         h.audio_frame_count += 1;
                         let pts = buf.pts().map(|c| c.nseconds());
                         if let Some(pts) = pts {
+                            // 记录首帧 PTS (与单调性状态解耦, P1-3).
                             if h.audio_first_pts.is_none() {
                                 h.audio_first_pts = Some(pts);
                             }
-                            // 音频同样做真实单调性判定 (用户复核 §十一: 旧实现缺音频单调检查).
-                            if let Some(last) = h.audio_last_pts {
-                                if pts < last {
-                                    h.pts_monotonic = false;
-                                }
-                            }
-                            h.audio_last_pts = Some(pts);
+                            // 音频同样做真实单调性三态判定 (用户复核 §十一/§三 P1-3).
+                            h.observe_audio_pts(pts);
                         }
                     }
                     Ok(gstreamer::FlowSuccess::Ok)
@@ -660,4 +700,77 @@ pub fn materialize(
         });
     }
     Ok(plans)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pts_state_starts_unknown() {
+        let h = PipelineHealth::default();
+        assert_eq!(h.video_pts_state, PtsMonotonicity::Unknown);
+        assert_eq!(h.audio_pts_state, PtsMonotonicity::Unknown);
+        assert!(!h.first_frame_ok());
+    }
+
+    #[test]
+    fn first_video_pts_is_valid_monotonic() {
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::ValidMonotonic);
+        // first_pts 由回调单独维护, 本方法只推进状态; 此处未设 first_pts.
+        assert!(!h.first_frame_ok());
+    }
+
+    #[test]
+    fn video_regression_becomes_non_monotonic() {
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        h.observe_video_pts(1001);
+        h.observe_video_pts(999); // 回退
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+    }
+
+    #[test]
+    fn non_monotonic_is_sticky() {
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        h.observe_video_pts(500); // 回退 -> NonMonotonic
+        h.observe_video_pts(2000); // 后续正常帧不得自动恢复
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+    }
+
+    #[test]
+    fn equal_pts_keeps_valid_monotonic() {
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        h.observe_video_pts(1000); // pts == last, 非严格递增但非回退
+        assert_eq!(h.video_pts_state, PtsMonotonicity::ValidMonotonic);
+    }
+
+    #[test]
+    fn video_audio_states_independent() {
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        h.observe_video_pts(500); // video 坏
+        h.observe_audio_pts(1000);
+        h.observe_audio_pts(1001); // audio 好
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+        assert_eq!(h.audio_pts_state, PtsMonotonicity::ValidMonotonic);
+    }
+
+    #[test]
+    fn first_frame_ok_requires_both_valid() {
+        let mut h = PipelineHealth::default();
+        // 仅 video 有效 -> 未过.
+        h.video_first_pts = Some(1000);
+        h.observe_video_pts(1000);
+        h.audio_first_pts = Some(1000);
+        h.observe_audio_pts(1000);
+        assert!(h.first_frame_ok());
+        // 任一回退 -> 不过.
+        h.observe_audio_pts(999);
+        assert!(!h.first_frame_ok());
+    }
 }
