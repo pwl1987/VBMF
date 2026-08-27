@@ -14,7 +14,10 @@ use std::time::Duration;
 /// Top-level agent configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Bind address for the RPC / health surface.
+    /// RPC 绑定地址 (UNWIRED: transport 尚未实现, 见 rpc.rs "No transport yet").
+    /// 安全约束 (用户 §二十二 P1-2): Rust 不负责 API Gateway / Auth (Fastify 是控制面唯一入口),
+    /// 因此 RPC 一旦启用, 必须绑定 `127.0.0.1` 或 Unix socket, **绝不** `0.0.0.0`/`::` 暴露公网.
+    /// 默认已改为 `127.0.0.1:50051`; `MEDIA_AGENT_RPC_BIND` 仅可覆盖为 localhost / UDS.
     pub rpc_bind: String,
     /// DeckLink device allowlist (e.g. `/dev/blackmagic`). Empty = SDK default.
     pub device_allowlist: Vec<String>,
@@ -39,7 +42,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            rpc_bind: "0.0.0.0:50051".to_string(),
+            rpc_bind: "127.0.0.1:50051".to_string(),
             device_allowlist: vec!["/dev/blackmagic".to_string()],
             default_lease_ttl: Duration::from_secs(300),
             lease_renew_window: Duration::from_secs(30),
@@ -97,6 +100,27 @@ impl Config {
                 .unwrap_or(d.max_recover_attempts),
             device_binding_path: get("MEDIA_AGENT_DEVICE_BINDING"),
             health_bind: get("MEDIA_AGENT_HEALTH_BIND").unwrap_or(d.health_bind),
+        }
+    }
+
+    /// RPC 绑定安全校验 (P1-2, 用户 §二十二): 若 host 为 `0.0.0.0` / `::` (暴露公网),
+    /// 返回非空告警. Rust 不负责 Auth/API Gateway, RPC 须绑定 localhost / Unix socket, 由 Fastify 反向代理.
+    /// 即便当前 RPC transport 未实现, 也应在启动时校验配置, 防止未来一启用即成暴露面.
+    pub fn rpc_bind_security_warnings(&self) -> Vec<String> {
+        let host = self
+            .rpc_bind
+            .rsplit_once(':')
+            .map(|(h, _)| h)
+            .unwrap_or(self.rpc_bind.as_str())
+            .trim_matches(['[', ']']);
+        let insecure = host == "0.0.0.0" || host == "::";
+        if insecure {
+            vec![format!(
+                "rpc_bind '{}' 将暴露公网; Rust 不负责 Auth/API Gateway, RPC 须绑定 127.0.0.1 或 Unix socket, 由 Fastify 反向代理",
+                self.rpc_bind
+            )]
+        } else {
+            Vec::new()
         }
     }
 }

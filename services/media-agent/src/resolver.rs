@@ -620,9 +620,9 @@ impl DeviceBindingManifest {
     ///
     /// 用户 §五 P1-2: **必须传入真实 runtime 版本**, 不能再用 `None`. 此前调用方传 `(None, None)`
     /// 使 `bmd_sdk_version` / `gst_decklink_plugin_version` 形同虚设. 现三参数分别接:
-    /// - `sdk_version`    : 实际 BMD SDK 版本 (`actual_bmd_sdk_version`, 由 Provisioning 经 env 声明)
-    /// - `plugin_version` : 实际 GStreamer decklink 插件版本 (`actual_decklink_plugin_version`)
-    /// - `gst_version`    : 实际 GStreamer 运行时核心版本 (`actual_gstreamer_version`)
+    /// - `sdk_version`    : **声明式** BMD SDK 版本 (`declared_bmd_sdk_version`, Provisioning 经 env 声明, 与清单同为 ops 控制; 真实运行时身份见 `detected_bmd_sdk_version`, P1-1 整改)
+    /// - `plugin_version` : 真实 GStreamer decklink 插件版本 (`actual_decklink_plugin_version`)
+    /// - `gst_version`    : 真实 GStreamer 运行时核心版本 (`actual_gstreamer_version`)
     pub fn validate_environment(
         &self,
         sdk_version: Option<&str>,
@@ -660,10 +660,49 @@ impl DeviceBindingManifest {
     }
 }
 
-/// 实际运行时版本探测 (用于 Manifest 版本软校验, 用户 §五 P1-2). 模块级自由函数,
-/// 经 `crate::resolver::actual_*` 调用, 不再是 `validate_environment(None, None)` 的空壳.
-pub fn actual_bmd_sdk_version() -> String {
+/// 声明式 (ops 在 Provisioning 时经 env 显式声明) 的 BMD SDK 版本, 用于与 Manifest `bmd_sdk_version`
+/// 做一致性软校验. 这不是运行时真实探测 —— 真实探测见 `detected_bmd_sdk_version`
+/// (P1-1 整改: 二者概念不能都叫 "actual"). 默认 "unknown" (未声明).
+pub fn declared_bmd_sdk_version() -> String {
     std::env::var("VBMF_BMD_SDK_VERSION").unwrap_or_else(|_| "unknown".to_string())
+}
+
+/// 真实运行时 SDK 身份探测 (P1-1 整改): 不依赖 env 声明, 而是基于编译期 SDK include 路径
+/// (`DECKLINK_SDK_INCLUDE`, 即 "SDK build identity") 与运行时实际可解析到的 `libDeckLinkAPI.so`
+/// 路径及字节大小 (即 "libDeckLinkAPI.so identity"). 返回紧凑身份串; 无法探测时返回 "unknown".
+/// 这是 provenance, 用于健康/证据归档, 不与 Manifest 版本号做误比 (版本号一致性用 `declared_bmd_sdk_version` 比对).
+pub fn detected_bmd_sdk_version() -> String {
+    let build = option_env!("DECKLINK_SDK_INCLUDE").unwrap_or("n/a");
+    let lib_identity = match resolve_decklink_lib() {
+        Some(lib) => match std::fs::metadata(&lib) {
+            Ok(m) => format!("lib={lib};lib_bytes={}", m.len()),
+            Err(_) => format!("lib={lib};lib_bytes=?"),
+        },
+        None => "lib=unresolved".to_string(),
+    };
+    format!("sdk_include={build};{lib_identity}")
+}
+
+/// 解析运行时实际可加载的 libDeckLinkAPI.so 路径 (best-effort, 不新增依赖).
+fn resolve_decklink_lib() -> Option<String> {
+    let mut candidates: Vec<String> = Vec::new();
+    if let Ok(ld) = std::env::var("LD_LIBRARY_PATH") {
+        for d in ld.split(':') {
+            if !d.is_empty() {
+                candidates.push(format!("{d}/libDeckLinkAPI.so"));
+            }
+        }
+    }
+    candidates.push("/usr/lib/blackmagic/libDeckLinkAPI.so".into());
+    candidates.push("/usr/lib/libDeckLinkAPI.so".into());
+    candidates.push("/usr/lib/x86_64-linux-gnu/libDeckLinkAPI.so".into());
+    candidates.push("/Library/Blackmagic/DeckLink/libDeckLinkAPI.so".into());
+    if let Some(inc) = option_env!("DECKLINK_SDK_INCLUDE") {
+        if let Some(parent) = std::path::Path::new(inc).parent() {
+            candidates.push(parent.join("lib/libDeckLinkAPI.so").to_string_lossy().into_owned());
+        }
+    }
+    candidates.into_iter().find(|p| std::path::Path::new(p).exists())
 }
 
 /// 实际 GStreamer 运行时核心版本 (major.minor.micro); 用于 Manifest `gst_runtime_version` 软校验.

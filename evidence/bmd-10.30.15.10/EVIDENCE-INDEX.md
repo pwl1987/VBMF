@@ -1,6 +1,6 @@
 # BMD 10.30.15.10 真机证据索引 (EVIDENCE-INDEX)
 
-> 生成日期: 2026-08-27 — 配合 `media-agent` commit `9f3a1df` 之后的 **Production Runtime Hardening Patch**.
+> 生成日期: 2026-08-27 — 配合 `media-agent` commit `457837a` 及本轮 **Production Hardening 收口** (P1-1/P1-2/P1-4).
 >
 > 目的: 防止历史证据被误读为当前验收结论 (用户 §十九). 例如 `cap01-first-frame` 的 SDK first-frame
 > PASS **不是** `MEDIA-RT-01` PASS; `gate2.2/2.4/2.5` 是阶段性 Gate 验收, 不等同 Phase 0.6 Acceptance.
@@ -30,8 +30,17 @@
 | `2026-08-27-device-registry-current.json` | Current | 当前 Device Registry 快照. |
 | `2026-08-27-device-binding-manifest-abda19f.json` | Acceptance | DeviceBindingManifest 权威路径验证 (commit `abda19f`). |
 | `2026-08-27-binding-fail-closed-5ce34e1.json` | Acceptance | Production 绑定失败闭合 (commit `5ce34e1`). |
-| `2026-08-27-c1-resolver-41e0931.json` | Current | C1 (VBMF_RESOLVER) 探测器输出快照 (commit `41e0931`). |
-| `2026-08-27-c1-element-probe-correction.md` | Current | C1 element 探测修正说明 (ProbeError 之前). |
+| `2026-08-27-c1-resolver-41e0931.json` | Superseded | C1 (VBMF_RESOLVER) 探测器输出快照 (commit `41e0931`); 已被 `abda19f`(权威绑定) / `457837a`(硬化) 覆盖. |
+| `2026-08-27-c1-element-probe-correction.md` | Historical | C1 element 探测修正说明 (ProbeError 之前). |
+
+## Runtime Hardening (Current / 生产硬化)
+
+| 提交 / 证据 | 状态 | 说明 |
+|---|---|---|
+| commit `9f3a1df` | Acceptance | RESOLVER-ERR-01 probe 失败分类 (ProbeError). |
+| commit `5ce34e1` | Acceptance | Production Binding 失败闭合硬化. |
+| commit `457837a` | Current | 6 项 Production Hardening (P1-2 真实版本接入 / P1-3 生产不自动启动 / P1-4 /health 回环 / P1 bus 溢出 / P1-1 config 文档 / evidence 索引). |
+| 本轮收口 (同 commit) | Current | P1-1 SDK 版本 declared↔detected 拆分 (真实 libDeckLinkAPI.so 身份探测); P1-2 `rpc_bind` 默认 `127.0.0.1` + 安全校验; P1-4 Supervisor ClockLost=degraded 最低策略 + Warning/StateChanged 日志. |
 
 ## Gate 阶段性验收 (Historical / 不代表 Phase 0.6 Acceptance)
 

@@ -40,6 +40,12 @@ fn main() {
     // Gate 2.1: load config shape from env (no behavior attached yet).
     let _cfg = config::Config::from_env();
 
+    // P1-2 (用户 §二十二): RPC 绑定安全校验 — 即便 RPC transport 尚未实现 (rpc.rs "No transport yet"),
+    // 也须防止未来一启用即暴露公网. Rust 不负责 Auth, RPC 须 localhost / Unix socket, 由 Fastify 反向代理.
+    for w in _cfg.rpc_bind_security_warnings() {
+        tracing::warn!(warning = %w, "rpc_bind 安全");
+    }
+
     // Gate 2.2: device discovery.
     // `simulation` => mock devices (CI/tests, no hardware or SDK).
     // default / bmd => filesystem probe (safe on CI / non-BMD; real on BMD).
@@ -96,11 +102,13 @@ fn main() {
                                     "DeviceBindingManifest 主机身份不符 (诊断模式仍输出证据): {e}"
                                 );
                             } else {
-                                // P1-2: 传入真实 runtime 版本 (不再 None), 真正校验 SDK/decklink 插件/GStreamer 版本.
-                                let sdk_v = crate::resolver::actual_bmd_sdk_version();
+                                // P1-2: 传入声明式 SDK 版本 (env) + 真实 GStreamer/decklink 版本, 真正校验.
+                                let sdk_v = crate::resolver::declared_bmd_sdk_version();
                                 let gst_v = crate::resolver::actual_gstreamer_version();
                                 let plugin_v = crate::resolver::actual_decklink_plugin_version()
                                     .unwrap_or_else(|| "unknown".to_string());
+                                // P1-1: 真实运行时 SDK 身份 (build include + libDeckLinkAPI.so) 作为 provenance 输出.
+                                eprintln!("BMD SDK runtime identity (provenance): {}", crate::resolver::detected_bmd_sdk_version());
                                 for w in m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v)) {
                                     eprintln!("device-binding manifest 版本校验: {w}");
                                 }
@@ -334,10 +342,12 @@ fn main() {
                             std::collections::HashMap::new()
                         } else {
                             // (c) 版本一致性软告警 (P1-2: 已接真实 runtime 版本, 非 None).
-                            let sdk_v = crate::resolver::actual_bmd_sdk_version();
+                            let sdk_v = crate::resolver::declared_bmd_sdk_version();
                             let gst_v = crate::resolver::actual_gstreamer_version();
                             let plugin_v = crate::resolver::actual_decklink_plugin_version()
                                 .unwrap_or_else(|| "unknown".to_string());
+                            // P1-1: 真实运行时 SDK 身份 provenance (build include + libDeckLinkAPI.so).
+                            tracing::info!(detected_sdk = %crate::resolver::detected_bmd_sdk_version(), "BMD SDK runtime identity (provenance)");
                             for w in m.validate_environment(Some(&sdk_v), Some(&plugin_v), Some(&gst_v)) {
                                 tracing::warn!(warning = %w, "device-binding manifest 版本校验");
                             }
@@ -487,7 +497,8 @@ fn main() {
                         "state": st,
                         "devices": device_count,
                         "active_pipelines": active,
-                        "dropped_bus_events": dropped
+                        "dropped_bus_events": dropped,
+                        "clock_lost_events": crate::pipeline::clock_lost_events()
                     })
                     .to_string();
                     let resp = format!(
@@ -602,7 +613,33 @@ fn spawn_ingest_watchdog(
                         crate::pipeline::PipelineBusEventKind::Eos => {
                             g.acceptance.c_unexpected_eos += 1;
                         }
-                        _ => {}
+                        // P1-4 最低策略映射 (bus_event_recovery_policy): ClockLost = degraded, 不自动重启.
+                        crate::pipeline::PipelineBusEventKind::ClockLost => {
+                            crate::pipeline::CLOCK_LOST_EVENTS
+                                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            tracing::warn!(
+                                handle = %handle.0,
+                                severity = ?e.severity,
+                                detail = %e.detail,
+                                policy = crate::pipeline::bus_event_recovery_policy(e.kind),
+                                "Bus ClockLost: 标记 degraded, 不触发重启 (完整 Clock Recovery 属 V0.3/P2)"
+                            );
+                        }
+                        crate::pipeline::PipelineBusEventKind::Warning => {
+                            tracing::warn!(
+                                handle = %handle.0,
+                                severity = ?e.severity,
+                                detail = %e.detail,
+                                "Bus Warning (可恢复异常, 记录不重启)"
+                            );
+                        }
+                        crate::pipeline::PipelineBusEventKind::StateChanged => {
+                            tracing::info!(
+                                handle = %handle.0,
+                                detail = %e.detail,
+                                "Bus StateChanged (生命周期事件)"
+                            );
+                        }
                     }
                 }
                 bus_events = g.bus_event_count;

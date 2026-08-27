@@ -45,6 +45,15 @@ pub fn last_fatal_bus_event() -> Option<PipelineBusEvent> {
     LAST_FATAL_BUS_EVENT.lock().unwrap().clone()
 }
 
+/// ClockLost 事件累计计数 (P1-4 最低策略: ClockLost = degraded, 不自动重启; 完整 Clock Recovery 属 V0.3/P2).
+/// 即便 channel 不丢, 仍独立计数以便健康面暴露 "AV 同步降级" 信号.
+pub static CLOCK_LOST_EVENTS: AtomicU64 = AtomicU64::new(0);
+
+/// ClockLost 累计计数 (P1-4 降级 metric), 由 `/health` 暴露.
+pub fn clock_lost_events() -> u64 {
+    CLOCK_LOST_EVENTS.load(Ordering::SeqCst)
+}
+
 /// 媒体源选择模式 — 决定 GStreamer `decklinkvideosrc` 的选卡属性.
 /// 语义必须无歧义 (用户复核 §五): 生产路径不得伪装成 "诊断 fallback".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -532,6 +541,20 @@ pub enum PipelineBusEventKind {
     Warning,
     /// ClockLost 等 AV 同步相关 (PIPELINE-AV 后续消费; 当前仅记录).
     ClockLost,
+}
+
+/// Bus 事件 → Supervisor 恢复策略 (P1-4 最低策略映射, 用户复核 §十二):
+/// - `Error` / `Eos`     : 致命 → 触发 Supervisor `report_failure` (重启/升级).
+/// - `ClockLost`         : 降级 (degraded), **不**自动重启 (完整 Clock Recovery 属 V0.3/P2); 仅计数 + 健康降级.
+/// - `Warning`           : 告警, 记录 + 日志, 不重启.
+/// - `StateChanged`      : 信息, 仅生命周期日志.
+pub fn bus_event_recovery_policy(kind: PipelineBusEventKind) -> &'static str {
+    match kind {
+        PipelineBusEventKind::Error | PipelineBusEventKind::Eos => "restart",
+        PipelineBusEventKind::ClockLost => "degraded",
+        PipelineBusEventKind::Warning => "warn",
+        PipelineBusEventKind::StateChanged => "info",
+    }
 }
 
 /// GStreamer Bus 事件 (监控线程消费, 喂 Supervisor 决策).
