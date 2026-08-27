@@ -64,12 +64,88 @@ pub enum Confidence {
 #[derive(Debug, Clone)]
 pub enum GstProbeOutcome {
     /// 探测成功 — 拿到 `decklinkvideosrc` 实例运行时属性列表.
-    Available(Vec<GStreamerDeviceProbe>),
+    /// `errors` 收集各 `device-number` 的**分类失败原因** (见 `ProbeError`); 即便 `probes` 为空,
+    /// 只要 `errors` 非空即表示 "有卡但打不开", 与 `Empty` (本机确无卡) 严格区分.
+    Available {
+        probes: Vec<GStreamerDeviceProbe>,
+        errors: Vec<(u32, ProbeError)>,
+    },
     /// 探测方法本身不可用 (GStreamer 未初始化 或 `decklinkvideosrc` 工厂缺失 / decklink 插件未安装).
     /// 这是 "方法不可用", **不是** "设备未解析" — 绝不能等同 `Unresolved` 误导现场 (用户复核 §九).
     Unavailable(String),
     /// 探测正常执行但枚举到 0 个 DeckLink 实例 (本机确无可用采集卡). 与 `Unavailable` 完全不同.
+    /// 仅当 `probes` 与 `errors` 同时为空时成立.
     Empty,
+}
+
+/// 单设备探测失败分类 (用户 §⑥ / §九 P1: 必须区分失败原因, 不能全压成 `None` 让调用方误判为 "无此卡").
+///
+/// - `OpenFailed`     : `decklinkvideosrc`/fakesink 创建或 Pipeline 装配失败 (插件/运行时问题, 非设备问题).
+/// - `NotFound`       : 该 `device-number` 对应采集卡不存在 (set_state 失败且 GError 指向无设备/找不到).
+/// - `Busy`           : 采集卡存在但被其它进程/会话占用, 打开失败.
+/// - `StateFailed`    : 设备存在但进入 `Playing` 状态失败 (硬件/状态错误); GStreamer 未暴露明细时的兜底分类.
+/// - `PropertyMissing`: 设备已打开, 但 `hw-serial-number`/`persistent-id`/`model` 全部缺失, 无法建立身份.
+///
+/// `NotFound`/`Busy` 由 pipeline bus 上的 GError 文案 best-effort 启发式归类; 无法判定时归 `StateFailed`
+/// (携带原始错误文案), 绝不静默丢弃.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProbeError {
+    OpenFailed(String),
+    NotFound,
+    Busy,
+    StateFailed(String),
+    PropertyMissing(Vec<String>),
+}
+
+impl std::fmt::Display for ProbeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProbeError::OpenFailed(s) => write!(f, "OpenFailed: {s}"),
+            ProbeError::NotFound => write!(f, "NotFound: 该 device-number 无对应采集卡"),
+            ProbeError::Busy => write!(f, "Busy: 采集卡被其它进程/会话占用"),
+            ProbeError::StateFailed(s) => write!(f, "StateFailed: {s}"),
+            ProbeError::PropertyMissing(v) => write!(f, "PropertyMissing: 缺失关键身份属性 {v:?}"),
+        }
+    }
+}
+
+/// 由 GStreamer bus 上的 GError 文案 best-effort 归类 set_state 失败原因 (见 `ProbeError`).
+#[cfg(feature = "gstreamer")]
+fn classify_set_state_error(n: u32, msg: &str) -> ProbeError {
+    let m = msg.to_ascii_lowercase();
+    if m.contains("already in use")
+        || m.contains("device or resource busy")
+        || m.contains("in use")
+        || m.contains("busy")
+    {
+        ProbeError::Busy
+    } else if m.contains("no device")
+        || m.contains("no such")
+        || m.contains("not found")
+        || m.contains("could not find")
+        || m.contains("does not exist")
+        || m.contains("no decklink")
+    {
+        ProbeError::NotFound
+    } else {
+        ProbeError::StateFailed(format!("device-number {n}: {msg}"))
+    }
+}
+
+/// 从 pipeline bus 抽取首个 `Error` 消息 (设备打开失败的 GError 在此异步送达). 仅消费已排队消息, 不阻塞.
+#[cfg(feature = "gstreamer")]
+fn drain_bus_error(pipeline: &gstreamer::Pipeline) -> Option<String> {
+    use gstreamer::prelude::*;
+    let bus = pipeline.bus()?;
+    let mut first: Option<String> = None;
+    while let Some(msg) = bus.pop() {
+        if let gstreamer::MessageView::Error(e) = msg.view() {
+            if first.is_none() {
+                first = Some(format!("{}", e.error()));
+            }
+        }
+    }
+    first
 }
 
 /// 直接 probe `decklinkvideosrc` 实例, 物化 SDK DeviceHandle → GStreamer `device-number`.
@@ -102,42 +178,55 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
         );
     }
     let mut probes = Vec::new();
+    let mut errors: Vec<(u32, ProbeError)> = Vec::new();
     for n in 0..(max as u32) {
-        if let Some(p) = probe_one_device_number(n) {
-            probes.push(p);
+        match probe_one_device_number(n) {
+            Ok(p) => probes.push(p),
+            Err(e) => errors.push((n, e)),
         }
     }
-    if probes.is_empty() {
+    if probes.is_empty() && errors.is_empty() {
         return GstProbeOutcome::Empty;
     }
-    GstProbeOutcome::Available(probes)
+    GstProbeOutcome::Available { probes, errors }
 }
 
-/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 不存在/打不开返回 `None`
-/// (视为该序号无可用采集卡, 不计入 probes, 避免 ghost 设备导致 `Ambiguous`).
+/// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 失败按 `ProbeError`
+/// 分类返回 (见枚举文档), **绝不** 把 "卡存在但打不开" 与 "无此卡" 混为一谈 (用户 §⑥).
 #[cfg(feature = "gstreamer")]
-fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
+fn probe_one_device_number(n: u32) -> Result<GStreamerDeviceProbe, ProbeError> {
     use gstreamer::prelude::*;
     let pipeline = gstreamer::Pipeline::default();
+    // 元素创建/装配失败 = 插件或运行时问题, 与具体设备无关 → OpenFailed.
     let el = gstreamer::ElementFactory::make("decklinkvideosrc")
         .build()
-        .ok()?;
+        .map_err(|e| ProbeError::OpenFailed(format!("decklinkvideosrc 创建失败: {e}")))?;
     // 以 device-number 绑定目标采集卡 (GStreamer 运行时地址).
     el.set_property("device-number", n as i32);
     // live source 需置于 Pipeline (并接 fakesink) 才被驱动; 裸 Element 直接 set_state 不会执行
     // start(), 故 hw-serial-number 恒为 null. Pipeline 设 PLAYING 才 fully-active 并填充只读身份属性
     // (hw-serial-number 等); 即便无信号 (Signal lost) 设备也已打开, 身份属性应已可读.
-    let sink = gstreamer::ElementFactory::make("fakesink").build().ok()?;
-    pipeline.add(&el).ok()?;
-    pipeline.add(&sink).ok()?;
-    el.link(&sink).ok()?;
+    let sink = gstreamer::ElementFactory::make("fakesink").build()
+        .map_err(|e| ProbeError::OpenFailed(format!("fakesink 创建失败: {e}")))?;
+    pipeline.add(&el).map_err(|e| ProbeError::OpenFailed(format!("pipeline.add(src) 失败: {e}")))?;
+    pipeline.add(&sink)
+        .map_err(|e| ProbeError::OpenFailed(format!("pipeline.add(sink) 失败: {e}")))?;
+    el.link(&sink).map_err(|e| ProbeError::OpenFailed(format!("link 失败: {e}")))?;
+    // 进 PLAYING 真正打开设备. set_state 同步结果 + 异步失败均可能在 bus 上报 GError:
+    // 对 live source, 设备打开失败 (卡不存在/被占用/硬件错误) 通常以异步 Error message 送达 bus,
+    // 故这里既看同步返回值也 drain bus.
     let playing = pipeline.set_state(gstreamer::State::Playing);
-    if playing.is_err() {
-        let _ = pipeline.set_state(gstreamer::State::Null);
-        return None;
-    }
-    // 少量延时兜底 live source 异步 preroll, 确保设备已打开、身份属性已填充.
+    // 少量延时兜底 live source 异步 preroll/错误上报, 确保设备已打开或错误已入队.
     std::thread::sleep(std::time::Duration::from_millis(300));
+    let err_msg: Option<String> = match playing {
+        Ok(_) => drain_bus_error(&pipeline),
+        Err(_) => drain_bus_error(&pipeline)
+            .or_else(|| Some("set_state(Playing) 同步返回失败 (无 bus 错误明细)".to_string())),
+    };
+    if let Some(msg) = err_msg {
+        let _ = pipeline.set_state(gstreamer::State::Null);
+        return Err(classify_set_state_error(n, &msg));
+    }
     // 读取只读属性 (find_property 守卫防缺属性 panic; NULL 字符串用 Option<String> 归 None).
     let hw_serial_number = el.find_property("hw-serial-number").and_then(|_| {
         non_empty(
@@ -158,11 +247,21 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     let model = el
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
-    // 释放设备. 注: 只要 set_state(Playing) 成功 (=设备已打开=真实采集卡) 即计入 probe,
-    // 即便 hw-serial-number 为空 (本硬件可能不暴露 serial); 最终匹配/Unresolved 由 resolve() 决定,
-    // 绝不在此静默丢弃已打开的卡 (曾因空 serial 被 ghost 判定吞掉, 导致 C1 输出恒为 Empty).
+    // 设备已打开但无任何身份属性 → 无法建立身份 (区别于 "无此卡", 归 PropertyMissing).
+    // 注: 当前硬件 hw-serial-number 恒暴露 (= DeviceHandle), 此分支为退化保护, 不会误伤正常卡.
+    if hw_serial_number.is_none() && persistent_id.is_none() && model.is_none() {
+        let missing = vec![
+            "hw-serial-number".to_string(),
+            "persistent-id".to_string(),
+            "model".to_string(),
+        ];
+        let _ = pipeline.set_state(gstreamer::State::Null);
+        return Err(ProbeError::PropertyMissing(missing));
+    }
+    // 释放设备. 只要 set_state(Playing) 成功 (=设备已打开=真实采集卡) 即计入 probe,
+    // 即便 hw-serial-number 为空 (本硬件可能不暴露 serial); 最终匹配/Unresolved 由 resolve() 决定.
     let _ = pipeline.set_state(gstreamer::State::Null);
-    Some(GStreamerDeviceProbe {
+    Ok(GStreamerDeviceProbe {
         device_number: n,
         hw_serial_number,
         persistent_id,

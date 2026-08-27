@@ -60,7 +60,7 @@ fn main() {
     if std::env::var("VBMF_RESOLVER").is_ok() {
         let outcome = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
         match outcome {
-            crate::resolver::GstProbeOutcome::Available(probes) => {
+            crate::resolver::GstProbeOutcome::Available { probes, errors } => {
                 // 原始 GStreamer 枚举 (device-number / hw-serial-number / persistent-id / signal) —
                 // 现场直接比对 SDK DeviceHandle / serial 是否等于 GStreamer hw-serial-number (C 设计待证关系).
                 match serde_json::to_string_pretty(&probes) {
@@ -69,6 +69,14 @@ fn main() {
                         println!("{json}");
                     }
                     Err(e) => eprintln!("gstreamer probes 序列化失败: {e}"),
+                }
+                // 各 device-number 的分类失败原因: 不再全压成 None 让现场误判为 "无此卡"
+                // (用户 §⑥ / §九 P1). 例如 Busy=被别进程占用, NotFound=该序号无卡, OpenFailed=插件/运行时问题.
+                if !errors.is_empty() {
+                    println!("=== C1 Probe Errors (device-number -> 分类失败原因) ===");
+                    for (n, e) in &errors {
+                        println!("  device-number {n}: {e}");
+                    }
                 }
                 // 解析: 若提供 DeviceBindingManifest (MEDIA_AGENT_DEVICE_BINDING) 走权威路径,
                 // 否则回退 legacy runtime auto-resolver (生产应禁用, 用户 §11/§12).
@@ -310,7 +318,17 @@ fn main() {
             let gst_probes = match crate::resolver::probe_gstreamer_devices(
                 crate::resolver::MAX_PROBE_DEVICES,
             ) {
-                crate::resolver::GstProbeOutcome::Available(v) => v,
+                crate::resolver::GstProbeOutcome::Available { probes, errors } => {
+                    // 生产路径: 把分类后的单设备探测失败原因记录为 warning, 绝不静默丢弃 (用户 §⑥).
+                    for (n, e) in &errors {
+                        tracing::warn!(
+                            device_number = n,
+                            error = %e,
+                            "GStreamer 单设备探测失败 (已分类, 不再静默丢弃)"
+                        );
+                    }
+                    probes
+                }
                 // Unavailable / Empty → 无可用绑定; materialize 走拒绝路径, 绝不盲开 device 0.
                 _ => Vec::new(),
             };
