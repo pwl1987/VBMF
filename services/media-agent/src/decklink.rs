@@ -49,6 +49,7 @@ pub struct BmdDeviceIdentity {
 
 #[cfg(feature = "bmd")]
 mod imp {
+    use super::BmdDeviceIdentity;
     use libloading::{Library, Symbol};
     use std::ffi::{CStr, OsStr};
     use std::os::raw::{c_char, c_void};
@@ -798,6 +799,7 @@ mod imp {
 
 #[cfg(not(feature = "bmd"))]
 mod imp {
+    use super::BmdDeviceIdentity;
     pub fn enumerate() -> Result<Vec<BmdDeviceIdentity>, String> {
         Err(
             "未编译 bmd feature —— 请使用 `--features bmd` 并设 \
