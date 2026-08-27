@@ -14,10 +14,17 @@
 use crate::device::{DeviceInfo, IdentityStrength};
 use crate::graph_intent::GraphRuntimeIntent;
 #[cfg(feature = "gstreamer")]
+use gstreamer::prelude::*;
+#[cfg(feature = "gstreamer")]
 use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use uuid::Uuid;
+
+/// 全局唯一 pipeline 句柄计数器 (P1-1: 多 controller 共用全局 `HEALTH_ARCS` 时避免 handle 碰撞).
+static NEXT_PIPELINE_ID: AtomicU64 = AtomicU64::new(1);
 
 /// 媒体源选择模式 — 决定 GStreamer `decklinkvideosrc` 的选卡属性.
 /// 语义必须无歧义 (用户复核 §五): 生产路径不得伪装成 "诊断 fallback".
@@ -99,6 +106,9 @@ pub struct PipelineHealth {
     pub acceptance: MediaRt01Acceptance,
     /// 管线启动时刻 (UNIX 秒) — C 稳定性窗口计时起点 (watchdog 计算 observed_ms).
     pub started_at: Option<i64>,
+    /// 管线是否已进入 PLAYING (`start()` 成功后置 true; recover 停止时置 false).
+    /// watchdog 据此推导 `a3_pipeline_playing` (P1-2: 不得靠 default=true 蒙混).
+    pub playing: bool,
 }
 
 impl PipelineHealth {
@@ -124,13 +134,13 @@ impl Default for PipelineHealth {
             audio_first_pts: None,
             video_last_pts: None,
             audio_last_pts: None,
-            // `pts_monotonic` 起始为 `true` (absence-of-evidence = pass, 直到 appsink 回调观测到
-            // PTS 回退才证伪); 其余字段取类型默认值. 注意 `acceptance.b4_pts_monotonic` 每轮由
-            // watchdog 从 `pts_monotonic` 拷贝 (main.rs), 故此处 `true` 是 B4 可达标的真正来源.
-            pts_monotonic: true,
+            // `pts_monotonic` 起始 `false`: 无帧即"未观测到单调", 不得 absence-of-evidence = pass
+            // (用户复核 §十一/§十 P1-2). appsink 回调在观测到首帧有效 PTS 时置 `true`, 回退时置 `false`.
+            pts_monotonic: false,
             last_error: None,
             acceptance: MediaRt01Acceptance::default(),
             started_at: None,
+            playing: false,
         }
     }
 }
@@ -196,19 +206,23 @@ impl MediaRt01Acceptance {
 
 impl Default for MediaRt01Acceptance {
     fn default() -> Self {
+        // P1-2: 默认全 `false` — "Default Health = all PASS" 不合理. 各**正向成就**项
+        // (身份/租约/播放/信号/首帧/有效PTS/单调/计数增长) 由真实运行时事件逐项置 true;
+        // 从未观测到 = 未通过, 绝不 absence-of-evidence = PASS. 负向项 (c1/c2/c3 无错误)
+        // 由 watchdog 从对应计数器推导 (见 main.rs).
         Self {
-            a1_identity_resolved: true,
-            a2_lease_acquired: true,
-            a3_pipeline_playing: true,
-            a4_signal_detected: true,
-            b1_first_video: true,
-            b2_first_audio: true,
-            b3_valid_pts: true,
-            b4_pts_monotonic: true,
-            c1_no_unexpected_eos: true,
-            c2_no_pipeline_error: true,
-            c3_no_repeated_reneg: true,
-            c4_counters_continue: true,
+            a1_identity_resolved: false,
+            a2_lease_acquired: false,
+            a3_pipeline_playing: false,
+            a4_signal_detected: false,
+            b1_first_video: false,
+            b2_first_audio: false,
+            b3_valid_pts: false,
+            b4_pts_monotonic: false,
+            c1_no_unexpected_eos: false,
+            c2_no_pipeline_error: false,
+            c3_no_repeated_reneg: false,
+            c4_counters_continue: false,
             c_observed_ms: None,
             c_configured_window_ms: 10_000,
             c_video_frames: 0,
@@ -252,11 +266,27 @@ pub trait PipelineController {
 pub struct PipelineHandle(pub u64);
 
 /// GStreamer 实现 (feature `gstreamer`).
-pub struct GStreamerPipelineController;
+pub struct GStreamerPipelineController {
+    /// 运行时 pipeline 实例 (GStreamer Bin 对 + 物化计划), 供 start/recover 操作 (P0-2 修复核心:
+    /// 旧 `launch()` 内部 Bin 未留存, start/recover 无对象可操作). 非 gstreamer 构建无此字段.
+    #[cfg(feature = "gstreamer")]
+    instances: Mutex<HashMap<PipelineHandle, GstInstance>>,
+}
+
+/// 运行时 pipeline 实例 (仅 gstreamer 构建存在).
+#[cfg(feature = "gstreamer")]
+struct GstInstance {
+    video: gstreamer::Bin,
+    audio: gstreamer::Bin,
+    plan: PipelinePlan,
+}
 
 impl GStreamerPipelineController {
     pub fn new() -> Self {
-        GStreamerPipelineController
+        Self {
+            #[cfg(feature = "gstreamer")]
+            instances: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -268,18 +298,104 @@ impl Default for GStreamerPipelineController {
 
 impl PipelineController for GStreamerPipelineController {
     fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
-        let _ = plan;
-        Ok(PipelineHandle(1))
+        #[cfg(feature = "gstreamer")]
+        {
+            let handle = PipelineHandle(NEXT_PIPELINE_ID.fetch_add(1, Ordering::SeqCst));
+            let (video, audio) = self.build_bins(plan, handle)?;
+            // 注册健康 (默认全 false — P1-2; 由真实事件逐项置 true).
+            HEALTH_ARCS
+                .lock()
+                .unwrap()
+                .insert(handle, Arc::new(Mutex::new(PipelineHealth::default())));
+            if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(&handle) {
+                hp.lock().unwrap().started_at = Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0),
+                );
+            }
+            self.instances
+                .lock()
+                .unwrap()
+                .insert(handle, GstInstance { video, audio, plan: plan.clone() });
+            Ok(handle)
+        }
+        #[cfg(not(feature = "gstreamer"))]
+        {
+            let _ = plan;
+            Ok(PipelineHandle(1))
+        }
     }
 
     fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
-        let _ = handle;
-        Ok(())
+        #[cfg(feature = "gstreamer")]
+        {
+            {
+                let guard = self.instances.lock().unwrap();
+                let inst = guard.get(handle).ok_or_else(|| {
+                    PipelineError::StartFailed(format!("未知 pipeline handle (start): {handle:?}"))
+                })?;
+                inst.video
+                    .set_state(gstreamer::State::Playing)
+                    .map_err(|e| PipelineError::StartFailed(format!("video play: {e}")))?;
+                inst.audio
+                    .set_state(gstreamer::State::Playing)
+                    .map_err(|e| PipelineError::StartFailed(format!("audio play: {e}")))?;
+            }
+            // 标记 playing (watchdog 推导 a3_pipeline_playing). 此处与 instances 锁不嵌套, 避免死锁.
+            if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(handle) {
+                hp.lock().unwrap().playing = true;
+            }
+            Ok(())
+        }
+        #[cfg(not(feature = "gstreamer"))]
+        {
+            let _ = handle;
+            Ok(())
+        }
     }
 
     fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
-        let _ = handle;
-        Ok(())
+        #[cfg(feature = "gstreamer")]
+        {
+            let plan = {
+                let guard = self.instances.lock().unwrap();
+                guard
+                    .get(handle)
+                    .map(|i| i.plan.clone())
+                    .ok_or_else(|| {
+                        PipelineError::StartFailed(format!(
+                            "未知 pipeline handle (recover): {handle:?}"
+                        ))
+                    })?
+            };
+            // 停止并丢弃旧实例 (释放 DeckLink 设备).
+            if let Some(old) = self.instances.lock().unwrap().remove(handle) {
+                let _ = old.video.set_state(gstreamer::State::Null);
+                let _ = old.audio.set_state(gstreamer::State::Null);
+            }
+            let (video, audio) = self.build_bins(&plan, *handle)?;
+            video
+                .set_state(gstreamer::State::Playing)
+                .map_err(|e| PipelineError::StartFailed(format!("video play: {e}")))?;
+            audio
+                .set_state(gstreamer::State::Playing)
+                .map_err(|e| PipelineError::StartFailed(format!("audio play: {e}")))?;
+            self.instances
+                .lock()
+                .unwrap()
+                .insert(*handle, GstInstance { video, audio, plan });
+            if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(handle) {
+                hp.lock().unwrap().playing = true;
+            }
+            Ok(())
+        }
+        #[cfg(not(feature = "gstreamer"))]
+        {
+            let _ = handle;
+            Ok(())
+        }
     }
 }
 
@@ -307,16 +423,19 @@ pub enum PipelineBusEvent {
 }
 
 impl GStreamerPipelineController {
-    /// 真实 GStreamer launch (feature = "gstreamer").
-    /// 构造 decklinkvideosrc/audiosrc → video/x-raw → appsink 的采集 pipeline,
-    /// 注册 bus 监控 + appsink 回调 (首帧/PTS 探测).
+    /// 构造 decklinkvideosrc/audiosrc → video/x-raw → appsink 的采集 pipeline (P0-2 修复核心).
+    /// 仅构建 + 注册 appsink 回调, **不**立即 Playing; Playing 由 `PipelineController::start` 负责
+    /// (统一生命周期: prepare 构建 → start 播放 → recover 重建+播放). 旧 `launch()` 已被此拆分取代,
+    /// 不再作为绕过 `PipelineController` 的第二入口.
     ///
     /// 注: appsink 当前用作 MEDIA-RT-01 首帧/PTS acceptance 探针; 最终生产媒体出口
-    /// (Normalize → FRAME/MASTER SWITCH → Encode → SRS) 待 A2+ 实现, 不作为当前
-    /// first-frame 验收的生产数据出口 (用户复核 §十三).
+    /// (Normalize → FRAME/MASTER SWITCH → Encode → SRS) 待 A2+ 实现 (用户复核 §十三).
     #[cfg(feature = "gstreamer")]
-    pub fn launch(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
-        use gstreamer::prelude::*;
+    fn build_bins(
+        &self,
+        plan: &PipelinePlan,
+        handle: PipelineHandle,
+    ) -> Result<(gstreamer::Bin, gstreamer::Bin), PipelineError> {
         gstreamer::init().map_err(|e| PipelineError::StartFailed(format!("gst init: {e}")))?;
         let (video_src, audio_src) = src_props(plan);
         let video_pipeline_str = format!(
@@ -344,29 +463,10 @@ impl GStreamerPipelineController {
             .and_then(|e| e.dynamic_cast::<AppSink>().ok())
             .ok_or_else(|| PipelineError::StartFailed("audiosink cast".into()))?;
 
-        let h = PipelineHandle(1);
-        HEALTH_ARCS
-            .lock()
-            .unwrap()
-            .insert(h, Arc::new(Mutex::new(PipelineHealth::default())));
-        // 启动即开始 C 稳定性窗口计时 (watchdog 用 started_at 计算 observed_ms).
-        if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(&h) {
-            hp.lock().unwrap().started_at = Some(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs() as i64)
-                    .unwrap_or(0),
-            );
-        }
+        self.attach_video_sink(&v_appsink, handle);
+        self.attach_audio_sink(&a_appsink, handle);
 
-        self.attach_video_sink(&v_appsink, h);
-        self.attach_audio_sink(&a_appsink, h);
-
-        vp.set_state(gstreamer::State::Playing)
-            .map_err(|e| PipelineError::StartFailed(format!("video play: {e}")))?;
-        ap.set_state(gstreamer::State::Playing)
-            .map_err(|e| PipelineError::StartFailed(format!("audio play: {e}")))?;
-        Ok(h)
+        Ok((vp, ap))
     }
 
     /// 注册视频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B).
@@ -387,12 +487,14 @@ impl GStreamerPipelineController {
                             if h.video_first_pts.is_none() {
                                 h.video_first_pts = Some(pts);
                             }
-                            // 真正单调性 (用户复核 §十一): 与上一帧比较, 回退即非单调.
-                            // 无 PTS 帧 (None) 已在上方跳过, 不污染判定.
+                            // 真正单调性 (用户复核 §十一): 首帧有效 PTS 即视为单调起点,
+                            // 与上一帧比较, 回退即非单调. 无 PTS 帧 (None) 已在上方跳过, 不污染判定.
                             if let Some(last) = h.video_last_pts {
                                 if pts < last {
                                     h.pts_monotonic = false;
                                 }
+                            } else {
+                                h.pts_monotonic = true;
                             }
                             h.video_last_pts = Some(pts);
                         }

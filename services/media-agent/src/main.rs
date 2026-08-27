@@ -382,8 +382,11 @@ fn spawn_ingest_watchdog(
                 g.acceptance.b1_first_video = g.video_first_pts.is_some();
                 g.acceptance.b2_first_audio = g.audio_first_pts.is_some();
                 g.acceptance.b3_valid_pts = g.video_first_pts.is_some();
+                g.acceptance.a3_pipeline_playing = g.playing;
                 g.acceptance.b4_pts_monotonic = g.pts_monotonic;
+                g.acceptance.c1_no_unexpected_eos = g.acceptance.c_unexpected_eos == 0;
                 g.acceptance.c2_no_pipeline_error = g.last_error.is_none();
+                g.acceptance.c3_no_repeated_reneg = g.acceptance.c_renegotiations == 0;
                 let v = g.video_frame_count;
                 let a = g.audio_frame_count;
                 g.acceptance.c4_counters_continue = v > prev_video && a > prev_audio;
