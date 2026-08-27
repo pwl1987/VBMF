@@ -116,6 +116,43 @@ pub fn evaluate_signal_probe(
     }
 }
 
+/// 信号内容分类验收失败原因 (失败闭合).
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum SignalContentError {
+    /// 信号态不足以信托内容 (NoSignal/Unknown/Unsupported/ProbeFailed) — 必须拒, 绝不假设内容.
+    #[error("内容不可信 (信号态={0:?}): 不得据此断言内容满足期望")]
+    Insufficient(SignalState),
+    /// 实际内容未满足期望 (如期望 Active 却 Black/Frozen/Unknown).
+    #[error("内容不满足期望: actual={actual:?} expected={expected:?}")]
+    NotSatisfied {
+        actual: VideoContentState,
+        expected: VideoContentState,
+    },
+}
+
+/// 失败闭合的内容分类验收: 内容仅在信号可信 (`Locked`) 时方有意义.
+/// 当期望具体内容 (Black/Active/Frozen/TestPattern) 时, 实际内容须 == 期望, 否则拒;
+/// 信号态不可信 (NoSignal/Unknown/Unsupported/ProbeFailed) 时绝不假设内容满足期望.
+/// 与 `evaluate_signal_probe`(信号态维度) 互为 STEP 7/8 双门, 共同构成失败闭合验收.
+pub fn evaluate_signal_content(
+    result: &SignalProbeResult,
+    expected: VideoContentState,
+) -> Result<(), SignalContentError> {
+    match result.state {
+        SignalState::Locked => {
+            if result.content == expected {
+                Ok(())
+            } else {
+                Err(SignalContentError::NotSatisfied {
+                    actual: result.content,
+                    expected,
+                })
+            }
+        }
+        other => Err(SignalContentError::Insufficient(other)),
+    }
+}
+
 /// 探测某 GStreamer device-number 的当前信号状态 + 内容 (gstreamer 构建).
 ///
 /// 先读 `signal` 属性与协商 caps; 若信号锁定, 拉取少量 I420 样本做亮度统计并分类黑场/活动.
@@ -389,8 +426,6 @@ mod tests {
         assert_eq!(r.state, SignalState::Unsupported);
     }
 
-    use crate::fixture::ExpectedSignal;
-
     #[test]
     fn evaluate_accepts_locked_when_expected_locked() {
         // 回归: 实际 Locked == 期望 Locked ⇒ 通过.
@@ -457,6 +492,84 @@ mod tests {
         assert!(matches!(
             evaluate_signal_probe(&r, &exp),
             Err(SignalProbeError::NotSatisfied { .. })
+        ));
+    }
+
+    #[test]
+    fn evaluate_content_accepts_active_when_expected_active() {
+        // 回归: Locked + 实测 Active == 期望 Active ⇒ 通过.
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Active,
+        };
+        assert!(evaluate_signal_content(&r, VideoContentState::Active).is_ok());
+    }
+
+    #[test]
+    fn evaluate_content_accepts_black_when_expected_black() {
+        // 回归: Locked + 实测 Black == 期望 Black ⇒ 通过.
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Black,
+        };
+        assert!(evaluate_signal_content(&r, VideoContentState::Black).is_ok());
+    }
+
+    #[test]
+    fn evaluate_content_rejects_active_when_actual_black() {
+        // TDD(RED→GREEN): 期望 Active 但实测 Black ⇒ 失败闭合.
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Black,
+        };
+        assert!(matches!(
+            evaluate_signal_content(&r, VideoContentState::Active),
+            Err(SignalContentError::NotSatisfied { .. })
+        ));
+    }
+
+    #[test]
+    fn evaluate_content_rejects_nosignal_state_fails_closed() {
+        // 失败闭合: 无信号时内容不可信 ⇒ 拒 (绝不假设内容满足期望).
+        let r = SignalProbeResult {
+            state: SignalState::NoSignal,
+            video_format: None,
+            content: VideoContentState::NoSignal,
+        };
+        assert!(matches!(
+            evaluate_signal_content(&r, VideoContentState::Active),
+            Err(SignalContentError::Insufficient(_))
+        ));
+    }
+
+    #[test]
+    fn evaluate_content_rejects_unknown_state_fails_closed() {
+        // 失败闭合: 信号态未知时内容不可信 ⇒ 拒.
+        let r = SignalProbeResult {
+            state: SignalState::Unknown,
+            video_format: None,
+            content: VideoContentState::Unknown,
+        };
+        assert!(matches!(
+            evaluate_signal_content(&r, VideoContentState::Black),
+            Err(SignalContentError::Insufficient(_))
+        ));
+    }
+
+    #[test]
+    fn evaluate_content_rejects_unsupported_fails_closed() {
+        // 失败闭合: 非 gstreamer 构建返回 Unsupported ⇒ 内容不可信 ⇒ 拒.
+        let r = SignalProbeResult {
+            state: SignalState::Unsupported,
+            video_format: None,
+            content: VideoContentState::Unknown,
+        };
+        assert!(matches!(
+            evaluate_signal_content(&r, VideoContentState::Active),
+            Err(SignalContentError::Insufficient(_))
         ));
     }
 }
