@@ -64,7 +64,7 @@ fn main() {
     // 与 CAP-01 生产路径严格隔离: 命中即 exit(0), 绝不进入媒体 launch。
     #[cfg(feature = "gstreamer")]
     if std::env::var("VBMF_RESOLVER").is_ok() {
-        let outcome = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES);
+        let outcome = crate::resolver::probe_gstreamer_devices(crate::resolver::MAX_PROBE_DEVICES, _cfg.device_binding_path.is_none());
         match outcome {
             crate::resolver::GstProbeOutcome::Available { probes, errors } => {
                 // 原始 GStreamer 枚举 (device-number / hw-serial-number / persistent-id / signal) —
@@ -307,6 +307,7 @@ fn main() {
             #[cfg(feature = "gstreamer")]
             let gst_probes = match crate::resolver::probe_gstreamer_devices(
                 crate::resolver::MAX_PROBE_DEVICES,
+                _cfg.device_binding_path.is_none(),
             ) {
                 crate::resolver::GstProbeOutcome::Available { probes, errors } => {
                     // 生产路径: 把分类后的单设备探测失败原因记录为 warning, 绝不静默丢弃 (用户 §⑥).

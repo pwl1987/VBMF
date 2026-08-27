@@ -1,0 +1,26 @@
+{
+  "manifest_version": "1.0",
+  "machine_id": "10.30.15.10",
+  "generated_by": "hw-ident-02",
+  "generated_at": "2026-08-27",
+  "bmd_sdk_version": null,
+  "gst_decklink_plugin_version": null,
+  "gst_runtime_version": null,
+  "notes": "HW-IDENT-02 用: 采用 abda19f 已物理核实的 2 条目绑定 (#0 Mini Monitor 4K, #1 SDI Input 1)。SDI2 未纳入采集清单 (其 GStreamer device-number 待物理核实), 但其 SDK DeviceHandle 仍由 Resolver Evidence 捕获以复核冷启动稳定性。machine_id 与 harness 的 VBMF_MACHINE_ID 一致 (10.30.15.10), 使清单模式 machine 身份校验通过。",
+  "bindings": [
+    {
+      "label": "MINI-MON-4K",
+      "bmd_device_handle": "83:1a66443b:00000000",
+      "gst_device_number": 0,
+      "expected_hw_serial_number": null,
+      "expected_model": "DeckLink Mini Monitor 4K"
+    },
+    {
+      "label": "SDI-IN-1",
+      "bmd_device_handle": "46:00000000:002e4500",
+      "gst_device_number": 1,
+      "expected_hw_serial_number": null,
+      "expected_model": "DeckLink SDI"
+    }
+  ]
+}

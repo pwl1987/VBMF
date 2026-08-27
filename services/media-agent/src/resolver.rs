@@ -165,7 +165,7 @@ fn drain_bus_error(pipeline: &gstreamer::Pipeline) -> Option<String> {
 ///
 /// 返回 `GstProbeOutcome` 以区分 `Unavailable` / `Empty` / `Available` (见 §九).
 #[cfg(feature = "gstreamer")]
-pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
+pub fn probe_gstreamer_devices(max: usize, require_identity: bool) -> GstProbeOutcome {
     // GStreamer 初始化 (幂等). 失败 → 探测方法不可用 (非设备失败).
     if let Err(e) = gstreamer::init() {
         return GstProbeOutcome::Unavailable(format!("gstreamer init 失败: {e}"));
@@ -180,7 +180,7 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
     let mut probes = Vec::new();
     let mut errors: Vec<(u32, ProbeError)> = Vec::new();
     for n in 0..(max as u32) {
-        match probe_one_device_number(n) {
+        match probe_one_device_number(n, require_identity) {
             Ok(p) => probes.push(p),
             Err(e) => errors.push((n, e)),
         }
@@ -194,7 +194,7 @@ pub fn probe_gstreamer_devices(max: usize) -> GstProbeOutcome {
 /// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 失败按 `ProbeError`
 /// 分类返回 (见枚举文档), **绝不** 把 "卡存在但打不开" 与 "无此卡" 混为一谈 (用户 §⑥).
 #[cfg(feature = "gstreamer")]
-fn probe_one_device_number(n: u32) -> Result<GStreamerDeviceProbe, ProbeError> {
+fn probe_one_device_number(n: u32, require_identity: bool) -> Result<GStreamerDeviceProbe, ProbeError> {
     use gstreamer::prelude::*;
     let pipeline = gstreamer::Pipeline::default();
     // 元素创建/装配失败 = 插件或运行时问题, 与具体设备无关 → OpenFailed.
@@ -247,9 +247,12 @@ fn probe_one_device_number(n: u32) -> Result<GStreamerDeviceProbe, ProbeError> {
     let model = el
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
-    // 设备已打开但无任何身份属性 → 无法建立身份 (区别于 "无此卡", 归 PropertyMissing).
-    // 注: 当前硬件 hw-serial-number 恒暴露 (= DeviceHandle), 此分支为退化保护, 不会误伤正常卡.
-    if hw_serial_number.is_none() && persistent_id.is_none() && model.is_none() {
+    // 设备已打开但无任何身份属性:
+    // - 非清单模式 (require_identity=true): 无法建立身份 → 归 PropertyMissing (区别于 "无此卡").
+    // - 清单模式 (require_identity=false): 身份由 DeviceBindingManifest 显式契约提供, 不依赖
+    //   GStreamer 只读属性 (本硬件 hw-serial-number 等恒空串, 见 abda19f / device-binding.example.json),
+    //   故只要卡能打开 (set_state Playing 成功) 即计入 probe, 身份匹配交由 resolve_with_manifest.
+    if require_identity && hw_serial_number.is_none() && persistent_id.is_none() && model.is_none() {
         let missing = vec![
             "hw-serial-number".to_string(),
             "persistent-id".to_string(),
@@ -281,7 +284,7 @@ fn non_empty(s: String) -> Option<String> {
 }
 
 #[cfg(not(feature = "gstreamer"))]
-pub fn probe_gstreamer_devices(_max: usize) -> GstProbeOutcome {
+pub fn probe_gstreamer_devices(_max: usize, _require_identity: bool) -> GstProbeOutcome {
     // 非 gstreamer 构建: 探测方法不适用 (无 GStreamer 运行时). 真实探测仅 `gstreamer` feature 构建.
     GstProbeOutcome::Unavailable(
         "gstreamer feature 未启用; 非 gstreamer 构建不物化运行时地址".to_string(),
@@ -759,12 +762,21 @@ pub fn resolve_with_manifest(
                         ),
                     ),
                     Some(p) => {
+                        // 交叉校验: expected_* 为可选强化项. 运行时未暴露该属性 (actual=None,
+                        // 本硬件 hw-serial-number/model 恒空串) 视为 "无法校验" -> 跳过 (不失败闭合);
+                        // 仅当运行时实测值存在且与期望矛盾 (Some(x) != Some(exp)) 才失败闭合.
                         let serial_ok = match &b.expected_hw_serial_number {
-                            Some(exp) => p.hw_serial_number.as_deref() == Some(exp.as_str()),
+                            Some(exp) => match &p.hw_serial_number {
+                                Some(act) => act == exp,
+                                None => true,
+                            },
                             None => true,
                         };
                         let model_ok = match &b.expected_model {
-                            Some(exp) => p.model.as_deref() == Some(exp.as_str()),
+                            Some(exp) => match &p.model {
+                                Some(act) => act == exp,
+                                None => true,
+                            },
                             None => true,
                         };
                         if serial_ok && model_ok {
