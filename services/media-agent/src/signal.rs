@@ -9,6 +9,7 @@
 
 #![allow(dead_code)]
 
+use crate::fixture::ExpectedSignal;
 use crate::port::{SignalState, VideoContentState, VideoFormat};
 use serde::{Deserialize, Serialize};
 
@@ -82,6 +83,39 @@ pub struct SignalProbeResult {
     pub content: VideoContentState,
 }
 
+/// 信号探测验收失败原因 (失败闭合).
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum SignalProbeError {
+    /// 非 gstreamer 构建无法探测信号 (返回 Unsupported) — 必须显式拒, 绝不假装健康.
+    #[error("信号探测不可用 (当前构建无 gstreamer): state={0:?}")]
+    Unavailable(SignalState),
+    /// 实际信号态未满足期望 (如期望 Locked 却 NoSignal/Unknown/ProbeFailed).
+    #[error("信号态不满足期望: actual={actual:?} expected={expected:?}")]
+    NotSatisfied {
+        actual: SignalState,
+        expected: SignalState,
+    },
+}
+
+/// 失败闭合的信号探测验收: 实际态必须 == 期望态; 非 gstreamer 构建返回的 `Unsupported`
+/// 必须显式拒 (绝不静默通过). `probe_signal` 的产出经此门对照 `Fixture::ExpectedSignal`.
+pub fn evaluate_signal_probe(
+    result: &SignalProbeResult,
+    expected: &ExpectedSignal,
+) -> Result<(), SignalProbeError> {
+    if matches!(result.state, SignalState::Unsupported) {
+        return Err(SignalProbeError::Unavailable(result.state));
+    }
+    if result.state == expected.state {
+        Ok(())
+    } else {
+        Err(SignalProbeError::NotSatisfied {
+            actual: result.state,
+            expected: expected.state,
+        })
+    }
+}
+
 /// 探测某 GStreamer device-number 的当前信号状态 + 内容 (gstreamer 构建).
 ///
 /// 先读 `signal` 属性与协商 caps; 若信号锁定, 拉取少量 I420 样本做亮度统计并分类黑场/活动.
@@ -125,9 +159,10 @@ pub fn probe_signal(device_number: u32, sample_frames: u32) -> SignalProbeResult
     std::thread::sleep(std::time::Duration::from_millis(800));
 
     let src = pipeline.by_name("decklinkvideosrc0");
-    let signal = src
-        .as_ref()
-        .and_then(|el| el.find_property("signal").map(|_| el.property::<bool>("signal")));
+    let signal = src.as_ref().and_then(|el| {
+        el.find_property("signal")
+            .map(|_| el.property::<bool>("signal"))
+    });
     let caps = src
         .as_ref()
         .and_then(|el| el.static_pad("src"))
@@ -175,13 +210,10 @@ fn parse_caps(text: &str) -> Option<VideoFormat> {
         .nth(1)
         .and_then(|s| s.split([',', ')', ' ']).next())
         .map(|s| s.to_string());
-    let interlaced = text
-        .split("interlace-mode=(string)")
-        .nth(1)
-        .map(|s| {
-            let v = s.split([',', ')', ' ']).next().unwrap_or("");
-            v == "interleaved" || v == "mixed"
-        });
+    let interlaced = text.split("interlace-mode=(string)").nth(1).map(|s| {
+        let v = s.split([',', ')', ' ']).next().unwrap_or("");
+        v == "interleaved" || v == "mixed"
+    });
     Some(VideoFormat {
         width,
         height,
@@ -218,7 +250,13 @@ fn pull_luma(pipeline: &gstreamer::Pipeline, sample_frames: u32) -> Option<LumaS
                     // 尺寸从 caps 获取; 这里用 buffer 大小近似 (Y 平面 = 总字节 * 2/3 因 4:2:0).
                     let y_len = (data.len() * 2 / 3).max(1);
                     let (mean, std, min, max) = luma_stats(&data[..y_len]);
-                    let batch = LumaStats { mean, std, min, max, samples: 1 };
+                    let batch = LumaStats {
+                        mean,
+                        std,
+                        min,
+                        max,
+                        samples: 1,
+                    };
                     aggregate_luma(&mut acc, &batch);
                 }
             }
@@ -275,14 +313,26 @@ mod tests {
     fn black_when_low_mean_and_low_variance() {
         let t = BlackThresholds::default();
         // SDI 黑电平约 16, 近乎恒定 → Black.
-        let stats = LumaStats { mean: 16.0, std: 1.0, min: 15.0, max: 18.0, samples: 8 };
+        let stats = LumaStats {
+            mean: 16.0,
+            std: 1.0,
+            min: 15.0,
+            max: 18.0,
+            samples: 8,
+        };
         assert_eq!(classify_black(&stats, &t), VideoContentState::Black);
     }
 
     #[test]
     fn active_when_high_mean() {
         let t = BlackThresholds::default();
-        let stats = LumaStats { mean: 128.0, std: 40.0, min: 0.0, max: 255.0, samples: 8 };
+        let stats = LumaStats {
+            mean: 128.0,
+            std: 40.0,
+            min: 0.0,
+            max: 255.0,
+            samples: 8,
+        };
         assert_eq!(classify_black(&stats, &t), VideoContentState::Active);
     }
 
@@ -290,7 +340,13 @@ mod tests {
     fn active_when_high_variance_even_low_mean() {
         // HARD RULE: 不能用 "brightness==0 => black". 低均值但高方差 = 有内容 (非纯黑).
         let t = BlackThresholds::default();
-        let stats = LumaStats { mean: 18.0, std: 30.0, min: 0.0, max: 60.0, samples: 8 };
+        let stats = LumaStats {
+            mean: 18.0,
+            std: 30.0,
+            min: 0.0,
+            max: 60.0,
+            samples: 8,
+        };
         assert_eq!(classify_black(&stats, &t), VideoContentState::Active);
     }
 
@@ -303,8 +359,20 @@ mod tests {
 
     #[test]
     fn aggregate_combines_stats() {
-        let mut acc = LumaStats { mean: 16.0, std: 1.0, min: 15.0, max: 18.0, samples: 4 };
-        let batch = LumaStats { mean: 17.0, std: 1.5, min: 16.0, max: 19.0, samples: 4 };
+        let mut acc = LumaStats {
+            mean: 16.0,
+            std: 1.0,
+            min: 15.0,
+            max: 18.0,
+            samples: 4,
+        };
+        let batch = LumaStats {
+            mean: 17.0,
+            std: 1.5,
+            min: 16.0,
+            max: 19.0,
+            samples: 4,
+        };
         aggregate_luma(&mut acc, &batch);
         assert_eq!(acc.samples, 8);
         // 均值应为 (16*4 + 17*4)/8 = 16.5
@@ -319,5 +387,76 @@ mod tests {
         // default/simulation/bmd 构建返回 Unsupported (不 panic, 不触碰真实 GStreamer).
         let r = probe_signal(0, 1);
         assert_eq!(r.state, SignalState::Unsupported);
+    }
+
+    use crate::fixture::ExpectedSignal;
+
+    #[test]
+    fn evaluate_accepts_locked_when_expected_locked() {
+        // 回归: 实际 Locked == 期望 Locked ⇒ 通过.
+        let r = SignalProbeResult {
+            state: SignalState::Locked,
+            video_format: None,
+            content: VideoContentState::Unknown,
+        };
+        let exp = ExpectedSignal {
+            state: SignalState::Locked,
+            format: None,
+        };
+        assert!(evaluate_signal_probe(&r, &exp).is_ok());
+    }
+
+    #[test]
+    fn evaluate_rejects_nosignal_when_expected_locked() {
+        // TDD(RED→GREEN): 期望 Locked 但实际 NoSignal ⇒ 失败闭合 (绝不假装健康).
+        let r = SignalProbeResult {
+            state: SignalState::NoSignal,
+            video_format: None,
+            content: VideoContentState::NoSignal,
+        };
+        let exp = ExpectedSignal {
+            state: SignalState::Locked,
+            format: None,
+        };
+        assert!(matches!(
+            evaluate_signal_probe(&r, &exp),
+            Err(SignalProbeError::NotSatisfied { .. })
+        ));
+    }
+
+    #[test]
+    fn evaluate_rejects_unsupported_fails_closed() {
+        // TDD(RED→GREEN): 非 gstreamer 构建返回 Unsupported ⇒ 显式拒, 绝不通过 (无假健康).
+        let r = SignalProbeResult {
+            state: SignalState::Unsupported,
+            video_format: None,
+            content: VideoContentState::Unknown,
+        };
+        let exp = ExpectedSignal {
+            state: SignalState::Locked,
+            format: None,
+        };
+        assert!(matches!(
+            evaluate_signal_probe(&r, &exp),
+            Err(SignalProbeError::Unavailable(_))
+        ));
+    }
+
+    #[test]
+    fn evaluate_rejects_probe_failed() {
+        // TDD(RED→GREEN): 探测失败 (decklinkvideosrc 打不开等) ⇒ 失败闭合.
+        let r = SignalProbeResult {
+            state: SignalState::ProbeFailed,
+            video_format: None,
+            content: VideoContentState::Unknown,
+        };
+        let exp = ExpectedSignal {
+            state: SignalState::Locked,
+            format: None,
+        };
+        assert!(matches!(
+            evaluate_signal_probe(&r, &exp),
+            Err(SignalProbeError::NotSatisfied { .. })
+        ));
     }
 }
