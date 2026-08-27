@@ -6,7 +6,9 @@
   "verified_on_box": "2026-08-27",
   "verified_sha": "abda19f",
   "verified_note": "VBMF_RESOLVER=1 + MEDIA_AGENT_DEVICE_BINDING=/tmp/manifest.json 于 10.30.15.10 实跑确认 authority path: 清单声明 device-number 0(Mini Monitor, handle 83:1a66443b:00000000) 与 1(SDI1, handle 46:00000000:002e4500) 均 ManifestVerified; device-number 2(SDI2, 未在清单声明) 失败闭合 Unresolved. GStreamer decklinkvideosrc 本次实跑暴露 hw-serial-number == SDK DeviceHandle, 使交叉校验通过 (详见 notable_finding).",
-  "status": "IMPLEMENTED_AUTHORITY_PATH_VERIFIED",
+  "status": "current",
+  "acceptance_scope": ["diagnostic", "harness"],
+  "supersedes": [],
   "canonical_gate_status": "BLOCKED (HW-IDENT-02 真机采集仍待占设备跑通采集路径)",
   "summary": "新增 DeviceBindingManifest / BindingEntry (JSON serde, 由 Provisioning 维护). resolve_with_manifest 以清单为权威: 遍历声明条目 -> 用 GStreamer 探测对应 device-number 作为校验器 -> 交叉校验 probe.hw_serial_number == entry.sdk_device_handle. 任一失败(序号未打开 / 校验不符 / 设备不在清单) -> 失败闭合 Unresolved, 绝不猜. 生产 materialize 与 VBMF_RESOLVER 均支持 MEDIA_AGENT_DEVICE_BINDING; 缺失则 WARN 回退 legacy auto-resolver (生产应禁用); 清单加载失败 -> 拒绝 materialize. 盒上 VBMF_RESOLVER 实测 authority path 通过; 24 个 gstreamer 单测全绿; 5 个 manifest 单测覆盖 verified / fail-closed.",
   "manifest_schema": {

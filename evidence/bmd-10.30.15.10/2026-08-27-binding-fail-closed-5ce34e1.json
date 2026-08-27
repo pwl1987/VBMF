@@ -1,0 +1,42 @@
+{
+  "schema": "vbmf.binding-hardening/v1",
+  "status": "current",
+  "acceptance_scope": ["harness", "diagnostic", "production"],
+  "supersedes": [
+    "2026-08-27-device-binding-manifest-abda19f.json (refines: '生产应禁用 legacy' → '生产缺失 manifest 即失败闭合 reject'; 新增 machine mismatch / 唯一性失败闭合)"
+  ],
+  "design_decision": "Production Binding 失败闭合硬化 (用户 §四/五/六/十四/十七/十八): 把 DeviceBindingManifest 从'权威但带 WARN 回退'升级为'生产唯一且失败闭合'的绑定契约, 同步把 CI fmt/clippy 从 advisory 升级为 required。",
+  "test_subject_sha": "5ce34e1",
+  "environment_base_sha": "5d5f6cb",
+  "verified_on_box": "2026-08-27",
+  "verified_note": "盒上 10.30.15.10: cargo fmt --all 干净; cargo clippy --all-targets --features bmd,gstreamer -- -D warnings 退出 0 (0 error); cargo test --features bmd,gstreamer 29 passed (含 5 个新增 manifest 校验单测)。",
+  "status_code": "IMPLEMENTED_FAIL_CLOSED",
+  "summary": "resolver 新增 validate_manifest() (bmd_device_handle 唯一 / gst_device_number 唯一 / machine_id 非空 / schema 校验) 与 check_machine_identity() (主机不符→失败闭合 reject, 非 warning); validate_environment 瘦身仅保留版本软告警。main 生产缺失 manifest→失败闭合 (拒绝 materialize, 绝不回退 legacy 盲猜), 仅 MEDIA_AGENT_MODE=diagnostic 允许 legacy 回退; machine mismatch→拒绝。/health active_pipelines 去掉硬编码 0 (HEALTH_ARCS.len())。CI fmt/clippy 改 required, 并修复既有 clippy 警告 (device/pipeline/resolver/main 机械修复 + decklink.rs 抑制 bindgen upper_case_acronyms)。docs 纠正过期 C1 / hw-serial 口径。",
+  "fail_closed_matrix": [
+    {"scenario": "生产模式 + MEDIA_AGENT_DEVICE_BINDING 缺失", "behavior": "materialize 失败闭合 (拒绝, 不回退 legacy)"},
+    {"scenario": "diagnostic 模式 + manifest 缺失", "behavior": "允许 legacy auto-resolver (排障)"},
+    {"scenario": "manifest 加载失败", "behavior": "失败闭合 (拒绝 materialize)"},
+    {"scenario": "manifest 结构校验失败 (重复 handle/device-number/空 machine_id)", "behavior": "失败闭合 (ManifestInvalid, 拒绝)"},
+    {"scenario": "运行时主机 machine_id 与 manifest 不符 (且可判定主机)", "behavior": "失败闭合 (ManifestEnvironmentMismatch, 拒绝, 非 warning)"},
+    {"scenario": "BMD SDK / decklink 插件版本不符", "behavior": "仅 warning (不阻断)"},
+    {"scenario": "C1 诊断模式 (VBMF_RESOLVER=1)", "behavior": "结构/主机校验仅报告, 仍输出证据; 缺失 manifest 回退 legacy"}
+  ],
+  "code_changes": [
+    "resolver.rs: validate_manifest() / check_machine_identity() / validate_environment(sdk,plugin) 签名瘦身",
+    "resolver.rs: +5 单测 (重复 handle/device-number/空 machine_id/machine mismatch/well-formed)",
+    "main.rs: 生产 materialize 与 C1 双路径接入 validate_manifest + check_machine_identity",
+    "main.rs: /health active_pipelines = HEALTH_ARCS.lock().unwrap().len()",
+    "config.rs: device_binding_path 文档注释改为生产缺失即失败闭合",
+    "decklink.rs: #![allow(... clippy::upper_case_acronyms)] 抑制 bindgen 生成类型名",
+    "device.rs/pipeline.rs/resolver.rs/main.rs: 既有 clippy 警告机械修复",
+    "CI media-agent.yml: fmt/clippy 去除 continue-on-error; clippy -D warnings",
+    "docs: DEVICE_BINDING_MANIFEST.md / BMD-LOCAL-BUILD.md 口径纠正"
+  ],
+  "open_items": [
+    "HW-IDENT-02: 真机 DeckLink 采集路径 (canonical gate 仍 BLOCKED)。",
+    "Resolver Probe Error Model: probe_one_device_number 的 None 仍混淆 不存在/busy/state-failed/probe-error (RESOLVER-ERR-01)。",
+    "expected_hw_serial_number 仍为 null: 建议冷启动+重启+probe 多轮复核 hw-serial-number==DeviceHandle 可复现性后再升级为强约束 (用户 §九)。",
+    "生产 materialize 当前 return Ok(()) 占位, 待接入 resolved bindings 装配 pipeline (PIPELINE-AV-01 后)。",
+    "CI clippy 现 -D warnings: 新增代码须保持零 clippy 警告; bindgen 输出已用 allow 隔离。"
+  ]
+}
