@@ -31,6 +31,8 @@ libloading = "0.8"
 # 因此 CI default + bmd 构建仍可在无 GStreamer 的机器上编译 (真机 BMD 盒需 --features bmd,gstreamer).
 gstreamer = { version = "0.23", optional = true }
 gstreamer-app = { version = "0.23", optional = true }
+# P1-4: Bus watch 需要 GLib MainContext/MainLoop 管理 (与 gstreamer 同版本配套).
+glib = { version = "0.20", optional = true }
 
 [dev-dependencies]
 # Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)
@@ -59,7 +61,7 @@ default = []
 simulation = []
 bmd = ["dep:bindgen"]
 hardware-test = ["bmd"]
-gstreamer = ["dep:gstreamer", "dep:gstreamer-app"]
+gstreamer = ["dep:gstreamer", "dep:gstreamer-app", "dep:glib"]
 
 [build-dependencies]
 # Optional: only pulled when `bmd` feature is enabled (needs libclang at build time).

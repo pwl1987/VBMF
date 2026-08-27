@@ -371,6 +371,7 @@ fn spawn_ingest_watchdog(
             std::thread::sleep(std::time::Duration::from_millis(500));
             // 真实 GStreamer bus 监控 (Error/EOS/StateChanged) —— Supervisor 闭环数据源 (#8).
             let events = ctrl.poll_bus(&handle);
+            let mut bus_events: u64 = 0;
             // 在共享 Arc 上就地更新 acceptance 子项: 只读 live 状态→推导→写回 acceptance,
             // 绝不覆盖 appsink 回调写入的 video_frame_count/audio_frame_count/PTS/video_pts_state/audio_pts_state,
             // 否则每轮 snapshot 写回会把实时计数回退, 破坏 c4(计数增长) 判定 (#4 回归).
@@ -405,17 +406,39 @@ fn spawn_ingest_watchdog(
                 }
                 g.acceptance.c_video_frames = g.video_frame_count;
                 g.acceptance.c_audio_frames = g.audio_frame_count;
+                let before = g.bus_event_count;
+                g.bus_event_count += events.len() as u64;
+                // P1-4 接线证据: 首次接获任意真实 Bus 事件时打一条 info (仅一次),
+                // 证明 Bus watch → channel → poll_bus 链路端到端生效 (非 stub).
+                if before == 0 && !events.is_empty() {
+                    let kinds: Vec<&'static str> = events
+                        .iter()
+                        .map(|e| match e.kind {
+                            crate::pipeline::PipelineBusEventKind::Error => "Error",
+                            crate::pipeline::PipelineBusEventKind::Eos => "Eos",
+                            crate::pipeline::PipelineBusEventKind::StateChanged => "StateChanged",
+                            crate::pipeline::PipelineBusEventKind::Warning => "Warning",
+                            crate::pipeline::PipelineBusEventKind::ClockLost => "ClockLost",
+                        })
+                        .collect();
+                    tracing::info!(
+                        handle = %handle.0,
+                        kinds = ?kinds,
+                        "MEDIA-RT-01 bus watch 首次接获真实 GStreamer Bus 事件 (P1-4 接线生效)"
+                    );
+                }
                 for e in &events {
-                    match e {
-                        crate::pipeline::PipelineBusEvent::Error(_) => {
+                    match e.kind {
+                        crate::pipeline::PipelineBusEventKind::Error => {
                             g.acceptance.c_pipeline_errors += 1;
                         }
-                        crate::pipeline::PipelineBusEvent::Eos => {
+                        crate::pipeline::PipelineBusEventKind::Eos => {
                             g.acceptance.c_unexpected_eos += 1;
                         }
                         _ => {}
                     }
                 }
+                bus_events = g.bus_event_count;
                 (
                     g.acceptance.a_pass() && g.acceptance.b_pass() && g.acceptance.c_pass(),
                     g.last_error.is_some(),
@@ -428,7 +451,7 @@ fn spawn_ingest_watchdog(
             if has_error
                 || events
                     .iter()
-                    .any(|e| matches!(e, crate::pipeline::PipelineBusEvent::Error(_) | crate::pipeline::PipelineBusEvent::Eos))
+                    .any(|e| matches!(e.kind, crate::pipeline::PipelineBusEventKind::Error | crate::pipeline::PipelineBusEventKind::Eos))
             {
                 match sup.lock().unwrap().report_failure(&device_uuid) {
                     Ok(supervisor::SupervisorAction::Restart) => {
@@ -461,6 +484,7 @@ fn spawn_ingest_watchdog(
                     handle = %handle.0,
                     video_frames = prev_video,
                     audio_frames = prev_audio,
+                    bus_events,
                     "MEDIA-RT-01: A+B+C 全过 (canonical first-buffer 路径健康)"
                 );
             } else if tick % 20 == 0 {
@@ -486,6 +510,7 @@ fn spawn_ingest_watchdog(
                     aframes = snap.audio_frame_count,
                     vpts = snap.video_first_pts.unwrap_or(0),
                     apts = snap.audio_first_pts.unwrap_or(0),
+                    bus = snap.bus_event_count,
                     "MEDIA-RT-01 诊断 (未全过)"
                 );
             }
