@@ -139,10 +139,12 @@ fn probe_one_device_number(n: u32) -> Option<GStreamerDeviceProbe> {
     eprintln!(
         "[C1DBG] dn={} hw_serial={:?} persistent_id={:?} signal={:?} model={:?}",
         n,
-        el.property::<Option<String>>("hw-serial-number").unwrap_or_default(),
-        el.property::<i64>("persistent-id"),
+        el.find_property("hw-serial-number")
+            .map(|_| el.property::<Option<String>>("hw-serial-number").unwrap_or_default()),
+        el.find_property("persistent-id").map(|_| el.property::<i64>("persistent-id")),
         el.find_property("signal").map(|_| el.property::<bool>("signal")),
-        el.property::<Option<String>>("model").unwrap_or_default(),
+        el.find_property("model")
+            .map(|_| el.property::<Option<String>>("model").unwrap_or_default()),
     );
     // 读取只读属性 (find_property 守卫防缺属性 panic; NULL 字符串用 Option<String> 归 None).
     let hw_serial_number = el
