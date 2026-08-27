@@ -1,0 +1,41 @@
+{
+  "schema": "vbmf.media-rt-01/v1",
+  "gate": "MEDIA-RT-01",
+  "test_mode": "SELFTEST",
+  "status": "NOT_ACCEPTED",
+  "acceptance_scope": "HARNESS_ONLY",
+  "canonical_gate_status": "BLOCKED",
+  "test_subject_sha": "2ec54a2",
+  "environment_base_sha": "b9f89e5",
+  "verified_on_box": "2026-08-27",
+  "verified_sha": "2ec54a2",
+  "verified_note": "MEDIA_AGENT_SELFTEST=1 于 10.30.15.10 实测 (P1-3+P1-4 之后): prepare->start 真实启动单条 GstPipeline(video+audio 统一, PIPELINE-AV-01 前置) -> appsink 持续产出帧; MEDIA-RT-01 A+B+C 全过. P1-4 关键验证: 日志 'MEDIA-RT-01 bus watch 首次接获真实 GStreamer Bus 事件 (P1-4 接线生效)' kinds=[StateChanged x21] — 证明 统一 Pipeline Bus -> 专用 GLib MainContext/MainLoop 线程 Bus::add_watch -> bounded mpsc -> poll_bus -> Supervisor 链路端到端生效 (非 stub). 严禁将此 Harness/自测 PASS 误判为 canonical Gate (用户 第13/14节).",
+  "blocking": {
+    "c1_resolver": "BLOCKED: 当前 BMD GStreamer hw-serial-number 恒空/persistent-id=-1/model 缺失, 自动 Resolver 在现有属性集不可行 (生产正确拒绝). 用户 第9/10节: 停止添加 heuristic, 待 DeviceBindingManifest (显式 SDK-handle -> device-number 映射).",
+    "real_decklink_launch": "canonical 真实 DeckLink 采集路径 (DeviceHandleResolved) 尚未在盒上以真机采集跑通 (需占设备 + Binding Manifest); 启动链代码与 SelfTest 同源, 待 HW-IDENT-02 真机采集验证.",
+    "p1_4_bus_wiring": "DONE (P1-4): 真实 Bus Error/EOS/StateChanged/Warning/ClockLost -> Supervisor 已接线 (Harness 验证 StateChanged 已流通)."
+  },
+  "self_test_result": {
+    "source": "SelfTest (videotestsrc/audiotestsrc)",
+    "a_pass": true,
+    "b_pass": true,
+    "c_pass": true,
+    "a3_pipeline_playing": true,
+    "b4_pts_monotonic": true,
+    "p1_4_bus_watch_delivered": true,
+    "p1_4_first_event_kinds": ["StateChanged x21"],
+    "observed_frames_at_timeout": { "video": 62232, "audio": 89337 },
+    "note": "Harness 验证; 非真机 canonical. 帧数来自 timeout 50s 末次采样."
+  },
+  "open_items": [
+    "DeviceBindingManifest: 显式 SDK-handle -> GStreamer device-number 运行时契约 (用户 第11/12节; 当前硬件自动 Resolver 不可行, 待运营/Provisioning 提供已验证映射).",
+    "HW-IDENT-02: 真机 DeviceHandle <-> Binding Manifest <-> GStreamer device-number 绑定验证 (需占设备, 且先有 Manifest).",
+    "canonical 真实 DeckLink 采集路径 MEDIA-RT-01 canonical PASS (依赖 HW-IDENT-02).",
+    "Resolver Probe Error Model: probe_one_device_number 的 None 仍混淆 不存在/busy/state-failed/probe-error (用户 第12节 RESOLVER-ERR-01).",
+    "P1-4 后续: Bus watch 已接线, 但 Supervisor 对 Warning/ClockLost 仅记录未触发策略 (当前仅 Error/Eos 触发 restart) — 符合最小范围."
+  ],
+  "environment_notes": [
+    "盒上 :8080 仍被上次未退出 media-agent 占用 (health bind failed: Address already in use); 自测仍 A+B+C 全过, HW-IDENT-02 占设备前须 pkill -f '[/]media-agent' 清理.",
+    "environment_base_sha=b9f89e5 表示 BMD 本地编译环境收口提交 (apt sources/SDK include/glib 0.20 配套); test_subject_sha=2ec54a2 为本次验证的实际代码版本 (二者分离, 用户 第15节)."
+  ]
+}
