@@ -1,0 +1,35 @@
+[
+  {
+    "device_id": "6ede00d0-baf4-573f-a0dd-4a503bf7f766",
+    "model": "DeckLink SDI",
+    "bmd_device_handle": "46:00000000:002e4400",
+    "gst_device_number": null,
+    "gst_hw_serial_number": null,
+    "gst_signal": null,
+    "match_kind": "Unresolved",
+    "confidence": "None",
+    "note": "device not present in DeviceBindingManifest; runtime auto-resolution disabled by design (用户 §11/§12)"
+  },
+  {
+    "device_id": "4fa33dcb-5f76-5f76-aea8-330df7ada03e",
+    "model": "DeckLink SDI",
+    "bmd_device_handle": "46:00000000:002e4500",
+    "gst_device_number": 1,
+    "gst_hw_serial_number": null,
+    "gst_signal": false,
+    "match_kind": "ManifestVerified",
+    "confidence": "High",
+    "note": "manifest-verified: handle='46:00000000:002e4500' -> gst_device_number=1 (probe open OK)"
+  },
+  {
+    "device_id": "1afe2dcc-6d85-5b46-b7d6-e14102501c77",
+    "model": "DeckLink Mini Monitor 4K",
+    "bmd_device_handle": "83:1a66443b:00000000",
+    "gst_device_number": 0,
+    "gst_hw_serial_number": null,
+    "gst_signal": false,
+    "match_kind": "ManifestVerified",
+    "confidence": "High",
+    "note": "manifest-verified: handle='83:1a66443b:00000000' -> gst_device_number=0 (probe open OK)"
+  }
+]

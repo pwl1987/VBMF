@@ -1,0 +1,14 @@
+=== HW-IDENT-02 跨轮比对 (共 3 轮) ===
+
+[1] 每轮 bmd_device_handle 集合 (跨冷启动稳定性):
+  round-1.tsv -> [46:00000000:002e4400 46:00000000:002e4500 83:1a66443b:00000000 ]
+  round-2.tsv -> [46:00000000:002e4400 46:00000000:002e4500 83:1a66443b:00000000 ]
+  round-3.tsv -> [46:00000000:002e4400 46:00000000:002e4500 83:1a66443b:00000000 ]
+
+[2] 逐设备 match_kind 跨轮一致性:
+  handle=46:00000000:002e4400 : [round-1.tsv=Unresolved] [round-2.tsv=Unresolved] [round-3.tsv=Unresolved]
+  handle=46:00000000:002e4500 : [round-1.tsv=ManifestVerified] [round-2.tsv=ManifestVerified] [round-3.tsv=ManifestVerified]
+  handle=83:1a66443b:00000000 : [round-1.tsv=ManifestVerified] [round-2.tsv=ManifestVerified] [round-3.tsv=ManifestVerified]
+
+[3] 判定:
+RESULT=PASS : DeviceHandle 跨冷启动稳定, 绑定闭环(match_kind)逐轮一致

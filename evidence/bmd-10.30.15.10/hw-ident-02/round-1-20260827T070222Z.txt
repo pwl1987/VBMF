@@ -1,0 +1,77 @@
+[2m2026-08-27T07:02:22.779532Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+=== C1 Raw GStreamer Probes (decklinkvideosrc 直接探测: device-number / hw-serial-number / signal) ===
+[
+  {
+    "device_number": 0,
+    "hw_serial_number": null,
+    "persistent_id": null,
+    "signal": false,
+    "model": null
+  },
+  {
+    "device_number": 1,
+    "hw_serial_number": null,
+    "persistent_id": null,
+    "signal": false,
+    "model": null
+  }
+]
+=== C1 Probe Errors (device-number -> 分类失败原因) ===
+  device-number 2: StateFailed: device-number 2: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+  device-number 3: StateFailed: device-number 3: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+  device-number 4: StateFailed: device-number 4: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+  device-number 5: StateFailed: device-number 5: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+  device-number 6: StateFailed: device-number 6: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+  device-number 7: StateFailed: device-number 7: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+BMD SDK runtime identity (provenance): sdk_include=/home/lytv/decklink-sdk-include;lib=/usr/lib/libDeckLinkAPI.so;lib_bytes=8851504
+=== C1 Resolver Evidence: VBMF DeviceHandle/serial → GStreamer device-number ===
+[
+  {
+    "device_id": "4fa33dcb-5f76-5f76-aea8-330df7ada03e",
+    "model": "DeckLink SDI",
+    "bmd_device_handle": "46:00000000:002e4500",
+    "gst_device_number": 1,
+    "gst_hw_serial_number": null,
+    "gst_signal": false,
+    "match_kind": "ManifestVerified",
+    "confidence": "High",
+    "note": "manifest-verified: handle='46:00000000:002e4500' -> gst_device_number=1 (probe open OK)"
+  },
+  {
+    "device_id": "6ede00d0-baf4-573f-a0dd-4a503bf7f766",
+    "model": "DeckLink SDI",
+    "bmd_device_handle": "46:00000000:002e4400",
+    "gst_device_number": null,
+    "gst_hw_serial_number": null,
+    "gst_signal": null,
+    "match_kind": "Unresolved",
+    "confidence": "None",
+    "note": "device not present in DeviceBindingManifest; runtime auto-resolution disabled by design (用户 §11/§12)"
+  },
+  {
+    "device_id": "1afe2dcc-6d85-5b46-b7d6-e14102501c77",
+    "model": "DeckLink Mini Monitor 4K",
+    "bmd_device_handle": "83:1a66443b:00000000",
+    "gst_device_number": 0,
+    "gst_hw_serial_number": null,
+    "gst_signal": false,
+    "match_kind": "ManifestVerified",
+    "confidence": "High",
+    "note": "manifest-verified: handle='83:1a66443b:00000000' -> gst_device_number=0 (probe open OK)"
+  }
+]
+=== C1 Resolved Bindings (喂给 decklinkvideosrc/audiosrc 的 device-number) ===
+{
+  "4fa33dcb-5f76-5f76-aea8-330df7ada03e": {
+    "device_number": 1,
+    "hw_serial_number": null,
+    "confidence": "High",
+    "match_kind": "ManifestVerified"
+  },
+  "1afe2dcc-6d85-5b46-b7d6-e14102501c77": {
+    "device_number": 0,
+    "hw_serial_number": null,
+    "confidence": "High",
+    "match_kind": "ManifestVerified"
+  }
+}

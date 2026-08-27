@@ -32,6 +32,7 @@
 | `2026-08-27-binding-fail-closed-5ce34e1.json` | Acceptance | Production 绑定失败闭合 (commit `5ce34e1`). |
 | `2026-08-27-c1-resolver-41e0931.json` | Superseded | C1 (VBMF_RESOLVER) 探测器输出快照 (commit `41e0931`); 已被 `abda19f`(权威绑定) / `457837a`(硬化) 覆盖. |
 | `2026-08-27-c1-element-probe-correction.md` | Historical | C1 element 探测修正说明 (ProbeError 之前). |
+| `2026-08-27-hw-ident-02-devicehandle-stability.md` | Acceptance | HW-IDENT-02 多轮冷启动 DeviceHandle 稳定性 + Manifest 绑定闭环 (commit `d182cb5`); 判定 PASS, 释放 MEDIA-RT-01 A/B/C 占机窗口. |
 
 ## Runtime Hardening (Current / 生产硬化)
 
@@ -60,7 +61,7 @@
 | `2026-08-26-cap01-first-frame.md` | Historical | CAP-01 SDK first-frame PASS. **注意: 这是 SDK 层 first-frame, 不是 MEDIA-RT-01 GStreamer canonical 采集验收.** 不得据此判定 MEDIA-RT-01 通过. |
 | `2026-08-26-cap01-first-frame.log` | Historical | 同上, 原始日志. |
 | `real-canonical-run-2026-08-26.log` | Historical | 早期 canonical run 探索日志; 非最终验收. |
-| `2026-08-27-media-rt-01-2ec54a2.json` | Current | MEDIA-RT-01 当前快照 (commit `2ec54a2`): **A/B/C 仍未达成**; 待占设备做 HW-IDENT-02 → MEDIA-RT-01 A/B/C 真机验收. |
+| `2026-08-27-media-rt-01-2ec54a2.json` | Current | MEDIA-RT-01 当前快照 (commit `2ec54a2`): **A/B/C 仍未达成**; HW-IDENT-02 已 PASS (`d182cb5`), 现可占设备做 MEDIA-RT-01 A/B/C 真机验收. |
 
 ## 治理规则 (跨证据通用)
 

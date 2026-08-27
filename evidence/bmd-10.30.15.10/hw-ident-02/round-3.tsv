@@ -1,0 +1,4 @@
+bmd_device_handle	device_id	gst_device_number	gst_hw_serial_number	match_kind
+46:00000000:002e4400	6ede00d0-baf4-573f-a0dd-4a503bf7f766			Unresolved
+46:00000000:002e4500	4fa33dcb-5f76-5f76-aea8-330df7ada03e	1		ManifestVerified
+83:1a66443b:00000000	1afe2dcc-6d85-5b46-b7d6-e14102501c77	0		ManifestVerified
