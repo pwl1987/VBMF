@@ -47,6 +47,9 @@ pub enum ResolverMatch {
     Unresolved,
     /// 同一 SDK 设备命中多个 HIGH 候选 → 必须拒绝 (广播不容许猜设备).
     Ambiguous,
+    /// 经 DeviceBindingManifest 显式契约验证 (权威路径, 用户 §11/§12): 清单声明的
+    /// device-number 被 GStreamer 探测确认可打开且身份吻合 → 高置信, 非 runtime 猜测.
+    ManifestVerified,
 }
 
 /// 匹配置信度.
@@ -390,3 +393,339 @@ pub fn resolve_strict(
 
 /// C1 最大探测设备数 (防无限枚举; 真机通常 1-3 块卡).
 pub const MAX_PROBE_DEVICES: usize = 8;
+
+/// 当前主机标识: 优先 `VBMF_MACHINE_ID`, 否则 `HOSTNAME`; 均空则空串
+/// (调用方据此跳过 machine_id 校验, 而非误报).
+pub fn current_machine_id() -> String {
+    std::env::var("VBMF_MACHINE_ID")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_default()
+}
+
+/// 授权绑定清单: 显式 `SDK-handle → GStreamer device-number` 运行时契约.
+///
+/// 这是用户 §11/§12 的 "下一阶段明确设计决策": **停止 runtime 猜测**, 改由 Provisioning
+/// 维护的**显式**映射作为绑定权威. GStreamer 运行时探测降级为**校验器** (确认清单声明的
+/// device-number 真实可打开且身份吻合), 任何不符 → 失败闭合 (`Unresolved`), 绝不猜.
+///
+/// 关键不变量:
+/// - 仅按 `bmd_device_handle` (canonical 真实身份) 索引; 绝不按枚举序号/拓扑猜测.
+/// - `gst_device_number` 来自运营/Provisioning 的**现场核实** (如 `VBMF_RESOLVER=1` 原始
+///   探测 + 物理确认), 不在 runtime 反推.
+/// - `expected_hw_serial_number` / `expected_model` 为可选交叉校验; 当前硬件 serial 恒空,
+///   留空 (=不校验) 仍可工作, 但建议随驱动升级回填以强化闭合.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceBindingManifest {
+    /// 清单 schema 版本 (如 "1.0").
+    pub manifest_version: String,
+    /// 绑定主机标识 (hostname 或显式机器 ID): 清单仅对声明主机有效, 误投到别机 → 失败闭合.
+    pub machine_id: String,
+    /// 生成/校验工具或操作员标识.
+    pub generated_by: String,
+    /// 生成时间 (ISO8601).
+    pub generated_at: String,
+    /// BMD SDK 版本 (如 "16.0"); 与运行环境不符 → 告警.
+    pub bmd_sdk_version: Option<String>,
+    /// GStreamer decklink 插件版本; 不符 → 告警.
+    pub gst_decklink_plugin_version: Option<String>,
+    /// 备注 (可选).
+    pub notes: Option<String>,
+    /// 绑定条目.
+    pub bindings: Vec<BindingEntry>,
+}
+
+/// 单条 `SDK-handle → GStreamer device-number` 绑定.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BindingEntry {
+    /// 人类可读标签 (如 "SDI-IN-1").
+    pub label: Option<String>,
+    /// canonical 真实身份: BMD `DeviceHandle` (来自 `BmdDeviceIdentity.device_handle`).
+    pub bmd_device_handle: String,
+    /// GStreamer `decklinkvideosrc` 的 device-number (运行时地址).
+    pub gst_device_number: u32,
+    /// 可选交叉校验: 期望的 GStreamer `hw-serial-number`. 若插件暴露 serial 则校验, 不符 → 失败闭合.
+    pub expected_hw_serial_number: Option<String>,
+    /// 可选交叉校验: 期望型号.
+    pub expected_model: Option<String>,
+}
+
+impl DeviceBindingManifest {
+    /// 从 JSON 文件加载清单. 失败 (文件缺失/格式错) → `Err`, 调用方据此失败闭合.
+    pub fn load(path: &str) -> Result<Self, String> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| format!("DeviceBindingManifest 读取失败 ({path}): {e}"))?;
+        serde_json::from_str(&text)
+            .map_err(|e| format!("DeviceBindingManifest 解析失败 ({path}): {e}"))
+    }
+
+    /// 环境一致性校验: 返回告警向量 (不阻断). 仅当 runtime 主机标识非空才比对 machine_id
+    /// (否则无法判定, 跳过而非误报).
+    pub fn validate_environment(
+        &self,
+        machine_id: &str,
+        sdk_version: Option<&str>,
+        plugin_version: Option<&str>,
+    ) -> Vec<String> {
+        let mut warns = Vec::new();
+        if !machine_id.is_empty() && self.machine_id != machine_id {
+            warns.push(format!(
+                "清单 machine_id='{}' 与当前主机 '{}' 不符; 若确为误投请拒绝 (失败闭合)",
+                self.machine_id, machine_id
+            ));
+        }
+        if let (Some(decl), Some(actual)) = (&self.bmd_sdk_version, sdk_version) {
+            if decl != actual {
+                warns.push(format!("清单 BMD SDK 版本 '{decl}' 与运行 '{actual}' 不符"));
+            }
+        }
+        if let (Some(decl), Some(actual)) = (&self.gst_decklink_plugin_version, plugin_version) {
+            if decl != actual {
+                warns.push(format!("清单 GStreamer decklink 插件版本 '{decl}' 与运行 '{actual}' 不符"));
+            }
+        }
+        warns
+    }
+
+    /// 在清单中按 SDK DeviceHandle 查绑定条目.
+    pub fn lookup(&self, bmd_device_handle: &str) -> Option<&BindingEntry> {
+        self.bindings
+            .iter()
+            .find(|b| b.bmd_device_handle == bmd_device_handle)
+    }
+}
+
+/// 基于 `DeviceBindingManifest` 解析 (权威路径). GStreamer 探测仅作**校验**:
+/// - 清单声明 device-number → 在 probe 中必须存在且曾真实打开 (`Available` 含该序号);
+/// - 若清单记录 `expected_hw_serial_number` / `expected_model`, 须与 probe 读到的吻合;
+/// - 不符 → 该设备 `Unresolved` (失败闭合, 绝不猜);
+/// - 设备不在清单 → `Unresolved` (runtime 猜测已禁用, 用户 §11/§12).
+pub fn resolve_with_manifest(
+    devices: &[DeviceInfo],
+    probes: &[GStreamerDeviceProbe],
+    manifest: &DeviceBindingManifest,
+) -> Vec<ResolverEvidence> {
+    let mut evidence = Vec::new();
+    for dev in devices {
+        let handle = dev.bmd_device_handle.as_deref().unwrap_or("");
+        let (gst_num, gst_serial, gst_sig, kind, conf, note) = match manifest.lookup(handle) {
+            None => (
+                None,
+                None,
+                None,
+                ResolverMatch::Unresolved,
+                Confidence::None,
+                "device not present in DeviceBindingManifest; runtime auto-resolution disabled by design (用户 §11/§12)".to_string(),
+            ),
+            Some(b) => {
+                let probe = probes.iter().find(|p| p.device_number == b.gst_device_number);
+                match probe {
+                    None => (
+                        None,
+                        None,
+                        None,
+                        ResolverMatch::Unresolved,
+                        Confidence::None,
+                        format!(
+                            "manifest claims gst_device_number={} for handle='{}' but GStreamer probe did not open that device \
+                             (misconfig or card missing); fail closed",
+                            b.gst_device_number, handle
+                        ),
+                    ),
+                    Some(p) => {
+                        let serial_ok = match &b.expected_hw_serial_number {
+                            Some(exp) => p.hw_serial_number.as_deref() == Some(exp.as_str()),
+                            None => true,
+                        };
+                        let model_ok = match &b.expected_model {
+                            Some(exp) => p.model.as_deref() == Some(exp.as_str()),
+                            None => true,
+                        };
+                        if serial_ok && model_ok {
+                            (
+                                Some(p.device_number),
+                                p.hw_serial_number.clone(),
+                                p.signal,
+                                ResolverMatch::ManifestVerified,
+                                Confidence::High,
+                                format!(
+                                    "manifest-verified: handle='{}' -> gst_device_number={} (probe open OK{})",
+                                    handle,
+                                    p.device_number,
+                                    if b.expected_hw_serial_number.is_some() {
+                                        ", serial cross-check OK"
+                                    } else {
+                                        ""
+                                    }
+                                ),
+                            )
+                        } else {
+                            (
+                                None,
+                                None,
+                                None,
+                                ResolverMatch::Unresolved,
+                                Confidence::None,
+                                format!(
+                                    "manifest-verified FAILED cross-check: handle='{}' gst_device_number={} \
+                                     expected_serial={:?} actual={:?} expected_model={:?} actual={:?}; fail closed",
+                                    handle,
+                                    b.gst_device_number,
+                                    b.expected_hw_serial_number,
+                                    p.hw_serial_number,
+                                    b.expected_model,
+                                    p.model
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        };
+        evidence.push(ResolverEvidence {
+            device_id: dev.device_id,
+            model: dev.serial_number.clone().or(Some(dev.model.clone())),
+            bmd_device_handle: dev.bmd_device_handle.clone(),
+            gst_device_number: gst_num,
+            gst_hw_serial_number: gst_serial,
+            gst_signal: gst_sig,
+            match_kind: kind,
+            confidence: conf,
+            note,
+        });
+    }
+    evidence
+}
+
+/// 仅接受 `ManifestVerified` 高置信绑定 (喂给 `materialize`). 未验证/不符 → 不进入 (失败闭合).
+pub fn collect_bindings_from_manifest(
+    devices: &[DeviceInfo],
+    probes: &[GStreamerDeviceProbe],
+    manifest: &DeviceBindingManifest,
+) -> HashMap<Uuid, ResolvedDeviceBinding> {
+    let mut map = HashMap::new();
+    let evidence = resolve_with_manifest(devices, probes, manifest);
+    for (dev, ev) in devices.iter().zip(evidence.iter()) {
+        if ev.match_kind == ResolverMatch::ManifestVerified && ev.confidence == Confidence::High {
+            if let Some(n) = ev.gst_device_number {
+                map.insert(
+                    dev.device_id,
+                    ResolvedDeviceBinding {
+                        device_number: n,
+                        hw_serial_number: ev.gst_hw_serial_number.clone(),
+                        confidence: Confidence::High,
+                        match_kind: ResolverMatch::ManifestVerified,
+                    },
+                );
+            }
+        }
+    }
+    map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::device::{DeviceIdentitySource, IdentityStrength};
+    use uuid::Uuid;
+
+    fn dev(handle: &str) -> DeviceInfo {
+        DeviceInfo {
+            device_id: Uuid::new_v4(),
+            model: "DeckLink SDI".to_string(),
+            display_name: format!("dv-{handle}"),
+            serial_number: None,
+            bmd_device_handle: Some(handle.to_string()),
+            bmd_persistent_id: None,
+            bmd_topological_id: None,
+            identity_strength: IdentityStrength::DeviceHandle,
+            identity_source: DeviceIdentitySource::RealBmd,
+        }
+    }
+
+    fn probe(num: u32, serial: Option<&str>) -> GStreamerDeviceProbe {
+        GStreamerDeviceProbe {
+            device_number: num,
+            hw_serial_number: serial.map(|s| s.to_string()),
+            persistent_id: None,
+            signal: Some(true),
+            model: Some("DeckLink SDI".to_string()),
+        }
+    }
+
+    fn manifest_entry(handle: &str, num: u32) -> BindingEntry {
+        BindingEntry {
+            label: None,
+            bmd_device_handle: handle.to_string(),
+            gst_device_number: num,
+            expected_hw_serial_number: None,
+            expected_model: None,
+        }
+    }
+
+    fn base_manifest(entries: Vec<BindingEntry>) -> DeviceBindingManifest {
+        DeviceBindingManifest {
+            manifest_version: "1.0".into(),
+            machine_id: "box-a".into(),
+            generated_by: "ops".into(),
+            generated_at: "2026-08-27".into(),
+            bmd_sdk_version: None,
+            gst_decklink_plugin_version: None,
+            notes: None,
+            bindings: entries,
+        }
+    }
+
+    #[test]
+    fn manifest_verified_when_probe_opens_declared_number() {
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(2, None)];
+        let manifest = base_manifest(vec![manifest_entry("46:00000000:002e4500", 2)]);
+        let ev = resolve_with_manifest(&devices, &probes, &manifest);
+        assert_eq!(ev.len(), 1);
+        assert_eq!(ev[0].match_kind, ResolverMatch::ManifestVerified);
+        assert_eq!(ev[0].confidence, Confidence::High);
+        assert_eq!(ev[0].gst_device_number, Some(2));
+        let binds = collect_bindings_from_manifest(&devices, &probes, &manifest);
+        assert_eq!(binds.len(), 1);
+    }
+
+    #[test]
+    fn manifest_fails_closed_when_declared_number_not_in_probe() {
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(5, None)]; // 清单声明 2, 探测只有 5
+        let manifest = base_manifest(vec![manifest_entry("46:00000000:002e4500", 2)]);
+        let ev = resolve_with_manifest(&devices, &probes, &manifest);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Unresolved);
+        assert_eq!(ev[0].gst_device_number, None);
+    }
+
+    #[test]
+    fn manifest_fails_closed_on_serial_crosscheck_mismatch() {
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(2, Some("REAL-123"))];
+        let mut manifest = base_manifest(vec![manifest_entry("46:00000000:002e4500", 2)]);
+        manifest.bindings[0].expected_hw_serial_number = Some("EXPECTED-999".into());
+        let ev = resolve_with_manifest(&devices, &probes, &manifest);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Unresolved);
+    }
+
+    #[test]
+    fn manifest_fails_closed_when_device_absent_from_manifest() {
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(2, None)];
+        let manifest = base_manifest(vec![]); // 空清单
+        let ev = resolve_with_manifest(&devices, &probes, &manifest);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Unresolved);
+    }
+
+    #[test]
+    fn manifest_serial_crosscheck_passes_when_declared() {
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(2, Some("REAL-123"))];
+        let mut manifest = base_manifest(vec![manifest_entry("46:00000000:002e4500", 2)]);
+        manifest.bindings[0].expected_hw_serial_number = Some("REAL-123".into());
+        let ev = resolve_with_manifest(&devices, &probes, &manifest);
+        assert_eq!(ev[0].match_kind, ResolverMatch::ManifestVerified);
+        assert_eq!(ev[0].gst_device_number, Some(2));
+    }
+}

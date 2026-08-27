@@ -70,7 +70,25 @@ fn main() {
                     }
                     Err(e) => eprintln!("gstreamer probes 序列化失败: {e}"),
                 }
-                let evidence = crate::resolver::resolve(&devices, &probes);
+                // 解析: 若提供 DeviceBindingManifest (MEDIA_AGENT_DEVICE_BINDING) 走权威路径,
+                // 否则回退 legacy runtime auto-resolver (生产应禁用, 用户 §11/§12).
+                let manifest = _cfg
+                    .device_binding_path
+                    .as_deref()
+                    .and_then(|p| match crate::resolver::DeviceBindingManifest::load(p) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            eprintln!("DeviceBindingManifest 加载失败: {e}");
+                            None
+                        }
+                    });
+                if manifest.is_none() {
+                    eprintln!("WARNING: 未提供 DeviceBindingManifest, 回退 legacy runtime auto-resolution (生产禁用, 用户 §11/§12)");
+                }
+                let evidence = match &manifest {
+                    Some(m) => crate::resolver::resolve_with_manifest(&devices, &probes, m),
+                    None => crate::resolver::resolve(&devices, &probes),
+                };
                 match serde_json::to_string_pretty(&evidence) {
                     Ok(json) => {
                         println!("=== C1 Resolver Evidence: VBMF DeviceHandle/serial → GStreamer device-number ===");
@@ -78,7 +96,10 @@ fn main() {
                     }
                     Err(e) => eprintln!("resolver evidence 序列化失败: {e}"),
                 }
-                let bindings = crate::resolver::collect_bindings(&devices, &probes);
+                let bindings = match &manifest {
+                    Some(m) => crate::resolver::collect_bindings_from_manifest(&devices, &probes, m),
+                    None => crate::resolver::collect_bindings(&devices, &probes),
+                };
                 match serde_json::to_string_pretty(&bindings) {
                     Ok(json) => {
                         println!("=== C1 Resolved Bindings (喂给 decklinkvideosrc/audiosrc 的 device-number) ===");
@@ -240,7 +261,27 @@ fn main() {
             _ => Vec::new(),
         };
         #[cfg(feature = "gstreamer")]
-        let bindings = crate::resolver::collect_bindings(&devices, &gst_probes);
+        let bindings = match &_cfg.device_binding_path {
+            // 生产 BMD 绑定权威路径: DeviceBindingManifest 显式契约. 加载失败 → 失败闭合
+            // (拒绝 materialize, 绝不盲开 device 0, 用户 §11/§12).
+            Some(p) => match crate::resolver::DeviceBindingManifest::load(p) {
+                Ok(m) => {
+                    for w in m.validate_environment(&crate::resolver::current_machine_id(), None, None) {
+                        tracing::warn!(warning = %w, "device-binding manifest 环境校验");
+                    }
+                    crate::resolver::collect_bindings_from_manifest(&devices, &gst_probes, &m)
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "DeviceBindingManifest 加载失败; 生产绑定失败闭合, 拒绝 materialize");
+                    std::collections::HashMap::new()
+                }
+            },
+            // 未提供清单 → 回退 legacy auto-resolver (生产应禁用, 用户 §11/§12).
+            None => {
+                tracing::warn!("未提供 DeviceBindingManifest; 回退 legacy auto-resolution (生产应禁用, 用户 §11/§12)");
+                crate::resolver::collect_bindings(&devices, &gst_probes)
+            }
+        };
         #[cfg(not(feature = "gstreamer"))]
         let bindings: std::collections::HashMap<uuid::Uuid, crate::resolver::ResolvedDeviceBinding> =
             std::collections::HashMap::new();

@@ -23,6 +23,9 @@ pub struct Config {
     pub health_poll_interval: Duration,
     /// Max restart attempts before `FAILED` (see state machine).
     pub max_recover_attempts: u32,
+    /// 显式绑定清单路径 (DeviceBindingManifest JSON). 生产 BMD 绑定权威来源; 缺失则回退
+    /// legacy auto-resolver (生产应禁用, 用户 §11/§12).
+    pub device_binding_path: Option<String>,
 }
 
 impl Default for Config {
@@ -34,6 +37,7 @@ impl Default for Config {
             lease_renew_window: Duration::from_secs(30),
             health_poll_interval: Duration::from_secs(5),
             max_recover_attempts: 5,
+            device_binding_path: None,
         }
     }
 }
@@ -48,6 +52,7 @@ impl Config {
     /// - `MEDIA_AGENT_LEASE_RENEW_SECS`
     /// - `MEDIA_AGENT_HEALTH_POLL_SECS`
     /// - `MEDIA_AGENT_MAX_RECOVER_ATTEMPTS`
+    /// - `MEDIA_AGENT_DEVICE_BINDING` (path to DeviceBindingManifest JSON)
     pub fn from_env() -> Self {
         let d = Config::default();
         let get = |k: &str| std::env::var(k).ok();
@@ -69,6 +74,7 @@ impl Config {
             max_recover_attempts: get("MEDIA_AGENT_MAX_RECOVER_ATTEMPTS")
                 .and_then(|v| v.parse::<u32>().ok())
                 .unwrap_or(d.max_recover_attempts),
+            device_binding_path: get("MEDIA_AGENT_DEVICE_BINDING"),
         }
     }
 }

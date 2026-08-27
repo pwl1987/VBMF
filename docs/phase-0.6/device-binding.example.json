@@ -1,0 +1,32 @@
+{
+  "manifest_version": "1.0",
+  "machine_id": "10.30.15.10",
+  "generated_by": "ops-provisioning",
+  "generated_at": "2026-08-27",
+  "bmd_sdk_version": "16.0",
+  "gst_decklink_plugin_version": "1.28.2",
+  "notes": "EXAMPLE — gst_device_number 必须由现场经 `VBMF_RESOLVER=1` 原始探测 + 物理确认核实后填写。本硬件 GStreamer hw-serial-number 恒空串，无法从属性反推 handle→device-number，故必须显式声明（用户 §11/§12：停止 runtime 猜测）。下方 0/1/2 仅为占位示例，须按真机探测结果替换。",
+  "bindings": [
+    {
+      "label": "SDI-IN-1",
+      "bmd_device_handle": "46:00000000:002e4500",
+      "gst_device_number": 1,
+      "expected_hw_serial_number": null,
+      "expected_model": "DeckLink SDI"
+    },
+    {
+      "label": "SDI-IN-2",
+      "bmd_device_handle": "46:00000000:002e4400",
+      "gst_device_number": 2,
+      "expected_hw_serial_number": null,
+      "expected_model": "DeckLink SDI"
+    },
+    {
+      "label": "MINI-MON-4K (output)",
+      "bmd_device_handle": "83:1a66443b:00000000",
+      "gst_device_number": 0,
+      "expected_hw_serial_number": null,
+      "expected_model": "DeckLink Mini Monitor 4K"
+    }
+  ]
+}
