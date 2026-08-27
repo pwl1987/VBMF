@@ -939,22 +939,44 @@ pub fn materialize(
         };
 
         // 连接类型: 优先按 Control Plane 显式声明的 `port_id` 精确定位端口; 否则回退到该设备
-        // 的首个输入端口. 二者皆无 (无 registry / 端口未注册) → `None`, `src_props` 不显式指定 connection.
-        let connector = registry.and_then(|r| {
-            if let Some(pid) = &d.pipeline.source.port_id {
-                if let Ok(u) = Uuid::parse_str(pid) {
-                    return r
-                        .ports
+        // 的首个输入端口. 显式 `port_id` 在 Discovery 无对应端口 ⇒ 生产失败闭合 (绝不静默回退 auto 探测).
+        let connector = match &d.pipeline.source.port_id {
+            Some(pid) => {
+                let u = match Uuid::parse_str(pid) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        return Err(PipelineError::IdentityUnresolved(format!(
+                            "{}: port_id 解析失败: {e}",
+                            d.device_id
+                        )))
+                    }
+                };
+                match registry.and_then(|r| {
+                    r.ports
                         .iter()
                         .find(|p| p.identity.port_id == Some(u))
-                        .map(|p| p.identity.connector);
+                        .map(|p| p.identity.connector)
+                }) {
+                    Some(c) => Some(c),
+                    None => {
+                        if matches!(mode, MaterializeMode::Production) {
+                            return Err(PipelineError::IdentityUnresolved(format!(
+                                "{}: 显式 port_id {} 在 Discovery 端口中无匹配 (生产拒绝静默回退 auto)",
+                                d.device_id, pid
+                            )));
+                        } else {
+                            None // Diagnostic: 回退 auto 探测
+                        }
+                    }
                 }
             }
-            r.ports
-                .iter()
-                .find(|p| p.device_id == info.device_id && p.direction == PortDirection::Input)
-                .map(|p| p.identity.connector)
-        });
+            None => registry.and_then(|r| {
+                r.ports
+                    .iter()
+                    .find(|p| p.device_id == info.device_id && p.direction == PortDirection::Input)
+                    .map(|p| p.identity.connector)
+            }),
+        };
 
         let source = SourcePlan {
             device_id: d.device_id.clone(),
@@ -975,6 +997,214 @@ pub fn materialize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::device::DeviceIdentitySource;
+    use crate::graph_intent::{
+        DeviceIntent, GraphRuntimeIntent, PipelineIntent, SinkIntent, SourceIntent,
+    };
+    use crate::port::{
+        PortIdentity, PortInfo, PortOrdinal, PortRegistry, SignalStatus, VideoContentState,
+    };
+    use crate::resolver::{Confidence, ResolvedDeviceBinding, ResolverMatch};
+    use uuid::Uuid;
+
+    fn dev_handle(strength: IdentityStrength) -> DeviceInfo {
+        DeviceInfo {
+            device_id: Uuid::new_v4(),
+            model: "DeckLink SDI".to_string(),
+            display_name: "dv".to_string(),
+            serial_number: None,
+            bmd_device_handle: Some("h".into()),
+            bmd_persistent_id: None,
+            bmd_topological_id: None,
+            identity_strength: strength,
+            identity_source: DeviceIdentitySource::RealBmd,
+            capabilities: crate::port::DeviceCapabilities::default(),
+            video_input_connections: 0,
+            video_output_connections: 0,
+            ports: Vec::new(),
+        }
+    }
+
+    fn intent_with_port(device_id: &str, port_id: Option<&str>) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![DeviceIntent {
+                device_id: device_id.into(),
+                role: "CAPTURE".into(),
+                pipeline: PipelineIntent {
+                    source: SourceIntent {
+                        kind: "decklink".into(),
+                        device_id: device_id.into(),
+                        port_id: port_id.map(|s| s.into()),
+                    },
+                    sink: SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        }
+    }
+
+    fn registry_with_port(dev_id: Uuid, pid: Uuid, connector: ConnectorType) -> PortRegistry {
+        PortRegistry {
+            ports: vec![PortInfo {
+                device_id: dev_id,
+                device_handle: Some("h".into()),
+                identity: PortIdentity {
+                    port_id: Some(pid),
+                    connector,
+                    ordinal: PortOrdinal::Known(1),
+                },
+                direction: PortDirection::Input,
+                capabilities: crate::port::PortCapabilities::default(),
+                runtime_binding: None,
+                signal: SignalStatus::default(),
+                content: VideoContentState::Unknown,
+            }],
+        }
+    }
+
+    #[test]
+    fn src_props_sdi_uses_connection_sdi() {
+        // canonical 边界回归: SDI ⇒ decklinkvideosrc connection=sdi, audiosrc 无 connection.
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: "d".into(),
+                bmd_persistent_id: None,
+                device_number: 2,
+                connector: Some(ConnectorType::Sdi),
+                selection_mode: SourceSelectionMode::DeviceHandleResolved,
+            },
+            normalize: true,
+            switch_mode: "FRAME_SWITCH".into(),
+        };
+        let (v, a) = src_props(&plan);
+        assert!(
+            v.contains("decklinkvideosrc device-number=2 connection=sdi"),
+            "video={v}"
+        );
+        assert!(a.contains("decklinkaudiosrc device-number=2"), "audio={a}");
+        assert!(!a.contains("connection"), "audio 不得含 connection: {a}");
+    }
+
+    #[test]
+    fn src_props_optical_uses_connection_optical_sdi() {
+        // canonical 边界回归: Optical ⇒ connection=optical-sdi (绝非 optical).
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: "d".into(),
+                bmd_persistent_id: None,
+                device_number: 3,
+                connector: Some(ConnectorType::Optical),
+                selection_mode: SourceSelectionMode::DeviceHandleResolved,
+            },
+            normalize: true,
+            switch_mode: "FRAME_SWITCH".into(),
+        };
+        let (v, _) = src_props(&plan);
+        assert!(
+            v.contains("connection=optical-sdi"),
+            "video={v} (不得 optical)"
+        );
+    }
+
+    #[test]
+    fn src_props_unknown_has_no_connection() {
+        // canonical 边界回归: Unknown 连接器 ⇒ 不显式指定 connection (由插件 auto 探测).
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: "d".into(),
+                bmd_persistent_id: None,
+                device_number: 4,
+                connector: Some(ConnectorType::Unknown),
+                selection_mode: SourceSelectionMode::DeviceHandleResolved,
+            },
+            normalize: true,
+            switch_mode: "FRAME_SWITCH".into(),
+        };
+        let (v, _) = src_props(&plan);
+        assert!(
+            !v.contains("connection"),
+            "Unknown 不得显式 connection: {v}"
+        );
+    }
+
+    #[test]
+    fn materialize_rejects_explicit_port_id_missing_in_registry_production() {
+        // TDD(RED→GREEN): Control Plane 显式 port_id 但 Discovery 无匹配 ⇒ 生产失败闭合 (绝不静默回退 auto).
+        let dev = dev_handle(IdentityStrength::DeviceHandle);
+        let dev_id = dev.device_id;
+        let missing_pid = Uuid::new_v4();
+        let intent = intent_with_port(&dev_id.to_string(), Some(&missing_pid.to_string()));
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(
+            dev_id,
+            ResolvedDeviceBinding {
+                device_number: 2,
+                hw_serial_number: None,
+                confidence: Confidence::High,
+                match_kind: ResolverMatch::SerialExact,
+            },
+        );
+        let other = Uuid::new_v4();
+        let registry = registry_with_port(dev_id, other, ConnectorType::Sdi);
+        let res = materialize(
+            &intent,
+            &[dev],
+            MaterializeMode::Production,
+            &bindings,
+            Some(&registry),
+        );
+        assert!(res.is_err(), "显式 port_id 缺失须被生产拒绝: {res:?}");
+    }
+
+    #[test]
+    fn materialize_resolves_explicit_port_id_in_registry() {
+        // 回归: 显式 port_id 匹配 Discovery ⇒ Ok 且 connector 取该端口 (精确绑定, 不猜).
+        let dev = dev_handle(IdentityStrength::DeviceHandle);
+        let dev_id = dev.device_id;
+        let pid = Uuid::new_v4();
+        let intent = intent_with_port(&dev_id.to_string(), Some(&pid.to_string()));
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(
+            dev_id,
+            ResolvedDeviceBinding {
+                device_number: 2,
+                hw_serial_number: None,
+                confidence: Confidence::High,
+                match_kind: ResolverMatch::SerialExact,
+            },
+        );
+        let registry = registry_with_port(dev_id, pid, ConnectorType::Sdi);
+        let plans = materialize(
+            &intent,
+            &[dev],
+            MaterializeMode::Production,
+            &bindings,
+            Some(&registry),
+        )
+        .unwrap();
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].source.connector, Some(ConnectorType::Sdi));
+    }
+
+    #[test]
+    fn materialize_rejects_unresolved_identity_production() {
+        // 回归: 合成身份 + 无 Resolver 绑定 ⇒ 生产拒绝 (绝不盲开 device 0).
+        let dev = dev_handle(IdentityStrength::Enumeration);
+        let dev_id = dev.device_id;
+        let intent = intent_with_port(&dev_id.to_string(), None);
+        let bindings = std::collections::HashMap::new();
+        let registry = PortRegistry::default();
+        let res = materialize(
+            &intent,
+            &[dev],
+            MaterializeMode::Production,
+            &bindings,
+            Some(&registry),
+        );
+        assert!(res.is_err(), "未解析身份须被生产拒绝: {res:?}");
+    }
 
     #[test]
     fn pts_state_starts_unknown() {
