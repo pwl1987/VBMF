@@ -14,7 +14,8 @@ use uuid::Uuid;
 use crate::contracts::backend::MediaBackend;
 use crate::contracts::provider::{CapabilityReport, ConnectorConfig, HardwareProvider};
 use crate::device::{DeviceIdentitySource, DeviceInfo, IdentityStrength};
-use crate::pipeline::{PipelineBusEvent, PipelineError, PipelineHandle, PipelinePlan};
+use crate::pipeline::{PipelineError, PipelineHandle, PipelinePlan};
+use crate::pipeline_events::PipelineBusEvent;
 use crate::port::DeviceCapabilities;
 
 /// Mock 确定性 UUID 命名空间（与 FS/SIM/BMD 命名空间区分，避免设备 ID 漂移）。

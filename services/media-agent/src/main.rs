@@ -14,6 +14,7 @@ mod health;
 mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
 mod lease;
 mod pipeline;
+mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
 mod resolver;
 mod rpc;
@@ -654,7 +655,7 @@ fn main() {
                 tracing::info!(bind = %_cfg.health_bind, "health endpoint listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
                 for mut s in listener.incoming().flatten() {
                     let st = *agent_state.lock().unwrap();
-                    let active = crate::pipeline::HEALTH_ARCS.lock().unwrap().len();
+                    let active = crate::pipeline_events::HEALTH_ARCS.lock().unwrap().len();
                     // Bus channel 溢出计数 (P1 §十三): 暴露为 metric, 非零代表曾发生事件丢弃.
                     let dropped = crate::pipeline::dropped_bus_events();
                     let body = serde_json::json!({
@@ -716,7 +717,7 @@ fn spawn_ingest_watchdog(
             // 绝不覆盖 appsink 回调写入的 video_frame_count/audio_frame_count/PTS/video_pts_state/audio_pts_state,
             // 否则每轮 snapshot 写回会把实时计数回退, 破坏 c4(计数增长) 判定 (#4 回归).
             let (pass, has_error) = if let Some(h) =
-                crate::pipeline::HEALTH_ARCS.lock().unwrap().get(&handle)
+                crate::pipeline_events::HEALTH_ARCS.lock().unwrap().get(&handle)
             {
                 let mut g = h.lock().unwrap();
                 g.acceptance.a1_identity_resolved = true;
@@ -757,11 +758,11 @@ fn spawn_ingest_watchdog(
                     let kinds: Vec<&'static str> = events
                         .iter()
                         .map(|e| match e.kind {
-                            crate::pipeline::PipelineBusEventKind::Error => "Error",
-                            crate::pipeline::PipelineBusEventKind::Eos => "Eos",
-                            crate::pipeline::PipelineBusEventKind::StateChanged => "StateChanged",
-                            crate::pipeline::PipelineBusEventKind::Warning => "Warning",
-                            crate::pipeline::PipelineBusEventKind::ClockLost => "ClockLost",
+                            crate::pipeline_events::PipelineBusEventKind::Error => "Error",
+                            crate::pipeline_events::PipelineBusEventKind::Eos => "Eos",
+                            crate::pipeline_events::PipelineBusEventKind::StateChanged => "StateChanged",
+                            crate::pipeline_events::PipelineBusEventKind::Warning => "Warning",
+                            crate::pipeline_events::PipelineBusEventKind::ClockLost => "ClockLost",
                         })
                         .collect();
                     tracing::info!(
@@ -772,25 +773,25 @@ fn spawn_ingest_watchdog(
                 }
                 for e in &events {
                     match e.kind {
-                        crate::pipeline::PipelineBusEventKind::Error => {
+                        crate::pipeline_events::PipelineBusEventKind::Error => {
                             g.acceptance.c_pipeline_errors += 1;
                         }
-                        crate::pipeline::PipelineBusEventKind::Eos => {
+                        crate::pipeline_events::PipelineBusEventKind::Eos => {
                             g.acceptance.c_unexpected_eos += 1;
                         }
                         // P1-4 最低策略映射 (bus_event_recovery_policy): ClockLost = degraded, 不自动重启.
-                        crate::pipeline::PipelineBusEventKind::ClockLost => {
+                        crate::pipeline_events::PipelineBusEventKind::ClockLost => {
                             crate::pipeline::CLOCK_LOST_EVENTS
                                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                             tracing::warn!(
                                 handle = %handle.0,
                                 severity = ?e.severity,
                                 detail = %e.detail,
-                                policy = crate::pipeline::bus_event_recovery_policy(e.kind),
+                                policy = crate::pipeline_events::bus_event_recovery_policy(e.kind),
                                 "Bus ClockLost: 标记 degraded, 不触发重启 (完整 Clock Recovery 属 V0.3/P2)"
                             );
                         }
-                        crate::pipeline::PipelineBusEventKind::Warning => {
+                        crate::pipeline_events::PipelineBusEventKind::Warning => {
                             tracing::warn!(
                                 handle = %handle.0,
                                 severity = ?e.severity,
@@ -798,7 +799,7 @@ fn spawn_ingest_watchdog(
                                 "Bus Warning (可恢复异常, 记录不重启)"
                             );
                         }
-                        crate::pipeline::PipelineBusEventKind::StateChanged => {
+                        crate::pipeline_events::PipelineBusEventKind::StateChanged => {
                             tracing::info!(
                                 handle = %handle.0,
                                 detail = %e.detail,
@@ -821,8 +822,8 @@ fn spawn_ingest_watchdog(
                 || events.iter().any(|e| {
                     matches!(
                         e.kind,
-                        crate::pipeline::PipelineBusEventKind::Error
-                            | crate::pipeline::PipelineBusEventKind::Eos
+                        crate::pipeline_events::PipelineBusEventKind::Error
+                            | crate::pipeline_events::PipelineBusEventKind::Eos
                     )
                 })
             {
@@ -862,7 +863,7 @@ fn spawn_ingest_watchdog(
                 );
             } else if tick.is_multiple_of(20) {
                 // 诊断: pass 未达成时打印各子项, 便于现场定位 (每 ~10s 一次, 防刷屏).
-                let snap = crate::pipeline::read_health(&handle).unwrap_or_default();
+                let snap = crate::pipeline_events::read_health(&handle).unwrap_or_default();
                 tracing::info!(
                     tick = tick,
                     a1 = snap.acceptance.a1_identity_resolved,

@@ -8,7 +8,9 @@
 //! 后者使无 GStreamer 的 `MockBackend`（`adapters/mock`）可适用该契约，解锁 ARCH-PORTABILITY-01
 //! Test B/C 的 Mock 侧；`mock` 不拉 GStreamer，仍满足 "无后端/无真实硬件" 的端口中立性。
 #[cfg(any(feature = "gstreamer-backend", feature = "mock"))]
-use crate::pipeline::{PipelineBusEvent, PipelineError, PipelineHandle, PipelinePlan};
+use crate::pipeline::{PipelineError, PipelineHandle, PipelinePlan};
+#[cfg(any(feature = "gstreamer-backend", feature = "mock"))]
+use crate::pipeline_events::PipelineBusEvent;
 
 /// Media Runtime 契约：从同一 `PipelinePlan` 物化并管理管线生命周期。
 ///
