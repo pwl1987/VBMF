@@ -3,11 +3,28 @@
 > 落地结构偏差说明: 原任务用 `providers/`+`backends/` 目录名, 实际落地为
 > `contracts/`(SPI 冻结) + `adapters/blackmagic` + `adapters/gstreamer`(Reference Adapter 命名空间).
 > SPI 采用 "canonical 名 = 既有 trait 别名" 的零风险冻结策略.
+>
+> **⚠️ 状态重判（2026-08-28 审计）**：本分支当前提交 `997e9dd` **不应**标记为 "Phase 0.6B+C SPI 已建立完成"。
+> 实际交付 = **C1 / SPI Namespace Scaffold**（命名空间 + transitional alias）。
+> `HardwareProvider = DeviceManager`、`MediaBackend = PipelineController` 是类型别名，
+> Domain 仍按路径引用 `adapters/blackmagic`（依赖方向未解），故 ARCH-PORTABILITY-01 / ARCH-BACKEND-01 尚未通过。
+> 真正 SPI 解耦从 C2 起推进（见下 "C2/C3/C4 待办"）。
 
-## 1. 建立 Provider/Backend SPI 契约
-- [x] `contracts/provider.rs`: `HardwareProvider` = `device::DeviceManager` 重导出别名 (discover/identity 边界已含)
-- [x] `contracts/backend.rs`: `MediaBackend` = `pipeline::PipelineController` 重导出别名 (materialize/src_props 边界已含)
+## 1. 建立 Provider/Backend SPI 命名空间 (C1 = Scaffold, 非 SPI Complete)
+- [x] `contracts/` + `adapters/blackmagic` + `adapters/gstreamer` 命名空间建立（SPI/Adapter 边界冻结）
+- [x] `contracts/provider.rs`: `HardwareProvider` = `device::DeviceManager` 重导出别名 (transitional, C2 替换为真 trait)
+- [x] `contracts/backend.rs`: `MediaBackend` = `pipeline::PipelineController` 重导出别名 (transitional, C2 替换为真 trait)
+- [x] **解耦修复(A批)**: `MediaBackend` 仅 `gstreamer-backend` 门控, 不再依赖 `bmd-provider` (Backend/Provider 正交)
 - [x] trait 不含 vendor 错误类型 (沿用既有 error 模型; 统一到 RuntimeEvent 留 0.6D)
+
+## 1b. C2 / C3 / C4 待办（真正 SPI 解耦，非 C1 范围）
+- [ ] **C2** 真正的 `trait HardwareProvider` (`discover()->Result<Vec<DeviceInfo>,ProviderError>` + `probe_capabilities()` + `probe_connector_config()`)
+- [ ] **C2** 真正的 `trait MediaBackend` (`prepare`/`start`/`recover`/`poll_bus`)
+- [ ] **C2** `BlackmagicHardwareProvider` / `GStreamerMediaBackend` 实现上述 trait（迁出 `device.rs`/`pipeline.rs` 的 concrete 实现）
+- [ ] **C3** `MockHardwareProvider` / `MockMediaBackend`（解锁正交矩阵 Mock×Mock / Mock×GStreamer）
+- [ ] **C4** ARCH-PORTABILITY-01：移除 `adapters/blackmagic` 后 `domain/contracts/runtime` 仍可编译
+- [ ] **C4** ARCH-BACKEND-01：`MockBackend` 与 `GStreamerBackend` 用同一 `PipelinePlan` 物化
+- [ ] **C8** CI 增加 `architecture-boundary` gate：`domain/** contracts/** runtime/**` 禁止出现 `decklink`/`gstreamer`/`ffmpeg`/`srs` 引用
 
 ## 2. 迁移 BMD FFI 到 adapters/blackmagic
 - [x] `decklink.rs` / `sdk.rs` 迁入 `adapters/blackmagic/` (git mv), 仅经 `crate::adapters::blackmagic::decklink` 暴露

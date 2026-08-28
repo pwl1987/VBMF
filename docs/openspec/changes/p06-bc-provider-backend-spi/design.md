@@ -50,6 +50,12 @@ src/
 
 ## 3. Trait 定义（契约冻结）
 
+> **⚠️ C1 实际交付说明（2026-08-28 审计后）**：本节下方给出的富 `HardwareProvider` / `MediaBackend` trait
+> 是 **C2 目标契约**，并非 C1 已实现内容。C1 仅落地了 "canonical 名 = 既有 trait 别名"
+> （`HardwareProvider = DeviceManager` / `MediaBackend = PipelineController`，见 `contracts/*.rs`），
+> 且 `MediaBackend` 已在 A 批修复为仅 `gstreamer-backend` 门控（解除对 `bmd-provider` 的耦合）。
+> 真正的 trait 与 Adapter 物理抽取（迁出 `device.rs` / `pipeline.rs`）在 C2 起完成。
+
 ### `contracts/provider.rs` — `HardwareProvider`
 
 ```rust

@@ -27,7 +27,7 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 libloading = "0.8"
 # Canonical ingest runtime: GStreamer 是 SDI ingest executor (Phase 0.6 锁死).
 # DeckLink 经 decklinkvideosrc/decklinkaudiosrc 接入 (persistent-id, gint64, 1.22+).
-# Feature-gated: 仅 `gstreamer` 构建链接系统 GStreamer; default/simulation/bmd 不拉 GStreamer,
+# Feature-gated: 仅 `gstreamer-backend` 构建链接系统 GStreamer; default/simulation/bmd-provider 不拉 GStreamer,
 # 因此 CI default + bmd 构建仍可在无 GStreamer 的机器上编译 (真机 BMD 盒需 --features bmd,gstreamer).
 gstreamer = { version = "0.23", optional = true }
 gstreamer-app = { version = "0.23", optional = true }
@@ -69,7 +69,7 @@ gstreamer = ["gstreamer-backend"]
 hardware-test = ["bmd-provider"]
 
 [build-dependencies]
-# Optional: only pulled when `bmd` feature is enabled (needs libclang at build time).
+# Optional: only pulled when the `bmd-provider` feature is enabled (needs libclang at build time).
 # See build.rs — generates src-level FFI bindings from DeckLinkAPI.h on demand.
 bindgen = { version = "0.70", optional = true }
 
