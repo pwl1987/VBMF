@@ -67,6 +67,9 @@ gstreamer-backend = ["dep:gstreamer", "dep:gstreamer-app", "dep:glib"]
 bmd = ["bmd-provider"]
 gstreamer = ["gstreamer-backend"]
 hardware-test = ["bmd-provider"]
+# mock: C3 Reference Adapter — 纯 Rust Mock Provider/Backend (无 BMD/无 GStreamer),
+#        解锁 ARCH-PORTABILITY-01 Test B/C 的 Mock 侧 (架构解耦门禁).
+mock = []
 
 [build-dependencies]
 # Optional: only pulled when the `bmd-provider` feature is enabled (needs libclang at build time).

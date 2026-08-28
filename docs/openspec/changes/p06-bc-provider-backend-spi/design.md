@@ -129,4 +129,31 @@ pub trait MediaBackend: Send + Sync {
 
 ## 8. 非目标（本 change 不碰）
 
-- 不改 `materialize`/`src_props` 语义；不做 Mock（C3）；不做 Supervisor 改造（C2）；不做 Resource/Preflight（C2）；不做架构 lint 门禁（C4）；不进 Normalize（0.7）。
+- 不改 `materialize`/`src_props` 语义；**Mock Provider/Backend 已落地（见 §9 C3）**；不做 Supervisor 改造（C2）；不做 Resource/Preflight（C2）；不做架构 lint 门禁（C4）；不进 Normalize（0.7）。
+
+## 9. C3 追加：Mock Provider/Backend（解锁 ARCH-PORTABILITY-01 Test B/C Mock 侧）
+
+> 2026-08-28 落地。C1/C2 仅冻结 SPI 形状；C3 补齐「无 BMD / 无 GStreamer」的 Reference Adapter
+> 实现，证明 SPI 可由非 vendor 适配器满足，从而解锁架构解耦门禁的 Mock 侧。
+
+### 9.1 改动
+- **`Cargo.toml`**：新增 feature `mock = []`（纯 Rust，不拉 `gstreamer` / 不依赖真实硬件）。
+- **`contracts/backend.rs`**：`MediaBackend` 门控由 `gstreamer-backend` 放宽到
+  `any(gstreamer-backend, mock)`——使无 GStreamer 的 `MockBackend` 也能适用该契约；
+  `gstreamer` 构建语义不变（`any` 仍命中 `gstreamer-backend`）。
+- **`adapters/mock.rs`（新增）**：`MockProvider` / `MockProviderB`（均 `impl HardwareProvider`）
+  与 `MockBackend`（`impl MediaBackend`）。`MockProvider A`=1 路 SDI 单设备；`MockProvider B`=2 设备
+  （SDI+HDMI），拓扑不同，用于 Test C 替换 A 验证 Domain/Graph/UI 无需改动。`MockBackend`
+  prepare/start/recover 直接成功、poll_bus 返回空，不链接 GStreamer。
+- **`adapters/mod.rs`**：`#[cfg(feature = "mock")] pub mod mock;`。
+
+### 9.2 验证（与 C2 门禁对齐）
+- `cargo build --features mock` / `cargo clippy --all-targets --features mock -- -D warnings` 通过。
+- `cargo test --features mock`：新增 3 单测（Provider A 单设备+确定性 / Provider B 双设备 / Backend 生命周期）通过。
+- 既有 4 套配置（default / simulation / `bmd,gstreamer`(compat) / `bmd-provider,gstreamer-backend`(canonical)）
+  **不受影响**：`mock` 模块与 `MediaBackend` 放宽门控在其它 feature 下均不激活。
+
+### 9.3 架构影响
+- 无（Phase 0.6 Acceptance Validation，未触碰 V0.2 核心定义）。
+- 为 C4 ARCH-PORTABILITY-01（删 BMD Provider 后 Domain 仍可编译 + Mock 共享 Graph/Session/Supervisor/Health
+  + 换 Mock B 不改 Domain/Graph/UI）与 C2c（main 经 `dyn HardwareProvider`/`dyn MediaBackend` 接线）提供前置。
