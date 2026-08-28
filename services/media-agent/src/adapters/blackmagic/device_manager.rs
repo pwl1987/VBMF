@@ -15,6 +15,9 @@ use crate::port::DeviceCapabilities;
 pub struct DeckLinkDeviceManager;
 
 impl DeckLinkDeviceManager {
+    // 在 `bmd-provider,gstreamer-backend,mock` 组合下, main 优先选用 MockProvider,
+    // 本构造函数不被引用; 属 mock 优先接线的预期副作用, 故允许.
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }

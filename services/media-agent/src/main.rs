@@ -31,14 +31,31 @@ use crate::contracts::provider::HardwareProvider;
 // Trait must be in scope to call `acquire`/`is_valid` on `Arc<InMemoryLeaseManager>`
 // (trait method, auto-deref via Arc; 否则 E0599 no method named `acquire`).
 use lease::LeaseManager;
-// Trait must be in scope to call `prepare`/`start`/`recover` on `Arc<GStreamerPipelineController>`
-// (trait 方法, 否则 E0599 no method named `recover`). 调用点均在 `#[cfg(feature = "bmd-provider")]` 块内 → bmd && gstreamer 才编译.
+// Trait must be in scope to call `prepare`/`start`/`recover` on `Arc<dyn MediaBackend>`
+// (trait 方法, 否则 E0599 no method named `recover`). C2c 经 `dyn MediaBackend` 接线; 调用点均在
+// `#[cfg(feature = "bmd-provider")]` 块内 → bmd && gstreamer 才编译.
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::backend::MediaBackend;
 use std::io::Write;
 use std::sync::Arc;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use uuid::Uuid;
+
+/// Phase 0.6 C2c: 经 `dyn MediaBackend` 接线 —— `mock` feature 优先使用 `MockBackend`
+/// (证明 `MediaBackend` 可由非 GStreamer 实现满足, ARCH-BACKEND-01 Test B); 否则使用
+/// canonical GStreamer backend. 两者共享同一 `PipelinePlan` 契约, Graph/Supervisor/Health
+/// 无需改动即可互换 (Test C).
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+fn build_media_backend() -> Arc<dyn MediaBackend> {
+    #[cfg(feature = "mock")]
+    {
+        Arc::new(crate::adapters::mock::MockBackend)
+    }
+    #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
+    {
+        Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new())
+    }
+}
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -55,13 +72,23 @@ fn main() {
     // Gate 2.2: device discovery.
     // `simulation` => mock devices (CI/tests, no hardware or SDK).
     // default / bmd => filesystem probe (safe on CI / non-BMD; real on BMD).
-    #[cfg(feature = "simulation")]
-    let dm = device::SimulatedDeviceManager::new();
-    #[cfg(all(not(feature = "simulation"), feature = "bmd-provider"))]
-    let dm = adapters::blackmagic::DeckLinkDeviceManager::new();
-    #[cfg(all(not(feature = "simulation"), not(feature = "bmd-provider")))]
-    let dm = device::FilesystemDeviceManager::new();
-    let devices = dm.discover();
+    // Phase 0.6 C2c: 经 `dyn HardwareProvider` 接线 —— discovery 路径与具体 Provider 实现解耦
+    // (ARCH-PORTABILITY-01 Test C). 选择优先级: mock > simulation > bmd-provider > default(filesystem).
+    // 各实现返回相同的 `Vec<DeviceInfo>` 契约, Domain / Graph / UI 无需感知差异.
+    #[cfg(feature = "mock")]
+    let provider: Box<dyn HardwareProvider> = Box::new(crate::adapters::mock::MockProvider);
+    #[cfg(all(not(feature = "mock"), feature = "simulation"))]
+    let provider: Box<dyn HardwareProvider> = Box::new(device::SimulatedDeviceManager::new());
+    #[cfg(all(not(feature = "mock"), not(feature = "simulation"), feature = "bmd-provider"))]
+    let provider: Box<dyn HardwareProvider> =
+        Box::new(crate::adapters::blackmagic::DeckLinkDeviceManager::new());
+    #[cfg(all(
+        not(feature = "mock"),
+        not(feature = "simulation"),
+        not(feature = "bmd-provider")
+    ))]
+    let provider: Box<dyn HardwareProvider> = Box::new(device::FilesystemDeviceManager::new());
+    let devices = provider.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
 
     // B 选项 (用户 2026-08-28): Connector Mode / 各子设备配置方向探针.
@@ -378,7 +405,7 @@ fn main() {
         #[cfg(feature = "gstreamer-backend")]
         if skip_decklink {
             let plan = crate::pipeline::PipelinePlan::self_test();
-            let ctrl = std::sync::Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+            let ctrl: Arc<dyn MediaBackend> = build_media_backend();
             match ctrl.prepare(&plan) {
                 Ok(h) => match ctrl.start(&h) {
                     Ok(()) => {
@@ -595,8 +622,7 @@ fn main() {
                             if !lm.is_valid(&device_uuid) {
                                 tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
                             } else {
-                                let ctrl =
-                                    Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+                                let ctrl: Arc<dyn MediaBackend> = build_media_backend();
                                 // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
                                 tracing::info!(gst_version = ?crate::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
                                 match ctrl.prepare(&plans[0]) {
@@ -691,9 +717,10 @@ fn main() {
 /// A1-A4 / B1-B4 / C1-C4 → 错误时报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
 /// Supervisor 仅决策, 不碰 GStreamer (硬边界); 实际重启由这里执行.
 /// 调用点 (self-test / canonical) 均在 `#[cfg(feature = "bmd-provider")]` 块内, 故本函数仅在 bmd && gstreamer 时编译.
+/// `ctrl` 已为 `Arc<dyn MediaBackend>` (C2c): Mock 与 GStreamer 共享同一 `PipelinePlan` 契约.
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 fn spawn_ingest_watchdog(
-    ctrl: Arc<crate::adapters::gstreamer::GStreamerPipelineController>,
+    ctrl: Arc<dyn MediaBackend>,
     handle: crate::pipeline::PipelineHandle,
     device_uuid: Uuid,
     sup: Arc<std::sync::Mutex<supervisor::Supervisor>>,
