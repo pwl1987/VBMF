@@ -9,6 +9,7 @@
 4. **Configuration / Runtime State / Observed State 严格三分离**（见 Addendum §3.2）。
 5. **删除具体实现后，上层（Domain/Graph/Supervisor/Health）仍能编译**。
 6. **`Runtime Resource` 绝不等同于 `Identity`**；device-number 仅是运行时地址，绝不默认 0。
+7. **Canonical Identity 不含 vendor handle**：`DeviceHandle`/`PersistentId`/`TopologicalId` 是 Provider Identity，须经 Provider Identity Adapter 映射为 Canonical `DeviceId`（见 [`CANONICAL_IDENTITY.md`](./CANONICAL_IDENTITY.md)）；Canonical Domain / Graph / UI 只认 `DeviceId` + `IdentityStrength`。
 
 ## CI 防回归门禁
 ```yaml

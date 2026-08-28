@@ -13,7 +13,7 @@
 
 - ✅ `CapabilityValue<T>` 四态（Supported/Unsupported/Unknown/ProbeFailed）
 - ✅ `PortOrdinal { Known, Unknown }`（禁止 0 表示未知）
-- ✅ `IdentityStrength` + DeviceId 独立于 GStreamer device-number
+- ✅ `IdentityStrength` + Canonical `DeviceId` 独立于 GStreamer device-number（`DeviceHandle` 等是 Provider Identity，见 `CANONICAL_IDENTITY.md`）
 - ✅ `VerificationLevel` 四档 + fail-closed 校验
 - ✅ vendor-neutral `GraphRuntimeIntent`（仅 DeviceId + PortId + Media Semantics）
 - ✅ Bus → PipelineHealth → AgentState → Supervisor 链
@@ -142,7 +142,7 @@ Deployment Adapter
         │
 ```
 
-- **Device** — 物理身份/容器（Physical identity/container）。
+- **Device** — 物理身份/容器（Physical identity/container）；含 Canonical `DeviceId`（Domain 只见此）+ Provider Identity（`persistent_id`/`DeviceHandle`，见 `CANONICAL_IDENTITY.md`）。
 - **Port** — 物理资源（Physical resource）；是 Session 引用的对象，不是 Session 本身。
 - **Capability** — "能不能做"（静态能力）。
 - **Resource** — "逻辑可消耗资源"（Logical consumable resource），见 §5。
@@ -224,15 +224,16 @@ Capacity      = 最多能做多少
 Availability   = 现在还有多少
 Allocation     = 当前谁占用了多少
 ```
-示例：
+示例（`Media Device`，厂商无关）：
 ```
-BMD Device
-  Capability:   4 SDI Input
-  Capacity:     4 input sessions
-  Availability: 2
-  Allocation:   Session-A → Port1
-                Session-B → Port2
+Media Device
+  Capability:   N INPUT ports
+  Capacity:     N concurrent input sessions
+  Availability: M
+  Allocation:   Session-A → Port-X
+                Session-B → Port-Y
 ```
+> 具体厂商数值（如 BMD 4 SDI Input）只放 PROVIDER/HOST evidence，不进 Canonical 示例（vendor 中立，见 `CANONICAL_IDENTITY.md`）。
 
 ### 5.2 Resource ≠ Device
 Resource 是**逻辑可消耗资源**；Device 是**物理身份/容器**。
@@ -261,16 +262,15 @@ Preflight → Reserve Port → Create Session → Acquire Lease → Start Pipeli
 ### 5.4 Resource 树（只定义模型，不实现 Scheduler）
 ```
 Resource
-├── DeviceResource
-├── PortResource
-├── BackendResource
-├── EncoderResource
-├── GPUResource
-├── NetworkResource
-├── StorageResource
-└── ClockResource
+├── resource_id: ResourceId
+├── parent_resource_id: Option<ResourceId>   // 允许嵌套：Device → Port / DMA / Session-capacity
+├── resource_type: Device | Port | Backend | Encoder | GPU | Network | Storage | Clock
+├── DeviceResource ── PortResource A / PortResource B / DMA / Session Capacity
+├── EncoderResource / GPUResource / NetworkResource
+├── StorageResource / ClockResource
 ```
-> **必须与 V0.2 §3.11 九维 Resource Vector 对齐，不得另起一套语义。**
+- 申请一个 `PortResource` 不会自动占用整个 `DeviceResource`；占用由 `parent_resource_id` + Allocation 显式表达（详见 `RUNTIME_RESOURCE_MODEL.md` §4/§4.1）。
+> **必须与 V0.2 §3.11 九维 Resource Vector 对齐，不得另起一套语义。** Resource / Vector / Constraint / Token 四概念严格区分（见 `RUNTIME_RESOURCE_MODEL.md` §4.1）。
 
 ---
 
@@ -349,6 +349,7 @@ RuntimeEvent → Health / Policy Reducer → Supervisor Decision
 
 ```
 Control Plane         owns Intent
+Runtime Session Manager creates / destroys Session   （唯一 owner，Provider/Backend/Supervisor 不创建 Session）
 Session               owns Runtime Lifecycle
 Lease                 owns Exclusive Runtime Claim
 Resource Registry     owns Resource State
@@ -424,18 +425,17 @@ Old Device → Removed → Binding Stale → Session Degraded
 ## 12. Phase 0.6 子阶段
 
 ```
-0.6A  Canonical Domain
-0.6B  Provider SPI
-0.6C  Backend SPI
+0.6A  Canonical Domain & Session (CANONICAL_IDENTITY + RUNTIME_SESSION_MODEL)
+0.6B  Provider SPI (BMD)
+0.6C  Backend SPI (GStreamer)
 0.6D  Runtime Binding
-0.6E  Session Ownership
-0.6F  Resource Model
-0.6G  Audio Routing Contract
-0.6H  Clock/Timecode Contract
-0.6I  Portability Acceptance
-0.6J  BMD/GStreamer Reference Adapter
+0.6E  Resource Model
+0.6F  Architecture Lint + Reference Adapter
+0.6G  Acceptance (P0/P0.5)
         ↓
-0.7   Normalize
+0.7   P1: Audio/Clock/Timecode/Capability/Encoder/Gateway + External Integration
+        ↓
+0.8   Multi-site / Federation
 ```
 
 ---
@@ -461,4 +461,4 @@ Old Device → Removed → Binding Stale → Session Degraded
 
 ---
 
-*本文档为 Architecture Contract Freeze 载体。所有实体（Device / Port / Capability / Resource / Session / Binding / Signal / MediaFormat / Clock / Timecode / RuntimeError / RuntimeEvent / AudioRouting）关系以此为准，后续实现不得再"边写边发现抽象"。*
+*本文档为 **Phase 0.6 Architecture Contract Coherence — Final Hardening** 载体（非最终 Freeze）。待本轮硬冲突修复 + 过 `ARCH-PORTABILITY-01`/`ARCH-BACKEND-01` 门禁后，正式宣布 `PHASE-0.6-RUNTIME-ABSTRACTION-CONTRACT-FROZEN`。所有实体（Device / Port / Capability / Resource / Session / Binding / Signal / MediaFormat / Clock / Timecode / RuntimeError / RuntimeEvent / AudioRouting）关系以此为准，后续实现不得再"边写边发现抽象"。*

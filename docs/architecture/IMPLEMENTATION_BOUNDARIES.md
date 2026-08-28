@@ -30,6 +30,7 @@
 
 ## 5. Ownership 边界（最终明确）
 ```
+Runtime Session Manager creates / destroys Session   （唯一 owner，Provider/Backend/Supervisor 不创建 Session）
 Control Plane     owns Intent
 Session           owns Runtime Lifecycle
 Lease             owns Exclusive Runtime Claim

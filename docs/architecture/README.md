@@ -2,8 +2,8 @@
 
 ## 📌 阶段导航（一眼分清「本次实施」）
 
-### ⚠️ 本次实施 = Phase 0.6（P0 / P0.5）— Runtime Abstraction
-> **目标**：把现有 `media-agent` 重构为 Canonical Media Runtime。代码层要消的 P0 缺口：建 `HardwareProvider`/`MediaBackend` SPI、统一 `RuntimeEvent`、Provider Registry、Mock Provider/Backend、消除 11 处 `device_number`、Preflight、过 `ARCH-PORTABILITY-01` 编译门禁、CI Architecture Lint。
+### ⚠️ 本次实施 = Phase 0.6（P0 / P0.5）— Runtime Abstraction（Contract Coherence Hardening 阶段，尚未 Freeze）
+> **目标**：把现有 `media-agent` 重构为 Canonical Media Runtime。代码层要消的 P0 缺口：建 `HardwareProvider`/`MediaBackend` SPI、统一 `RuntimeEvent`、Provider Registry、Mock Provider/Backend、消除 11 处 `device_number` 改用 Canonical `DeviceId`、Preflight、过 `ARCH-PORTABILITY-01` 编译门禁、CI Architecture Lint。
 > 下面这些契约**已建**，是本次实施的规范依据。**P1/P2 契约仅规划冻结，暂不实施**。
 
 - 综合契约（权威载体）：[`IMPLEMENTATION_ADDENDUM.md`](IMPLEMENTATION_ADDENDUM.md) ［P0］
@@ -16,6 +16,8 @@
 - 可移植性矩阵：[`TECHNOLOGY_PORTABILITY_MATRIX.md`](TECHNOLOGY_PORTABILITY_MATRIX.md) ［P0］
 - 厂商中立守则：[`VENDOR_NEUTRALITY_RULES.md`](VENDOR_NEUTRALITY_RULES.md) ［P0］
 - Session 模型：[`RUNTIME_SESSION_MODEL.md`](RUNTIME_SESSION_MODEL.md) ［P0］
+- Canonical 身份：[`CANONICAL_IDENTITY.md`](CANONICAL_IDENTITY.md) ［P0］
+- 拓扑契约：[`RUNTIME_TOPOLOGY_CONTRACT.md`](RUNTIME_TOPOLOGY_CONTRACT.md) ［P0.5］
 - Binding 模型：[`RUNTIME_BINDING_MODEL.md`](RUNTIME_BINDING_MODEL.md) ［P0］
 - **整合 Master PRD（两份 PRD + 评审 + 缺口 + 路径 + 门禁）**：[`PHASE_0_6_MASTER_PRD.md`](PHASE_0_6_MASTER_PRD.md) ［P0 整合］
 - 讨论留档：[`REVIEW_2026-08-28.md`](REVIEW_2026-08-28.md) ［P0］

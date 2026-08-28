@@ -14,6 +14,13 @@
 - 厂商扩展隔离：`extensions.{blackmagic}` 不得污染 Canonical Schema（#86/#137）
 - Versioning：`/api/v1/`，非破坏字段增加不影响旧客户端（#126）
 
+## 2.1 API 形态分类（Resource / Command / Operation / Event，#28 相关）
+- **Resource API**：GET/PUT 资源状态（如 `GET /sessions/1`）。
+- **Command API**：POST 触发动作（如 `POST /sessions/1/start`），幂等带 `command_id`。
+- **Operation API**：查询异步操作（如 `GET /commands/123`）。
+- **Event API**：订阅推送（见 `EVENT_CONTRACT.md`）。
+> 四者关系明确冻结：资源读写 ≠ 命令触发 ≠ 操作查询 ≠ 事件订阅（用户审查 #28）。
+
 ## 3. Idempotency（#28–#34）
 - Command 带 `command_id` / `Idempotency-Key`，重复提交返回首次结果
 - 幂等方法：discover / bind / reserve / lease / start / stop / recover
@@ -47,3 +54,9 @@ Categories：AUTHENTICATION_FAILED / AUTHORIZATION_DENIED / VALIDATION_ERROR / R
 - `EXT-API-01`（Query/Command/Event/Auth/Authz/Audit/Idempotency/Versioning）
 - `ARCH-API-BOUNDARY-01`（External→Control→Runtime Contract→Rust，禁 External→Vendor SDK）
 - Vendor Neutrality Gate（#136，引用 `VENDOR_NEUTRALITY_RULES.md`）
+
+## 10. 状态术语（统一，消除误解，用户审查 #13/#14）
+- **CONTRACT STATUS**：`Proposed` / `Frozen` / `Deprecated`（契约是否冻结）。
+- **IMPLEMENTATION STATUS**：`Not Started` / `In Progress` / `Implemented` / `Verified`（代码是否落地）。
+- **GATE STATUS**：`CONTRACT_FROZEN` / `IMPLEMENTATION_NOT_STARTED` / `IMPLEMENTATION_PARTIAL` / `LAB_VERIFIED` / `REAL_HARDWARE_VERIFIED` / `RELEASE_ACCEPTED`。
+> "已建" 指 **CONTRACT STATUS=Frozen**，不等于代码 Implemented。本契约库统一使用上述三套状态词，避免「已建=已实现」误读。

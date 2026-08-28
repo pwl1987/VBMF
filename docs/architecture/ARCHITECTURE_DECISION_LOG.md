@@ -1,4 +1,4 @@
-# 架构决策日志 — Phase 0.6 Runtime Abstraction Freeze
+# 架构决策日志 — Phase 0.6 Architecture Contract Coherence（Final Hardening）
 
 > 一句话裁决：**先冻结四层契约，再过 ARCH-PORTABILITY-01 + ARCH-BACKEND-01 两门禁，通过后才把 BMD/GStreamer 降级为 Reference Adapter；此步完成前不进 Normalize、不进 BMD-specific 开发。**
 > 详细载体：[`IMPLEMENTATION_ADDENDUM.md`](./IMPLEMENTATION_ADDENDUM.md)；讨论脉络：[`REVIEW_2026-08-28.md`](./REVIEW_2026-08-28.md)。
@@ -29,7 +29,7 @@
 - **P1**：Clock / Timecode / Audio Backend-Routing / Capability Negotiation / Encoder / Gateway（只定 Contract）。
 - **P2**：DB / Queue / ObjectStore / Auth / Deployment（连契约暂缓）。
 - **门禁**：ARCH-PORTABILITY-01（删 BMD Provider 仍能编译——当前编译不过）、ARCH-BACKEND-01。
-- **子阶段**：0.6A~0.6J → 0.7 Normalize。
+- **子阶段**：0.6A~0.6G（P0/P0.5）→ 0.7（P1：Audio/Clock/Timecode/Capability/Encoder/Gateway + External Integration）→ 0.8（P2 Multi-site/Federation）。
 
 ## 5. 影响范围
 - 新增 6+1 契约文档（本目录）作为 Phase 0.6 门禁依据。
@@ -39,4 +39,16 @@
 ## 6. 关联索引
 - 综合契约：`IMPLEMENTATION_ADDENDUM.md`
 - 讨论留档：`REVIEW_2026-08-28.md`
-- 契约门禁：`IMPLEMENTATION_BOUNDARIES.md` / `HARDWARE_PROVIDER_CONTRACT.md` / `MEDIA_BACKEND_CONTRACT.md` / `RUNTIME_RESOURCE_MODEL.md` / `CANONICAL_MEDIA_MODEL.md` / `TECHNOLOGY_PORTABILITY_MATRIX.md` / `VENDOR_NEUTRALITY_RULES.md`
+- 契约门禁：`IMPLEMENTATION_BOUNDARIES.md` / `HARDWARE_PROVIDER_CONTRACT.md` / `MEDIA_BACKEND_CONTRACT.md` / `RUNTIME_RESOURCE_MODEL.md` / `CANONICAL_MEDIA_MODEL.md` / `TECHNOLOGY_PORTABILITY_MATRIX.md` / `VENDOR_NEUTRALITY_RULES.md` / `CANONICAL_IDENTITY.md` / `RUNTIME_TOPOLOGY_CONTRACT.md`
+
+## 7. Final Hardening（2026-08-28 第三轮审查，用户裁决）
+> 用户重新核对 GitHub master 上的 Master PRD / Addendum / Canonical Model / Session/Resource/Provider Contract / V0.2，结论：**方向正确、文档基本对齐，但仍差一轮 Architecture Contract Coherence Fix，不能直接宣布 Freeze**。
+- **不推翻现有 PRD**，只修硬冲突（非重做）。
+- 新建 `CANONICAL_IDENTITY.md`：统一 ID Vocabulary（`DeviceId`/`PortId`/`SessionId`/`ResourceId`/... + `IdentityStrength`/`Source`/`Scope`/`Stability`）；明确 `DeviceHandle`/`PersistentId` 是 **Provider Identity**，须经 Adapter 映射为 Canonical `DeviceId`（解决 BMD 身份泄漏风险，#1/#2）。
+- 新建 `RUNTIME_TOPOLOGY_CONTRACT.md`：PhysicalConnection / LogicalRoute / Topology 分离（#6）。
+- `SessionId` 由 `PersistentId` 改为 `SessionId(Uuid)`，冻结 Session Creator/Owner/Terminator（#3/#4）。
+- Resource 加 `parent_resource_id`，严格区分 Resource/Vector/Constraint/Token 四概念（#5）。
+- 统一阶段：0.6 = P0/P0.5 only，0.7 = P1（Audio/Clock/Timecode 从 0.6 移入 0.7，仅冻结 Contract 边界），0.8 = P2（#5 阶段矛盾）。
+- Provider `open()` 收窄为 `open_input`/`open_output`（收 resolved request，不收整个 Manifest）；Backend `plan/build` 收窄为 `instantiate/start/stop/recover/observe`（#15/#17）。
+- 统一术语：CONTRACT STATUS / IMPLEMENTATION STATUS / GATE STATUS（#13/#14）。
+- **状态降级**：本文档标题由 "Runtime Abstraction Freeze" 改为 "Contract Coherence — Final Hardening"；待本轮硬冲突修复 + 过 `ARCH-PORTABILITY-01`/`ARCH-BACKEND-01` 门禁后，正式宣布 `PHASE-0.6-RUNTIME-ABSTRACTION-CONTRACT-FROZEN`，再进入 0.6 实施 → Normalize。

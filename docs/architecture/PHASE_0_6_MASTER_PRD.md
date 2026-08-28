@@ -13,7 +13,7 @@
 
 | 阶段 | 优先级 | 内容 | 来源 |
 |---|---|---|---|
-| **Phase 0.6** | P0 / P0.5 | Runtime Abstraction：四层、Provider/Backend SPI、Session/Binding/Resource/Audio/Clock、Preflight、架构边界 | Portability PRD |
+| **Phase 0.6** | P0 / P0.5 | Runtime Abstraction：四层、Provider/Backend SPI、Session/Binding/Resource、Preflight、架构边界（**Audio/Clock/Timecode 仅冻结 Contract，实现在 0.7**） | Portability PRD |
 | **Phase 0.7** | P1 | External Integration Plane：External API、Event Projection、Device Adapter、Routing/Trigger、Webhook | API PRD |
 | **Phase 0.8** | P2 | Multi-site / Federation / Agent / Advanced Adapter | API PRD（#140–#150） |
 
@@ -60,7 +60,7 @@
 ## 2. 关键架构决策（摘要，详 `ARCHITECTURE_DECISION_LOG.md`）
 
 - **R1 四层冻结**：Domain / Contract / Runtime / Adapter 边界不可越层依赖。
-- **R2 Runtime Address ≠ Identity**：用 `DeviceHandle`/`PersistentId`，禁止 `device-number` 作业务主身份（Portability #8/#11）。
+- **R2 Runtime Address ≠ Identity**：用 Canonical `DeviceId`（见 [`CANONICAL_IDENTITY.md`](./CANONICAL_IDENTITY.md)）。`DeviceHandle`/`PersistentId` 是 **Provider Identity**（vendor-specific），**不是** Canonical 身份；禁止 `device-number` 作业务主身份（Portability #8/#11）。
 - **R3 Observation ≠ Configuration**：Health/Probe/Signal/Content 是观察，不写回 Graph（Portability #48）。
 - **R4 Audio 独立建模**：Video/Audio/Metadata 独立 Graph，统一 Runtime container 不合并业务 Graph（Portability #55）。
 - **R5 替换轴 9 条**：Hardware / Backend / Audio / GPU / Infra / Deploy / Security / Clock / Timecode，替换不变量见 Portability #61–#64、#164。
@@ -88,8 +88,10 @@
 | `EXTERNAL_API_CONTRACT.md` | ✅ 已建（**P1 规划冻结，暂不实施**） | API #1–#85, #108–#134, #151–#162 |
 | `EVENT_CONTRACT.md` | ✅ 已建（**P1 规划冻结**） | API #11–#34, #78–#82, #102–#105, #155 |
 | `DEVICE_INTEGRATION_CONTRACT.md` | ✅ 已建（**P1 规划冻结**；#140–#150 多站点/agent 属 P2 外置） | API #87–#107, #154 |
+| `CANONICAL_IDENTITY.md` | ✅ 已建（Final Hardening 补建，P0） | Portability #8/#11 + API #93/#94/#147（评审 §3.5-P） |
+| `RUNTIME_TOPOLOGY_CONTRACT.md` | ✅ 已建（Final Hardening 补建，P0.5） | 用户审查 #24/#25（PhysicalConnection/LogicalRoute/Topology） |
 
-> **文档层缺口消除**：上表 7 份 🔧 契约在本任务补建，PRD #156 要求的契约体系即告完整。
+> **文档层缺口消除**：PRD #156 要求的契约体系完整；Final Hardening 额外补建 `CANONICAL_IDENTITY.md` / `RUNTIME_TOPOLOGY_CONTRACT.md`，使 Identity 与 Topology 不再散落各文档。
 
 ---
 
@@ -105,7 +107,7 @@
 2. 统一 `RuntimeEvent` / `RuntimeError`，Supervisor 只认 Canonical（禁 vendor HRESULT/GStreamer Message）
 3. Provider Registry（静态 BMD + Mock，未来 AJA；不做动态 .so Loader）
 4. Mock Provider/Backend trait，支持仿真矩阵（1/2/4/8 input、no signal/black/removed/backend failed/clock lost…）
-5. 消除 11 处 `device_number` 直接依赖，改用 `DeviceHandle`
+5. 消除 11 处 `device_number` 直接依赖，改用 Canonical `DeviceId`（见 `CANONICAL_IDENTITY.md`；`DeviceHandle` 仅是 Provider Identity）
 6. Preflight + Explainability（联合多能力，输出 Feasible/Rejected+Reason）
 7. `ARCH-PORTABILITY-01` / `ARCH-BACKEND-01` 编译门禁（当前**编译不过**）
 8. CI `check-architecture-boundaries` lint（禁 Domain import BMD/GStreamer、禁 GraphIntent 含 device-number、禁 Supervisor 引 vendor error、禁 UI 暴露 vendor primary id）
@@ -123,24 +125,26 @@
 
 ## 5. 实现路径
 
-### Phase 0.6 — Runtime Abstraction（P0/P0.5）
-- **0.6A** Canonical Domain & Session Model（落 `RUNTIME_SESSION_MODEL`/`RUNTIME_BINDING_MODEL`）
+### Phase 0.6 — Runtime Abstraction（P0 / P0.5，不含 P1 实现）
+- **0.6A** Canonical Domain & Session Model（落 `CANONICAL_IDENTITY.md`/`RUNTIME_SESSION_MODEL`/`RUNTIME_BINDING_MODEL`）
 - **0.6B** Hardware Provider SPI（BMD）：抽 `decklink.rs` → `providers/blackmagic/`，FFI 在 Provider 内
 - **0.6C** Media Backend SPI（GStreamer）：抽 pipeline → `backends/gstreamer/`
 - **0.6D** RuntimeEvent / RuntimeError / Supervisor 改造
 - **0.6E** Resource Model / Preflight（对齐 V0.2 §3.11）
 - **0.6F** Provider Registry / Mock Provider+Backend / Simulation（消 #74 矩阵）
 - **0.6G** Architecture Lint + Boundary Test（过 `ARCH-PORTABILITY-01` 编译）
-- **0.6H** Clock/Timecode Canonical（落 `CLOCK_TIMECODE_CONTRACT`，P0.5）
-- **0.6I** Audio Routing 契约 + Audio Backend（落 `AUDIO_ROUTING_CONTRACT`）
-- **0.6J** BMD/GStreamer Reference Adapter 收尾
-- **0.6K** Acceptance Gate 全过（ARCH-PORTABILITY-01/BACKEND-01/RESOURCE-01/AUDIO-01 + HW-PORT-01/HW-IDENT-02/MEDIA-RT-01）
+- **0.6H** BMD/GStreamer Reference Adapter 收尾
+- **0.6I** Acceptance Gate（P0/P0.5）：ARCH-PORTABILITY-01/BACKEND-01/RESOURCE-01 + HW-PORT-01/HW-IDENT-02/MEDIA-RT-01
 
-### Phase 0.7 — External Integration（P1）
+### Phase 0.7 — P1（External Integration + Clock/Timecode/Audio/Capability/Encoder/Gateway Contract + Implementation）
+> Audio/Clock/Timecode 从 0.6 移入 0.7：0.6 只冻结其 Contract 边界，实现在 0.7（与 External 同阶段，统称 P1）。
 - **0.7A** External API 三平面 + `EXTERNAL_API_CONTRACT`
 - **0.7B** Event Projection + `EVENT_CONTRACT`（RuntimeEvent→External）
 - **0.7C** Device Adapter Framework + `DEVICE_INTEGRATION_CONTRACT`
 - **0.7D** Integration Registry / Routing / Trigger / Webhook + EXT-* Acceptance
+- **0.7E** Clock/Timecode Canonical（落 `CLOCK_TIMECODE_CONTRACT`）+ 实现
+- **0.7F** Audio Routing 契约 + Audio Backend（落 `AUDIO_ROUTING_CONTRACT`）+ 实现
+- **0.7G** Capability Negotiation / Encoder / Gateway Contract + 实现
 
 ### Phase 0.8 — Multi-site / Federation（P2）
 - **0.8A** Site-aware Resource / Agent Registration
@@ -198,7 +202,7 @@
 - **(M) 鉴权悬空**：#108–#111 安全要求定义在未实现的 Fastify 应用层（评审 §3.5-M）。
 - **(N) 与 Phase 0.6 冻结裁决冲突（最高优先级）**：#140–#150/#157/#160–#167 均 P2，PRD 未外置（评审 §3.5-N）。
 - **(O) 大量验收无法在当前代码验证**：#78–#82/#102–#105/#131/#140–#150 需 Control Plane，未标 P1/P2（评审 §3.5-O）。
-- **(P) 两份 PRD 各自定义"稳定身份"未共享**：#93/#94/#147 与 Portability #8/#11 应抽 `CANONICAL_IDENTITY` 契约（评审 §3.5-P）。
+- **(P) 两份 PRD 各自定义"稳定身份"未共享**：#93/#94/#147 与 Portability #8/#11 应抽 `CANONICAL_IDENTITY` 契约（评审 §3.5-P）→ **已建 `CANONICAL_IDENTITY.md`**（见 §3 表），Provider Identity 与 Canonical `DeviceId` 的边界已冻结。
 - **(Q) 范围过大未拆**：应拆 P1（API+Event+Device Adapter）与 P2（Multi-site/Agent/Artifact）（评审 §3.5-Q）。
 
 ---

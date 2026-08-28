@@ -18,6 +18,8 @@ Clock / Timecode (P1 Contract)
 Error / Event (P0 统一模型)
 ```
 
+> **身份层级（见 [`CANONICAL_IDENTITY.md`](./CANONICAL_IDENTITY.md)）**：`Device` 含 Canonical `DeviceId`（Domain 只见此）+ Provider Identity（`persistent_id`/`DeviceHandle`/`SDK GUID` 等，vendor-specific）。`DeviceHandle`/`PersistentId` 是 **Provider Identity**，**不是** VBMF Canonical Identity；须经 Provider Identity Adapter 映射为 `DeviceId`。更换硬件厂商（BMD→AJA）只改 Provider 层身份机制，Canonical Domain 零变化。
+
 ## 3. Session Ownership（写死边界）
 ```
 Session ≠ Device / Port / Pipeline / Lease

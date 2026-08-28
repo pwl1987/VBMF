@@ -5,12 +5,19 @@
 ## 1. SPI 边界（trait 形状级，非实现）
 ```
 trait MediaBackend {
-    fn plan(&self, intent: &GraphRuntimeIntent) -> CanonicalPipelinePlan;
-    fn build(&self, plan: &CanonicalPipelinePlan) -> Result<BackendRuntime, BackendError>;
-    fn observe(&self) -> CanonicalRuntimeEvent;   // 统一事件，非 GStreamer Bus Message
+    // 不决定 Resource / Session / Lease / Provider：
+    // Runtime Orchestrator 已把 Resolved Execution Plan 传给 Backend。
+    // `plan()` 属 Graph Compiler/Runtime 职责，Backend 只 instantiate/start/stop/recover/observe。
+    // 真正的 lifecycle owner 是 Runtime Orchestrator / Session，不是 Backend。
+    fn instantiate(&self, plan: &CanonicalPipelinePlan)
+        -> Result<PipelineHandle, BackendError>;
+    fn start(&self, handle: &PipelineHandle) -> Result<(), BackendError>;
+    fn stop(&self, handle: &PipelineHandle) -> Result<(), BackendError>;
+    fn recover(&self, handle: &PipelineHandle) -> Result<(), BackendError>;
+    fn observe(&self, handle: &PipelineHandle) -> CanonicalRuntimeEvent; // 统一事件，非 GStreamer Bus Message
 }
 ```
-- Backend 必须消费 **Canonical** `GraphRuntimeIntent`（仅 DeviceId + PortId + Media Semantics），不得依赖 GStreamer/BMD 字段。
+- Backend 必须消费 **Canonical** `CanonicalPipelinePlan`（由 Runtime Orchestrator 解析，仅含 Canonical 类型），不得依赖 GStreamer/BMD 字段。
 - 上层（Session / Supervisor / Health）只认 Canonical 类型；所有 vendor 错误进入统一 `RuntimeEvent/RuntimeError` 模型（见 Addendum §8）。
 
 ## 2. 共享契约（ARCH-BACKEND-01 判据）

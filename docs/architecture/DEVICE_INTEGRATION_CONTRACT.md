@@ -23,6 +23,18 @@ Integration / IntegrationEndpoint / ExternalDevice / ExternalSystem / Adapter / 
 - 不依赖 IP / hostname / MAC；用 stable device identity + 记录 identity strength
 - `external_port_id` ≠ TCP/UDP port / HTTP endpoint
 
+## 5.1 External System / Endpoint Identity（#26/#87）
+- 外部系统用 `external_system_id` / `integration_id` / `endpoint_id`，**禁止用 URL / IP / hostname 作主身份**（与 `CANONICAL_IDENTITY.md` 一致）。
+- CMS / NMS / Router / 另一个 VBMF 都是 ExternalSystem，各持稳定 `external_system_id`。
+
+## 5.2 Integration Direction（#27）
+- `direction`：`INBOUND`（外部→VBMF，如 CMS 下发）/ `OUTBOUND`（VBMF→外部，如 NMS 上报）/ `BIDIRECTIONAL`（如 Router 双向）。
+- 每条 Integration 显式声明 direction；双向需双向 health/conflict 处理。
+
+## 5.3 Device Capability / Permission 层级（#29/#30）
+- **Device Capability**：`Observe`（仅观测）/ `Control`（可控）/ `Configure`（可配）。Capture Card 可能只 Observe；Router 可 Observe+Control；Camera 可 Observe+Control+PTZ。
+- **Permission**（API 层，实现留 P1）：`Device Read` / `Device Observe` / `Device Control` / `Routing Control` / `Session Control` / `Diagnostics`。只读信号者不得获 Switch 权限。
+
 ## 6. Routing（#95–#98）
 - SDI router / Audio matrix / IP routing 统一进 Routing Adapter
 - Route 生命周期：`REQUESTED → VALIDATING → RESERVED → APPLYING → ACTIVE → FAILED → ROLLING_BACK → RELEASED`
