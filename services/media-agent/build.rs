@@ -10,14 +10,14 @@
 //! proprietary SDK header or libclang. Real enumeration is validated on BMD (runc + Option B).
 
 fn main() {
-    #[cfg(feature = "bmd")]
+    #[cfg(feature = "bmd-provider")]
     gen_real();
 
-    #[cfg(not(feature = "bmd"))]
+    #[cfg(not(feature = "bmd-provider"))]
     gen_stub();
 }
 
-#[cfg(feature = "bmd")]
+#[cfg(feature = "bmd-provider")]
 fn gen_real() {
     let include = std::env::var("DECKLINK_SDK_INCLUDE").expect(
         "DECKLINK_SDK_INCLUDE must point at the DeckLink SDK Linux/include dir (Gate 6/7)",
@@ -41,7 +41,7 @@ fn gen_real() {
         .expect("Couldn't write bindings.rs");
 }
 
-#[cfg(not(feature = "bmd"))]
+#[cfg(not(feature = "bmd-provider"))]
 fn gen_stub() {
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     std::fs::write(out.join("bindings.rs"), "// stub: bmd feature disabled at build time\n")

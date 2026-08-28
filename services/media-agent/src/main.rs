@@ -4,7 +4,8 @@
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod config;
-mod decklink;
+mod adapters;
+mod contracts;
 mod device;
 mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
 mod graph_intent;
@@ -15,27 +16,28 @@ mod pipeline;
 mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
 mod resolver;
 mod rpc;
-mod sdk;
+// sdk 已迁入 adapters/blackmagic (BMD Reference Adapter)
+
 mod signal; // 信号探测 + 亮度黑场检测
-mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd`)
+mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd-provider`)
 
 // 硬规则 (Phase 0.6): `hardware-test` (IDeckLinkInput SDK 探针) 与 canonical `gstreamer`
 // 运行时互斥 —— 生产运行不得同时打开同一块 DeckLink (避免双采 / 设备争用). 编译期强制.
-#[cfg(all(feature = "hardware-test", feature = "gstreamer"))]
+#[cfg(all(feature = "hardware-test", feature = "gstreamer-backend"))]
 compile_error!("hardware-test SDK 探针与 canonical GStreamer 运行时互斥; 生产运行不得同时启用 (避免双采/争用同一块 DeckLink)");
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
-use device::DeviceManager;
+use crate::contracts::provider::HardwareProvider;
 // Trait must be in scope to call `acquire`/`is_valid` on `Arc<InMemoryLeaseManager>`
 // (trait method, auto-deref via Arc; 否则 E0599 no method named `acquire`).
 use lease::LeaseManager;
 // Trait must be in scope to call `prepare`/`start`/`recover` on `Arc<GStreamerPipelineController>`
-// (trait 方法, 否则 E0599 no method named `recover`). 调用点均在 `#[cfg(feature = "bmd")]` 块内 → bmd && gstreamer 才编译.
-#[cfg(all(feature = "bmd", feature = "gstreamer"))]
-use pipeline::PipelineController;
+// (trait 方法, 否则 E0599 no method named `recover`). 调用点均在 `#[cfg(feature = "bmd-provider")]` 块内 → bmd && gstreamer 才编译.
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+use crate::contracts::backend::MediaBackend;
 use std::io::Write;
 use std::sync::Arc;
-#[cfg(all(feature = "bmd", feature = "gstreamer"))]
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use uuid::Uuid;
 
 fn main() {
@@ -55,9 +57,9 @@ fn main() {
     // default / bmd => filesystem probe (safe on CI / non-BMD; real on BMD).
     #[cfg(feature = "simulation")]
     let dm = device::SimulatedDeviceManager::new();
-    #[cfg(all(not(feature = "simulation"), feature = "bmd"))]
+    #[cfg(all(not(feature = "simulation"), feature = "bmd-provider"))]
     let dm = device::DeckLinkDeviceManager::new();
-    #[cfg(all(not(feature = "simulation"), not(feature = "bmd")))]
+    #[cfg(all(not(feature = "simulation"), not(feature = "bmd-provider")))]
     let dm = device::FilesystemDeviceManager::new();
     let devices = dm.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
@@ -66,9 +68,9 @@ fn main() {
     // 纯 SDK 读取 (IDeckLinkConfiguration), 不进媒体, 不依赖 GStreamer; 命中即 exit(0).
     // 用于无桌面环境 (无 Blackmagic Desktop Video Setup) 时直接回答
     // "每个子设备当前是 In 还是 Out、物理端口如何按 Connector Mode 分组".
-    #[cfg(feature = "bmd")]
+    #[cfg(feature = "bmd-provider")]
     if std::env::var("VBMF_CONFIG_PROBE").is_ok() {
-        match crate::decklink::probe_connector_config() {
+        match crate::adapters::blackmagic::decklink::probe_connector_config() {
             Ok(rows) => match serde_json::to_string_pretty(&rows) {
                 Ok(json) => {
                     println!("=== B Connector Config Probe (IDeckLinkConfiguration) ===");
@@ -85,7 +87,7 @@ fn main() {
     // 设置 VBMF_RESOLVER=1 运行: 输出每台 SDK 设备与 GStreamer 实例的交叉映射证据,
     // 供现场核对 "CH01 怎么采到了另一张卡" / "device-number 与正确输入设备未对应"。
     // 与 CAP-01 生产路径严格隔离: 命中即 exit(0), 绝不进入媒体 launch。
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     if std::env::var("VBMF_RESOLVER").is_ok() {
         let outcome = crate::resolver::probe_gstreamer_devices(
             crate::resolver::MAX_PROBE_DEVICES,
@@ -217,7 +219,7 @@ fn main() {
     // 加载 DeviceBindingManifest → 探测 GStreamer → 解析绑定 → 构建 PortRegistry → 加载 fixtures 目录
     // → 对每条 Fixture 在 source 渲染已知图案、在 sink 真实采集 (含加嵌音频探测) → verify_fixtures 双门
     // → 输出 FixtureVerification JSON. 命中即 exit(0), 绝不进入生产媒体 launch.
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     if std::env::var("VBMF_LOOPBACK").is_ok() {
         let manifest_path = match &_cfg.device_binding_path {
             Some(p) => p.clone(),
@@ -316,7 +318,7 @@ fn main() {
 
     // Gate 2.5 (A): DeckLink SDK FFI smoke — 验证 libDeckLinkAPI.so 在运行环境可达.
     // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期).
-    match sdk::probe_sdk("libDeckLinkAPI.so") {
+    match crate::adapters::blackmagic::sdk::probe_sdk("libDeckLinkAPI.so") {
         Ok(()) => tracing::info!("SDK libDeckLinkAPI.so reachable, entry symbols present"),
         Err(e) => {
             tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)")
@@ -329,7 +331,7 @@ fn main() {
 
     // Gate 7 (feature `hardware-test`): verbose Device Registry (model/serial/status) for BMD.
     #[cfg(feature = "hardware-test")]
-    match decklink::registry() {
+    match crate::adapters::blackmagic::decklink::registry() {
         Ok(table) => tracing::info!("DeckLink Device Registry:\n{table}"),
         Err(e) => tracing::warn!(error = %e, "registry unavailable"),
     }
@@ -364,19 +366,19 @@ fn main() {
     //   * canonical 媒体采集 = GStreamer `decklinkvideosrc` + `decklinkaudiosrc`
     //     (Phase 0.6). CAP-01 的 MEDIA-RT-01 (真实 SDI → GStreamer → RAW →
     //     first buffer) 由 `PipelineController` 拥有.
-    #[cfg(feature = "bmd")]
+    #[cfg(feature = "bmd-provider")]
     {
         // MEDIA-RT-01 自测模式 (MEDIA_AGENT_SELFTEST=1): 用 videotestsrc/audiotestsrc
         // 验证媒体运行时链路 (GStreamer launch → appsink 首帧 → PTS → MEDIA-RT-01 A/B/C),
         // 不依赖 DeckLink 信号; 此时跳过下方 decklink canonical 路径.
-        #[cfg(feature = "gstreamer")]
+        #[cfg(feature = "gstreamer-backend")]
         let skip_decklink = std::env::var("MEDIA_AGENT_SELFTEST").is_ok();
-        #[cfg(not(feature = "gstreamer"))]
+        #[cfg(not(feature = "gstreamer-backend"))]
         let skip_decklink = false;
-        #[cfg(feature = "gstreamer")]
+        #[cfg(feature = "gstreamer-backend")]
         if skip_decklink {
             let plan = crate::pipeline::PipelinePlan::self_test();
-            let ctrl = std::sync::Arc::new(crate::pipeline::GStreamerPipelineController::new());
+            let ctrl = std::sync::Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
             match ctrl.prepare(&plan) {
                 Ok(h) => match ctrl.start(&h) {
                     Ok(()) => {
@@ -403,8 +405,8 @@ fn main() {
             //     与 canonical GStreamer 路径互斥, 避免同时打开同一块 DeckLink.
             //     注: `hardware-test` 与 `gstreamer` 已在编译期互斥 (见文件顶部 compile_error),
             //     生产 canonical 运行时绝不会同时启用两者.
-            #[cfg(all(feature = "hardware-test", not(feature = "gstreamer")))]
-            match decklink::start_capture(0) {
+            #[cfg(all(feature = "hardware-test", not(feature = "gstreamer-backend")))]
+            match crate::adapters::blackmagic::decklink::start_capture(0) {
                 Ok(stats) => {
                     tracing::info!(
                         "CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)"
@@ -433,7 +435,7 @@ fn main() {
                 _ => crate::pipeline::MaterializeMode::Production,
             };
             // Resolver 绑定 (物化前置): gstreamer 构建下探测并解析; 非 gstreamer 构建为空 map.
-            #[cfg(feature = "gstreamer")]
+            #[cfg(feature = "gstreamer-backend")]
             let gst_probes = match crate::resolver::probe_gstreamer_devices(
                 crate::resolver::MAX_PROBE_DEVICES,
                 _cfg.device_binding_path.is_none(),
@@ -453,7 +455,7 @@ fn main() {
                 _ => Vec::new(),
             };
             // 绑定解析: 生产/诊断都执行 (用于 manifest 校验与诊断启动), 但**不在此启动任何管线**.
-            #[cfg(feature = "gstreamer")]
+            #[cfg(feature = "gstreamer-backend")]
             let bindings = match &_cfg.device_binding_path {
                 // 生产 BMD 绑定权威路径: DeviceBindingManifest 显式契约.
                 // 加载/结构/machine 任一失败 → 失败闭合 (拒绝 materialize, 绝不盲开 device 0, 用户 §四/§五/§六).
@@ -509,7 +511,7 @@ fn main() {
                     }
                 },
             };
-            #[cfg(not(feature = "gstreamer"))]
+            #[cfg(not(feature = "gstreamer-backend"))]
             let bindings: std::collections::HashMap<
                 uuid::Uuid,
                 crate::resolver::ResolvedDeviceBinding,
@@ -517,7 +519,7 @@ fn main() {
 
             // 端口注册表 (供 materialize 经 Manifest 声明 + 运行时探测推导连接类型, 不硬编码 connection=sdi):
             // 仅当提供 manifest 时构建; 诊断 auto-start 无 manifest 回退 legacy → registry=None → connection 由插件默认探测.
-            #[cfg(feature = "gstreamer")]
+            #[cfg(feature = "gstreamer-backend")]
             let registry = _cfg.device_binding_path.as_ref().and_then(|p| {
                 crate::resolver::DeviceBindingManifest::load(p)
                     .ok()
@@ -526,7 +528,7 @@ fn main() {
                             .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
                     })
             });
-            #[cfg(not(feature = "gstreamer"))]
+            #[cfg(not(feature = "gstreamer-backend"))]
             let registry: Option<crate::port::PortRegistry> =
                 _cfg.device_binding_path.as_ref().and_then(|p| {
                     crate::resolver::DeviceBindingManifest::load(p)
@@ -584,8 +586,8 @@ fn main() {
                         }
                         *agent_state.lock().unwrap() = health::AgentState::Capturing;
 
-                        // (C) 真实 GStreamer launch (feature = "gstreamer") + Supervisor→recover 接线.
-                        #[cfg(feature = "gstreamer")]
+                        // (C) 真实 GStreamer launch (feature = "gstreamer-backend") + Supervisor→recover 接线.
+                        #[cfg(feature = "gstreamer-backend")]
                         {
                             let dev_id_str = plans[0].source.device_id.clone();
                             let device_uuid = Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
@@ -594,9 +596,9 @@ fn main() {
                                 tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
                             } else {
                                 let ctrl =
-                                    Arc::new(crate::pipeline::GStreamerPipelineController::new());
+                                    Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
                                 // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
-                                tracing::info!(gst_version = ?gstreamer::version(), "GStreamer runtime version (evidence)");
+                                tracing::info!(gst_version = ?crate::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
                                 match ctrl.prepare(&plans[0]) {
                                     Ok(h) => match ctrl.start(&h) {
                                         Ok(()) => {
@@ -624,7 +626,7 @@ fn main() {
                                 }
                             }
                         }
-                        #[cfg(not(feature = "gstreamer"))]
+                        #[cfg(not(feature = "gstreamer-backend"))]
                         {
                             tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
                         }
@@ -688,10 +690,10 @@ fn main() {
 /// 周期: 真 bus 监控 (Error/EOS/StateChanged) + appsink 计数 → 推导 MEDIA-RT-01
 /// A1-A4 / B1-B4 / C1-C4 → 错误时报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
 /// Supervisor 仅决策, 不碰 GStreamer (硬边界); 实际重启由这里执行.
-/// 调用点 (self-test / canonical) 均在 `#[cfg(feature = "bmd")]` 块内, 故本函数仅在 bmd && gstreamer 时编译.
-#[cfg(all(feature = "bmd", feature = "gstreamer"))]
+/// 调用点 (self-test / canonical) 均在 `#[cfg(feature = "bmd-provider")]` 块内, 故本函数仅在 bmd && gstreamer 时编译.
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 fn spawn_ingest_watchdog(
-    ctrl: Arc<crate::pipeline::GStreamerPipelineController>,
+    ctrl: Arc<crate::adapters::gstreamer::GStreamerPipelineController>,
     handle: crate::pipeline::PipelineHandle,
     device_uuid: Uuid,
     sup: Arc<std::sync::Mutex<supervisor::Supervisor>>,

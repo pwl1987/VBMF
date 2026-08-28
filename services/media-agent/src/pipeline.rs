@@ -14,15 +14,15 @@
 use crate::device::{DeviceInfo, IdentityStrength};
 use crate::graph_intent::GraphRuntimeIntent;
 use crate::port::{ConnectorType, PortDirection};
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 use gstreamer::prelude::*;
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, LazyLock, Mutex};
 use uuid::Uuid;
@@ -360,7 +360,7 @@ pub struct PipelineHandle(pub u64);
 pub struct GStreamerPipelineController {
     /// 运行时 pipeline 实例 (GStreamer Bin 对 + 物化计划), 供 start/recover 操作 (P0-2 修复核心:
     /// 旧 `launch()` 内部 Bin 未留存, start/recover 无对象可操作). 非 gstreamer 构建无此字段.
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     instances: Mutex<HashMap<PipelineHandle, GstInstance>>,
 }
 
@@ -369,7 +369,7 @@ pub struct GStreamerPipelineController {
 /// P1-4: 由 **单个** `GstPipeline`(内含 video+audio 两路 branch) 取代原先分离的两个 `Bin`
 /// (PIPELINE-AV-01 前置: 统一 Bus + 单一 Clock domain). Bus watch 运行在专用 GLib
 /// MainContext 线程 (`thread` + `stop_flag`), 经 bounded mpsc (`bus_rx`) 把事件交给 `poll_bus`.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 struct GstInstance {
     pipeline: gstreamer::Pipeline,
     plan: PipelinePlan,
@@ -378,7 +378,7 @@ struct GstInstance {
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 impl GstInstance {
     /// 通知 Bus watch 线程退出并释放 DeckLink 设备 (recover / drop 前置).
     fn stop(&mut self) {
@@ -394,7 +394,7 @@ impl GstInstance {
 impl GStreamerPipelineController {
     pub fn new() -> Self {
         Self {
-            #[cfg(feature = "gstreamer")]
+            #[cfg(feature = "gstreamer-backend")]
             instances: Mutex::new(HashMap::new()),
         }
     }
@@ -408,7 +408,7 @@ impl Default for GStreamerPipelineController {
 
 impl PipelineController for GStreamerPipelineController {
     fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
-        #[cfg(feature = "gstreamer")]
+        #[cfg(feature = "gstreamer-backend")]
         {
             let handle = PipelineHandle(NEXT_PIPELINE_ID.fetch_add(1, Ordering::SeqCst));
             // 每个 pipeline 实例独占一条 bounded mpsc channel: Bus watch 投递, poll_bus 非阻塞 drain.
@@ -439,7 +439,7 @@ impl PipelineController for GStreamerPipelineController {
             );
             Ok(handle)
         }
-        #[cfg(not(feature = "gstreamer"))]
+        #[cfg(not(feature = "gstreamer-backend"))]
         {
             let _ = plan;
             Ok(PipelineHandle(1))
@@ -447,7 +447,7 @@ impl PipelineController for GStreamerPipelineController {
     }
 
     fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
-        #[cfg(feature = "gstreamer")]
+        #[cfg(feature = "gstreamer-backend")]
         {
             // 统一 GstPipeline: 单一 set_state(Playing) 同时启动 video+audio 两路 (P1-4).
             let res = {
@@ -464,7 +464,7 @@ impl PipelineController for GStreamerPipelineController {
             }
             Ok(())
         }
-        #[cfg(not(feature = "gstreamer"))]
+        #[cfg(not(feature = "gstreamer-backend"))]
         {
             let _ = handle;
             Ok(())
@@ -472,7 +472,7 @@ impl PipelineController for GStreamerPipelineController {
     }
 
     fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
-        #[cfg(feature = "gstreamer")]
+        #[cfg(feature = "gstreamer-backend")]
         {
             let plan = {
                 let guard = self.instances.lock().unwrap();
@@ -507,7 +507,7 @@ impl PipelineController for GStreamerPipelineController {
             }
             Ok(())
         }
-        #[cfg(not(feature = "gstreamer"))]
+        #[cfg(not(feature = "gstreamer-backend"))]
         {
             let _ = handle;
             Ok(())
@@ -598,7 +598,7 @@ impl GStreamerPipelineController {
     /// 只能 stub. 现统一为单 `GstPipeline`, Bus watch 才能真实生效.
     /// GLib main loop 必须运行 (用户复核 §五): watch 回调在 `MainLoop` 迭代的 MainContext 上分发,
     /// 故 spawn 专用线程持有 `MainContext`+`MainLoop` 并 `run()`.
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     fn build_pipeline(
         &self,
         plan: &PipelinePlan,
@@ -705,7 +705,7 @@ impl GStreamerPipelineController {
 
     /// 将 GStreamer `Message` 翻译为结构化 `PipelineBusEvent` (P1-4).
     /// 仅保留 Supervisor 关心的 Error/EOS/StateChanged/Warning/ClockLost; 其余消息忽略.
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     fn translate_bus(msg: &gstreamer::Message, handle: PipelineHandle) -> Option<PipelineBusEvent> {
         let (kind, severity, detail) = match msg.view() {
             gstreamer::MessageView::Error(e) => (
@@ -751,7 +751,7 @@ impl GStreamerPipelineController {
     }
 
     /// 注册视频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B).
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     fn attach_video_sink(&self, sink: &AppSink, handle: PipelineHandle) {
         sink.set_callbacks(
             gstreamer_app::AppSinkCallbacks::builder()
@@ -779,7 +779,7 @@ impl GStreamerPipelineController {
     }
 
     /// 注册音频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B, 含真实单调判定).
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     fn attach_audio_sink(&self, sink: &AppSink, handle: PipelineHandle) {
         sink.set_callbacks(
             gstreamer_app::AppSinkCallbacks::builder()
@@ -807,7 +807,7 @@ impl GStreamerPipelineController {
 
     /// 非阻塞 drain 当前 GStreamer Bus 事件 (Bus watch 线程已投递进 bounded mpsc).
     /// watchdog 每 500ms 调用一次, 不阻塞媒体/GStreamer 线程 (用户复核 §六: 解耦节拍).
-    #[cfg(feature = "gstreamer")]
+    #[cfg(feature = "gstreamer-backend")]
     pub fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
         let guard = self.instances.lock().unwrap();
         match guard.get(handle) {

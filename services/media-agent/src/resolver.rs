@@ -114,7 +114,7 @@ impl std::fmt::Display for ProbeError {
 }
 
 /// 由 GStreamer bus 上的 GError 文案 best-effort 归类 set_state 失败原因 (见 `ProbeError`).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn classify_set_state_error(n: u32, msg: &str) -> ProbeError {
     let m = msg.to_ascii_lowercase();
     if m.contains("already in use")
@@ -137,7 +137,7 @@ fn classify_set_state_error(n: u32, msg: &str) -> ProbeError {
 }
 
 /// 从 pipeline bus 抽取首个 `Error` 消息 (设备打开失败的 GError 在此异步送达). 仅消费已排队消息, 不阻塞.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn drain_bus_error(pipeline: &gstreamer::Pipeline) -> Option<String> {
     use gstreamer::prelude::*;
     let bus = pipeline.bus()?;
@@ -168,7 +168,7 @@ fn drain_bus_error(pipeline: &gstreamer::Pipeline) -> Option<String> {
 /// `hw-serial-number` 命中后确定. 命中失败 → 该序号 `None` (不计入), 绝不回退 0.
 ///
 /// 返回 `GstProbeOutcome` 以区分 `Unavailable` / `Empty` / `Available` (见 §九).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn probe_gstreamer_devices(max: usize, require_identity: bool) -> GstProbeOutcome {
     // GStreamer 初始化 (幂等). 失败 → 探测方法不可用 (非设备失败).
     if let Err(e) = gstreamer::init() {
@@ -197,7 +197,7 @@ pub fn probe_gstreamer_devices(max: usize, require_identity: bool) -> GstProbeOu
 
 /// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 失败按 `ProbeError`
 /// 分类返回 (见枚举文档), **绝不** 把 "卡存在但打不开" 与 "无此卡" 混为一谈 (用户 §⑥).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn probe_one_device_number(
     n: u32,
     require_identity: bool,
@@ -290,7 +290,7 @@ fn probe_one_device_number(
 }
 
 /// 空串/未设置串归 `None` (GStreamer 字符串属性未设置时返回空串).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn non_empty(s: String) -> Option<String> {
     if s.is_empty() {
         None
@@ -301,7 +301,7 @@ fn non_empty(s: String) -> Option<String> {
 
 /// 读取已协商的源 pad caps → 视频格式 (best-effort; 仅 gstreamer 构建, 有信号时可读).
 /// 仅用 `caps.to_string()` 做轻量解析, 避免引入 GStreamer Fraction 类型依赖风险.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn read_negotiated_caps(el: &gstreamer::Element) -> Option<crate::port::VideoFormat> {
     use gstreamer::prelude::*;
     let pad = el.static_pad("src")?;
@@ -335,7 +335,7 @@ fn read_negotiated_caps(el: &gstreamer::Element) -> Option<crate::port::VideoFor
     })
 }
 
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn parse_int(text: &str, key: &str) -> Option<u32> {
     text.split(key)
         .nth(1)
@@ -343,7 +343,7 @@ fn parse_int(text: &str, key: &str) -> Option<u32> {
         .and_then(|s| s.parse::<u32>().ok())
 }
 
-#[cfg(not(feature = "gstreamer"))]
+#[cfg(not(feature = "gstreamer-backend"))]
 pub fn probe_gstreamer_devices(_max: usize, _require_identity: bool) -> GstProbeOutcome {
     // 非 gstreamer 构建: 探测方法不适用 (无 GStreamer 运行时). 真实探测仅 `gstreamer` feature 构建.
     GstProbeOutcome::Unavailable(
@@ -720,7 +720,7 @@ impl DeviceBindingManifest {
             let is_out = b
                 .port
                 .as_ref()
-                .map_or(false, |p| matches!(p.direction, crate::port::PortDirection::Output));
+                .is_some_and(|p| matches!(p.direction, crate::port::PortDirection::Output));
             let set = if is_out { &mut seen_out } else { &mut seen_in };
             if !set.insert(b.gst_device_number) {
                 return Err(format!(
@@ -845,14 +845,14 @@ fn resolve_decklink_lib() -> Option<String> {
 }
 
 /// 实际 GStreamer 运行时核心版本 (major.minor.micro); 用于 Manifest `gst_runtime_version` 软校验.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn actual_gstreamer_version() -> String {
     let (maj, min, mic, _) = gstreamer::version();
     format!("{maj}.{min}.{mic}")
 }
 
 /// 实际 GStreamer decklink 插件版本 (从已加载插件元数据读取); 读不到 (插件未加载) → `None`.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn actual_decklink_plugin_version() -> Option<String> {
     use gstreamer::prelude::*;
     gstreamer::ElementFactory::find("decklinkvideosrc")

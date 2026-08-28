@@ -78,7 +78,7 @@ pub struct BmdDeviceIdentity {
     pub video_output_connections: u64,
 }
 
-#[cfg(feature = "bmd")]
+#[cfg(feature = "bmd-provider")]
 mod imp {
     use super::{BmdDeviceIdentity, ConnectorConfigRow};
     use libloading::{Library, Symbol};
@@ -989,7 +989,7 @@ mod imp {
     }
 }
 
-#[cfg(not(feature = "bmd"))]
+#[cfg(not(feature = "bmd-provider"))]
 mod imp {
     use super::{BmdDeviceIdentity, ConnectorConfigRow};
     pub fn enumerate() -> Result<Vec<BmdDeviceIdentity>, String> {
@@ -1003,6 +1003,7 @@ mod imp {
 }
 
 pub use imp::enumerate;
+#[cfg(feature = "bmd-provider")]
 pub use imp::probe_connector_config;
 #[cfg(feature = "hardware-test")]
 pub use imp::{registry, start_capture};

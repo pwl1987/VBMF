@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::decklink::BmdDeviceIdentity;
+use crate::adapters::blackmagic::decklink::BmdDeviceIdentity;
 use crate::port::{DeviceCapabilities, PortInfo};
 
 /// 设备身份强度 (A0 实测: 本硬件仅支持 DeviceHandle).
@@ -179,7 +179,7 @@ impl DeviceManager for DeckLinkDeviceManager {
         // (PersistentID → DeviceHandle → TopologicalID → 枚举序号) 构造 canonical 派生键,
         // 不再用 display/serial 伪装 DeviceHandle. 各身份维度独立写入 DeviceInfo,
         // 使 `device_id = UUIDv5(DeviceHandle)`、`bmd_device_handle`=真实 devh 真正闭合.
-        let discovered = match crate::decklink::enumerate() {
+        let discovered = match crate::adapters::blackmagic::decklink::enumerate() {
             Ok(d) => d,
             // 非 bmd 构建: enumerate 恒 Err, 无设备可派生身份 (绝不伪造).
             Err(_) => return Vec::new(),
