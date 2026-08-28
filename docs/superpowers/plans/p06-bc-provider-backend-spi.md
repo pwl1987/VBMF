@@ -1,3 +1,7 @@
+---
+archived-with: 2026-08-29-p06-bc-provider-backend-spi
+status: final
+---
 # Implementation Plan — Phase 0.6 C1 (0.6B+C): Provider/Backend SPI 抽取
 
 > Superpowers 实现计划（classic build 阶段）。配套 OpenSpec change `p06-bc-provider-backend-spi`。
