@@ -140,7 +140,9 @@ pub trait MediaBackend: Send + Sync {
 - **`Cargo.toml`**：新增 feature `mock = []`（纯 Rust，不拉 `gstreamer` / 不依赖真实硬件）。
 - **`contracts/backend.rs`**：`MediaBackend` 门控由 `gstreamer-backend` 放宽到
   `any(gstreamer-backend, mock)`——使无 GStreamer 的 `MockBackend` 也能适用该契约；
-  `gstreamer` 构建语义不变（`any` 仍命中 `gstreamer-backend`）。
+  `gstreamer` 构建语义不变（`any` 仍命中 `gstreamer-backend`）。因 `mock` 下 `MockBackend`
+  尚未被 `main` 接线（C2c），trait 级 `#[allow(dead_code)]` 与 `HardwareProvider` 一致
+  （避免 SPI 方法被判死代码致 clippy `-D warnings` 失败）。
 - **`adapters/mock.rs`（新增）**：`MockProvider` / `MockProviderB`（均 `impl HardwareProvider`）
   与 `MockBackend`（`impl MediaBackend`）。`MockProvider A`=1 路 SDI 单设备；`MockProvider B`=2 设备
   （SDI+HDMI），拓扑不同，用于 Test C 替换 A 验证 Domain/Graph/UI 无需改动。`MockBackend`

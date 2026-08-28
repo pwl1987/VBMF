@@ -14,12 +14,13 @@ use crate::pipeline::{PipelineBusEvent, PipelineError, PipelineHandle, PipelineP
 ///
 /// `Send + Sync` 以便跨运行时线程（Supervisor / watchdog）持有。
 #[cfg(any(feature = "gstreamer-backend", feature = "mock"))]
+// SPI 方法在当前未接线(C2c 前)可能无调用点; 与 HardwareProvider 一致在 trait 级允许 dead_code.
+#[allow(dead_code)]
 pub trait MediaBackend: Send + Sync {
     fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError>;
     fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError>;
     fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError>;
     // `poll_bus` 当前经 `GStreamerPipelineController` 固有方法被 main 调用（C2c 迁移后改走 trait）；
     // trait 方法在 C3 Mock / C2c 才被消费，属冻结 SPI 形状，允许 dead_code。
-    #[allow(dead_code)]
     fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent>;
 }
