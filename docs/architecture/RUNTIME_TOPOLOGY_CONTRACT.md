@@ -75,7 +75,32 @@ Capture ──▶ Normalize ──▶ Router ──▶ Output Card (Duo ChB)
 - 拓扑表达**不得**泄露 vendor：用 `SDI`/`HDMI`/`OpticalSDI`/`IP`，**不**用 `/bmd`/`/gstreamer` 表示节点类型。
 - 替换轴（Hardware Vendor / Backend）变化不改变 Topology 模型，仅改变 Node 的 `refs`（指向新的 `DeviceId`）。
 
+## 6.1 TopologyEvidence（TD-08，可信来源）
+
+`PhysicalConnection` 是「线真的接在哪里」，但软件如何知道线接哪？来源须显式标注：
+
+```
+DECLARED   — operator 声明 / Manifest
+OBSERVED   — 硬件探针 / EDID / SDI signal correlation
+INFERRED   — router telemetry / NMOS 推导
+VERIFIED   — 多源交叉验证一致
+UNKNOWN    — 无法确定
+```
+
+- `PhysicalConnection.evidence: TopologyEvidence` 必填；`UNKNOWN` 时禁止把 LogicalRoute 当成已验证 PhysicalConnection。
+- 明确区分：**Physical topology 是「配置」还是「观测」由 `evidence` 字段回答，不得默认。**
+
+## 6.2 时间维度（TD-09）
+
+```
+PhysicalConnection = 相对稳定事实（换卡/改线才变）
+LogicalRoute       = 随时间变化的状态（08:00 Route A / 12:00 Route B）
+```
+
+- 数据模型**不得假设** `LogicalRoute` 永远静态；未来 Playout / Routing / Scheduling 会改变 `LogicalRoute`，但 `PhysicalConnection` 不变。
+- 当前仅冻结模型，不做 Schedule（留 P1/P2）。
+
 ## 7. 验收
 
-- `ARCH-TOPOLOGY-01`（规划）：Topology 模型独立于 Resource/Binding，PhysicalConnection 与 LogicalRoute 可分可合，不混为一物。
+- `ARCH-TOPOLOGY-01`：**Contract = FROZEN**；**Implementation = NOT_STARTED / PARTIAL**；**Acceptance = PENDING**（状态词见 `DOCUMENT_STATUS_MODEL.md`）。Topology 模型独立于 Resource/Binding，PhysicalConnection 与 LogicalRoute 可分可合，不混为一物。
 - External Routing（`EXT-ROUTING-01`）消费 `LogicalRoute`，不重建拓扑模型。

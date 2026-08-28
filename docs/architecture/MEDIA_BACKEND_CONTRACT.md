@@ -20,6 +20,14 @@ trait MediaBackend {
 - Backend 必须消费 **Canonical** `CanonicalPipelinePlan`（由 Runtime Orchestrator 解析，仅含 Canonical 类型），不得依赖 GStreamer/BMD 字段。
 - 上层（Session / Supervisor / Health）只认 Canonical 类型；所有 vendor 错误进入统一 `RuntimeEvent/RuntimeError` 模型（见 Addendum §8）。
 
+## 1.1 资源获取边界（P0-8，冻结）
+
+> **Backend 必须不自行获取未注册资源。**
+
+- Runtime Orchestrator 负责：`Resource Reservation → Binding → Backend.instantiate`；Backend **只能使用已经解析和授权的 Runtime Resource**。
+- Backend **不得**自行寻找 `/dev/video*` / `device-number` / GPU / encoder / 其他硬件；否则重新破坏 vendor-neutral 架构。
+- 若 `instantiate` 发现所需 Resource 未在 Reservation 内，必须 **fail-closed**（报错返回），不得悄悄 acquire。
+
 ## 2. 共享契约（ARCH-BACKEND-01 判据）
 `MockBackend` vs `GStreamerBackend` 必须共享：
 - `CanonicalPipelinePlan`

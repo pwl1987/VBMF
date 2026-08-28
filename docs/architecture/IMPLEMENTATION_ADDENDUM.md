@@ -343,6 +343,20 @@ RuntimeEvent → Health / Policy Reducer → Supervisor Decision
 
 ---
 
+### 8.3 四类事件分层（TD-16，冻结边界）
+
+> 未来 External Event 需要与 RuntimeEvent 完全分层；四者不共用「万能 Event」。
+
+```
+RuntimeEvent    = 内部事实（Provider/Backend/Session/Lease/Clock 产生，进 Health/Policy Reducer → Supervisor）
+ExternalEvent   = 对 Control Plane / 外部的投影（由 RuntimeEvent 派生，带 event_id / correlation_id / causation_id）
+AuditEvent      = 审计事实（谁、何时、对什么做了什么）
+SecurityEvent   = 安全事实（authz 失败 / 越权尝试）
+```
+
+- `RuntimeEvent` 是源头；`ExternalEvent`/`AuditEvent`/`SecurityEvent` 是不同投影，各自有独立 schema，不得互相混用字段。
+- 详见 `EVENT_CONTRACT.md`（P1）。
+
 ## 9. Ownership 模型（最终明确）
 
 > 现在最大风险之一："每个模块都能改一点状态，但没有一个明确的状态 owner。"
@@ -409,6 +423,14 @@ cargo build --features mock-only        # BMD feature absent + GStreamer feature
 
 ---
 
+### 10.4 Architecture Freeze ≠ Implementation Freeze（P0-3，关键）
+
+> **架构冻结 ≠ 实现完成。**
+
+- **Architecture Contract = FROZEN**：本文档及配套契约关系已锁定，后续实现不得再「边写边发现抽象」。
+- **Implementation Gate = NOT PASSED**：`ARCH-PORTABILITY-01` / `ARCH-BACKEND-01` 当前**编译不过**，是 P0 硬缺口；过门禁前，P0 实现不算完成。
+- 二者独立陈述，禁止把「Contract FROZEN」解读为「P0 已实现」。真实进度见 `PHASE_0_6_IMPLEMENTATION_GAP_MATRIX.md`。
+
 ## 11. 设备更换流程（Fail Closed）
 
 ```
@@ -458,7 +480,11 @@ Old Device → Removed → Binding Stale → Session Degraded
 4. Configuration / Runtime State / Observed State 严格三分离。
 5. 删除具体实现后，上层（Domain/Graph/Supervisor/Health）仍能编译。
 6. `Runtime Resource` 绝不等同于 `Identity`；device-number 仅是运行时地址。
+7. V0.2 `DeviceToken: BMD_INPUT_PORT | BMD_OUTPUT_PORT` 属 V0.2 LOCK FINAL 历史术语；Phase 0.6 **不将其扩展为新的 Vendor Identity**，改用 vendor-neutral `PortId` / `ConnectorType`（见 `V0_2_TO_PHASE_0_6_CROSSWALK.md` ADR-001，不修改 V0.2）。
 
 ---
 
-*本文档为 **Phase 0.6 Architecture Contract Coherence — Final Hardening** 载体（非最终 Freeze）。待本轮硬冲突修复 + 过 `ARCH-PORTABILITY-01`/`ARCH-BACKEND-01` 门禁后，正式宣布 `PHASE-0.6-RUNTIME-ABSTRACTION-CONTRACT-FROZEN`。所有实体（Device / Port / Capability / Resource / Session / Binding / Signal / MediaFormat / Clock / Timecode / RuntimeError / RuntimeEvent / AudioRouting）关系以此为准，后续实现不得再"边写边发现抽象"。*
+*本文档为 **Phase 0.6 Architecture Contract FROZEN** 载体。
+- **Architecture Contract = FROZEN**（`CONTRACT_STATUS = FROZEN`）：所有实体（Device / Port / Capability / Resource / Session / Binding / Signal / MediaFormat / Clock / Timecode / RuntimeError / RuntimeEvent / AudioRouting）关系以此为准，后续实现不得再「边写边发现抽象」。
+- **Implementation Gate = NOT PASSED**：`ARCH-PORTABILITY-01` / `ARCH-BACKEND-01` 当前编译不过，是 P0 硬缺口；过门禁前 P0 实现不算完成（见 `PHASE_0_6_IMPLEMENTATION_GAP_MATRIX.md`）。
+- 即 **Architecture Freeze ≠ Implementation Freeze**：契约冻结不表示代码已实现。*

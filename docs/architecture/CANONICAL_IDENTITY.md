@@ -61,13 +61,41 @@ Provider 内部可使用任意厂商机制，**但必须经由 Provider Identity
 
 - Canonical Domain **只知道** `DeviceId` + `IdentityStrength` + `IdentitySource`。
 - `PersistentId` / `TopologicalId` / `DeviceHandle` 是 Provider 层概念，可在 evidence / provider-host 层出现，**不得**出现在 Canonical Domain / Graph / UI schema。
-- 身份优先级（Provider 内部解析用）：`PersistentId > DeviceHandle > TopologicalId > EnumerationOnly`；但解析结果统一收敛为 Canonical `DeviceId`。
+- **Provider-local Identity Precedence（非 Global）**：每个 Provider **自行定义**其内部身份证据优先级（如 BMD 可能为 `DeviceHandle > PersistentId > TopologicalId > EnumerationOnly`；AJA 可能为 `Serial > UUID`；某厂商可能仅 `Slot`）。**不存在跨 Provider 的统一「全球优先级」**——所有 Provider 只负责把自身证据收敛为 `(provider, provider_identity)` 二元组，交由统一的 `Provider Identity Adapter` 生成 Canonical `DeviceId`。这避免「`PersistentId` 全球优先」在 AJA 无 `PersistentId` 时失效。
 
 ## 5. 失败闭合
 
 - Identity / Capability / Binding 冲突必须拒绝；绝不盲开 device 0 / 自动换卡。
 - `device-number` 仅是运行时地址，**绝不**作为业务主身份，绝不默认 0。
 - 多重 HIGH 身份 → `Ambiguous`（拒）；Unresolved → `IdentityUnresolved`。
+
+## 5.1 Port 身份层级（TD-06）
+
+`PortId` 稳定身份来源须分层，且 **`Unknown` 时禁止伪造稳定 `PortId`**：
+
+```
+Provider Port Ref        — Provider 暴露的原始端口引用（如 BMD `SDLINK_PCIe#0/ChA`、GStreamer `device-number+ordinal`）
+        ↓
+Stable Hardware Port Identity  — Provider 内部稳定端口标识（同一物理口长期不变）
+        ↓
+Provisioned Port Identity     — 配置/Manifest 显式声明的端口（operator 命名）
+        ↓
+Derived Port Identity         — 由 Device+ordinal 推导（回退用，置信度低）
+        ↓
+Unknown                        — 无法确定 → 禁止分配 PortId，fail-closed
+```
+
+- 对 Router / Matrix / 多功能 I/O 卡，`connector + ordinal` 不一定稳定，必须以上述链路推导，不得假设。
+- `Unknown` 端口宁可拒绝建 Session，也不得编造 `PortId`（否则破坏 Canonical 稳定性）。
+
+## 7. Canonical DeviceId / PortId 生成规则（TD-04，冻结）
+
+- **namespace**：固定 UUIDv5 namespace（`VBMF_DEVICE`），所有 Provider 共用；Provider 差异由输入字符串体现，不靠 namespace 区分。
+- **normalization**：Provider identity 字符串先 `trim` + `lowercase`（如 BMD `d182cb5` 归一为 `d182cb5`）；大小写不同视为同一设备，防 `D182CB5` ≠ `d182cb5` 误判新设备。
+- **canonicalization**：`DeviceId = uuid5(namespace, "<provider>:<provider_identity>")`；**显式带 `<provider>` 前缀**，使 BMD `X` 与 AJA `X` 不产生同 ID。
+- **collision handling**：相同 `(provider, provider_identity)` 必产相同 `DeviceId`；不同者必不同（UUIDv5 性质保证）。若两 Provider 报相同 canonical 字符串（异常），以 `IdentitySource` + `IdentityStrength` 仲裁，**拒绝**自动合并。
+- **migration / replacement**：物理换卡（同 slot 换卡）→ 若 Provider identity 不变则 `DeviceId` 不变（平滑替换）；若 Provider identity 改变（如换 AJA）→ 新 `DeviceId`，旧 `DeviceId` 进入 `DEPRECATED`/`REPLACED_BY` 关联，由 Control Plane 做 resource rebind，**不静默复用**。
+- **PortId**：同理 `uuid5(namespace, "<provider>:<device_provider_identity>:<port_ref>")`；`port_ref` 取 Provider Port Ref。
 
 ## 6. 验收
 

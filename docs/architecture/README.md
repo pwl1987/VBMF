@@ -2,7 +2,7 @@
 
 ## 📌 阶段导航（一眼分清「本次实施」）
 
-### ⚠️ 本次实施 = Phase 0.6（P0 / P0.5）— Runtime Abstraction（Contract Coherence Hardening 阶段，尚未 Freeze）
+### ⚠️ 本次实施 = Phase 0.6（P0 / P0.5）— Runtime Abstraction（**Architecture Contract FROZEN**，但 Implementation Gate NOT PASSED）
 > **目标**：把现有 `media-agent` 重构为 Canonical Media Runtime。代码层要消的 P0 缺口：建 `HardwareProvider`/`MediaBackend` SPI、统一 `RuntimeEvent`、Provider Registry、Mock Provider/Backend、消除 11 处 `device_number` 改用 Canonical `DeviceId`、Preflight、过 `ARCH-PORTABILITY-01` 编译门禁、CI Architecture Lint。
 > 下面这些契约**已建**，是本次实施的规范依据。**P1/P2 契约仅规划冻结，暂不实施**。
 
@@ -21,6 +21,11 @@
 - Binding 模型：[`RUNTIME_BINDING_MODEL.md`](RUNTIME_BINDING_MODEL.md) ［P0］
 - **整合 Master PRD（两份 PRD + 评审 + 缺口 + 路径 + 门禁）**：[`PHASE_0_6_MASTER_PRD.md`](PHASE_0_6_MASTER_PRD.md) ［P0 整合］
 - 讨论留档：[`REVIEW_2026-08-28.md`](REVIEW_2026-08-28.md) ［P0］
+- 状态统一模型：[`DOCUMENT_STATUS_MODEL.md`](DOCUMENT_STATUS_MODEL.md) ［P0 全局规则］
+- 实现缺口矩阵：[`PHASE_0_6_IMPLEMENTATION_GAP_MATRIX.md`](PHASE_0_6_IMPLEMENTATION_GAP_MATRIX.md) ［P0 SoT：文档≠代码］
+- 验收门禁矩阵：[`PHASE_0_6_ACCEPTANCE_MATRIX.md`](PHASE_0_6_ACCEPTANCE_MATRIX.md) ［P0］
+- 运行时生命周期时序：[`RUNTIME_LIFECYCLE_SEQUENCE.md`](RUNTIME_LIFECYCLE_SEQUENCE.md) ［P0］
+- V0.2↔0.6 语义对照：[`V0_2_TO_PHASE_0_6_CROSSWALK.md`](V0_2_TO_PHASE_0_6_CROSSWALK.md) ［P0］
 
 ### 🔵 Phase 0.7（P1）规划冻结 — **暂不实施**
 - 外部 API：[`EXTERNAL_API_CONTRACT.md`](EXTERNAL_API_CONTRACT.md) ［P1］

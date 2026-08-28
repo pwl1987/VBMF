@@ -50,6 +50,29 @@ Resource
 - **Token** = 独占能力（如某 BMD Port 的物理独占权，表达为 Constraint `exclusive=true` + Allocation 排他）。
 - 四者正交：Vector 计成本，Constraint 定条件，Token 表独占，Resource 是载体。
 
+## 4.2 Reservation 生命周期状态机（TD-10，冻结 Contract）
+
+> 不仅定义 Resource 状态，还要冻结 Reservation 生命周期（不实现完整 scheduler）。
+
+```
+Reserve   → 创建 Reservation（Reserved）
+Renew     → 续期 TTL（防止过期回收）
+Expire    → TTL 到达且无续期 → Reservation 失效（Reserved→Available）
+Release   → 主动释放（Session 结束）
+Abort     → 异常中止（Preflight 失败 / Session 创建失败回滚）
+Recover   → Supervisor 重建（Lease 仍有效时，不重新 Reserve）
+```
+
+- **Reservation TTL / Lease TTL**：必须有上限；超时未进入 Allocated 则自动 `Expire`/`Abort`。
+- **Crash cleanup**：进程崩溃后，孤儿 Reservation/Lease 由 Recovery 扫描 TTL 回收（绝不残留「占而未用」）。
+- 状态转移唯一归属 Resource Registry / Lease Manager（见 IMPLEMENTATION_BOUNDARIES §5.2）。
+
+## 4.3 Resource 层级 mutation boundary（TD-11）
+
+- `parent_resource_id` 形成树；**子 Resource 的 Allocation 变更不得绕过父 Resource Registry**。
+- 占用关系由 Resource Registry 统一校验（多路卡：占 `PortResource` 不自动占 `DeviceResource`，但校验 Device 总 Capacity 不被超额）。
+- 禁止 Backend / Provider 自行修改 Resource 状态（见 MEDIA_BACKEND_CONTRACT P0-8）。
+
 ## 5. 门禁判据
 - Resource 状态机与 V0.2 §3.11 九维 Resource Vector 一致，无重复语义。
 - `Resource Registry` 是 Resource State 的唯一 owner（见 IMPLEMENTATION_BOUNDARIES §5）。

@@ -42,6 +42,37 @@ Health            owns Health State
 Scheduler         owns Placement Decision   (P1/P2)
 ```
 
+## 5.1 Aggregate Boundary（聚合边界，TD-10/P0-10）
+
+> 哪些对象属于同一 Aggregate，直接决定 concurrency / transaction / locking / consistency / event boundaries。
+
+```
+Device Aggregate      → owner: Provider / Resource Registry（设备容器 + 其 Port/Resource 树）
+Resource Aggregate    → owner: Resource Registry
+Session Aggregate     → owner: Runtime Session Manager
+Binding Aggregate     → owner: Binding Manager（见 RUNTIME_BINDING_MODEL）
+Topology Aggregate    → owner: Topology Service（见 RUNTIME_TOPOLOGY_CONTRACT）
+```
+
+- 跨 Aggregate 的引用用 Canonical ID（如 `Session` references `PortId`），**不得**共享可变内部状态。
+- 不实现 DDD 全家桶，但 ownership boundary 必须清楚，禁止「Device/Port/Resource/Binding/Session 全部独立 Repository 且无 owner」。
+
+## 5.2 State Mutation Boundary（状态修改唯一入口，TD-05）
+
+> **Owner 不只是拥有数据，而是拥有合法状态变更 API。** 任何模块不得「顺便改状态」。
+
+```
+Session state     → Runtime Session Manager   （唯一 creator/destroyer）
+Resource state    → Resource Registry
+Binding state     → Binding Manager
+Lease state       → Lease Manager
+Health state      → Health Reducer
+Preflight state   → Preflight Service
+```
+
+- 非 owner 模块只能通过 owner 暴露的 API 请求状态变更，不得直接 mutate 他人状态。
+- 违反即架构回归（CI Architecture Lint 拦截）。
+
 ## 6. 门禁判据（换品牌/后端时只发生的事）
 | 变更 | 只发生 | 不发生 |
 |---|---|---|

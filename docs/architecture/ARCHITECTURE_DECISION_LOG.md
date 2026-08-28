@@ -1,4 +1,4 @@
-# 架构决策日志 — Phase 0.6 Architecture Contract Coherence（Final Hardening）
+# 架构决策日志 — Phase 0.6 Architecture Contract FROZEN（Implementation Gate NOT PASSED）
 
 > 一句话裁决：**先冻结四层契约，再过 ARCH-PORTABILITY-01 + ARCH-BACKEND-01 两门禁，通过后才把 BMD/GStreamer 降级为 Reference Adapter；此步完成前不进 Normalize、不进 BMD-specific 开发。**
 > 详细载体：[`IMPLEMENTATION_ADDENDUM.md`](./IMPLEMENTATION_ADDENDUM.md)；讨论脉络：[`REVIEW_2026-08-28.md`](./REVIEW_2026-08-28.md)。
@@ -52,3 +52,20 @@
 - Provider `open()` 收窄为 `open_input`/`open_output`（收 resolved request，不收整个 Manifest）；Backend `plan/build` 收窄为 `instantiate/start/stop/recover/observe`（#15/#17）。
 - 统一术语：CONTRACT STATUS / IMPLEMENTATION STATUS / GATE STATUS（#13/#14）。
 - **状态降级**：本文档标题由 "Runtime Abstraction Freeze" 改为 "Contract Coherence — Final Hardening"；待本轮硬冲突修复 + 过 `ARCH-PORTABILITY-01`/`ARCH-BACKEND-01` 门禁后，正式宣布 `PHASE-0.6-RUNTIME-ABSTRACTION-CONTRACT-FROZEN`，再进入 0.6 实施 → Normalize。
+
+## 8. 第四轮审查 → 正式 Freeze（2026-08-28）
+> 用户按 GitHub master 实际内容复核（非「看 201 条」），结论：**方向正确，但文档自洽 + 与代码状态仍不一致，须再做一轮收敛后正式 Freeze**。
+- 采纳的合理建议（全部落地，commit 见 `REVIEW_2026-08-28.md` §9）：
+  - 统一状态模型 → `DOCUMENT_STATUS_MODEL.md`（CONTRACT/IMPLEMENTATION/VERIFICATION/GATE 四类正交）。
+  - Implementation Gap Matrix → `PHASE_0_6_IMPLEMENTATION_GAP_MATRIX.md`。
+  - Acceptance Matrix → `PHASE_0_6_ACCEPTANCE_MATRIX.md`。
+  - Runtime Lifecycle Sequence → `RUNTIME_LIFECYCLE_SEQUENCE.md`（含失败释放责任）。
+  - V0.2↔0.6 Crosswalk + ADR-001（DeviceToken BMD_* 不扩展为 Vendor Identity）→ `V0_2_TO_PHASE_0_6_CROSSWALK.md`。
+  - Provider-local Identity Precedence（非 Global）；Canonical DeviceId/PortId 生成规则（namespace/normalization/collision/migration）；Port 身份层级（Unknown 禁伪造）。
+  - Aggregate Boundary + State Mutation Boundary（owner 拥有合法状态变更 API）。
+  - TopologyEvidence + 时间维度；Reservation 生命周期状态机；Resource 层级 mutation。
+  - Backend 不得自行获取未注册资源；Provider Discovery/Control 概念分离。
+  - 四事件分层（RuntimeEvent/ExternalEvent/AuditEvent/SecurityEvent）。
+- **正式宣布**：`PHASE-0.6-RUNTIME-ABSTRACTION-CONTRACT-FROZEN`（Architecture Contract FROZEN）。但 **Implementation Gate = NOT PASSED**（ARCH-PORTABILITY-01/BACKEND-01 编译不过），须先过门禁才进 0.6 实施 → Normalize。
+- **明确**：Architecture Freeze ≠ Implementation Freeze；文档存在 ≠ 代码实现（见 GAP MATRIX）。
+- 暂停继续新增 PRD/契约（避免「每发现一个问题就新增一份 PRD」循环）；进入纯实现阶段。

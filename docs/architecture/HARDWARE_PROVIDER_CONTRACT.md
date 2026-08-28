@@ -23,6 +23,18 @@ trait MediaHardwareProvider {
 - Provider 负责 **Vendor Resource ↔ Physical Resource ↔ Provider Resource** 翻译。
 - Domain / Graph / Session **不得** `use gstreamer::*` / `use decklink::*`（当前 `pipeline.rs`/`signal.rs` 直接依赖，是 P0 缺口）。
 
+## 1.1 Discovery 与 Control 分离（P0-9，概念边界）
+
+> `discover` / `capabilities` / `open_*` / `observe` / `close` 同在一个 trait 并非错误，但权限等级不同，概念上须分离：
+
+```
+Discovery Adapter        — discover / capabilities（只读、低权限、可频繁调用）
+Resource Control Adapter  — open_input / open_output / close / observe（运行时控制、高权限）
+```
+
+- 不要求两个 Rust trait，但**文档与权限模型**须把 Discovery（只读探测）与 Control（运行时占用）分开，避免「探测权限 = 控制权限」。
+- Control 操作须经 Runtime Orchestrator 授权（Reservation/Lease 已建）后才可调用。
+
 ## 2. 身份与失败闭合
 - **Provider Identity（非 Canonical）**：`DeviceHandle`（经 `IDeckLinkProfileAttributes::GetString(BMDDeckLinkDeviceHandle)`，详见 memory FFI 常量）是 **BMD Provider 内部**的稳定句柄——属于 Provider Identity，**不是** VBMF Canonical Identity（见 [`CANONICAL_IDENTITY.md`](./CANONICAL_IDENTITY.md)）。Provider 内部优先级 PersistentId > DeviceHandle > TopologicalId > EnumerationOnly；解析结果统一收敛为 Canonical `DeviceId` + `IdentityStrength`。
 - `device-number` 绝不默认 0；SDK 枚举序 ≠ GStreamer `device-number`（见 Canonical Ingest 边界）。Canonical 主身份是 `DeviceId`，`device-number` 仅是运行时地址。

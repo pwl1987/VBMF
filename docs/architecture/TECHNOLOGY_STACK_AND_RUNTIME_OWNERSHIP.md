@@ -4,6 +4,10 @@
 > **生成**: 2026-08-25（基于基线 `a6eca1f`；第 42 轮建契约，第 43 轮复核 `c232206` 增补 GSTR-02/HW-01/RECORD-02/FRONT-02 + Gate A/B/C）。
 > **状态**: **RECONCILIATION SoT — 不重开 V0.2**。
 >
+> **Last Reconciled SHA**: `6201dc9`（Phase 0.6 Architecture Contract FROZEN 轮）。
+> **Current superseding documents**: Phase 0.6 契约族（`IMPLEMENTATION_ADDENDUM.md` + `docs/architecture/*.md`，尤其 `CANONICAL_IDENTITY.md` / `RUNTIME_TOPOLOGY_CONTRACT.md` / `PHASE_0_6_*` 矩阵）。
+> **Phase 0.6 delta**: 新增 Canonical Identity / Topology / 状态模型 / Gap/Acceptance Matrix；技术栈「最终选择」现应读作「**Current Reference Implementation**」，非 Architecture Final Technology（vendor-neutral 架构见 `VENDOR_NEUTRALITY_RULES.md`）。本文件技术栈清单仍为 SoT，但新架构以 Phase 0.6 契约族为准。
+>
 > **为什么存在**: `SYSTEM_AND_PROJECT_PLAN.md`（V0.1 规划）、`ARCHITECTURE_V0.2.md`（Runtime SoT）、Phase 0.5（UX）、Phase 0.6（验收）四套文档各自描述系统，但中间缺一层 **Runtime Ownership Contract**，导致 GStreamer ingest / Live FFmpeg / Recording / MediaMTX 等边界漂移。
 >
 > **本文件目的**：把"谁拥有媒体进程生命周期"锁死，使四套文档成为一条连续链，而非各自为政。

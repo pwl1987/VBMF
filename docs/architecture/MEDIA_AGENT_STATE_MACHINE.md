@@ -1,6 +1,10 @@
 # Media Agent 状态机
 
-**状态:** 已冻结契约(2026-08-26)
+> **STATUS: HISTORICAL REFERENCE — NOT CURRENT RUNTIME CONTRACT.**
+> **SUPERSEDED BY:** [`PHASE_0_6_MASTER_PRD.md`](./PHASE_0_6_MASTER_PRD.md) / [`IMPLEMENTATION_ADDENDUM.md`](./IMPLEMENTATION_ADDENDUM.md) / [`MEDIA_BACKEND_CONTRACT.md`](./MEDIA_BACKEND_CONTRACT.md) / [`HARDWARE_PROVIDER_CONTRACT.md`](./HARDWARE_PROVIDER_CONTRACT.md)
+> 本文件描述早期 skeleton 阶段（Gate 2.1 冻结接口、GStreamer 2.6 才挂载）状态机，与当前 Phase 0.6 四层架构不一致，仅作历史参考，AI 开发工具不得据此实现新代码。
+
+**状态:** 已冻结契约(2026-08-26，历史)
 **范围:** 媒体平面(`media-agent`,Rust)生命周期 —— Device × Lease × Supervisor。
 **配套文档:** `MEDIA_RUNTIME_SECURITY_MODEL.md`(运行时/隔离),SoT §10(Gate A)。
 
