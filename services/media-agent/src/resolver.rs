@@ -711,11 +711,20 @@ impl DeviceBindingManifest {
                 }
             }
         }
-        let mut seen_num = HashSet::new();
+        // decklinkvideosrc (输入) 与 decklinkvideosink (输出) 是**独立** device-number 空间,
+        // 故按方向分别查重: 同方向内 gst_device_number 须唯一; 输入空间与输出空间可复用同一数值
+        // (如 Duo 输入 capture #0 与 Mini Monitor 输出 sink #0 互不冲突).
+        let mut seen_in = HashSet::new();
+        let mut seen_out = HashSet::new();
         for b in &self.bindings {
-            if !seen_num.insert(b.gst_device_number) {
+            let is_out = b
+                .port
+                .as_ref()
+                .map_or(false, |p| matches!(p.direction, crate::port::PortDirection::Output));
+            let set = if is_out { &mut seen_out } else { &mut seen_in };
+            if !set.insert(b.gst_device_number) {
                 return Err(format!(
-                    "ManifestInvalid: 重复的 gst_device_number {} (运行时地址冲突, 拒绝)",
+                    "ManifestInvalid: 重复的 gst_device_number {} (同方向运行时地址冲突, 拒绝)",
                     b.gst_device_number
                 ));
             }

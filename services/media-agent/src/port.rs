@@ -159,6 +159,41 @@ pub struct VideoFormat {
     pub pixel_format: Option<String>,
 }
 
+impl VideoFormat {
+    /// 与规范格式串 (如 "1080i50") 比对, 用于 loopback 验收的格式硬门.
+    /// 解析 "WxH + i/p + 帧率" 已足够覆盖当前验收所需; 未识别串返回 false (绝不臆测通过).
+    pub fn matches(&self, expected: &str) -> bool {
+        // 期望形如 "1080i50" / "1080p50" / "720p50": 高度 + 隔行标志 + 场率/帧率整数.
+        // 关键: SDI 命名中尾号是"场率"——"1080i50" = 50 场/秒 = 25 帧/秒. 采集 caps 的 frame_rate
+        // 是帧率(如 "25/1"), 故比对须按场率折算, 否则会误判 1080i50 不一致.
+        let exp = expected.trim();
+        let (h_part, rest) = match exp.split_once(['i', 'p']) {
+            Some((h, r)) => (h, r),
+            None => return false,
+        };
+        let interlaced = exp.contains('i');
+        let height: u32 = match h_part.parse() {
+            Ok(h) => h,
+            Err(_) => return false,
+        };
+        // 期望场率: 尾号若 >1000 (如 5994) 表示 "x/100" → 59.94; 否则为每秒场/帧数.
+        let raw: f64 = rest
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect::<String>()
+            .parse()
+            .unwrap_or(0.0);
+        let expected_field_rate = if raw > 1000.0 { raw / 100.0 } else { raw };
+        // 实测场率 = 帧率 × (隔行 ? 2 : 1).
+        let actual_field_rate = self.frame_rate.as_ref().and_then(|fr| {
+            fr.split('/').next().and_then(|n| n.parse::<f64>().ok())
+        }).unwrap_or(0.0) * if interlaced { 2.0 } else { 1.0 };
+        self.height == height
+            && self.interlaced == Some(interlaced)
+            && (actual_field_rate - expected_field_rate).abs() < 0.5
+    }
+}
+
 /// 实时信号状态 (属于 Runtime State, 不入 Manifest 永久状态).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalStatus {

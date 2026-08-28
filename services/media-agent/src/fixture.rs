@@ -74,6 +74,20 @@ impl Fixture {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
+    /// 从目录批量加载全部 `*.json` Fixture 证据文件 (loopback 验收多 fixture 入口).
+    ///
+    /// 跳过子目录与非 `.json` 文件; 任一文件解析失败即整体返回 `Err` (失败闭合, 不静默跳过坏证据).
+    pub fn load_dir(dir: &Path) -> std::io::Result<Vec<Fixture>> {
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
+                out.push(Fixture::load(&path)?);
+            }
+        }
+        Ok(out)
+    }
+
     /// 由 PortRegistry 解析出 loopback 的 source(输出端口)/sink(已锁定输入端口).
     /// 返回 (source_port_id, sink_port_id) 若可解析; 否则 None (诊断信息不足).
     /// 按 Fixture 显式声明的 `source`/`sink` `PortRef` 精确匹配端口; 仅当 Fixture 为空模板
@@ -86,10 +100,12 @@ impl Fixture {
                 .and_then(|p| p.identity.port_id)
                 .map(|u| u.to_string())
         } else {
+            // 未声明拓扑 (host-specific 模板 fixture): 确定性回退到第一个输入端口.
+            // 注意: 不要求 signal==Locked —— loopback 诊断早于信号探测, 运行时端口 signal 尚未填充;
+            // 由 probe_signal 实测该端口实际信号态 (Locked/NoSignal).
             registry
                 .input_ports()
-                .iter()
-                .find(|p| p.signal.state == SignalState::Locked)
+                .first()
                 .and_then(|p| p.identity.port_id)
                 .map(|u| u.to_string())
         }?;

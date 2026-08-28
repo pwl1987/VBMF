@@ -36,6 +36,25 @@
 /// 各字段独立、互不污染, 不再经 serial/display 伪装). `device.rs` 据此构造
 /// `DeviceInfo`, 使 `device_id = UUIDv5(DeviceHandle)` 真正闭合, 并在
 /// `Device Registry → Resolver → GStreamer device-number` 链路里保持身份一致。
+/// B 选项探针输出: 每子设备的 Connector Mode + 配置方向 + 能力掩码.
+/// 由 `probe_connector_config()` 返回, 经 `VBMF_CONFIG_PROBE=1` 在 main.rs 打印.
+#[derive(serde::Serialize)]
+pub struct ConnectorConfigRow {
+    pub index: usize,
+    pub model: String,
+    pub device_handle: String,
+    /// `bmdDeckLinkConfigConnectorMode` 当前值 (卡型相关枚举, raw 直出).
+    pub connector_mode: Option<u32>,
+    /// `bmdDeckLinkConfigVideoInputConnection` 当前值 (None=配置读取失败/未支持).
+    pub cfg_video_in: Option<u32>,
+    /// `bmdDeckLinkConfigVideoOutputConnection` 当前值.
+    pub cfg_video_out: Option<u32>,
+    /// `BMDDeckLinkVideoInputConnections` 能力位掩码 (0=无/未探测).
+    pub cap_video_in: u64,
+    /// `BMDDeckLinkVideoOutputConnections` 能力位掩码.
+    pub cap_video_out: u64,
+}
+
 pub struct BmdDeviceIdentity {
     /// 型号 (`IDeckLink::GetModelName`)。
     pub model: String,
@@ -61,7 +80,7 @@ pub struct BmdDeviceIdentity {
 
 #[cfg(feature = "bmd")]
 mod imp {
-    use super::BmdDeviceIdentity;
+    use super::{BmdDeviceIdentity, ConnectorConfigRow};
     use libloading::{Library, Symbol};
     use std::ffi::{CStr, OsStr};
     use std::os::raw::{c_char, c_void};
@@ -112,7 +131,8 @@ mod imp {
         SetFlag: Option<unsafe extern "C" fn()>,
         GetFlag: Option<unsafe extern "C" fn()>,
         SetInt: Option<unsafe extern "C" fn()>,
-        GetInt: Option<unsafe extern "C" fn()>,
+        GetInt:
+            Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut i64) -> HRESULT>,
         SetFloat: Option<unsafe extern "C" fn()>,
         GetFloat: Option<unsafe extern "C" fn()>,
         SetString: Option<unsafe extern "C" fn()>,
@@ -207,6 +227,15 @@ mod imp {
     /// 经 `IDeckLinkAttributes::GetString` 读取 (与 `IDeckLink::GetDisplayName` 方法交叉校验)。
     const BMDDeckLinkDisplayName: u32 = 0x6E616D65;
 
+    /// DeckLink SDK `bmdDeckLinkConfigConnectorMode` 配置 ID (4CC 'cond' = 0x636F6E64) ——
+    /// 当前卡的 Connector Mode (如 4x3G / 2x6G 等枚举值, 卡型相关), 决定物理 BNC 如何聚合成子设备.
+    const BMDDeckLinkConfigConnectorMode: u32 = 0x636F6E64;
+    /// `bmdDeckLinkConfigVideoInputConnection` (4CC 'vicn' = 0x7669636E) —— 该子设备当前配置的输入连接
+    /// (BMDVideoConnection 单值: SDI=1<<0 / HDMI=1<<1 / OpticalSDI=1<<2 / ...).
+    const BMDDeckLinkConfigVideoInputConnection: u32 = 0x7669636E;
+    /// `bmdDeckLinkConfigVideoOutputConnection` (4CC 'vocn' = 0x766F636E) —— 该子设备当前配置的输出连接.
+    const BMDDeckLinkConfigVideoOutputConnection: u32 = 0x766F636E;
+
     // IID_IDeckLinkAttributes 的真实 GUID (SDK 16.0 权威值)。
     // 来源: 真机 /home/lytv/Blackmagic_DeckLink_SDK_16.0/.../Linux/include/DeckLinkAPI.h:
     //   IID_IDeckLinkAttributes = /* ADB82CE7-861B-4B61-81DA-A20B084A702E */
@@ -273,6 +302,9 @@ mod imp {
         persistent_id_via_api_info: AttrRead, // IDeckLinkAPIInformation::GetInt [feared-wrong 对照]
         video_input_connections: AttrRead,
         video_output_connections: AttrRead,
+        connector_mode: AttrRead,
+        cfg_video_in: AttrRead,
+        cfg_video_out: AttrRead,
     }
 
     // ── A0 接口读取辅助 (接口无关, 直接吃 vtable 函数指针) ──
@@ -378,6 +410,10 @@ mod imp {
             let mut video_output_connections = AttrRead::unavailable(hr_attributes);
             let mut attr_source = String::from("none");
             let mut serial = String::new(); // 真实序列号, 独立于 device_handle 读取
+            // B 选项: 各子设备 Connector Mode / 配置方向 (经 IDeckLinkConfiguration 读取)
+            let mut connector_mode = AttrRead::unavailable(hr_attributes);
+            let mut cfg_video_in = AttrRead::unavailable(hr_attributes);
+            let mut cfg_video_out = AttrRead::unavailable(hr_attributes);
 
             // 选择实际可用的属性接口: 优先 IDeckLinkAttributes(ADB82CE7);
             // 本 SDK(16.0)设备仅暴露 IDeckLinkProfileAttributes(F47551D7) 时回退。
@@ -461,6 +497,17 @@ mod imp {
                 };
                 if hr_cfg == S_OK && !cfg.is_null() {
                     let cv = unsafe { *(cfg as *mut *mut IDeckLinkConfigurationVtbl) };
+                    // B 选项: 读 Connector Mode + 配置输入/输出连接 (GetInt@6)
+                    if let Some(gi) = unsafe { (*cv).GetInt } {
+                        connector_mode =
+                            unsafe { read_int_attr(cfg, gi, BMDDeckLinkConfigConnectorMode) };
+                        cfg_video_in = unsafe {
+                            read_int_attr(cfg, gi, BMDDeckLinkConfigVideoInputConnection)
+                        };
+                        cfg_video_out = unsafe {
+                            read_int_attr(cfg, gi, BMDDeckLinkConfigVideoOutputConnection)
+                        };
+                    }
                     if let Some(gs) = unsafe { (*cv).GetString } {
                         let mut sp: *mut c_char = std::ptr::null_mut();
                         unsafe {
@@ -523,6 +570,9 @@ mod imp {
                 persistent_id_via_api_info,
                 video_input_connections,
                 video_output_connections,
+                connector_mode,
+                cfg_video_in,
+                cfg_video_out,
             });
             index += 1;
 
@@ -565,6 +615,25 @@ mod imp {
                 topological_id: d.topological_id.normalized,
                 video_input_connections: d.video_input_connections.raw as u64,
                 video_output_connections: d.video_output_connections.raw as u64,
+            })
+            .collect())
+    }
+
+    /// B 选项 (用户 2026-08-28): Connector Mode / 各子设备配置方向探针.
+    /// 纯 SDK 读取 (IDeckLinkConfiguration), 不进媒体, 不依赖 GStreamer.
+    pub fn probe_connector_config() -> Result<Vec<ConnectorConfigRow>, String> {
+        let devs = iter_devices()?;
+        Ok(devs
+            .into_iter()
+            .map(|d| ConnectorConfigRow {
+                index: d.index,
+                model: d.model,
+                device_handle: d.device_handle,
+                connector_mode: d.connector_mode.normalized,
+                cfg_video_in: d.cfg_video_in.normalized,
+                cfg_video_out: d.cfg_video_out.normalized,
+                cap_video_in: d.video_input_connections.raw as u64,
+                cap_video_out: d.video_output_connections.raw as u64,
             })
             .collect())
     }
@@ -922,14 +991,18 @@ mod imp {
 
 #[cfg(not(feature = "bmd"))]
 mod imp {
-    use super::BmdDeviceIdentity;
+    use super::{BmdDeviceIdentity, ConnectorConfigRow};
     pub fn enumerate() -> Result<Vec<BmdDeviceIdentity>, String> {
         Err("未编译 bmd feature —— 请使用 `--features bmd` 并设 \
              DECKLINK_SDK_INCLUDE=<SDK 的 Linux/include 路径>（需要 libclang）重新构建"
             .into())
     }
+    pub fn probe_connector_config() -> Result<Vec<ConnectorConfigRow>, String> {
+        Err("未编译 bmd feature —— 请使用 `--features bmd` 重新构建".into())
+    }
 }
 
 pub use imp::enumerate;
+pub use imp::probe_connector_config;
 #[cfg(feature = "hardware-test")]
 pub use imp::{registry, start_capture};

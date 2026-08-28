@@ -62,6 +62,25 @@ fn main() {
     let devices = dm.discover();
     tracing::info!(count = devices.len(), "device discovery complete");
 
+    // B 选项 (用户 2026-08-28): Connector Mode / 各子设备配置方向探针.
+    // 纯 SDK 读取 (IDeckLinkConfiguration), 不进媒体, 不依赖 GStreamer; 命中即 exit(0).
+    // 用于无桌面环境 (无 Blackmagic Desktop Video Setup) 时直接回答
+    // "每个子设备当前是 In 还是 Out、物理端口如何按 Connector Mode 分组".
+    #[cfg(feature = "bmd")]
+    if std::env::var("VBMF_CONFIG_PROBE").is_ok() {
+        match crate::decklink::probe_connector_config() {
+            Ok(rows) => match serde_json::to_string_pretty(&rows) {
+                Ok(json) => {
+                    println!("=== B Connector Config Probe (IDeckLinkConfiguration) ===");
+                    println!("{json}");
+                }
+                Err(e) => eprintln!("config probe 序列化失败: {e}"),
+            },
+            Err(e) => eprintln!("config probe 失败: {e}"),
+        }
+        std::process::exit(0);
+    }
+
     // C1: DeckLinkDeviceResolver —— DeviceHandle → GStreamer device-number 物化 (仅解析+证据, 不启动 pipeline).
     // 设置 VBMF_RESOLVER=1 运行: 输出每台 SDK 设备与 GStreamer 实例的交叉映射证据,
     // 供现场核对 "CH01 怎么采到了另一张卡" / "device-number 与正确输入设备未对应"。
@@ -190,6 +209,83 @@ fn main() {
             crate::resolver::GstProbeOutcome::Empty => {
                 println!("=== C1 Probe EMPTY: 探测正常执行但枚举到 0 个 DeckLink 实例 (本机无可用采集卡) ===");
             }
+        }
+        std::process::exit(0);
+    }
+
+    // HW-PORT-01D (Loopback): 真机 loopback 验收闭环 (STEP 11). 设置 VBMF_LOOPBACK=1 运行:
+    // 加载 DeviceBindingManifest → 探测 GStreamer → 解析绑定 → 构建 PortRegistry → 加载 fixtures 目录
+    // → 对每条 Fixture 在 source 渲染已知图案、在 sink 真实采集 (含加嵌音频探测) → verify_fixtures 双门
+    // → 输出 FixtureVerification JSON. 命中即 exit(0), 绝不进入生产媒体 launch.
+    #[cfg(feature = "gstreamer")]
+    if std::env::var("VBMF_LOOPBACK").is_ok() {
+        let manifest_path = match &_cfg.device_binding_path {
+            Some(p) => p.clone(),
+            None => {
+                eprintln!("VBMF_LOOPBACK 需要 DeviceBindingManifest (MEDIA_AGENT_DEVICE_BINDING)");
+                std::process::exit(2);
+            }
+        };
+        let manifest = match crate::resolver::DeviceBindingManifest::load(&manifest_path) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("DeviceBindingManifest 加载失败: {e}");
+                std::process::exit(2);
+            }
+        };
+        if let Err(e) = manifest.validate_manifest() {
+            eprintln!("DeviceBindingManifest 结构校验失败: {e}");
+            std::process::exit(2);
+        }
+        let probes = match crate::resolver::probe_gstreamer_devices(
+            crate::resolver::MAX_PROBE_DEVICES,
+            false,
+        ) {
+            crate::resolver::GstProbeOutcome::Available { probes, errors } => {
+                for (n, e) in &errors {
+                    tracing::warn!(device_number = n, error = %e, "GStreamer 单设备探测失败");
+                }
+                probes
+            }
+            _ => Vec::new(),
+        };
+        let bindings =
+            crate::resolver::collect_bindings_from_manifest(&devices, &probes, &manifest);
+        let registry = match crate::port::PortRegistry::build(&devices, &probes, &manifest, &bindings) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
+                std::process::exit(2);
+            }
+        };
+        let fixtures_dir = std::env::var("VBMF_FIXTURES_DIR")
+            .unwrap_or_else(|_| "evidence/bmd-10.30.15.10/fixtures".to_string());
+        let fixtures = match crate::fixture::Fixture::load_dir(std::path::Path::new(&fixtures_dir)) {
+            Ok(f) if !f.is_empty() => f,
+            Ok(_) => {
+                eprintln!("fixtures 目录为空: {fixtures_dir}");
+                std::process::exit(2);
+            }
+            Err(e) => {
+                eprintln!("fixtures 加载失败 ({fixtures_dir}): {e}");
+                std::process::exit(2);
+            }
+        };
+        let sample_frames = std::env::var("VBMF_LOOPBACK_FRAMES")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(8);
+        let verifications = crate::signal::verify_fixtures(&fixtures, |f| {
+            crate::signal::probe_fixture_signal(f, &registry, sample_frames)
+        });
+        match serde_json::to_string_pretty(&verifications) {
+            Ok(json) => {
+                println!("=== HW-PORT-01D Loopback Verification (真机闭环) ===");
+                println!("{json}");
+                let all_pass = verifications.iter().all(|v| v.passed);
+                println!("=== LOOPBACK ALL PASS = {all_pass} ===");
+            }
+            Err(e) => eprintln!("loopback verification 序列化失败: {e}"),
         }
         std::process::exit(0);
     }
