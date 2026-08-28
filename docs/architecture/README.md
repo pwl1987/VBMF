@@ -1,3 +1,52 @@
+# 文档索引
+
+## 📌 阶段导航（一眼分清「本次实施」）
+
+### ⚠️ 本次实施 = Phase 0.6（P0 / P0.5）— Runtime Abstraction
+> **目标**：把现有 `media-agent` 重构为 Canonical Media Runtime。代码层要消的 P0 缺口：建 `HardwareProvider`/`MediaBackend` SPI、统一 `RuntimeEvent`、Provider Registry、Mock Provider/Backend、消除 11 处 `device_number`、Preflight、过 `ARCH-PORTABILITY-01` 编译门禁、CI Architecture Lint。
+> 下面这些契约**已建**，是本次实施的规范依据。**P1/P2 契约仅规划冻结，暂不实施**。
+
+- 综合契约（权威载体）：[`IMPLEMENTATION_ADDENDUM.md`](IMPLEMENTATION_ADDENDUM.md) ［P0］
+- 决策日志：[`ARCHITECTURE_DECISION_LOG.md`](ARCHITECTURE_DECISION_LOG.md) ［P0］
+- 边界契约：[`IMPLEMENTATION_BOUNDARIES.md`](IMPLEMENTATION_BOUNDARIES.md) ［P0］
+- 硬件 Provider SPI：[`HARDWARE_PROVIDER_CONTRACT.md`](HARDWARE_PROVIDER_CONTRACT.md) ［P0］
+- 媒体 Backend SPI：[`MEDIA_BACKEND_CONTRACT.md`](MEDIA_BACKEND_CONTRACT.md) ［P0］
+- Canonical 媒体模型：[`CANONICAL_MEDIA_MODEL.md`](CANONICAL_MEDIA_MODEL.md) ［P0］
+- 资源模型：[`RUNTIME_RESOURCE_MODEL.md`](RUNTIME_RESOURCE_MODEL.md) ［P0.5］
+- 可移植性矩阵：[`TECHNOLOGY_PORTABILITY_MATRIX.md`](TECHNOLOGY_PORTABILITY_MATRIX.md) ［P0］
+- 厂商中立守则：[`VENDOR_NEUTRALITY_RULES.md`](VENDOR_NEUTRALITY_RULES.md) ［P0］
+- Session 模型：[`RUNTIME_SESSION_MODEL.md`](RUNTIME_SESSION_MODEL.md) ［P0］
+- Binding 模型：[`RUNTIME_BINDING_MODEL.md`](RUNTIME_BINDING_MODEL.md) ［P0］
+- **整合 Master PRD（两份 PRD + 评审 + 缺口 + 路径 + 门禁）**：[`PHASE_0_6_MASTER_PRD.md`](PHASE_0_6_MASTER_PRD.md) ［P0 整合］
+- 讨论留档：[`REVIEW_2026-08-28.md`](REVIEW_2026-08-28.md) ［P0］
+
+### 🔵 Phase 0.7（P1）规划冻结 — **暂不实施**
+- 外部 API：[`EXTERNAL_API_CONTRACT.md`](EXTERNAL_API_CONTRACT.md) ［P1］
+- 事件：[`EVENT_CONTRACT.md`](EVENT_CONTRACT.md) ［P1］
+- 设备集成：`DEVICE_INTEGRATION_CONTRACT.md` ［P1］（多站点/agent 部分属 P2，见下）
+- 前提：需先有 Control Plane（Fastify/Node），当前不存在
+
+### 🟠 Phase 0.8（P2）暂缓 — 「连契约都暂缓」
+- Multi-site / Agent / Federation / Artifact / Recording-Playback 等，对应 API PRD #138–#170。
+- **不全盘接受**：见 [`PRD_REVIEW_EXTERNAL_API.md`](PRD_REVIEW_EXTERNAL_API.md) §0.5 / §3.5（I–Q），不进入 0.7 实施清单。
+
+### 🟢 V0.2 基线（LOCK FINAL，冻结，不修改）
+- [`ARCHITECTURE_V0.2.md`](ARCHITECTURE_V0.2.md)
+
+### 📂 既有 / 参考文档（非本 Phase 0.6 规划，历史参考）
+- [`MEDIA_AGENT_STATE_MACHINE.md`](MEDIA_AGENT_STATE_MACHINE.md)
+- [`MEDIA_RUNTIME_SECURITY_MODEL.md`](MEDIA_RUNTIME_SECURITY_MODEL.md)
+- [`TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md`](TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md)
+- [`DEPLOYMENT_AND_DEV_RUNTIME.md`](DEPLOYMENT_AND_DEV_RUNTIME.md)
+
+### 📝 评审 / 讨论（非实施）
+- PRD 评审（Portability）：[`PRD_REVIEW_RUNTIME_ABSTRACTION.md`](PRD_REVIEW_RUNTIME_ABSTRACTION.md)
+- PRD 评审（API，第二轮严格批判）：[`PRD_REVIEW_EXTERNAL_API.md`](PRD_REVIEW_EXTERNAL_API.md)
+
+> V0.2 基线 LOCK FINAL，架构改动须 V0.3 流程拍板。Phase 0.6 文档均为实现层契约补充，不修改 V0.2 语义。
+
+---
+
 # V0.2 架构 — 快速参考
 
 > 完整内容见 [`ARCHITECTURE_V0.2.md`](ARCHITECTURE_V0.2.md)（192KB / 4020 lines）。
