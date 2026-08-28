@@ -1,6 +1,6 @@
 # RUNTIME_TOPOLOGY_CONTRACT — 媒体拓扑契约
 
-> 状态：🔧 待建 → ✅ 已建（Phase 0.6, P0.5）
+> 状态：CONTRACT = FROZEN；IMPLEMENTATION = NOT_STARTED；VERIFICATION = NOT_VERIFIED；GATE = PENDING（Phase 0.6, P0.5）
 > 来源：用户 Final Hardening 审查（2026-08-28）第 ⑥ 优先项（#二十四/#二十五：PhysicalConnection / LogicalRoute / Topology 缺失）。
 > 关联：`CANONICAL_MEDIA_MODEL.md`、`RUNTIME_RESOURCE_MODEL.md`、`IMPLEMENTATION_ADDENDUM.md`、`CANONICAL_IDENTITY.md`
 
@@ -28,7 +28,7 @@ LogicalRoute       — 系统当前要求怎么走（业务意图）
 | `LogicalRoute` | 系统现在要求怎么走 | Program → Router Input 8 |
 
 - 二者**不得**混成一个 Route。
-- `PhysicalConnection` 是拓扑事实（观测/配置）；`LogicalRoute` 是运行意图（由 Control Plane / Routing 决策产出）。
+- `PhysicalConnection` 的「事实来源」由 `TopologyEvidence`（`DECLARED`/`OBSERVED`/`INFERRED`/`VERIFIED`/`UNKNOWN`，见 §6.1）显式标注，**不得默认「观测」或「配置」**；`LogicalRoute` 是运行意图（由 Control Plane / Routing 决策产出）。
 - 设备更换 → `PhysicalConnection` 变化；业务切播 → `LogicalRoute` 变化；两类变更独立建模。
 
 ## 4. 拓扑模型（只定义，不实现 Scheduler）

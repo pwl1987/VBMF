@@ -4,7 +4,7 @@
 > 源 PRD：`VBMF Runtime Abstraction & Portability PRD.md`（165 条，P0/P0.5）、`VBMF External Integration & Device Interoperability API PRD.md`（170 条，P1/P2）
 > ⚠️ **API PRD 不全盘接受**：#138–#170 的 Multi-site/Agent/Artifact/Recording 等 P2 条款与 Phase 0.6 冻结裁决（"P2 连契约都暂缓 / 无消费方不建抽象"）冲突，需外置；Event 三套推送、Artifact 上传子系统属过度设计。强制裁剪清单见 `PRD_REVIEW_EXTERNAL_API.md` §0.5 / §3.5（I–Q）。
 > 评审：`PRD_REVIEW_RUNTIME_ABSTRACTION.md`、`PRD_REVIEW_EXTERNAL_API.md`
-> 契约：`IMPLEMENTATION_ADDENDUM.md` + 6+1 + 本 Master 引用的待建契约
+> 契约：`IMPLEMENTATION_ADDENDUM.md` + 6+1 + 本 Master 引用的各契约（均 CONTRACT = FROZEN）
 > 与 V0.2 关系：**仅 additive**，不改变 Graph / DataPlane / Switch / Health / Ownership 语义（ARCH-PORTABILITY 门禁约束）
 
 ---
@@ -70,26 +70,26 @@
 
 ---
 
-## 3. 契约体系（已建 + 待建）
+## 3. 契约体系与实施状态（CONTRACT FROZEN / Implementation Status）
 
-| 契约文档 | 状态 | 覆盖 PRD 段 |
+| 契约文档 | 状态（CONTRACT / IMPLEMENTATION） | 覆盖 PRD 段 |
 |---|---|---|
-| `IMPLEMENTATION_ADDENDUM.md` | ✅ 已建 | 综合载体（四层、决策） |
-| `CANONICAL_MEDIA_MODEL.md` | ✅ 已建 | Portability #15, #20, #22–#39 |
-| `HARDWARE_PROVIDER_CONTRACT.md` | ✅ 已建 | Portability #16, #17, #71, #127 |
-| `MEDIA_BACKEND_CONTRACT.md` | ✅ 已建 | Portability #3, #18, #128 |
-| `RUNTIME_RESOURCE_MODEL.md` | ✅ 已建 | Portability #42–#44, #120（须对齐 V0.2 §3.11，见 §7-F） |
-| `TECHNOLOGY_PORTABILITY_MATRIX.md` | ✅ 已建 | Portability #61–#67, #163, #164 |
-| `VENDOR_NEUTRALITY_RULES.md` | ✅ 已建 | Portability #136 / API #136 |
-| `RUNTIME_SESSION_MODEL.md` | ✅ 已建 | Portability #15, #21, #56（澄清 #21 vs #56）｜P0 |
-| `RUNTIME_BINDING_MODEL.md` | ✅ 已建 | Portability #19, #60, #102｜P0 |
-| `AUDIO_ROUTING_CONTRACT.md` | ✅ 已建 | Portability #55, #63, #80｜P1 |
-| `CLOCK_TIMECODE_CONTRACT.md` | ✅ 已建 | Portability #57, #147, #148｜P1 |
-| `EXTERNAL_API_CONTRACT.md` | ✅ 已建（**P1 规划冻结，暂不实施**） | API #1–#85, #108–#134, #151–#162 |
-| `EVENT_CONTRACT.md` | ✅ 已建（**P1 规划冻结**） | API #11–#34, #78–#82, #102–#105, #155 |
-| `DEVICE_INTEGRATION_CONTRACT.md` | ✅ 已建（**P1 规划冻结**；#140–#150 多站点/agent 属 P2 外置） | API #87–#107, #154 |
-| `CANONICAL_IDENTITY.md` | ✅ 已建（Final Hardening 补建，P0） | Portability #8/#11 + API #93/#94/#147（评审 §3.5-P） |
-| `RUNTIME_TOPOLOGY_CONTRACT.md` | ✅ 已建（Final Hardening 补建，P0.5） | 用户审查 #24/#25（PhysicalConnection/LogicalRoute/Topology） |
+| `IMPLEMENTATION_ADDENDUM.md` | CONTRACT = FROZEN / IN_PROGRESS | 综合载体（四层、决策） |
+| `CANONICAL_MEDIA_MODEL.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #15, #20, #22–#39 |
+| `HARDWARE_PROVIDER_CONTRACT.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #16, #17, #71, #127 |
+| `MEDIA_BACKEND_CONTRACT.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #3, #18, #128 |
+| `RUNTIME_RESOURCE_MODEL.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #42–#44, #120（须对齐 V0.2 §3.11，见 §7-F） |
+| `TECHNOLOGY_PORTABILITY_MATRIX.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #61–#67, #163, #164 |
+| `VENDOR_NEUTRALITY_RULES.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #136 / API #136 |
+| `RUNTIME_SESSION_MODEL.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #15, #21, #56（澄清 #21 vs #56）｜P0 |
+| `RUNTIME_BINDING_MODEL.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #19, #60, #102｜P0 |
+| `AUDIO_ROUTING_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED | Portability #55, #63, #80｜P1 |
+| `CLOCK_TIMECODE_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED | Portability #57, #147, #148｜P1 |
+| `EXTERNAL_API_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED（**P1 暂不实施**） | API #1–#85, #108–#134, #151–#162 |
+| `EVENT_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED（**P1**） | API #11–#34, #78–#82, #102–#105, #155 |
+| `DEVICE_INTEGRATION_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED（**P1**；#140–#150 多站点/agent 属 P2 外置） | API #87–#107, #154 |
+| `CANONICAL_IDENTITY.md` | CONTRACT = FROZEN / IN_PROGRESS（Final Hardening 补建，P0） | Portability #8/#11 + API #93/#94/#147（评审 §3.5-P） |
+| `RUNTIME_TOPOLOGY_CONTRACT.md` | CONTRACT = FROZEN / IN_PROGRESS（Final Hardening 补建，P0.5） | 用户审查 #24/#25（PhysicalConnection/LogicalRoute/Topology） |
 
 > **文档层缺口消除**：PRD #156 要求的契约体系完整；Final Hardening 额外补建 `CANONICAL_IDENTITY.md` / `RUNTIME_TOPOLOGY_CONTRACT.md`，使 Identity 与 Topology 不再散落各文档。
 
@@ -99,7 +99,7 @@
 
 ### 4.1 文档层（已消除 ✅）
 - Portability 侧 4 份（P0/P1）：`RUNTIME_SESSION_MODEL`(P0) / `RUNTIME_BINDING_MODEL`(P0) / `AUDIO_ROUTING_CONTRACT`(P1) / `CLOCK_TIMECODE_CONTRACT`(P1)
-- API 侧 3 份（**P1 规划冻结，暂不实施**）：`EXTERNAL_API_CONTRACT` / `EVENT_CONTRACT` / `DEVICE_INTEGRATION_CONTRACT`
+- API 侧 3 份（**P1；CONTRACT = FROZEN，IMPLEMENTATION = NOT_STARTED，暂不实施**）：`EXTERNAL_API_CONTRACT` / `EVENT_CONTRACT` / `DEVICE_INTEGRATION_CONTRACT`
 
 ### 4.2 代码层（实现路径消除，见 §5）
 **P0（Phase 0.6，重构现有 Runtime）**

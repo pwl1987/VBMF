@@ -1,6 +1,6 @@
 # CANONICAL_IDENTITY — Canonical 身份标识契约
 
-> 状态：🔧 待建 → ✅ 已建（Phase 0.6, P0）
+> 状态：CONTRACT = FROZEN；IMPLEMENTATION = NOT_STARTED；VERIFICATION = NOT_VERIFIED；GATE = PENDING（Phase 0.6, P0）
 > 来源：API PRD 评审 §3.5-P（#93/#94/#147 与 Portability #8/#11 应共享"稳定身份"定义）；用户 Final Hardening 审查（2026-08-28）第 ①/② 优先项。
 > 关联：`CANONICAL_MEDIA_MODEL.md`、`HARDWARE_PROVIDER_CONTRACT.md`、`RUNTIME_SESSION_MODEL.md`、`DEVICE_INTEGRATION_CONTRACT.md`
 

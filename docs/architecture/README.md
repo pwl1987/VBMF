@@ -4,7 +4,7 @@
 
 ### ⚠️ 本次实施 = Phase 0.6（P0 / P0.5）— Runtime Abstraction（**Architecture Contract FROZEN**，但 Implementation Gate NOT PASSED）
 > **目标**：把现有 `media-agent` 重构为 Canonical Media Runtime。代码层要消的 P0 缺口：建 `HardwareProvider`/`MediaBackend` SPI、统一 `RuntimeEvent`、Provider Registry、Mock Provider/Backend、消除 11 处 `device_number` 改用 Canonical `DeviceId`、Preflight、过 `ARCH-PORTABILITY-01` 编译门禁、CI Architecture Lint。
-> 下面这些契约**已建**，是本次实施的规范依据。**P1/P2 契约仅规划冻结，暂不实施**。
+> 下面这些契约 **CONTRACT = FROZEN**，是本次实施的规范依据（P0 契约 IMPLEMENTATION = IN_PROGRESS；**P1/P2 契约 CONTRACT = FROZEN 但 IMPLEMENTATION = NOT_STARTED，暂不实施**）。
 
 - 综合契约（权威载体）：[`IMPLEMENTATION_ADDENDUM.md`](IMPLEMENTATION_ADDENDUM.md) ［P0］
 - 决策日志：[`ARCHITECTURE_DECISION_LOG.md`](ARCHITECTURE_DECISION_LOG.md) ［P0］
@@ -27,7 +27,7 @@
 - 运行时生命周期时序：[`RUNTIME_LIFECYCLE_SEQUENCE.md`](RUNTIME_LIFECYCLE_SEQUENCE.md) ［P0］
 - V0.2↔0.6 语义对照：[`V0_2_TO_PHASE_0_6_CROSSWALK.md`](V0_2_TO_PHASE_0_6_CROSSWALK.md) ［P0］
 
-### 🔵 Phase 0.7（P1）规划冻结 — **暂不实施**
+### 🔵 Phase 0.7（P1）CONTRACT = FROZEN — **暂不实施（IMPLEMENTATION = NOT_STARTED）**
 - 外部 API：[`EXTERNAL_API_CONTRACT.md`](EXTERNAL_API_CONTRACT.md) ［P1］
 - 事件：[`EVENT_CONTRACT.md`](EVENT_CONTRACT.md) ［P1］
 - 设备集成：`DEVICE_INTEGRATION_CONTRACT.md` ［P1］（多站点/agent 部分属 P2，见下）
