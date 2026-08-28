@@ -8,8 +8,10 @@
 #[allow(unused_imports)]
 pub use crate::pipeline::GStreamerPipelineController;
 
-/// 运行时 GStreamer 版本 (证据归档用). 仅在 gstreamer 构建可用.
-#[cfg(feature = "gstreamer-backend")]
+/// 运行时 GStreamer 版本 (证据归档用). 仅在其唯一消费者 `main` 的 evidence 日志
+/// (`#[cfg(feature = "bmd-provider")]` 块内) 编译时才被引用, 故收紧到
+/// `all(gstreamer-backend, bmd-provider)`, 避免 `gstreamer-backend` 单独组合下的 dead-code。
+#[cfg(all(feature = "gstreamer-backend", feature = "bmd-provider"))]
 pub fn gstreamer_runtime_version() -> (u32, u32, u32, u32) {
     gstreamer::version()
 }

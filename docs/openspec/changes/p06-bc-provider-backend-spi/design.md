@@ -178,3 +178,26 @@ pub trait MediaBackend: Send + Sync {
 
 ### 10.3 架构影响
 - 无（Phase 0.6 Acceptance Validation, 未触碰 V0.2 核心定义）。BMD 降级为 Reference Adapter 的实质一步（Concrete Adapters 层）。
+
+## 11. C5（实现）: AdapterRegistry — Provider/Backend 选择收口（SPI 分层收口）
+
+> 2026-08-28 落地。将 main 中散落的 `Box<dyn HardwareProvider>` / `Arc<dyn MediaBackend>` 构造与
+> feature 优先级选择集中到 `registry.rs::AdapterRegistry`, 调用方(Domain/Graph/main)只拿 trait 对象,
+> 绝不感知具体适配器。此为 C2c 接线之后的 SPI 分层收口, 与 §7「C5 验收用真机闭环」为不同概念: 本步是
+> 实现步骤, 真机闭环验收仍属 §7 范畴。
+
+### 11.1 改动
+- **新增 `registry.rs`**：`AdapterRegistry` 提供 `build_provider()` 与 `build_media_backend()`。
+  - `build_provider()` 优先级(高→低): `mock` > `simulation` > `bmd-provider` > `default`(filesystem), 返回 `Box<dyn HardwareProvider>`。
+  - `build_media_backend()` 仅在 `all(bmd-provider, gstreamer-backend)` 下编译, 优先级 `mock` > `gstreamer-backend`, 返回 `Arc<dyn MediaBackend>`。
+  - 二者逻辑与 C2c 内联块逐字一致(cfg 分支完全相同), 仅从 main 抽到独立模块。
+- **`main.rs`**：删除内联 `build_media_backend` 自由函数与 Provider 选择块, 改调 `AdapterRegistry::build_provider()` / `AdapterRegistry::build_media_backend()`（2 处调用点）。
+- **`adapters/gstreamer/mod.rs`**：`gstreamer_runtime_version` 的 cfg 由 `gstreamer-backend` 收紧到 `all(gstreamer-backend, bmd-provider)`（其唯一消费者 `main` evidence 日志位于 `#[cfg(bmd-provider)]` 块内）。消除 `gstreamer-backend` 单独组合下的 dead-code（`-D warnings` 门禁暴露的潜在告警, 此前未被该组合 clippy 覆盖）。
+
+### 11.2 验证
+- 盒上矩阵(同步 tar+scp → `bash box_verify_c5.sh`)覆盖 default/simulation/mock 三套 test + 全部 feature 组合 build/clippy(`-D warnings`), 13 项全绿；复检(`box_recheck_c5.sh`)7 项 clippy 全绿(含 `gstreamer-backend` 单独组合的 GS_ONLY_CLIPPY, 修复后通过)。
+- Domain/Graph/UI 不引用具体适配器类型, ARCH-PORTABILITY-01 收敛不变。
+
+### 11.3 架构影响
+- SPI 分层收口: Provider/Backend 选择逻辑单点化, C6 BMD 迁移 / C7 GStreamer 迁移 / 运行时可插拔(显式配置选择适配器)只需改 `registry.rs`, 不动 main 与 Domain/Graph。
+- 为 C8 架构边界 CI gate 与最终验收(C9)打下基础。
