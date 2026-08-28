@@ -169,6 +169,7 @@ pub trait MediaBackend: Send + Sync {
 - **`adapters/blackmagic/mod.rs`**：`#[cfg(feature = "bmd-provider")] pub mod device_manager;` + 同条件 `pub use device_manager::DeckLinkDeviceManager;`（按 `bmd-provider` 门控, 无 BMD 时整模块不编译）。
 - **`device.rs`（Domain）**：删除对 `crate::adapters::blackmagic::decklink::BmdDeviceIdentity` 的无条件 `use`、整段 `DeckLinkDeviceManager` 实现与 `VBMF_BMD_NS`。仅保留 `FilesystemDeviceManager`/`SimulatedDeviceManager`（非硬件 Domain/Dev Manager）与 `DeviceManager`/`HardwareProvider` SPI。
 - **`main.rs`**：`bmd-provider` 分支接线由 `device::DeckLinkDeviceManager::new()` 改为 `adapters::blackmagic::DeckLinkDeviceManager::new()`。
+- **`adapters/blackmagic/decklink.rs`**：`pub use imp::enumerate;` 改为 `#[cfg(feature = "bmd-provider")]` 门控（与 `probe_connector_config` 一致）。原因：`enumerate` 的唯一消费者是 BMD `DeckLinkDeviceManager`（已下沉到 `bmd-provider` 门控的 `device_manager.rs`）；非 `bmd-provider` 构建下若不门控该 re-export, 会触发 clippy `-D warnings` 的 unused import。
 
 ### 10.2 验证
 - **Test A（删 BMD Provider 后 Domain 仍可编译）**：`--no-default-features --features simulation`（无 `bmd-provider`）下 `device.rs` 不再 `use`/`调用` `decklink`, Domain 独立编译通过；架构 lint（grep `decklink` 于 domain）0 命中（仅大写 `DeckLink`/`BMD` 文档/字符串）。

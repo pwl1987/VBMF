@@ -1002,6 +1002,7 @@ mod imp {
     }
 }
 
+#[cfg(feature = "bmd-provider")]
 pub use imp::enumerate;
 #[cfg(feature = "bmd-provider")]
 pub use imp::probe_connector_config;
