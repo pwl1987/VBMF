@@ -58,7 +58,7 @@ fn main() {
     #[cfg(feature = "simulation")]
     let dm = device::SimulatedDeviceManager::new();
     #[cfg(all(not(feature = "simulation"), feature = "bmd-provider"))]
-    let dm = device::DeckLinkDeviceManager::new();
+    let dm = adapters::blackmagic::DeckLinkDeviceManager::new();
     #[cfg(all(not(feature = "simulation"), not(feature = "bmd-provider")))]
     let dm = device::FilesystemDeviceManager::new();
     let devices = dm.discover();

@@ -159,3 +159,21 @@ pub trait MediaBackend: Send + Sync {
 - 无（Phase 0.6 Acceptance Validation，未触碰 V0.2 核心定义）。
 - 为 C4 ARCH-PORTABILITY-01（删 BMD Provider 后 Domain 仍可编译 + Mock 共享 Graph/Session/Supervisor/Health
   + 换 Mock B 不改 Domain/Graph/UI）与 C2c（main 经 `dyn HardwareProvider`/`dyn MediaBackend` 接线）提供前置。
+
+## 10. C4：BMD 与 Domain 解耦（ARCH-PORTABILITY-01 Test A）
+
+> 2026-08-28 落地。将 BMD 真实设备发现下沉到 Concrete Adapters 层, Domain (`device.rs`) 彻底脱离 vendor `decklink` 依赖。
+
+### 10.1 改动
+- **新增 `adapters/blackmagic/device_manager.rs`**：原 `device.rs` 中的 `DeckLinkDeviceManager`（struct + `impl DeviceManager` + `impl HardwareProvider` + `VBMF_BMD_NS`）整体平移至此, 属 Concrete Adapters 层。
+- **`adapters/blackmagic/mod.rs`**：`#[cfg(feature = "bmd-provider")] pub mod device_manager;` + 同条件 `pub use device_manager::DeckLinkDeviceManager;`（按 `bmd-provider` 门控, 无 BMD 时整模块不编译）。
+- **`device.rs`（Domain）**：删除对 `crate::adapters::blackmagic::decklink::BmdDeviceIdentity` 的无条件 `use`、整段 `DeckLinkDeviceManager` 实现与 `VBMF_BMD_NS`。仅保留 `FilesystemDeviceManager`/`SimulatedDeviceManager`（非硬件 Domain/Dev Manager）与 `DeviceManager`/`HardwareProvider` SPI。
+- **`main.rs`**：`bmd-provider` 分支接线由 `device::DeckLinkDeviceManager::new()` 改为 `adapters::blackmagic::DeckLinkDeviceManager::new()`。
+
+### 10.2 验证
+- **Test A（删 BMD Provider 后 Domain 仍可编译）**：`--no-default-features --features simulation`（无 `bmd-provider`）下 `device.rs` 不再 `use`/`调用` `decklink`, Domain 独立编译通过；架构 lint（grep `decklink` 于 domain）0 命中（仅大写 `DeckLink`/`BMD` 文档/字符串）。
+- **Test B/C（Mock 侧）**：C3 已落 `MockProvider`/`MockProviderB`/`MockBackend`, 经 `HardwareProvider`/`MediaBackend` trait 多态消费, 与 Domain/Graph/Session/Supervisor/Health 解耦——换 Mock B 不改 Domain/Graph/UI（C3 设计已证）。本步不新增 Mock 端到端测试（留待 C2c 接线后补）。
+- **无回归**：default / simulation / `mock` / `bmd,gstreamer`(compat) / `bmd-provider,gstreamer-backend`(canonical) 五套 build+clippy(`-D warnings`) 全绿。
+
+### 10.3 架构影响
+- 无（Phase 0.6 Acceptance Validation, 未触碰 V0.2 核心定义）。BMD 降级为 Reference Adapter 的实质一步（Concrete Adapters 层）。
