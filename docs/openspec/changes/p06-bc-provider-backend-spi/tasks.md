@@ -18,13 +18,19 @@
 - [x] trait 不含 vendor 错误类型 (沿用既有 error 模型; 统一到 RuntimeEvent 留 0.6D)
 
 ## 1b. C2 / C3 / C4 待办（真正 SPI 解耦，非 C1 范围）
-- [ ] **C2** 真正的 `trait HardwareProvider` (`discover()->Result<Vec<DeviceInfo>,ProviderError>` + `probe_capabilities()` + `probe_connector_config()`)
-- [ ] **C2** 真正的 `trait MediaBackend` (`prepare`/`start`/`recover`/`poll_bus`)
-- [ ] **C2** `BlackmagicHardwareProvider` / `GStreamerMediaBackend` 实现上述 trait（迁出 `device.rs`/`pipeline.rs` 的 concrete 实现）
-- [ ] **C3** `MockHardwareProvider` / `MockMediaBackend`（解锁正交矩阵 Mock×Mock / Mock×GStreamer）
-- [ ] **C4** ARCH-PORTABILITY-01：移除 `adapters/blackmagic` 后 `domain/contracts/runtime` 仍可编译
-- [ ] **C4** ARCH-BACKEND-01：`MockBackend` 与 `GStreamerBackend` 用同一 `PipelinePlan` 物化
-- [ ] **C8** CI 增加 `architecture-boundary` gate：`domain/** contracts/** runtime/**` 禁止出现 `decklink`/`gstreamer`/`ffmpeg`/`srs` 引用
+
+> **✅ 收口确认（2026-08-29）**：以下 7 项代码均已落地提交，本地代码级核对 +
+> 盒上验证记录（2026-08-28，p06-g tasks §4：clippy 7 套 feature 组合 0 error；
+> test default 84 / simulation 84 / mock 87 全过）通过后补勾。
+> `48e23d8` 仅恢复文档/脚本，未动 Rust 源码，盒上验证对当前树仍有效。
+
+- [x] **C2** 真正的 `trait HardwareProvider` (`discover()` + `probe_capabilities()` + `probe_connector_config()`) — `contracts/provider.rs:40` (commit `f27888e`)；返回 canonical `Vec<DeviceInfo>`，错误沿用既有模型（统一到 RuntimeEvent 留 0.6D）
+- [x] **C2** 真正的 `trait MediaBackend` (`prepare`/`start`/`recover`/`poll_bus`) — `contracts/backend.rs:21` (commit `f27888e`)
+- [x] **C2** `BlackmagicHardwareProvider` / `GStreamerMediaBackend` 实现上述 trait — `impl HardwareProvider for DeckLinkDeviceManager` (`adapters/blackmagic/device_manager.rs:94`)、`impl MediaBackend for GStreamerPipelineController` (`adapters/gstreamer/controller.rs:191`)
+- [x] **C3** `MockHardwareProvider` / `MockMediaBackend`（解锁正交矩阵 Mock×Mock / Mock×GStreamer）— `adapters/mock.rs`: `MockProvider`/`MockProviderB`/`MockBackend` (commit `498a603`)
+- [x] **C4** ARCH-PORTABILITY-01：移除 `adapters/blackmagic` 后 `domain/contracts/runtime` 仍可编译 — 盒上 `--no-default-features --features simulation` / `--features mock` 构建 OK + 词法门禁 0 违规 (commits `ab8e189`/`46c9a11`/`48e23d8`)
+- [x] **C4** ARCH-BACKEND-01：`MockBackend` 与 `GStreamerBackend` 用同一 `PipelinePlan` 物化 — `MediaBackend::prepare(&PipelinePlan)` 为共享契约，两个实现同形
+- [x] **C8** CI 增加 `architecture-boundary` gate：`domain/** contracts/** runtime/**` 禁止出现 `decklink`/`gstreamer`/`ffmpeg`/`srs` 引用 — `scripts/check_arch_portability.py` 接入 `media-agent.yml` test job (commits `46c9a11` + `48e23d8` 空文件修复)
 
 ## 2. 迁移 BMD FFI 到 adapters/blackmagic
 - [x] `decklink.rs` / `sdk.rs` 迁入 `adapters/blackmagic/` (git mv), 仅经 `crate::adapters::blackmagic::decklink` 暴露
