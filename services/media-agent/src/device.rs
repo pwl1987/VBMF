@@ -18,6 +18,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use crate::adapters::blackmagic::decklink::BmdDeviceIdentity;
+use crate::contracts::provider::{CapabilityReport, ConnectorConfig, HardwareProvider};
 use crate::port::{DeviceCapabilities, PortInfo};
 
 /// 设备身份强度 (A0 实测: 本硬件仅支持 DeviceHandle).
@@ -238,5 +239,44 @@ impl DeviceManager for DeckLinkDeviceManager {
 
 /// 确定性 UUID 命名空间 (避免随机 UUID 导致设备 ID 漂移).
 const VBMF_FS_NS: Uuid = Uuid::from_u128(0x9f3b2c1d_4e5a_4b6c_8d7e_0f1a2b3c4d5e);
+
+// --- C2: HardwareProvider SPI 实现（复用既有 `DeviceManager` 发现逻辑）---
+// `discover` 直接委托 `DeviceManager::discover`；`probe_capabilities` / `probe_connector_config`
+// 当前返回占位空值，真实 SDK 能力/端口探针回填留 C5/C...（与 design.md §3 偏差已对齐审计）。
+impl HardwareProvider for FilesystemDeviceManager {
+    fn discover(&self) -> Vec<DeviceInfo> {
+        <Self as DeviceManager>::discover(self)
+    }
+    fn probe_capabilities(&self) -> Vec<CapabilityReport> {
+        Vec::new()
+    }
+    fn probe_connector_config(&self) -> ConnectorConfig {
+        ConnectorConfig::default()
+    }
+}
+
+impl HardwareProvider for SimulatedDeviceManager {
+    fn discover(&self) -> Vec<DeviceInfo> {
+        <Self as DeviceManager>::discover(self)
+    }
+    fn probe_capabilities(&self) -> Vec<CapabilityReport> {
+        Vec::new()
+    }
+    fn probe_connector_config(&self) -> ConnectorConfig {
+        ConnectorConfig::default()
+    }
+}
+
+impl HardwareProvider for DeckLinkDeviceManager {
+    fn discover(&self) -> Vec<DeviceInfo> {
+        <Self as DeviceManager>::discover(self)
+    }
+    fn probe_capabilities(&self) -> Vec<CapabilityReport> {
+        Vec::new()
+    }
+    fn probe_connector_config(&self) -> ConnectorConfig {
+        ConnectorConfig::default()
+    }
+}
 const VBMF_SIM_NS: Uuid = Uuid::from_u128(0x1a2b3c4d_5e6f_4078_9a0b_1c2d3e4f5a6b);
 const VBMF_BMD_NS: Uuid = Uuid::from_u128(0x2b3c4d5e_6f70_4180_ab0c_2d3e4f5a6b7c);

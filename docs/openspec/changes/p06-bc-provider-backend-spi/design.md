@@ -56,6 +56,15 @@ src/
 > 且 `MediaBackend` 已在 A 批修复为仅 `gstreamer-backend` 门控（解除对 `bmd-provider` 的耦合）。
 > 真正的 trait 与 Adapter 物理抽取（迁出 `device.rs` / `pipeline.rs`）在 C2 起完成。
 
+> **✅ C2 已实现（2026-08-28）**：`contracts/provider.rs` / `contracts/backend.rs` 已落地独立的
+> `trait HardwareProvider` / `trait MediaBackend`，分别由 `device::*DeviceManager`
+> （Blackmagic / Filesystem / Simulation）与 `pipeline::GStreamerPipelineController` 实现；
+> `MediaBackend` 沿用 A 批约定仅 `gstreamer-backend` 门控。
+> **与下方契约的偏差（已对齐审计）**：`HardwareProvider::discover()` 当前返回 `Vec<DeviceInfo>`
+> （非 `Result<Vec<DeviceInfo>, ProviderError>`）——因 `main.rs` 在 C2c 之前仍按 `Vec` 消费，
+> 且 vendor 错误类型统一到 `RuntimeEvent` 留 0.6D；`probe_capabilities` / `probe_connector_config`
+> 已就位但返回占位空值，真实 SDK 能力/端口探针回填留 C5/C...。Adapter 物理迁出留 C6/C7。
+
 ### `contracts/provider.rs` — `HardwareProvider`
 
 ```rust

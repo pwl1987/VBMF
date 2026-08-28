@@ -13,6 +13,8 @@
 
 use crate::device::{DeviceInfo, IdentityStrength};
 use crate::graph_intent::GraphRuntimeIntent;
+#[cfg(feature = "gstreamer-backend")]
+use crate::contracts::backend::MediaBackend;
 use crate::port::{ConnectorType, PortDirection};
 #[cfg(feature = "gstreamer-backend")]
 use gstreamer::prelude::*;
@@ -571,6 +573,24 @@ pub fn bus_event_recovery_policy(kind: PipelineBusEventKind) -> &'static str {
 /// "哪一路出的错". 现结构化携带 `handle`(哪条管线) / `source`(哪个 element 发出) /
 /// `timestamp`(观测墙钟 ms) / `detail`(错误串/状态转移) / `severity`. 事件经专门 GLib
 /// MainContext 线程的 Bus watch 投递进 bounded mpsc channel, `poll_bus` 非阻塞 drain.
+/// C2: MediaBackend SPI 实现（复用既有 `PipelineController` + 固有 `poll_bus`）。
+/// 物理迁移到 `adapters/gstreamer` 留 C6/C7。
+#[cfg(feature = "gstreamer-backend")]
+impl MediaBackend for GStreamerPipelineController {
+    fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
+        <Self as PipelineController>::prepare(self, plan)
+    }
+    fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
+        <Self as PipelineController>::start(self, handle)
+    }
+    fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
+        <Self as PipelineController>::recover(self, handle)
+    }
+    fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
+        GStreamerPipelineController::poll_bus(self, handle)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PipelineBusEvent {
     pub handle: PipelineHandle,
