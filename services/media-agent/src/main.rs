@@ -72,7 +72,7 @@ fn main() {
     // "每个子设备当前是 In 还是 Out、物理端口如何按 Connector Mode 分组".
     #[cfg(feature = "bmd-provider")]
     if std::env::var("VBMF_CONFIG_PROBE").is_ok() {
-        match crate::adapters::blackmagic::decklink::probe_connector_config() {
+        match crate::adapters::blackmagic::probe_connector_config() {
             Ok(rows) => match serde_json::to_string_pretty(&rows) {
                 Ok(json) => {
                     println!("=== B Connector Config Probe (IDeckLinkConfiguration) ===");
@@ -320,7 +320,7 @@ fn main() {
 
     // Gate 2.5 (A): DeckLink SDK FFI smoke — 验证 libDeckLinkAPI.so 在运行环境可达.
     // 宿主机(/usr/lib 默认路径)应成功; Option B 容器若不 bind-mount 库则 warn(预期).
-    match crate::adapters::blackmagic::sdk::probe_sdk("libDeckLinkAPI.so") {
+    match crate::adapters::blackmagic::probe_sdk("libDeckLinkAPI.so") {
         Ok(()) => tracing::info!("SDK libDeckLinkAPI.so reachable, entry symbols present"),
         Err(e) => {
             tracing::warn!(error = %e, "SDK probe failed (expected in container w/o bind-mount)")
@@ -333,7 +333,7 @@ fn main() {
 
     // Gate 7 (feature `hardware-test`): verbose Device Registry (model/serial/status) for BMD.
     #[cfg(feature = "hardware-test")]
-    match crate::adapters::blackmagic::decklink::registry() {
+    match crate::adapters::blackmagic::registry() {
         Ok(table) => tracing::info!("DeckLink Device Registry:\n{table}"),
         Err(e) => tracing::warn!(error = %e, "registry unavailable"),
     }
@@ -408,7 +408,7 @@ fn main() {
             //     注: `hardware-test` 与 `gstreamer` 已在编译期互斥 (见文件顶部 compile_error),
             //     生产 canonical 运行时绝不会同时启用两者.
             #[cfg(all(feature = "hardware-test", not(feature = "gstreamer-backend")))]
-            match crate::adapters::blackmagic::decklink::start_capture(0) {
+            match crate::adapters::blackmagic::start_capture(0) {
                 Ok(stats) => {
                     tracing::info!(
                         "CAP-01 SDK 诊断探针已启动 (device 0, IDeckLinkInput; 非 canonical 通道)"

@@ -14,3 +14,16 @@ pub mod device_manager;
 #[cfg(feature = "bmd-provider")]
 #[allow(unused_imports)]
 pub use device_manager::DeckLinkDeviceManager;
+
+// C6: 诊断探针门面 re-export —— 将 `decklink::`/`sdk::` 子模块内部诊断函数提升到 `blackmagic`
+// 模块表面, 使 runtime 层 (main.rs) 不再点名 vendor 子模块 (`decklink::`/`sdk::`), 收敛
+// ARCH-PORTABILITY-01 边界 (对齐 gstreamer 经 `AdapterRegistry::build_media_backend` 收敛).
+// 这些函数本质 BMD-specific 诊断, 无法 vendor-neutral, 但调用点统一收敛到 `crate::adapters::blackmagic::*`.
+// 各 re-export 的 cfg 与 main.rs 调用点严格一致, 保证任意 feature 组合下符号可达且不被误判 unused.
+#[cfg(feature = "bmd-provider")]
+pub use decklink::probe_connector_config;
+#[cfg(feature = "hardware-test")]
+pub use decklink::registry;
+#[cfg(all(feature = "hardware-test", not(feature = "gstreamer-backend")))]
+pub use decklink::start_capture;
+pub use sdk::probe_sdk;
