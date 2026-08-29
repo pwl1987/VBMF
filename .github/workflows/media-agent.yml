@@ -100,7 +100,11 @@ jobs:
             services/media-agent/target
           key: ${{ runner.os }}-cargo-session-${{ hashFiles('services/media-agent/Cargo.toml') }}
       - name: Test (mock) — session + resource + lease + preflight gate tests
-        run: "cargo test --features mock session:: resource:: lease:: preflight::"
+        run: |
+          cargo test --features mock session::
+          cargo test --features mock resource::
+          cargo test --features mock lease::
+          cargo test --features mock preflight::
 
   # ── rust-test-matrix ─────────────────────────────────────────────────────────
   # 编译门禁 (Test A) + 单测: 禁用厂商 feature 后 Domain/Graph/Session/Supervisor/

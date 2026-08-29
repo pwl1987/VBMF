@@ -16,12 +16,12 @@ mod lease;
 mod pipeline;
 mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
+mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
 mod registry;
 mod resolver;
 mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
-mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
-mod session;  // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
 mod rpc;
+mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
 
 mod signal; // 信号探测 + 亮度黑场检测
 mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd-provider`)
@@ -606,8 +606,17 @@ fn main() {
                     crate::resolver::GstProbeOutcome::Available { probes, .. } => probes,
                     _ => Vec::new(),
                 };
-                let bindings = crate::resolver::collect_bindings_from_manifest(&discovered, &gst_probes, &manifest);
-                let registry = match crate::port::PortRegistry::build(&discovered, &gst_probes, &manifest, &bindings) {
+                let bindings = crate::resolver::collect_bindings_from_manifest(
+                    &discovered,
+                    &gst_probes,
+                    &manifest,
+                );
+                let registry = match crate::port::PortRegistry::build(
+                    &discovered,
+                    &gst_probes,
+                    &manifest,
+                    &bindings,
+                ) {
                     Ok(r) => r,
                     Err(e) => {
                         eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
@@ -644,7 +653,9 @@ fn main() {
                                 device_id: first_id.clone(),
                                 port_id: None,
                             },
-                            sink: crate::graph_intent::SinkIntent { kind: "rtmp".into() },
+                            sink: crate::graph_intent::SinkIntent {
+                                kind: "rtmp".into(),
+                            },
                         },
                     }],
                 };
@@ -670,7 +681,10 @@ fn main() {
                                     .status(&sid)
                                     .map(|s| s.phase == crate::session::SessionPhase::Running)
                                     .unwrap_or(false);
-                                println!("SESSION-RT-01 step=observe verdict={} (running={running})", if running { "OK" } else { "FAIL" });
+                                println!(
+                                    "SESSION-RT-01 step=observe verdict={} (running={running})",
+                                    if running { "OK" } else { "FAIL" }
+                                );
                                 ok &= running;
                             }
                             Err(e) => {
@@ -706,7 +720,9 @@ fn main() {
                                 device_id: first_id.clone(),
                                 port_id: None,
                             },
-                            sink: crate::graph_intent::SinkIntent { kind: "appsink".into() },
+                            sink: crate::graph_intent::SinkIntent {
+                                kind: "appsink".into(),
+                            },
                         },
                     }],
                 });
@@ -723,11 +739,20 @@ fn main() {
                                         device_id: first_id.clone(),
                                         port_id: None,
                                     },
-                                    sink: crate::graph_intent::SinkIntent { kind: "appsink".into() },
+                                    sink: crate::graph_intent::SinkIntent {
+                                        kind: "appsink".into(),
+                                    },
                                 },
                             }],
                         });
-                        println!("RESOURCE-RT-01 step=conflict verdict={}", if conflict.is_err() { "OK (第二会话被拒)" } else { "FAIL (资源被超卖!)" });
+                        println!(
+                            "RESOURCE-RT-01 step=conflict verdict={}",
+                            if conflict.is_err() {
+                                "OK (第二会话被拒)"
+                            } else {
+                                "FAIL (资源被超卖!)"
+                            }
+                        );
                         ok &= conflict.is_err();
                         mgr.close(&a);
                     }
@@ -736,7 +761,10 @@ fn main() {
                         ok = false;
                     }
                 }
-                println!("=== SESSION-RT-01/RESOURCE-RT-01 ALL {} ===", if ok { "PASS" } else { "FAIL" });
+                println!(
+                    "=== SESSION-RT-01/RESOURCE-RT-01 ALL {} ===",
+                    if ok { "PASS" } else { "FAIL" }
+                );
                 std::process::exit(if ok { 0 } else { 2 });
             }
 
@@ -776,14 +804,18 @@ fn main() {
                     let resources = crate::resource::SharedResourceRegistry::new(
                         registry
                             .as_ref()
-                            .map(|reg| crate::resource::ResourceRegistry::derive_from_discovery(reg))
+                            .map(|reg| {
+                                crate::resource::ResourceRegistry::derive_from_discovery(reg)
+                            })
                             .unwrap_or_default(),
                     );
                     let ctrl: std::sync::Arc<dyn MediaBackend> =
-                        crate::registry::AdapterRegistry::build_media_backend().unwrap_or_else(|e| {
-                            eprintln!("adapter feature 冲突 (fail-closed): {e}");
-                            std::process::exit(2);
-                        });
+                        crate::registry::AdapterRegistry::build_media_backend().unwrap_or_else(
+                            |e| {
+                                eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                                std::process::exit(2);
+                            },
+                        );
                     let mgr = crate::session::SessionManager::new(
                         resources,
                         lm.clone(),
@@ -811,7 +843,14 @@ fn main() {
                                 *agent_state.lock().unwrap() = health::AgentState::Capturing;
                                 // watchdog 继续 Supervise pipeline (recover 前重验 lease 不变量保留)。
                                 if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
-                                    spawn_ingest_watchdog(ctrl, h, dev_uuid, sup.clone(), lm.clone(), agent_state.clone());
+                                    spawn_ingest_watchdog(
+                                        ctrl,
+                                        h,
+                                        dev_uuid,
+                                        sup.clone(),
+                                        lm.clone(),
+                                        agent_state.clone(),
+                                    );
                                 }
                                 // tick 驱动 lease 续期/预留过期 (无后台定时器, 借常驻线程节拍)。
                                 std::thread::spawn(move || loop {
@@ -833,7 +872,9 @@ fn main() {
                 #[cfg(not(feature = "gstreamer-backend"))]
                 {
                     let _ = &intent; // 无后端构建: 不启动 (canonical launch 待启用 feature 'gstreamer')
-                    tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                    tracing::info!(
+                        "canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'"
+                    );
                 }
             } else {
                 // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
