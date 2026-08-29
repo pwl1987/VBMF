@@ -1,3 +1,15 @@
+---
+title: "Phase 0.6 C3 (0.6F): Registry / Mock / Simulation — 技术设计"
+change: p06-f-registry-mock-simulation
+change_id: p06-f-registry-mock-simulation
+comet_change: p06-f-registry-mock-simulation
+role: technical-design
+spec: openspec
+canonical_spec: openspec
+links:
+  - "[p06-f-registry-mock-simulation](p06-f-registry-mock-simulation)"
+---
+
 # Design: Phase 0.6 C3 — Registry / Mock / Simulation
 
 ## Mock Provider / Backend
