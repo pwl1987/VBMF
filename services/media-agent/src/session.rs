@@ -563,7 +563,15 @@ impl SessionManager {
         })();
         if let Err(e) = alloc_result {
             let _ = backend.stop(&handle);
-            self.rollback_to_pre_start(id, &holder);
+            // P0-1: 先回收本会话**已 Allocated** 的资源 (release_reservations 只处理 Reserved,
+            // 部分成功分配的资源若不在此回收即成 Allocated orphan), 再回收租约/预留。
+            self.resources.release_allocation(holder);
+            self.rollback_lease_and_reservation(id, &holder);
+            let _ = self.set_phase(id, SessionPhase::StartFailed);
+            self.emit(RuntimeEvent::SessionFailed {
+                session_id: id.0,
+                reason: format!("allocate: {e}"),
+            });
             return Err(e.into());
         }
 
@@ -615,9 +623,15 @@ impl SessionManager {
         };
         self.set_phase(id, SessionPhase::Stopping)?;
 
-        // 逆序 1: Backend.stop (有句柄才调)。
+        // 逆序 1: Backend.stop。**P0-2**: stop 失败只记录, **绝不截断后续释放链** —
+        // Session 层资源 (allocation/lease/reservation) 无论 backend 结果如何都必须归还,
+        // 否则停止失败会让整个资源生命周期卡死 (Stopping + Allocated + Lease remaining)。
+        let mut stop_error: Option<crate::pipeline::PipelineError> = None;
         if let Some(h) = &handle {
-            self.backend()?.stop(h)?;
+            if let Err(e) = self.backend()?.stop(h) {
+                tracing::warn!(error = %e, "backend.stop 失败; 仍继续释放 Session 层资源 (P0-2)");
+                stop_error = Some(e);
+            }
         }
         // 逆序 2: release allocation。
         self.resources.release_allocation(holder);
@@ -629,6 +643,9 @@ impl SessionManager {
             let mut guard = self.sessions.lock().unwrap();
             let inner = guard.get_mut(id).expect("session registered");
             inner.session.pipeline = None;
+            if let Some(e) = &stop_error {
+                inner.session.health.last_error = Some(format!("backend.stop: {e}"));
+            }
             Self::transition_state(&mut inner.session.state, SessionState::Releasing)?;
         }
         self.set_phase(id, SessionPhase::Released)?;
@@ -642,6 +659,11 @@ impl SessionManager {
             from: "running".into(),
             to: "released".into(),
         });
+        // P0-2: 全部释放已完成 — stop 失败在此上报 (错误不吞, 资源不卡;
+        // 会话终态 Released, 停止失败详情在 health.last_error)。
+        if let Some(e) = stop_error {
+            return Err(e.into());
+        }
         Ok(())
     }
 
@@ -885,6 +907,13 @@ impl SessionManager {
         for l in &leases {
             let _ = self.leases.release(l);
         }
+        // P0-1: 会话副本同步清空 (快照与租约表一致)。
+        {
+            let mut guard = self.sessions.lock().unwrap();
+            if let Some(inner) = guard.get_mut(id) {
+                inner.session.leases.clear();
+            }
+        }
         self.resources.release_reservations(*holder);
     }
 
@@ -1063,6 +1092,7 @@ mod tests {
     enum FailAt {
         Instantiate,
         Start,
+        Stop,
     }
 
     struct FailingBackend {
@@ -1104,6 +1134,11 @@ mod tests {
         }
         fn stop(&self, _handle: &PipelineHandle) -> Result<(), crate::pipeline::PipelineError> {
             self.stop_called.store(true, Ordering::SeqCst);
+            if self.fail_at == FailAt::Stop {
+                return Err(crate::pipeline::PipelineError::StartFailed(
+                    "injected stop failure".into(),
+                ));
+            }
             Ok(())
         }
         fn recover(&self, _handle: &PipelineHandle) -> Result<(), crate::pipeline::PipelineError> {
@@ -1459,5 +1494,143 @@ mod tests {
         // 白名单恒拒绝 (#114 与终态不可复活)。
         assert!(!SessionPhase::Released.can_transition_to(SessionPhase::Running));
         assert!(!SessionPhase::Terminated.can_transition_to(SessionPhase::Running));
+    }
+
+    #[test]
+    fn resource_rt_01_partial_allocation_failure_releases_all_claims() {
+        // P0-1 (Round 2): 多资源 — A allocate ✅ B allocate ❌ → A 必须回 Available
+        // (**不能成为 Allocated orphan**), 租约全释放, 句柄 stop, 会话进入 StartFailed。
+        let devices: Vec<DeviceInfo> = MockProviderB
+            .discover()
+            .expect("mock discover")
+            .into_iter()
+            .map(|d| d.device)
+            .collect();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm.clone());
+        let sid = mgr
+            .create(intent_multi(&devices))
+            .expect("多资源 create 应通过");
+        let claims: Vec<Uuid> = mgr
+            .status(&sid)
+            .unwrap()
+            .resource_claims
+            .iter()
+            .map(|c| c.resource_id)
+            .collect();
+        assert_eq!(claims.len(), 2);
+        // 注入: B 资源在 start 前被他人抢占为 Allocated (模拟 create→start 窗口内的并发竞争)。
+        let other = Uuid::new_v4();
+        mgr.resources.with_inner_mut(|reg| {
+            let b = reg
+                .resources
+                .iter_mut()
+                .find(|r| r.id == claims[1])
+                .expect("B 资源存在");
+            b.state = crate::resource::ResourceState::Allocated;
+            b.allocated_to = Some(other);
+            b.reservation = None;
+        });
+        let err = mgr.start(&sid).expect_err("B allocate 注入失败应传播");
+        assert!(matches!(err, SessionError::ResourceState(_)));
+        // P0-1 核心断言: A (已 Allocated) 必须被回滚到 Available。
+        mgr.resources.with_inner(|reg| {
+            let a = reg
+                .resources
+                .iter()
+                .find(|r| r.id == claims[0])
+                .expect("A 存在");
+            assert_eq!(
+                a.state,
+                crate::resource::ResourceState::Available,
+                "部分分配失败的 A 必须回滚 (Allocated orphan = 违反 creator=destroyer)"
+            );
+            let b = reg
+                .resources
+                .iter()
+                .find(|r| r.id == claims[1])
+                .expect("B 存在");
+            assert_eq!(
+                b.state,
+                crate::resource::ResourceState::Allocated,
+                "他人持有不变"
+            );
+            assert_eq!(b.allocated_to, Some(other));
+        });
+        // B 为他人持有 — 测试自身收尾 (非会话职责)。
+        mgr.resources.with_inner_mut(|reg| {
+            let b = reg
+                .resources
+                .iter_mut()
+                .find(|r| r.id == claims[1])
+                .unwrap();
+            b.begin_release().unwrap();
+            b.finish_release().unwrap();
+        });
+        let s = mgr.status(&sid).unwrap();
+        assert_eq!(s.phase, SessionPhase::StartFailed);
+        assert!(s.pipeline.is_none(), "失败回滚后句柄已 stop");
+        assert_zero_orphans(&mgr, &lm);
+    }
+
+    #[test]
+    fn session_rt_01_stop_failure_still_releases_everything() {
+        // P0-2: Backend.stop 失败 → 不得截断释放链 — allocation/lease/reservation 全部归还,
+        // 会话终态 Released + last_error 记录, 错误在完全释放后上报。
+        let devices = mock_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let mgr = manager_with(
+            FailingBackend::new(FailAt::Stop),
+            &devices,
+            lm.clone(),
+            SessionTuning::default(),
+        );
+        let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
+        mgr.start(&sid)
+            .expect("start 应成功 (Stop 注入不影响 start)");
+        let err = mgr.stop(&sid).expect_err("stop 注入失败应上报");
+        assert!(matches!(err, SessionError::Pipeline(_)));
+        let s = mgr.status(&sid).expect("会话保留 (Released)");
+        assert_eq!(s.state, SessionState::Released);
+        assert_eq!(s.phase, SessionPhase::Released);
+        assert!(s.pipeline.is_none());
+        assert!(s.health.last_error.is_some(), "stop 失败记入 health");
+        assert_zero_orphans(&mgr, &lm);
+    }
+
+    #[test]
+    fn resource_rt_01_stop_failure_multi_resource_still_releases() {
+        // P0-2 × 多资源: stop 失败时多资源会话仍必须全部归还 (生命周期失败矩阵)。
+        let devices: Vec<DeviceInfo> = MockProviderB
+            .discover()
+            .expect("mock discover")
+            .into_iter()
+            .map(|d| d.device)
+            .collect();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let mgr = manager_with(
+            FailingBackend::new(FailAt::Stop),
+            &devices,
+            lm.clone(),
+            SessionTuning::default(),
+        );
+        let sid = mgr
+            .create(intent_multi(&devices))
+            .expect("多资源 create 应通过");
+        mgr.start(&sid).expect("多资源 start 应成功");
+        assert!(mgr.stop(&sid).is_err(), "stop 注入失败应上报");
+        let s = mgr.status(&sid).expect("会话保留");
+        assert_eq!(s.state, SessionState::Released);
+        assert!(s.leases.is_empty(), "stop 失败后租约必须已归还");
+        mgr.resources.with_inner(|reg| {
+            for r in &reg.resources {
+                assert_eq!(
+                    r.state,
+                    crate::resource::ResourceState::Available,
+                    "多资源全部归还"
+                );
+            }
+        });
+        assert_zero_orphans(&mgr, &lm);
     }
 }

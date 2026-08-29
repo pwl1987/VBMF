@@ -435,6 +435,11 @@ impl SharedResourceRegistry {
         let g = self.0.lock().unwrap();
         f(&g)
     }
+    /// 可变快照访问 (测试收尾/编排层状态修正; SessionManager 生命周期路径外使用须审慎)。
+    pub fn with_inner_mut<R>(&self, f: impl for<'a> FnOnce(&'a mut ResourceRegistry) -> R) -> R {
+        let mut g = self.0.lock().unwrap();
+        f(&mut g)
+    }
 }
 
 #[cfg(test)]
