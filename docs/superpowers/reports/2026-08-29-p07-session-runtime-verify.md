@@ -73,3 +73,16 @@ archive → 单一 PR `comet/p07-session-runtime` → `master`（gh）→ protec
 **Hardening 后最终矩阵**: fmt 0 · test **115/115/131/115** · clippy -D ×4 零警告 · build ×3 · PROOF PASS · **真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS**（exit 0）。CI 七 checks 于 `8a14ff1` 全绿。
 
 **遗留 (已记账, 不阻塞 Merge)**: P1 项——derive_claims 无资源 FAIL 化 / PortAvailability 精确到 port+direction / IdentityBinding 实查 strength / RuntimeEventSink 与 Supervisor 解耦 / LifecycleJournal 精确逆序 / OnceLock→直接字段 / per-claim TTL / BACKEND-CAPABILITY-01(0.7B) / create 幂等键(0.7C)。
+
+## 8. Merge Gate Hardening Round 2 附录 (commit 286706a)
+
+二次复核裁决 **NO-GO**（新暴露 2 项异常路径 P0），同分支修复：
+
+| P0 | 问题 | 修复 | 验证 |
+|----|------|------|------|
+| P0-1 (R2) | 多资源部分 Allocation 失败 → 已 Allocated 资源成孤儿（release_reservations 只管 Reserved） | start() 分配失败路径先 `release_allocation(holder)` 回收本会话已 Allocated 资源，再回收租约/预留 + StartFailed 终态 + SessionFailed 事件 | `resource_rt_01_partial_allocation_failure_releases_all_claims`（注入 B 被他人抢占为 Allocated → A 回滚 Available、B 他人持有不变、租约空、句柄 stop、StartFailed） |
+| P0-2 (R2) | `Backend.stop()` 失败经 `?` 截断释放链 → Stopping+Allocated+Lease 卡死 | stop() 失败只记录（warn + health.last_error），**绝不截断** — allocation/lease/reservation 全部归还，终态 Released，错误在完全释放后经返回值上报；`PipelineError::StopFailed` additive | `session_rt_01_stop_failure_still_releases_everything` + `resource_rt_01_stop_failure_multi_resource_still_releases`（single/multi × stop 失败 → 资源全归还 + Released） |
+
+**Round 2 后最终矩阵**: fmt 0 · test **115/115/134/115** · clippy -D ×4 零警告 · build ×3 · PROOF PASS · **真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS**。CI 七 checks 于 `286706a` 全绿。Lifecycle Failure Matrix 覆盖：Preflight/Reserve/Lease/Binding/Instantiate/Allocate(partial)/Start/Stop(fail)/Close/Tick × single/multi-resource。
+
+**遗留（0.7 backlog，不变）**: P1 各项（derive_claims FAIL 化 / PortAvailability 精确化 / IdentityBinding 实查 / EventSink 解耦 / LifecycleJournal / OnceLock 简化 / per-claim TTL / BACKEND-CAPABILITY-01 / create 幂等键）。

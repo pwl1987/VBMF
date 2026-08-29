@@ -63,3 +63,9 @@ test 115/115/**131**/115 + 真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS +
 详见 verify 报告 §7。P1 遗留已记 0.7 backlog（derive_claims FAIL 化 / PortAvailability 精确化 /
 IdentityBinding 实查 / EventSink 解耦 / LifecycleJournal / OnceLock 简化 / per-claim TTL /
 BACKEND-CAPABILITY-01 / create 幂等键）。
+
+## Merge Gate Hardening Round 2 附录 (2026-08-29, commit 286706a)
+
+二次复审 2 项异常路径 P0（多资源部分 Allocation 孤儿 / stop 失败截断释放链）已修复并验证：
+test 115/115/**134**/115 + 真机回归 ALL PASS + CI 七 checks 全绿。Lifecycle Failure Matrix 已覆盖
+Allocate(partial)×multi 与 Stop(fail)×single/multi。详见 verify 报告 §8。
