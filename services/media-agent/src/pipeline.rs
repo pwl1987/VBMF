@@ -343,6 +343,10 @@ pub enum PipelineError {
     PrepareFailed(String),
     #[error("pipeline start failed: {0}")]
     StartFailed(String),
+    /// P0-2 (p07-session-runtime): Backend.stop 失败 (additive; SessionManager 据此
+    /// 记录停止失败但仍完成 Session 层资源归还)。
+    #[error("pipeline stop failed: {0}")]
+    StopFailed(String),
 }
 
 /// Pipeline Controller trait — 媒体运行时生命周期 (prepare/start/recover).

@@ -16,11 +16,12 @@ mod lease;
 mod pipeline;
 mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
+mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
 mod registry;
 mod resolver;
 mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
 mod rpc;
-// sdk 已迁入 adapters/blackmagic (BMD Reference Adapter)
+mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
 
 mod signal; // 信号探测 + 亮度黑场检测
 mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd-provider`)
@@ -43,10 +44,10 @@ use lease::LeaseManager;
 use crate::contracts::backend::MediaBackend;
 use std::io::Write;
 use std::sync::Arc;
-// P0 修复 (PR#1 CI 回归): Uuid 使用点在 `bmd-provider` 块内 (preflight/diagnostic auto-start,
-// 不依赖 gstreamer) — hardware-test (= bmd-provider, 无 gstreamer) 也须可编译。
-// 不得无条件 import: default/sim/mock/gs-only 路径不使用 → unused → clippy -D 失败。
-#[cfg(feature = "bmd-provider")]
+// Uuid 使用点 (selftest/canonical watchdog/P0-7A SessionManager auto-start) 全部位于
+// bmd && gstreamer 块内; hardware-test (bmd, 无 gst) 路径已无直接 Uuid 使用
+// (旧内联 preflight 已被 SessionManager 取代)。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use uuid::Uuid;
 
 // MediaBackend 构造已收口至 `registry::AdapterRegistry::build_media_backend` (C5)。
@@ -552,6 +553,8 @@ fn main() {
                 uuid::Uuid,
                 crate::resolver::ResolvedDeviceBinding,
             > = std::collections::HashMap::new();
+            #[cfg(not(feature = "gstreamer-backend"))]
+            let _ = &bindings;
 
             // 端口注册表 (供 materialize 经 Manifest 声明 + 运行时探测推导连接类型, 不硬编码 connection=sdi):
             // 仅当提供 manifest 时构建; 诊断 auto-start 无 manifest 回退 legacy → registry=None → connection 由插件默认探测.
@@ -564,16 +567,206 @@ fn main() {
                             .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
                     })
             });
+            // 非 gst 构建 (hardware-test): 端口注册表由真机闭环/会话路径消费, 此处不构建
+            // (P0-7A 起无 gst 的物化路径已不存在, registry 留空避免 unused)。
             #[cfg(not(feature = "gstreamer-backend"))]
-            let registry: Option<crate::port::PortRegistry> =
-                _cfg.device_binding_path.as_ref().and_then(|p| {
-                    crate::resolver::DeviceBindingManifest::load(p)
-                        .ok()
-                        .map(|m| {
-                            crate::port::PortRegistry::build(&discovered, &[], &m, &bindings)
-                                .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
-                        })
+            let _registry: Option<crate::port::PortRegistry> = None;
+
+            // P0-7A SESSION-RT-01/RESOURCE-RT-01 真机门禁入口 (仿 VBMF_LOOPBACK 模式):
+            // 全生命周期 create→start→观察 10s→stop→close 逐步 verdict + 第二会话冲突拒绝实证。
+            // 命中即 exit, 绝不进入生产 auto_start。
+            #[cfg(feature = "gstreamer-backend")]
+            if std::env::var("VBMF_SESSION_LIFECYCLE").is_ok() {
+                let first_id = devices
+                    .first()
+                    .map(|d| d.device_id.to_string())
+                    .unwrap_or_default();
+                let manifest_path = match &_cfg.device_binding_path {
+                    Some(p) => p.clone(),
+                    None => {
+                        eprintln!("VBMF_SESSION_LIFECYCLE 需要 DeviceBindingManifest (MEDIA_AGENT_DEVICE_BINDING)");
+                        std::process::exit(2);
+                    }
+                };
+                let manifest = match crate::resolver::DeviceBindingManifest::load(&manifest_path) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("manifest 加载失败: {e}");
+                        std::process::exit(2);
+                    }
+                };
+                if manifest.validate_manifest().is_err() {
+                    eprintln!("manifest 结构校验失败");
+                    std::process::exit(2);
+                }
+                let gst_probes = match crate::resolver::probe_gstreamer_devices(
+                    crate::resolver::MAX_PROBE_DEVICES,
+                    false,
+                ) {
+                    crate::resolver::GstProbeOutcome::Available { probes, .. } => probes,
+                    _ => Vec::new(),
+                };
+                let bindings = crate::resolver::collect_bindings_from_manifest(
+                    &discovered,
+                    &gst_probes,
+                    &manifest,
+                );
+                let registry = match crate::port::PortRegistry::build(
+                    &discovered,
+                    &gst_probes,
+                    &manifest,
+                    &bindings,
+                ) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
+                        std::process::exit(2);
+                    }
+                };
+                let resources = crate::resource::SharedResourceRegistry::new(
+                    crate::resource::ResourceRegistry::derive_from_discovery(&registry),
+                );
+                let ctrl: std::sync::Arc<dyn MediaBackend> =
+                    crate::registry::AdapterRegistry::build_media_backend().unwrap_or_else(|e| {
+                        eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                        std::process::exit(2);
+                    });
+                let mgr = crate::session::SessionManager::new(
+                    resources,
+                    lm.clone(),
+                    sup.clone(),
+                    ctrl.clone(),
+                    std::sync::Arc::new(devices.clone()),
+                    std::sync::Arc::new(bindings.clone()),
+                    Some(registry),
+                    crate::pipeline::MaterializeMode::Diagnostic,
+                    crate::session::SessionTuning::default(),
+                );
+                let intent = crate::graph_intent::GraphRuntimeIntent {
+                    version: "1.0".into(),
+                    devices: vec![crate::graph_intent::DeviceIntent {
+                        device_id: first_id.clone(),
+                        role: "CAPTURE".into(),
+                        pipeline: crate::graph_intent::PipelineIntent {
+                            source: crate::graph_intent::SourceIntent {
+                                kind: "decklink".into(),
+                                device_id: first_id.clone(),
+                                port_id: None,
+                            },
+                            sink: crate::graph_intent::SinkIntent {
+                                kind: "rtmp".into(),
+                            },
+                        },
+                    }],
+                };
+                let mut ok = true;
+                // bootstrap 占位租约让位: 真实会话租约 (owner=session) 接管排他性。
+                let _ = lm.release(&crate::lease::DeviceLease {
+                    device_id: Uuid::parse_str(&first_id).unwrap_or(Uuid::nil()),
+                    owner: "bootstrap".into(),
+                    acquired_at: chrono::Utc::now(),
+                    ttl: std::time::Duration::from_secs(60),
                 });
+                println!("SESSION-RT-01 step=create ...");
+                match mgr.create(intent) {
+                    Ok(sid) => {
+                        println!("SESSION-RT-01 step=create verdict=OK session={sid}");
+                        println!("SESSION-RT-01 step=start ...");
+                        match mgr.start(&sid) {
+                            Ok(()) => {
+                                println!("SESSION-RT-01 step=start verdict=OK (pipeline Running)");
+                                println!("SESSION-RT-01 step=observe 10s ...");
+                                std::thread::sleep(std::time::Duration::from_secs(10));
+                                let running = mgr
+                                    .status(&sid)
+                                    .map(|s| s.phase == crate::session::SessionPhase::Running)
+                                    .unwrap_or(false);
+                                println!(
+                                    "SESSION-RT-01 step=observe verdict={} (running={running})",
+                                    if running { "OK" } else { "FAIL" }
+                                );
+                                ok &= running;
+                            }
+                            Err(e) => {
+                                println!("SESSION-RT-01 step=start verdict=FAIL error={e}");
+                                ok = false;
+                            }
+                        }
+                        println!("SESSION-RT-01 step=stop ...");
+                        match mgr.stop(&sid) {
+                            Ok(()) => println!("SESSION-RT-01 step=stop verdict=OK"),
+                            Err(e) => {
+                                println!("SESSION-RT-01 step=stop verdict=FAIL error={e}");
+                                ok = false;
+                            }
+                        }
+                        let _ = mgr.close(&sid);
+                    }
+                    Err(e) => {
+                        println!("SESSION-RT-01 step=create verdict=FAIL error={e}");
+                        ok = false;
+                    }
+                }
+                // RESOURCE-RT-01: 第二会话争同资源必须被拒 (首会话已释放 → 先占住再争)。
+                println!("RESOURCE-RT-01 step=conflict ...");
+                let sid_a = mgr.create(crate::graph_intent::GraphRuntimeIntent {
+                    version: "1.0".into(),
+                    devices: vec![crate::graph_intent::DeviceIntent {
+                        device_id: first_id.clone(),
+                        role: "CAPTURE".into(),
+                        pipeline: crate::graph_intent::PipelineIntent {
+                            source: crate::graph_intent::SourceIntent {
+                                kind: "decklink".into(),
+                                device_id: first_id.clone(),
+                                port_id: None,
+                            },
+                            sink: crate::graph_intent::SinkIntent {
+                                kind: "appsink".into(),
+                            },
+                        },
+                    }],
+                });
+                match sid_a {
+                    Ok(a) => {
+                        let conflict = mgr.create(crate::graph_intent::GraphRuntimeIntent {
+                            version: "1.0".into(),
+                            devices: vec![crate::graph_intent::DeviceIntent {
+                                device_id: first_id.clone(),
+                                role: "CAPTURE".into(),
+                                pipeline: crate::graph_intent::PipelineIntent {
+                                    source: crate::graph_intent::SourceIntent {
+                                        kind: "decklink".into(),
+                                        device_id: first_id.clone(),
+                                        port_id: None,
+                                    },
+                                    sink: crate::graph_intent::SinkIntent {
+                                        kind: "appsink".into(),
+                                    },
+                                },
+                            }],
+                        });
+                        println!(
+                            "RESOURCE-RT-01 step=conflict verdict={}",
+                            if conflict.is_err() {
+                                "OK (第二会话被拒)"
+                            } else {
+                                "FAIL (资源被超卖!)"
+                            }
+                        );
+                        ok &= conflict.is_err();
+                        let _ = mgr.close(&a);
+                    }
+                    Err(e) => {
+                        println!("RESOURCE-RT-01 step=conflict verdict=FAIL error={e}");
+                        ok = false;
+                    }
+                }
+                println!(
+                    "=== SESSION-RT-01/RESOURCE-RT-01 ALL {} ===",
+                    if ok { "PASS" } else { "FAIL" }
+                );
+                std::process::exit(if ok { 0 } else { 2 });
+            }
 
             // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
             // Production **绝不**自行取 first device 制造 GraphRuntimeIntent —— 必须等待 Control Plane
@@ -602,172 +795,86 @@ fn main() {
                         },
                     }],
                 };
-                // 0.6E Preflight 闸门 (防隐式 Fallback): manifest 在场 (registry=Some) 时, Resource 由 Discovery
-                // 派生; materialize 前必须显式校验目标设备将占用的 input Resource 可用 + 无冲突预留 + 身份已 Resolve.
-                // 失败 → fail-closed (拒绝物化) 并经 Supervisor 唯一出口发射 canonical RuntimeEvent; 绝不静默回退 device 0.
-                // registry=None (无 manifest 的 legacy 诊断路径) 无已发现 Resource 可校验 → 沿 legacy 路径 (connection 由插件探测).
-                // P1-4: preflight+reserve 原子化 (SharedResourceRegistry::acquire, 锁内完成,
-                // 消除 preflight→reserve 竞态窗口); materialize 失败时经 holder 回滚预占.
-                let mut preflight_session: Option<(crate::resource::SharedResourceRegistry, Uuid)> =
-                    None;
-                let preflight_ok = match registry.as_ref() {
-                    Some(reg) => {
-                        let shared = crate::resource::SharedResourceRegistry::new(
-                            crate::resource::ResourceRegistry::derive_from_discovery(reg),
-                        );
-                        let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
-                        let target = shared.with_inner(|resources| {
-                            resources
-                                .resources
-                                .iter()
-                                .find(|r| {
-                                    r.device_id == dev_uuid && r.capability.ends_with("-input")
-                                })
-                                .map(|r| (r.id, r.capability.clone()))
-                        });
-                        match target {
-                            Some((res_id, capability)) => {
-                                let holder = Uuid::new_v4(); // diagnostic auto-start session holder
-                                let req = crate::resource::AcquisitionRequest {
-                                    holder,
-                                    resource_id: res_id,
-                                    expected_capability: capability,
-                                };
-                                match shared.acquire(&req) {
-                                    Ok(_) => {
-                                        preflight_session = Some((shared, holder));
-                                        true
-                                    }
-                                    Err(e) => {
-                                        if let crate::resource::PreflightError::AmbiguousIdentity {
-                                            candidates,
-                                        } = &e
-                                        {
-                                            sup.lock().unwrap().record(crate::events::RuntimeEvent::AmbiguousIdentity {
-                                                device_id: dev_uuid,
-                                                candidates: candidates.clone(),
-                                            });
-                                        } else {
-                                            sup.lock().unwrap().record(crate::events::RuntimeEvent::HealthChanged {
-                                                from: "ready".into(),
-                                                to: "degraded".into(),
-                                            });
-                                        }
-                                        tracing::error!(
-                                            error = %e,
-                                            device_id = %first_id,
-                                            "0.6E Preflight 闸门拒绝物化 (fail-closed, 无隐式回退; P1-4 原子 acquire)"
-                                        );
-                                        *agent_state.lock().unwrap() = health::AgentState::Degraded;
-                                        false
-                                    }
-                                }
-                            }
-                            None => {
-                                sup.lock().unwrap().record(
-                                    crate::events::RuntimeEvent::HealthChanged {
-                                        from: "ready".into(),
-                                        to: "degraded".into(),
-                                    },
-                                );
-                                tracing::error!(
-                                    device_id = %first_id,
-                                    "0.6E Preflight: 目标设备无已发现 input Resource (fail-closed)"
-                                );
-                                *agent_state.lock().unwrap() = health::AgentState::Degraded;
-                                false
-                            }
-                        }
-                    }
-                    None => true,
-                };
-                if preflight_ok {
-                    match crate::pipeline::materialize(
-                        &intent,
-                        &devices,
-                        mode,
-                        &bindings,
-                        registry.as_ref(),
-                    ) {
-                        Ok(plans) => {
-                            for p in &plans {
-                                tracing::info!(
-                                    device_id = %p.source.device_id,
-                                    provider_persistent_id = p.source.provider_persistent_id,
-                                    device_number = p.source.device_number,
-                                    connector = ?p.source.connector,
-                                    selection_mode = ?p.source.selection_mode,
-                                    "CAP-01 canonical ingest plan materialized (GStreamer decklinkvideosrc/audiosrc; selection_mode 见字段; launch pending)"
-                                );
-                            }
-                            *agent_state.lock().unwrap() = health::AgentState::Capturing;
 
-                            // (C) 真实 GStreamer launch (feature = "gstreamer-backend") + Supervisor→recover 接线.
-                            #[cfg(feature = "gstreamer-backend")]
-                            {
-                                let dev_id_str = plans[0].source.device_id.clone();
-                                let device_uuid =
-                                    Uuid::parse_str(&dev_id_str).unwrap_or(Uuid::nil());
-                                // Lease→Pipeline: 启动前确认该设备的租约仍有效 (排他采集前置条件).
-                                if !lm.is_valid(&device_uuid) {
-                                    tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
-                                } else {
-                                    let ctrl: Arc<dyn MediaBackend> =
-                                        crate::registry::AdapterRegistry::build_media_backend()
-                                            .unwrap_or_else(|e| {
-                                                eprintln!(
-                                                    "adapter feature 冲突 (fail-closed): {e}"
-                                                );
-                                                std::process::exit(2);
-                                            });
-                                    // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
-                                    tracing::info!(gst_version = ?crate::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
-                                    match ctrl.instantiate(&plans[0]) {
-                                        Ok(h) => match ctrl.start(&h) {
-                                            Ok(()) => {
-                                                tracing::info!(
-                                                    handle = %h.0,
-                                                    device_id = %dev_id_str,
-                                                    "canonical GStreamer pipeline 启动 (decklinkvideosrc/audiosrc hw-serial-number)"
-                                                );
-                                                // MEDIA-RT-01A: Ingest Open 达成 (已启动, 信号检测见 health).
-                                                sup.lock().unwrap().register(device_uuid);
-                                                spawn_ingest_watchdog(
-                                                    ctrl,
-                                                    h,
-                                                    device_uuid,
-                                                    sup.clone(),
-                                                    lm.clone(),
-                                                    agent_state.clone(),
-                                                );
-                                            }
-                                            Err(e) => {
-                                                tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)")
-                                            }
-                                        },
-                                        Err(e) => {
-                                            tracing::error!(error = %e, "canonical instantiate 失败")
-                                        }
-                                    }
+                #[cfg(feature = "gstreamer-backend")]
+                {
+                    // P0-7A: 生命周期由 SessionManager 唯一拥有 (RUNTIME_SESSION_MODEL §4.1) —
+                    // create = Preflight→Reserve→建档→Lease→Binding verify (失败逆序回滚零孤儿);
+                    // start = materialize→instantiate→Allocate→Backend.start→Running。
+                    let resources = crate::resource::SharedResourceRegistry::new(
+                        registry
+                            .as_ref()
+                            .map(|reg| {
+                                crate::resource::ResourceRegistry::derive_from_discovery(reg)
+                            })
+                            .unwrap_or_default(),
+                    );
+                    let ctrl: std::sync::Arc<dyn MediaBackend> =
+                        crate::registry::AdapterRegistry::build_media_backend().unwrap_or_else(
+                            |e| {
+                                eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                                std::process::exit(2);
+                            },
+                        );
+                    let mgr = crate::session::SessionManager::new(
+                        resources,
+                        lm.clone(),
+                        sup.clone(),
+                        ctrl.clone(),
+                        std::sync::Arc::new(devices.clone()),
+                        std::sync::Arc::new(bindings.clone()),
+                        registry.clone(),
+                        mode,
+                        crate::session::SessionTuning::default(),
+                    );
+                    let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
+                    // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。
+                    let _ = lm.release(&crate::lease::DeviceLease {
+                        device_id: dev_uuid,
+                        owner: "bootstrap".into(),
+                        acquired_at: chrono::Utc::now(),
+                        ttl: std::time::Duration::from_secs(60),
+                    });
+                    match mgr.create(intent) {
+                        Ok(sid) => match mgr.start(&sid) {
+                            Ok(()) => {
+                                tracing::info!(gst_version = ?crate::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
+                                tracing::info!(session = %sid, "P0-7A Session create+start 全链通过 (SessionManager owner)");
+                                *agent_state.lock().unwrap() = health::AgentState::Capturing;
+                                // watchdog 继续 Supervise pipeline (recover 前重验 lease 不变量保留)。
+                                if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
+                                    spawn_ingest_watchdog(
+                                        ctrl,
+                                        h,
+                                        dev_uuid,
+                                        sup.clone(),
+                                        lm.clone(),
+                                        agent_state.clone(),
+                                    );
                                 }
+                                // tick 驱动 lease 续期/预留过期 (无后台定时器, 借常驻线程节拍)。
+                                std::thread::spawn(move || loop {
+                                    std::thread::sleep(std::time::Duration::from_secs(5));
+                                    mgr.tick();
+                                });
                             }
-                            #[cfg(not(feature = "gstreamer-backend"))]
-                            {
-                                tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
+                            Err(e) => {
+                                tracing::error!(error = %e, session = %sid, "P0-7A Session start 失败 (已逆序回滚, fail-closed)");
+                                *agent_state.lock().unwrap() = health::AgentState::Degraded;
                             }
-                        }
+                        },
                         Err(e) => {
-                            // P1-4: 物化失败 → 回滚 preflight 原子预占 (Reserved → Available), 绝不泄漏占用.
-                            if let Some((shared, holder)) = preflight_session.take() {
-                                let released = shared.release_reservations(holder);
-                                tracing::warn!(
-                                    released,
-                                    "materialize 失败: 已回滚 preflight 预占资源 (P1-4)"
-                                );
-                            }
-                            tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
+                            tracing::error!(error = %e, "P0-7A Session create 失败 (Preflight/Reserve/Lease fail-closed, 零孤儿)");
+                            *agent_state.lock().unwrap() = health::AgentState::Degraded;
                         }
                     }
+                }
+                #[cfg(not(feature = "gstreamer-backend"))]
+                {
+                    let _ = &intent; // 无后端构建: 不启动 (canonical launch 待启用 feature 'gstreamer')
+                    tracing::info!(
+                        "canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'"
+                    );
                 }
             } else {
                 // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
