@@ -33,6 +33,17 @@ pub enum EventSource {
     Operator,
 }
 
+/// 事件严重级 (P1-3 两级语义): 观测类可丢弃, 故障/拒识类不可被日志挤出。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EventSeverity {
+    /// 观测/进度类 (健康迁移、生命周期里程碑): 日志满时可丢弃。
+    #[default]
+    Observation,
+    /// 关键类 (PipelineFault/HardwareFault/AmbiguousIdentity): 不可被静默挤出。
+    Critical,
+}
+
 /// 采集/运行时 canonical 事件 (全生命周期)。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -123,6 +134,14 @@ impl RuntimeEvent {
                 | RuntimeEvent::AmbiguousIdentity { .. }
         )
     }
+    /// 事件严重级 (P1-3): 故障/拒识类 Critical (不可被日志挤出), 其余 Observation。
+    pub fn severity(&self) -> EventSeverity {
+        if self.is_fault() {
+            EventSeverity::Critical
+        } else {
+            EventSeverity::Observation
+        }
+    }
 }
 
 /// vendor 错误/消息 → `RuntimeEvent` 的归一化映射。
@@ -170,11 +189,17 @@ impl RuntimeEventMapper for DefaultRuntimeEventMapper {
 /// 有界 canonical 事件日志 — Supervisor 的唯一事件出口缓冲, 下游 (Health/RPC/日志) 轮询 `drain`。
 ///
 /// 线程安全 (Mutex), 供跨运行时线程 (Supervisor / watchdog / RPC) 消费。
-/// 容量上限防止无消费者时无限增长 (满时丢弃最旧, 保留最新 — 观测数据可丢弃, 不阻塞)。
+/// 容量上限防止无消费者时无限增长。**P1-3 两级丢弃策略** (与 GStreamer ERROR 不静默丢同原则):
+/// - Observation (观测类) 满时可被挤出; 全 Critical 时新观测直接丢弃;
+/// - Critical (故障/拒识类) 永不被观测事件挤出; Critical 强推时才挤最旧。
+///
+/// 丢弃计数 (`dropped_observations`/`dropped_criticals`) 暴露给 Health/运维, 丢弃不静默。
 #[derive(Debug)]
 pub struct RuntimeEventLog {
     cap: usize,
     inner: Mutex<VecDeque<RuntimeEvent>>,
+    dropped_observations: Mutex<u64>,
+    dropped_criticals: Mutex<u64>,
 }
 
 impl RuntimeEventLog {
@@ -187,15 +212,43 @@ impl RuntimeEventLog {
         Self {
             cap: cap.max(1),
             inner: Mutex::new(VecDeque::with_capacity(cap.max(1))),
+            dropped_observations: Mutex::new(0),
+            dropped_criticals: Mutex::new(0),
         }
     }
-    /// 追加事件; 满时丢弃最旧。
+    /// 追加事件 (P1-3 两级丢弃策略, 见结构体文档)。
     pub fn push(&self, event: RuntimeEvent) {
         let mut g = self.inner.lock().unwrap();
+        let critical = event.severity() == EventSeverity::Critical;
         if g.len() >= self.cap {
-            g.pop_front();
+            if critical {
+                // Critical 强推: 挤最旧; 若被挤的也是 Critical 计入 dropped_criticals (容量极端, 不静默).
+                if g.front().map(|e| e.severity()) == Some(EventSeverity::Critical) {
+                    *self.dropped_criticals.lock().unwrap() += 1;
+                }
+                g.pop_front();
+            } else {
+                // Observation: 只能腾出同级位置; 全 Critical 时丢弃新观测并计数.
+                match g.iter().position(|e| e.severity() == EventSeverity::Observation) {
+                    Some(idx) => {
+                        g.remove(idx);
+                    }
+                    None => {
+                        *self.dropped_observations.lock().unwrap() += 1;
+                        return;
+                    }
+                }
+            }
         }
         g.push_back(event);
+    }
+    /// 因日志满被丢弃的观测类事件计数 (Health/运维可见, 丢弃不静默)。
+    pub fn dropped_observations(&self) -> u64 {
+        *self.dropped_observations.lock().unwrap()
+    }
+    /// 因 Critical 强推而被挤出的 Critical 事件计数 (容量极端情况, 正常容量下恒 0)。
+    pub fn dropped_criticals(&self) -> u64 {
+        *self.dropped_criticals.lock().unwrap()
     }
     /// 排空 (FIFO 顺序) 当前全部事件; 供下游一次性消费。
     pub fn drain(&self) -> Vec<RuntimeEvent> {
@@ -271,6 +324,49 @@ mod tests {
             })
             .collect();
         assert_eq!(to, vec!["s1".to_string(), "s2".to_string()]);
+    }
+
+    #[test]
+    fn log_critical_never_evicted_by_observations_and_drops_counted() {
+        // P1-3: Critical (fault) 不被 Observation 挤出; 全 Critical 满时新观测被丢弃并计数.
+        let log = RuntimeEventLog::with_capacity(2);
+        log.push(RuntimeEvent::HealthChanged { from: "a".into(), to: "b".into() });
+        let fault = RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "bus error".into(),
+            retryable: true,
+        };
+        log.push(fault.clone());
+        assert_eq!(log.len(), 2);
+        // 新观测: 只能挤掉 Observation (HealthChanged), 不得挤掉 PipelineFault.
+        log.push(RuntimeEvent::HealthChanged { from: "c".into(), to: "d".into() });
+        let drained = log.drain();
+        assert_eq!(drained.len(), 2);
+        assert!(drained.contains(&fault), "Critical 事件不得被观测事件挤出");
+        assert!(log.dropped_observations() == 0);
+        // 全 Critical 满: 新 Observation 丢弃并计数.
+        log.push(RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "f1".into(),
+            retryable: true,
+        });
+        log.push(RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "f2".into(),
+            retryable: true,
+        });
+        assert_eq!(log.len(), 2);
+        log.push(RuntimeEvent::HealthChanged { from: "e".into(), to: "f".into() });
+        assert_eq!(log.len(), 2, "全 Critical 满时观测不入队");
+        assert_eq!(log.dropped_observations(), 1);
+        // Critical 强推仍可进行 (挤最旧), 且被挤 Critical 计数.
+        log.push(RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "f3".into(),
+            retryable: true,
+        });
+        assert_eq!(log.len(), 2);
+        assert_eq!(log.dropped_criticals(), 1);
     }
 
     #[test]

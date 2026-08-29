@@ -32,6 +32,7 @@ compile_error!("hardware-test SDK 探针与 canonical GStreamer 运行时互斥;
 
 // Trait must be in scope to call `discover()` (trait method, not inherent).
 use crate::contracts::provider::HardwareProvider;
+use crate::device::DeviceInfo;
 // Trait must be in scope to call `acquire`/`is_valid` on `Arc<InMemoryLeaseManager>`
 // (trait method, auto-deref via Arc; 否则 E0599 no method named `acquire`).
 use lease::LeaseManager;
@@ -64,8 +65,28 @@ fn main() {
     // default / bmd => filesystem probe (safe on CI / non-BMD; real on BMD).
     // Phase 0.6 C5: Provider 选择收口至 `registry::AdapterRegistry` (Domain/Graph 不感知具体适配器)。
     // 选择优先级(mock > simulation > bmd-provider > default)见 registry.rs。
-    let provider: Box<dyn HardwareProvider> = crate::registry::AdapterRegistry::build_provider();
-    let devices = provider.discover();
+    // P0-4: adapter 选择收口 + fail-closed (mock+真实组合在生产模式拒启, 见 registry.rs).
+    let provider: Box<dyn HardwareProvider> =
+        crate::registry::AdapterRegistry::build_provider().unwrap_or_else(|e| {
+            eprintln!("adapter feature 冲突 (fail-closed): {e}");
+            std::process::exit(2);
+        });
+    let (active_provider, active_backend) = crate::registry::active_adapters();
+    tracing::info!(
+        provider = active_provider,
+        backend = active_backend,
+        mode = std::env::var("MEDIA_AGENT_MODE").as_deref().unwrap_or("production"),
+        "adapter selection (P0-4 运维可见)"
+    );
+    // P1-2: discover fail-closed — SDK/驱动失败显式拒启, 绝不与"无设备"混淆.
+    let discovered = match provider.discover() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("device discovery 失败 (fail-closed): {e}");
+            std::process::exit(2);
+        }
+    };
+    let devices: Vec<DeviceInfo> = discovered.iter().map(|d| d.device.clone()).collect();
     tracing::info!(count = devices.len(), "device discovery complete");
 
     // B 选项 (用户 2026-08-28): Connector Mode / 各子设备配置方向探针.
@@ -164,8 +185,8 @@ fn main() {
                     eprintln!("WARNING: 未提供 DeviceBindingManifest, 回退 legacy runtime auto-resolution (C1 诊断模式允许; 生产应禁用)");
                 }
                 let evidence = match &manifest {
-                    Some(m) => crate::resolver::resolve_with_manifest(&devices, &probes, m),
-                    None => crate::resolver::resolve(&devices, &probes),
+                    Some(m) => crate::resolver::resolve_with_manifest(&discovered, &probes, m),
+                    None => crate::resolver::resolve(&discovered, &probes),
                 };
                 match serde_json::to_string_pretty(&evidence) {
                     Ok(json) => {
@@ -176,9 +197,9 @@ fn main() {
                 }
                 let bindings = match &manifest {
                     Some(m) => {
-                        crate::resolver::collect_bindings_from_manifest(&devices, &probes, m)
+                        crate::resolver::collect_bindings_from_manifest(&discovered, &probes, m)
                     }
-                    None => crate::resolver::collect_bindings(&devices, &probes),
+                    None => crate::resolver::collect_bindings(&discovered, &probes),
                 };
                 match serde_json::to_string_pretty(&bindings) {
                     Ok(json) => {
@@ -194,7 +215,7 @@ fn main() {
                 // 绝不把当前 dn0/dn1/dn2 语义写死; 端口完全来自 Manifest + 运行时发现.
                 if let Some(m) = &manifest {
                     let registry =
-                        crate::port::PortRegistry::build(&devices, &probes, m, &bindings)
+                        crate::port::PortRegistry::build(&discovered, &probes, m, &bindings)
                             .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)");
                     let report = crate::hw_port_01::verify(&registry, m);
                     match serde_json::to_string_pretty(&report) {
@@ -256,8 +277,8 @@ fn main() {
             _ => Vec::new(),
         };
         let bindings =
-            crate::resolver::collect_bindings_from_manifest(&devices, &probes, &manifest);
-        let registry = match crate::port::PortRegistry::build(&devices, &probes, &manifest, &bindings) {
+            crate::resolver::collect_bindings_from_manifest(&discovered, &probes, &manifest);
+        let registry = match crate::port::PortRegistry::build(&discovered, &probes, &manifest, &bindings) {
             Ok(r) => r,
             Err(e) => {
                 eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
@@ -382,8 +403,12 @@ fn main() {
         #[cfg(feature = "gstreamer-backend")]
         if skip_decklink {
             let plan = crate::pipeline::PipelinePlan::self_test();
-            let ctrl: Arc<dyn MediaBackend> = crate::registry::AdapterRegistry::build_media_backend();
-            match ctrl.prepare(&plan) {
+            let ctrl: Arc<dyn MediaBackend> = crate::registry::AdapterRegistry::build_media_backend()
+                .unwrap_or_else(|e| {
+                    eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                    std::process::exit(2);
+                });
+            match ctrl.instantiate(&plan) {
                 Ok(h) => match ctrl.start(&h) {
                     Ok(()) => {
                         tracing::info!(handle = %h.0, "MEDIA-RT-01 self-test 管线启动 (videotestsrc/audiotestsrc → appsink)");
@@ -432,7 +457,7 @@ fn main() {
             }
 
             // (B) canonical 媒体采集路径 (GStreamer). 控制面只带 VBMF device_id;
-            // bmd_persistent_id / device-number 由 materialize 经 Device Registry 解析得到.
+            // provider_persistent_id / device-number 由 materialize 经 Resolver 绑定解析得到.
             // 物化模式: 默认 Production; MEDIA_AGENT_MODE=diagnostic 时显式回退 (仅验证/排障).
             let mode = match std::env::var("MEDIA_AGENT_MODE").as_deref() {
                 Ok("diagnostic") => crate::pipeline::MaterializeMode::Diagnostic,
@@ -490,7 +515,7 @@ fn main() {
                                 tracing::warn!(warning = %w, "device-binding manifest 版本校验");
                             }
                             crate::resolver::collect_bindings_from_manifest(
-                                &devices,
+                                &discovered,
                                 &gst_probes,
                                 &m,
                             )
@@ -507,7 +532,7 @@ fn main() {
                 None => match mode {
                     crate::pipeline::MaterializeMode::Diagnostic => {
                         tracing::warn!("未提供 DeviceBindingManifest; diagnostic 模式显式回退 legacy auto-resolution (仅排障, 生产禁用)");
-                        crate::resolver::collect_bindings(&devices, &gst_probes)
+                        crate::resolver::collect_bindings(&discovered, &gst_probes)
                     }
                     crate::pipeline::MaterializeMode::Production => {
                         tracing::error!("生产模式未提供 DeviceBindingManifest; 绑定失败闭合, 拒绝 materialize (不回退 legacy, 用户 §四)");
@@ -528,7 +553,7 @@ fn main() {
                 crate::resolver::DeviceBindingManifest::load(p)
                     .ok()
                     .map(|m| {
-                        crate::port::PortRegistry::build(&devices, &gst_probes, &m, &bindings)
+                        crate::port::PortRegistry::build(&discovered, &gst_probes, &m, &bindings)
                             .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
                     })
             });
@@ -538,7 +563,7 @@ fn main() {
                     crate::resolver::DeviceBindingManifest::load(p)
                         .ok()
                         .map(|m| {
-                            crate::port::PortRegistry::build(&devices, &[], &m, &bindings)
+                            crate::port::PortRegistry::build(&discovered, &[], &m, &bindings)
                                 .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
                         })
                 });
@@ -574,23 +599,38 @@ fn main() {
                 // 派生; materialize 前必须显式校验目标设备将占用的 input Resource 可用 + 无冲突预留 + 身份已 Resolve.
                 // 失败 → fail-closed (拒绝物化) 并经 Supervisor 唯一出口发射 canonical RuntimeEvent; 绝不静默回退 device 0.
                 // registry=None (无 manifest 的 legacy 诊断路径) 无已发现 Resource 可校验 → 沿 legacy 路径 (connection 由插件探测).
+                // P1-4: preflight+reserve 原子化 (SharedResourceRegistry::acquire, 锁内完成,
+                // 消除 preflight→reserve 竞态窗口); materialize 失败时经 holder 回滚预占.
+                let mut preflight_session: Option<(
+                    crate::resource::SharedResourceRegistry,
+                    Uuid,
+                )> = None;
                 let preflight_ok = match registry.as_ref() {
                     Some(reg) => {
-                        let resources = crate::resource::ResourceRegistry::derive_from_discovery(reg);
+                        let shared = crate::resource::SharedResourceRegistry::new(
+                            crate::resource::ResourceRegistry::derive_from_discovery(reg),
+                        );
                         let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
-                        let target = resources
-                            .resources
-                            .iter()
-                            .find(|r| r.device_id == dev_uuid && r.capability.ends_with("-input"));
+                        let target = shared.with_inner(|resources| {
+                            resources
+                                .resources
+                                .iter()
+                                .find(|r| r.device_id == dev_uuid && r.capability.ends_with("-input"))
+                                .map(|r| (r.id, r.capability.clone()))
+                        });
                         match target {
-                            Some(res) => {
+                            Some((res_id, capability)) => {
+                                let holder = Uuid::new_v4(); // diagnostic auto-start session holder
                                 let req = crate::resource::AcquisitionRequest {
-                                    holder: Uuid::new_v4(), // diagnostic auto-start session holder
-                                    resource_id: res.id,
-                                    expected_capability: res.capability.clone(),
+                                    holder,
+                                    resource_id: res_id,
+                                    expected_capability: capability,
                                 };
-                                match crate::resource::preflight(&resources, &req) {
-                                    Ok(_) => true,
+                                match shared.acquire(&req) {
+                                    Ok(_) => {
+                                        preflight_session = Some((shared, holder));
+                                        true
+                                    }
                                     Err(e) => {
                                         if let crate::resource::PreflightError::AmbiguousIdentity {
                                             candidates,
@@ -609,7 +649,7 @@ fn main() {
                                         tracing::error!(
                                             error = %e,
                                             device_id = %first_id,
-                                            "0.6E Preflight 闸门拒绝物化 (fail-closed, 无隐式回退)"
+                                            "0.6E Preflight 闸门拒绝物化 (fail-closed, 无隐式回退; P1-4 原子 acquire)"
                                         );
                                         *agent_state.lock().unwrap() = health::AgentState::Degraded;
                                         false
@@ -644,7 +684,7 @@ fn main() {
                         for p in &plans {
                             tracing::info!(
                                 device_id = %p.source.device_id,
-                                bmd_persistent_id = p.source.bmd_persistent_id,
+                                provider_persistent_id = p.source.provider_persistent_id,
                                 device_number = p.source.device_number,
                                 connector = ?p.source.connector,
                                 selection_mode = ?p.source.selection_mode,
@@ -662,10 +702,14 @@ fn main() {
                             if !lm.is_valid(&device_uuid) {
                                 tracing::error!(device_id = %dev_id_str, "lease 无效, 拒绝启动 canonical 采集 (排他不变量)");
                             } else {
-                                let ctrl: Arc<dyn MediaBackend> = crate::registry::AdapterRegistry::build_media_backend();
+                                let ctrl: Arc<dyn MediaBackend> = crate::registry::AdapterRegistry::build_media_backend()
+                                    .unwrap_or_else(|e| {
+                                        eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                                        std::process::exit(2);
+                                    });
                                 // 证据: 记录 GStreamer 运行时版本 (与 SDK/driver 一并归档).
                                 tracing::info!(gst_version = ?crate::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
-                                match ctrl.prepare(&plans[0]) {
+                                match ctrl.instantiate(&plans[0]) {
                                     Ok(h) => match ctrl.start(&h) {
                                         Ok(()) => {
                                             tracing::info!(
@@ -688,7 +732,7 @@ fn main() {
                                             tracing::error!(error = %e, "canonical GStreamer 启动失败 (未盲开)")
                                         }
                                     },
-                                    Err(e) => tracing::error!(error = %e, "canonical prepare 失败"),
+                                    Err(e) => tracing::error!(error = %e, "canonical instantiate 失败"),
                                 }
                             }
                         }
@@ -698,6 +742,11 @@ fn main() {
                         }
                     }
                         Err(e) => {
+                            // P1-4: 物化失败 → 回滚 preflight 原子预占 (Reserved → Available), 绝不泄漏占用.
+                            if let Some((shared, holder)) = preflight_session.take() {
+                                let released = shared.release_reservations(holder);
+                                tracing::warn!(released, "materialize 失败: 已回滚 preflight 预占资源 (P1-4)");
+                            }
                             tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
                         }
                     }
@@ -777,7 +826,7 @@ fn spawn_ingest_watchdog(
         loop {
             std::thread::sleep(std::time::Duration::from_millis(500));
             // 真实 GStreamer bus 监控 (Error/EOS/StateChanged) —— Supervisor 闭环数据源 (#8).
-            let events = ctrl.poll_bus(&handle);
+            let events = ctrl.observe(&handle);
             let mut bus_events: u64 = 0;
             // 在共享 Arc 上就地更新 acceptance 子项: 只读 live 状态→推导→写回 acceptance,
             // 绝不覆盖 appsink 回调写入的 video_frame_count/audio_frame_count/PTS/video_pts_state/audio_pts_state,

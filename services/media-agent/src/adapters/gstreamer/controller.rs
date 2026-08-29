@@ -188,17 +188,36 @@ impl PipelineController for GStreamerPipelineController {
 }
 
 #[cfg(feature = "gstreamer-backend")]
+// P0-2: MediaBackend 方法形状对齐冻结契约 (instantiate/start/stop/recover/observe);
+// 实现委托旧 `PipelineController` trait 方法 (prepare/recover 语义不变) 与固有 poll_bus。
 impl MediaBackend for GStreamerPipelineController {
-    fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
+    fn instantiate(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
         <Self as PipelineController>::prepare(self, plan)
     }
     fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
         <Self as PipelineController>::start(self, handle)
     }
+    /// P0-2 补齐契约 `stop`: 通知 Bus watch 退出 + `set_state(Null)` 释放 DeckLink +
+    /// 从实例表/健康表移除 (防句柄与健康条目泄漏)。
+    fn stop(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
+        let inst = {
+            let mut guard = self.instances.lock().unwrap();
+            guard.remove(handle)
+        };
+        if let Some(mut inst) = inst {
+            inst.stop();
+        } else {
+            return Err(PipelineError::StartFailed(format!(
+                "未知 pipeline handle (stop): {handle:?}"
+            )));
+        }
+        crate::pipeline_events::HEALTH_ARCS.lock().unwrap().remove(handle);
+        Ok(())
+    }
     fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
         <Self as PipelineController>::recover(self, handle)
     }
-    fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
+    fn observe(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
         GStreamerPipelineController::poll_bus(self, handle)
     }
 }

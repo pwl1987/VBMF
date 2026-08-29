@@ -23,6 +23,10 @@
 
 - `pts_monotonic` 只置 false；`PipelineHealth` Default=true；`MEDIA_AGENT_SELFTEST=1` 跑通即 A+B+C；appsink 仅 observer。
 
+> [勘误 2026-08-29, p06-final-merge-hardening P0-6] "PipelineHealth Default=true" 为旧口径草稿表述;
+> 实际实现为三态 PtsMonotonicity + Default=absence-of-evidence (acceptance 全 false, 绝不默认假过)。
+> 详见本归档 tasks.md §5 勘误注记与 verify 报告 INFO。
+
 ## 关键约束（来自 CODEBUDDY.md / 真机核验）
 
 - `connection` nick：`optical-sdi` 非 `optical`；audio audiosrc 不设 connection；

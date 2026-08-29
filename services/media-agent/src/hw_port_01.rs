@@ -74,7 +74,7 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
         let gst_num = p.runtime_binding.as_ref().map(|b| b.gst_device_number);
         let fmt = p.signal.video_format.as_ref().map(format_video_format);
         ports.push(HwPort01PortReport {
-            device_handle: p.device_handle.clone(),
+            device_handle: p.provider_binding_ref.clone(),
             port: PortAcceptance {
                 connector: p.identity.connector,
                 // 报告字段用 u32; Unknown 序号无稳定序号, 以 0 表达"未声明" (身份层已由 PortOrdinal 区分).
@@ -114,7 +114,7 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
         }
         // 必须带设备作用域, 避免两张不同设备都含 "SDI #1" 时跨设备误匹配 (§二十一 P1#5).
         let matched = registry.ports.iter().find(|p| {
-            p.device_handle.as_deref() == Some(entry.bmd_device_handle.as_str())
+            p.provider_binding_ref.as_deref() == Some(entry.bmd_device_handle.as_str())
                 && p.identity.connector == port.connector
                 && p.identity.ordinal == PortOrdinal::Known(port.ordinal)
         });
@@ -144,7 +144,7 @@ pub fn verify(registry: &PortRegistry, manifest: &DeviceBindingManifest) -> HwPo
         let Some(port) = &entry.port else { continue };
         let declared = port.verification;
         let achieved = match registry.ports.iter().find(|p| {
-            p.device_handle.as_deref() == Some(entry.bmd_device_handle.as_str())
+            p.provider_binding_ref.as_deref() == Some(entry.bmd_device_handle.as_str())
                 && p.identity.connector == port.connector
                 && p.identity.ordinal == PortOrdinal::Known(port.ordinal)
         }) {
@@ -177,7 +177,7 @@ mod tests {
         let dev = Uuid::new_v4();
         PortInfo {
             device_id: dev,
-            device_handle: Some(format!("handle-{ordinal}")),
+            provider_binding_ref: Some(format!("handle-{ordinal}")),
             identity: PortIdentity {
                 port_id: PortIdentity::derive(
                     &dev,
@@ -267,7 +267,7 @@ mod tests {
         let reg = PortRegistry {
             ports: vec![PortInfo {
                 device_id: dev,
-                device_handle: Some("out".into()),
+                provider_binding_ref: Some("out".into()),
                 identity: PortIdentity {
                     port_id: PortIdentity::derive(
                         &dev,

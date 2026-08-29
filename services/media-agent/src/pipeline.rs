@@ -75,8 +75,9 @@ pub enum SourceSelectionMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourcePlan {
     pub device_id: String,
-    /// 真实 BMD PersistentID (仅 PersistentIdCanonical 模式使用; 否则 `None`).
-    pub bmd_persistent_id: Option<i64>,
+    /// Provider 侧持久标识 (P0-1 中立化: 经 Resolver 绑定从 ProviderIdentity 证据透传;
+    /// PersistentIdCanonical 模式使用; 否则 `None`. 字段名不冠 vendor 专名).
+    pub provider_persistent_id: Option<i64>,
     /// Resolver 解析后的 GStreamer `device-number` (DeviceHandleResolved/DiagnosticFallback 使用).
     pub device_number: u32,
     /// 物理连接器类型 (由 PortRegistry 经 Manifest 声明 + 运行时探测推导得到). 决定 GStreamer
@@ -86,7 +87,7 @@ pub struct SourcePlan {
     pub selection_mode: SourceSelectionMode,
 }
 
-/// 物化后的管线计划 (控制面只给 VBMF `device_id`; bmd_persistent_id / device-number 由 materialize 解析).
+/// 物化后的管线计划 (控制面只给 VBMF `device_id`; provider_persistent_id / device-number 由 materialize 解析).
 ///
 /// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
 /// `persistent-id` 仅在 PersistentID 可用时由 `materialize` 填 (当前硬件走 device-number 路径).
@@ -114,7 +115,7 @@ impl PipelinePlan {
         PipelinePlan {
             source: SourcePlan {
                 device_id: "self-test".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 0,
                 connector: None,
                 selection_mode: SourceSelectionMode::SelfTest,
@@ -383,14 +384,14 @@ pub(crate) fn src_props(plan: &PipelinePlan) -> (String, String) {
         SourceSelectionMode::PersistentIdCanonical => (
             format!(
                 "decklinkvideosrc persistent-id={}{}",
-                plan.source.bmd_persistent_id.unwrap_or(0),
+                plan.source.provider_persistent_id.unwrap_or(0),
                 connection
             ),
             // 注: decklinkaudiosrc 无 `connection` 属性 (音频内嵌于 SDI 视频流, 跟随视频连接),
             // 绝不可像 videosrc 那样设 `connection=sdi`, 否则 launch 串解析失败 (MEDIA-RT-01 真机实测).
             format!(
                 "decklinkaudiosrc persistent-id={}",
-                plan.source.bmd_persistent_id.unwrap_or(0)
+                plan.source.provider_persistent_id.unwrap_or(0)
             ),
         ),
         // DeviceHandle 经 Resolver 解析到确定 device-number (当前硬件正式生产路径).
@@ -417,9 +418,9 @@ pub(crate) fn src_props(plan: &PipelinePlan) -> (String, String) {
 
 /// 物化 `GraphRuntimeIntent` → `PipelinePlan` 列表.
 ///
-/// 身份层级状态机 (用户复核 §二/§三/§十九): 严格按 `identity_strength` 判定,
-/// **绝不只看 `bmd_persistent_id.is_some()`** (否则 filesystem 伪造的 `Some(hash)`
-/// 会被当成真实 PersistentID 越权). 合成身份 (Enumeration) 在生产路径必须拒绝.
+/// 身份层级状态机 (用户复核 §二/§三/§十九): 严格按 `identity_strength` 判定.
+/// P0-1: 强度由 Provider 在 discovery 时按自身证据自证 (Domain 无 vendor 字段可伪造,
+/// filesystem 合成身份强度恒为 Enumeration); 合成身份在生产路径必须拒绝.
 ///
 /// 关键不变量: `materialize` 只消费 **Resolver 解析后的 `device-number`**, 绝不 (在生产/已解析时)
 /// 直接用 SDK 枚举序号; `device-number` 默认 0 在 DeviceHandle/Diagnostic 路径下由 resolved 覆盖.
@@ -439,10 +440,11 @@ pub fn materialize(
                 PipelineError::IdentityUnresolved(format!("设备未注册: {}", d.device_id))
             })?;
 
-        let resolved_device_number = bindings.get(&info.device_id).map(|b| b.device_number);
-        // 身份层级状态机: 严格按 identity_strength, 不看 Option 真伪.
+        let binding = bindings.get(&info.device_id);
+        let resolved_device_number = binding.map(|b| b.device_number);
+        // 身份层级状态机: 严格按 identity_strength (provider 自证), 绝不默认.
         let selection_mode = match info.identity_strength {
-            IdentityStrength::PersistentId if info.bmd_persistent_id.is_some() => {
+            IdentityStrength::PersistentId => {
                 // 官方首选: persistent-id (优先级高于 device-number).
                 SourceSelectionMode::PersistentIdCanonical
             }
@@ -468,8 +470,8 @@ pub fn materialize(
                 match mode {
                     MaterializeMode::Production => {
                         return Err(PipelineError::IdentityUnresolved(format!(
-                            "{}: 身份未解析 (identity_strength={:?}, bmd_persistent_id={:?}, Resolver 绑定={:?}); 生产拒绝 device 0",
-                            d.device_id, info.identity_strength, info.bmd_persistent_id, resolved_device_number
+                            "{}: 身份未解析 (identity_strength={:?}, Resolver 绑定={:?}); 生产拒绝 device 0",
+                            d.device_id, info.identity_strength, resolved_device_number
                         )));
                     }
                     MaterializeMode::Diagnostic => SourceSelectionMode::DiagnosticFallback,
@@ -519,7 +521,7 @@ pub fn materialize(
 
         let source = SourcePlan {
             device_id: d.device_id.clone(),
-            bmd_persistent_id: info.bmd_persistent_id,
+            provider_persistent_id: binding.and_then(|b| b.persistent_id),
             device_number: resolved_device_number.unwrap_or(0),
             connector,
             selection_mode,
@@ -552,9 +554,6 @@ mod tests {
             model: "DeckLink SDI".to_string(),
             display_name: "dv".to_string(),
             serial_number: None,
-            bmd_device_handle: Some("h".into()),
-            bmd_persistent_id: None,
-            bmd_topological_id: None,
             identity_strength: strength,
             identity_source: DeviceIdentitySource::RealBmd,
             capabilities: crate::port::DeviceCapabilities::default(),
@@ -588,7 +587,7 @@ mod tests {
         PortRegistry {
             ports: vec![PortInfo {
                 device_id: dev_id,
-                device_handle: Some("h".into()),
+                provider_binding_ref: Some("h".into()),
                 identity: PortIdentity {
                     port_id: Some(pid),
                     connector,
@@ -609,7 +608,7 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 2,
                 connector: Some(ConnectorType::Sdi),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
@@ -632,7 +631,7 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 3,
                 connector: Some(ConnectorType::Optical),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
@@ -653,7 +652,7 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 4,
                 connector: Some(ConnectorType::Unknown),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
@@ -681,6 +680,7 @@ mod tests {
             ResolvedDeviceBinding {
                 device_number: 2,
                 hw_serial_number: None,
+                persistent_id: None,
                 confidence: Confidence::High,
                 match_kind: ResolverMatch::SerialExact,
             },
@@ -710,6 +710,7 @@ mod tests {
             ResolvedDeviceBinding {
                 device_number: 2,
                 hw_serial_number: None,
+                persistent_id: None,
                 confidence: Confidence::High,
                 match_kind: ResolverMatch::SerialExact,
             },
@@ -887,7 +888,7 @@ mod tests {
         // 自测哨兵: 无真实设备, `device_number: 0` 是占位, 不违反
         // "device-number 绝不默认 0" (该约束针对真实选卡不得静默落到 DeckLink 0 号).
         assert_eq!(plan.source.device_number, 0);
-        assert!(plan.source.bmd_persistent_id.is_none());
+        assert!(plan.source.provider_persistent_id.is_none());
     }
 
     // ── p06-hi ARCH-BACKEND-01 gate (Test C 延伸到 Backend 侧) ─────────────────────
@@ -902,11 +903,14 @@ mod tests {
             Box::new(crate::adapters::mock::MockBackend);
         let plan = PipelinePlan::self_test();
         let handle = backend
-            .prepare(&plan)
-            .expect("MockBackend prepare 应接受 canonical plan");
+            .instantiate(&plan)
+            .expect("MockBackend instantiate 应接受 canonical plan");
         backend.start(&handle).expect("MockBackend start 应成功");
         backend.recover(&handle).expect("MockBackend recover 应成功");
-        assert!(backend.poll_bus(&handle).is_empty());
+        backend.stop(&handle).expect("MockBackend stop 应成功");
+        assert!(backend.observe(&handle).is_empty());
+        // P1-1: 句柄与生产同源分配 (NEXT_PIPELINE_ID, 从 1 起), 绝不为 0 哨兵.
+        assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
         assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
         assert!(plan.normalize);
@@ -922,8 +926,8 @@ mod tests {
             Box::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
         let plan = PipelinePlan::self_test();
         let handle = backend
-            .prepare(&plan)
-            .expect("GStreamerBackend prepare 应接受同一 canonical plan (self_test)");
+            .instantiate(&plan)
+            .expect("GStreamerBackend instantiate 应接受同一 canonical plan (self_test)");
         // 句柄为运行时实例标识, 不得与 Mock 固定哨兵冲突.
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.

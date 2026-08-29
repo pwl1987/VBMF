@@ -1,5 +1,12 @@
 # MEDIA_BACKEND_CONTRACT — 媒体 Backend SPI 契约
 
+> **[实现对齐注记 2026-08-29, p06-final-merge-hardening]** 本契约形状已在实现侧收口:
+> `contracts/backend.rs::MediaBackend` = `instantiate/start/stop/recover/observe`
+> (`prepare→instantiate`、`poll_bus→observe` 更名; `stop` 补齐)。trait **无条件编译**
+> (P0-3: 契约不被 adapter feature 门控, 仅 `impl` 块门控)。错误类型暂用 `PipelineError`
+> (不引入独立 `BackendError`, 避免二次 breaking; 语义映射: StartFailed/ConfigInvalid/... 即契约的 BackendError 分类)。
+> `observe` 载荷为 vendor-neutral `PipelineBusEvent` (`pipeline_events.rs`), 非 GStreamer Bus Message 语义。
+
 > Phase 0.6 门禁依据（P0）。综合论述见 [`IMPLEMENTATION_ADDENDUM.md §1,§8`](./IMPLEMENTATION_ADDENDUM.md)。
 
 ## 1. SPI 边界（trait 形状级，非实现）

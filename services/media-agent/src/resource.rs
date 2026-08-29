@@ -313,6 +313,57 @@ pub fn resolve_identity(
     }
 }
 
+/// 线程安全注册表句柄 + **原子占用原语** (P1-4: preflight+reserve 在同一锁内完成,
+/// 消除 "A preflight → B preflight → A reserve → B reserve" 竞态窗口)。
+///
+/// 完整 Resource Orchestration (bind→instantiate 全链编排 / TTL 管理 / 跨 session 协调)
+/// 属 0.7 范围 (见 p06-final-merge-hardening proposal 非目标); 本原语只保证
+/// "校验通过即占用" 的原子性与失败回滚路径。
+#[derive(Debug, Default, Clone)]
+pub struct SharedResourceRegistry(std::sync::Arc<std::sync::Mutex<ResourceRegistry>>);
+
+impl SharedResourceRegistry {
+    /// 包装既有注册表 (通常为 discovery 派生结果)。
+    pub fn new(inner: ResourceRegistry) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(inner)))
+    }
+    /// 原子占用: 锁内 `preflight` + `reserve`。任一步失败 → 返回错误且不留半占用态。
+    pub fn acquire(&self, req: &AcquisitionRequest) -> Result<PreflightOutcome, PreflightError> {
+        let mut g = self.0.lock().unwrap();
+        let out = preflight(&g, req)?;
+        if let Some(res) = g.get_mut(&req.resource_id) {
+            res.reserve(req.holder, format!("preflight-{}", req.holder))
+                .map_err(|e| {
+                    PreflightError::NotAcquirable(format!(
+                        "resource {} reserve failed after preflight: {e:?}",
+                        req.resource_id
+                    ))
+                })?;
+        }
+        Ok(out)
+    }
+    /// 物化失败回滚: 释放 `holder` 名下仍处 Reserved 的资源 (Reserved → Available)。
+    /// 返回释放数; Allocated/Releasing 等在途态不在此处理 (属 Supervisor 生命周期)。
+    pub fn release_reservations(&self, holder: Uuid) -> usize {
+        let mut g = self.0.lock().unwrap();
+        let mut released = 0;
+        for res in g.resources.iter_mut() {
+            if res.state == ResourceState::Reserved
+                && res.reservation.as_ref().map(|r| r.holder) == Some(holder)
+                && res.expire_reservation().is_ok()
+            {
+                released += 1;
+            }
+        }
+        released
+    }
+    /// 只读快照访问 (诊断/证据)。
+    pub fn with_inner<R>(&self, f: impl for<'a> FnOnce(&'a ResourceRegistry) -> R) -> R {
+        let g = self.0.lock().unwrap();
+        f(&g)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,5 +523,43 @@ mod tests {
             resolve_identity(Some(Uuid::nil()), vec!["c1".into(), "c2".into()]),
             Err(PreflightError::AmbiguousIdentity { .. })
         ));
+    }
+
+    #[test]
+    fn resource_01_atomic_acquire_and_rollback() {
+        // P1-4: acquire = preflight+reserve 原子; 成功后资源即 Reserved; 回滚释放且可重占.
+        let mut rr = ResourceRegistry::new();
+        let id = Uuid::new_v4();
+        rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
+        let shared = SharedResourceRegistry::new(rr);
+        let holder = Uuid::new_v4();
+        let out = shared
+            .acquire(&AcquisitionRequest {
+                holder,
+                resource_id: id,
+                expected_capability: "sdi-input".into(),
+            })
+            .expect("acquire 应通过并原子占用");
+        assert_eq!(out.granted, vec![id]);
+        // 占用生效: 同资源再次 acquire (不同 holder) 必须失败 (无竞态窗口).
+        assert!(matches!(
+            shared.acquire(&AcquisitionRequest {
+                holder: Uuid::new_v4(),
+                resource_id: id,
+                expected_capability: "sdi-input".into()
+            }),
+            Err(PreflightError::NotAcquirable(_))
+        ));
+        // 回滚: 释放 holder 的 Reserved; 之后可被重新 acquire.
+        assert_eq!(shared.release_reservations(holder), 1);
+        assert!(shared
+            .acquire(&AcquisitionRequest {
+                holder: Uuid::new_v4(),
+                resource_id: id,
+                expected_capability: "sdi-input".into()
+            })
+            .is_ok());
+        // 无名下预留 → 回滚 0.
+        assert_eq!(shared.release_reservations(holder), 0);
     }
 }

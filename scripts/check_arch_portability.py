@@ -2,6 +2,8 @@
 # scripts/check_arch_portability.py
 #
 # ARCH-PORTABILITY-01 词法门禁 (VENDOR_NEUTRALITY_RULES)。
+# 定位 (p06-final-merge-hardening P0-5): 本脚本是 Architecture **Lint** (词法层防回渗);
+# 结构层 **Proof** 见 check_remove_adapters.py (真实移除 adapters 后 cargo check)。
 #
 # 目的: 在 CI 中**自动化**守住 "domain / contracts / runtime(编排层) 不得出现厂商
 # crate 直接引用" 的架构边界。与编译门禁 (cargo build --no-default-features

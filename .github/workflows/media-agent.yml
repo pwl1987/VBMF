@@ -43,6 +43,13 @@ jobs:
         # 防止 vendor 名称重新渗入受保护层的真实代码 (注释/字符串/cfg 门控区除外)。
         run: python3 ${{ github.workspace }}/scripts/check_arch_portability.py
 
+      # P0-5 Architecture Proof gate (p06-final-merge-hardening): 真实移除 concrete
+      # adapters (blackmagic/gstreamer) 目录后在临时副本 cargo check (simulation/mock)。
+      # 与上方词法 Lint 互补 — 本步骤是结构层证明: Domain/Contracts/Runtime 不依赖
+      # 任何 concrete adapter (临时副本操作, 不污染工作区)。
+      - name: Architecture proof gate (remove-adapter compile)
+        run: python3 ${{ github.workspace }}/scripts/check_remove_adapters.py
+
       - name: Build (skeleton must compile)
         env:
           CARGO_TERM_COLOR: always
