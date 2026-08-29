@@ -700,7 +700,7 @@ fn main() {
                                 ok = false;
                             }
                         }
-                        mgr.close(&sid);
+                        let _ = mgr.close(&sid);
                     }
                     Err(e) => {
                         println!("SESSION-RT-01 step=create verdict=FAIL error={e}");
@@ -754,7 +754,7 @@ fn main() {
                             }
                         );
                         ok &= conflict.is_err();
-                        mgr.close(&a);
+                        let _ = mgr.close(&a);
                     }
                     Err(e) => {
                         println!("RESOURCE-RT-01 step=conflict verdict=FAIL error={e}");

@@ -104,6 +104,41 @@ impl SessionPhase {
                 | SessionPhase::Terminated
         )
     }
+    /// 相位迁移白名单 (P0-2: 引擎所有 set_phase 必须过此守卫; 非法迁移 = 编程错误, 拒绝并 Critical 上报)。
+    pub fn can_transition_to(self, to: Self) -> bool {
+        use SessionPhase::*;
+        matches!(
+            (self, to),
+            (Requested, Provisioning)
+                | (Requested, ProvisioningFailed)
+                | (Provisioning, Binding)
+                | (Provisioning, Terminated)
+                | (Provisioning, ProvisioningFailed)
+                | (Binding, Leased)
+                | (Binding, Starting)
+                | (Binding, Terminated)
+                | (Binding, BindingFailed)
+                | (Leased, Starting)
+                | (Leased, Stopping)
+                | (Leased, Terminated)
+                | (Starting, Running)
+                | (Starting, StartFailed)
+                | (Running, Stopping)
+                | (Running, Degraded)
+                | (Running, Recovery)
+                | (Stopping, Released)
+                | (Stopping, Terminated)
+                | (Degraded, Recovery)
+                | (Degraded, Starting)
+                | (Degraded, Terminated)
+                | (Recovery, Running)
+                | (Recovery, Degraded)
+                | (Recovery, Terminated)
+                | (ProvisioningFailed, Terminated)
+                | (BindingFailed, Terminated)
+                | (StartFailed, Terminated)
+        )
+    }
 }
 
 /// 资源占用相位 (与 Resource.state 对齐的会话侧视图)。
@@ -139,7 +174,7 @@ pub struct MediaSession {
     pub source_ports: Vec<Uuid>,
     pub output_ports: Vec<Uuid>,
     pub resource_claims: Vec<ResourceClaim>,
-    pub lease: Option<DeviceLease>,
+    pub leases: Vec<DeviceLease>,
     /// Backend 所拥有的 pipeline 实例句柄 (Handle 链接 Session↔对象)。
     pub pipeline: Option<PipelineHandle>,
     pub health: SessionHealthSnapshot,
@@ -308,7 +343,7 @@ impl SessionManager {
                     source_ports: Vec::new(),
                     output_ports: Vec::new(),
                     resource_claims: Vec::new(),
-                    lease: None,
+                    leases: Vec::new(),
                     pipeline: None,
                     health: SessionHealthSnapshot::default(),
                     created_at: Self::now_ms() as i64,
@@ -319,10 +354,10 @@ impl SessionManager {
         );
 
         let cleanup = |mgr: &Self, sid: SessionId, holder: Uuid| {
-            // create 阶段回滚: 释放预留/租约 → 移除表项 (零孤儿)。
+            // create 阶段回滚: 释放预留/全部租约 → 移除表项 (零孤儿)。
             mgr.resources.release_reservations(holder);
             if let Some(inner) = mgr.sessions.lock().unwrap().remove(&sid) {
-                if let Some(l) = &inner.session.lease {
+                for l in &inner.session.leases {
                     let _ = mgr.leases.release(l);
                 }
             }
@@ -350,7 +385,7 @@ impl SessionManager {
         {
             let report = self.run_preflight(intent, &claims);
             if !report.is_ok() {
-                self.set_phase(session_id, SessionPhase::ProvisioningFailed);
+                let _ = self.set_phase(session_id, SessionPhase::ProvisioningFailed);
                 return Err(SessionError::PreflightFailed(report));
             }
         }
@@ -379,27 +414,36 @@ impl SessionManager {
                 .collect();
             inner.session.source_ports = claims.iter().map(|c| c.resource_id).collect();
         }
-        self.set_phase(session_id, SessionPhase::Provisioning);
+        self.set_phase(session_id, SessionPhase::Provisioning)?;
 
         // 步 3: 建档完成 (粗态 Reserved), SessionCreated。
         self.emit(RuntimeEvent::SessionCreated {
             session_id: session_id.0,
         });
 
-        // 步 4: Lease (owner = session id 字符串)。
+        // 步 4: Lease (owner = session id 字符串)。**事务式** (P0-1):
+        // 多设备逐台 acquire, 任一台失败 → 逆序释放已获取的全部租约 (绝不留部分成功孤儿)。
         let mut leases: Vec<DeviceLease> = Vec::new();
         for d in &intent.devices {
             let u = Uuid::parse_str(&d.device_id)
                 .map_err(|e| SessionError::InvalidTransition(format!("device_id 解析失败: {e}")))?;
-            let lease =
-                self.leases
-                    .acquire(&u, &session_id.to_string(), self.tuning.default_lease_ttl)?;
-            leases.push(lease);
+            match self
+                .leases
+                .acquire(&u, &session_id.to_string(), self.tuning.default_lease_ttl)
+            {
+                Ok(l) => leases.push(l),
+                Err(e) => {
+                    for l in &leases {
+                        let _ = self.leases.release(l);
+                    }
+                    return Err(e.into());
+                }
+            }
         }
         {
             let mut guard = self.sessions.lock().unwrap();
             let inner = guard.get_mut(session_id).expect("session registered");
-            inner.session.lease = leases.first().cloned();
+            inner.session.leases = leases.clone();
             for l in &leases {
                 self.emit(RuntimeEvent::LeaseGranted {
                     device_id: l.device_id,
@@ -418,14 +462,14 @@ impl SessionManager {
                 .filter(|u| !self.bindings.contains_key(u))
                 .collect();
             if !missing.is_empty() {
-                self.set_phase(session_id, SessionPhase::BindingFailed);
+                let _ = self.set_phase(session_id, SessionPhase::BindingFailed);
                 return Err(SessionError::InvalidTransition(format!(
                     "目标设备缺少生产绑定: {missing:?}"
                 )));
             }
         }
-        self.set_phase(session_id, SessionPhase::Binding);
-        self.set_phase(session_id, SessionPhase::Leased);
+        self.set_phase(session_id, SessionPhase::Binding)?;
+        self.set_phase(session_id, SessionPhase::Leased)?;
         Ok(())
     }
 
@@ -451,7 +495,7 @@ impl SessionManager {
             }
             (inner.session.graphs.clone(), inner.holder, self.mode)
         };
-        self.set_phase(id, SessionPhase::Starting);
+        self.set_phase(id, SessionPhase::Starting)?;
 
         // 步 1: materialize (纯函数; 失败无副作用)。
         let plans = crate::pipeline::materialize(
@@ -478,7 +522,7 @@ impl SessionManager {
             Ok(h) => h,
             Err(e) => {
                 self.rollback_lease_and_reservation(id, &holder);
-                self.set_phase(id, SessionPhase::StartFailed);
+                let _ = self.set_phase(id, SessionPhase::StartFailed);
                 self.emit(RuntimeEvent::SessionFailed {
                     session_id: id.0,
                     reason: format!("backend.instantiate: {e}"),
@@ -528,7 +572,7 @@ impl SessionManager {
             let _ = backend.stop(&handle);
             self.resources.release_allocation(holder);
             self.rollback_lease_and_reservation(id, &holder);
-            self.set_phase(id, SessionPhase::StartFailed);
+            let _ = self.set_phase(id, SessionPhase::StartFailed);
             self.emit(RuntimeEvent::SessionFailed {
                 session_id: id.0,
                 reason: format!("backend.start: {e}"),
@@ -537,11 +581,12 @@ impl SessionManager {
         }
 
         // 成功: RUNNING。
+        // P0-2: 粗态/相位经白名单守卫迁移 (Starting → Running)。
+        self.set_phase(id, SessionPhase::Running)?;
         let mut guard = self.sessions.lock().unwrap();
         let inner = guard.get_mut(id).expect("session registered");
         inner.session.pipeline = Some(handle);
-        inner.session.state = SessionState::Running;
-        inner.session.phase = SessionPhase::Running;
+        Self::transition_state(&mut inner.session.state, SessionState::Running)?;
         inner.session.health.last_ok_at = Some(Self::now_ms() as i64);
         drop(guard);
         self.emit(RuntimeEvent::SessionStateChanged {
@@ -568,7 +613,7 @@ impl SessionManager {
             }
             (inner.session.pipeline, inner.holder)
         };
-        self.set_phase(id, SessionPhase::Stopping);
+        self.set_phase(id, SessionPhase::Stopping)?;
 
         // 逆序 1: Backend.stop (有句柄才调)。
         if let Some(h) = &handle {
@@ -579,12 +624,19 @@ impl SessionManager {
         // 逆序 3+4: lease + reservation 兜底。
         self.rollback_lease_and_reservation(id, &holder);
 
-        let mut guard = self.sessions.lock().unwrap();
-        let inner = guard.get_mut(id).expect("session registered");
-        inner.session.pipeline = None;
-        inner.session.state = SessionState::Released;
-        inner.session.phase = SessionPhase::Released;
-        drop(guard);
+        // P0-2: 粗态两步经白名单守卫 (Running/Reserved → Releasing → Released)。
+        {
+            let mut guard = self.sessions.lock().unwrap();
+            let inner = guard.get_mut(id).expect("session registered");
+            inner.session.pipeline = None;
+            Self::transition_state(&mut inner.session.state, SessionState::Releasing)?;
+        }
+        self.set_phase(id, SessionPhase::Released)?;
+        {
+            let mut guard = self.sessions.lock().unwrap();
+            let inner = guard.get_mut(id).expect("session registered");
+            Self::transition_state(&mut inner.session.state, SessionState::Released)?;
+        }
         self.emit(RuntimeEvent::SessionStateChanged {
             session_id: id.0,
             from: "running".into(),
@@ -593,16 +645,36 @@ impl SessionManager {
         Ok(())
     }
 
-    /// 关闭并移除会话 (幂等; Released/Terminated 均可 close)。
-    pub fn close(&self, id: &SessionId) {
+    /// 关闭并移除会话。**P0-3**: 仅接受终态 (Released/Terminated/失败终态) —
+    /// Running/其他活动相位必须先 `stop`, 绝不允许 close 绕过 pipeline 停止
+    /// 造成 runtime orphan pipeline。终态移除时兜底回收 allocation/租约/预留 (零孤儿)。
+    pub fn close(&self, id: &SessionId) -> Result<(), SessionError> {
+        let (phase, _snapshot) = {
+            let guard = self.sessions.lock().unwrap();
+            let inner = guard.get(id).ok_or(SessionError::UnknownSession(*id))?;
+            (inner.session.phase, inner.clone())
+        };
+        match phase {
+            SessionPhase::Released
+            | SessionPhase::Terminated
+            | SessionPhase::ProvisioningFailed
+            | SessionPhase::BindingFailed
+            | SessionPhase::StartFailed => {}
+            _ => {
+                return Err(SessionError::InvalidTransition(format!(
+                    "close 仅接受 Released/Terminated/失败终态, 实际 {phase:?} (活动会话请先 stop, 防 pipeline 孤儿)"
+                )))
+            }
+        }
         if let Some(inner) = self.sessions.lock().unwrap().remove(id) {
-            // 兜底零孤儿 (正常路径已在 stop 中释放; Terminated 路径在此回收)。
+            // 兜底零孤儿 (终态正常已释放; 防御性回收)。
             self.resources.release_allocation(inner.holder);
             self.resources.release_reservations(inner.holder);
-            if let Some(l) = &inner.session.lease {
+            for l in &inner.session.leases {
                 let _ = self.leases.release(l);
             }
         }
+        Ok(())
     }
 
     /// 会话快照。
@@ -644,26 +716,46 @@ impl SessionManager {
                 phase,
                 SessionPhase::Leased | SessionPhase::Binding | SessionPhase::Running
             ) {
-                let target = self.sessions.lock().unwrap().get(&sid).and_then(|inner| {
-                    inner.session.lease.as_ref().and_then(|l| {
-                        let remaining = l
-                            .acquired_at
-                            .timestamp_millis()
-                            .checked_add_unsigned(l.ttl.as_millis() as u64)
-                            .unwrap_or(i64::MAX)
-                            - Self::now_ms() as i64;
-                        ((remaining as u64) < self.tuning.lease_renew_window.as_millis() as u64)
-                            .then(|| (l.device_id, l.owner.clone()))
+                // P0-1: 多设备会话 — 逐台租约判定续期窗口并回写会话副本。
+                let targets: Vec<(Uuid, String)> = self
+                    .sessions
+                    .lock()
+                    .unwrap()
+                    .get(&sid)
+                    .map(|inner| {
+                        inner
+                            .session
+                            .leases
+                            .iter()
+                            .filter_map(|l| {
+                                let remaining = l
+                                    .acquired_at
+                                    .timestamp_millis()
+                                    .checked_add_unsigned(l.ttl.as_millis() as u64)
+                                    .unwrap_or(i64::MAX)
+                                    - Self::now_ms() as i64;
+                                ((remaining as u64)
+                                    < self.tuning.lease_renew_window.as_millis() as u64)
+                                    .then(|| (l.device_id, l.owner.clone()))
+                            })
+                            .collect()
                     })
-                });
-                if let Some((device_id, owner)) = target {
+                    .unwrap_or_default();
+                for (device_id, owner) in targets {
                     if let Ok(updated) =
                         self.leases
                             .renew(&device_id, &owner, self.tuning.default_lease_ttl)
                     {
                         let mut guard = self.sessions.lock().unwrap();
                         if let Some(inner) = guard.get_mut(&sid) {
-                            inner.session.lease = Some(updated);
+                            if let Some(l) = inner
+                                .session
+                                .leases
+                                .iter_mut()
+                                .find(|l| l.device_id == device_id)
+                            {
+                                *l = updated;
+                            }
                         }
                     }
                 }
@@ -679,21 +771,25 @@ impl SessionManager {
                     .unwrap_or(false);
                 if stale {
                     self.resources.expire_reservations_of(holder);
-                    // 租约一并回收 (Terminated 零孤儿; RESOURCE-RT-01 crash cleanup)。
-                    let lease = self
+                    // 全部租约一并回收 (Terminated 零孤儿; RESOURCE-RT-01 crash cleanup)。
+                    let leases = self
                         .sessions
                         .lock()
                         .unwrap()
                         .get(&sid)
-                        .and_then(|i| i.session.lease.clone());
-                    if let Some(l) = lease {
-                        let _ = self.leases.release(&l);
+                        .map(|i| i.session.leases.clone())
+                        .unwrap_or_default();
+                    for l in &leases {
+                        let _ = self.leases.release(l);
+                    }
+                    {
                         let mut guard = self.sessions.lock().unwrap();
                         if let Some(inner) = guard.get_mut(&sid) {
-                            inner.session.lease = None;
+                            inner.session.leases.clear();
                         }
                     }
-                    self.set_phase(&sid, SessionPhase::Terminated);
+                    // set_phase 需重新获取 sessions 锁 — 先释放 (防自死锁)。
+                    let _ = self.set_phase(&sid, SessionPhase::Terminated);
                     self.emit(RuntimeEvent::SessionFailed {
                         session_id: sid.0,
                         reason: "reserved 相位超时 (crash-cleanup)".into(),
@@ -732,29 +828,62 @@ impl SessionManager {
         crate::preflight::run(&inputs)
     }
 
-    fn set_phase(&self, id: &SessionId, to: SessionPhase) {
+    /// 相位迁移 (**P0-2 强制白名单**): 非法迁移拒绝并 Critical 上报, 绝不静默写入。
+    fn set_phase(&self, id: &SessionId, to: SessionPhase) -> Result<(), SessionError> {
         let mut guard = self.sessions.lock().unwrap();
-        if let Some(inner) = guard.get_mut(id) {
-            let from = inner.session.phase;
-            if from == to {
-                return;
-            }
-            inner.session.phase = to;
-            drop(guard);
-            self.emit(RuntimeEvent::SessionStateChanged {
-                session_id: id.0,
-                from: format!("{from:?}").to_lowercase(),
-                to: format!("{to:?}").to_lowercase(),
-            });
+        let Some(inner) = guard.get_mut(id) else {
+            return Err(SessionError::UnknownSession(*id));
+        };
+        let from = inner.session.phase;
+        if from == to {
+            return Ok(());
         }
+        if !from.can_transition_to(to) {
+            drop(guard);
+            self.emit(RuntimeEvent::SessionFailed {
+                session_id: id.0,
+                reason: format!("非法相位迁移 {from:?} → {to:?} (白名单拒绝)"),
+            });
+            return Err(SessionError::InvalidTransition(format!(
+                "非法相位迁移 {from:?} → {to:?}"
+            )));
+        }
+        inner.session.phase = to;
+        drop(guard);
+        self.emit(RuntimeEvent::SessionStateChanged {
+            session_id: id.0,
+            from: format!("{from:?}").to_lowercase(),
+            to: format!("{to:?}").to_lowercase(),
+        });
+        Ok(())
     }
 
-    /// start 失败回滚 (lease + reservation; allocation 已由调用方处理)。
+    /// 粗态迁移守卫 (P0-2): 白名单外拒绝。
+    fn transition_state(state: &mut SessionState, to: SessionState) -> Result<(), SessionError> {
+        let from = *state;
+        if from == to {
+            return Ok(());
+        }
+        if !from.can_transition_to(to) {
+            return Err(SessionError::InvalidTransition(format!(
+                "非法粗态迁移 {from:?} → {to:?}"
+            )));
+        }
+        *state = to;
+        Ok(())
+    }
+
+    /// start 失败回滚 (全部租约 + reservation; allocation 已由调用方处理)。
     fn rollback_lease_and_reservation(&self, id: &SessionId, holder: &Uuid) {
-        if let Some(inner) = self.sessions.lock().unwrap().get(id) {
-            if let Some(l) = &inner.session.lease {
-                let _ = self.leases.release(l);
-            }
+        let leases = self
+            .sessions
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|i| i.session.leases.clone())
+            .unwrap_or_default();
+        for l in &leases {
+            let _ = self.leases.release(l);
         }
         self.resources.release_reservations(*holder);
     }
@@ -768,14 +897,14 @@ impl SessionManager {
 #[cfg(all(test, feature = "mock"))]
 mod tests {
     use super::*;
-    use crate::adapters::mock::{MockBackend, MockProvider};
+    use crate::adapters::mock::{MockBackend, MockProvider, MockProviderB};
     use crate::events::{EventSeverity, RuntimeEvent};
     use crate::port::{
         PortDirection, PortIdentity, PortInfo, PortOrdinal, PortRegistry, SignalStatus,
         VideoContentState,
     };
     use crate::resource::ResourceRegistry;
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
     type InMemoryLm = crate::lease::InMemoryLeaseManager;
     use crate::contracts::provider::HardwareProvider;
@@ -836,14 +965,63 @@ mod tests {
         }
     }
 
+    fn port_registry_for_devices(devs: &[DeviceInfo]) -> PortRegistry {
+        let mut ports = Vec::new();
+        for dev in devs {
+            let pid = PortIdentity::derive(
+                &dev.device_id,
+                crate::port::ConnectorType::Sdi,
+                PortOrdinal::Known(1),
+            );
+            ports.push(PortInfo {
+                device_id: dev.device_id,
+                provider_binding_ref: None,
+                identity: PortIdentity {
+                    port_id: pid,
+                    connector: crate::port::ConnectorType::Sdi,
+                    ordinal: PortOrdinal::Known(1),
+                },
+                direction: PortDirection::Input,
+                capabilities: crate::port::PortCapabilities::default(),
+                runtime_binding: None,
+                signal: SignalStatus::default(),
+                content: VideoContentState::Unknown,
+            });
+        }
+        PortRegistry { ports }
+    }
+
+    fn intent_multi(devs: &[DeviceInfo]) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: devs
+                .iter()
+                .map(|dev| crate::graph_intent::DeviceIntent {
+                    device_id: dev.device_id.to_string(),
+                    role: "CAPTURE".into(),
+                    pipeline: crate::graph_intent::PipelineIntent {
+                        source: crate::graph_intent::SourceIntent {
+                            kind: "decklink".into(),
+                            device_id: dev.device_id.to_string(),
+                            port_id: None,
+                        },
+                        sink: crate::graph_intent::SinkIntent {
+                            kind: "appsink".into(),
+                        },
+                    },
+                })
+                .collect(),
+        }
+    }
+
     fn manager_with(
         backend: Arc<dyn MediaBackend>,
         devices: &[DeviceInfo],
-        lm: Arc<InMemoryLm>,
+        lm: Arc<dyn LmTrait>,
         tuning: SessionTuning,
     ) -> SessionManager {
         let resources = SharedResourceRegistry::new(ResourceRegistry::derive_from_discovery(
-            &port_registry_for(&devices[0]),
+            &port_registry_for_devices(devices),
         ));
         let sup = Arc::new(Mutex::new(Supervisor::new(
             crate::supervisor::RestartPolicy::default(),
@@ -861,7 +1039,7 @@ mod tests {
         )
     }
 
-    fn mock_manager(devices: &[DeviceInfo], lm: Arc<InMemoryLm>) -> SessionManager {
+    fn mock_manager(devices: &[DeviceInfo], lm: Arc<dyn LmTrait>) -> SessionManager {
         manager_with(Arc::new(MockBackend), devices, lm, SessionTuning::default())
     }
 
@@ -986,7 +1164,7 @@ mod tests {
         ));
         assert_zero_orphans(&mgr, &lm);
 
-        mgr.close(&sid);
+        mgr.close(&sid).expect("终态 close 应成功");
         assert!(mgr.status(&sid).is_none(), "close 后移除");
     }
 
@@ -1044,13 +1222,13 @@ mod tests {
         mgr.start(&s1).expect("第一会话 start 不受拒绝影响");
         assert_eq!(mgr.status(&s1).unwrap().state, SessionState::Running);
         mgr.stop(&s1).unwrap();
-        mgr.close(&s1);
+        mgr.close(&s1).expect("终态 close 应成功");
 
         // 释放后新会话可重占 (release → re-acquire)。
         let s2 = mgr.create(intent_for(&devices[0])).expect("释放后应可重占");
         mgr.start(&s2).expect("重占后 start 应成功");
         mgr.stop(&s2).unwrap();
-        mgr.close(&s2);
+        mgr.close(&s2).expect("终态 close 应成功");
         assert_zero_orphans(&mgr, &lm);
     }
 
@@ -1090,11 +1268,23 @@ mod tests {
         };
         let mgr = manager_with(Arc::new(MockBackend), &devices, lm, tuning);
         let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
-        let before = mgr.status(&sid).unwrap().lease.expect("lease 已持有");
+        let before = mgr
+            .status(&sid)
+            .unwrap()
+            .leases
+            .first()
+            .expect("lease 已持有")
+            .clone();
         assert_eq!(before.ttl, Duration::from_secs(120));
         std::thread::sleep(std::time::Duration::from_millis(20));
         mgr.tick();
-        let after = mgr.status(&sid).unwrap().lease.expect("lease 仍在");
+        let after = mgr
+            .status(&sid)
+            .unwrap()
+            .leases
+            .first()
+            .expect("lease 仍在")
+            .clone();
         assert!(
             after.acquired_at > before.acquired_at,
             "tick 应刷新 acquired_at (续期)"
@@ -1109,5 +1299,165 @@ mod tests {
             reason: "t".into(),
         };
         assert_eq!(ev.severity(), EventSeverity::Critical);
+    }
+
+    // ── Merge Gate Hardening (P0-1/P0-2/P0-3): 多设备/异常/close 边界 ──────────────
+
+    #[test]
+    fn session_rt_01_multi_device_acquire_release() {
+        // P0-1: 多设备会话 — 每台设备一份租约; stop 必须释放全部 (零孤儿)。
+        let devices: Vec<DeviceInfo> = MockProviderB
+            .discover()
+            .expect("mock discover")
+            .into_iter()
+            .map(|d| d.device)
+            .collect();
+        assert_eq!(devices.len(), 2, "MockProviderB 应含两台设备");
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm.clone());
+        let sid = mgr
+            .create(intent_multi(&devices))
+            .expect("多设备 create 应通过");
+        let s = mgr.status(&sid).expect("会话已登记");
+        assert_eq!(s.leases.len(), 2, "两台设备两份租约");
+        assert_eq!(s.resource_claims.len(), 2);
+        assert_eq!(lm.health().len(), 2, "两台设备租约均在 LeaseManager");
+        mgr.start(&sid)
+            .expect("多设备 start 应成功 (0.7A 单管线取首计划)");
+        mgr.stop(&sid).expect("stop 应释放全部租约");
+        assert!(lm.health().is_empty(), "P0-1: stop 后两台租约必须全部释放");
+        mgr.close(&sid).expect("终态 close 应成功");
+        assert_zero_orphans(&mgr, &lm);
+    }
+
+    /// 测试替身: 第 N 次 acquire 注入失败 (确定性驱动 P0-1 事务回滚路径;
+    /// 直接预占会撞 Preflight 的 LeaseConflict, 到不了租约步)。
+    struct CountingFailLeaseManager {
+        inner: InMemoryLm,
+        calls: AtomicU32,
+        fail_on_call: u32,
+    }
+
+    impl crate::lease::LeaseManager for CountingFailLeaseManager {
+        fn acquire(
+            &self,
+            device_id: &Uuid,
+            owner: &str,
+            ttl: std::time::Duration,
+        ) -> Result<crate::lease::DeviceLease, crate::lease::LeaseError> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+            if n == self.fail_on_call {
+                return Err(crate::lease::LeaseError::AlreadyLeased(*device_id));
+            }
+            self.inner.acquire(device_id, owner, ttl)
+        }
+        fn release(
+            &self,
+            lease: &crate::lease::DeviceLease,
+        ) -> Result<(), crate::lease::LeaseError> {
+            self.inner.release(lease)
+        }
+        fn health(&self) -> Vec<crate::lease::DeviceLease> {
+            self.inner.health()
+        }
+        fn list_active(&self) -> Vec<crate::lease::DeviceLease> {
+            self.inner.list_active()
+        }
+        fn renew(
+            &self,
+            device_id: &Uuid,
+            owner: &str,
+            ttl: std::time::Duration,
+        ) -> Result<crate::lease::DeviceLease, crate::lease::LeaseError> {
+            self.inner.renew(device_id, owner, ttl)
+        }
+    }
+
+    #[test]
+    fn session_rt_01_partial_lease_failure_rolls_back_acquired_leases() {
+        // P0-1: 事务式租约获取 — 第二台失败 → 第一台已获取的租约必须逆序释放 (零孤儿)。
+        let devices: Vec<DeviceInfo> = MockProviderB
+            .discover()
+            .expect("mock discover")
+            .into_iter()
+            .map(|d| d.device)
+            .collect();
+        let lm: Arc<CountingFailLeaseManager> = Arc::new(CountingFailLeaseManager {
+            inner: InMemoryLm::new(),
+            calls: std::sync::atomic::AtomicU32::new(0),
+            fail_on_call: 2,
+        });
+        let mgr = manager_with(
+            Arc::new(MockBackend),
+            &devices,
+            lm.clone(),
+            SessionTuning::default(),
+        );
+        let err = mgr
+            .create(intent_multi(&devices))
+            .expect_err("第二台租约注入失败应传播");
+        assert!(matches!(err, SessionError::Lease(_)), "实际错误变体: {err}");
+        // 事务回滚: 第一台已获取的租约必须已释放 — 租约表空 (零孤儿)。
+        assert!(
+            lm.list_active().is_empty(),
+            "部分成功的第一台租约必须已回滚"
+        );
+        // create() 外壳 cleanup: 预留已释放 + 会话表已移除。
+        mgr.resources.with_inner(|reg| {
+            for r in &reg.resources {
+                assert_eq!(r.state, crate::resource::ResourceState::Available);
+            }
+        });
+        assert!(mgr.list().is_empty(), "失败会话应由 create 外壳清理移除");
+    }
+
+    #[test]
+    fn session_rt_01_close_running_rejected_no_pipeline_orphan() {
+        // P0-3: Running 直接 close 必须拒绝 (pipeline 仍被会话持有, 防 orphan pipeline)。
+        let devices = mock_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm.clone());
+        let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
+        mgr.start(&sid).expect("start 应成功");
+        assert!(matches!(
+            mgr.close(&sid),
+            Err(SessionError::InvalidTransition(_))
+        ));
+        let s = mgr.status(&sid).expect("会话未被移除");
+        assert_eq!(s.state, SessionState::Running);
+        assert!(s.pipeline.is_some(), "pipeline 仍被会话持有 (未成孤儿)");
+        // 正确路径: stop → Released → close 成功。
+        mgr.stop(&sid).unwrap();
+        mgr.close(&sid).expect("终态 close 应成功");
+        assert!(mgr.status(&sid).is_none());
+        assert_zero_orphans(&mgr, &lm);
+    }
+
+    #[test]
+    fn session_rt_01_illegal_phase_transition_rejected_via_manager_api() {
+        // P0-2: 经 SessionManager 公共 API 驱动非法迁移必须被拒 (非仅 enum helper)。
+        let devices = mock_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let tuning = SessionTuning {
+            reservation_window_ms: 0,
+            ..SessionTuning::default()
+        };
+        let mgr = manager_with(Arc::new(MockBackend), &devices, lm, tuning);
+        let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        mgr.tick(); // Reserved 滞留 → Terminated (白名单迁移)
+        assert_eq!(
+            mgr.status(&sid).unwrap().phase,
+            SessionPhase::Terminated,
+            "滞留会话应被 crash-cleanup 终结"
+        );
+        // Terminated → Starting 非法 → start 拒绝 (API 层)。
+        assert!(matches!(
+            mgr.start(&sid),
+            Err(SessionError::InvalidTransition(_))
+        ));
+        // 白名单恒拒绝 (#114 与终态不可复活)。
+        assert!(!SessionPhase::Released.can_transition_to(SessionPhase::Running));
+        assert!(!SessionPhase::Terminated.can_transition_to(SessionPhase::Running));
     }
 }

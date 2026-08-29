@@ -30,7 +30,11 @@ pub trait LeaseManager: Send + Sync {
     /// Release lease (explicit or on crash via MEDIA-03).
     fn release(&self, lease: &DeviceLease) -> Result<(), LeaseError>;
     /// Heartbeat / TTL check; expired leases auto-released.
+    /// **有副作用**: 会清扫过期租约 — 仅供运维/tick 使用; 纯查询用 [`Self::list_active`]。
     fn health(&self) -> Vec<DeviceLease>;
+    /// 纯读快照 (P0-7A Preflight judge-only): 返回当前表中全部租约
+    /// (**含已过期但未清扫的**)。绝不修改存储 — Preflight 判定专用。
+    fn list_active(&self) -> Vec<DeviceLease>;
     /// Renew (extend) a lease held by `owner` (RUNTIME_RESOURCE_MODEL §4.1 Renew op;
     /// P0-7A Session Runtime). Fails `NotFound` if absent; `AlreadyLeased` if held by
     /// a different owner (绝不可借 renew 抢占他人租约).
@@ -139,6 +143,10 @@ impl LeaseManager for InMemoryLeaseManager {
                 Ok(l.clone())
             }
         }
+    }
+
+    fn list_active(&self) -> Vec<DeviceLease> {
+        self.leases.lock().unwrap().values().cloned().collect()
     }
 
     fn health(&self) -> Vec<DeviceLease> {

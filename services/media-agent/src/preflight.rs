@@ -210,9 +210,10 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
     }
 
     // 4. LeaseConflict — 目标设备未被其他 owner 持有 (本会话尚未 acquire, 任何现存租约即冲突)。
+    // P0-4 judge-only: 用 list_active 纯读 (health() 会清扫过期租约 = 副作用)。
     let held: Vec<Uuid> = inputs
         .leases
-        .health()
+        .list_active()
         .into_iter()
         .map(|l| l.device_id)
         .collect();
