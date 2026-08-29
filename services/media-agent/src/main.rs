@@ -8,6 +8,7 @@ mod adapters;
 mod contracts;
 mod registry;
 mod device;
+mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
 mod graph_intent;
 mod health;
@@ -16,6 +17,7 @@ mod lease;
 mod pipeline;
 mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
+mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
 mod resolver;
 mod rpc;
 // sdk 已迁入 adapters/blackmagic (BMD Reference Adapter)
@@ -559,7 +561,7 @@ fn main() {
                         pipeline: crate::graph_intent::PipelineIntent {
                             source: crate::graph_intent::SourceIntent {
                                 kind: "decklink".into(),
-                                device_id: first_id,
+                                device_id: first_id.clone(),
                                 port_id: None,
                             },
                             sink: crate::graph_intent::SinkIntent {
@@ -568,13 +570,76 @@ fn main() {
                         },
                     }],
                 };
-                match crate::pipeline::materialize(
-                    &intent,
-                    &devices,
-                    mode,
-                    &bindings,
-                    registry.as_ref(),
-                ) {
+                // 0.6E Preflight 闸门 (防隐式 Fallback): manifest 在场 (registry=Some) 时, Resource 由 Discovery
+                // 派生; materialize 前必须显式校验目标设备将占用的 input Resource 可用 + 无冲突预留 + 身份已 Resolve.
+                // 失败 → fail-closed (拒绝物化) 并经 Supervisor 唯一出口发射 canonical RuntimeEvent; 绝不静默回退 device 0.
+                // registry=None (无 manifest 的 legacy 诊断路径) 无已发现 Resource 可校验 → 沿 legacy 路径 (connection 由插件探测).
+                let preflight_ok = match registry.as_ref() {
+                    Some(reg) => {
+                        let resources = crate::resource::ResourceRegistry::derive_from_discovery(reg);
+                        let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
+                        let target = resources
+                            .resources
+                            .iter()
+                            .find(|r| r.device_id == dev_uuid && r.capability.ends_with("-input"));
+                        match target {
+                            Some(res) => {
+                                let req = crate::resource::AcquisitionRequest {
+                                    holder: Uuid::new_v4(), // diagnostic auto-start session holder
+                                    resource_id: res.id,
+                                    expected_capability: res.capability.clone(),
+                                };
+                                match crate::resource::preflight(&resources, &req) {
+                                    Ok(_) => true,
+                                    Err(e) => {
+                                        if let crate::resource::PreflightError::AmbiguousIdentity {
+                                            candidates,
+                                        } = &e
+                                        {
+                                            sup.lock().unwrap().record(crate::events::RuntimeEvent::AmbiguousIdentity {
+                                                device_id: dev_uuid,
+                                                candidates: candidates.clone(),
+                                            });
+                                        } else {
+                                            sup.lock().unwrap().record(crate::events::RuntimeEvent::HealthChanged {
+                                                from: "ready".into(),
+                                                to: "degraded".into(),
+                                            });
+                                        }
+                                        tracing::error!(
+                                            error = %e,
+                                            device_id = %first_id,
+                                            "0.6E Preflight 闸门拒绝物化 (fail-closed, 无隐式回退)"
+                                        );
+                                        *agent_state.lock().unwrap() = health::AgentState::Degraded;
+                                        false
+                                    }
+                                }
+                            }
+                            None => {
+                                sup.lock().unwrap().record(crate::events::RuntimeEvent::HealthChanged {
+                                    from: "ready".into(),
+                                    to: "degraded".into(),
+                                });
+                                tracing::error!(
+                                    device_id = %first_id,
+                                    "0.6E Preflight: 目标设备无已发现 input Resource (fail-closed)"
+                                );
+                                *agent_state.lock().unwrap() = health::AgentState::Degraded;
+                                false
+                            }
+                        }
+                    }
+                    None => true,
+                };
+                if preflight_ok {
+                    match crate::pipeline::materialize(
+                        &intent,
+                        &devices,
+                        mode,
+                        &bindings,
+                        registry.as_ref(),
+                    ) {
                     Ok(plans) => {
                         for p in &plans {
                             tracing::info!(
@@ -632,8 +697,9 @@ fn main() {
                             tracing::info!("canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'");
                         }
                     }
-                    Err(e) => {
-                        tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
+                        Err(e) => {
+                            tracing::error!(error = %e, "CAP-01 canonical ingest 物化失败 (identity 未解析)")
+                        }
                     }
                 }
             } else {

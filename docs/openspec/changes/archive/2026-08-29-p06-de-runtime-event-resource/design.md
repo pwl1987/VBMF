@@ -1,3 +1,15 @@
+---
+title: "Phase 0.6 C2 (0.6D+E): RuntimeEvent / Resource — 技术设计"
+change: p06-de-runtime-event-resource
+change_id: p06-de-runtime-event-resource
+comet_change: p06-de-runtime-event-resource
+role: technical-design
+spec: openspec
+canonical_spec: openspec
+links:
+  - "[p06-de-runtime-event-resource](p06-de-runtime-event-resource)"
+---
+
 # Design: Phase 0.6 C2 — RuntimeEvent / Resource
 
 ## RuntimeEvent（草拟）
