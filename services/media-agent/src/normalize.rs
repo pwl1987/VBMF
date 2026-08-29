@@ -78,9 +78,11 @@ pub struct CanonicalAudioDescription {
 }
 
 /// Clock 引用占位 (纪律③): 只引用 Domain, 本模块绝不决策 clock 策略。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// P0.7B-2A: 可携带 Domain 观测描述 (`clock.rs::CanonicalClockDomain`); normalize 恒 None。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalClockRef {
     pub domain: Option<Uuid>,
+    pub domain_description: Option<Box<crate::clock::CanonicalClockDomain>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,7 +274,10 @@ pub fn normalize_input(raw: &RawInputDescription) -> NormalizeOutcome {
             transport: raw.transport.clone(),
             video,
             audio,
-            clock: CanonicalClockRef { domain: None },
+            clock: CanonicalClockRef {
+                domain: None,
+                domain_description: None,
+            },
         },
         diagnostics,
     }
@@ -398,7 +403,13 @@ mod tests {
         );
         assert_eq!(out.descriptor.audio.embedding, AudioEmbedding::Embedded);
         assert_eq!(out.descriptor.transport, "sdi");
-        assert_eq!(out.descriptor.clock, CanonicalClockRef { domain: None });
+        assert_eq!(
+            out.descriptor.clock,
+            CanonicalClockRef {
+                domain: None,
+                domain_description: None
+            }
+        );
     }
 
     #[test]
