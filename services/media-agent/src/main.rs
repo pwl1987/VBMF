@@ -4,6 +4,7 @@
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod adapters;
+mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
 mod config;
 mod contracts;
 mod device;
@@ -367,6 +368,20 @@ fn main() {
                                 );
                             }
                             Err(e) => eprintln!("descriptor 序列化失败: {e}"),
+                        }
+                        // P0.7B-2A MEDIA-SEMANTICS-RT-01 (Clock 部分, Hardware 层):
+                        // 真机装配 CanonicalClockDomain — 当前无 clock 探针 →
+                        // Unknown 组合 + evidence (终审明确: Unknown 合法; Observation≠Configuration)。
+                        let clock_domain =
+                            crate::clock::CanonicalClockDomain::unknown(uuid::Uuid::nil());
+                        match serde_json::to_string_pretty(&clock_domain) {
+                            Ok(json) => {
+                                println!(
+                                    "=== MEDIA-SEMANTICS-RT-01 Canonical Clock Domain (真机装配) ==="
+                                );
+                                println!("{json}");
+                            }
+                            Err(e) => eprintln!("clock domain 序列化失败: {e}"),
                         }
                     }
                 }
