@@ -13,10 +13,20 @@ use uuid::Uuid;
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum AgentRequest {
     DiscoverDevices,
-    AcquireLease { device_id: Uuid, owner: String, ttl_secs: u64 },
-    ReleaseLease { device_id: Uuid },
-    StartPipeline { intent: crate::graph_intent::GraphRuntimeIntent },
-    StopPipeline { handle: Uuid },
+    AcquireLease {
+        device_id: Uuid,
+        owner: String,
+        ttl_secs: u64,
+    },
+    ReleaseLease {
+        device_id: Uuid,
+    },
+    StartPipeline {
+        intent: crate::graph_intent::GraphRuntimeIntent,
+    },
+    StopPipeline {
+        handle: Uuid,
+    },
     Health,
 }
 

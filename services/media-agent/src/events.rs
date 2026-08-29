@@ -71,18 +71,11 @@ pub enum RuntimeEvent {
         port_id: Option<Uuid>,
     },
     /// 租约已授予 (lease 分配给某 session)。
-    LeaseGranted {
-        device_id: Uuid,
-        lease_id: Uuid,
-    },
+    LeaseGranted { device_id: Uuid, lease_id: Uuid },
     /// 资源已分配 (Resource: Reserved → Allocated)。
-    ResourceAllocated {
-        resource_id: Uuid,
-    },
+    ResourceAllocated { resource_id: Uuid },
     /// 资源预留过期 (Reservation TTL 到期, 自动回收)。
-    ResourceReservationExpired {
-        resource_id: Uuid,
-    },
+    ResourceReservationExpired { resource_id: Uuid },
     /// 管线故障 (可重试, Backend 层; Supervisor 据此决定重启/退避)。
     PipelineFault {
         pipeline: Uuid,
@@ -91,15 +84,9 @@ pub enum RuntimeEvent {
         retryable: bool,
     },
     /// 硬件故障 (需运维介入; 重启无法自愈)。
-    HardwareFault {
-        device_id: Uuid,
-        summary: String,
-    },
+    HardwareFault { device_id: Uuid, summary: String },
     /// 健康状态变化 (AgentState 迁移)。
-    HealthChanged {
-        from: String,
-        to: String,
-    },
+    HealthChanged { from: String, to: String },
     /// 身份歧义 (多重 HIGH 候选 → 拒识, 交由 Policy 决策; 绝不静默择一)。
     AmbiguousIdentity {
         device_id: Uuid,
@@ -229,7 +216,10 @@ impl RuntimeEventLog {
                 g.pop_front();
             } else {
                 // Observation: 只能腾出同级位置; 全 Critical 时丢弃新观测并计数.
-                match g.iter().position(|e| e.severity() == EventSeverity::Observation) {
+                match g
+                    .iter()
+                    .position(|e| e.severity() == EventSeverity::Observation)
+                {
                     Some(idx) => {
                         g.remove(idx);
                     }
@@ -293,13 +283,22 @@ mod tests {
     #[test]
     fn default_mapper_classifies_faults_and_drops_noise() {
         let m = DefaultRuntimeEventMapper;
-        assert!(m.map_upstream(EventSource::Upstream, "hardware: device lost").is_some());
         assert!(m
-            .map_upstream(EventSource::Upstream, "ambiguous identity: 2 high candidates")
+            .map_upstream(EventSource::Upstream, "hardware: device lost")
             .is_some());
-        assert!(m.map_upstream(EventSource::Upstream, "pipeline error: gst bus").is_some());
+        assert!(m
+            .map_upstream(
+                EventSource::Upstream,
+                "ambiguous identity: 2 high candidates"
+            )
+            .is_some());
+        assert!(m
+            .map_upstream(EventSource::Upstream, "pipeline error: gst bus")
+            .is_some());
         // 无故障语义的观测 → 不伪造事件。
-        assert!(m.map_upstream(EventSource::Upstream, "all nominal").is_none());
+        assert!(m
+            .map_upstream(EventSource::Upstream, "all nominal")
+            .is_none());
     }
 
     #[test]
@@ -330,7 +329,10 @@ mod tests {
     fn log_critical_never_evicted_by_observations_and_drops_counted() {
         // P1-3: Critical (fault) 不被 Observation 挤出; 全 Critical 满时新观测被丢弃并计数.
         let log = RuntimeEventLog::with_capacity(2);
-        log.push(RuntimeEvent::HealthChanged { from: "a".into(), to: "b".into() });
+        log.push(RuntimeEvent::HealthChanged {
+            from: "a".into(),
+            to: "b".into(),
+        });
         let fault = RuntimeEvent::PipelineFault {
             pipeline: Uuid::nil(),
             summary: "bus error".into(),
@@ -339,7 +341,10 @@ mod tests {
         log.push(fault.clone());
         assert_eq!(log.len(), 2);
         // 新观测: 只能挤掉 Observation (HealthChanged), 不得挤掉 PipelineFault.
-        log.push(RuntimeEvent::HealthChanged { from: "c".into(), to: "d".into() });
+        log.push(RuntimeEvent::HealthChanged {
+            from: "c".into(),
+            to: "d".into(),
+        });
         let drained = log.drain();
         assert_eq!(drained.len(), 2);
         assert!(drained.contains(&fault), "Critical 事件不得被观测事件挤出");
@@ -356,7 +361,10 @@ mod tests {
             retryable: true,
         });
         assert_eq!(log.len(), 2);
-        log.push(RuntimeEvent::HealthChanged { from: "e".into(), to: "f".into() });
+        log.push(RuntimeEvent::HealthChanged {
+            from: "e".into(),
+            to: "f".into(),
+        });
         assert_eq!(log.len(), 2, "全 Critical 满时观测不入队");
         assert_eq!(log.dropped_observations(), 1);
         // Critical 强推仍可进行 (挤最旧), 且被挤 Critical 计数.

@@ -9,25 +9,25 @@
 
 #[cfg(feature = "gstreamer-backend")]
 use crate::contracts::backend::MediaBackend;
+use crate::pipeline::{
+    src_props, PipelineController, PipelineError, PipelineHandle, PipelineHealth, PipelinePlan,
+    DROPPED_BUS_EVENTS, LAST_FATAL_BUS_EVENT, NEXT_PIPELINE_ID,
+};
+#[cfg(feature = "gstreamer-backend")]
+use glib;
 #[cfg(feature = "gstreamer-backend")]
 use gstreamer::prelude::*;
 #[cfg(feature = "gstreamer-backend")]
 use gstreamer_app::AppSink;
-#[cfg(feature = "gstreamer-backend")]
-use glib;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::sync::Mutex;
-use crate::pipeline::{
-    DROPPED_BUS_EVENTS, LAST_FATAL_BUS_EVENT, NEXT_PIPELINE_ID, PipelineController, PipelineError,
-    PipelineHandle, PipelineHealth, PipelinePlan, src_props,
-};
 // C7: 共享事件/健康类型已物理迁至中性模块 `pipeline_events` (不依赖 gstreamer crate),
 // 此处仅 `use` 业务实现实际用到的子集 (HEALTH_ARCS/BusSeverity/PipelineBusEvent/PipelineBusEventKind);
 // read_health/bus_event_recovery_policy 仅被 main/supervisor 经 `crate::pipeline` 重导出消费, 本实现不引用.
-use crate::pipeline_events::{BusSeverity, HEALTH_ARCS, PipelineBusEvent, PipelineBusEventKind};
+use crate::pipeline_events::{BusSeverity, PipelineBusEvent, PipelineBusEventKind, HEALTH_ARCS};
 /// GStreamer 实现 (feature `gstreamer`).
 pub struct GStreamerPipelineController {
     /// 运行时 pipeline 实例 (GStreamer Bin 对 + 物化计划), 供 start/recover 操作 (P0-2 修复核心:
@@ -211,7 +211,10 @@ impl MediaBackend for GStreamerPipelineController {
                 "未知 pipeline handle (stop): {handle:?}"
             )));
         }
-        crate::pipeline_events::HEALTH_ARCS.lock().unwrap().remove(handle);
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .remove(handle);
         Ok(())
     }
     fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {

@@ -11,7 +11,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceLease {
     pub device_id: Uuid,
-    pub owner: String,        // agent session / pipeline id
+    pub owner: String, // agent session / pipeline id
     pub acquired_at: DateTime<Utc>,
     pub ttl: std::time::Duration,
 }
@@ -51,7 +51,9 @@ pub struct InMemoryLeaseManager {
 
 impl InMemoryLeaseManager {
     pub fn new() -> Self {
-        Self { leases: Mutex::new(HashMap::new()) }
+        Self {
+            leases: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Re-validate a lease. Called by Supervisor before re-entering CAPTURING
@@ -133,7 +135,9 @@ mod tests {
     fn acquire_then_duplicate_fails() {
         let lm = InMemoryLeaseManager::new();
         let id = Uuid::nil();
-        let l1 = lm.acquire(&id, "a", std::time::Duration::from_secs(30)).unwrap();
+        let l1 = lm
+            .acquire(&id, "a", std::time::Duration::from_secs(30))
+            .unwrap();
         assert_eq!(l1.device_id, id);
         let err = lm.acquire(&id, "b", std::time::Duration::from_secs(30));
         assert!(matches!(err, Err(LeaseError::AlreadyLeased(_))));
@@ -143,7 +147,9 @@ mod tests {
     fn release_removes() {
         let lm = InMemoryLeaseManager::new();
         let id = Uuid::nil();
-        let l = lm.acquire(&id, "a", std::time::Duration::from_secs(30)).unwrap();
+        let l = lm
+            .acquire(&id, "a", std::time::Duration::from_secs(30))
+            .unwrap();
         assert!(lm.is_valid(&id));
         lm.release(&l).unwrap();
         assert!(!lm.is_valid(&id));
@@ -153,7 +159,8 @@ mod tests {
     #[test]
     fn health_returns_active_only() {
         let lm = InMemoryLeaseManager::new();
-        lm.acquire(&Uuid::nil(), "a", std::time::Duration::from_secs(30)).unwrap();
+        lm.acquire(&Uuid::nil(), "a", std::time::Duration::from_secs(30))
+            .unwrap();
         assert_eq!(lm.health().len(), 1);
     }
 }

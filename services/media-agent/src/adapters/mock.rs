@@ -30,7 +30,13 @@ const VBMF_MOCK_NS: Uuid = Uuid::from_u128(0x3c4d5e6f_7081_4290_bc1d_3e4f5a6b7c8
 
 /// 构造一个合成发现结果（测试世界，绝不以 hash/合成值伪造真实硬件持久标识——
 /// 证据进入 `ProviderIdentity{provider:"mock"}`, Domain 只见 `IdentitySource::Simulation`）。
-fn mock_device(suffix: &str, model: &str, serial: &str, inputs: u64, outputs: u64) -> DiscoveredDevice {
+fn mock_device(
+    suffix: &str,
+    model: &str,
+    serial: &str,
+    inputs: u64,
+    outputs: u64,
+) -> DiscoveredDevice {
     DiscoveredDevice {
         device: DeviceInfo {
             device_id: Uuid::new_v5(&VBMF_MOCK_NS, format!("vbmf:mock:{suffix}").as_bytes()),
@@ -59,7 +65,13 @@ pub struct MockProvider;
 
 impl HardwareProvider for MockProvider {
     fn discover(&self) -> Result<Vec<DiscoveredDevice>, ProviderError> {
-        Ok(vec![mock_device("mock0", "mock-sdi-capture", "MOCK-A-0001", 1, 0)])
+        Ok(vec![mock_device(
+            "mock0",
+            "mock-sdi-capture",
+            "MOCK-A-0001",
+            1,
+            0,
+        )])
     }
     fn probe_capabilities(&self) -> Vec<CapabilityReport> {
         vec![CapabilityReport {
@@ -107,10 +119,9 @@ pub struct MockBackend;
 
 impl MediaBackend for MockBackend {
     fn instantiate(&self, _plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
-        Ok(PipelineHandle(crate::pipeline::NEXT_PIPELINE_ID.fetch_add(
-            1,
-            std::sync::atomic::Ordering::SeqCst,
-        )))
+        Ok(PipelineHandle(
+            crate::pipeline::NEXT_PIPELINE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+        ))
     }
     fn start(&self, _handle: &PipelineHandle) -> Result<(), PipelineError> {
         Ok(())
@@ -134,7 +145,10 @@ mod tests {
     fn mock_provider_a_discovers_single_device() {
         let devices = MockProvider.discover().expect("mock discover 应成功");
         assert_eq!(devices.len(), 1);
-        assert_eq!(devices[0].device.identity_source, DeviceIdentitySource::Simulation);
+        assert_eq!(
+            devices[0].device.identity_source,
+            DeviceIdentitySource::Simulation
+        );
         assert_eq!(devices[0].device.video_input_connections, 1);
         // 确定性：同输入应得同 device_id（无随机漂移）。
         let again = MockProvider.discover().expect("mock discover 应成功");

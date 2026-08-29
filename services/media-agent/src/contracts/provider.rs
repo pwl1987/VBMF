@@ -64,7 +64,10 @@ pub struct ProviderError {
 impl ProviderError {
     #[allow(dead_code)] // 冻结 SPI 构造形状; 部分组合暂无触发点 (同 ProviderErrorKind)
     pub fn new(kind: ProviderErrorKind, detail: impl Into<String>) -> Self {
-        Self { kind, detail: detail.into() }
+        Self {
+            kind,
+            detail: detail.into(),
+        }
     }
 }
 

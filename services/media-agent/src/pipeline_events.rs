@@ -13,8 +13,9 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 
 /// 运行时健康共享状态 (GStreamer 回调/bus 监控/监控线程共享).
-pub(crate) static HEALTH_ARCS: LazyLock<Mutex<HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+pub(crate) static HEALTH_ARCS: LazyLock<
+    Mutex<HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// 读取管线健康快照 (监控 API 用). 在部分 feature 组合下无调用点 (main 的 health endpoint
 /// 经 cfg 门控), 故允许 dead_code; 与迁移前 `controller.rs` 模块级 `#![allow(dead_code)]` 一致.

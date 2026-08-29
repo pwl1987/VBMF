@@ -3,27 +3,47 @@ name: media-agent CI
 # Validates the Rust Media Agent build without needing DeckLink hardware.
 # The real FFI build (feature `bmd` / `hardware-test`) produces the
 # `media-agent-linux` artifact for BMD acceptance runs.
+#
+# p06-final-merge-hardening (PR#1 终审整改): 由单一聚合 test job 拆分为粒度化
+# required gates — 聚合 check 产生盲区 (hardware-test 回归曾藏身于聚合绿)。
+# Branch protection required contexts (与 job `name` 严格一致):
+#   rust-format / rust-test-matrix / rust-clippy /
+#   hardware-test-compile / architecture-portability / gstreamer-build
 on:
   push:
     branches: [master, main]
   pull_request:
 
+defaults:
+  run:
+    working-directory: services/media-agent
+
 jobs:
-  # Gate A (SoT section 10): pure-CI gates, no hardware required.
-  test:
-    name: Rust media-agent build + test
+  # ── rust-format ──────────────────────────────────────────────────────────────
+  rust-format:
+    name: rust-format
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/media-agent
     steps:
       - uses: actions/checkout@v5
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt
+      - name: Format check (required)
+        run: cargo fmt --all -- --check
 
+  # ── architecture-portability ────────────────────────────────────────────────
+  # ARCH-PORTABILITY-01 两层:
+  #   - Lint (词法): check_arch_portability.py — 防厂商名称以路径引用回渗受保护层。
+  #   - Proof (结构): check_remove_adapters.py — 真实移除 concrete adapters
+  #     (blackmagic/gstreamer) 后 cargo check (simulation/mock)。
+  #   边界表述: Proof 证明的是 "删除 concrete adapter 后 Domain/Contracts/Runtime 的
+  #   指定构建路径仍编译", 非 "整个项目完全 vendor-independent"。
+  architecture-portability:
+    name: architecture-portability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo
         uses: actions/cache@v5
         with:
@@ -31,68 +51,77 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             services/media-agent/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('services/media-agent/Cargo.toml') }}
-
-      - name: Format check (required)
-        run: cargo fmt --all -- --check
-
-      - name: Architecture portability gate (ARCH-PORTABILITY-01 lexical lint)
-        # 禁止 domain / contracts / runtime 层出现厂商 crate 直接引用
-        # (decklink / gstreamer / ffmpeg / srs / aja)。与下方编译门禁互补:
-        # 编译门禁证明 "删除厂商 Provider 后上层仍能编译", 本步骤在词法层
-        # 防止 vendor 名称重新渗入受保护层的真实代码 (注释/字符串/cfg 门控区除外)。
+          key: ${{ runner.os }}-cargo-arch-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      - name: Architecture Lint (ARCH-PORTABILITY-01 lexical)
         run: python3 ${{ github.workspace }}/scripts/check_arch_portability.py
-
-      # P0-5 Architecture Proof gate (p06-final-merge-hardening): 真实移除 concrete
-      # adapters (blackmagic/gstreamer) 目录后在临时副本 cargo check (simulation/mock)。
-      # 与上方词法 Lint 互补 — 本步骤是结构层证明: Domain/Contracts/Runtime 不依赖
-      # 任何 concrete adapter (临时副本操作, 不污染工作区)。
-      - name: Architecture proof gate (remove-adapter compile)
+      - name: Architecture Proof (remove-adapter compile, P0-5)
         run: python3 ${{ github.workspace }}/scripts/check_remove_adapters.py
 
-      - name: Build (skeleton must compile)
+  # ── rust-clippy ──────────────────────────────────────────────────────────────
+  rust-clippy:
+    name: rust-clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            services/media-agent/target
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      - name: Clippy (default, -D warnings)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy (mock, -D warnings)
+        run: cargo clippy --all-targets --features mock -- -D warnings
+      # bmd/gstreamer 组合 clippy 由盒上 (10.30.15.10) ACCEPTANCE 承担 —
+      # CI 无 GStreamer dev / DeckLink SDK, 不重复。
+
+  # ── rust-test-matrix ─────────────────────────────────────────────────────────
+  # 编译门禁 (Test A) + 单测: 禁用厂商 feature 后 Domain/Graph/Session/Supervisor/
+  # Health/Acceptance 必须仍能独立编译并测试通过 (可替换性权威证明)。
+  rust-test-matrix:
+    name: rust-test-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            services/media-agent/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      - name: Build (default)
         env:
           CARGO_TERM_COLOR: always
         run: cargo build
-
-      - name: Clippy (required)
-        run: cargo clippy --all-targets -- -D warnings
-
-      # ARCH-PORTABILITY-01 编译门禁 (Test A): 禁用厂商 feature 后, Domain / Graph /
-      # Session / Supervisor / Health / Acceptance 必须仍能独立编译 —— 即 "删除 BMD /
-      # GStreamer Provider 后上层不依赖具体厂商实现"。此为可替换性的权威证明。
       - name: ARCH-PORTABILITY-01 compile gate — simulation (no vendor adapters)
         run: cargo build --no-default-features --features simulation
-
       - name: ARCH-PORTABILITY-01 compile gate — mock (no vendor adapters)
         run: cargo build --no-default-features --features mock
-
       - name: Test (default features)
         run: cargo test
-
       - name: Test (simulation feature)
         run: cargo test --features simulation
-
-      # ── p06-hi 门禁组 (0.6H+I) — required gates, 与 0.6G (ARCH-PORTABILITY-01) 并列 ──
-      # 断言均以 Rust 测试落地, 随 feature 矩阵执行:
-      # - MEDIA-RT-01 / HW-IDENT-02 / RESOURCE-01: 上方 Test (default + simulation) 已覆盖;
-      # - ARCH-BACKEND-01 (Mock 侧): MockBackend 经 `dyn MediaBackend` 从同一 canonical
-      #   PipelinePlan 物化, 与 GStreamer Backend 在 SPI 层可互换 (本步骤);
-      #   GStreamer 运行期对等由盒上 `cargo test --features bmd,gstreamer` 补证 (CI 无 GStreamer 运行时);
-      # - HW-PORT-01 真机闭环 (MiniMon sink2 → Duo capture0) 与 MEDIA-RT-01 SELFTEST A+B+C:
-      #   由盒上 bmd+gstreamer 构建执行 (基线与结果见 p06-hi verify 报告)。
       - name: Test (mock feature) — p06-hi gates (ARCH-BACKEND-01 Mock side + gate assertions)
-        run: cargo test --no-default-features --features mock
-
+        run: cargo test --features mock
       - name: Upload media-agent Linux binary (default)
         uses: actions/upload-artifact@v4
         with:
           name: media-agent-linux-default
           path: services/media-agent/target/debug/media-agent
 
+  # ── hardware-test-compile ────────────────────────────────────────────────────
   # Bindgen / FFI contract build (Gate 6/7 INDEPENDENT verification).
-  # Builds the `hardware-test` binary (implies `bmd`) and uploads it as the
-  # `media-agent-linux` artifact for BMD acceptance runs.
+  # Builds the `hardware-test` binary (implies `bmd-provider`, NOT gstreamer —
+  # feature 交叉路径: 本 job 曾因 Uuid import 门控过窄而回归, 专设 required gate 防再发).
   #
   # NOTE: the SDK header secrets are 30KB each (GitHub secret value limit < full
   # payload, so split into _1/_2). A JOB-level `if: ${{ secrets.X != '' }}` is NOT
@@ -115,17 +144,14 @@ jobs:
   # CI needs NO DeckLink hardware and NO libDeckLinkAPI.so - it only verifies:
   # SDK headers -> bindgen -> generated bindings -> Rust compile.
   # The real link/open against libDeckLinkAPI.so + real enumeration is owned by BMD.
-  ffi-contract:
-    name: ffi-contract (hardware-test bindgen, SDK-header secret)
+  hardware-test-compile:
+    name: hardware-test-compile
     runs-on: ubuntu-latest
     env:
       DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
       DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
       DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
       DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
-    defaults:
-      run:
-        working-directory: services/media-agent
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -156,14 +182,15 @@ jobs:
         if: always()
         run: rm -rf "${{ github.workspace }}/.github/_private"
 
+  # ── gstreamer-build ──────────────────────────────────────────────────────────
   # Canonical GStreamer runtime build (MEDIA-RT-01 accept on real BMD).
   # Builds `--features bmd,gstreamer` (NOT hardware-test — mutually exclusive with
   # gstreamer per the compile_error! in main.rs). Needs DeckLink SDK headers
   # (bindgen, same secret as ffi-contract) + GStreamer dev (gstreamer-sys pkg-config).
   # Real device open / first GstBuffer is owned by BMD at runtime
   # (libDeckLinkAPI.so + decklink GStreamer plugin), not by CI.
-  build-gstreamer:
-    name: media-agent gstreamer (bmd+gstreamer)
+  gstreamer-build:
+    name: gstreamer-build
     runs-on: ubuntu-latest
     env:
       DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
@@ -171,9 +198,6 @@ jobs:
       DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
       DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
       CARGO_TERM_COLOR: always
-    defaults:
-      run:
-        working-directory: services/media-agent
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable

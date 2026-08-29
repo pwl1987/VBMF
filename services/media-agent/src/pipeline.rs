@@ -356,7 +356,6 @@ pub trait PipelineController {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PipelineHandle(pub u64);
 
-
 /// GStreamer 选卡属性 (decklinkvideosrc/audiosrc).
 ///
 /// 选卡属性语义 (用户复核 §十, 纠正旧注释 "hw-serial-number=<BMD PersistentID>" 的错误表达):
@@ -906,7 +905,9 @@ mod tests {
             .instantiate(&plan)
             .expect("MockBackend instantiate 应接受 canonical plan");
         backend.start(&handle).expect("MockBackend start 应成功");
-        backend.recover(&handle).expect("MockBackend recover 应成功");
+        backend
+            .recover(&handle)
+            .expect("MockBackend recover 应成功");
         backend.stop(&handle).expect("MockBackend stop 应成功");
         assert!(backend.observe(&handle).is_empty());
         // P1-1: 句柄与生产同源分配 (NEXT_PIPELINE_ID, 从 1 起), 绝不为 0 哨兵.

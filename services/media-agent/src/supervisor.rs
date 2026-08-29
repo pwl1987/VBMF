@@ -49,7 +49,9 @@ impl Default for RestartPolicy {
 impl RestartPolicy {
     /// Exponential backoff for the given attempt (0-based), capped at `max_backoff`.
     pub fn backoff_for(&self, attempt: u32) -> Duration {
-        let exp = self.base_backoff.saturating_mul(2u32.saturating_pow(attempt));
+        let exp = self
+            .base_backoff
+            .saturating_mul(2u32.saturating_pow(attempt));
         exp.min(self.max_backoff)
     }
 
@@ -170,7 +172,10 @@ impl Supervisor {
     /// Escalate → `HealthChanged{.. manual_required}`), 经唯一出口写入 `events`。
     pub fn report_failure(&mut self, handle: &Uuid) -> Result<SupervisorAction, SupervisorError> {
         let action = {
-            let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
+            let st = self
+                .states
+                .get_mut(handle)
+                .ok_or(SupervisorError::UnknownHandle)?;
             st.attempts += 1;
             if st.attempts >= self.policy.circuit_threshold {
                 st.circuit_open = true;
@@ -204,7 +209,10 @@ impl Supervisor {
     /// Begin a restart; the caller performs the actual restart then calls
     /// `report_recovered` (success) or `report_failure` (failure) again.
     pub fn begin_restart(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
-        let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
+        let st = self
+            .states
+            .get_mut(handle)
+            .ok_or(SupervisorError::UnknownHandle)?;
         st.state = ProcessState::Restarting;
         Ok(())
     }
@@ -214,7 +222,10 @@ impl Supervisor {
     /// 0.6D: 发射 `HealthChanged{.. recovered}` 事件。
     pub fn report_recovered(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
         {
-            let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
+            let st = self
+                .states
+                .get_mut(handle)
+                .ok_or(SupervisorError::UnknownHandle)?;
             st.state = ProcessState::Recovered;
             st.attempts = 0;
             st.circuit_open = false;
@@ -237,7 +248,10 @@ impl Supervisor {
     /// 0.6D: 发射 `HealthChanged{.. manual_required}` 事件。
     pub fn escalate(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
         {
-            let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
+            let st = self
+                .states
+                .get_mut(handle)
+                .ok_or(SupervisorError::UnknownHandle)?;
             st.state = ProcessState::ManualRequired;
         }
         self.events.push(RuntimeEvent::HealthChanged {
@@ -289,7 +303,11 @@ mod tests {
         s.register(h);
         for i in 0..4 {
             let action = s.report_failure(&h).unwrap();
-            assert_eq!(action, SupervisorAction::Restart, "attempt {i} should restart");
+            assert_eq!(
+                action,
+                SupervisorAction::Restart,
+                "attempt {i} should restart"
+            );
             assert_eq!(s.status(&h), Some(ProcessState::Unhealthy));
             s.begin_restart(&h).unwrap();
         }
@@ -350,11 +368,14 @@ mod tests {
         s.report_failure(&h).unwrap();
         let ev = s.drain_events();
         assert_eq!(ev.len(), 1);
-        assert_eq!(ev[0], RuntimeEvent::PipelineFault {
-            pipeline: h,
-            summary: "health probe failure; restart scheduled".into(),
-            retryable: true,
-        });
+        assert_eq!(
+            ev[0],
+            RuntimeEvent::PipelineFault {
+                pipeline: h,
+                summary: "health probe failure; restart scheduled".into(),
+                retryable: true,
+            }
+        );
         assert!(ev[0].is_fault());
         // drain 后清空。
         assert!(s.drain_events().is_empty());

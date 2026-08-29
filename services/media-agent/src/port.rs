@@ -185,9 +185,12 @@ impl VideoFormat {
             .unwrap_or(0.0);
         let expected_field_rate = if raw > 1000.0 { raw / 100.0 } else { raw };
         // 实测场率 = 帧率 × (隔行 ? 2 : 1).
-        let actual_field_rate = self.frame_rate.as_ref().and_then(|fr| {
-            fr.split('/').next().and_then(|n| n.parse::<f64>().ok())
-        }).unwrap_or(0.0) * if interlaced { 2.0 } else { 1.0 };
+        let actual_field_rate = self
+            .frame_rate
+            .as_ref()
+            .and_then(|fr| fr.split('/').next().and_then(|n| n.parse::<f64>().ok()))
+            .unwrap_or(0.0)
+            * if interlaced { 2.0 } else { 1.0 };
         self.height == height
             && self.interlaced == Some(interlaced)
             && (actual_field_rate - expected_field_rate).abs() < 0.5
@@ -387,7 +390,8 @@ impl PortRegistry {
 
         for entry in &manifest.bindings {
             let Some(dev) = devices.iter().find(|d| {
-                crate::resolver::identity_handle(d).as_deref() == Some(entry.bmd_device_handle.as_str())
+                crate::resolver::identity_handle(d).as_deref()
+                    == Some(entry.bmd_device_handle.as_str())
             }) else {
                 // 设备不在 Discovery 结果中 (硬件变更) — 跳过, 由 Manifest 校验拒绝处理.
                 continue;

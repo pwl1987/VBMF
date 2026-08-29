@@ -18,9 +18,9 @@
 use std::boxed::Box;
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-use std::sync::Arc;
-#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::backend::MediaBackend;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+use std::sync::Arc;
 
 use crate::contracts::provider::HardwareProvider;
 
@@ -91,7 +91,10 @@ pub fn active_adapters() -> (&'static str, &'static str) {
     } else {
         "filesystem"
     };
-    let backend = if cfg!(all(feature = "mock", any(feature = "bmd-provider", feature = "gstreamer-backend"))) {
+    let backend = if cfg!(all(
+        feature = "mock",
+        any(feature = "bmd-provider", feature = "gstreamer-backend")
+    )) {
         "mock"
     } else if cfg!(feature = "gstreamer-backend") {
         "gstreamer"
@@ -114,15 +117,22 @@ impl AdapterRegistry {
     pub fn build_provider() -> Result<Box<dyn HardwareProvider>, String> {
         ensure_adapter_selection_safe()?;
         #[cfg(feature = "mock")]
-        let provider: Box<dyn HardwareProvider> =
-            Box::new(crate::adapters::mock::MockProvider);
+        let provider: Box<dyn HardwareProvider> = Box::new(crate::adapters::mock::MockProvider);
         #[cfg(all(not(feature = "mock"), feature = "simulation"))]
         let provider: Box<dyn HardwareProvider> =
             Box::new(crate::device::SimulatedDeviceManager::new());
-        #[cfg(all(not(feature = "mock"), not(feature = "simulation"), feature = "bmd-provider"))]
+        #[cfg(all(
+            not(feature = "mock"),
+            not(feature = "simulation"),
+            feature = "bmd-provider"
+        ))]
         let provider: Box<dyn HardwareProvider> =
             Box::new(crate::adapters::blackmagic::DeckLinkDeviceManager::new());
-        #[cfg(all(not(feature = "mock"), not(feature = "simulation"), not(feature = "bmd-provider")))]
+        #[cfg(all(
+            not(feature = "mock"),
+            not(feature = "simulation"),
+            not(feature = "bmd-provider")
+        ))]
         let provider: Box<dyn HardwareProvider> =
             Box::new(crate::device::FilesystemDeviceManager::new());
         Ok(provider)
@@ -136,8 +146,7 @@ impl AdapterRegistry {
     pub fn build_media_backend() -> Result<Arc<dyn MediaBackend>, String> {
         ensure_adapter_selection_safe()?;
         #[cfg(feature = "mock")]
-        let backend: Arc<dyn MediaBackend> =
-            Arc::new(crate::adapters::mock::MockBackend);
+        let backend: Arc<dyn MediaBackend> = Arc::new(crate::adapters::mock::MockBackend);
         #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
         let backend: Arc<dyn MediaBackend> =
             Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());

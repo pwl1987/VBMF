@@ -362,7 +362,10 @@ fn topo_of(handle: &str) -> Option<String> {
 /// Topological 为 MEDIUM (拓扑敏感, 仅诊断可用).
 ///
 /// P0-1: SDK 侧身份证据来自 `DiscoveredDevice.identity` (ProviderIdentity), Domain 不携带.
-fn best_kind_for(dev: &DiscoveredDevice, p: &GStreamerDeviceProbe) -> Option<(ResolverMatch, Confidence)> {
+fn best_kind_for(
+    dev: &DiscoveredDevice,
+    p: &GStreamerDeviceProbe,
+) -> Option<(ResolverMatch, Confidence)> {
     let ident: &ProviderIdentity = dev.identity.as_ref()?;
     // 1) PersistentID 精确 (HIGH)
     if let (Some(sdk_pid), Some(gst_pid)) = (ident.persistent_id, p.persistent_id) {
@@ -484,7 +487,11 @@ pub fn resolve(
         };
         evidence.push(ResolverEvidence {
             device_id: dev.device.device_id,
-            model: dev.device.serial_number.clone().or(Some(dev.device.model.clone())),
+            model: dev
+                .device
+                .serial_number
+                .clone()
+                .or(Some(dev.device.model.clone())),
             bmd_device_handle: identity_handle(dev),
             gst_device_number: gst_num,
             gst_hw_serial_number: gst_serial,
@@ -970,7 +977,11 @@ pub fn resolve_with_manifest(
         };
         evidence.push(ResolverEvidence {
             device_id: dev.device.device_id,
-            model: dev.device.serial_number.clone().or(Some(dev.device.model.clone())),
+            model: dev
+                .device
+                .serial_number
+                .clone()
+                .or(Some(dev.device.model.clone())),
             bmd_device_handle: identity_handle(dev),
             gst_device_number: gst_num,
             gst_hw_serial_number: gst_serial,

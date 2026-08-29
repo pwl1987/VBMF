@@ -277,7 +277,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
         Ok(p) => p,
         Err(_) => {
             return (
-                SignalProbeResult { state: SignalState::ProbeFailed, video_format: None, content: VideoContentState::Unknown },
+                SignalProbeResult {
+                    state: SignalState::ProbeFailed,
+                    video_format: None,
+                    content: VideoContentState::Unknown,
+                },
                 None,
             );
         }
@@ -286,7 +290,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
         Ok(p) => p,
         Err(_) => {
             return (
-                SignalProbeResult { state: SignalState::ProbeFailed, video_format: None, content: VideoContentState::Unknown },
+                SignalProbeResult {
+                    state: SignalState::ProbeFailed,
+                    video_format: None,
+                    content: VideoContentState::Unknown,
+                },
                 None,
             );
         }
@@ -294,7 +302,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
     if pipeline.set_state(gstreamer::State::Playing).is_err() {
         let _ = pipeline.set_state(gstreamer::State::Null);
         return (
-            SignalProbeResult { state: SignalState::ProbeFailed, video_format: None, content: VideoContentState::Unknown },
+            SignalProbeResult {
+                state: SignalState::ProbeFailed,
+                video_format: None,
+                content: VideoContentState::Unknown,
+            },
             None,
         );
     }
@@ -303,7 +315,8 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
 
     let src = pipeline.by_name("decklinkvideosrc0");
     let signal = src.as_ref().and_then(|el| {
-        el.find_property("signal").map(|_| el.property::<bool>("signal"))
+        el.find_property("signal")
+            .map(|_| el.property::<bool>("signal"))
     });
     let caps = src
         .as_ref()
@@ -358,7 +371,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
 
     let _ = pipeline.set_state(gstreamer::State::Null);
     (
-        SignalProbeResult { state, video_format: caps, content },
+        SignalProbeResult {
+            state,
+            video_format: caps,
+            content,
+        },
         audio_present,
     )
 }
@@ -440,7 +457,10 @@ fn pull_luma(pipeline: &gstreamer::Pipeline, sample_frames: u32) -> Option<LumaS
 #[cfg(feature = "gstreamer-backend")]
 fn sample_frame_y(pipeline: &gstreamer::Pipeline, width: u32, height: u32) -> Option<Vec<u8>> {
     use gstreamer::prelude::*;
-    let sink = pipeline.by_name("probe")?.downcast::<gstreamer_app::AppSink>().ok()?;
+    let sink = pipeline
+        .by_name("probe")?
+        .downcast::<gstreamer_app::AppSink>()
+        .ok()?;
     let sample = sink.try_pull_sample(gstreamer::ClockTime::from_seconds(1))?;
     let buf = sample.buffer()?;
     let map = buf.map_readable().ok()?;
@@ -489,7 +509,10 @@ fn detect_test_pattern(y: &[u8], width: u32, height: u32) -> bool {
 #[cfg(feature = "gstreamer-backend")]
 fn audio_rms(pipeline: &gstreamer::Pipeline) -> Option<f64> {
     use gstreamer::prelude::*;
-    let sink = pipeline.by_name("aprobe")?.downcast::<gstreamer_app::AppSink>().ok()?;
+    let sink = pipeline
+        .by_name("aprobe")?
+        .downcast::<gstreamer_app::AppSink>()
+        .ok()?;
     let sample = sink.try_pull_sample(gstreamer::ClockTime::from_seconds(1))?;
     let buf = sample.buffer()?;
     let map = buf.map_readable().ok()?;
@@ -590,7 +613,7 @@ pub fn probe_fixture_signal(
                     content: VideoContentState::Unknown,
                 },
                 test_pattern: None,
-            audio_present: None,
+                audio_present: None,
             }
         }
     };
@@ -1030,7 +1053,7 @@ mod tests {
                         content: VideoContentState::Black,
                     },
                     test_pattern: None,
-            audio_present: None,
+                    audio_present: None,
                 }
             } else {
                 FixtureProbe {
@@ -1040,7 +1063,7 @@ mod tests {
                         content: VideoContentState::Active,
                     },
                     test_pattern: None,
-            audio_present: None,
+                    audio_present: None,
                 }
             }
         });

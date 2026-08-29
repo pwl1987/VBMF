@@ -19,9 +19,8 @@ fn main() {
 
 #[cfg(feature = "bmd-provider")]
 fn gen_real() {
-    let include = std::env::var("DECKLINK_SDK_INCLUDE").expect(
-        "DECKLINK_SDK_INCLUDE must point at the DeckLink SDK Linux/include dir (Gate 6/7)",
-    );
+    let include = std::env::var("DECKLINK_SDK_INCLUDE")
+        .expect("DECKLINK_SDK_INCLUDE must point at the DeckLink SDK Linux/include dir (Gate 6/7)");
     let header = format!("{include}/DeckLinkAPI.h");
 
     let bindings = bindgen::Builder::default()
@@ -44,6 +43,9 @@ fn gen_real() {
 #[cfg(not(feature = "bmd-provider"))]
 fn gen_stub() {
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    std::fs::write(out.join("bindings.rs"), "// stub: bmd feature disabled at build time\n")
-        .expect("Couldn't write stub bindings.rs");
+    std::fs::write(
+        out.join("bindings.rs"),
+        "// stub: bmd feature disabled at build time\n",
+    )
+    .expect("Couldn't write stub bindings.rs");
 }

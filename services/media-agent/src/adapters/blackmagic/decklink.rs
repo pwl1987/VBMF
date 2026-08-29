@@ -131,8 +131,7 @@ mod imp {
         SetFlag: Option<unsafe extern "C" fn()>,
         GetFlag: Option<unsafe extern "C" fn()>,
         SetInt: Option<unsafe extern "C" fn()>,
-        GetInt:
-            Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut i64) -> HRESULT>,
+        GetInt: Option<unsafe extern "C" fn(*mut IDeckLinkConfiguration, u32, *mut i64) -> HRESULT>,
         SetFloat: Option<unsafe extern "C" fn()>,
         GetFloat: Option<unsafe extern "C" fn()>,
         SetString: Option<unsafe extern "C" fn()>,
@@ -410,7 +409,7 @@ mod imp {
             let mut video_output_connections = AttrRead::unavailable(hr_attributes);
             let mut attr_source = String::from("none");
             let mut serial = String::new(); // 真实序列号, 独立于 device_handle 读取
-            // B 选项: 各子设备 Connector Mode / 配置方向 (经 IDeckLinkConfiguration 读取)
+                                            // B 选项: 各子设备 Connector Mode / 配置方向 (经 IDeckLinkConfiguration 读取)
             let mut connector_mode = AttrRead::unavailable(hr_attributes);
             let mut cfg_video_in = AttrRead::unavailable(hr_attributes);
             let mut cfg_video_out = AttrRead::unavailable(hr_attributes);

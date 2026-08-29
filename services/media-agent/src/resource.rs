@@ -100,7 +100,12 @@ pub struct ResourceStateError {
 
 impl Resource {
     /// 构造一个 `Available` 资源。
-    pub fn new(id: Uuid, name: impl Into<String>, capability: impl Into<String>, capacity: u32) -> Self {
+    pub fn new(
+        id: Uuid,
+        name: impl Into<String>,
+        capability: impl Into<String>,
+        capacity: u32,
+    ) -> Self {
         Self {
             id,
             name: name.into(),
@@ -124,7 +129,11 @@ impl Resource {
         Ok(())
     }
     /// 预留 (Available → Reserved), 绑定持有者与凭据。
-    pub fn reserve(&mut self, holder: Uuid, token: impl Into<String>) -> Result<(), ResourceStateError> {
+    pub fn reserve(
+        &mut self,
+        holder: Uuid,
+        token: impl Into<String>,
+    ) -> Result<(), ResourceStateError> {
         self.transition(ResourceState::Reserved)?;
         self.reservation = Some(Reservation {
             holder,
@@ -261,11 +270,15 @@ pub struct AcquisitionRequest {
 ///
 /// 在 `materialize` 前调用: 校验目标 Resource 存在 + 能力匹配 + 可用 + 无冲突预留。
 /// 失败返回 `PreflightError` (由上层 Policy 决策); **绝不**静默换硬件/换资源。
-pub fn preflight(registry: &ResourceRegistry, req: &AcquisitionRequest) -> Result<PreflightOutcome, PreflightError> {
+pub fn preflight(
+    registry: &ResourceRegistry,
+    req: &AcquisitionRequest,
+) -> Result<PreflightOutcome, PreflightError> {
     let Some(res) = registry.resources.iter().find(|r| r.id == req.resource_id) else {
-        return Err(PreflightError::ResourceUnavailable(
-            format!("resource {} not in discovery", req.resource_id),
-        ));
+        return Err(PreflightError::ResourceUnavailable(format!(
+            "resource {} not in discovery",
+            req.resource_id
+        )));
     };
     // 能力交叉校验: 请求能力必须与资源能力一致 (防把 encode-slot 当 sdi-input 用)。
     if res.capability != req.expected_capability {
@@ -444,18 +457,39 @@ mod tests {
         rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
         // 不存在。
         assert!(matches!(
-            preflight(&rr, &AcquisitionRequest { holder: Uuid::nil(), resource_id: Uuid::new_v4(), expected_capability: "sdi-input".into() }),
+            preflight(
+                &rr,
+                &AcquisitionRequest {
+                    holder: Uuid::nil(),
+                    resource_id: Uuid::new_v4(),
+                    expected_capability: "sdi-input".into()
+                }
+            ),
             Err(PreflightError::ResourceUnavailable(_))
         ));
         // 能力错配。
         assert!(matches!(
-            preflight(&rr, &AcquisitionRequest { holder: Uuid::nil(), resource_id: id, expected_capability: "hdmi-input".into() }),
+            preflight(
+                &rr,
+                &AcquisitionRequest {
+                    holder: Uuid::nil(),
+                    resource_id: id,
+                    expected_capability: "hdmi-input".into()
+                }
+            ),
             Err(PreflightError::ResourceUnavailable(_))
         ));
         // 已被占用 (Reserved) → 不抢占。
         rr.resources[0].reserve(Uuid::new_v4(), "t").unwrap();
         assert!(matches!(
-            preflight(&rr, &AcquisitionRequest { holder: Uuid::nil(), resource_id: id, expected_capability: "sdi-input".into() }),
+            preflight(
+                &rr,
+                &AcquisitionRequest {
+                    holder: Uuid::nil(),
+                    resource_id: id,
+                    expected_capability: "sdi-input".into()
+                }
+            ),
             Err(PreflightError::NotAcquirable(_))
         ));
     }
@@ -467,9 +501,7 @@ mod tests {
         let mut rr = ResourceRegistry::new();
         let id = Uuid::new_v4();
         rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
-        rr.resources[0]
-            .reserve(Uuid::new_v4(), "t")
-            .unwrap();
+        rr.resources[0].reserve(Uuid::new_v4(), "t").unwrap();
         rr.resources[0].allocate().unwrap();
         rr.resources[0].fault().unwrap();
         assert_eq!(rr.resources[0].state, ResourceState::Faulted);
@@ -509,10 +541,7 @@ mod tests {
     fn resolve_identity_rejects_ambiguity() {
         // 单候选 + 已选择 → 通过。
         let id = Uuid::new_v4();
-        assert_eq!(
-            resolve_identity(Some(id), vec!["c1".into()]),
-            Ok(id)
-        );
+        assert_eq!(resolve_identity(Some(id), vec!["c1".into()]), Ok(id));
         // 无候选 → 不可用。
         assert!(matches!(
             resolve_identity(None, vec![]),
