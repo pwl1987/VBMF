@@ -497,17 +497,41 @@ impl SessionManager {
         };
         self.set_phase(id, SessionPhase::Starting)?;
 
-        // 步 1: materialize (纯函数; 失败无副作用)。
-        let plans = crate::pipeline::materialize(
+        // 步 1: materialize (纯函数)。**P0 (Round 3)**: 此时本会话已持有 lease/reservation —
+        // materialize 失败 (identity/binding/runtime address/设备消失) 必须回滚,
+        // Starting 相位绝不遗留 (RUNTIME_LIFECYCLE_SEQUENCE §2 零孤儿)。
+        let plans = match crate::pipeline::materialize(
             &intent,
             &self.devices,
             mode,
             &self.bindings,
             self.registry.as_ref(),
-        )?;
-        let plan = plans
-            .first()
-            .ok_or_else(|| SessionError::InvalidTransition("materialize 产出空计划".into()))?;
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                self.rollback_lease_and_reservation(id, &holder);
+                let _ = self.set_phase(id, SessionPhase::StartFailed);
+                self.emit(RuntimeEvent::SessionFailed {
+                    session_id: id.0,
+                    reason: format!("materialize: {e}"),
+                });
+                return Err(e.into());
+            }
+        };
+        let plan = match plans.first() {
+            Some(p) => p,
+            None => {
+                self.rollback_lease_and_reservation(id, &holder);
+                let _ = self.set_phase(id, SessionPhase::StartFailed);
+                self.emit(RuntimeEvent::SessionFailed {
+                    session_id: id.0,
+                    reason: "materialize 产出空计划".into(),
+                });
+                return Err(SessionError::InvalidTransition(
+                    "materialize 产出空计划".into(),
+                ));
+            }
+        };
         self.emit(RuntimeEvent::SourceMaterialized {
             device_id: intent
                 .devices
@@ -1135,7 +1159,7 @@ mod tests {
         fn stop(&self, _handle: &PipelineHandle) -> Result<(), crate::pipeline::PipelineError> {
             self.stop_called.store(true, Ordering::SeqCst);
             if self.fail_at == FailAt::Stop {
-                return Err(crate::pipeline::PipelineError::StartFailed(
+                return Err(crate::pipeline::PipelineError::StopFailed(
                     "injected stop failure".into(),
                 ));
             }
@@ -1632,5 +1656,45 @@ mod tests {
             }
         });
         assert_zero_orphans(&mgr, &lm);
+    }
+
+    #[test]
+    fn session_rt_01_materialize_failure_rolls_back_everything() {
+        // Round 3 P0: materialize 失败 (intent 引用未注册设备 → IdentityUnresolved) →
+        // Starting 相位不得遗留 lease/reservation — 全部回滚 + StartFailed (会话保留供诊断)。
+        let devices = mock_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm.clone());
+        let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
+        assert!(!lm.list_active().is_empty(), "前置: create 已持有租约");
+        // 人为把会话图换成引用未注册设备的 intent (绕过 create 的 Preflight,
+        // 直接驱动 start 的 materialize 失败分支 — 真实失败可能: identity/binding/设备消失)。
+        let mut ghost = devices[0].clone();
+        ghost.device_id = Uuid::new_v4();
+        mgr.sessions
+            .lock()
+            .unwrap()
+            .get_mut(&sid)
+            .unwrap()
+            .session
+            .graphs = intent_for(&ghost);
+        let err = mgr.start(&sid).expect_err("materialize 失败应传播");
+        assert!(matches!(err, SessionError::Pipeline(_)));
+        // 零孤儿断言: Starting 相位不得遗留 lease/reservation。
+        assert!(lm.list_active().is_empty(), "lease 必须已回滚");
+        mgr.resources.with_inner(|reg| {
+            for r in &reg.resources {
+                assert_eq!(
+                    r.state,
+                    crate::resource::ResourceState::Available,
+                    "reservation 必须已回滚"
+                );
+            }
+        });
+        let s = mgr.status(&sid).expect("失败会话保留供诊断");
+        assert_eq!(s.phase, SessionPhase::StartFailed);
+        assert!(s.pipeline.is_none());
+        assert!(s.leases.is_empty());
+        mgr.close(&sid).expect("失败终态 close 应成功");
     }
 }
