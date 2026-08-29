@@ -1,5 +1,13 @@
 # CANONICAL_IDENTITY — Canonical 身份标识契约
 
+> **[实现落地注记 2026-08-29, p06-final-merge-hardening]** §4 已在实现侧收口 (P0-1):
+> `DeviceInfo` (Canonical Domain) 不再携带 `bmd_persistent_id`/`bmd_device_handle`/`bmd_topological_id`;
+> 证据随 `DiscoveredDevice.identity` (`contracts::provider::ProviderIdentity`, SPI 层) 配对输出,
+> 仅由 Provider Identity Adapter (`resolver`/绑定路径) 消费。
+> 持久化证据文件 (DeviceBindingManifest / ResolverEvidence JSON) 的 `bmd_device_handle` **键名保留**
+> —— 它们是宿主证据/诊断输出, 非 Domain schema。
+
+
 > 状态：CONTRACT = FROZEN；IMPLEMENTATION = NOT_STARTED；VERIFICATION = NOT_VERIFIED；GATE = PENDING（Phase 0.6, P0）
 > 来源：API PRD 评审 §3.5-P（#93/#94/#147 与 Portability #8/#11 应共享"稳定身份"定义）；用户 Final Hardening 审查（2026-08-28）第 ①/② 优先项。
 > 关联：`CANONICAL_MEDIA_MODEL.md`、`HARDWARE_PROVIDER_CONTRACT.md`、`RUNTIME_SESSION_MODEL.md`、`DEVICE_INTEGRATION_CONTRACT.md`

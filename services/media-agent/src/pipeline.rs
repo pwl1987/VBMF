@@ -14,21 +14,20 @@
 use crate::device::{DeviceInfo, IdentityStrength};
 use crate::graph_intent::GraphRuntimeIntent;
 use crate::port::{ConnectorType, PortDirection};
-#[cfg(feature = "gstreamer")]
-use gstreamer::prelude::*;
-#[cfg(feature = "gstreamer")]
-use gstreamer_app::AppSink;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "gstreamer")]
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(feature = "gstreamer")]
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::Mutex;
 use uuid::Uuid;
 
+// C7: 共享事件/健康类型与全局健康表 (HEALTH_ARCS/read_health/BusSeverity/PipelineBusEvent/
+// PipelineBusEventKind/bus_event_recovery_policy) 已物理迁至中性模块 `pipeline_events.rs`
+// (不依赖 vendor `gstreamer` crate, 在 default/simulation/mock 无 gstreamer 构建下也须编译).
+// 消费方 (main.rs / contracts/backend.rs / adapters/mock.rs) 直接 `use crate::pipeline_events::*`,
+// `pipeline.rs` 仅引用自身用到的 `PipelineBusEvent` (LAST_FATAL_BUS_EVENT / last_fatal_bus_event).
+use crate::pipeline_events::PipelineBusEvent;
+
 /// 全局唯一 pipeline 句柄计数器 (P1-1: 多 controller 共用全局 `HEALTH_ARCS` 时避免 handle 碰撞).
-static NEXT_PIPELINE_ID: AtomicU64 = AtomicU64::new(1);
+pub(crate) static NEXT_PIPELINE_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Bus 事件因 channel 满被丢弃的累计计数 (P1 §十三: 溢出策略).
 /// 关键 ERROR/EOS 事件溢出时仍存 sticky (`LAST_FATAL_BUS_EVENT`), 此处仅计数, 不静默丢失语义.
@@ -76,8 +75,9 @@ pub enum SourceSelectionMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourcePlan {
     pub device_id: String,
-    /// 真实 BMD PersistentID (仅 PersistentIdCanonical 模式使用; 否则 `None`).
-    pub bmd_persistent_id: Option<i64>,
+    /// Provider 侧持久标识 (P0-1 中立化: 经 Resolver 绑定从 ProviderIdentity 证据透传;
+    /// PersistentIdCanonical 模式使用; 否则 `None`. 字段名不冠 vendor 专名).
+    pub provider_persistent_id: Option<i64>,
     /// Resolver 解析后的 GStreamer `device-number` (DeviceHandleResolved/DiagnosticFallback 使用).
     pub device_number: u32,
     /// 物理连接器类型 (由 PortRegistry 经 Manifest 声明 + 运行时探测推导得到). 决定 GStreamer
@@ -87,7 +87,7 @@ pub struct SourcePlan {
     pub selection_mode: SourceSelectionMode,
 }
 
-/// 物化后的管线计划 (控制面只给 VBMF `device_id`; bmd_persistent_id / device-number 由 materialize 解析).
+/// 物化后的管线计划 (控制面只给 VBMF `device_id`; provider_persistent_id / device-number 由 materialize 解析).
 ///
 /// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
 /// `persistent-id` 仅在 PersistentID 可用时由 `materialize` 填 (当前硬件走 device-number 路径).
@@ -115,7 +115,7 @@ impl PipelinePlan {
         PipelinePlan {
             source: SourcePlan {
                 device_id: "self-test".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 0,
                 connector: None,
                 selection_mode: SourceSelectionMode::SelfTest,
@@ -356,467 +356,6 @@ pub trait PipelineController {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PipelineHandle(pub u64);
 
-/// GStreamer 实现 (feature `gstreamer`).
-pub struct GStreamerPipelineController {
-    /// 运行时 pipeline 实例 (GStreamer Bin 对 + 物化计划), 供 start/recover 操作 (P0-2 修复核心:
-    /// 旧 `launch()` 内部 Bin 未留存, start/recover 无对象可操作). 非 gstreamer 构建无此字段.
-    #[cfg(feature = "gstreamer")]
-    instances: Mutex<HashMap<PipelineHandle, GstInstance>>,
-}
-
-/// 运行时 pipeline 实例 (仅 gstreamer 构建存在).
-///
-/// P1-4: 由 **单个** `GstPipeline`(内含 video+audio 两路 branch) 取代原先分离的两个 `Bin`
-/// (PIPELINE-AV-01 前置: 统一 Bus + 单一 Clock domain). Bus watch 运行在专用 GLib
-/// MainContext 线程 (`thread` + `stop_flag`), 经 bounded mpsc (`bus_rx`) 把事件交给 `poll_bus`.
-#[cfg(feature = "gstreamer")]
-struct GstInstance {
-    pipeline: gstreamer::Pipeline,
-    plan: PipelinePlan,
-    bus_rx: Receiver<PipelineBusEvent>,
-    stop_flag: Arc<std::sync::atomic::AtomicBool>,
-    thread: Option<std::thread::JoinHandle<()>>,
-}
-
-#[cfg(feature = "gstreamer")]
-impl GstInstance {
-    /// 通知 Bus watch 线程退出并释放 DeckLink 设备 (recover / drop 前置).
-    fn stop(&mut self) {
-        self.stop_flag
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-        if let Some(t) = self.thread.take() {
-            let _ = t.join();
-        }
-        let _ = self.pipeline.set_state(gstreamer::State::Null);
-    }
-}
-
-impl GStreamerPipelineController {
-    pub fn new() -> Self {
-        Self {
-            #[cfg(feature = "gstreamer")]
-            instances: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-impl Default for GStreamerPipelineController {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PipelineController for GStreamerPipelineController {
-    fn prepare(&self, plan: &PipelinePlan) -> Result<PipelineHandle, PipelineError> {
-        #[cfg(feature = "gstreamer")]
-        {
-            let handle = PipelineHandle(NEXT_PIPELINE_ID.fetch_add(1, Ordering::SeqCst));
-            // 每个 pipeline 实例独占一条 bounded mpsc channel: Bus watch 投递, poll_bus 非阻塞 drain.
-            let (bus_tx, bus_rx) = sync_channel::<PipelineBusEvent>(256);
-            let (pipeline, thread, stop_flag) = self.build_pipeline(plan, handle, bus_tx)?;
-            // 注册健康 (默认全 false — P1-2; 由真实事件逐项置 true).
-            HEALTH_ARCS
-                .lock()
-                .unwrap()
-                .insert(handle, Arc::new(Mutex::new(PipelineHealth::default())));
-            if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(&handle) {
-                hp.lock().unwrap().started_at = Some(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_secs() as i64)
-                        .unwrap_or(0),
-                );
-            }
-            self.instances.lock().unwrap().insert(
-                handle,
-                GstInstance {
-                    pipeline,
-                    plan: plan.clone(),
-                    bus_rx,
-                    stop_flag,
-                    thread: Some(thread),
-                },
-            );
-            Ok(handle)
-        }
-        #[cfg(not(feature = "gstreamer"))]
-        {
-            let _ = plan;
-            Ok(PipelineHandle(1))
-        }
-    }
-
-    fn start(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
-        #[cfg(feature = "gstreamer")]
-        {
-            // 统一 GstPipeline: 单一 set_state(Playing) 同时启动 video+audio 两路 (P1-4).
-            let res = {
-                let guard = self.instances.lock().unwrap();
-                let inst = guard.get(handle).ok_or_else(|| {
-                    PipelineError::StartFailed(format!("未知 pipeline handle (start): {handle:?}"))
-                })?;
-                inst.pipeline.set_state(gstreamer::State::Playing)
-            };
-            res.map_err(|e| PipelineError::StartFailed(format!("pipeline play: {e}")))?;
-            // 标记 playing (watchdog 推导 a3_pipeline_playing). 与 instances 锁不嵌套, 避免死锁.
-            if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(handle) {
-                hp.lock().unwrap().playing = true;
-            }
-            Ok(())
-        }
-        #[cfg(not(feature = "gstreamer"))]
-        {
-            let _ = handle;
-            Ok(())
-        }
-    }
-
-    fn recover(&self, handle: &PipelineHandle) -> Result<(), PipelineError> {
-        #[cfg(feature = "gstreamer")]
-        {
-            let plan = {
-                let guard = self.instances.lock().unwrap();
-                guard.get(handle).map(|i| i.plan.clone()).ok_or_else(|| {
-                    PipelineError::StartFailed(format!(
-                        "未知 pipeline handle (recover): {handle:?}"
-                    ))
-                })?
-            };
-            // 停止并丢弃旧实例: 通知 GLib 线程退出 + join + 释放 DeckLink 设备.
-            if let Some(mut old) = self.instances.lock().unwrap().remove(handle) {
-                old.stop();
-            }
-            // 重建统一 GstPipeline (新 bus channel).
-            let (bus_tx, bus_rx) = sync_channel::<PipelineBusEvent>(256);
-            let (pipeline, thread, stop_flag) = self.build_pipeline(&plan, *handle, bus_tx)?;
-            pipeline
-                .set_state(gstreamer::State::Playing)
-                .map_err(|e| PipelineError::StartFailed(format!("pipeline play: {e}")))?;
-            self.instances.lock().unwrap().insert(
-                *handle,
-                GstInstance {
-                    pipeline,
-                    plan,
-                    bus_rx,
-                    stop_flag,
-                    thread: Some(thread),
-                },
-            );
-            if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(handle) {
-                hp.lock().unwrap().playing = true;
-            }
-            Ok(())
-        }
-        #[cfg(not(feature = "gstreamer"))]
-        {
-            let _ = handle;
-            Ok(())
-        }
-    }
-}
-
-/// 运行时健康共享状态 (GStreamer 回调/bus 监控/监控线程共享).
-pub(crate) static HEALTH_ARCS: LazyLock<
-    Mutex<std::collections::HashMap<PipelineHandle, Arc<Mutex<PipelineHealth>>>>,
-> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
-
-/// 读取管线健康快照 (监控 API 用).
-pub fn read_health(handle: &PipelineHandle) -> Option<PipelineHealth> {
-    HEALTH_ARCS
-        .lock()
-        .unwrap()
-        .get(handle)
-        .map(|h| h.lock().unwrap().clone())
-}
-
-/// GStreamer Bus 事件严重度 (喂 Supervisor 决策时判优先级).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BusSeverity {
-    /// 致命: pipeline error / 解码失败 → Supervisor 必响应.
-    Error,
-    /// 告警: Warning / ClockLost 等可恢复异常.
-    Warning,
-    /// 信息: StateChanged / Eos / AsyncDone 等正常生命周期事件.
-    Info,
-}
-
-/// GStreamer Bus 事件类型 (P1-4: 覆盖 Error/EOS/StateChanged/Warning/ClockLost, 真实接线到 Supervisor).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PipelineBusEventKind {
-    Error,
-    Eos,
-    StateChanged,
-    Warning,
-    /// ClockLost 等 AV 同步相关 (PIPELINE-AV 后续消费; 当前仅记录).
-    ClockLost,
-}
-
-/// Bus 事件 → Supervisor 恢复策略 (P1-4 最低策略映射, 用户复核 §十二):
-/// - `Error` / `Eos`     : 致命 → 触发 Supervisor `report_failure` (重启/升级).
-/// - `ClockLost`         : 降级 (degraded), **不**自动重启 (完整 Clock Recovery 属 V0.3/P2); 仅计数 + 健康降级.
-/// - `Warning`           : 告警, 记录 + 日志, 不重启.
-/// - `StateChanged`      : 信息, 仅生命周期日志.
-pub fn bus_event_recovery_policy(kind: PipelineBusEventKind) -> &'static str {
-    match kind {
-        PipelineBusEventKind::Error | PipelineBusEventKind::Eos => "restart",
-        PipelineBusEventKind::ClockLost => "degraded",
-        PipelineBusEventKind::Warning => "warn",
-        PipelineBusEventKind::StateChanged => "info",
-    }
-}
-
-/// GStreamer Bus 事件 (监控线程消费, 喂 Supervisor 决策).
-///
-/// P1-4 改造 (用户复核 §七): 之前只有 `Error(String)` 等薄枚举, 多 pipeline 后无法诊断
-/// "哪一路出的错". 现结构化携带 `handle`(哪条管线) / `source`(哪个 element 发出) /
-/// `timestamp`(观测墙钟 ms) / `detail`(错误串/状态转移) / `severity`. 事件经专门 GLib
-/// MainContext 线程的 Bus watch 投递进 bounded mpsc channel, `poll_bus` 非阻塞 drain.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PipelineBusEvent {
-    pub handle: PipelineHandle,
-    pub kind: PipelineBusEventKind,
-    pub source: String,
-    pub timestamp: i64,
-    pub detail: String,
-    pub severity: BusSeverity,
-}
-
-impl GStreamerPipelineController {
-    /// 构造 decklinkvideosrc/audiosrc → video/x-raw → appsink 的采集 pipeline (P0-2 修复核心).
-    /// 仅构建 + 注册 appsink 回调, **不**立即 Playing; Playing 由 `PipelineController::start` 负责
-    /// (统一生命周期: prepare 构建 → start 播放 → recover 重建+播放). 旧 `launch()` 已被此拆分取代,
-    /// 不再作为绕过 `PipelineController` 的第二入口.
-    ///
-    /// 注: appsink 当前用作 MEDIA-RT-01 首帧/PTS acceptance 探针; 最终生产媒体出口
-    /// (Normalize → FRAME/MASTER SWITCH → Encode → SRS) 待 A2+ 实现 (用户复核 §十三).
-    /// 构造 **单个** `GstPipeline`(video+audio 两路 branch 同处一个 pipeline) — P1-4 前置
-    /// (PIPELINE-AV-01: 统一 Bus + 单一 Clock domain). 挂载 appsink 回调(首帧/PTS 探针),
-    /// 并在专用 GLib MainContext 线程上挂 Bus watch, 把 Error/EOS/StateChanged/Warning/ClockLost
-    /// 经 bounded mpsc 投递; `poll_bus` 非阻塞 drain.
-    ///
-    /// 旧 `build_bins` 把 video/audio 拆成两个独立 `Bin`(各自无统一 Bus/Clock), 导致 `poll_bus`
-    /// 只能 stub. 现统一为单 `GstPipeline`, Bus watch 才能真实生效.
-    /// GLib main loop 必须运行 (用户复核 §五): watch 回调在 `MainLoop` 迭代的 MainContext 上分发,
-    /// 故 spawn 专用线程持有 `MainContext`+`MainLoop` 并 `run()`.
-    #[cfg(feature = "gstreamer")]
-    fn build_pipeline(
-        &self,
-        plan: &PipelinePlan,
-        handle: PipelineHandle,
-        bus_tx: SyncSender<PipelineBusEvent>,
-    ) -> Result<
-        (
-            gstreamer::Pipeline,
-            std::thread::JoinHandle<()>,
-            Arc<std::sync::atomic::AtomicBool>,
-        ),
-        PipelineError,
-    > {
-        gstreamer::init().map_err(|e| PipelineError::StartFailed(format!("gst init: {e}")))?;
-        let (video_src, audio_src) = src_props(plan);
-        // 单一 launch 串内含两条 branch → 同属一个 GstPipeline (共享 Bus/Clock).
-        let video_branch =
-            format!("{video_src} ! video/x-raw ! appsink name=videosink async=false");
-        let audio_branch =
-            format!("{audio_src} ! audio/x-raw ! appsink name=audiosink async=false");
-        let launch = format!("{video_branch} {audio_branch}");
-        let pipeline = gstreamer::parse::launch(&launch)
-            .map_err(|e| PipelineError::StartFailed(format!("pipeline parse: {e}")))?
-            .dynamic_cast::<gstreamer::Pipeline>()
-            .map_err(|_| PipelineError::StartFailed("launch 结果非 GstPipeline".into()))?;
-        let v_appsink = pipeline
-            .by_name("videosink")
-            .and_then(|e| e.dynamic_cast::<AppSink>().ok())
-            .ok_or_else(|| PipelineError::StartFailed("videosink cast".into()))?;
-        let a_appsink = pipeline
-            .by_name("audiosink")
-            .and_then(|e| e.dynamic_cast::<AppSink>().ok())
-            .ok_or_else(|| PipelineError::StartFailed("audiosink cast".into()))?;
-
-        self.attach_video_sink(&v_appsink, handle);
-        self.attach_audio_sink(&a_appsink, handle);
-
-        // —— Bus watch: 专用 GLib MainContext/MainLoop 线程 (用户复核 §五/§六) ——
-        // 注意: Bus watch 回调只在 MainLoop 迭代其 MainContext 时才分发. 因此必须有独立线程
-        // 持有 MainContext 并 run MainLoop; 否则编译通过但事件永远不到 (用户 §五 风险点).
-        let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let stop_for_thread = stop_flag.clone();
-        let p = pipeline.clone();
-        let thread = std::thread::spawn(move || {
-            let ctx = glib::MainContext::default();
-            // 把 ctx 设为该线程 thread-default, 使 MainLoop(Some(&ctx)) 与 add_watch/timeout 都使用同一 ctx
-            // (GLib main loop 必须运行, 否则 watch 回调永不分发 — 用户 §五 风险点).
-            let res = ctx.with_thread_default(|| {
-                let ml = std::rc::Rc::new(glib::MainLoop::new(Some(&ctx), false));
-                let bus = match p.bus() {
-                    Some(b) => b,
-                    None => {
-                        tracing::warn!(handle = %handle.0, "pipeline 无 bus, Bus watch 未挂载");
-                        return;
-                    }
-                };
-                let tx = bus_tx.clone();
-                let h = handle;
-                // watch 回调: 把消息翻译为结构化 PipelineBusEvent 投递进 channel.
-                let _watch = bus
-                    .add_watch(move |_, msg| {
-                        if let Some(evt) = GStreamerPipelineController::translate_bus(msg, h) {
-                            // 致命事件 (Error/EOS) 永不静默丢弃: 先存 sticky 副本 (即便 channel 满也能被读取).
-                            if evt.kind == PipelineBusEventKind::Error
-                                || evt.kind == PipelineBusEventKind::Eos
-                            {
-                                *LAST_FATAL_BUS_EVENT.lock().unwrap() = Some(evt.clone());
-                            }
-                            // 非阻塞投递: 满则计数丢弃 (不阻塞 GLib watch 线程); 但致命事件已留存 sticky.
-                            match tx.try_send(evt) {
-                                Ok(()) => {}
-                                Err(std::sync::mpsc::TrySendError::Full(_)) => {
-                                    DROPPED_BUS_EVENTS.fetch_add(1, Ordering::SeqCst);
-                                    tracing::warn!(handle = %h.0, "Bus channel 溢出: 事件被计数为丢弃 (ERROR/EOS 已存 sticky, 不静默丢失)");
-                                }
-                                Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
-                                    tracing::warn!(handle = %h.0, "Bus channel 已断开 (controller dropped)");
-                                }
-                            }
-                        }
-                        glib::ControlFlow::Continue
-                    })
-                    .expect("bus add_watch 失败");
-                // 周期检查 stop_flag, 置位则退出 MainLoop (recover/stop 时通知线程结束, 避免线程泄漏).
-                let ml_timeout = ml.clone();
-                let stop = stop_for_thread.clone();
-                glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
-                    if stop.load(std::sync::atomic::Ordering::SeqCst) {
-                        ml_timeout.quit();
-                        glib::ControlFlow::Break
-                    } else {
-                        glib::ControlFlow::Continue
-                    }
-                });
-                ml.run();
-                tracing::debug!(handle = %h.0, "GStreamer Bus watch 线程退出");
-            });
-            if let Err(e) = res {
-                tracing::warn!(error = %e, "Bus watch MainContext 推送失败");
-            }
-        });
-        Ok((pipeline, thread, stop_flag))
-    }
-
-    /// 将 GStreamer `Message` 翻译为结构化 `PipelineBusEvent` (P1-4).
-    /// 仅保留 Supervisor 关心的 Error/EOS/StateChanged/Warning/ClockLost; 其余消息忽略.
-    #[cfg(feature = "gstreamer")]
-    fn translate_bus(msg: &gstreamer::Message, handle: PipelineHandle) -> Option<PipelineBusEvent> {
-        let (kind, severity, detail) = match msg.view() {
-            gstreamer::MessageView::Error(e) => (
-                PipelineBusEventKind::Error,
-                BusSeverity::Error,
-                format!("{} | debug={:?}", e.error(), e.debug()),
-            ),
-            gstreamer::MessageView::Eos(_) => (
-                PipelineBusEventKind::Eos,
-                BusSeverity::Info,
-                "end-of-stream".to_string(),
-            ),
-            gstreamer::MessageView::Warning(w) => (
-                PipelineBusEventKind::Warning,
-                BusSeverity::Warning,
-                format!("{}", w.error()),
-            ),
-            gstreamer::MessageView::StateChanged(sc) => (
-                PipelineBusEventKind::StateChanged,
-                BusSeverity::Info,
-                format!("{:?} -> {:?}", sc.old(), sc.current()),
-            ),
-            gstreamer::MessageView::ClockLost(_) => (
-                PipelineBusEventKind::ClockLost,
-                BusSeverity::Warning,
-                "clock-lost".to_string(),
-            ),
-            _ => return None,
-        };
-        let source = msg.src().map(|s| s.name().to_string()).unwrap_or_default();
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as i64)
-            .unwrap_or(0);
-        Some(PipelineBusEvent {
-            handle,
-            kind,
-            source,
-            timestamp,
-            detail,
-            severity,
-        })
-    }
-
-    /// 注册视频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B).
-    #[cfg(feature = "gstreamer")]
-    fn attach_video_sink(&self, sink: &AppSink, handle: PipelineHandle) {
-        sink.set_callbacks(
-            gstreamer_app::AppSinkCallbacks::builder()
-                .new_sample(move |sink| {
-                    let sample = sink.pull_sample().map_err(|_| gstreamer::FlowError::Eos)?;
-                    let buf = sample.buffer().ok_or(gstreamer::FlowError::Error)?;
-                    if let Some(h) = HEALTH_ARCS.lock().unwrap().get(&handle) {
-                        let mut h = h.lock().unwrap();
-                        h.video_frame_count += 1;
-                        let pts = buf.pts().map(|c| c.nseconds());
-                        if let Some(pts) = pts {
-                            // 记录首帧 PTS (与单调性状态解耦, P1-3).
-                            if h.video_first_pts.is_none() {
-                                h.video_first_pts = Some(pts);
-                            }
-                            // 真正单调性三态机 (用户复核 §十一/§三 P1-3): 首有效 PTS → ValidMonotonic,
-                            // 回退 → NonMonotonic (sticky). 无 PTS 帧 (None) 已在上方跳过, 不污染判定.
-                            h.observe_video_pts(pts);
-                        }
-                    }
-                    Ok(gstreamer::FlowSuccess::Ok)
-                })
-                .build(),
-        );
-    }
-
-    /// 注册音频 appsink 回调: 首帧/PTS 探测 (MEDIA-RT-01 B, 含真实单调判定).
-    #[cfg(feature = "gstreamer")]
-    fn attach_audio_sink(&self, sink: &AppSink, handle: PipelineHandle) {
-        sink.set_callbacks(
-            gstreamer_app::AppSinkCallbacks::builder()
-                .new_sample(move |sink| {
-                    let sample = sink.pull_sample().map_err(|_| gstreamer::FlowError::Eos)?;
-                    let buf = sample.buffer().ok_or(gstreamer::FlowError::Error)?;
-                    if let Some(h) = HEALTH_ARCS.lock().unwrap().get(&handle) {
-                        let mut h = h.lock().unwrap();
-                        h.audio_frame_count += 1;
-                        let pts = buf.pts().map(|c| c.nseconds());
-                        if let Some(pts) = pts {
-                            // 记录首帧 PTS (与单调性状态解耦, P1-3).
-                            if h.audio_first_pts.is_none() {
-                                h.audio_first_pts = Some(pts);
-                            }
-                            // 音频同样做真实单调性三态判定 (用户复核 §十一/§三 P1-3).
-                            h.observe_audio_pts(pts);
-                        }
-                    }
-                    Ok(gstreamer::FlowSuccess::Ok)
-                })
-                .build(),
-        );
-    }
-
-    /// 非阻塞 drain 当前 GStreamer Bus 事件 (Bus watch 线程已投递进 bounded mpsc).
-    /// watchdog 每 500ms 调用一次, 不阻塞媒体/GStreamer 线程 (用户复核 §六: 解耦节拍).
-    #[cfg(feature = "gstreamer")]
-    pub fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
-        let guard = self.instances.lock().unwrap();
-        match guard.get(handle) {
-            Some(inst) => inst.bus_rx.try_iter().collect(),
-            None => Vec::new(),
-        }
-    }
-}
-
 /// GStreamer 选卡属性 (decklinkvideosrc/audiosrc).
 ///
 /// 选卡属性语义 (用户复核 §十, 纠正旧注释 "hw-serial-number=<BMD PersistentID>" 的错误表达):
@@ -825,7 +364,7 @@ impl GStreamerPipelineController {
 ///   确定的 GStreamer `device-number` → `decklinkvideosrc device-number=<n>`.
 /// - `hw-serial-number` 是 **GStreamer 侧** 硬件序列号/硬件 ID 探测属性 (只读), 与 "BMD PersistentID"
 ///   是两回事; 它不是 PersistentID 的别名. SDK 枚举 index 绝不直接当 device-number.
-fn src_props(plan: &PipelinePlan) -> (String, String) {
+pub(crate) fn src_props(plan: &PipelinePlan) -> (String, String) {
     // 连接类型 → GStreamer `connection=` 属性. 仅 decklinkvideosrc 需要; decklinkaudiosrc 无此属性
     // (音频内嵌于视频 SDI/HDMI 流, 跟随视频连接). `None` 或无对应枚举的连接器 → 不显式指定, 由插件默认
     // (auto) 探测, 绝不硬编码 `connection=sdi`.
@@ -844,14 +383,14 @@ fn src_props(plan: &PipelinePlan) -> (String, String) {
         SourceSelectionMode::PersistentIdCanonical => (
             format!(
                 "decklinkvideosrc persistent-id={}{}",
-                plan.source.bmd_persistent_id.unwrap_or(0),
+                plan.source.provider_persistent_id.unwrap_or(0),
                 connection
             ),
             // 注: decklinkaudiosrc 无 `connection` 属性 (音频内嵌于 SDI 视频流, 跟随视频连接),
             // 绝不可像 videosrc 那样设 `connection=sdi`, 否则 launch 串解析失败 (MEDIA-RT-01 真机实测).
             format!(
                 "decklinkaudiosrc persistent-id={}",
-                plan.source.bmd_persistent_id.unwrap_or(0)
+                plan.source.provider_persistent_id.unwrap_or(0)
             ),
         ),
         // DeviceHandle 经 Resolver 解析到确定 device-number (当前硬件正式生产路径).
@@ -878,9 +417,9 @@ fn src_props(plan: &PipelinePlan) -> (String, String) {
 
 /// 物化 `GraphRuntimeIntent` → `PipelinePlan` 列表.
 ///
-/// 身份层级状态机 (用户复核 §二/§三/§十九): 严格按 `identity_strength` 判定,
-/// **绝不只看 `bmd_persistent_id.is_some()`** (否则 filesystem 伪造的 `Some(hash)`
-/// 会被当成真实 PersistentID 越权). 合成身份 (Enumeration) 在生产路径必须拒绝.
+/// 身份层级状态机 (用户复核 §二/§三/§十九): 严格按 `identity_strength` 判定.
+/// P0-1: 强度由 Provider 在 discovery 时按自身证据自证 (Domain 无 vendor 字段可伪造,
+/// filesystem 合成身份强度恒为 Enumeration); 合成身份在生产路径必须拒绝.
 ///
 /// 关键不变量: `materialize` 只消费 **Resolver 解析后的 `device-number`**, 绝不 (在生产/已解析时)
 /// 直接用 SDK 枚举序号; `device-number` 默认 0 在 DeviceHandle/Diagnostic 路径下由 resolved 覆盖.
@@ -900,10 +439,11 @@ pub fn materialize(
                 PipelineError::IdentityUnresolved(format!("设备未注册: {}", d.device_id))
             })?;
 
-        let resolved_device_number = bindings.get(&info.device_id).map(|b| b.device_number);
-        // 身份层级状态机: 严格按 identity_strength, 不看 Option 真伪.
+        let binding = bindings.get(&info.device_id);
+        let resolved_device_number = binding.map(|b| b.device_number);
+        // 身份层级状态机: 严格按 identity_strength (provider 自证), 绝不默认.
         let selection_mode = match info.identity_strength {
-            IdentityStrength::PersistentId if info.bmd_persistent_id.is_some() => {
+            IdentityStrength::PersistentId => {
                 // 官方首选: persistent-id (优先级高于 device-number).
                 SourceSelectionMode::PersistentIdCanonical
             }
@@ -929,8 +469,8 @@ pub fn materialize(
                 match mode {
                     MaterializeMode::Production => {
                         return Err(PipelineError::IdentityUnresolved(format!(
-                            "{}: 身份未解析 (identity_strength={:?}, bmd_persistent_id={:?}, Resolver 绑定={:?}); 生产拒绝 device 0",
-                            d.device_id, info.identity_strength, info.bmd_persistent_id, resolved_device_number
+                            "{}: 身份未解析 (identity_strength={:?}, Resolver 绑定={:?}); 生产拒绝 device 0",
+                            d.device_id, info.identity_strength, resolved_device_number
                         )));
                     }
                     MaterializeMode::Diagnostic => SourceSelectionMode::DiagnosticFallback,
@@ -980,7 +520,7 @@ pub fn materialize(
 
         let source = SourcePlan {
             device_id: d.device_id.clone(),
-            bmd_persistent_id: info.bmd_persistent_id,
+            provider_persistent_id: binding.and_then(|b| b.persistent_id),
             device_number: resolved_device_number.unwrap_or(0),
             connector,
             selection_mode,
@@ -1013,9 +553,6 @@ mod tests {
             model: "DeckLink SDI".to_string(),
             display_name: "dv".to_string(),
             serial_number: None,
-            bmd_device_handle: Some("h".into()),
-            bmd_persistent_id: None,
-            bmd_topological_id: None,
             identity_strength: strength,
             identity_source: DeviceIdentitySource::RealBmd,
             capabilities: crate::port::DeviceCapabilities::default(),
@@ -1049,7 +586,7 @@ mod tests {
         PortRegistry {
             ports: vec![PortInfo {
                 device_id: dev_id,
-                device_handle: Some("h".into()),
+                provider_binding_ref: Some("h".into()),
                 identity: PortIdentity {
                     port_id: Some(pid),
                     connector,
@@ -1070,7 +607,7 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 2,
                 connector: Some(ConnectorType::Sdi),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
@@ -1093,7 +630,7 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 3,
                 connector: Some(ConnectorType::Optical),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
@@ -1114,7 +651,7 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                bmd_persistent_id: None,
+                provider_persistent_id: None,
                 device_number: 4,
                 connector: Some(ConnectorType::Unknown),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
@@ -1142,6 +679,7 @@ mod tests {
             ResolvedDeviceBinding {
                 device_number: 2,
                 hw_serial_number: None,
+                persistent_id: None,
                 confidence: Confidence::High,
                 match_kind: ResolverMatch::SerialExact,
             },
@@ -1171,6 +709,7 @@ mod tests {
             ResolvedDeviceBinding {
                 device_number: 2,
                 hw_serial_number: None,
+                persistent_id: None,
                 confidence: Confidence::High,
                 match_kind: ResolverMatch::SerialExact,
             },
@@ -1274,5 +813,126 @@ mod tests {
         // 任一回退 -> 不过.
         h.observe_audio_pts(999);
         assert!(!h.first_frame_ok());
+    }
+
+    // ── p06-hi MEDIA-RT-01 acceptance gate ─────────────────────────────────────────
+    // 门禁不变量: (1) Default = absence-of-evidence, 绝不默认假过 (P1-2);
+    // (2) PTS 三态区分 Unknown 与 NonMonotonic, 只在真实回退时置 false;
+    // (3) B/C 子项语义: B 为帧证据, C 为测量窗口 (仅"无 error"不够);
+    // (4) self_test plan 是 canonical 自测源 (device_number=0 为自测哨兵, 非真实卡默认).
+
+    #[test]
+    fn media_rt_01_health_default_is_absence_not_pass() {
+        let h = PipelineHealth::default();
+        assert_eq!(h.video_pts_state, PtsMonotonicity::Unknown);
+        assert_eq!(h.audio_pts_state, PtsMonotonicity::Unknown);
+        assert!(!h.playing);
+        assert!(h.video_first_pts.is_none());
+        // 未观测 = 未通过: pass() / first_frame_ok() 默认必须为 false, 绝不默认假过.
+        assert!(!h.pass());
+        assert!(!h.first_frame_ok());
+        // acceptance 正向成就项默认全 false (P1-2): absence-of-evidence ≠ PASS.
+        let a = MediaRt01Acceptance::default();
+        assert!(!a.a_pass() && !a.b_pass() && !a.c_pass());
+    }
+
+    #[test]
+    fn media_rt_01_pts_only_false_on_real_regression() {
+        let mut h = PipelineHealth::default();
+        // Unknown ≠ NonMonotonic: 未收帧前状态为 Unknown, 不得当作 "置 false" 的失败证据.
+        assert_eq!(h.video_pts_state, PtsMonotonicity::Unknown);
+        h.observe_video_pts(1000);
+        h.observe_video_pts(2000);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::ValidMonotonic);
+        // 只在真实回退时置 false: NonMonotonic (sticky, 不自动恢复).
+        h.observe_video_pts(1500);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+        h.observe_video_pts(3000);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+    }
+
+    #[test]
+    fn media_rt_01_b_and_c_pass_semantics() {
+        // B: 首视频帧 + 首音频帧 + 有效 PTS + PTS 单调 — 四项全真才 pass.
+        let b_ok = MediaRt01Acceptance {
+            b1_first_video: true,
+            b2_first_audio: true,
+            b3_valid_pts: true,
+            b4_pts_monotonic: true,
+            ..MediaRt01Acceptance::default()
+        };
+        assert!(b_ok.b_pass());
+        // C: 测量型 — 观测窗口未达标即不过, 即使当前无任何错误.
+        assert!(!b_ok.c_pass());
+        // 窗口达标 + 无致命项 → c_pass.
+        let c_ok = MediaRt01Acceptance {
+            b4_pts_monotonic: true,
+            c_observed_ms: Some(10_000),
+            c1_no_unexpected_eos: true,
+            c2_no_pipeline_error: true,
+            c3_no_repeated_reneg: true,
+            c4_counters_continue: true,
+            ..MediaRt01Acceptance::default()
+        };
+        assert!(c_ok.c_pass());
+    }
+
+    #[test]
+    fn media_rt_01_self_test_plan_is_canonical() {
+        let plan = PipelinePlan::self_test();
+        assert_eq!(plan.source.device_id, "self-test");
+        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert!(plan.normalize);
+        assert_eq!(plan.switch_mode, "FRAME_SWITCH");
+        // 自测哨兵: 无真实设备, `device_number: 0` 是占位, 不违反
+        // "device-number 绝不默认 0" (该约束针对真实选卡不得静默落到 DeckLink 0 号).
+        assert_eq!(plan.source.device_number, 0);
+        assert!(plan.source.provider_persistent_id.is_none());
+    }
+
+    // ── p06-hi ARCH-BACKEND-01 gate (Test C 延伸到 Backend 侧) ─────────────────────
+    // 门禁不变量: `MediaBackend` 实现以 trait-object 级可互换 — Domain/Graph/Session/
+    // Supervisor/Health 只依赖 `dyn MediaBackend` 与 canonical `PipelinePlan`,
+    // 不依赖具体 backend 类型; canonical plan 是不可变输入, backend 不得回写.
+
+    #[cfg(feature = "mock")]
+    #[test]
+    fn arch_backend_01_mock_backend_implements_media_backend() {
+        let backend: Box<dyn crate::contracts::backend::MediaBackend> =
+            Box::new(crate::adapters::mock::MockBackend);
+        let plan = PipelinePlan::self_test();
+        let handle = backend
+            .instantiate(&plan)
+            .expect("MockBackend instantiate 应接受 canonical plan");
+        backend.start(&handle).expect("MockBackend start 应成功");
+        backend
+            .recover(&handle)
+            .expect("MockBackend recover 应成功");
+        backend.stop(&handle).expect("MockBackend stop 应成功");
+        assert!(backend.observe(&handle).is_empty());
+        // P1-1: 句柄与生产同源分配 (NEXT_PIPELINE_ID, 从 1 起), 绝不为 0 哨兵.
+        assert_ne!(handle, PipelineHandle(0));
+        // canonical 字段未被 backend 回写.
+        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert!(plan.normalize);
+    }
+
+    #[cfg(feature = "gstreamer-backend")]
+    #[test]
+    fn arch_backend_01_gstreamer_backend_implements_media_backend() {
+        // 同一 trait 对象 + 同一 canonical plan: GStreamer Reference Backend 与 Mock
+        // 在 SPI 层面可互换. prepare 构建 videotestsrc/audiotestsrc 管线 (无需硬件;
+        // 该断言在 GStreamer 运行时构建下执行, CI 无 GStreamer 时仅 Mock 侧运行).
+        let backend: Box<dyn crate::contracts::backend::MediaBackend> =
+            Box::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+        let plan = PipelinePlan::self_test();
+        let handle = backend
+            .instantiate(&plan)
+            .expect("GStreamerBackend instantiate 应接受同一 canonical plan (self_test)");
+        // 句柄为运行时实例标识, 不得与 Mock 固定哨兵冲突.
+        assert_ne!(handle, PipelineHandle(0));
+        // canonical 字段未被 backend 回写.
+        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert!(plan.normalize);
     }
 }

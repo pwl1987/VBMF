@@ -264,7 +264,7 @@ where
 ///
 /// 返回 `(信号探测结果, 加嵌音频存在性)`: 信号态/内容/格式来自视频分支; 音频存在性由音频分支
 /// `appsink` 限时拉取判定 (`Some(true)`=有缓冲, `Some(false)`=已探测无音频, `None`=管线启动失败无法探测).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeResult, Option<bool>) {
     use gstreamer::prelude::*;
     // 强制 mode=1080i50 与对端 render 一致, 使采集格式确定 (验收硬门比对依据).
@@ -277,7 +277,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
         Ok(p) => p,
         Err(_) => {
             return (
-                SignalProbeResult { state: SignalState::ProbeFailed, video_format: None, content: VideoContentState::Unknown },
+                SignalProbeResult {
+                    state: SignalState::ProbeFailed,
+                    video_format: None,
+                    content: VideoContentState::Unknown,
+                },
                 None,
             );
         }
@@ -286,7 +290,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
         Ok(p) => p,
         Err(_) => {
             return (
-                SignalProbeResult { state: SignalState::ProbeFailed, video_format: None, content: VideoContentState::Unknown },
+                SignalProbeResult {
+                    state: SignalState::ProbeFailed,
+                    video_format: None,
+                    content: VideoContentState::Unknown,
+                },
                 None,
             );
         }
@@ -294,7 +302,11 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
     if pipeline.set_state(gstreamer::State::Playing).is_err() {
         let _ = pipeline.set_state(gstreamer::State::Null);
         return (
-            SignalProbeResult { state: SignalState::ProbeFailed, video_format: None, content: VideoContentState::Unknown },
+            SignalProbeResult {
+                state: SignalState::ProbeFailed,
+                video_format: None,
+                content: VideoContentState::Unknown,
+            },
             None,
         );
     }
@@ -303,7 +315,8 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
 
     let src = pipeline.by_name("decklinkvideosrc0");
     let signal = src.as_ref().and_then(|el| {
-        el.find_property("signal").map(|_| el.property::<bool>("signal"))
+        el.find_property("signal")
+            .map(|_| el.property::<bool>("signal"))
     });
     let caps = src
         .as_ref()
@@ -358,12 +371,16 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
 
     let _ = pipeline.set_state(gstreamer::State::Null);
     (
-        SignalProbeResult { state, video_format: caps, content },
+        SignalProbeResult {
+            state,
+            video_format: caps,
+            content,
+        },
         audio_present,
     )
 }
 
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn parse_caps(text: &str) -> Option<VideoFormat> {
     let width = parse_int(text, "width=(int)")?;
     let height = parse_int(text, "height=(int)")?;
@@ -390,7 +407,7 @@ fn parse_caps(text: &str) -> Option<VideoFormat> {
     })
 }
 
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn parse_int(text: &str, key: &str) -> Option<u32> {
     text.split(key)
         .nth(1)
@@ -399,7 +416,7 @@ fn parse_int(text: &str, key: &str) -> Option<u32> {
 }
 
 /// 拉取少量 I420 样本, 仅取 Y 平面做亮度统计.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn pull_luma(pipeline: &gstreamer::Pipeline, sample_frames: u32) -> Option<LumaStats> {
     use gstreamer::prelude::*;
     let sink = pipeline.by_name("probe")?;
@@ -437,10 +454,13 @@ fn pull_luma(pipeline: &gstreamer::Pipeline, sample_frames: u32) -> Option<LumaS
 }
 
 /// 从视频 appsink 拉取单帧, 返回 I420 的 Y 平面 (前 width*height 字节). 用于内容细分类 (SMPTE 彩条检测).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn sample_frame_y(pipeline: &gstreamer::Pipeline, width: u32, height: u32) -> Option<Vec<u8>> {
     use gstreamer::prelude::*;
-    let sink = pipeline.by_name("probe")?.downcast::<gstreamer_app::AppSink>().ok()?;
+    let sink = pipeline
+        .by_name("probe")?
+        .downcast::<gstreamer_app::AppSink>()
+        .ok()?;
     let sample = sink.try_pull_sample(gstreamer::ClockTime::from_seconds(1))?;
     let buf = sample.buffer()?;
     let map = buf.map_readable().ok()?;
@@ -455,7 +475,7 @@ fn sample_frame_y(pipeline: &gstreamer::Pipeline, width: u32, height: u32) -> Op
 /// SMPTE 彩条特征检测: 在顶带采样一行, 统计量化后的亮度等级数与水平跳变数.
 /// SMPTE 顶 2/3 为 7 条竖直彩条 → 约 7 个 distinct 等级 + 6 次跳变; 据此判定"采到的是我们渲染的彩条".
 /// 阈值留余量 (>=5 等级, >=6 跳变), 容忍 SDI 往返的轻微亮度漂移.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn detect_test_pattern(y: &[u8], width: u32, height: u32) -> bool {
     let w = width as usize;
     let h = height as usize;
@@ -486,10 +506,13 @@ fn detect_test_pattern(y: &[u8], width: u32, height: u32) -> bool {
 
 /// 从音频 appsink 拉取单样本, 计算 RMS 能量 (S16LE). 用于区分"真实 1kHz 音"与静音.
 /// 返回 None 表示无音频分支/无样本.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn audio_rms(pipeline: &gstreamer::Pipeline) -> Option<f64> {
     use gstreamer::prelude::*;
-    let sink = pipeline.by_name("aprobe")?.downcast::<gstreamer_app::AppSink>().ok()?;
+    let sink = pipeline
+        .by_name("aprobe")?
+        .downcast::<gstreamer_app::AppSink>()
+        .ok()?;
     let sample = sink.try_pull_sample(gstreamer::ClockTime::from_seconds(1))?;
     let buf = sample.buffer()?;
     let map = buf.map_readable().ok()?;
@@ -510,7 +533,7 @@ fn audio_rms(pipeline: &gstreamer::Pipeline) -> Option<f64> {
     Some((sum_sq / n as f64).sqrt())
 }
 
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn luma_stats(y: &[u8]) -> (f64, f64, f64, f64) {
     let n = y.len() as f64;
     let mut sum: u64 = 0;
@@ -536,7 +559,7 @@ fn luma_stats(y: &[u8]) -> (f64, f64, f64, f64) {
 }
 
 /// 非 gstreamer 构建: 信号探测不可用.
-#[cfg(not(feature = "gstreamer"))]
+#[cfg(not(feature = "gstreamer-backend"))]
 pub fn probe_signal(_device_number: u32, _sample_frames: u32) -> SignalProbeResult {
     SignalProbeResult {
         state: SignalState::Unsupported,
@@ -552,7 +575,7 @@ pub fn probe_signal(_device_number: u32, _sample_frames: u32) -> SignalProbeResu
 /// 仅 gstreamer 构建可用; 非 gstreamer 构建由 `probe_signal`(Unsupported) 兜底, 本函数不存在.
 /// 失败闭合: 若 fixture 无法解析到 sink gst device-number, 返回 `ProbeFailed` + `audio_present=None`,
 /// 绝不开 device 0 盲采.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn probe_fixture_signal(
     fixture: &Fixture,
     registry: &crate::port::PortRegistry,
@@ -590,7 +613,7 @@ pub fn probe_fixture_signal(
                     content: VideoContentState::Unknown,
                 },
                 test_pattern: None,
-            audio_present: None,
+                audio_present: None,
             }
         }
     };
@@ -628,7 +651,7 @@ pub fn probe_fixture_signal(
 ///
 /// 返回运行中的 Pipeline 句柄 (调用方 probe 完成后置 Null 停止); 启动失败 (元素缺失/设备占用) 返回 None,
 /// 由 `probe_fixture_signal` 退化为直接探测 sink. 仅 gstreamer 构建可用.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn start_loopback_render(device_number: u32) -> Option<gstreamer::Pipeline> {
     use gstreamer::prelude::*;
     // 关键: 强制 mode=1080i50 + 喂入匹配 caps, 否则 decklinkvideosink 默认回退到 SD(720x486),
@@ -724,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "gstreamer"))]
+    #[cfg(not(feature = "gstreamer-backend"))]
     fn probe_signal_unsupported_without_gstreamer() {
         // default/simulation/bmd 构建返回 Unsupported (不 panic, 不触碰真实 GStreamer).
         let r = probe_signal(0, 1);
@@ -1030,7 +1053,7 @@ mod tests {
                         content: VideoContentState::Black,
                     },
                     test_pattern: None,
-            audio_present: None,
+                    audio_present: None,
                 }
             } else {
                 FixtureProbe {
@@ -1040,7 +1063,7 @@ mod tests {
                         content: VideoContentState::Active,
                     },
                     test_pattern: None,
-            audio_present: None,
+                    audio_present: None,
                 }
             }
         });

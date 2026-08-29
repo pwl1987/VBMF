@@ -29,12 +29,16 @@ pub fn probe_sdk(lib_name: &str) -> Result<(), String> {
     // 入口符号: SDK 信息工厂 (存在即证明 SDK 运行时与 ABI 可见)。
     let _info: libloading::Symbol<CreateInstance> = unsafe {
         lib.get(b"CreateDeckLinkAPIInformationInstance_0001\0")
-            .map_err(|e| format!("entry symbol CreateDeckLinkAPIInformationInstance_0001 not found: {e}"))?
+            .map_err(|e| {
+                format!("entry symbol CreateDeckLinkAPIInformationInstance_0001 not found: {e}")
+            })?
     };
     // 同类入口, 一并确认迭代器工厂 (Gate 2.5 深度枚举将用它)。
     let _iter: libloading::Symbol<CreateInstance> = unsafe {
         lib.get(b"CreateDeckLinkIteratorInstance_0004\0")
-            .map_err(|e| format!("entry symbol CreateDeckLinkIteratorInstance_0004 not found: {e}"))?
+            .map_err(|e| {
+                format!("entry symbol CreateDeckLinkIteratorInstance_0004 not found: {e}")
+            })?
     };
 
     Ok(())

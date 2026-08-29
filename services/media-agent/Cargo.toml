@@ -27,7 +27,7 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 libloading = "0.8"
 # Canonical ingest runtime: GStreamer 是 SDI ingest executor (Phase 0.6 锁死).
 # DeckLink 经 decklinkvideosrc/decklinkaudiosrc 接入 (persistent-id, gint64, 1.22+).
-# Feature-gated: 仅 `gstreamer` 构建链接系统 GStreamer; default/simulation/bmd 不拉 GStreamer,
+# Feature-gated: 仅 `gstreamer-backend` 构建链接系统 GStreamer; default/simulation/bmd-provider 不拉 GStreamer,
 # 因此 CI default + bmd 构建仍可在无 GStreamer 的机器上编译 (真机 BMD 盒需 --features bmd,gstreamer).
 gstreamer = { version = "0.23", optional = true }
 gstreamer-app = { version = "0.23", optional = true }
@@ -41,30 +41,38 @@ glib = { version = "0.20", optional = true }
 # default        : minimal compilable runtime — filesystem discovery only, no SDK,
 #                   no hardware, no GStreamer. Plain `cargo build` / CI default target.
 # simulation     : mock DeckLink devices for CI / unit tests — NO hardware, NO SDK.
-# bmd            : compile the REAL DeckLink FFI (bindgen over DeckLinkAPI.h).
-#                   `cargo build --features bmd` (needs SDK include + libclang).
-# hardware-test  : bmd ⊕ real-hardware test ENTRY — NOT a separate implementation.
+# bmd-provider   : (规范名) compile the REAL DeckLink FFI (bindgen over DeckLinkAPI.h).
+#                   `cargo build --features bmd-provider` (needs SDK include + libclang).
+#                   (兼容别名 `bmd` 仍存在; 盒上旧命令 `--features bmd,gstreamer` 可用).
+# hardware-test  : bmd-provider ⊕ real-hardware test ENTRY — NOT a separate implementation.
 #                   It only ADDS verbose Device Registry probes (model/serial/status)
-#                   on top of `bmd`. Must always imply `bmd` (enforced below).
-# gstreamer      : compile the REAL GStreamer ingest executor (decklinkvideosrc/audiosrc
+#                   on top of `bmd-provider`. Must always imply `bmd-provider` (enforced below).
+# gstreamer-backend: (规范名) compile the REAL GStreamer ingest executor (decklinkvideosrc/audiosrc
 #                   persistent-id). Canonical media path (Phase 0.6). Requires system
-#                   GStreamer 1.22+ AND the decklink plugin. Orthogonal to bmd; on the
-#                   real BMD box the canonical build is `--features bmd,gstreamer`.
+#                   GStreamer 1.22+ AND the decklink plugin. Orthogonal to bmd-provider; on the
+#                   real BMD box the canonical build is `--features bmd-provider,gstreamer-backend`.
 #                   SDK 诊断探针仅限 hardware-test; 真机 GStreamer 启动后不得与 canonical
 #                   路径同时打开同一块 DeckLink (避免双采/争用).
-# Dependency: hardware-test IMPLIES bmd (i.e. hardware-test = ["bmd"]); simulation is
-# orthogonal (no-hardware). hardware-test adds only verbose registry probes on top of bmd.
-# gstreamer is orthogonal to bmd (discovery FFI) — both needed on real hardware.
+# Dependency: hardware-test IMPLIES bmd-provider; simulation is
+# orthogonal (no-hardware). hardware-test adds only verbose registry probes on top of bmd-provider.
+# gstreamer-backend is orthogonal to bmd-provider (discovery FFI) — both needed on real hardware.
 # CI builds/tests default + simulation only; BMD owns the real FFI + hardware build.
 [features]
 default = []
 simulation = []
-bmd = ["dep:bindgen"]
-hardware-test = ["bmd"]
-gstreamer = ["dep:gstreamer", "dep:gstreamer-app", "dep:glib"]
+# 规范名 (C1 Phase 0.6):
+bmd-provider = ["dep:bindgen"]
+gstreamer-backend = ["dep:gstreamer", "dep:gstreamer-app", "dep:glib"]
+# 兼容别名: 盒上旧命令 `--features bmd,gstreamer` 仍可用 (Phase 0.6 迁移期).
+bmd = ["bmd-provider"]
+gstreamer = ["gstreamer-backend"]
+hardware-test = ["bmd-provider"]
+# mock: C3 Reference Adapter — 纯 Rust Mock Provider/Backend (无 BMD/无 GStreamer),
+#        解锁 ARCH-PORTABILITY-01 Test B/C 的 Mock 侧 (架构解耦门禁).
+mock = []
 
 [build-dependencies]
-# Optional: only pulled when `bmd` feature is enabled (needs libclang at build time).
+# Optional: only pulled when the `bmd-provider` feature is enabled (needs libclang at build time).
 # See build.rs — generates src-level FFI bindings from DeckLinkAPI.h on demand.
 bindgen = { version = "0.70", optional = true }
 

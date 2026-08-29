@@ -12,7 +12,7 @@
 
 #![allow(dead_code)]
 
-use crate::device::DeviceInfo;
+use crate::contracts::provider::{DiscoveredDevice, ProviderIdentity};
 use crate::port::{ConnectorType, PortDirection, VerificationLevel};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -114,7 +114,7 @@ impl std::fmt::Display for ProbeError {
 }
 
 /// 由 GStreamer bus 上的 GError 文案 best-effort 归类 set_state 失败原因 (见 `ProbeError`).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn classify_set_state_error(n: u32, msg: &str) -> ProbeError {
     let m = msg.to_ascii_lowercase();
     if m.contains("already in use")
@@ -137,7 +137,7 @@ fn classify_set_state_error(n: u32, msg: &str) -> ProbeError {
 }
 
 /// 从 pipeline bus 抽取首个 `Error` 消息 (设备打开失败的 GError 在此异步送达). 仅消费已排队消息, 不阻塞.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn drain_bus_error(pipeline: &gstreamer::Pipeline) -> Option<String> {
     use gstreamer::prelude::*;
     let bus = pipeline.bus()?;
@@ -168,7 +168,7 @@ fn drain_bus_error(pipeline: &gstreamer::Pipeline) -> Option<String> {
 /// `hw-serial-number` 命中后确定. 命中失败 → 该序号 `None` (不计入), 绝不回退 0.
 ///
 /// 返回 `GstProbeOutcome` 以区分 `Unavailable` / `Empty` / `Available` (见 §九).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn probe_gstreamer_devices(max: usize, require_identity: bool) -> GstProbeOutcome {
     // GStreamer 初始化 (幂等). 失败 → 探测方法不可用 (非设备失败).
     if let Err(e) = gstreamer::init() {
@@ -197,7 +197,7 @@ pub fn probe_gstreamer_devices(max: usize, require_identity: bool) -> GstProbeOu
 
 /// 探测单个 `device-number` 的 decklinkvideosrc 实例. 打开到 PLAYING 读只读属性; 失败按 `ProbeError`
 /// 分类返回 (见枚举文档), **绝不** 把 "卡存在但打不开" 与 "无此卡" 混为一谈 (用户 §⑥).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn probe_one_device_number(
     n: u32,
     require_identity: bool,
@@ -290,7 +290,7 @@ fn probe_one_device_number(
 }
 
 /// 空串/未设置串归 `None` (GStreamer 字符串属性未设置时返回空串).
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn non_empty(s: String) -> Option<String> {
     if s.is_empty() {
         None
@@ -301,7 +301,7 @@ fn non_empty(s: String) -> Option<String> {
 
 /// 读取已协商的源 pad caps → 视频格式 (best-effort; 仅 gstreamer 构建, 有信号时可读).
 /// 仅用 `caps.to_string()` 做轻量解析, 避免引入 GStreamer Fraction 类型依赖风险.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn read_negotiated_caps(el: &gstreamer::Element) -> Option<crate::port::VideoFormat> {
     use gstreamer::prelude::*;
     let pad = el.static_pad("src")?;
@@ -335,7 +335,7 @@ fn read_negotiated_caps(el: &gstreamer::Element) -> Option<crate::port::VideoFor
     })
 }
 
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 fn parse_int(text: &str, key: &str) -> Option<u32> {
     text.split(key)
         .nth(1)
@@ -343,7 +343,7 @@ fn parse_int(text: &str, key: &str) -> Option<u32> {
         .and_then(|s| s.parse::<u32>().ok())
 }
 
-#[cfg(not(feature = "gstreamer"))]
+#[cfg(not(feature = "gstreamer-backend"))]
 pub fn probe_gstreamer_devices(_max: usize, _require_identity: bool) -> GstProbeOutcome {
     // 非 gstreamer 构建: 探测方法不适用 (无 GStreamer 运行时). 真实探测仅 `gstreamer` feature 构建.
     GstProbeOutcome::Unavailable(
@@ -360,31 +360,34 @@ fn topo_of(handle: &str) -> Option<String> {
 /// 在 GStreamer `hw-serial-number`(只读属性) 上, 为**单个 probe** 判定该 SDK 设备的最佳匹配种类.
 /// 每 probe 至多返回一种 (按优先级 PersistentId > Serial > DeviceHandle > Topological);
 /// Topological 为 MEDIUM (拓扑敏感, 仅诊断可用).
+///
+/// P0-1: SDK 侧身份证据来自 `DiscoveredDevice.identity` (ProviderIdentity), Domain 不携带.
 fn best_kind_for(
-    sdk: &DeviceInfo,
+    dev: &DiscoveredDevice,
     p: &GStreamerDeviceProbe,
 ) -> Option<(ResolverMatch, Confidence)> {
+    let ident: &ProviderIdentity = dev.identity.as_ref()?;
     // 1) PersistentID 精确 (HIGH)
-    if let (Some(sdk_pid), Some(gst_pid)) = (sdk.bmd_persistent_id, p.persistent_id) {
+    if let (Some(sdk_pid), Some(gst_pid)) = (ident.persistent_id, p.persistent_id) {
         if sdk_pid == gst_pid {
             return Some((ResolverMatch::PersistentIdExact, Confidence::High));
         }
     }
-    // 2) serial_number 精确 (HIGH)
-    if let (Some(s), Some(g)) = (&sdk.serial_number, &p.hw_serial_number) {
+    // 2) serial_number 精确 (HIGH) — serial 是通用概念, 留在 canonical DeviceInfo.
+    if let (Some(s), Some(g)) = (&dev.device.serial_number, &p.hw_serial_number) {
         if s == g {
             return Some((ResolverMatch::SerialExact, Confidence::High));
         }
     }
     // 3) DeviceHandle 精确 (HIGH) — 当前硬件路径 (DeviceHandle ↔ hw-serial-number 待 C1 实机证据).
-    if let (Some(h), Some(g)) = (&sdk.bmd_device_handle, &p.hw_serial_number) {
+    if let (Some(h), Some(g)) = (&ident.device_handle, &p.hw_serial_number) {
         if h == g {
             return Some((ResolverMatch::DeviceHandleExact, Confidence::High));
         }
     }
     // 4) TopologicalID 末段猜测 (MEDIUM, 拓扑敏感, 仅诊断).
     if let (Some(topo), Some(g)) = (
-        sdk.bmd_device_handle.as_deref().and_then(topo_of).as_ref(),
+        ident.device_handle.as_deref().and_then(topo_of).as_ref(),
         p.hw_serial_number.as_ref(),
     ) {
         if topo == g {
@@ -401,13 +404,13 @@ fn best_kind_for(
 ///   广播系统**必须拒绝** (宁可拒不变猜设备), 绝不默认选其中一个.
 /// - MEDIUM (TopologicalIdGuess) 仅用于诊断; `collect_bindings` 在生产绑定中默认拒绝.
 fn find_match<'a>(
-    sdk: &DeviceInfo,
+    dev: &DiscoveredDevice,
     probes: &'a [GStreamerDeviceProbe],
 ) -> (ResolverMatch, Confidence, Option<&'a GStreamerDeviceProbe>) {
     // 收集每个 probe 的最佳匹配 (每 probe 至多一种).
     let mut per_probe: Vec<(ResolverMatch, Confidence, usize)> = Vec::new();
     for (idx, p) in probes.iter().enumerate() {
-        if let Some((k, c)) = best_kind_for(sdk, p) {
+        if let Some((k, c)) = best_kind_for(dev, p) {
             per_probe.push((k, c, idx));
         }
     }
@@ -449,7 +452,10 @@ pub struct ResolverEvidence {
 }
 
 /// 解析所有 SDK 设备 → GStreamer 实例映射 (C1 证据).
-pub fn resolve(devices: &[DeviceInfo], probes: &[GStreamerDeviceProbe]) -> Vec<ResolverEvidence> {
+pub fn resolve(
+    devices: &[DiscoveredDevice],
+    probes: &[GStreamerDeviceProbe],
+) -> Vec<ResolverEvidence> {
     let mut evidence = Vec::new();
     for dev in devices {
         let (kind, conf, matched) = find_match(dev, probes);
@@ -480,9 +486,13 @@ pub fn resolve(devices: &[DeviceInfo], probes: &[GStreamerDeviceProbe]) -> Vec<R
             ),
         };
         evidence.push(ResolverEvidence {
-            device_id: dev.device_id,
-            model: dev.serial_number.clone().or(Some(dev.model.clone())),
-            bmd_device_handle: dev.bmd_device_handle.clone(),
+            device_id: dev.device.device_id,
+            model: dev
+                .device
+                .serial_number
+                .clone()
+                .or(Some(dev.device.model.clone())),
+            bmd_device_handle: identity_handle(dev),
             gst_device_number: gst_num,
             gst_hw_serial_number: gst_serial,
             gst_signal: gst_sig,
@@ -494,11 +504,19 @@ pub fn resolve(devices: &[DeviceInfo], probes: &[GStreamerDeviceProbe]) -> Vec<R
     evidence
 }
 
+/// Provider 本地绑定引用 (清单交叉核验键; 当前硬件 = BMD DeviceHandle).
+/// P0-1: 从 ProviderIdentity 证据读取, Domain 不携带 vendor 字段.
+pub fn identity_handle(dev: &DiscoveredDevice) -> Option<String> {
+    dev.identity.as_ref().and_then(|i| i.device_handle.clone())
+}
+
 /// 解析后的稳定绑定 (喂给 `decklinkvideosrc/audiosrc` 的 `device-number`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedDeviceBinding {
     pub device_number: u32,
     pub hw_serial_number: Option<String>,
+    /// Provider 侧持久标识 (P0-1: 从 ProviderIdentity 证据透传, 供 PersistentIdCanonical 选卡路径).
+    pub persistent_id: Option<i64>,
     pub confidence: Confidence,
     pub match_kind: ResolverMatch,
 }
@@ -507,7 +525,7 @@ pub struct ResolvedDeviceBinding {
 /// Ambiguous / Unresolved / MEDIUM(TopologicalIdGuess) 一律不进入生产绑定 → 触发
 /// materialize IdentityUnresolved, 绝不盲开 device 0 (用户复核 §七/§八).
 pub fn collect_bindings(
-    devices: &[DeviceInfo],
+    devices: &[DiscoveredDevice],
     probes: &[GStreamerDeviceProbe],
 ) -> HashMap<Uuid, ResolvedDeviceBinding> {
     let mut map = HashMap::new();
@@ -526,10 +544,11 @@ pub fn collect_bindings(
             _ => continue,
         }
         map.insert(
-            dev.device_id,
+            dev.device.device_id,
             ResolvedDeviceBinding {
                 device_number: p.device_number,
                 hw_serial_number: p.hw_serial_number.clone(),
+                persistent_id: dev.identity.as_ref().and_then(|i| i.persistent_id),
                 confidence: Confidence::High,
                 match_kind: kind,
             },
@@ -541,7 +560,7 @@ pub fn collect_bindings(
 /// 严格解析: 确保所有 `required` 设备都能解析到 HIGH 绑定, 否则报错.
 /// (C1 物化前置; 调用方据此拒绝 IdentityUnresolved.)
 pub fn resolve_strict(
-    devices: &[DeviceInfo],
+    devices: &[DiscoveredDevice],
     probes: &[GStreamerDeviceProbe],
     required: &[Uuid],
 ) -> Result<HashMap<Uuid, ResolvedDeviceBinding>, String> {
@@ -720,7 +739,7 @@ impl DeviceBindingManifest {
             let is_out = b
                 .port
                 .as_ref()
-                .map_or(false, |p| matches!(p.direction, crate::port::PortDirection::Output));
+                .is_some_and(|p| matches!(p.direction, crate::port::PortDirection::Output));
             let set = if is_out { &mut seen_out } else { &mut seen_in };
             if !set.insert(b.gst_device_number) {
                 return Err(format!(
@@ -845,14 +864,14 @@ fn resolve_decklink_lib() -> Option<String> {
 }
 
 /// 实际 GStreamer 运行时核心版本 (major.minor.micro); 用于 Manifest `gst_runtime_version` 软校验.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn actual_gstreamer_version() -> String {
     let (maj, min, mic, _) = gstreamer::version();
     format!("{maj}.{min}.{mic}")
 }
 
 /// 实际 GStreamer decklink 插件版本 (从已加载插件元数据读取); 读不到 (插件未加载) → `None`.
-#[cfg(feature = "gstreamer")]
+#[cfg(feature = "gstreamer-backend")]
 pub fn actual_decklink_plugin_version() -> Option<String> {
     use gstreamer::prelude::*;
     gstreamer::ElementFactory::find("decklinkvideosrc")
@@ -866,14 +885,14 @@ pub fn actual_decklink_plugin_version() -> Option<String> {
 /// - 不符 → 该设备 `Unresolved` (失败闭合, 绝不猜);
 /// - 设备不在清单 → `Unresolved` (runtime 猜测已禁用, 用户 §11/§12).
 pub fn resolve_with_manifest(
-    devices: &[DeviceInfo],
+    devices: &[DiscoveredDevice],
     probes: &[GStreamerDeviceProbe],
     manifest: &DeviceBindingManifest,
 ) -> Vec<ResolverEvidence> {
     let mut evidence = Vec::new();
     for dev in devices {
-        let handle = dev.bmd_device_handle.as_deref().unwrap_or("");
-        let (gst_num, gst_serial, gst_sig, kind, conf, note) = match manifest.lookup(handle) {
+        let handle = identity_handle(dev).unwrap_or_default();
+        let (gst_num, gst_serial, gst_sig, kind, conf, note) = match manifest.lookup(&handle) {
             None => (
                 None,
                 None,
@@ -957,9 +976,13 @@ pub fn resolve_with_manifest(
             }
         };
         evidence.push(ResolverEvidence {
-            device_id: dev.device_id,
-            model: dev.serial_number.clone().or(Some(dev.model.clone())),
-            bmd_device_handle: dev.bmd_device_handle.clone(),
+            device_id: dev.device.device_id,
+            model: dev
+                .device
+                .serial_number
+                .clone()
+                .or(Some(dev.device.model.clone())),
+            bmd_device_handle: identity_handle(dev),
             gst_device_number: gst_num,
             gst_hw_serial_number: gst_serial,
             gst_signal: gst_sig,
@@ -973,7 +996,7 @@ pub fn resolve_with_manifest(
 
 /// 仅接受 `ManifestVerified` 高置信绑定 (喂给 `materialize`). 未验证/不符 → 不进入 (失败闭合).
 pub fn collect_bindings_from_manifest(
-    devices: &[DeviceInfo],
+    devices: &[DiscoveredDevice],
     probes: &[GStreamerDeviceProbe],
     manifest: &DeviceBindingManifest,
 ) -> HashMap<Uuid, ResolvedDeviceBinding> {
@@ -983,10 +1006,11 @@ pub fn collect_bindings_from_manifest(
         if ev.match_kind == ResolverMatch::ManifestVerified && ev.confidence == Confidence::High {
             if let Some(n) = ev.gst_device_number {
                 map.insert(
-                    dev.device_id,
+                    dev.device.device_id,
                     ResolvedDeviceBinding {
                         device_number: n,
                         hw_serial_number: ev.gst_hw_serial_number.clone(),
+                        persistent_id: dev.identity.as_ref().and_then(|i| i.persistent_id),
                         confidence: Confidence::High,
                         match_kind: ResolverMatch::ManifestVerified,
                     },
@@ -1000,24 +1024,29 @@ pub fn collect_bindings_from_manifest(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::device::{DeviceIdentitySource, IdentityStrength};
+    use crate::device::{DeviceIdentitySource, DeviceInfo, IdentityStrength};
     use uuid::Uuid;
 
-    fn dev(handle: &str) -> DeviceInfo {
-        DeviceInfo {
-            device_id: Uuid::new_v4(),
-            model: "DeckLink SDI".to_string(),
-            display_name: format!("dv-{handle}"),
-            serial_number: None,
-            bmd_device_handle: Some(handle.to_string()),
-            bmd_persistent_id: None,
-            bmd_topological_id: None,
-            identity_strength: IdentityStrength::DeviceHandle,
-            identity_source: DeviceIdentitySource::RealBmd,
-            capabilities: crate::port::DeviceCapabilities::default(),
-            video_input_connections: 0,
-            video_output_connections: 0,
-            ports: Vec::new(),
+    fn dev(handle: &str) -> DiscoveredDevice {
+        DiscoveredDevice {
+            device: DeviceInfo {
+                device_id: Uuid::new_v4(),
+                model: "DeckLink SDI".to_string(),
+                display_name: format!("dv-{handle}"),
+                serial_number: None,
+                identity_strength: IdentityStrength::DeviceHandle,
+                identity_source: DeviceIdentitySource::RealBmd,
+                capabilities: crate::port::DeviceCapabilities::default(),
+                video_input_connections: 0,
+                video_output_connections: 0,
+                ports: Vec::new(),
+            },
+            identity: Some(crate::contracts::provider::ProviderIdentity {
+                provider: "blackmagic",
+                persistent_id: None,
+                device_handle: Some(handle.to_string()),
+                topological_id: None,
+            }),
         }
     }
 
@@ -1207,5 +1236,80 @@ mod tests {
         let mut m = base_manifest(vec![manifest_entry("46:00000000:002e4500", 1)]);
         m.manifest_version = "v2".into();
         assert!(m.validate_manifest().is_err());
+    }
+
+    // ── p06-hi HW-IDENT-02 gate ─────────────────────────────────────────────────────
+    // 门禁不变量: 身份优先级 PersistentId > (Serial) > DeviceHandle > TopologicalId;
+    // 多重 HIGH 候选 → Ambiguous (拒识, 绝不猜); 无候选 → Unresolved, 绝不静默
+    // 回退 device-number=0; MEDIUM (TopologicalIdGuess) 仅诊断, 不进生产绑定.
+
+    fn dev_with_pid(handle: &str, pid: i64) -> DiscoveredDevice {
+        let mut d = dev(handle);
+        d.identity.as_mut().unwrap().persistent_id = Some(pid);
+        d.device.identity_strength = IdentityStrength::PersistentId;
+        d
+    }
+
+    fn probe_with_pid(num: u32, serial: Option<&str>, pid: i64) -> GStreamerDeviceProbe {
+        let mut p = probe(num, serial);
+        p.persistent_id = Some(pid);
+        p
+    }
+
+    #[test]
+    fn hw_ident_02_persistent_id_wins_over_device_handle() {
+        // 同一 probe 同时满足 PersistentID 精确与 DeviceHandle 精确 → 取更高优先级
+        // PersistentIdExact (优先级链 PersistentId > DeviceHandle 的 per-probe 判定).
+        let devices = vec![dev_with_pid("H1", 42)];
+        let probes = vec![probe_with_pid(3, Some("H1"), 42)];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::PersistentIdExact);
+        assert_eq!(ev[0].confidence, Confidence::High);
+        assert_eq!(ev[0].gst_device_number, Some(3));
+        // 对照: 无 PersistentID 的同一输入 → 降级为 DeviceHandleExact.
+        let devices_plain = vec![dev("H1")];
+        let ev2 = resolve(&devices_plain, &probes);
+        assert_eq!(ev2[0].match_kind, ResolverMatch::DeviceHandleExact);
+    }
+
+    #[test]
+    fn hw_ident_02_multiple_high_candidates_ambiguous() {
+        // 同一 SDK 设备命中 ≥2 个 HIGH 置信 GStreamer 实例 → Ambiguous (拒识).
+        let devices = vec![dev("H1")];
+        let probes = vec![probe(1, Some("H1")), probe(2, Some("H1"))];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Ambiguous);
+        assert_eq!(ev[0].confidence, Confidence::None);
+        assert_eq!(ev[0].gst_device_number, None);
+        // Ambiguous 绝不进入生产绑定.
+        assert!(collect_bindings(&devices, &probes).is_empty());
+        // resolve_strict 对 required 设备报错 (生产拒绝, 不猜).
+        assert!(resolve_strict(&devices, &probes, &[devices[0].device.device_id]).is_err());
+    }
+
+    #[test]
+    fn hw_ident_02_unresolved_never_defaults_device_zero() {
+        // 无 HIGH 候选 → Unresolved; 绝不静默回退 device-number=0.
+        let devices = vec![dev("H9")];
+        let probes = vec![probe(0, None), probe(3, Some("OTHER"))];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Unresolved);
+        assert_eq!(ev[0].gst_device_number, None);
+        assert!(collect_bindings(&devices, &probes).is_empty());
+        assert!(resolve_strict(&devices, &probes, &[devices[0].device.device_id]).is_err());
+    }
+
+    #[test]
+    fn hw_ident_02_topological_guess_medium_not_production() {
+        // TopologicalID 末段 == hw-serial-number → MEDIUM 猜测, 仅诊断; 不进生产绑定.
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(7, Some("002e4500"))];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::TopologicalIdGuess);
+        assert_eq!(ev[0].confidence, Confidence::Medium);
+        assert_eq!(ev[0].gst_device_number, Some(7));
+        // MEDIUM 不进入生产绑定 → resolve_strict 拒绝.
+        assert!(collect_bindings(&devices, &probes).is_empty());
+        assert!(resolve_strict(&devices, &probes, &[devices[0].device.device_id]).is_err());
     }
 }

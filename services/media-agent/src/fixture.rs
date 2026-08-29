@@ -162,7 +162,7 @@ mod tests {
     ) -> PortInfo {
         PortInfo {
             device_id,
-            device_handle: None,
+            provider_binding_ref: None,
             identity: PortIdentity {
                 port_id: PortIdentity::derive(&device_id, connector, PortOrdinal::Known(ordinal)),
                 connector,

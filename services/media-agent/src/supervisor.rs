@@ -23,6 +23,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
 
+use crate::events::{EventSource, RuntimeEvent, RuntimeEventLog, RuntimeEventMapper};
+
 /// Restart policy: bounded retries with exponential backoff (crash-loop guard).
 #[derive(Debug, Clone)]
 pub struct RestartPolicy {
@@ -47,7 +49,9 @@ impl Default for RestartPolicy {
 impl RestartPolicy {
     /// Exponential backoff for the given attempt (0-based), capped at `max_backoff`.
     pub fn backoff_for(&self, attempt: u32) -> Duration {
-        let exp = self.base_backoff.saturating_mul(2u32.saturating_pow(attempt));
+        let exp = self
+            .base_backoff
+            .saturating_mul(2u32.saturating_pow(attempt));
         exp.min(self.max_backoff)
     }
 
@@ -96,9 +100,15 @@ struct Status {
 }
 
 /// Watchdog / restart supervisor. Hardware-independent; drive it from health probes.
+///
+/// 0.6D: 本 Supervisor 是 **唯一 `RuntimeEvent` 出口** — 恢复决策 (report_failure/
+/// report_recovered/escalate) 与上游 (Provider/Backend) 归一化事件 (`ingest`) 都收敛为
+/// canonical `RuntimeEvent` 写入 `events`, 下游 (Health/RPC/日志) 只经 `drain_events` 消费,
+/// 不再直接触碰 vendor 错误类型。
 pub struct Supervisor {
     policy: RestartPolicy,
     states: HashMap<Uuid, Status>,
+    events: RuntimeEventLog,
 }
 
 impl Supervisor {
@@ -106,7 +116,36 @@ impl Supervisor {
         Self {
             policy,
             states: HashMap::new(),
+            events: RuntimeEventLog::new(),
         }
+    }
+
+    /// 消费上游 (Provider/Backend) 上抛的 vendor 观测, 归一化为 `RuntimeEvent` (经默认映射器)。
+    ///
+    /// Adapter 可提供专属 `RuntimeEventMapper` 消化 vendor 细节; 此处兜底使用默认映射器。
+    pub fn ingest(&self, source: EventSource, observation: &str) {
+        let mapper = crate::events::DefaultRuntimeEventMapper;
+        if let Some(ev) = mapper.map_upstream(source, observation) {
+            self.events.push(ev);
+        }
+    }
+
+    /// 记录一条已归一化的 canonical `RuntimeEvent` (例如 Preflight 闸门在
+    /// `materialize` 前发出的 `AmbiguousIdentity` / `HealthChanged`)。
+    ///
+    /// 与 `ingest` 一样经唯一出口写入 `events`; 调用方负责保证事件已 canonical。
+    pub fn record(&self, ev: RuntimeEvent) {
+        self.events.push(ev);
+    }
+
+    /// 排空当前全部 `RuntimeEvent` (FIFO) — 下游 (Health/RPC/日志) 一次性消费。
+    pub fn drain_events(&self) -> Vec<RuntimeEvent> {
+        self.events.drain()
+    }
+
+    /// 当前缓冲的 `RuntimeEvent` 深度 (监控用)。
+    pub fn pending_events(&self) -> usize {
+        self.events.len()
     }
 
     /// Register a handle as Running.
@@ -128,34 +167,73 @@ impl Supervisor {
     /// Health probe reported failure for `handle`.
     /// Increments the attempt counter, trips the circuit breaker at `circuit_threshold`,
     /// and decides Restart (within budget) vs Escalate (budget exhausted / circuit open).
+    ///
+    /// 0.6D: 决策同时发射 canonical `RuntimeEvent` (Restart → `PipelineFault{retryable}`,
+    /// Escalate → `HealthChanged{.. manual_required}`), 经唯一出口写入 `events`。
     pub fn report_failure(&mut self, handle: &Uuid) -> Result<SupervisorAction, SupervisorError> {
-        let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
-        st.attempts += 1;
-        if st.attempts >= self.policy.circuit_threshold {
-            st.circuit_open = true;
+        let action = {
+            let st = self
+                .states
+                .get_mut(handle)
+                .ok_or(SupervisorError::UnknownHandle)?;
+            st.attempts += 1;
+            if st.attempts >= self.policy.circuit_threshold {
+                st.circuit_open = true;
+            }
+            if !self.policy.should_retry(st.attempts) || st.circuit_open {
+                st.state = ProcessState::ManualRequired;
+                SupervisorAction::Escalate
+            } else {
+                st.state = ProcessState::Unhealthy;
+                SupervisorAction::Restart
+            }
+        };
+        match action {
+            SupervisorAction::Restart => {
+                self.events.push(RuntimeEvent::PipelineFault {
+                    pipeline: *handle,
+                    summary: "health probe failure; restart scheduled".into(),
+                    retryable: true,
+                });
+            }
+            SupervisorAction::Escalate => {
+                self.events.push(RuntimeEvent::HealthChanged {
+                    from: "unhealthy".into(),
+                    to: "manual_required".into(),
+                });
+            }
         }
-        if !self.policy.should_retry(st.attempts) || st.circuit_open {
-            st.state = ProcessState::ManualRequired;
-            return Ok(SupervisorAction::Escalate);
-        }
-        st.state = ProcessState::Unhealthy;
-        Ok(SupervisorAction::Restart)
+        Ok(action)
     }
 
     /// Begin a restart; the caller performs the actual restart then calls
     /// `report_recovered` (success) or `report_failure` (failure) again.
     pub fn begin_restart(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
-        let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
+        let st = self
+            .states
+            .get_mut(handle)
+            .ok_or(SupervisorError::UnknownHandle)?;
         st.state = ProcessState::Restarting;
         Ok(())
     }
 
     /// Restart succeeded; reset budget + circuit.
+    ///
+    /// 0.6D: 发射 `HealthChanged{.. recovered}` 事件。
     pub fn report_recovered(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
-        let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
-        st.state = ProcessState::Recovered;
-        st.attempts = 0;
-        st.circuit_open = false;
+        {
+            let st = self
+                .states
+                .get_mut(handle)
+                .ok_or(SupervisorError::UnknownHandle)?;
+            st.state = ProcessState::Recovered;
+            st.attempts = 0;
+            st.circuit_open = false;
+        }
+        self.events.push(RuntimeEvent::HealthChanged {
+            from: "restarting".into(),
+            to: "recovered".into(),
+        });
         Ok(())
     }
 
@@ -166,9 +244,20 @@ impl Supervisor {
     }
 
     /// Force escalation (FI-08/09 manual-intervention path).
+    ///
+    /// 0.6D: 发射 `HealthChanged{.. manual_required}` 事件。
     pub fn escalate(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
-        let st = self.states.get_mut(handle).ok_or(SupervisorError::UnknownHandle)?;
-        st.state = ProcessState::ManualRequired;
+        {
+            let st = self
+                .states
+                .get_mut(handle)
+                .ok_or(SupervisorError::UnknownHandle)?;
+            st.state = ProcessState::ManualRequired;
+        }
+        self.events.push(RuntimeEvent::HealthChanged {
+            from: "running".into(),
+            to: "manual_required".into(),
+        });
         Ok(())
     }
 }
@@ -214,7 +303,11 @@ mod tests {
         s.register(h);
         for i in 0..4 {
             let action = s.report_failure(&h).unwrap();
-            assert_eq!(action, SupervisorAction::Restart, "attempt {i} should restart");
+            assert_eq!(
+                action,
+                SupervisorAction::Restart,
+                "attempt {i} should restart"
+            );
             assert_eq!(s.status(&h), Some(ProcessState::Unhealthy));
             s.begin_restart(&h).unwrap();
         }
@@ -265,5 +358,54 @@ mod tests {
         let h = Uuid::new_v4();
         assert_eq!(s.report_failure(&h), Err(SupervisorError::UnknownHandle));
         assert_eq!(s.escalate(&h), Err(SupervisorError::UnknownHandle));
+    }
+
+    #[test]
+    fn report_failure_emits_retryable_pipeline_fault() {
+        let mut s = Supervisor::new(RestartPolicy::default());
+        let h = Uuid::new_v4();
+        s.register(h);
+        s.report_failure(&h).unwrap();
+        let ev = s.drain_events();
+        assert_eq!(ev.len(), 1);
+        assert_eq!(
+            ev[0],
+            RuntimeEvent::PipelineFault {
+                pipeline: h,
+                summary: "health probe failure; restart scheduled".into(),
+                retryable: true,
+            }
+        );
+        assert!(ev[0].is_fault());
+        // drain 后清空。
+        assert!(s.drain_events().is_empty());
+    }
+
+    #[test]
+    fn escalate_emits_health_changed_to_manual_required() {
+        let mut s = Supervisor::new(RestartPolicy::default());
+        let h = Uuid::new_v4();
+        s.register(h);
+        s.escalate(&h).unwrap();
+        let ev = s.drain_events();
+        assert_eq!(
+            ev,
+            vec![RuntimeEvent::HealthChanged {
+                from: "running".into(),
+                to: "manual_required".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn ingest_normalizes_upstream_observation_via_mapper() {
+        let s = Supervisor::new(RestartPolicy::default());
+        s.ingest(EventSource::Upstream, "hardware: device lost (no hotplug)");
+        let ev = s.drain_events();
+        assert_eq!(ev.len(), 1);
+        assert!(matches!(ev[0], RuntimeEvent::HardwareFault { .. }));
+        // 无故障语义的观测不产生事件 (不伪造)。
+        s.ingest(EventSource::Upstream, "all nominal");
+        assert!(s.drain_events().is_empty());
     }
 }

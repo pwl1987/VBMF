@@ -1,5 +1,12 @@
 # HARDWARE_PROVIDER_CONTRACT — 硬件 Provider SPI 契约
 
+> **[实现修正注记 2026-08-29, p06-final-merge-hardening]** `discover` 签名修正为
+> `fn discover(&self) -> Result<Vec<DiscoveredDevice>, ProviderError>` (P1-2 fail-closed):
+> SDK 不可用/驱动失败/权限不足显式报错, 与 "无硬件 = `Ok(vec![])`" 严格区分。
+> 同时 (P0-1) Provider 身份证据以 `ProviderIdentity` 随 `DiscoveredDevice` 配对输出,
+> Canonical `DeviceInfo` 不再携带 vendor 身份字段 (见 CANONICAL_IDENTITY §4)。
+
+
 > Phase 0.6 门禁依据（P0）。综合论述见 [`IMPLEMENTATION_ADDENDUM.md §1,§6,§9`](./IMPLEMENTATION_ADDENDUM.md)。
 
 ## 1. SPI 边界（trait 形状级，非实现）

@@ -185,9 +185,12 @@ impl VideoFormat {
             .unwrap_or(0.0);
         let expected_field_rate = if raw > 1000.0 { raw / 100.0 } else { raw };
         // 实测场率 = 帧率 × (隔行 ? 2 : 1).
-        let actual_field_rate = self.frame_rate.as_ref().and_then(|fr| {
-            fr.split('/').next().and_then(|n| n.parse::<f64>().ok())
-        }).unwrap_or(0.0) * if interlaced { 2.0 } else { 1.0 };
+        let actual_field_rate = self
+            .frame_rate
+            .as_ref()
+            .and_then(|fr| fr.split('/').next().and_then(|n| n.parse::<f64>().ok()))
+            .unwrap_or(0.0)
+            * if interlaced { 2.0 } else { 1.0 };
         self.height == height
             && self.interlaced == Some(interlaced)
             && (actual_field_rate - expected_field_rate).abs() < 0.5
@@ -300,8 +303,9 @@ impl VerificationLevel {
 pub struct PortInfo {
     /// 所属设备 ID (Device Registry 中的稳定身份).
     pub device_id: Uuid,
-    /// 所属设备 handle (BMD `DeviceHandle`; 用于验收证据输出, 非身份主键).
-    pub device_handle: Option<String>,
+    /// Provider 本地绑定引用 (P0-1 中立化: 由 Provider Identity Adapter 从清单交叉核验解析;
+    /// 验收证据关联用, 非身份主键. 字段名不冠 vendor 专名).
+    pub provider_binding_ref: Option<String>,
     pub identity: PortIdentity,
     /// 声明/探测出的方向 (Input/Output/Bidirectional/Unknown).
     pub direction: PortDirection,
@@ -374,7 +378,7 @@ impl PortRegistry {
     /// 与 `probes`/`bindings` 的运行时探测推导; 不引用任何 `dn0/dn1/dn2` 语义, 不按 device-number
     /// 推断方向. `bindings` 由 `resolver::collect_bindings_from_manifest` 预先解析得到.
     pub fn build(
-        devices: &[DeviceInfo],
+        devices: &[crate::contracts::provider::DiscoveredDevice],
         probes: &[GStreamerDeviceProbe],
         manifest: &DeviceBindingManifest,
         bindings: &HashMap<Uuid, ResolvedDeviceBinding>,
@@ -385,13 +389,14 @@ impl PortRegistry {
         let mut ports: Vec<PortInfo> = Vec::new();
 
         for entry in &manifest.bindings {
-            let Some(device) = devices
-                .iter()
-                .find(|d| d.bmd_device_handle.as_deref() == Some(entry.bmd_device_handle.as_str()))
-            else {
+            let Some(dev) = devices.iter().find(|d| {
+                crate::resolver::identity_handle(d).as_deref()
+                    == Some(entry.bmd_device_handle.as_str())
+            }) else {
                 // 设备不在 Discovery 结果中 (硬件变更) — 跳过, 由 Manifest 校验拒绝处理.
                 continue;
             };
+            let device = &dev.device;
             let binding = bindings.get(&device.device_id);
 
             let connector = entry
@@ -449,7 +454,7 @@ impl PortRegistry {
 
             ports.push(PortInfo {
                 device_id: device.device_id,
-                device_handle: device.bmd_device_handle.clone(),
+                provider_binding_ref: dev.identity.as_ref().and_then(|i| i.device_handle.clone()),
                 identity: PortIdentity {
                     port_id: PortIdentity::derive(&device.device_id, connector, ordinal),
                     connector,
@@ -596,6 +601,10 @@ impl DiscoveredPort {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceDiscovery {
     pub device: DeviceInfo,
+    /// Provider 侧身份证据 (P0-1: 清单交叉核验键来源; Domain 结构不携带).
+    /// serde skip: 证据为运行期配对物 (ProviderIdentity 含 &static provider 标签), 不进序列化证据.
+    #[serde(skip)]
+    pub identity: Option<crate::contracts::provider::ProviderIdentity>,
     pub capabilities: DeviceCapabilities,
     pub ports: Vec<DiscoveredPort>,
 }
@@ -643,11 +652,12 @@ fn connector_from_mask(mask: u64) -> Vec<ConnectorType> {
 /// * 非真实硬件 (simulation / filesystem / default): 由该设备在 manifest 中声明的绑定合成端口,
 ///   使三层校验在 CI/测试仍闭合; 生产路径始终走真实分支做 fail-closed.
 pub fn discover_ports(
-    devices: &[DeviceInfo],
+    devices: &[crate::contracts::provider::DiscoveredDevice],
     manifest: &DeviceBindingManifest,
 ) -> Vec<DeviceDiscovery> {
     let mut out = Vec::new();
-    for dev in devices {
+    for discovered in devices {
+        let dev = &discovered.device;
         let mut ports = Vec::new();
         let has_real = dev.video_input_connections != 0 || dev.video_output_connections != 0;
         if has_real {
@@ -670,7 +680,9 @@ pub fn discover_ports(
         } else {
             // 无真实连接位掩码: 由 manifest 该设备声明合成端口 (CI/测试闭环用, 非生产路径).
             for b in &manifest.bindings {
-                if Some(b.bmd_device_handle.as_str()) == dev.bmd_device_handle.as_deref() {
+                if Some(b.bmd_device_handle.as_str())
+                    == crate::resolver::identity_handle(discovered).as_deref()
+                {
                     if let Some(p) = &b.port {
                         ports.push(DiscoveredPort {
                             connector: p.connector,
@@ -729,6 +741,7 @@ pub fn discover_ports(
         };
         out.push(DeviceDiscovery {
             device: dev.clone(),
+            identity: discovered.identity.clone(),
             capabilities,
             ports,
         });
@@ -745,7 +758,10 @@ pub fn validate_manifest_against_discovery(
     for b in &manifest.bindings {
         let dev = discovery
             .iter()
-            .find(|d| d.device.bmd_device_handle.as_deref() == Some(b.bmd_device_handle.as_str()))
+            .find(|d| {
+                d.identity.as_ref().and_then(|i| i.device_handle.as_deref())
+                    == Some(b.bmd_device_handle.as_str())
+            })
             .ok_or_else(|| DiscoveryMismatch {
                 binding: b.label.clone().unwrap_or_default(),
                 expected: format!("device {}", b.bmd_device_handle.as_str()),
@@ -784,21 +800,26 @@ mod tests {
     use super::*;
     use crate::resolver::{BindingEntry, Confidence, ResolverMatch};
 
-    fn dev(handle: &str) -> DeviceInfo {
-        DeviceInfo {
-            device_id: Uuid::new_v4(),
-            model: "DeckLink".into(),
-            display_name: format!("dv-{handle}"),
-            serial_number: None,
-            bmd_persistent_id: None,
-            bmd_device_handle: Some(handle.to_string()),
-            bmd_topological_id: None,
-            identity_strength: crate::device::IdentityStrength::DeviceHandle,
-            identity_source: crate::device::DeviceIdentitySource::RealBmd,
-            capabilities: crate::port::DeviceCapabilities::default(),
-            video_input_connections: 0,
-            video_output_connections: 0,
-            ports: Vec::new(),
+    fn dev(handle: &str) -> crate::contracts::provider::DiscoveredDevice {
+        crate::contracts::provider::DiscoveredDevice {
+            device: DeviceInfo {
+                device_id: Uuid::new_v4(),
+                model: "DeckLink".into(),
+                display_name: format!("dv-{handle}"),
+                serial_number: None,
+                identity_strength: crate::device::IdentityStrength::DeviceHandle,
+                identity_source: crate::device::DeviceIdentitySource::RealBmd,
+                capabilities: crate::port::DeviceCapabilities::default(),
+                video_input_connections: 0,
+                video_output_connections: 0,
+                ports: Vec::new(),
+            },
+            identity: Some(crate::contracts::provider::ProviderIdentity {
+                provider: "blackmagic",
+                persistent_id: None,
+                device_handle: Some(handle.to_string()),
+                topological_id: None,
+            }),
         }
     }
 
@@ -865,10 +886,11 @@ mod tests {
         let probes = vec![probe(1, Some(true))];
         let mut bindings = HashMap::new();
         bindings.insert(
-            d.device_id,
+            d.device.device_id,
             ResolvedDeviceBinding {
                 device_number: 1,
                 hw_serial_number: None,
+                persistent_id: None,
                 confidence: Confidence::High,
                 match_kind: ResolverMatch::ManifestVerified,
             },
@@ -988,10 +1010,11 @@ mod tests {
         // 真实发现只有 SDI 输入端口; manifest 声明 Output (Sdi) → fail-closed 拒绝 (§三/§四).
         let device = dev("devh");
         let discovery = vec![DeviceDiscovery {
-            device: device.clone(),
+            device: device.device.clone(),
+            identity: device.identity.clone(),
             capabilities: DeviceCapabilities::default(),
             ports: vec![DiscoveredPort::new(
-                &device.device_id,
+                &device.device.device_id,
                 ConnectorType::Sdi,
                 PortDirection::Input,
                 PortOrdinal::Known(1),
