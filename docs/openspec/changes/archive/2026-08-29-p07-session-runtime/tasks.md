@@ -54,3 +54,12 @@
 
 - 编号说明：0.7A=Runtime Ownership（新分段，替代 MASTER_PRD §5 旧 0.7A-G 标签；PRD 不改）；本 change 完成 0.6A/0.6E 冻结契约（RUNTIME_SESSION_MODEL/RUNTIME_RESOURCE_MODEL/RUNTIME_LIFECYCLE_SEQUENCE）实现债务。
 - 真机证据：**首次在真实 BMD+GStreamer 硬件上跑通完整会话生命周期**（含 `MediaBackend::stop` 首次真实调用）；bootstrap 租约冲突被 Preflight fail-closed 正确拒绝（门禁反向实证）。
+
+## Merge Gate Hardening 附录 (2026-08-29, commit 8a14ff1)
+
+Merge Gate 复审裁决 5 项 P0（多设备租约泄漏 / 状态机未强制 / close Running 孤儿 pipeline /
+Preflight 副作用 / 测试未击穿多设备场景）已全部在同分支修复并验证：
+test 115/115/**131**/115 + 真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS + CI 七 checks 全绿。
+详见 verify 报告 §7。P1 遗留已记 0.7 backlog（derive_claims FAIL 化 / PortAvailability 精确化 /
+IdentityBinding 实查 / EventSink 解耦 / LifecycleJournal / OnceLock 简化 / per-claim TTL /
+BACKEND-CAPABILITY-01 / create 幂等键）。

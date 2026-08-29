@@ -57,3 +57,19 @@ fmt apply/check **0** · test **115 (default) / 115 (simulation) / 127 (mock) / 
 ## 6. 交付路径
 
 archive → 单一 PR `comet/p07-session-runtime` → `master`（gh）→ protection 增 `session-lifecycle` → merge 后删分支（新分支纪律）。后续 0.7A 余项与 0.7B/0.7C 依 roadmap 分段推进。
+
+## 7. Merge Gate Hardening 附录 (commit 8a14ff1)
+
+用户 Merge Gate 代码级复核裁决 **NO-GO**（5 项 P0 生命周期 bug，测试矩阵未击穿多设备/异常/close 边界）。同分支修复（不开新 change），全部落地：
+
+| P0 | 问题 | 修复 | 验证 |
+|----|------|------|------|
+| P0-1 | 多设备租约仅存 first → 孤儿租约（stop/close/部分失败三处泄漏） | `MediaSession.leases: Vec<DeviceLease>`；create 事务式逐台 acquire（失败逆序释放已获取）；stop/close/rollback/tick 释放全部 | `session_rt_01_multi_device_acquire_release`（2 设备 2 租约全释放）+ `session_rt_01_partial_lease_failure_rolls_back_acquired_leases`（CountingFailLeaseManager 确定性注入，断言租约表空） |
+| P0-2 | 状态机白名单未强制（直接赋值） | `SessionPhase::can_transition_to` 白名单 + `set_phase`/`transition_state` 守卫（非法迁移拒绝 + Critical 事件）；引擎全部写入点过守卫 | `session_rt_01_illegal_phase_transition_rejected_via_manager_api`（Terminated→start 拒绝；#114 恒拒） |
+| P0-3 | close(Running) 移除会话不停 pipeline → orphan pipeline | close 仅接受 Released/Terminated/失败终态；活动相位 → InvalidTransition | `session_rt_01_close_running_rejected_no_pipeline_orphan`（close 拒 + pipeline 仍持有 → stop 后 close 成功） |
+| P0-4 | Preflight 调 health() 有清扫副作用（违反 judge-only） | `LeaseManager::list_active` 纯读（health 保留清扫职责，职责分离） | `preflight_is_side_effect_free`（过期租约经 Preflight 后仍在存储中） |
+| P0-5 | 测试未覆盖多设备/部分成功场景 | +4 硬化测试（多设备/部分失败/close-running/非法迁移） | 盒上 mock 集 131 tests |
+
+**Hardening 后最终矩阵**: fmt 0 · test **115/115/131/115** · clippy -D ×4 零警告 · build ×3 · PROOF PASS · **真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS**（exit 0）。CI 七 checks 于 `8a14ff1` 全绿。
+
+**遗留 (已记账, 不阻塞 Merge)**: P1 项——derive_claims 无资源 FAIL 化 / PortAvailability 精确到 port+direction / IdentityBinding 实查 strength / RuntimeEventSink 与 Supervisor 解耦 / LifecycleJournal 精确逆序 / OnceLock→直接字段 / per-claim TTL / BACKEND-CAPABILITY-01(0.7B) / create 幂等键(0.7C)。
