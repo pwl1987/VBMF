@@ -86,3 +86,16 @@ archive → 单一 PR `comet/p07-session-runtime` → `master`（gh）→ protec
 **Round 2 后最终矩阵**: fmt 0 · test **115/115/134/115** · clippy -D ×4 零警告 · build ×3 · PROOF PASS · **真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS**。CI 七 checks 于 `286706a` 全绿。Lifecycle Failure Matrix 覆盖：Preflight/Reserve/Lease/Binding/Instantiate/Allocate(partial)/Start/Stop(fail)/Close/Tick × single/multi-resource。
 
 **遗留（0.7 backlog，不变）**: P1 各项（derive_claims FAIL 化 / PortAvailability 精确化 / IdentityBinding 实查 / EventSink 解耦 / LifecycleJournal / OnceLock 简化 / per-claim TTL / BACKEND-CAPABILITY-01 / create 幂等键）。
+
+## 9. Merge Gate Hardening Round 3 附录 (commit fda8741)
+
+三轮复核裁决 **NO-GO**（1 项新 P0 + 1 项 P1 顺手修），同分支修复：
+
+| 项 | 问题 | 修复 | 验证 |
+|----|------|------|------|
+| P0 (R3) | `start()` 的 materialize 失败经 `?` 直接返回 → 会话遗留 Starting 相位 + lease/reservation（真实失败可能：identity/binding/runtime address/设备消失） | materialize 失败（含空计划分支）→ `rollback_lease_and_reservation` + StartFailed 终态 + SessionFailed 事件 | `session_rt_01_materialize_failure_rolls_back_everything`（intent 引用未注册设备 → 断言 lease 空 / 资源 Available / pipeline None / StartFailed / 失败终态 close 成功） |
+| P1 | FailingBackend stop 注入误用 StartFailed 变体（错误语义失真） | 改用 `PipelineError::StopFailed` | stop-failure 测试链语义修正 |
+
+**Round 3 后最终矩阵**: fmt 0 · test **115/115/135/115** · clippy -D ×4 零警告 · build ×3 · PROOF PASS · **真机 SESSION-RT-01/RESOURCE-RT-01 回归 ALL PASS**。CI 七 checks 于 `fda8741` 全绿。Lifecycle Failure Matrix v2 至此覆盖 Materialize×single（partial allocate×multi、stop fail×single/multi 于 Round 2 落地）。
+
+**遗留（0.7 backlog 不变）**: LifecycleJournal 精确逆序（P1-1）/ create 幂等键（0.7C）/ derive_claims FAIL 化 / PortAvailability 精确化 / IdentityBinding 实查 / EventSink 解耦 / OnceLock 简化 / per-claim TTL / BACKEND-CAPABILITY-01。

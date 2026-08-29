@@ -69,3 +69,10 @@ BACKEND-CAPABILITY-01 / create 幂等键）。
 二次复审 2 项异常路径 P0（多资源部分 Allocation 孤儿 / stop 失败截断释放链）已修复并验证：
 test 115/115/**134**/115 + 真机回归 ALL PASS + CI 七 checks 全绿。Lifecycle Failure Matrix 已覆盖
 Allocate(partial)×multi 与 Stop(fail)×single/multi。详见 verify 报告 §8。
+
+## Merge Gate Hardening Round 3 附录 (2026-08-29, commit fda8741)
+
+三轮复核 1 项新 P0（materialize 失败遗留 Starting+lease/reservation）已修复：失败逆序回滚 +
+StartFailed 终态 + SessionFailed 事件（空计划分支同修）；FailingBackend stop 注入改用
+PipelineError::StopFailed。验证：test 115/115/**135**/115 + 真机回归 ALL PASS + CI 七 checks 全绿。
+详见 verify 报告 §9。Failure Matrix v2 已覆盖 materialize×single。
