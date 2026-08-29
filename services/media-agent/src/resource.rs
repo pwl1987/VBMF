@@ -191,6 +191,43 @@ impl ResourceRegistry {
     pub fn get_mut(&mut self, id: &Uuid) -> Option<&mut Resource> {
         self.resources.iter_mut().find(|r| &r.id == id)
     }
+    /// 确认分配 (Reserved → Allocated; P0-7A 编排): 仅预留持有者本人可推进
+    /// (reservation.holder 必须与 holder 一致, 防越权 allocate 他人预留)。
+    /// 调用时机: Backend.instantiate 成功后 (RUNTIME_LIFECYCLE_SEQUENCE §1)。
+    pub fn allocate_for(
+        &mut self,
+        resource_id: &Uuid,
+        holder: Uuid,
+    ) -> Result<(), ResourceStateError> {
+        let Some(res) = self.get_mut(resource_id) else {
+            return Err(ResourceStateError {
+                from: ResourceState::Reserved,
+                to: ResourceState::Allocated,
+            });
+        };
+        if res.reservation.as_ref().map(|r| r.holder) != Some(holder) {
+            return Err(ResourceStateError {
+                from: res.state,
+                to: ResourceState::Allocated,
+            });
+        }
+        res.allocate()
+    }
+    /// 释放 holder 名下全部 Allocated 资源 (Allocated → Releasing → Available; stop 路径)。
+    /// 返回释放数。Releasing→Available 立即完成 (无异步释放方, 与状态机白名单一致)。
+    pub fn release_allocation(&mut self, holder: Uuid) -> usize {
+        let mut released = 0;
+        for res in self.resources.iter_mut() {
+            if res.state == ResourceState::Allocated
+                && res.allocated_to == Some(holder)
+                && res.begin_release().is_ok()
+                && res.finish_release().is_ok()
+            {
+                released += 1;
+            }
+        }
+        released
+    }
     /// 由 `PortRegistry` 派生: 每个具有稳定 `port_id` 的端口生成 1 个能力 Resource。
     ///
     /// 仅 `port_id = Some` 的端口可派生 (与 `PortIdentity::derive` 的"Unknown 不伪造 ID"一致);
@@ -369,6 +406,29 @@ impl SharedResourceRegistry {
             }
         }
         released
+    }
+    /// 确认分配 (Reserved → Allocated; Backend.instantiate 成功后调用, P0-7A 编排)。
+    pub fn allocate_for(&self, resource_id: &Uuid, holder: Uuid) -> Result<(), ResourceStateError> {
+        self.0.lock().unwrap().allocate_for(resource_id, holder)
+    }
+    /// 释放 holder 名下全部 Allocated 资源 (stop 路径); 返回释放数。
+    pub fn release_allocation(&self, holder: Uuid) -> usize {
+        self.0.lock().unwrap().release_allocation(holder)
+    }
+    /// 过期扫描入口 (Manager.tick 驱动): 将超时未确认的 Reserved 打回 Available,
+    /// 事件 `ResourceReservationExpired` 由调用方发射。0.7A 以 tick 周期近似 TTL。
+    pub fn expire_reservations_of(&self, holder: Uuid) -> usize {
+        let mut g = self.0.lock().unwrap();
+        let mut expired = 0;
+        for res in g.resources.iter_mut() {
+            if res.state == ResourceState::Reserved
+                && res.reservation.as_ref().map(|r| r.holder) == Some(holder)
+                && res.expire_reservation().is_ok()
+            {
+                expired += 1;
+            }
+        }
+        expired
     }
     /// 只读快照访问 (诊断/证据)。
     pub fn with_inner<R>(&self, f: impl for<'a> FnOnce(&'a ResourceRegistry) -> R) -> R {
@@ -590,5 +650,45 @@ mod tests {
             .is_ok());
         // 无名下预留 → 回滚 0.
         assert_eq!(shared.release_reservations(holder), 0);
+    }
+
+    #[test]
+    fn resource_01_allocate_for_requires_matching_holder_and_release() {
+        // P0-7A 编排: 仅预留持有者可 allocate; release_allocation 释放本人 Allocated。
+        let mut rr = ResourceRegistry::new();
+        let id = Uuid::new_v4();
+        rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
+        let holder = Uuid::new_v4();
+        rr.resources[0].reserve(holder, "tok").unwrap();
+        // 越权 allocate (非预留持有者) 拒绝。
+        assert!(rr.allocate_for(&id, Uuid::new_v4()).is_err());
+        assert_eq!(rr.resources[0].state, ResourceState::Reserved);
+        // 持有者 allocate 成功 → Allocated → release_allocation → Available。
+        rr.allocate_for(&id, holder).unwrap();
+        assert_eq!(rr.resources[0].state, ResourceState::Allocated);
+        assert_eq!(rr.resources[0].allocated_to, Some(holder));
+        assert_eq!(rr.release_allocation(holder), 1);
+        assert_eq!(rr.resources[0].state, ResourceState::Available);
+        assert_eq!(rr.resources[0].allocated_to, None);
+    }
+
+    #[test]
+    fn resource_01_expire_reservations_of_scoped_to_holder() {
+        let mut rr = ResourceRegistry::new();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        rr.resources.push(Resource::new(a, "ra", "sdi-input", 1));
+        rr.resources.push(Resource::new(b, "rb", "sdi-input", 1));
+        let h1 = Uuid::new_v4();
+        let h2 = Uuid::new_v4();
+        rr.resources[0].reserve(h1, "t1").unwrap();
+        rr.resources[1].reserve(h2, "t2").unwrap();
+        let shared = SharedResourceRegistry::new(rr);
+        // 只过期 h1 的预留, 不碰 h2。
+        assert_eq!(shared.expire_reservations_of(h1), 1);
+        shared.with_inner(|g| {
+            assert_eq!(g.resources[0].state, ResourceState::Available);
+            assert_eq!(g.resources[1].state, ResourceState::Reserved);
+        });
     }
 }

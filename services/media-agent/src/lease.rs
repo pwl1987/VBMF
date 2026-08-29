@@ -16,8 +16,10 @@ pub struct DeviceLease {
     pub ttl: std::time::Duration,
 }
 
-/// Lease lifecycle (acquire/release/health). Shape frozen per SoT §15.2.
-pub trait LeaseManager {
+/// Lease lifecycle (acquire/release/renew/health). Shape frozen per SoT §15.2
+/// (P0-7A 增补 Renew op 与 `Send + Sync` supertrait — 租约跨运行时线程持有,
+/// SessionManager (Session 表) 与 watchdog 均跨线程访问)。
+pub trait LeaseManager: Send + Sync {
     /// Acquire exclusive lease; fails if already leased (prevents host ffmpeg / double-capture).
     fn acquire(
         &self,
@@ -29,6 +31,15 @@ pub trait LeaseManager {
     fn release(&self, lease: &DeviceLease) -> Result<(), LeaseError>;
     /// Heartbeat / TTL check; expired leases auto-released.
     fn health(&self) -> Vec<DeviceLease>;
+    /// Renew (extend) a lease held by `owner` (RUNTIME_RESOURCE_MODEL §4.1 Renew op;
+    /// P0-7A Session Runtime). Fails `NotFound` if absent; `AlreadyLeased` if held by
+    /// a different owner (绝不可借 renew 抢占他人租约).
+    fn renew(
+        &self,
+        device_id: &Uuid,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<DeviceLease, LeaseError>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -112,6 +123,24 @@ impl LeaseManager for InMemoryLeaseManager {
         }
     }
 
+    fn renew(
+        &self,
+        device_id: &Uuid,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<DeviceLease, LeaseError> {
+        let mut guard = self.leases.lock().unwrap();
+        match guard.get_mut(device_id) {
+            None => Err(LeaseError::NotFound(*device_id)),
+            Some(l) if l.owner != owner => Err(LeaseError::AlreadyLeased(*device_id)),
+            Some(l) => {
+                l.acquired_at = Utc::now();
+                l.ttl = ttl;
+                Ok(l.clone())
+            }
+        }
+    }
+
     fn health(&self) -> Vec<DeviceLease> {
         let mut guard = self.leases.lock().unwrap();
         let now = Utc::now();
@@ -154,6 +183,33 @@ mod tests {
         lm.release(&l).unwrap();
         assert!(!lm.is_valid(&id));
         assert!(matches!(lm.release(&l), Err(LeaseError::NotFound(_))));
+    }
+
+    #[test]
+    fn renew_extends_holder_lease_and_rejects_other_owner() {
+        // P0-7A: Renew 仅限持有者本人; 他人 renew = AlreadyLeased (绝不借 renew 抢占).
+        let lm = InMemoryLeaseManager::new();
+        let id = Uuid::nil();
+        lm.acquire(&id, "session-a", std::time::Duration::from_secs(5))
+            .unwrap();
+        let renewed = lm
+            .renew(&id, "session-a", std::time::Duration::from_secs(60))
+            .unwrap();
+        assert_eq!(renewed.owner, "session-a");
+        assert_eq!(renewed.ttl, std::time::Duration::from_secs(60));
+        assert!(lm.is_valid(&id));
+        assert!(matches!(
+            lm.renew(&id, "session-b", std::time::Duration::from_secs(60)),
+            Err(LeaseError::AlreadyLeased(_))
+        ));
+        assert!(matches!(
+            lm.renew(
+                &Uuid::new_v4(),
+                "session-a",
+                std::time::Duration::from_secs(60)
+            ),
+            Err(LeaseError::NotFound(_))
+        ));
     }
 
     #[test]

@@ -7,7 +7,7 @@ name: media-agent CI
 # p06-final-merge-hardening (PR#1 终审整改): 由单一聚合 test job 拆分为粒度化
 # required gates — 聚合 check 产生盲区 (hardware-test 回归曾藏身于聚合绿)。
 # Branch protection required contexts (与 job `name` 严格一致):
-#   rust-format / rust-test-matrix / rust-clippy /
+#   rust-format / rust-test-matrix / rust-clippy / session-lifecycle /
 #   hardware-test-compile / architecture-portability / gstreamer-build
 on:
   push:
@@ -80,6 +80,27 @@ jobs:
         run: cargo clippy --all-targets --features mock -- -D warnings
       # bmd/gstreamer 组合 clippy 由盒上 (10.30.15.10) ACCEPTANCE 承担 —
       # CI 无 GStreamer dev / DeckLink SDK, 不重复。
+
+  # ── session-lifecycle ────────────────────────────────────────────────────────
+  # P0-7A 门禁: SESSION-RT-01 (全生命周期/失败回滚/double-start-stop 防护) +
+  # RESOURCE-RT-01 (并发争抢/容量/冲突/release/expiry/crash cleanup)。
+  # 以 mock feature 跑 SessionManager/resource/lease/preflight 全部门禁测试。
+  session-lifecycle:
+    name: session-lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            services/media-agent/target
+          key: ${{ runner.os }}-cargo-session-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      - name: Test (mock) — session + resource + lease + preflight gate tests
+        run: "cargo test --features mock session:: resource:: lease:: preflight::"
 
   # ── rust-test-matrix ─────────────────────────────────────────────────────────
   # 编译门禁 (Test A) + 单测: 禁用厂商 feature 后 Domain/Graph/Session/Supervisor/

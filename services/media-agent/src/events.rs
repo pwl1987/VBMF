@@ -93,6 +93,17 @@ pub enum RuntimeEvent {
         /// 候选描述集 (canonical 字符串, 如各候选的 handle/序号)。
         candidates: Vec<String>,
     },
+    // ── P0-7A Session Runtime (additive; EVENT_CONTRACT: session 为一等维度) ──
+    /// 会话已创建 (Preflight+Reservation 完成后登记)。
+    SessionCreated { session_id: Uuid },
+    /// 会话状态迁移 (粗态或微相位; canonical 字符串)。
+    SessionStateChanged {
+        session_id: Uuid,
+        from: String,
+        to: String,
+    },
+    /// 会话失败 (生命周期任一步失败且已回滚; Critical — 不可被日志挤出)。
+    SessionFailed { session_id: Uuid, reason: String },
 }
 
 impl RuntimeEvent {
@@ -110,6 +121,9 @@ impl RuntimeEvent {
             RuntimeEvent::HardwareFault { .. } => "hardware_fault",
             RuntimeEvent::HealthChanged { .. } => "health_changed",
             RuntimeEvent::AmbiguousIdentity { .. } => "ambiguous_identity",
+            RuntimeEvent::SessionCreated { .. } => "session_created",
+            RuntimeEvent::SessionStateChanged { .. } => "session_state_changed",
+            RuntimeEvent::SessionFailed { .. } => "session_failed",
         }
     }
     /// 是否为故障类事件 (需 Supervisor/Policy 关注)。
@@ -119,6 +133,7 @@ impl RuntimeEvent {
             RuntimeEvent::PipelineFault { .. }
                 | RuntimeEvent::HardwareFault { .. }
                 | RuntimeEvent::AmbiguousIdentity { .. }
+                | RuntimeEvent::SessionFailed { .. }
         )
     }
     /// 事件严重级 (P1-3): 故障/拒识类 Critical (不可被日志挤出), 其余 Observation。
@@ -386,5 +401,15 @@ mod tests {
         let json = serde_json::to_string(&e).expect("serialize");
         let back: RuntimeEvent = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(e, back);
+        // P0-7A additive kinds 同样 serde 安全。
+        let sf = RuntimeEvent::SessionFailed {
+            session_id: Uuid::nil(),
+            reason: "start failed".into(),
+        };
+        let j2 = serde_json::to_string(&sf).expect("serialize");
+        let b2: RuntimeEvent = serde_json::from_str(&j2).expect("deserialize");
+        assert_eq!(sf, b2);
+        assert_eq!(sf.kind(), "session_failed");
+        assert!(sf.is_fault(), "SessionFailed 为 Critical");
     }
 }
