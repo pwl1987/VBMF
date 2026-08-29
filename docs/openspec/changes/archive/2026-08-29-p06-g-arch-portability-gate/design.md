@@ -1,3 +1,15 @@
+---
+title: "Phase 0.6 C4 (0.6G): ARCH-PORTABILITY-01 解耦门禁 — 技术设计"
+change: p06-g-arch-portability-gate
+change_id: p06-g-arch-portability-gate
+comet_change: p06-g-arch-portability-gate
+role: technical-design
+spec: openspec
+canonical_spec: openspec
+links:
+  - "[p06-g-arch-portability-gate](p06-g-arch-portability-gate)"
+---
+
 # Design: Phase 0.6 C4 — ARCH-PORTABILITY-01
 
 ## 门禁定义（来自 IMPLEMENTATION_ADDENDUM）
