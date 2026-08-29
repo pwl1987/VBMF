@@ -13,6 +13,7 @@ mod graph_intent;
 mod health;
 mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
 mod lease;
+mod normalize; // P0.7B-1: Normalize Foundation — Raw → CanonicalMediaDescriptor (纯函数; 纪律①②③)
 mod pipeline;
 mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
@@ -319,6 +320,56 @@ fn main() {
                 println!("{json}");
                 let all_pass = verifications.iter().all(|v| v.passed);
                 println!("=== LOOPBACK ALL PASS = {all_pass} ===");
+                // P0.7B-1 NORMALIZE-RT-01 (Hardware 层): 渲染已建立信号 → 新鲜探测重建
+                // registry → 真机观测装配 → CanonicalMediaDescriptor 证据输出
+                // (judge-only; 纪律① — descriptor 不进任何 pipeline)。
+                if all_pass {
+                    let fresh_probes = match crate::resolver::probe_gstreamer_devices(
+                        crate::resolver::MAX_PROBE_DEVICES,
+                        false,
+                    ) {
+                        crate::resolver::GstProbeOutcome::Available { probes, .. } => probes,
+                        _ => Vec::new(),
+                    };
+                    let fresh_registry = crate::port::PortRegistry::build(
+                        &discovered,
+                        &fresh_probes,
+                        &manifest,
+                        &bindings,
+                    );
+                    let fresh_registry = match fresh_registry {
+                        Ok(r) => r,
+                        Err(e) => {
+                            eprintln!("NORMALIZE-RT-01: registry 重建失败 (fail-closed): {e:?}");
+                            std::process::exit(2);
+                        }
+                    };
+                    if let Some(input_port) = fresh_registry
+                        .ports
+                        .iter()
+                        .find(|p| p.direction == crate::port::PortDirection::Input)
+                    {
+                        let raw = crate::normalize::RawInputDescription::from_port(input_port);
+                        let outcome = crate::normalize::normalize_input(&raw);
+                        match serde_json::to_string_pretty(&outcome.descriptor) {
+                            Ok(json) => {
+                                println!(
+                                    "=== NORMALIZE-RT-01 Canonical Descriptor (真机观测, 渲染中) ==="
+                                );
+                                println!("{json}");
+                                println!(
+                                    "=== NORMALIZE-RT-01 diagnostics = {:?} ===",
+                                    outcome
+                                        .diagnostics
+                                        .iter()
+                                        .map(|d| (d.level, d.code.as_str()))
+                                        .collect::<Vec<_>>()
+                                );
+                            }
+                            Err(e) => eprintln!("descriptor 序列化失败: {e}"),
+                        }
+                    }
+                }
             }
             Err(e) => eprintln!("loopback verification 序列化失败: {e}"),
         }
