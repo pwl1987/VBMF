@@ -1208,4 +1208,79 @@ mod tests {
         m.manifest_version = "v2".into();
         assert!(m.validate_manifest().is_err());
     }
+
+    // ── p06-hi HW-IDENT-02 gate ─────────────────────────────────────────────────────
+    // 门禁不变量: 身份优先级 PersistentId > (Serial) > DeviceHandle > TopologicalId;
+    // 多重 HIGH 候选 → Ambiguous (拒识, 绝不猜); 无候选 → Unresolved, 绝不静默
+    // 回退 device-number=0; MEDIUM (TopologicalIdGuess) 仅诊断, 不进生产绑定.
+
+    fn dev_with_pid(handle: &str, pid: i64) -> DeviceInfo {
+        let mut d = dev(handle);
+        d.bmd_persistent_id = Some(pid);
+        d.identity_strength = IdentityStrength::PersistentId;
+        d
+    }
+
+    fn probe_with_pid(num: u32, serial: Option<&str>, pid: i64) -> GStreamerDeviceProbe {
+        let mut p = probe(num, serial);
+        p.persistent_id = Some(pid);
+        p
+    }
+
+    #[test]
+    fn hw_ident_02_persistent_id_wins_over_device_handle() {
+        // 同一 probe 同时满足 PersistentID 精确与 DeviceHandle 精确 → 取更高优先级
+        // PersistentIdExact (优先级链 PersistentId > DeviceHandle 的 per-probe 判定).
+        let devices = vec![dev_with_pid("H1", 42)];
+        let probes = vec![probe_with_pid(3, Some("H1"), 42)];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::PersistentIdExact);
+        assert_eq!(ev[0].confidence, Confidence::High);
+        assert_eq!(ev[0].gst_device_number, Some(3));
+        // 对照: 无 PersistentID 的同一输入 → 降级为 DeviceHandleExact.
+        let devices_plain = vec![dev("H1")];
+        let ev2 = resolve(&devices_plain, &probes);
+        assert_eq!(ev2[0].match_kind, ResolverMatch::DeviceHandleExact);
+    }
+
+    #[test]
+    fn hw_ident_02_multiple_high_candidates_ambiguous() {
+        // 同一 SDK 设备命中 ≥2 个 HIGH 置信 GStreamer 实例 → Ambiguous (拒识).
+        let devices = vec![dev("H1")];
+        let probes = vec![probe(1, Some("H1")), probe(2, Some("H1"))];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Ambiguous);
+        assert_eq!(ev[0].confidence, Confidence::None);
+        assert_eq!(ev[0].gst_device_number, None);
+        // Ambiguous 绝不进入生产绑定.
+        assert!(collect_bindings(&devices, &probes).is_empty());
+        // resolve_strict 对 required 设备报错 (生产拒绝, 不猜).
+        assert!(resolve_strict(&devices, &probes, &[devices[0].device_id]).is_err());
+    }
+
+    #[test]
+    fn hw_ident_02_unresolved_never_defaults_device_zero() {
+        // 无 HIGH 候选 → Unresolved; 绝不静默回退 device-number=0.
+        let devices = vec![dev("H9")];
+        let probes = vec![probe(0, None), probe(3, Some("OTHER"))];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::Unresolved);
+        assert_eq!(ev[0].gst_device_number, None);
+        assert!(collect_bindings(&devices, &probes).is_empty());
+        assert!(resolve_strict(&devices, &probes, &[devices[0].device_id]).is_err());
+    }
+
+    #[test]
+    fn hw_ident_02_topological_guess_medium_not_production() {
+        // TopologicalID 末段 == hw-serial-number → MEDIUM 猜测, 仅诊断; 不进生产绑定.
+        let devices = vec![dev("46:00000000:002e4500")];
+        let probes = vec![probe(7, Some("002e4500"))];
+        let ev = resolve(&devices, &probes);
+        assert_eq!(ev[0].match_kind, ResolverMatch::TopologicalIdGuess);
+        assert_eq!(ev[0].confidence, Confidence::Medium);
+        assert_eq!(ev[0].gst_device_number, Some(7));
+        // MEDIUM 不进入生产绑定 → resolve_strict 拒绝.
+        assert!(collect_bindings(&devices, &probes).is_empty());
+        assert!(resolve_strict(&devices, &probes, &[devices[0].device_id]).is_err());
+    }
 }

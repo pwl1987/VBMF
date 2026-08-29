@@ -66,6 +66,17 @@ jobs:
       - name: Test (simulation feature)
         run: cargo test --features simulation
 
+      # ── p06-hi 门禁组 (0.6H+I) — required gates, 与 0.6G (ARCH-PORTABILITY-01) 并列 ──
+      # 断言均以 Rust 测试落地, 随 feature 矩阵执行:
+      # - MEDIA-RT-01 / HW-IDENT-02 / RESOURCE-01: 上方 Test (default + simulation) 已覆盖;
+      # - ARCH-BACKEND-01 (Mock 侧): MockBackend 经 `dyn MediaBackend` 从同一 canonical
+      #   PipelinePlan 物化, 与 GStreamer Backend 在 SPI 层可互换 (本步骤);
+      #   GStreamer 运行期对等由盒上 `cargo test --features bmd,gstreamer` 补证 (CI 无 GStreamer 运行时);
+      # - HW-PORT-01 真机闭环 (MiniMon sink2 → Duo capture0) 与 MEDIA-RT-01 SELFTEST A+B+C:
+      #   由盒上 bmd+gstreamer 构建执行 (基线与结果见 p06-hi verify 报告)。
+      - name: Test (mock feature) — p06-hi gates (ARCH-BACKEND-01 Mock side + gate assertions)
+        run: cargo test --no-default-features --features mock
+
       - name: Upload media-agent Linux binary (default)
         uses: actions/upload-artifact@v4
         with:

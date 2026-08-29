@@ -814,4 +814,120 @@ mod tests {
         h.observe_audio_pts(999);
         assert!(!h.first_frame_ok());
     }
+
+    // ── p06-hi MEDIA-RT-01 acceptance gate ─────────────────────────────────────────
+    // 门禁不变量: (1) Default = absence-of-evidence, 绝不默认假过 (P1-2);
+    // (2) PTS 三态区分 Unknown 与 NonMonotonic, 只在真实回退时置 false;
+    // (3) B/C 子项语义: B 为帧证据, C 为测量窗口 (仅"无 error"不够);
+    // (4) self_test plan 是 canonical 自测源 (device_number=0 为自测哨兵, 非真实卡默认).
+
+    #[test]
+    fn media_rt_01_health_default_is_absence_not_pass() {
+        let h = PipelineHealth::default();
+        assert_eq!(h.video_pts_state, PtsMonotonicity::Unknown);
+        assert_eq!(h.audio_pts_state, PtsMonotonicity::Unknown);
+        assert!(!h.playing);
+        assert!(h.video_first_pts.is_none());
+        // 未观测 = 未通过: pass() / first_frame_ok() 默认必须为 false, 绝不默认假过.
+        assert!(!h.pass());
+        assert!(!h.first_frame_ok());
+        // acceptance 正向成就项默认全 false (P1-2): absence-of-evidence ≠ PASS.
+        let a = MediaRt01Acceptance::default();
+        assert!(!a.a_pass() && !a.b_pass() && !a.c_pass());
+    }
+
+    #[test]
+    fn media_rt_01_pts_only_false_on_real_regression() {
+        let mut h = PipelineHealth::default();
+        // Unknown ≠ NonMonotonic: 未收帧前状态为 Unknown, 不得当作 "置 false" 的失败证据.
+        assert_eq!(h.video_pts_state, PtsMonotonicity::Unknown);
+        h.observe_video_pts(1000);
+        h.observe_video_pts(2000);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::ValidMonotonic);
+        // 只在真实回退时置 false: NonMonotonic (sticky, 不自动恢复).
+        h.observe_video_pts(1500);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+        h.observe_video_pts(3000);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+    }
+
+    #[test]
+    fn media_rt_01_b_and_c_pass_semantics() {
+        // B: 首视频帧 + 首音频帧 + 有效 PTS + PTS 单调 — 四项全真才 pass.
+        let b_ok = MediaRt01Acceptance {
+            b1_first_video: true,
+            b2_first_audio: true,
+            b3_valid_pts: true,
+            b4_pts_monotonic: true,
+            ..MediaRt01Acceptance::default()
+        };
+        assert!(b_ok.b_pass());
+        // C: 测量型 — 观测窗口未达标即不过, 即使当前无任何错误.
+        assert!(!b_ok.c_pass());
+        // 窗口达标 + 无致命项 → c_pass.
+        let c_ok = MediaRt01Acceptance {
+            b4_pts_monotonic: true,
+            c_observed_ms: Some(10_000),
+            c1_no_unexpected_eos: true,
+            c2_no_pipeline_error: true,
+            c3_no_repeated_reneg: true,
+            c4_counters_continue: true,
+            ..MediaRt01Acceptance::default()
+        };
+        assert!(c_ok.c_pass());
+    }
+
+    #[test]
+    fn media_rt_01_self_test_plan_is_canonical() {
+        let plan = PipelinePlan::self_test();
+        assert_eq!(plan.source.device_id, "self-test");
+        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert!(plan.normalize);
+        assert_eq!(plan.switch_mode, "FRAME_SWITCH");
+        // 自测哨兵: 无真实设备, `device_number: 0` 是占位, 不违反
+        // "device-number 绝不默认 0" (该约束针对真实选卡不得静默落到 DeckLink 0 号).
+        assert_eq!(plan.source.device_number, 0);
+        assert!(plan.source.bmd_persistent_id.is_none());
+    }
+
+    // ── p06-hi ARCH-BACKEND-01 gate (Test C 延伸到 Backend 侧) ─────────────────────
+    // 门禁不变量: `MediaBackend` 实现以 trait-object 级可互换 — Domain/Graph/Session/
+    // Supervisor/Health 只依赖 `dyn MediaBackend` 与 canonical `PipelinePlan`,
+    // 不依赖具体 backend 类型; canonical plan 是不可变输入, backend 不得回写.
+
+    #[cfg(feature = "mock")]
+    #[test]
+    fn arch_backend_01_mock_backend_implements_media_backend() {
+        let backend: Box<dyn crate::contracts::backend::MediaBackend> =
+            Box::new(crate::adapters::mock::MockBackend);
+        let plan = PipelinePlan::self_test();
+        let handle = backend
+            .prepare(&plan)
+            .expect("MockBackend prepare 应接受 canonical plan");
+        backend.start(&handle).expect("MockBackend start 应成功");
+        backend.recover(&handle).expect("MockBackend recover 应成功");
+        assert!(backend.poll_bus(&handle).is_empty());
+        // canonical 字段未被 backend 回写.
+        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert!(plan.normalize);
+    }
+
+    #[cfg(feature = "gstreamer-backend")]
+    #[test]
+    fn arch_backend_01_gstreamer_backend_implements_media_backend() {
+        // 同一 trait 对象 + 同一 canonical plan: GStreamer Reference Backend 与 Mock
+        // 在 SPI 层面可互换. prepare 构建 videotestsrc/audiotestsrc 管线 (无需硬件;
+        // 该断言在 GStreamer 运行时构建下执行, CI 无 GStreamer 时仅 Mock 侧运行).
+        let backend: Box<dyn crate::contracts::backend::MediaBackend> =
+            Box::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+        let plan = PipelinePlan::self_test();
+        let handle = backend
+            .prepare(&plan)
+            .expect("GStreamerBackend prepare 应接受同一 canonical plan (self_test)");
+        // 句柄为运行时实例标识, 不得与 Mock 固定哨兵冲突.
+        assert_ne!(handle, PipelineHandle(0));
+        // canonical 字段未被 backend 回写.
+        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert!(plan.normalize);
+    }
 }

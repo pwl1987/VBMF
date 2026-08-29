@@ -410,6 +410,51 @@ mod tests {
     }
 
     #[test]
+    fn resource_01_faulted_resource_rejects_without_fallback() {
+        // RESOURCE-01: Faulted 资源不可获取 (NotAcquirable) — materialize 闸门据此拒绝,
+        // 绝不静默回退到其他资源或盲开 device 0; Releasing 态同样不可被新占用 (不抢占).
+        let mut rr = ResourceRegistry::new();
+        let id = Uuid::new_v4();
+        rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
+        rr.resources[0]
+            .reserve(Uuid::new_v4(), "t")
+            .unwrap();
+        rr.resources[0].allocate().unwrap();
+        rr.resources[0].fault().unwrap();
+        assert_eq!(rr.resources[0].state, ResourceState::Faulted);
+        assert!(matches!(
+            preflight(
+                &rr,
+                &AcquisitionRequest {
+                    holder: Uuid::new_v4(),
+                    resource_id: id,
+                    expected_capability: "sdi-input".into()
+                }
+            ),
+            Err(PreflightError::NotAcquirable(_))
+        ));
+        // Releasing 态不可被新占用 (不抢占在途释放).
+        let mut r2 = Resource::new(Uuid::nil(), "r2", "sdi-input", 1);
+        r2.reserve(Uuid::new_v4(), "t").unwrap();
+        r2.allocate().unwrap();
+        r2.begin_release().unwrap();
+        assert_eq!(r2.state, ResourceState::Releasing);
+        let mut rr2 = ResourceRegistry::new();
+        rr2.resources.push(r2);
+        assert!(matches!(
+            preflight(
+                &rr2,
+                &AcquisitionRequest {
+                    holder: Uuid::new_v4(),
+                    resource_id: rr2.resources[0].id,
+                    expected_capability: "sdi-input".into()
+                }
+            ),
+            Err(PreflightError::NotAcquirable(_))
+        ));
+    }
+
+    #[test]
     fn resolve_identity_rejects_ambiguity() {
         // 单候选 + 已选择 → 通过。
         let id = Uuid::new_v4();
