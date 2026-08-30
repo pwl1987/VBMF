@@ -4,6 +4,7 @@
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod adapters;
+mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)
 mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
 mod config;
 mod contracts;
@@ -382,6 +383,22 @@ fn main() {
                                 println!("{json}");
                             }
                             Err(e) => eprintln!("clock domain 序列化失败: {e}"),
+                        }
+                        // P0.7B-2B MEDIA-SEMANTICS-RT-01 (Audio 部分, Hardware 层):
+                        // Normalize → CanonicalAudioStream 证据输出 (role=Unknown 合法;
+                        // 回答"是什么", 不产 pipeline)。
+                        let audio_stream = crate::audio::CanonicalAudioStream::from_description(
+                            crate::audio::AudioStreamId(uuid::Uuid::nil()),
+                            &outcome.descriptor.audio,
+                        );
+                        match serde_json::to_string_pretty(&audio_stream) {
+                            Ok(json) => {
+                                println!(
+                                    "=== MEDIA-SEMANTICS-RT-01 Canonical Audio Stream (真机装配) ==="
+                                );
+                                println!("{json}");
+                            }
+                            Err(e) => eprintln!("audio stream 序列化失败: {e}"),
                         }
                     }
                 }
