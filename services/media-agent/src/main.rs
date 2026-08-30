@@ -24,7 +24,8 @@ mod registry;
 mod resolver;
 mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
 mod rpc;
-mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
+mod session;
+mod timecode; // P0.7B-2C: Canonical Timecode (时间标签, 非时间本体; #148) // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
 
 mod signal; // 信号探测 + 亮度黑场检测
 mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd-provider`)
@@ -399,6 +400,19 @@ fn main() {
                                 println!("{json}");
                             }
                             Err(e) => eprintln!("audio stream 序列化失败: {e}"),
+                        }
+                        // P0.7B-2C TIMECODE-SEMANTICS-RT-01 (Hardware 层): 真机装配
+                        // CanonicalTimecode — 无 timecode 探针 → Unknown + evidence
+                        // (Unknown 合法; 只证明"能观察/描述", 不证明"能解析全部格式")。
+                        let tc = crate::timecode::CanonicalTimecode::unknown();
+                        match serde_json::to_string_pretty(&tc) {
+                            Ok(json) => {
+                                println!(
+                                    "=== TIMECODE-SEMANTICS-RT-01 Canonical Timecode (真机装配) ==="
+                                );
+                                println!("{json}");
+                            }
+                            Err(e) => eprintln!("timecode 序列化失败: {e}"),
                         }
                     }
                 }
