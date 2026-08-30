@@ -100,6 +100,8 @@ pub struct CanonicalMediaDescriptor {
     pub video: CanonicalVideoDescription,
     pub audio: CanonicalAudioDescription,
     pub clock: CanonicalClockRef,
+    /// P0.7B-2C: 时间标签 (时间标签非时间本体; #148); normalize 恒 unknown (无观测源)。
+    pub timecode: crate::timecode::CanonicalTimecode,
 }
 
 // ── Raw 输入侧 (provider 中立装配体; port.rs 观测类型不被替换, 仅转换) ──────────
@@ -278,6 +280,7 @@ pub fn normalize_input(raw: &RawInputDescription) -> NormalizeOutcome {
                 domain: None,
                 domain_description: None,
             },
+            timecode: crate::timecode::CanonicalTimecode::unknown(),
         },
         diagnostics,
     }
