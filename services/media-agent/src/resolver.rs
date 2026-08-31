@@ -521,6 +521,22 @@ pub struct ResolvedDeviceBinding {
     pub match_kind: ResolverMatch,
 }
 
+impl ResolvedDeviceBinding {
+    /// **D5 (IDENTITY-BINDING-01, p07c-runtime-state)**: 生产级绑定实查——
+    /// HIGH 置信 且 匹配种类为精确匹配（PersistentId/Serial/DeviceHandle）或
+    /// ManifestVerified（权威路径）。key-existence 不等于 verified。
+    pub fn is_production_grade(&self) -> bool {
+        self.confidence == Confidence::High
+            && matches!(
+                self.match_kind,
+                ResolverMatch::PersistentIdExact
+                    | ResolverMatch::SerialExact
+                    | ResolverMatch::DeviceHandleExact
+                    | ResolverMatch::ManifestVerified
+            )
+    }
+}
+
 /// 收集生产绑定: 仅接受 HIGH 置信 (PersistentId/Serial/DeviceHandle 精确匹配).
 /// Ambiguous / Unresolved / MEDIUM(TopologicalIdGuess) 一律不进入生产绑定 → 触发
 /// materialize IdentityUnresolved, 绝不盲开 device 0 (用户复核 §七/§八).

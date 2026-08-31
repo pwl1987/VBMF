@@ -39,10 +39,10 @@
 
 ### 🔴 0.7C 前必须（External API 的设备/资源/能力问答依赖）
 
-- **D2** derive_claims FAIL 化（RESOURCE-RESOLUTION-01）
-- **D4** PortAvailability 精确化（端口级 direction/capability/availability）
-- **D5** IdentityBinding 实查（IDENTITY-BINDING-01：API 终会问"这个设备到底是谁"）
-- **D6** BACKEND-CAPABILITY-01（真实能力探针 + 硬性判定）
+- ~~**D2** derive_claims FAIL 化（RESOURCE-RESOLUTION-01）~~ ✅ **CLOSED @ p07c-runtime-state (2026-08-31)**: preflight Stage3 三态 Resolution, 设备无派生 input 资源 ⇒ FAIL
+- ~~**D4** PortAvailability 精确化（端口级 direction/capability/availability）~~ ✅ **CLOSED @ p07c-runtime-state**: 端口级 (port_id 精确匹配+方向 / None ⇒ ≥1 Input 端口), 镜像 materialize 冻结语义
+- ~~**D5** IdentityBinding 实查（IDENTITY-BINDING-01）~~ ✅ **CLOSED @ p07c-runtime-state**: `is_production_grade()` (HIGH+精确匹配/ManifestVerified), preflight+create 双侧实查
+- **D6** BACKEND-CAPABILITY-01（真实能力探针 + 硬性判定）→ 随 0.7C 第二 change (Runtime Query Model)
 
 ### 🟡 可延后（不阻塞 Canonical semantic / External API）
 
