@@ -130,8 +130,11 @@ mod tests {
         let resources = crate::resource::SharedResourceRegistry::new(
             crate::resource::ResourceRegistry::derive_from_discovery(&port_registry(&devices)),
         );
+        let event_log =
+            std::sync::Arc::new(crate::events::RuntimeEventLog::new());
         let sup = std::sync::Arc::new(std::sync::Mutex::new(crate::supervisor::Supervisor::new(
             crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
         )));
         let mgr = std::sync::Arc::new(SessionManager::new(
             resources,
@@ -143,6 +146,7 @@ mod tests {
             Some(registry),
             crate::pipeline::MaterializeMode::Diagnostic,
             SessionTuning::default(),
+            event_log,
         ));
         (RuntimeQuery::new(mgr), lm)
     }

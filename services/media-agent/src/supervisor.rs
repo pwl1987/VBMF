@@ -20,10 +20,11 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::events::{EventSource, RuntimeEvent, RuntimeEventLog, RuntimeEventMapper};
+use crate::events::{EventSource, RuntimeEvent, RuntimeEventMapper, RuntimeEventSink};
 
 /// Restart policy: bounded retries with exponential backoff (crash-loop guard).
 #[derive(Debug, Clone)]
@@ -101,22 +102,25 @@ struct Status {
 
 /// Watchdog / restart supervisor. Hardware-independent; drive it from health probes.
 ///
-/// 0.6D: 本 Supervisor 是 **唯一 `RuntimeEvent` 出口** — 恢复决策 (report_failure/
-/// report_recovered/escalate) 与上游 (Provider/Backend) 归一化事件 (`ingest`) 都收敛为
-/// canonical `RuntimeEvent` 写入 `events`, 下游 (Health/RPC/日志) 只经 `drain_events` 消费,
-/// 不再直接触碰 vendor 错误类型。
+/// 0.6D: 恢复决策 (report_failure/report_recovered/escalate) 与上游 (Provider/Backend)
+/// 归一化事件 (`ingest`) 都收敛为 canonical `RuntimeEvent`。
+///
+/// **0.7C-6 D8 解耦**: Supervisor 回归**纯决策引擎** — 不再持有事件表
+/// (原 `events: RuntimeEventLog` 字段与 `record`/`drain_events`/`pending_events` API
+/// 已删, 生产代码零调用者); 决策产生的事件经组合根注入的 `RuntimeEventSink` 发射
+/// (与 SessionManager 事件同表汇聚, 单表单锁全局 FIFO)。
 pub struct Supervisor {
     policy: RestartPolicy,
     states: HashMap<Uuid, Status>,
-    events: RuntimeEventLog,
+    sink: Arc<dyn RuntimeEventSink>,
 }
 
 impl Supervisor {
-    pub fn new(policy: RestartPolicy) -> Self {
+    pub fn new(policy: RestartPolicy, sink: Arc<dyn RuntimeEventSink>) -> Self {
         Self {
             policy,
             states: HashMap::new(),
-            events: RuntimeEventLog::new(),
+            sink,
         }
     }
 
@@ -126,26 +130,8 @@ impl Supervisor {
     pub fn ingest(&self, source: EventSource, observation: &str) {
         let mapper = crate::events::DefaultRuntimeEventMapper;
         if let Some(ev) = mapper.map_upstream(source, observation) {
-            self.events.push(ev);
+            self.sink.emit(ev);
         }
-    }
-
-    /// 记录一条已归一化的 canonical `RuntimeEvent` (例如 Preflight 闸门在
-    /// `materialize` 前发出的 `AmbiguousIdentity` / `HealthChanged`)。
-    ///
-    /// 与 `ingest` 一样经唯一出口写入 `events`; 调用方负责保证事件已 canonical。
-    pub fn record(&self, ev: RuntimeEvent) {
-        self.events.push(ev);
-    }
-
-    /// 排空当前全部 `RuntimeEvent` (FIFO) — 下游 (Health/RPC/日志) 一次性消费。
-    pub fn drain_events(&self) -> Vec<RuntimeEvent> {
-        self.events.drain()
-    }
-
-    /// 当前缓冲的 `RuntimeEvent` 深度 (监控用)。
-    pub fn pending_events(&self) -> usize {
-        self.events.len()
     }
 
     /// Register a handle as Running.
@@ -190,14 +176,14 @@ impl Supervisor {
         };
         match action {
             SupervisorAction::Restart => {
-                self.events.push(RuntimeEvent::PipelineFault {
+                self.sink.emit(RuntimeEvent::PipelineFault {
                     pipeline: *handle,
                     summary: "health probe failure; restart scheduled".into(),
                     retryable: true,
                 });
             }
             SupervisorAction::Escalate => {
-                self.events.push(RuntimeEvent::HealthChanged {
+                self.sink.emit(RuntimeEvent::HealthChanged {
                     from: "unhealthy".into(),
                     to: "manual_required".into(),
                 });
@@ -230,7 +216,7 @@ impl Supervisor {
             st.attempts = 0;
             st.circuit_open = false;
         }
-        self.events.push(RuntimeEvent::HealthChanged {
+        self.sink.emit(RuntimeEvent::HealthChanged {
             from: "restarting".into(),
             to: "recovered".into(),
         });
@@ -254,7 +240,7 @@ impl Supervisor {
                 .ok_or(SupervisorError::UnknownHandle)?;
             st.state = ProcessState::ManualRequired;
         }
-        self.events.push(RuntimeEvent::HealthChanged {
+        self.sink.emit(RuntimeEvent::HealthChanged {
             from: "running".into(),
             to: "manual_required".into(),
         });
@@ -265,6 +251,7 @@ impl Supervisor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::RuntimeEventLog;
     use uuid::Uuid;
 
     #[test]
@@ -288,9 +275,18 @@ mod tests {
         assert!(!p.should_retry(6));
     }
 
+    /// D8 解耦后测试夹具: Supervisor + 注入的组合根 log (drain 经 log 而非 supervisor)。
+    fn sup_with_log(policy: RestartPolicy) -> (Supervisor, Arc<RuntimeEventLog>) {
+        let log = Arc::new(RuntimeEventLog::new());
+        (
+            Supervisor::new(policy, log.clone() as Arc<dyn RuntimeEventSink>),
+            log,
+        )
+    }
+
     #[test]
     fn register_then_running() {
-        let mut s = Supervisor::new(RestartPolicy::default());
+        let (mut s, _log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         s.register(h);
         assert_eq!(s.status(&h), Some(ProcessState::Running));
@@ -298,7 +294,7 @@ mod tests {
 
     #[test]
     fn restart_until_budget_exhausted_then_escalate() {
-        let mut s = Supervisor::new(RestartPolicy::default()); // max_retries=5, circuit=5
+        let (mut s, _log) = sup_with_log(RestartPolicy::default()); // max_retries=5, circuit=5
         let h = Uuid::new_v4();
         s.register(h);
         for i in 0..4 {
@@ -325,7 +321,7 @@ mod tests {
             max_backoff: Duration::from_secs(60),
             circuit_threshold: 3,
         };
-        let mut s = Supervisor::new(policy);
+        let (mut s, _log) = sup_with_log(policy);
         let h = Uuid::new_v4();
         s.register(h);
         assert_eq!(s.report_failure(&h).unwrap(), SupervisorAction::Restart);
@@ -337,7 +333,7 @@ mod tests {
 
     #[test]
     fn recovery_resets_budget_and_circuit() {
-        let mut s = Supervisor::new(RestartPolicy::default());
+        let (mut s, _log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         s.register(h);
         let _ = s.report_failure(&h); // attempt 1
@@ -354,7 +350,7 @@ mod tests {
 
     #[test]
     fn unknown_handle_errors() {
-        let mut s = Supervisor::new(RestartPolicy::default());
+        let (mut s, _log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         assert_eq!(s.report_failure(&h), Err(SupervisorError::UnknownHandle));
         assert_eq!(s.escalate(&h), Err(SupervisorError::UnknownHandle));
@@ -362,11 +358,11 @@ mod tests {
 
     #[test]
     fn report_failure_emits_retryable_pipeline_fault() {
-        let mut s = Supervisor::new(RestartPolicy::default());
+        let (mut s, log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         s.register(h);
         s.report_failure(&h).unwrap();
-        let ev = s.drain_events();
+        let ev = log.drain();
         assert_eq!(ev.len(), 1);
         assert_eq!(
             ev[0],
@@ -378,16 +374,16 @@ mod tests {
         );
         assert!(ev[0].is_fault());
         // drain 后清空。
-        assert!(s.drain_events().is_empty());
+        assert!(log.drain().is_empty());
     }
 
     #[test]
     fn escalate_emits_health_changed_to_manual_required() {
-        let mut s = Supervisor::new(RestartPolicy::default());
+        let (mut s, log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         s.register(h);
         s.escalate(&h).unwrap();
-        let ev = s.drain_events();
+        let ev = log.drain();
         assert_eq!(
             ev,
             vec![RuntimeEvent::HealthChanged {
@@ -399,13 +395,13 @@ mod tests {
 
     #[test]
     fn ingest_normalizes_upstream_observation_via_mapper() {
-        let s = Supervisor::new(RestartPolicy::default());
+        let (s, log) = sup_with_log(RestartPolicy::default());
         s.ingest(EventSource::Upstream, "hardware: device lost (no hotplug)");
-        let ev = s.drain_events();
+        let ev = log.drain();
         assert_eq!(ev.len(), 1);
         assert!(matches!(ev[0], RuntimeEvent::HardwareFault { .. }));
         // 无故障语义的观测不产生事件 (不伪造)。
         s.ingest(EventSource::Upstream, "all nominal");
-        assert!(s.drain_events().is_empty());
+        assert!(log.drain().is_empty());
     }
 }
