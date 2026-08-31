@@ -27,7 +27,7 @@
 |---|------|------|----------|----------|
 | D7 | **`backend: OnceLock` → 直接字段**：构造注入已是真实语义，OnceLock 制造"可后换"假象 | OnceLock（行为正确） | 改 `Arc<dyn MediaBackend>` 直字段 | 0.7A 余项/0.7B |
 | D8 | **RuntimeEventSink 与 Supervisor 解耦**：SessionManager 经 `Supervisor::record` 出口（Supervisor 既是决策者又是事件表持有者） | 能工作；架构方向倒置 | `RuntimeEventSink → RuntimeEventLog → {Health Reducer, Supervisor, External Projection}` | 0.7C（Event Architecture） |
-| D9 | **create 幂等键（Idempotency-Key）**：随机 SessionId 不解决业务幂等 | 随机 UUID | External API 引入 Idempotency-Key 语义 | 0.7C |
+| D9 | ~~**create 幂等键（Idempotency-Key）**：随机 SessionId 不解决业务幂等~~ ✅ **CLOSED @ p07c-idempotency (2026-08-31)**, 按终审 0.7C-3 Gate §11 具体化逐项锁死（防 "HashMap<CommandId,bool>" 式假关闭）: **D9-A** command identity = `CommandFingerprint`（kind+canonical target; 不参与 command_id/issued_at_ms/requested_by, 测试 `idem_rt_01_fingerprint_semantics`）; **D9-B** payload conflict = 同 id 异指纹 → `Conflict{expected,actual}` 零执行零改写（`idem_rt_01_payload_conflict`）; **D9-C** atomic claim = 单临界区 check-and-insert（初版两段式被 D9-E 击穿测试抓住 Executed=2, 修复后单临界区; `idem_rt_01_validate_rejected_does_not_claim` + 并发测试）; **D9-D** result replay = 原 outcome 逐字节重放, Failed 同样 replay, 重复≠重执行（`idem_rt_01_execute_once_and_replay` + `idem_rt_01_stop_replay_not_reexecute`）; **D9-E** concurrent duplicate = 8 线程 barrier 恰一次执行（`idem_rt_01_concurrent_duplicate_single_execution`）; 真机 IDEMPOTENCY-RT-01 executed/replayed(outcome_equal)/conflict/observe | 随机 UUID（已收口） | ~~External API 引入 Idempotency-Key 语义~~ | ~~0.7C~~ |
 | D10 | **Session 内多 Pipeline**：start() 取 `plans.first()`，多设备会话仅物化首计划 | 单管线（租约/资源已全量持有） | 多管线实例编排（含每管线 Health/句柄表） | 0.7B+ |
 
 ## 词汇卫生（已裁定不阻塞，随 Identity/Provider 清理）
@@ -48,7 +48,7 @@
 ### 🟡 可延后（不阻塞 Canonical semantic / External API）
 
 - D1（LifecycleJournal）、D3（per-claim TTL）、D7（OnceLock 简化）、D10（Session 内多 Pipeline）
-- D9（create 幂等键）→ 移交 0.7C Command Contract 内解决（Idempotency 环节）
+- ~~D9（create 幂等键）→ 移交 0.7C Command Contract 内解决（Idempotency 环节）~~ ✅ CLOSED @ p07c-idempotency (0.7C-4, 2026-08-31)
 
 ### 优先级调整
 

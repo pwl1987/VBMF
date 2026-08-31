@@ -15,6 +15,7 @@ mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (hos
 mod graph_intent;
 mod health;
 mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
+mod idempotency; // P0.7C-4: Idempotency (D9-A~E: 同一命令语义 + 原子 claim + replay/conflict)
 mod lease;
 mod normalize; // P0.7B-1: Normalize Foundation — Raw → CanonicalMediaDescriptor (纯函数; 纪律①②③)
 mod pipeline;
@@ -879,6 +880,120 @@ fn main() {
                             "COMMAND-CONTRACT-RT-01 step=release status={:?} detail={:?}",
                             out.status, out.detail
                         );
+                    }
+                }
+                // P0.7C-4 IDEMPOTENCY-RT-01 (Hardware): 幂等裁决段——
+                // 同 envelope 重发 Replayed / 同 id 换 intent Conflict / 会话数不增。
+                {
+                    use crate::command::{CommandEnvelope, CommandId, CommandKind, CommandTarget};
+                    use crate::idempotency::{CommandIdempotency, IdempotentDispatch};
+                    let idem = CommandIdempotency::new(std::sync::Arc::clone(&mgr));
+                    let cmd_env = CommandEnvelope {
+                        command_id: CommandId(uuid::Uuid::new_v4()),
+                        kind: CommandKind::StartSession,
+                        target: CommandTarget::Session {
+                            intent: intent.clone(),
+                        },
+                        issued_at_ms: 0,
+                        requested_by: "vbmf-idempotency-gate".into(),
+                    };
+                    let start_out = match idem.dispatch(&cmd_env) {
+                        IdempotentDispatch::Executed(o) => Some(o),
+                        other => {
+                            println!("IDEMPOTENCY-RT-01 step=start verdict=UNEXPECTED {other:?}");
+                            None
+                        }
+                    };
+                    if let Some(o) = &start_out {
+                        println!(
+                            "IDEMPOTENCY-RT-01 step=start verdict=executed status={:?} detail={:?} sessions={}",
+                            o.status,
+                            o.detail,
+                            mgr.list().len()
+                        );
+                    }
+                    // 重复投递 → Replayed (会话数不增)。
+                    let sessions_before = mgr.list().len();
+                    match idem.dispatch(&cmd_env) {
+                        IdempotentDispatch::Replayed(o) => {
+                            let replay_same = start_out.as_ref() == Some(&o);
+                            println!(
+                                "IDEMPOTENCY-RT-01 step=duplicate verdict=replayed status={:?} sessions={sessions_before} outcome_equal={replay_same}",
+                                o.status
+                            );
+                        }
+                        other => {
+                            println!(
+                                "IDEMPOTENCY-RT-01 step=duplicate verdict=UNEXPECTED {other:?}"
+                            );
+                        }
+                    }
+                    // 同 command_id 换 intent → Conflict (零执行)。
+                    // (改 version 而非 sink.kind: 真机 intent 的 sink 恒为 rtmp,
+                    //  改成 rtmp 等于没改 → 指纹不变 → 误判 Replayed; version 是
+                    //  canonical 字段且真机恒为 "1.0", 必产生指纹差。)
+                    let mut conflict_env = cmd_env.clone();
+                    if let CommandTarget::Session { intent } = &mut conflict_env.target {
+                        intent.version = "idempotency-conflict-probe".into();
+                    }
+                    let sessions_before = mgr.list().len();
+                    match idem.dispatch(&conflict_env) {
+                        IdempotentDispatch::Conflict { .. } => {
+                            println!(
+                                "IDEMPOTENCY-RT-01 step=conflict verdict=conflict sessions={sessions_before}"
+                            );
+                        }
+                        other => {
+                            println!(
+                                "IDEMPOTENCY-RT-01 step=conflict verdict=UNEXPECTED {other:?}"
+                            );
+                        }
+                    }
+                    // observe: 幂等段创建的会话仍在运行。
+                    if let Some(sid) = mgr.list().first().map(|s| s.session_id) {
+                        println!("IDEMPOTENCY-RT-01 step=observe 10s ...");
+                        std::thread::sleep(std::time::Duration::from_secs(10));
+                        let running = mgr
+                            .status(&sid)
+                            .map(|s| s.phase == crate::session::SessionPhase::Running)
+                            .unwrap_or(false);
+                        println!("IDEMPOTENCY-RT-01 step=observe running={running}");
+                        let stop_env = CommandEnvelope {
+                            command_id: CommandId(uuid::Uuid::new_v4()),
+                            kind: CommandKind::StopSession,
+                            target: CommandTarget::SessionById { session_id: sid },
+                            issued_at_ms: 0,
+                            requested_by: "vbmf-idempotency-gate".into(),
+                        };
+                        match idem.dispatch(&stop_env) {
+                            IdempotentDispatch::Executed(o) => println!(
+                                "IDEMPOTENCY-RT-01 step=stop verdict=executed status={:?}",
+                                o.status
+                            ),
+                            other => {
+                                println!(
+                                    "IDEMPOTENCY-RT-01 step=stop verdict=UNEXPECTED {other:?}"
+                                );
+                            }
+                        }
+                        let rel_env = CommandEnvelope {
+                            command_id: CommandId(uuid::Uuid::new_v4()),
+                            kind: CommandKind::ReleaseSession,
+                            target: CommandTarget::SessionById { session_id: sid },
+                            issued_at_ms: 0,
+                            requested_by: "vbmf-idempotency-gate".into(),
+                        };
+                        match idem.dispatch(&rel_env) {
+                            IdempotentDispatch::Executed(o) => println!(
+                                "IDEMPOTENCY-RT-01 step=release verdict=executed status={:?}",
+                                o.status
+                            ),
+                            other => {
+                                println!(
+                                    "IDEMPOTENCY-RT-01 step=release verdict=UNEXPECTED {other:?}"
+                                );
+                            }
+                        }
                     }
                 }
                 // RESOURCE-RT-01: 第二会话争同资源必须被拒 (首会话已释放 → 先占住再争)。
