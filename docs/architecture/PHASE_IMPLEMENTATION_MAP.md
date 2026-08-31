@@ -20,8 +20,9 @@
 | **0.7C-3** | Command Contract Foundation（请求语义非执行计划; 不可执行性三重守护; 三命令薄映射） | ✅ COMPLETE | (本 PR) | `phase-0.7C3-command-contract`（合并后打） | COMMAND-CONTRACT-RT-01 三层（真机 envelope 驱动全 Executed） |
 | **0.7C-4** | Idempotency Foundation（D9-A~E: 同一命令 fingerprint 语义冻结 + 单临界区原子 claim + replay/conflict 两平面分层; **D9 Foundation CLOSED**——External/持久化语义 deferred to External API） | ✅ COMPLETE | `317d99d` (PR#11) | `phase-0.7C4-idempotency` | IDEMPOTENCY-RT-01 三层（真机 executed/replayed/outcome_equal/conflict） |
 | **0.7C-5** | Error Model Foundation（失败归因分类平面 ErrorClassification 五词表 + classify_session_error 封闭映射 + outcome 分类不变量; **三平面分离红线: CommandStatus≠IdempotentDispatch≠ErrorClassification**） | ✅ COMPLETE | `a6c5925` (PR#12) | `phase-0.7C5-error-model` | ERROR-MODEL-RT-01 三层（真机 ghost-stop PermanentFailure 实证） |
-| **0.7C-6** | Event Projection Foundation + D8 EventSink Decoupling（RuntimeEventSink trait + 组合根单表 + SessionManager 直连 + Supervisor 收窄纯决策 + project() 纯函数投影; 四语义零偷改; **D8 CLOSED**） | ✅ COMPLETE | (本 PR) | `phase-0.7C6-event-projection`（合并后打） | EVENT-PROJECTION-RT-01 三层（真机投影 46 事件实证） |
-| **0.7C** | External Integration（§3 下一项 = **External API**——Event Projection 内部边界已完成, 外部契约边界单独开 change, 不合并） | 📋 NEXT | — | — | — |
+| **0.7C-6** | Event Projection Foundation + D8 EventSink Decoupling（RuntimeEventSink trait + 组合根单表 + SessionManager 直连 + Supervisor 收窄纯决策 + project() 纯函数投影; 四语义零偷改; **D8 CLOSED**） | ✅ COMPLETE | `9b475c1` (PR#13) | `phase-0.7C6-event-projection` | EVENT-PROJECTION-RT-01 三层（真机投影 46 事件实证） |
+| **0.7C-7** | External API Foundation（**API Boundary Model**——五大独立 API 资源类型 + to_api_* 纯转换 + Command/Event/Idempotency 三平面 API 模型 + 契约层 Idempotency 持久化边界三选项冻结; **非 Web Server, 零 transport/持久化**; API-BOUNDARY-01 白盒 + 终审禁清单 11 项） | ✅ COMPLETE | (本 PR) | `phase-0.7C7-external-api`（合并后打） | EXTERNAL-API-RT-01 三层（真机 verdict=OK 实证） |
+| **0.7C** | External Integration（§3 下一项 = **Transport 实现**——std-only 纪律, 单独开 change; API Boundary Model 已完成, transport 只做模型到 wire 的序列化边界） | 📋 NEXT | — | — | — |
 | **0.7D** | Event Projection / Integration（EventSink 解耦 D8 与此同期） | 📋 | — | — | — |
 | **0.8** | Federation / Multi-site（P2） | 📋 | — | — | — |
 
