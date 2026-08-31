@@ -76,6 +76,11 @@ pub struct CommandOutcome {
     pub kind: CommandKind,
     pub status: CommandStatus,
     pub detail: Option<String>,
+    /// 失败归因（0.7C-5 分类平面, **嵌入非合并**——独立 enum 不与 status 混同）:
+    /// `Failed ⇒ Some(Retryable|Permanent|Unknown)`, `Rejected ⇒ Some(Rejected)`,
+    /// `Executed/Accepted ⇒ None`（不变量测试锁定）。在错误边界处（Err 仍为
+    /// 类型态）产生, 绝不从 detail 字符串事后恢复。
+    pub classification: Option<crate::error_model::ErrorClassification>,
 }
 
 /// 验证拒绝（形状层; 绝不触 Runtime）。
@@ -131,16 +136,24 @@ pub fn validate(env: &CommandEnvelope) -> Result<(), CommandRejection> {
 /// match 三臂各调 SessionManager 公共 API; 无循环/插件/注册/总线。
 /// 验证拒绝不触 Runtime; 执行期错误由 SessionManager 既有回滚语义处理。
 pub fn dispatch(mgr: &SessionManager, env: &CommandEnvelope) -> CommandOutcome {
-    let outcome = |status: CommandStatus, detail: Option<String>| CommandOutcome {
-        command_id: env.command_id,
-        kind: env.kind,
-        status,
-        detail,
+    use crate::error_model::ErrorClassification;
+    let outcome = |status: CommandStatus,
+                   detail: Option<String>,
+                   classification: Option<ErrorClassification>|
+     -> CommandOutcome {
+        CommandOutcome {
+            command_id: env.command_id,
+            kind: env.kind,
+            status,
+            detail,
+            classification,
+        }
     };
     if let Err(rej) = validate(env) {
         return outcome(
             CommandStatus::Rejected,
             Some(format!("{}: {}", rej.code, rej.detail)),
+            Some(ErrorClassification::Rejected),
         );
     }
     match (env.kind, &env.target) {
@@ -149,26 +162,40 @@ pub fn dispatch(mgr: &SessionManager, env: &CommandEnvelope) -> CommandOutcome {
                 .create(intent.clone())
                 .and_then(|sid| mgr.start(&sid).map(|_| sid))
             {
-                Ok(_) => outcome(CommandStatus::Executed, None),
-                Err(e) => outcome(CommandStatus::Failed, Some(format!("{e}"))),
+                Ok(_) => outcome(CommandStatus::Executed, None, None),
+                // 分类在错误边界处产生（e 仍为类型态）, 非字符串事后恢复。
+                Err(e) => outcome(
+                    CommandStatus::Failed,
+                    Some(format!("{e}")),
+                    Some(crate::error_model::classify_session_error(&e)),
+                ),
             }
         }
         (CommandKind::StopSession, CommandTarget::SessionById { session_id }) => {
             match mgr.stop(session_id) {
-                Ok(()) => outcome(CommandStatus::Executed, None),
-                Err(e) => outcome(CommandStatus::Failed, Some(format!("{e}"))),
+                Ok(()) => outcome(CommandStatus::Executed, None, None),
+                Err(e) => outcome(
+                    CommandStatus::Failed,
+                    Some(format!("{e}")),
+                    Some(crate::error_model::classify_session_error(&e)),
+                ),
             }
         }
         (CommandKind::ReleaseSession, CommandTarget::SessionById { session_id }) => {
             match mgr.close(session_id) {
-                Ok(()) => outcome(CommandStatus::Executed, None),
-                Err(e) => outcome(CommandStatus::Failed, Some(format!("{e}"))),
+                Ok(()) => outcome(CommandStatus::Executed, None, None),
+                Err(e) => outcome(
+                    CommandStatus::Failed,
+                    Some(format!("{e}")),
+                    Some(crate::error_model::classify_session_error(&e)),
+                ),
             }
         }
         // validate 已保证形状匹配; 此臂不可达。
         _ => outcome(
             CommandStatus::Rejected,
             Some("unreachable: validated shape".into()),
+            Some(ErrorClassification::Rejected),
         ),
     }
 }
