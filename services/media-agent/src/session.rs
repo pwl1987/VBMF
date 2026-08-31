@@ -455,11 +455,17 @@ impl SessionManager {
         // 步 5: Binding verify (bindings 为空 = legacy/simulation 路径, 跳过; 非空则目标设备须在场)。
         // 相位序 (Addendum §4.3): Provisioning → Binding → Leased (租约已持 + 绑定已验 = 就绪可 start)。
         if !self.bindings.is_empty() {
+            // D5: 实查强度 (key-existence ≠ verified)。
             let missing: Vec<Uuid> = intent
                 .devices
                 .iter()
                 .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
-                .filter(|u| !self.bindings.contains_key(u))
+                .filter(|u| {
+                    !self
+                        .bindings
+                        .get(u)
+                        .is_some_and(|b| b.is_production_grade())
+                })
                 .collect();
             if !missing.is_empty() {
                 let _ = self.set_phase(session_id, SessionPhase::BindingFailed);
@@ -730,6 +736,22 @@ impl SessionManager {
             .unwrap()
             .get(id)
             .map(|i| i.session.clone())
+    }
+
+    /// **P0.7C Foundation: 第一条 Canonical→Runtime 生产聚合边**——从 SessionManager
+    /// 持有的运行事实 (devices/bindings/registry/resources/sessions) 装配
+    /// `CanonicalRuntimeState`（组合 canonical descriptor, 绝不平铺; 见 runtime_state.rs）。
+    pub fn runtime_state(&self) -> crate::runtime_state::CanonicalRuntimeState {
+        let resources = self.resources.with_inner(|r| r.clone());
+        let registry = self.registry.clone().unwrap_or_default();
+        let sessions = self.list();
+        crate::runtime_state::CanonicalRuntimeState::assemble(
+            &self.devices,
+            &registry,
+            &resources,
+            &self.bindings,
+            &sessions,
+        )
     }
 
     /// 全部会话快照。

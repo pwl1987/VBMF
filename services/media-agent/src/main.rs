@@ -24,6 +24,7 @@ mod registry;
 mod resolver;
 mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
 mod rpc;
+mod runtime_state; // P0.7C-F: Canonical Runtime State 聚合 (组合非展开; 第一条 Canonical→Runtime 生产边)
 mod session;
 mod timecode; // P0.7B-2C: Canonical Timecode (时间标签, 非时间本体; #148) // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
 
@@ -764,6 +765,14 @@ fn main() {
                     acquired_at: chrono::Utc::now(),
                     ttl: std::time::Duration::from_secs(60),
                 });
+                // RUNTIME-STATE-RT-01 (Hardware): create 前 CanonicalRuntimeState。
+                match serde_json::to_string_pretty(&mgr.runtime_state()) {
+                    Ok(json) => {
+                        println!("=== RUNTIME-STATE-RT-01 CanonicalRuntimeState (create 前) ===");
+                        println!("{json}");
+                    }
+                    Err(e) => eprintln!("runtime state 序列化失败: {e}"),
+                }
                 println!("SESSION-RT-01 step=create ...");
                 match mgr.create(intent) {
                     Ok(sid) => {
@@ -803,6 +812,15 @@ fn main() {
                         println!("SESSION-RT-01 step=create verdict=FAIL error={e}");
                         ok = false;
                     }
+                }
+                // RUNTIME-STATE-RT-01 (Hardware): 会话生命周期后 CanonicalRuntimeState
+                // (资源回落 Available / 会话终态投影可见)。
+                match serde_json::to_string_pretty(&mgr.runtime_state()) {
+                    Ok(json) => {
+                        println!("=== RUNTIME-STATE-RT-01 CanonicalRuntimeState (生命周期后) ===");
+                        println!("{json}");
+                    }
+                    Err(e) => eprintln!("runtime state 序列化失败: {e}"),
                 }
                 // RESOURCE-RT-01: 第二会话争同资源必须被拒 (首会话已释放 → 先占住再争)。
                 println!("RESOURCE-RT-01 step=conflict ...");

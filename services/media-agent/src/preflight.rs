@@ -142,31 +142,67 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
         }
     }
 
-    // 2. PortAvailability — registry 在场时目标设备须有端口; 无 manifest (registry=None) 记 WARN (legacy 诊断路径)。
+    // 2. PortAvailability — **D4 (p07c-runtime-state): 端口级精确化**（镜像 materialize
+    //    冻结语义 pipeline.rs:485-523）: port_id 显式 ⇒ 精确端口必须存在且方向为
+    //    Input/Bidirectional; port_id 缺省 ⇒ 设备须有 ≥1 Input 方向端口（不再接受
+    //    "任意端口", 修 Output 端口混过 Capture intent 的漏洞）。registry=None 记 WARN。
     match inputs.registry {
         Some(reg) => {
-            let missing: Vec<&str> = inputs
-                .intent
-                .devices
-                .iter()
-                .filter(|d| {
-                    Uuid::parse_str(&d.device_id)
-                        .map(|u| reg.ports.iter().all(|p| p.device_id != u))
-                        .unwrap_or(true)
+            let has_input_port = |u: Uuid| {
+                reg.ports.iter().any(|p| {
+                    p.device_id == u
+                        && (p.direction == crate::port::PortDirection::Input
+                            || p.direction == crate::port::PortDirection::Bidirectional)
                 })
-                .map(|d| d.device_id.as_str())
-                .collect();
-            if missing.is_empty() {
+            };
+            let mut failures: Vec<String> = Vec::new();
+            for d in &inputs.intent.devices {
+                let Ok(u) = Uuid::parse_str(&d.device_id) else {
+                    failures.push(format!("设备 {} id 不可解析", d.device_id));
+                    continue;
+                };
+                match &d.pipeline.source.port_id {
+                    Some(pid) => {
+                        let parsed = Uuid::parse_str(pid).ok();
+                        let matched = parsed.and_then(|pu| {
+                            reg.ports
+                                .iter()
+                                .find(|p| p.identity.port_id == Some(pu) && p.device_id == u)
+                        });
+                        match matched {
+                            None => failures.push(format!(
+                                "设备 {u} 显式 port_id {pid} 在 Discovery 端口中无匹配 (生产拒绝静默回退)"
+                            )),
+                            Some(port) => {
+                                if port.direction != crate::port::PortDirection::Input
+                                    && port.direction != crate::port::PortDirection::Bidirectional
+                                {
+                                    failures.push(format!(
+                                        "设备 {u} port_id {pid} 方向为 {:?} (Capture intent 需 Input/Bidirectional)",
+                                        port.direction
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        if !has_input_port(u) {
+                            failures.push(format!("设备 {u} 无 Input 方向端口"));
+                        }
+                    }
+                }
+            }
+            if failures.is_empty() {
                 report.push(
                     PreflightStage::PortAvailability,
                     StageLevel::Pass,
-                    "目标设备均有已发现端口",
+                    "目标端口全部可用 (端口级: 精确 port_id 匹配或 ≥1 Input 端口)",
                 );
             } else {
                 report.push(
                     PreflightStage::PortAvailability,
                     StageLevel::Fail,
-                    format!("目标设备无端口: {missing:?}"),
+                    failures.join("; "),
                 );
             }
         }
@@ -178,12 +214,46 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
     }
 
     // 3. ResourceCapacity — 复用 resource::preflight (存在/能力/Available/容量)。
-    if inputs.claims.is_empty() {
+    // **D2 (RESOURCE-RESOLUTION-01, p07c-runtime-state): 三态 Resolution**——
+    // intent 设备在 ResourceRegistry 中无派生 input 资源 ⇒ FAIL（declared capability
+    // missing 不再 WARN 降级; 自动化控制面不得误判可创建）。
+    let registry_empty = inputs.resources.resources.is_empty();
+    let mut resolution_failures: Vec<String> = Vec::new();
+    for d in &inputs.intent.devices {
+        let Ok(u) = Uuid::parse_str(&d.device_id) else {
+            continue;
+        };
+        if !inputs
+            .resources
+            .resources
+            .iter()
+            .any(|r| r.device_id == u && r.capability.ends_with("-input"))
+        {
+            resolution_failures.push(format!(
+                "设备 {u} 无派生 input 资源 (declared capability missing)"
+            ));
+        }
+    }
+    if !resolution_failures.is_empty() {
         report.push(
             PreflightStage::ResourceCapacity,
-            StageLevel::Warn,
-            "无资源占用请求 (registry=None legacy 路径)",
+            StageLevel::Fail,
+            resolution_failures.join("; "),
         );
+    } else if inputs.claims.is_empty() {
+        if registry_empty {
+            report.push(
+                PreflightStage::ResourceCapacity,
+                StageLevel::Warn,
+                "无资源占用请求 (registry=None legacy 路径)",
+            );
+        } else {
+            report.push(
+                PreflightStage::ResourceCapacity,
+                StageLevel::Warn,
+                "资源已解析但无占用请求 (诊断路径)",
+            );
+        }
     } else {
         let failures: Vec<String> = inputs
             .claims
@@ -242,24 +312,31 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
     if inputs.bindings.is_empty() {
         report.push(PreflightStage::IdentityBinding, StageLevel::Warn, "无已解析绑定 (legacy/非 gstreamer 路径); materialize 将按 identity_strength fail-closed");
     } else {
+        // **D5 (IDENTITY-BINDING-01, p07c-runtime-state): 实查强度**——key-existence
+        // 不等于 verified: 须 is_production_grade()（HIGH + 精确匹配/ManifestVerified）。
         let unresolved = inputs
             .intent
             .devices
             .iter()
             .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
-            .filter(|u| !inputs.bindings.contains_key(u))
+            .filter(|u| {
+                !inputs
+                    .bindings
+                    .get(u)
+                    .is_some_and(|b| b.is_production_grade())
+            })
             .collect::<Vec<_>>();
         if unresolved.is_empty() {
             report.push(
                 PreflightStage::IdentityBinding,
                 StageLevel::Pass,
-                "目标设备均有生产绑定",
+                "目标设备均有生产级绑定 (HIGH + 精确匹配/ManifestVerified)",
             );
         } else {
             report.push(
                 PreflightStage::IdentityBinding,
                 StageLevel::Fail,
-                format!("目标设备缺少生产绑定: {unresolved:?}"),
+                format!("目标设备缺少生产级绑定 (非 HIGH/非精确匹配): {unresolved:?}"),
             );
         }
     }
@@ -346,7 +423,13 @@ mod tests {
         let id = Uuid::new_v4();
         let devices = vec![device(id)];
         let it = intent(&id);
-        let resources = ResourceRegistry::new();
+        // D2: clean case 需注册派生 input 资源 (无派生资源 ⇒ FAIL, 不再 WARN 降级)。
+        let mut resources = ResourceRegistry::new();
+        // Resource::new 的 device_id 默认 nil (仅 derive_from_discovery 会设) —
+        // 手动设置以模拟派生资源 (D2 per-device 检查按 device_id 匹配)。
+        let mut res = crate::resource::Resource::new(id, "r", "sdi-input", 1);
+        res.device_id = id;
+        resources.resources.push(res);
         let leases = InMemoryLeaseManager::new();
         let bindings = HashMap::new();
         let caps: Vec<CapabilityReport> = Vec::new();
@@ -427,5 +510,226 @@ mod tests {
             .stages
             .iter()
             .any(|s| s.stage == PreflightStage::LeaseConflict && s.level == StageLevel::Fail));
+    }
+
+    // ── RUNTIME-STATE-RT-01 (Unit): D2/D4/D5 FAIL 路径 + side-effect 补测 ────────
+
+    fn port_of(device_id: Uuid, direction: crate::port::PortDirection) -> crate::port::PortInfo {
+        crate::port::PortInfo {
+            device_id,
+            provider_binding_ref: None,
+            identity: crate::port::PortIdentity {
+                port_id: crate::port::PortIdentity::derive(
+                    &device_id,
+                    crate::port::ConnectorType::Sdi,
+                    crate::port::PortOrdinal::Known(1),
+                ),
+                connector: crate::port::ConnectorType::Sdi,
+                ordinal: crate::port::PortOrdinal::Known(1),
+            },
+            direction,
+            capabilities: crate::port::PortCapabilities::default(),
+            runtime_binding: None,
+            signal: crate::port::SignalStatus::default(),
+            content: crate::port::VideoContentState::Unknown,
+        }
+    }
+
+    /// 闭包式装配 (局部 leases/caps/claims 生命周期随闭包作用域)。
+    fn with_inputs<T>(
+        intent: &crate::graph_intent::GraphRuntimeIntent,
+        devices: &[DeviceInfo],
+        resources: &ResourceRegistry,
+        registry: Option<&crate::port::PortRegistry>,
+        bindings: &HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+        f: impl FnOnce(&PreflightInputs<'_>) -> T,
+    ) -> T {
+        let leases = InMemoryLeaseManager::new();
+        let caps: Vec<CapabilityReport> = Vec::new();
+        let claims: Vec<AcquisitionRequest> = Vec::new();
+        let inputs = PreflightInputs {
+            intent,
+            devices,
+            resources,
+            claims: &claims,
+            leases: &leases,
+            bindings,
+            capabilities: &caps,
+            registry,
+        };
+        f(&inputs)
+    }
+
+    #[test]
+    fn runtime_state_rt_01_d2_missing_resource_fails_not_warn() {
+        // D2: 设备存在但无派生 input 资源 ⇒ ResourceCapacity FAIL (不再 WARN)。
+        let id = Uuid::new_v4();
+        let devices = vec![device(id)];
+        let it = intent(&id);
+        let resources = ResourceRegistry::new();
+        let bindings = HashMap::new();
+        let r = with_inputs(&it, &devices, &resources, None, &bindings, run);
+        assert_eq!(r.verdict, Verdict::Fail);
+        assert!(r.stages.iter().any(|s| {
+            s.stage == PreflightStage::ResourceCapacity
+                && s.level == StageLevel::Fail
+                && s.detail.contains("declared capability missing")
+        }));
+    }
+
+    #[test]
+    fn runtime_state_rt_01_d4_port_level_precision() {
+        let id = Uuid::new_v4();
+        let devices = vec![device(id)];
+        let mut resources = ResourceRegistry::new();
+        let mut res = crate::resource::Resource::new(id, "r", "sdi-input", 1);
+        res.device_id = id;
+        resources.resources.push(res);
+        let bindings = HashMap::new();
+
+        // (a) 设备仅有 Output 端口 + port_id=None ⇒ FAIL (不再 any-port 混过)。
+        let out_only = crate::port::PortRegistry {
+            ports: vec![port_of(id, crate::port::PortDirection::Output)],
+        };
+        let it_none = intent(&id);
+        let r = with_inputs(
+            &it_none,
+            &devices,
+            &resources,
+            Some(&out_only),
+            &bindings,
+            run,
+        );
+        assert!(
+            r.stages
+                .iter()
+                .any(|s| s.stage == PreflightStage::PortAvailability && s.level == StageLevel::Fail),
+            "仅 Output 端口不得满足 Capture intent"
+        );
+
+        // (b) 显式 port_id 指向 Output 端口 ⇒ FAIL。
+        let pid = out_only.ports[0].identity.port_id.unwrap();
+        let mut it_bad = intent(&id);
+        it_bad.devices[0].pipeline.source.port_id = Some(pid.to_string());
+        let r2 = with_inputs(
+            &it_bad,
+            &devices,
+            &resources,
+            Some(&out_only),
+            &bindings,
+            run,
+        );
+        assert!(r2.stages.iter().any(|s| {
+            s.stage == PreflightStage::PortAvailability
+                && s.level == StageLevel::Fail
+                && s.detail.contains("Input/Bidirectional")
+        }));
+
+        // (c) 显式 port_id 精确匹配 Input 端口 ⇒ PASS; 指向不存在端口 ⇒ FAIL。
+        let in_reg = crate::port::PortRegistry {
+            ports: vec![port_of(id, crate::port::PortDirection::Input)],
+        };
+        let in_pid = in_reg.ports[0].identity.port_id.unwrap();
+        let mut it_good = intent(&id);
+        it_good.devices[0].pipeline.source.port_id = Some(in_pid.to_string());
+        let r3 = with_inputs(
+            &it_good,
+            &devices,
+            &resources,
+            Some(&in_reg),
+            &bindings,
+            run,
+        );
+        assert!(r3
+            .stages
+            .iter()
+            .any(|s| s.stage == PreflightStage::PortAvailability && s.level == StageLevel::Pass));
+        let mut it_ghost = intent(&id);
+        it_ghost.devices[0].pipeline.source.port_id = Some(Uuid::new_v4().to_string());
+        let r4 = with_inputs(
+            &it_ghost,
+            &devices,
+            &resources,
+            Some(&in_reg),
+            &bindings,
+            run,
+        );
+        assert!(r4.stages.iter().any(|s| {
+            s.stage == PreflightStage::PortAvailability
+                && s.level == StageLevel::Fail
+                && s.detail.contains("无匹配")
+        }));
+    }
+
+    #[test]
+    fn runtime_state_rt_01_d5_binding_strength_checked() {
+        // D5: binding 在场但非 production_grade ⇒ FAIL (key-existence 不再算通过)。
+        let id = Uuid::new_v4();
+        let devices = vec![device(id)];
+        let mut resources = ResourceRegistry::new();
+        let mut res = crate::resource::Resource::new(id, "r", "sdi-input", 1);
+        res.device_id = id;
+        resources.resources.push(res);
+        let mut bindings = HashMap::new();
+        bindings.insert(
+            id,
+            crate::resolver::ResolvedDeviceBinding {
+                device_number: 3,
+                hw_serial_number: None,
+                persistent_id: None,
+                confidence: crate::resolver::Confidence::Medium,
+                match_kind: crate::resolver::ResolverMatch::TopologicalIdGuess,
+            },
+        );
+        let it = intent(&id);
+        let r = with_inputs(&it, &devices, &resources, None, &bindings, run);
+        assert!(r.stages.iter().any(|s| {
+            s.stage == PreflightStage::IdentityBinding
+                && s.level == StageLevel::Fail
+                && s.detail.contains("非 HIGH/非精确匹配")
+        }));
+        bindings.insert(
+            id,
+            crate::resolver::ResolvedDeviceBinding {
+                device_number: 3,
+                hw_serial_number: None,
+                persistent_id: None,
+                confidence: crate::resolver::Confidence::High,
+                match_kind: crate::resolver::ResolverMatch::ManifestVerified,
+            },
+        );
+        let r2 = with_inputs(&it, &devices, &resources, None, &bindings, run);
+        assert!(r2
+            .stages
+            .iter()
+            .any(|s| s.stage == PreflightStage::IdentityBinding && s.level == StageLevel::Pass));
+    }
+
+    #[test]
+    fn preflight_is_side_effect_free() {
+        // 0.7A R1 补测落盘 (当时补丁脚本中断未写入, 本 change 补齐): Preflight 只判断
+        // 不执行 — list_active 纯读; 过期租约经 Preflight 后仍在存储 (health 才清扫)。
+        let id = Uuid::new_v4();
+        let devices = vec![device(id)];
+        let it = intent(&id);
+        let mut resources = ResourceRegistry::new();
+        let mut res = crate::resource::Resource::new(id, "r", "sdi-input", 1);
+        res.device_id = id;
+        resources.resources.push(res);
+        let leases = InMemoryLeaseManager::new();
+        leases
+            .acquire(&id, "stale", std::time::Duration::ZERO)
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        assert!(!leases.is_valid(&id), "租约确已过期");
+        assert_eq!(
+            leases.list_active().len(),
+            1,
+            "list_active 纯读: 含未清扫的过期租约"
+        );
+        let bindings = HashMap::new();
+        let _ = with_inputs(&it, &devices, &resources, None, &bindings, run);
+        assert_eq!(leases.list_active().len(), 1, "Preflight 不得修改租约存储");
+        assert!(leases.health().is_empty(), "health() 才负责清扫 (职责分离)");
     }
 }
