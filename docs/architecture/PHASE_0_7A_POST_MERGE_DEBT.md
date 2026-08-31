@@ -42,7 +42,8 @@
 - ~~**D2** derive_claims FAIL 化（RESOURCE-RESOLUTION-01）~~ ✅ **CLOSED @ p07c-runtime-state (2026-08-31)**: preflight Stage3 三态 Resolution, 设备无派生 input 资源 ⇒ FAIL
 - ~~**D4** PortAvailability 精确化（端口级 direction/capability/availability）~~ ✅ **CLOSED @ p07c-runtime-state**: 端口级 (port_id 精确匹配+方向 / None ⇒ ≥1 Input 端口), 镜像 materialize 冻结语义
 - ~~**D5** IdentityBinding 实查（IDENTITY-BINDING-01）~~ ✅ **CLOSED @ p07c-runtime-state**: `is_production_grade()` (HIGH+精确匹配/ManifestVerified), preflight+create 双侧实查
-- **D6** BACKEND-CAPABILITY-01（真实能力探针 + 硬性判定）→ 随 0.7C 第二 change (Runtime Query Model)
+- ~~**D6** BACKEND-CAPABILITY-01（真实能力探针 + 硬性判定）~~ ✅ **CLOSED @ p07c-runtime-query (2026-08-31)**: capability projection (DeviceCapabilities→DeviceCapabilitiesSummary) + preflight 硬判定 (Unsupported ⇒ FAIL / Unknown ⇒ WARN 不臆造 / Supported ⇒ Pass); 真机 DeviceCapabilities 未探测 → Unknown 合法
+- **D6 演进项**（非阻塞）: 真实 BMD SDK 深度能力探针（当前用 DeviceCapabilities 投影；SDK 深探针属 Provider 后续演进）——按终审"closure ≠ forever"原则登记
 
 ### 🟡 可延后（不阻塞 Canonical semantic / External API）
 
@@ -59,6 +60,13 @@
 | # | 债务 | 说明 | 目标阶段 |
 |---|------|------|----------|
 | D13 | **`observe_transitional` debug_assert 弱约束**：`CanonicalTimecode::observe_transitional` 用 debug_assert 校验 presence——release build 不强制；应 Result 化或强类型拆分 API | P1 semantic hardening；**不单独开 change**，随 timecode 下一触碰点处理 | timecode 后续 |
+
+## 0.7C 系列终审追加登记 (2026-08-31)
+
+| # | 债务 | 说明 | 目标阶段 |
+|---|------|------|----------|
+| D14 | **Runtime Snapshot Consistency**：`runtime_state()` 是各源独立观测的拼合 snapshot，非事务一致 | 需定义 source observation time / state version / 一致性语义；已作为契约注释标注在 CanonicalRuntimeState | Runtime Query 后续 |
+| D15 | **Media Flow Cardinality**：`PortId ≠ Media Stream`——一 Port 可对应 0/1/N flows | audio 多轨/timecode/metadata 进入后必须显式建模；已作为契约注释标注在 PortMediaSemantics（Vec 结构已避免过度限制） | 0.7B Audio 扩展/后续 |
 
 ## 失败矩阵覆盖现状（SESSION-RT-01 / RESOURCE-RT-01）
 

@@ -16,7 +16,8 @@
 | **0.7B-2C** | Timecode Foundation（CanonicalTimecode，#148 词表，不实现 parser） | ✅ COMPLETE | `c574238` (PR#6) | `phase-0.7B2C-timecode-foundation` | TIMECODE-SEMANTICS-RT-01 三层 |
 | **0.7B** | Canonical Media Semantics（Video/Audio/Clock/Timecode 四基础 + 收口对账） | ✅ COMPLETE（本 change 收口：文档对账 + Integration Audit + Phase Map） | — | — | Integration Audit 报告 2026-08-30 |
 | **0.7C-Foundation** | Canonical Runtime State（Canonical→Runtime 第一条生产聚合边 + D2/D4/D5 伴随清偿） | ✅ COMPLETE | (本 PR) | `phase-0.7C1-runtime-state`（合并后打） | RUNTIME-STATE-RT-01 三层 + Integration Audit 补边 |
-| **0.7C** | External Integration（**不直接做 REST**，见 §3 前置顺序；剩余前置：D6 随 Runtime Query Model） | 📋 NEXT | — | — | — |
+| **0.7C-2** | Runtime Query Model（Pure Read / Snapshot 门面 + D6 capability projection/硬判定 + D14/D15 登记） | ✅ COMPLETE | (本 PR) | `phase-0.7C2-runtime-query`（合并后打） | RUNTIME-QUERY-RT-01 三层 |
+| **0.7C** | External Integration（**不直接做 REST**，见 §3 前置顺序；前置债务已清，下一项 = Command Contract） | 📋 NEXT | — | — | — |
 | **0.7D** | Event Projection / Integration（EventSink 解耦 D8 与此同期） | 📋 | — | — | — |
 | **0.8** | Federation / Multi-site（P2） | 📋 | — | — | — |
 

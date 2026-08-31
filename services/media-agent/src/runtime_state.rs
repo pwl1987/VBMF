@@ -28,6 +28,8 @@ pub struct DeviceRuntimeState {
     pub identity_strength: IdentityStrength,
     /// 仅 production_grade 绑定入列（D5: High + exact/ManifestVerified）。
     pub binding: Option<BindingStatus>,
+    /// 能力投影（D6 BACKEND-CAPABILITY-01; None = 数据不在场——absence≠evidence）。
+    pub capabilities: Option<DeviceCapabilitiesSummary>,
 }
 
 /// 绑定状态摘要（D5 实查后的投影）。
@@ -35,6 +37,24 @@ pub struct DeviceRuntimeState {
 pub struct BindingStatus {
     pub match_kind: ResolverMatch,
     pub confidence: Confidence,
+}
+
+/// 设备能力标志（直取 `CapabilityValue` 三态; D6 projection）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityFlag {
+    Unknown,
+    Supported,
+    Unsupported,
+}
+
+/// 设备能力投影摘要（D6: Provider → Capability Probe → Runtime State）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeviceCapabilitiesSummary {
+    pub can_input: CapabilityFlag,
+    pub can_output: CapabilityFlag,
+    pub input_ports: Option<u32>,
+    pub output_ports: Option<u32>,
 }
 
 /// 端口运行态。
@@ -66,6 +86,10 @@ pub struct SessionRuntimeState {
 }
 
 /// 媒体语义组合（**整值组合, 绝不平铺**——终审加严红线）。
+///
+/// **D15 契约（登记不实现）**: `PortId` 是物理/逻辑绑定关系, **不等于**单一 media
+/// flow——一个 Port 可对应 0/1/N flows（audio 多轨/timecode/metadata 属后续）；
+/// `Vec` 结构已避免过度限制。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PortMediaSemantics {
     pub port_id: Uuid,
@@ -73,6 +97,10 @@ pub struct PortMediaSemantics {
 }
 
 /// Canonical Runtime State —— 运行时状态的统一聚合快照。
+///
+/// **D14 契约（登记不实现）**: 本结构是**各源（devices/ports/resources/sessions）
+/// 独立观测的拼合 snapshot, 非事务一致**——一致性语义（source observation time /
+/// state version）属后续（PHASE_0_7A_POST_MERGE_DEBT.md D14）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalRuntimeState {
     pub devices: Vec<DeviceRuntimeState>,
@@ -106,6 +134,7 @@ impl CanonicalRuntimeState {
                         match_kind: b.match_kind,
                         confidence: b.confidence,
                     }),
+                capabilities: project_capabilities(&d.capabilities),
             })
             .collect();
         let ports = registry
@@ -156,6 +185,27 @@ impl CanonicalRuntimeState {
             generated_at_ms: now_ms(),
         }
     }
+}
+
+/// `DeviceCapabilities`（三态 CapabilityValue）→ `DeviceCapabilitiesSummary` 投影。
+/// ProbeFailed 视为 Unknown（探测失败 ≠ 不支持——absence≠evidence）。
+fn project_capabilities(c: &crate::port::DeviceCapabilities) -> Option<DeviceCapabilitiesSummary> {
+    use crate::port::CapabilityValue as Cv;
+    let flag = |v: &Cv<bool>| match v {
+        Cv::Supported(_) => CapabilityFlag::Supported,
+        Cv::Unsupported => CapabilityFlag::Unsupported,
+        Cv::Unknown | Cv::ProbeFailed(_) => CapabilityFlag::Unknown,
+    };
+    let count = |v: &Cv<u32>| match v {
+        Cv::Supported(n) => Some(*n),
+        _ => None,
+    };
+    Some(DeviceCapabilitiesSummary {
+        can_input: flag(&c.input),
+        can_output: flag(&c.output),
+        input_ports: count(&c.input_port_count),
+        output_ports: count(&c.output_port_count),
+    })
 }
 
 impl PortRuntimeState {
