@@ -35,6 +35,31 @@
 - `DeviceIdentitySource::RealBmd` 等 vendor-named 枚举值仍在 Domain vocabulary（0.6 终审遗留）。
 - `ResolverEvidence.bmd_device_handle` / `DeviceBindingManifest.bmd_device_handle` JSON 键名保留（宿主证据文件，非 Domain schema）。
 
+## 优先级分组（2026-08-30 重分类, p07b-consolidation 终审裁定）
+
+### 🔴 0.7C 前必须（External API 的设备/资源/能力问答依赖）
+
+- **D2** derive_claims FAIL 化（RESOURCE-RESOLUTION-01）
+- **D4** PortAvailability 精确化（端口级 direction/capability/availability）
+- **D5** IdentityBinding 实查（IDENTITY-BINDING-01：API 终会问"这个设备到底是谁"）
+- **D6** BACKEND-CAPABILITY-01（真实能力探针 + 硬性判定）
+
+### 🟡 可延后（不阻塞 Canonical semantic / External API）
+
+- D1（LifecycleJournal）、D3（per-claim TTL）、D7（OnceLock 简化）、D10（Session 内多 Pipeline）
+- D9（create 幂等键）→ 移交 0.7C Command Contract 内解决（Idempotency 环节）
+
+### 优先级调整
+
+- **D11 Clock Observation Timeline：优先级上调**（广播时钟天然是时间序列——Locked→Lost→Recovered 是事件流；Clock 策略阶段的前置）
+- **D8 EventSink 解耦**：与 0.7D Event Projection 同期考虑
+
+### 新登记 D13（0.7B-2C 终审）
+
+| # | 债务 | 说明 | 目标阶段 |
+|---|------|------|----------|
+| D13 | **`observe_transitional` debug_assert 弱约束**：`CanonicalTimecode::observe_transitional` 用 debug_assert 校验 presence——release build 不强制；应 Result 化或强类型拆分 API | P1 semantic hardening；**不单独开 change**，随 timecode 下一触碰点处理 | timecode 后续 |
+
 ## 失败矩阵覆盖现状（SESSION-RT-01 / RESOURCE-RT-01）
 
 Preflight✓ Reserve✓ Lease(partial)✓ Binding/Materialize✓ Allocate(partial×multi)✓ Start✓ Stop(fail×single/multi)✓ Close✓ Double-start/stop✓ Tick/Expiry✓ Resource-conflict✓ Multi-device✓。

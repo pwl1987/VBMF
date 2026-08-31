@@ -1,9 +1,12 @@
 # 路线图
 
 > V0.2 架构基线 LOCK FINAL（22 轮 review）。
-> 本文档是 VBMF 项目路线图，对应 V0.2 架构基线 + 实施阶段。
+> 本文档是 VBMF 项目路线图（三段式：历史架构 / 当前实施 / 未来产品）。
+> **当前实施阶段的唯一事实源是 [`docs/architecture/PHASE_IMPLEMENTATION_MAP.md`](docs/architecture/PHASE_IMPLEMENTATION_MAP.md)**（本文件只保留概要链接，不复制细节，避免双源漂移）。
 
 ## 状态总览
+
+### A. Historical Architecture Roadmap（历史架构阶段 — LOCK FINAL，不再变更）
 
 ```
 Phase 0    架构冻结                       ✅ V0.2 LOCK FINAL
@@ -11,8 +14,25 @@ Phase 0.5A 操作员语义与线框            ✅ LOCK FINAL（10 中英双语�
 Phase 0.5B 产品 UI Surface             ✅ UX BASELINE LOCK FINAL（56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml）+ 5 P0 wireframe + 36 项收口）
 Phase 0.5C 信息架构收口                 🟢 LOCK FINAL（目录归并 + 4 域导航 + Object Vocabulary）
 Phase 0.5D P0 产品表面                  🟢 LOCK FINAL（6 新表面 + M-14 重画）
-Phase 0.6  Reference + Fault Injection   📋 前置: Phase 0.5 LOCK FINAL
-Phase 1    Media Agent（Rust + 24h 稳定） 📋 Phase 0.6 验收后
+```
+
+### B. Current Implementation Roadmap（当前实施阶段 — SoT: PHASE_IMPLEMENTATION_MAP.md）
+
+```
+Phase 0.6  Runtime Abstraction           ✅ COMPLETE（PR#1, tag phase-0.6-runtime-abstraction-baseline）
+Phase 0.7A Session Runtime               ✅ COMPLETE（PR#2, 四轮 Merge Gate Hardening）
+Phase 0.7B  Media Semantics              ✅ COMPLETE（Normalize/Clock/Audio/Timecode 四基础, PR#3-#6）
+Phase 0.7C External Integration          📋 NEXT（前置: D2/D4/D5/D6 债务 + Canonical Runtime State）
+Phase 0.7D Event Projection              📋
+Phase 0.8  Federation / Multi-site       📋（P2）
+```
+
+> 阶段详情/基线 tag/门禁证据/0.7C 前置顺序：见 `docs/architecture/PHASE_IMPLEMENTATION_MAP.md`。
+
+### C. Future Product Roadmap（未来产品阶段）
+
+```
+Phase 1    Media Agent（Rust + 24h 稳定） 📋 0.7 系列验收后
 Phase 2    后端基础                       📋
 Phase 2.5  Graph Compiler / Preflight     📋
 Phase 3    Auth & RBAC                    📋
@@ -59,7 +79,9 @@ V1.0       完整 IP 播控                   📋
 
 **Phase 0.5D（LOCK FINAL）**：5 个新表面 wireframe（M-17 Realtime Session / M-18 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-38 Hardware）+ E-37 Clock 升级 + M-14 File Transcode 重画
 
-## Phase 0.6 — Reference Implementation + Fault Injection 📋 **Next**
+## Phase 0.6 — Reference Implementation + Fault Injection ✅ **COMPLETE**
+
+> **[注记 2026-08-30, p07b-consolidation]** Phase 0.6 已完成（Runtime Abstraction Baseline，merge `d1cfaa9`）——原「Reference + Fault Injection」规划由 0.6 系列实现（SPI 抽象/契约对齐/remove-adapter 证明/CI 七门禁）；本节原文保留以存档。实施现状见 [`PHASE_IMPLEMENTATION_MAP.md`](docs/architecture/PHASE_IMPLEMENTATION_MAP.md)。
 
 > 前置条件：Phase 0.5 LOCK FINAL（0.5D 完成后）。本阶段不写架构，只做 **Executable Acceptance Specification**。
 

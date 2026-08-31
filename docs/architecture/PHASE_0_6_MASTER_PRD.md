@@ -83,8 +83,8 @@
 | `VENDOR_NEUTRALITY_RULES.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #136 / API #136 |
 | `RUNTIME_SESSION_MODEL.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #15, #21, #56（澄清 #21 vs #56）｜P0 |
 | `RUNTIME_BINDING_MODEL.md` | CONTRACT = FROZEN / IN_PROGRESS | Portability #19, #60, #102｜P0 |
-| `AUDIO_ROUTING_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED | Portability #55, #63, #80｜P1 |
-| `CLOCK_TIMECODE_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED | Portability #57, #147, #148｜P1 |
+| `AUDIO_ROUTING_CONTRACT.md` | CONTRACT = FROZEN / **PARTIAL**（0.7B-2B 已落地 canonical 音频语义层；Routing Runtime 属后续） | Portability #55, #63, #80｜P1 |
+| `CLOCK_TIMECODE_CONTRACT.md` | CONTRACT = FROZEN / **PARTIAL**（0.7B-2A Clock 观测模型 + 0.7B-2C Timecode 基础已落地；策略/解析属后续） | Portability #57, #147, #148｜P1 |
 | `EXTERNAL_API_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED（**P1 暂不实施**） | API #1–#85, #108–#134, #151–#162 |
 | `EVENT_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED（**P1**） | API #11–#34, #78–#82, #102–#105, #155 |
 | `DEVICE_INTEGRATION_CONTRACT.md` | CONTRACT = FROZEN / NOT_STARTED（**P1**；#140–#150 多站点/agent 属 P2 外置） | API #87–#107, #154 |
@@ -137,6 +137,8 @@
 - **0.6I** Acceptance Gate（P0/P0.5）：ARCH-PORTABILITY-01/BACKEND-01/RESOURCE-01 + HW-PORT-01/HW-IDENT-02/MEDIA-RT-01
 
 ### Phase 0.7 — P1（External Integration + Clock/Timecode/Audio/Capability/Encoder/Gateway Contract + Implementation）
+
+> **[注记 2026-08-30, p07b-consolidation]** 本节 0.7A-G 为**规划期标签**，实施路线已由 [`PHASE_IMPLEMENTATION_MAP.md`](./PHASE_IMPLEMENTATION_MAP.md) 取代（实际实施：0.7A=Session Runtime、0.7B=Media Semantics(1/2A/2B/2C)、0.7C=External Integration、0.7D=Event Projection）。原文保留如下以存档。
 > Audio/Clock/Timecode 从 0.6 移入 0.7：0.6 只冻结其 Contract 边界，实现在 0.7（与 External 同阶段，统称 P1）。
 - **0.7A** External API 三平面 + `EXTERNAL_API_CONTRACT`
 - **0.7B** Event Projection + `EVENT_CONTRACT`（RuntimeEvent→External）
