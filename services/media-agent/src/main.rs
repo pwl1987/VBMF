@@ -10,9 +10,9 @@ mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可�
 mod config;
 mod contracts;
 mod device;
+mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离 CommandStatus≠IdempotentDispatch≠ErrorClassification)
 mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
-mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离 CommandStatus≠IdempotentDispatch≠ErrorClassification)
 mod graph_intent;
 mod health;
 mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收

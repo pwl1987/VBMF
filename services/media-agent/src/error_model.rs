@@ -90,7 +90,15 @@ mod tests {
     /// 执行/查询动词禁入（本模块无 dispatch/get/list 面）。
     const PUBLIC_SURFACE_ALLOWLIST: &[&str] = &["classify_session_error"];
     const BANNED_VERBS: &[&str] = &[
-        "execute_", "configure_", "run_", "build_", "emit", "send", "publish", "spawn", "get_",
+        "execute_",
+        "configure_",
+        "run_",
+        "build_",
+        "emit",
+        "send",
+        "publish",
+        "spawn",
+        "get_",
         "list_",
     ];
 
@@ -104,8 +112,11 @@ mod tests {
             .into_iter()
             .map(|d| d.device)
             .collect();
-        let pid =
-            PortIdentity::derive(&devices[0].device_id, ConnectorType::Sdi, PortOrdinal::Known(1));
+        let pid = PortIdentity::derive(
+            &devices[0].device_id,
+            ConnectorType::Sdi,
+            PortOrdinal::Known(1),
+        );
         let registry = PortRegistry {
             ports: vec![PortInfo {
                 device_id: devices[0].device_id,
@@ -198,7 +209,9 @@ mod tests {
     /// （match 无通配臂为编译级保证: SessionError 新增变体时本函数编译失败）。
     #[test]
     fn err_model_rt_01_classify_matrix_closed_mapping() {
-        use crate::preflight::{PreflightReport, PreflightStage, StageLevel, StageOutcome, Verdict};
+        use crate::preflight::{
+            PreflightReport, PreflightStage, StageLevel, StageOutcome, Verdict,
+        };
         use crate::resource::ResourceState;
         use crate::resource::ResourceStateError;
         let preflight_fail = PreflightReport {
@@ -221,7 +234,7 @@ mod tests {
             (
                 SessionError::ResourceState(ResourceStateError {
                     from: ResourceState::Reserved,
-                    to: ResourceState::Released,
+                    to: ResourceState::Faulted,
                 }),
                 ErrorClassification::PermanentFailure,
             ),
@@ -310,10 +323,7 @@ mod tests {
         let first = idem.dispatch(&stop);
         let replay = idem.dispatch(&stop);
         match (first, replay) {
-            (
-                IdempotentDispatch::Executed(a),
-                IdempotentDispatch::Replayed(b),
-            ) => {
+            (IdempotentDispatch::Executed(a), IdempotentDispatch::Replayed(b)) => {
                 assert_eq!(a, b, "重放 outcome 必须含相同 classification");
                 assert_eq!(a.classification, None, "成功 stop 无分类");
             }
@@ -335,17 +345,22 @@ mod tests {
             "\"failed\""
         );
         // 平面二: IdempotentDispatch (0.7C-4 冻结) — verdict 标签回归。
-        let probe = serde_json::to_value(IdempotentDispatch::Rejected(crate::command::CommandRejection {
-            code: "x".into(),
-            detail: "d".into(),
-        }))
+        let probe = serde_json::to_value(IdempotentDispatch::Rejected(
+            crate::command::CommandRejection {
+                code: "x".into(),
+                detail: "d".into(),
+            },
+        ))
         .unwrap();
         assert_eq!(probe["verdict"], "rejected");
         // 平面三: ErrorClassification — allowlist 恒等 + 动词禁入。
         assert_eq!(PUBLIC_SURFACE_ALLOWLIST, &["classify_session_error"]);
         for name in PUBLIC_SURFACE_ALLOWLIST {
             for verb in BANNED_VERBS {
-                assert!(!name.starts_with(verb), "禁入动词 {verb} 出现在分类面: {name}");
+                assert!(
+                    !name.starts_with(verb),
+                    "禁入动词 {verb} 出现在分类面: {name}"
+                );
             }
         }
         // 零字段单元变体: 序列化是纯字符串, 无嵌套结构可携带其他平面数据。
