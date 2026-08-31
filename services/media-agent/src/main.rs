@@ -11,6 +11,7 @@ mod config;
 mod contracts;
 mod device;
 mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离 CommandStatus≠IdempotentDispatch≠ErrorClassification)
+mod event_projection; // P0.7C-6: Event Projection Foundation (Runtime→Event→Projection 生产边; 四语义零偷改)
 mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
 mod graph_intent;
@@ -480,8 +481,11 @@ fn main() {
     // Gate 5: Supervisor seeded with device handles (watchdog state machine + budget/
     // backoff/circuit-breaker are unit-tested in supervisor.rs). 包 Arc<Mutex> 以便 watch
     // 线程与 GStreamer recover 接线共享 (Supervisor 只决策, 不碰 GStreamer).
+    // 0.7C-6 D8: 组合根唯一事件表 — SessionManager 与 Supervisor 共享 (单表单锁全局 FIFO)。
+    let event_log = Arc::new(events::RuntimeEventLog::new());
     let sup = Arc::new(std::sync::Mutex::new(supervisor::Supervisor::new(
         supervisor::RestartPolicy::default(),
+        event_log.clone(),
     )));
     for d in &devices {
         sup.lock().unwrap().register(d.device_id);
@@ -743,6 +747,7 @@ fn main() {
                     Some(registry),
                     crate::pipeline::MaterializeMode::Diagnostic,
                     crate::session::SessionTuning::default(),
+                    event_log.clone(),
                 ));
                 // P0.7C-2: Runtime Query (Pure Read) 门面 — 硬件证据冒烟。
                 let _rq = crate::runtime_query::RuntimeQuery::new(std::sync::Arc::clone(&mgr));
@@ -1077,6 +1082,26 @@ fn main() {
                     "=== SESSION-RT-01/RESOURCE-RT-01 ALL {} ===",
                     if ok { "PASS" } else { "FAIL" }
                 );
+                // P0.7C-6 EVENT-PROJECTION-RT-01 (Hardware): 消费接线实证——
+                // 全生命周期事件 drain → project → 只读快照 (Observation, 不写回)。
+                {
+                    use crate::event_projection::project;
+                    let drained = event_log.drain();
+                    let p = project(&drained);
+                    println!(
+                        "EVENT-PROJECTION-RT-01 total={} kinds={:?}",
+                        p.total, p.kind_counts
+                    );
+                    println!(
+                        "EVENT-PROJECTION-RT-01 session_states={:?} session_failures={:?} has_critical={}",
+                        p.session_states, p.session_failures, p.has_critical
+                    );
+                    println!(
+                        "EVENT-PROJECTION-RT-01 dropped_obs={} dropped_crit={}",
+                        event_log.dropped_observations(),
+                        event_log.dropped_criticals()
+                    );
+                }
                 std::process::exit(if ok { 0 } else { 2 });
             }
 
@@ -1138,6 +1163,7 @@ fn main() {
                         registry.clone(),
                         mode,
                         crate::session::SessionTuning::default(),
+                        event_log.clone(),
                     );
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
                     // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。

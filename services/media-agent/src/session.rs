@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use crate::contracts::backend::MediaBackend;
 use crate::device::DeviceInfo;
-use crate::events::RuntimeEvent;
+use crate::events::{RuntimeEvent, RuntimeEventSink};
 use crate::graph_intent::GraphRuntimeIntent;
 use crate::lease::{DeviceLease, LeaseManager};
 use crate::pipeline::{MaterializeMode, PipelineHandle};
@@ -231,6 +231,10 @@ struct SessionInner {
 }
 
 /// Runtime Session Manager — **Session 唯一创建者/销毁者** (模型 §4.1)。
+///
+/// **0.7C-6 D8 解耦**: 事件经注入的 `RuntimeEventSink` 直连组合根唯一
+/// `RuntimeEventLog` (单表单锁全局 FIFO), **不再穿越 Supervisor** —
+/// `sup` 只剩恢复决策职责 (watchdog tick 调用面零变更)。
 pub struct SessionManager {
     resources: SharedResourceRegistry,
     leases: Arc<dyn LeaseManager>,
@@ -242,6 +246,7 @@ pub struct SessionManager {
     mode: MaterializeMode,
     tuning: SessionTuning,
     sessions: Mutex<HashMap<SessionId, SessionInner>>,
+    events: Arc<dyn RuntimeEventSink>,
 }
 
 impl SessionManager {
@@ -258,6 +263,7 @@ impl SessionManager {
         registry: Option<PortRegistry>,
         mode: MaterializeMode,
         tuning: SessionTuning,
+        events: Arc<dyn RuntimeEventSink>,
     ) -> Self {
         let b = OnceLock::new();
         let _ = b.set(backend);
@@ -272,11 +278,12 @@ impl SessionManager {
             mode,
             tuning,
             sessions: Mutex::new(HashMap::new()),
+            events,
         }
     }
 
     fn emit(&self, ev: RuntimeEvent) {
-        self.sup.lock().unwrap().record(ev);
+        self.events.emit(ev);
     }
 
     fn now_ms() -> u64 {
@@ -1098,8 +1105,10 @@ mod tests {
         let resources = SharedResourceRegistry::new(ResourceRegistry::derive_from_discovery(
             &port_registry_for_devices(devices),
         ));
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
         let sup = Arc::new(Mutex::new(Supervisor::new(
             crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
         )));
         SessionManager::new(
             resources,
@@ -1111,6 +1120,7 @@ mod tests {
             None,
             MaterializeMode::Diagnostic,
             tuning,
+            event_log,
         )
     }
 

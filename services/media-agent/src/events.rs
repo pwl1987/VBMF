@@ -275,6 +275,21 @@ impl Default for RuntimeEventLog {
     }
 }
 
+/// 事件出口抽象 (**D8 解耦**) — 生产者 (SessionManager / Supervisor 决策 / ingest
+/// 归一化) 只依赖本 trait, 不依赖 Supervisor, 也不感知事件表实现。
+///
+/// 契约 (0.7C-6 probe Q4 基线, 零偷改): `emit` 永不阻塞、永不失败——
+/// 满时按 `RuntimeEventLog` 两级丢弃策略处理并计数 (丢弃不静默)。
+pub trait RuntimeEventSink: Send + Sync {
+    fn emit(&self, ev: RuntimeEvent);
+}
+
+impl RuntimeEventSink for RuntimeEventLog {
+    fn emit(&self, ev: RuntimeEvent) {
+        self.push(ev);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -133,6 +133,7 @@ mod tests {
                 content: VideoContentState::Unknown,
             }],
         };
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
         Arc::new(SessionManager::new(
             crate::resource::SharedResourceRegistry::new(
                 crate::resource::ResourceRegistry::derive_from_discovery(&registry),
@@ -140,6 +141,7 @@ mod tests {
             Arc::new(crate::lease::InMemoryLeaseManager::new()),
             Arc::new(Mutex::new(crate::supervisor::Supervisor::new(
                 crate::supervisor::RestartPolicy::default(),
+                event_log.clone(),
             ))),
             Arc::new(crate::adapters::mock::MockBackend),
             Arc::new(devices),
@@ -147,6 +149,7 @@ mod tests {
             Some(registry),
             crate::pipeline::MaterializeMode::Diagnostic,
             crate::session::SessionTuning::default(),
+            event_log,
         ))
     }
 
