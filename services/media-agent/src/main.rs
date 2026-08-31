@@ -4,6 +4,7 @@
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod adapters;
+mod api_boundary; // P0.7C-7: External API Foundation (API Boundary Model + Idempotency 契约; 非 Web Server)
 mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)
 mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
 mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可执行性三重守护)
@@ -1078,16 +1079,11 @@ fn main() {
                         ok = false;
                     }
                 }
-                println!(
-                    "=== SESSION-RT-01/RESOURCE-RT-01 ALL {} ===",
-                    if ok { "PASS" } else { "FAIL" }
-                );
                 // P0.7C-6 EVENT-PROJECTION-RT-01 (Hardware): 消费接线实证——
                 // 全生命周期事件 drain → project → 只读快照 (Observation, 不写回)。
+                let drained_events = event_log.drain();
+                let p = crate::event_projection::project(&drained_events);
                 {
-                    use crate::event_projection::project;
-                    let drained = event_log.drain();
-                    let p = project(&drained);
                     println!(
                         "EVENT-PROJECTION-RT-01 total={} kinds={:?}",
                         p.total, p.kind_counts
@@ -1102,6 +1098,50 @@ fn main() {
                         event_log.dropped_criticals()
                     );
                 }
+                // P0.7C-7 EXTERNAL-API-RT-01 (Hardware): API Boundary Model 实证——
+                // 真机 Runtime State → API 模型纯转换 + 序列化往返 (非 Web Server;
+                // 零 transport / 零持久化; 禁清单 11 项)。
+                {
+                    use crate::api_boundary::{
+                        default_idempotency_boundary, to_api_query_snapshot, ApiProjectionResponse,
+                        ApiQuerySnapshot,
+                    };
+                    let state = _rq.get_runtime_state();
+                    let snap = to_api_query_snapshot(&state);
+                    let snap_json =
+                        serde_json::to_string(&snap).expect("ApiQuerySnapshot 必须可序列化");
+                    let _roundtrip: ApiQuerySnapshot =
+                        serde_json::from_str(&snap_json).expect("ApiQuerySnapshot 必须可反序列化");
+                    let api_proj: ApiProjectionResponse = (&p).into();
+                    let proj_json = serde_json::to_string(&api_proj)
+                        .expect("ApiProjectionResponse 必须可序列化");
+                    let boundary = default_idempotency_boundary();
+                    let boundary_json = serde_json::to_string(&boundary)
+                        .expect("ApiIdempotencyBoundary 必须可序列化");
+                    let api_ok = snap.devices.len() == state.devices.len()
+                        && snap.sessions.len() == state.sessions.len()
+                        && snap_json.contains("\"devices\"")
+                        && proj_json.contains("\"event_projection_snapshot\"")
+                        && boundary_json.contains("\"process_local\"")
+                        && boundary_json.contains("\"durable_log_deferred\"")
+                        && boundary_json.contains("\"restart_breaks_replay\"");
+                    println!(
+                        "EXTERNAL-API-RT-01 verdict={} devices={} sessions={} resources={} boundary=process_local/durable_log_deferred/restart_breaks_replay",
+                        if api_ok { "OK" } else { "FAIL" },
+                        snap.devices.len(),
+                        snap.sessions.len(),
+                        snap.resources.len()
+                    );
+                    println!(
+                        "EXTERNAL-API-RT-01 projection_total={} snapshot_kind=event_projection_snapshot",
+                        p.total
+                    );
+                    ok &= api_ok;
+                }
+                println!(
+                    "=== SESSION-RT-01/RESOURCE-RT-01/EXTERNAL-API-RT-01 ALL {} ===",
+                    if ok { "PASS" } else { "FAIL" }
+                );
                 std::process::exit(if ok { 0 } else { 2 });
             }
 
