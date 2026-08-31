@@ -4,6 +4,7 @@
 //! Control Plane (API/auth/RBAC/config/UI) stays in Node/Fastify.
 
 mod adapters;
+mod api_boundary; // P0.7C-7: External API Foundation (API Boundary Model + Idempotency 契约; 非 Web Server)
 mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)
 mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
 mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可执行性三重守护)
@@ -12,7 +13,6 @@ mod contracts;
 mod device;
 mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离 CommandStatus≠IdempotentDispatch≠ErrorClassification)
 mod event_projection; // P0.7C-6: Event Projection Foundation (Runtime→Event→Projection 生产边; 四语义零偷改)
-mod api_boundary; // P0.7C-7: External API Foundation (API Boundary Model + Idempotency 契约; 非 Web Server)
 mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
 mod graph_intent;
@@ -1108,13 +1108,13 @@ fn main() {
                     };
                     let state = _rq.get_runtime_state();
                     let snap = to_api_query_snapshot(&state);
-                    let snap_json = serde_json::to_string(&snap)
-                        .expect("ApiQuerySnapshot 必须可序列化");
-                    let _roundtrip: ApiQuerySnapshot = serde_json::from_str(&snap_json)
-                        .expect("ApiQuerySnapshot 必须可反序列化");
+                    let snap_json =
+                        serde_json::to_string(&snap).expect("ApiQuerySnapshot 必须可序列化");
+                    let _roundtrip: ApiQuerySnapshot =
+                        serde_json::from_str(&snap_json).expect("ApiQuerySnapshot 必须可反序列化");
                     let api_proj: ApiProjectionResponse = (&p).into();
-                    let proj_json =
-                        serde_json::to_string(&api_proj).expect("ApiProjectionResponse 必须可序列化");
+                    let proj_json = serde_json::to_string(&api_proj)
+                        .expect("ApiProjectionResponse 必须可序列化");
                     let boundary = default_idempotency_boundary();
                     let boundary_json = serde_json::to_string(&boundary)
                         .expect("ApiIdempotencyBoundary 必须可序列化");

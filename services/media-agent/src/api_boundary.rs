@@ -85,7 +85,10 @@ pub fn to_api_device(d: &DeviceRuntimeState) -> ApiDevice {
     ApiDevice {
         id: d.device_id.to_string(),
         model: d.model.clone(),
-        binding: d.binding.as_ref().map(|b| format!("{:?}", b).to_lowercase()),
+        binding: d
+            .binding
+            .as_ref()
+            .map(|b| format!("{:?}", b).to_lowercase()),
         capabilities: None, // 全 capabilities 由 to_api_capabilities 单独产出
     }
 }
@@ -177,8 +180,12 @@ pub struct ApiCommandRequest {
 #[serde(tag = "target_type", rename_all = "snake_case")]
 pub enum ApiCommandTarget {
     /// Session target: intent 以 JSON Value 透传 (不绑回 GraphRuntimeIntent 结构)。
-    Session { intent: serde_json::Value },
-    SessionById { session_id: String },
+    Session {
+        intent: serde_json::Value,
+    },
+    SessionById {
+        session_id: String,
+    },
 }
 
 /// API 命令状态 — 4 态闭包 (Executed/Replayed/Rejected/Conflict), **不暴露** Failed
@@ -330,7 +337,12 @@ mod tests {
         // 列出本模块源码中出现的全部顶级 use 路径, 任何匹配 vendor 字样者失败。
         // 这是编译级白盒 — 若未来提交偷加 use, 须同步在本测试更新 (与红线白盒同款)。
         let banned = [
-            "backend", "gstreamer", "decklink", "ffmpeg", "pipeline::", "provider::",
+            "backend",
+            "gstreamer",
+            "decklink",
+            "ffmpeg",
+            "pipeline::",
+            "provider::",
         ];
         // 读取本测试模块自身的 src 字符串 (用 include_str!  让仓库静态校验)。
         // 实际 file!() 指向本文件, 含全部源码; banned 出现在 use 语句路径内即失败。
@@ -354,21 +366,29 @@ mod tests {
     fn api_rt_01_no_transport_no_persistence() {
         // 只扫描测试模块之前的生产代码 (剔除注释行; 测试自身的禁清单字面量不算违规)。
         let prod_src = include_str!("api_boundary.rs");
-        let prod_part = prod_src
-            .split("#[cfg(all(test")
-            .next()
-            .unwrap_or(prod_src);
+        let prod_part = prod_src.split("#[cfg(all(test").next().unwrap_or(prod_src);
         let src = prod_part
             .lines()
             .filter(|l| !l.trim_start().starts_with("//"))
             .collect::<Vec<_>>()
             .join("\n");
         for banned in [
-            "axum", "hyper", "warp", "actix", "tower", "tonic", "grpc",
-            "TcpListener", "HttpServer", "Router",
+            "axum",
+            "hyper",
+            "warp",
+            "actix",
+            "tower",
+            "tonic",
+            "grpc",
+            "TcpListener",
+            "HttpServer",
+            "Router",
             "OpenAPI",
-            "tokio::main", "async fn",
-            "Sqlite", "Redis", "Kafka",
+            "tokio::main",
+            "async fn",
+            "Sqlite",
+            "Redis",
+            "Kafka",
             "ApiResponse", // 禁止万能包装
         ] {
             assert!(
@@ -393,9 +413,18 @@ mod tests {
             detail: None,
         };
         let json = serde_json::to_string(&resp).unwrap();
-        assert!(!json.contains("\"failed\""), "ApiCommandStatus 不得暴露 failed");
-        assert!(json.contains("\"retryable\""), "ApiErrorClass 必须 snake_case 简短命名");
-        assert!(!json.contains("retryable_failure"), "不得暴露内部 ErrorClassification 命名");
+        assert!(
+            !json.contains("\"failed\""),
+            "ApiCommandStatus 不得暴露 failed"
+        );
+        assert!(
+            json.contains("\"retryable\""),
+            "ApiErrorClass 必须 snake_case 简短命名"
+        );
+        assert!(
+            !json.contains("retryable_failure"),
+            "不得暴露内部 ErrorClassification 命名"
+        );
         // ApiProjectionResponse 守门
         let p = ApiProjectionResponse {
             snapshot_kind: ApiProjectionKind::EventProjectionSnapshot,
@@ -515,7 +544,10 @@ mod tests {
     fn api_rt_01_idempotency_boundary_contract() {
         let b = default_idempotency_boundary();
         assert_eq!(b.current_backend, ApiIdempotencyBackend::ProcessLocal);
-        assert_eq!(b.durable_persistence, ApiPersistenceOption::DurableLogDeferred);
+        assert_eq!(
+            b.durable_persistence,
+            ApiPersistenceOption::DurableLogDeferred
+        );
         assert_eq!(
             b.cross_restart_semantics,
             ApiCrossRestartSemantics::RestartBreaksReplay
