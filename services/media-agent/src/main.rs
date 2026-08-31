@@ -6,6 +6,7 @@
 mod adapters;
 mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)
 mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
+mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可执行性三重守护)
 mod config;
 mod contracts;
 mod device;
@@ -777,7 +778,7 @@ fn main() {
                     Err(e) => eprintln!("runtime state 序列化失败: {e}"),
                 }
                 println!("SESSION-RT-01 step=create ...");
-                match mgr.create(intent) {
+                match mgr.create(intent.clone()) {
                     Ok(sid) => {
                         println!("SESSION-RT-01 step=create verdict=OK session={sid}");
                         println!("SESSION-RT-01 step=start ...");
@@ -824,6 +825,61 @@ fn main() {
                         println!("{json}");
                     }
                     Err(e) => eprintln!("runtime state 序列化失败: {e}"),
+                }
+                // P0.7C-3 COMMAND-CONTRACT-RT-01 (Hardware): envelope 驱动段——
+                // Start→observe→Stop→Release 经 Command Contract (与直接路径等价)。
+                {
+                    use crate::command::{
+                        dispatch, CommandEnvelope, CommandId, CommandKind, CommandTarget,
+                    };
+                    let cmd_env = CommandEnvelope {
+                        command_id: CommandId(uuid::Uuid::new_v4()),
+                        kind: CommandKind::StartSession,
+                        target: CommandTarget::Session {
+                            intent: intent.clone(),
+                        },
+                        issued_at_ms: 0,
+                        requested_by: "vbmf-session-lifecycle-gate".into(),
+                    };
+                    let out = dispatch(&mgr, &cmd_env);
+                    println!(
+                        "COMMAND-CONTRACT-RT-01 step=start status={:?} detail={:?}",
+                        out.status, out.detail
+                    );
+                    let sid = mgr.list().first().map(|s| s.session_id);
+                    if let Some(sid) = sid {
+                        println!("COMMAND-CONTRACT-RT-01 step=observe 10s ...");
+                        std::thread::sleep(std::time::Duration::from_secs(10));
+                        let running = mgr
+                            .status(&sid)
+                            .map(|s| s.phase == crate::session::SessionPhase::Running)
+                            .unwrap_or(false);
+                        println!("COMMAND-CONTRACT-RT-01 step=observe running={running}");
+                        let stop_env = CommandEnvelope {
+                            command_id: CommandId(uuid::Uuid::new_v4()),
+                            kind: CommandKind::StopSession,
+                            target: CommandTarget::SessionById { session_id: sid },
+                            issued_at_ms: 0,
+                            requested_by: "vbmf-session-lifecycle-gate".into(),
+                        };
+                        let out = dispatch(&mgr, &stop_env);
+                        println!(
+                            "COMMAND-CONTRACT-RT-01 step=stop status={:?} detail={:?}",
+                            out.status, out.detail
+                        );
+                        let rel_env = CommandEnvelope {
+                            command_id: CommandId(uuid::Uuid::new_v4()),
+                            kind: CommandKind::ReleaseSession,
+                            target: CommandTarget::SessionById { session_id: sid },
+                            issued_at_ms: 0,
+                            requested_by: "vbmf-session-lifecycle-gate".into(),
+                        };
+                        let out = dispatch(&mgr, &rel_env);
+                        println!(
+                            "COMMAND-CONTRACT-RT-01 step=release status={:?} detail={:?}",
+                            out.status, out.detail
+                        );
+                    }
                 }
                 // RESOURCE-RT-01: 第二会话争同资源必须被拒 (首会话已释放 → 先占住再争)。
                 println!("RESOURCE-RT-01 step=conflict ...");
@@ -953,7 +1009,7 @@ fn main() {
                         acquired_at: chrono::Utc::now(),
                         ttl: std::time::Duration::from_secs(60),
                     });
-                    match mgr.create(intent) {
+                    match mgr.create(intent.clone()) {
                         Ok(sid) => match mgr.start(&sid) {
                             Ok(()) => {
                                 tracing::info!(gst_version = ?crate::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
