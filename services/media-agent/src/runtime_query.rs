@@ -130,8 +130,7 @@ mod tests {
         let resources = crate::resource::SharedResourceRegistry::new(
             crate::resource::ResourceRegistry::derive_from_discovery(&port_registry(&devices)),
         );
-        let event_log =
-            std::sync::Arc::new(crate::events::RuntimeEventLog::new());
+        let event_log = std::sync::Arc::new(crate::events::RuntimeEventLog::new());
         let sup = std::sync::Arc::new(std::sync::Mutex::new(crate::supervisor::Supervisor::new(
             crate::supervisor::RestartPolicy::default(),
             event_log.clone(),
