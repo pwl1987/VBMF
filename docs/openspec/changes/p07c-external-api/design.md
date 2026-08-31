@@ -20,8 +20,8 @@
 pub struct ApiDevice {
     pub id: String,
     pub model: String,
-    pub binding: Option<String>,       // canonical binding_status (high/manifest_verified/...) 字符串化
-    pub capabilities: Option<Vec<ApiCapability>>,
+    pub binding: Option<String>,       // canonical binding_status 字符串化
+    pub capabilities: Option<Vec<ApiCapability>>,  // 当前恒 None: capabilities 在 snapshot 平面统一收集
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -31,8 +31,15 @@ pub struct ApiResource { pub id: String, pub device_id: String, pub state: Strin
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiSession { pub id: String, pub state: String, pub phase: String }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ApiCapability { pub flag: String, pub summary: String }
+pub struct ApiCapability {
+    pub can_input: String,    // "supported"/"unsupported"/"unknown" — D6 三态字符串化
+    pub can_output: String,
+    pub input_ports: Option<u32>,
+    pub output_ports: Option<u32>,
+}
 ```
+
+> 注：`ApiCapability` 字段直接镜像 `DeviceCapabilitiesSummary` 实际字段（can_input/can_output/input_ports/output_ports），值域字符串化（CapabilityFlag enum 名不暴露）。capabilities 为 **per-device** 字段（`CanonicalRuntimeState` 无独立 capabilities 平面——不发明），`to_api_query_snapshot` 从 `devices[*].capabilities` 收集。
 
 **关键解耦**：`ApiResource.state` 是 **API 字符串**（`"available"` / `"reserved"` / `"allocated"` / `"releasing"` / `"faulted"`），**不是** `ResourceState` enum 直接暴露；`ApiSession.state/phase` 同理。to_api_* 纯函数显式映射。
 
@@ -162,17 +169,19 @@ pub enum ApiCrossRestartSemantics {
 | Command → command::dispatch + idempotency::dispatch | ApiCommandRequest → ApiCommandResponse | ApiCommandStatus ≠ CommandStatus（不暴露 Executed/Failed 二分；用 classification）；独立 command_id 字符串 | ApiIdempotencyBoundary 契约 |
 | Event → RuntimeEventLog.drain → project | ApiEventEnvelope + ApiProjectionResponse | snapshot_kind="event_projection_snapshot" 防误用；severity 字符串化 | 进程内（投影非跨重启） |
 
-## 4. 测试矩阵（api_rt_01_*，feature=mock）
+## 4. 测试矩阵（api_rt_01_*，feature=mock，8 项单元测试）
 
 | 测试 | 覆盖 |
 |---|---|
-| `api_models_decoupled_from_runtime_types` | 红线白盒：serde 反向断言禁 `ResourceState`/`SessionPhase`/`CommandStatus`/`IdempotentDispatch`/`EventSeverity` 等内部 enum 字样 |
-| `api_command_status_no_failed_state` | API 不暴露 Failed（执行失败的命令用 Executed + classification=Retryable/Permanent） |
-| `api_projection_kind_enforced` | ApiProjectionResponse 序列化必含 `snapshot_kind: "event_projection_snapshot"` |
-| `to_api_query_models` | Query 五资源转换完整字段+值域（含 capabilities=Unknown 合法态） |
-| `api_command_request_field_shape` | command_id 非空、kind 三词表封闭、target 二选一、requested_by 非空 |
-| `idempotency_boundary_contract` | 三选项对勘公开化（当前=ProcessLocal, DurableLogDeferred, ExternalKvDeferred）；cross_restart=RestartBreaksReplay |
-| 真机 EXTERNAL-API-RT-01 | gate 段追加 API 资源快照打印 + 回归全部门禁（resource 全部 displayed；projection snapshot_kind 标注） |
+| `api_rt_01_boundary_no_vendor_imports` | **API-BOUNDARY-01** 白盒：静态扫描 api_boundary.rs 全部 `use` 行禁 `backend`/`gstreamer`/`decklink`/`ffmpeg`/`pipeline::`/`provider::` 实现路径（终审批准） |
+| `api_rt_01_no_transport_no_persistence` | **终审禁清单 11 项零偷渡**：静态扫描生产代码（剔除注释/测试模块）禁 `axum`/`hyper`/`TcpListener`/`OpenAPI`/`Sqlite`/`Redis`/`Kafka`/`ApiResponse` 等 |
+| `api_rt_01_api_models_decoupled_from_runtime_types` | 红线白盒：serde 反向断言——`ApiCommandStatus` 不暴露 `failed`；`ApiErrorClass` 去 `_failure` 后缀（不出现 `retryable_failure`）；`ApiProjectionResponse` 必含 `snapshot_kind` 守门 |
+| `api_rt_01_api_command_status_no_failed_state` | `ApiCommandStatus` 4 态穷举序列化均不含 `failed`（失败归因经 classification 传达）；`ApiErrorClass` snake_case 命名解耦（`retryable`/`permanent`） |
+| `api_rt_01_api_projection_kind_enforced` | `EventProjection → ApiProjectionResponse` 序列化 `snapshot_kind` 必为 `"event_projection_snapshot"`（NOTE-1 守门，防伪装权威态） |
+| `api_rt_01_to_api_query_models` | `to_api_query_snapshot` 空 snapshot 全字段 + 值域；`ErrorClassification → ApiErrorClass` 5 类闭包映射齐全 |
+| `api_rt_01_api_command_request_field_shape` | `ApiCommandRequest` 字段形状：command_id 非空、kind 三词表、target 二选一（Session/SessionById）、requested_by 非空；Session target intent JSON 透传 |
+| `api_rt_01_idempotency_boundary_contract` | 三选项对勘公开化：默认 boundary = ProcessLocal/DurableLogDeferred/RestartBreaksReplay；全部枚举变体稳定 snake_case 序列化名锁定 |
+| 真机 EXTERNAL-API-RT-01（Hardware） | gate 段：真机 `RuntimeQuery.get_runtime_state()` → `to_api_query_snapshot` 序列化往返 + `ApiProjectionResponse`/`ApiIdempotencyBoundary` 序列化守门校验 + 全门禁回归 |
 
 ## 5. 不做（终审 NOTE + probe 锁定）
 

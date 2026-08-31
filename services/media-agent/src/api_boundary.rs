@@ -144,12 +144,18 @@ pub struct ApiQuerySnapshot {
 }
 
 pub fn to_api_query_snapshot(state: &CanonicalRuntimeState) -> ApiQuerySnapshot {
+    // capabilities 是 per-device 字段 (CanonicalRuntimeState 无独立 capabilities 平面 — 不发明)。
+    let caps: Vec<(uuid::Uuid, crate::runtime_state::DeviceCapabilitiesSummary)> = state
+        .devices
+        .iter()
+        .filter_map(|d| d.capabilities.as_ref().map(|c| (d.device_id, *c)))
+        .collect();
     ApiQuerySnapshot {
         devices: state.devices.iter().map(to_api_device).collect(),
         ports: state.ports.iter().map(to_api_port).collect(),
         resources: state.resources.iter().map(to_api_resource).collect(),
         sessions: state.sessions.iter().map(to_api_session).collect(),
-        capabilities: to_api_capabilities(&state.capabilities),
+        capabilities: to_api_capabilities(&caps),
         generated_at_ms: state.generated_at_ms,
     }
 }
@@ -346,7 +352,17 @@ mod tests {
     /// **终审禁清单 11 项零偷渡** — 静态扫描: api_boundary.rs 不出现 transport/持久化/ApiResponse 等关键字。
     #[test]
     fn api_rt_01_no_transport_no_persistence() {
-        let src = include_str!("api_boundary.rs");
+        // 只扫描测试模块之前的生产代码 (剔除注释行; 测试自身的禁清单字面量不算违规)。
+        let prod_src = include_str!("api_boundary.rs");
+        let prod_part = prod_src
+            .split("#[cfg(all(test")
+            .next()
+            .unwrap_or(prod_src);
+        let src = prod_part
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
         for banned in [
             "axum", "hyper", "warp", "actix", "tower", "tonic", "grpc",
             "TcpListener", "HttpServer", "Router",
@@ -443,7 +459,6 @@ mod tests {
             resources: vec![],
             sessions: vec![],
             media_semantics: vec![],
-            capabilities: vec![],
             generated_at_ms: 1_700_000_000_000,
         };
         let snap = to_api_query_snapshot(&state);
@@ -505,13 +520,22 @@ mod tests {
             b.cross_restart_semantics,
             ApiCrossRestartSemantics::RestartBreaksReplay
         );
-        // 三选项对勘公开化: 序列化字段名稳定 + snake_case
+        // boundary 只序列化**当前选定值** (process_local / durable_log_deferred /
+        // restart_breaks_replay) — 未选定选项不出现。
         let json = serde_json::to_string(&b).unwrap();
         assert!(json.contains("process_local"));
         assert!(json.contains("durable_log_deferred"));
-        assert!(json.contains("external_kv_deferred"));
         assert!(json.contains("restart_breaks_replay"));
-        assert!(json.contains("restart_allows_replay"));
         assert!(!json.contains("\"failed\""));
+        // 三选项对勘公开化: **全部枚举变体**的稳定 snake_case 序列化名 (公开 API 面,
+        // 消费者凭此知"当前 vs 未来可选"边界)。未选定选项的稳定性在此锁定。
+        assert_eq!(
+            serde_json::to_string(&ApiPersistenceOption::ExternalKvDeferred).unwrap(),
+            "\"external_kv_deferred\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ApiCrossRestartSemantics::RestartAllowsReplay).unwrap(),
+            "\"restart_allows_replay\""
+        );
     }
 }
