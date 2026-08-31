@@ -7,7 +7,6 @@ mod adapters;
 mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)
 mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
 mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可执行性三重守护)
-mod idempotency; // P0.7C-4: Idempotency (D9-A~E: 同一命令语义 + 原子 claim + replay/conflict)
 mod config;
 mod contracts;
 mod device;
@@ -16,6 +15,7 @@ mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (hos
 mod graph_intent;
 mod health;
 mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
+mod idempotency; // P0.7C-4: Idempotency (D9-A~E: 同一命令语义 + 原子 claim + replay/conflict)
 mod lease;
 mod normalize; // P0.7B-1: Normalize Foundation — Raw → CanonicalMediaDescriptor (纯函数; 纪律①②③)
 mod pipeline;
@@ -898,7 +898,7 @@ fn main() {
                         requested_by: "vbmf-idempotency-gate".into(),
                     };
                     let start_out = match idem.dispatch(&cmd_env) {
-                        IdempotentDispatch::Executed(o) => o,
+                        IdempotentDispatch::Executed(o) => Some(o),
                         other => {
                             println!("IDEMPOTENCY-RT-01 step=start verdict=UNEXPECTED {other:?}");
                             None
@@ -916,21 +916,25 @@ fn main() {
                     let sessions_before = mgr.list().len();
                     match idem.dispatch(&cmd_env) {
                         IdempotentDispatch::Replayed(o) => {
-                            let replay_same =
-                                start_out.as_ref() == Some(&o);
+                            let replay_same = start_out.as_ref() == Some(&o);
                             println!(
                                 "IDEMPOTENCY-RT-01 step=duplicate verdict=replayed status={:?} sessions={sessions_before} outcome_equal={replay_same}",
                                 o.status
                             );
                         }
                         other => {
-                            println!("IDEMPOTENCY-RT-01 step=duplicate verdict=UNEXPECTED {other:?}");
+                            println!(
+                                "IDEMPOTENCY-RT-01 step=duplicate verdict=UNEXPECTED {other:?}"
+                            );
                         }
                     }
                     // 同 command_id 换 intent → Conflict (零执行)。
+                    // (改 version 而非 sink.kind: 真机 intent 的 sink 恒为 rtmp,
+                    //  改成 rtmp 等于没改 → 指纹不变 → 误判 Replayed; version 是
+                    //  canonical 字段且真机恒为 "1.0", 必产生指纹差。)
                     let mut conflict_env = cmd_env.clone();
                     if let CommandTarget::Session { intent } = &mut conflict_env.target {
-                        intent.devices[0].pipeline.sink.kind = "rtmp".into();
+                        intent.version = "idempotency-conflict-probe".into();
                     }
                     let sessions_before = mgr.list().len();
                     match idem.dispatch(&conflict_env) {
@@ -940,7 +944,9 @@ fn main() {
                             );
                         }
                         other => {
-                            println!("IDEMPOTENCY-RT-01 step=conflict verdict=UNEXPECTED {other:?}");
+                            println!(
+                                "IDEMPOTENCY-RT-01 step=conflict verdict=UNEXPECTED {other:?}"
+                            );
                         }
                     }
                     // observe: 幂等段创建的会话仍在运行。
@@ -965,7 +971,9 @@ fn main() {
                                 o.status
                             ),
                             other => {
-                                println!("IDEMPOTENCY-RT-01 step=stop verdict=UNEXPECTED {other:?}");
+                                println!(
+                                    "IDEMPOTENCY-RT-01 step=stop verdict=UNEXPECTED {other:?}"
+                                );
                             }
                         }
                         let rel_env = CommandEnvelope {
@@ -981,7 +989,9 @@ fn main() {
                                 o.status
                             ),
                             other => {
-                                println!("IDEMPOTENCY-RT-01 step=release verdict=UNEXPECTED {other:?}");
+                                println!(
+                                    "IDEMPOTENCY-RT-01 step=release verdict=UNEXPECTED {other:?}"
+                                );
                             }
                         }
                     }

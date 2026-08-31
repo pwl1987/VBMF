@@ -4,9 +4,9 @@
 //! - 重点不是"实现一个幂等存储", 而是冻结:
 //!   **D9-A** command identity — 同一命令 = 同 command_id + 同 canonical fingerprint;
 //!   **D9-B** payload conflict — 同 id 异 payload = ID 复用/语义碰撞 → Conflict
-//!           (绝不 replay, 绝不执行第二个 payload);
+//!   (绝不 replay, 绝不执行第二个 payload);
 //!   **D9-C** atomic claim — 锁内原子 check-and-insert (禁 check-then-act 竞态),
-//!           first claimant 锁外独占执行 → 终态落表 → 唤醒等待者;
+//!   first claimant 锁外独占执行 → 终态落表 → 唤醒等待者;
 //!   **D9-D** result replay — 重复请求重放 claimant 的原 outcome (Failed 同样 replay);
 //!   **D9-E** concurrent duplicate — N 线程同 envelope 恰一次执行。
 //! - 两平面分层: 0.7C-3 冻结的 `CommandStatus` (执行状态平面) 零改动;
@@ -22,10 +22,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
 
-use crate::command::{
-    CommandEnvelope, CommandId, CommandOutcome, CommandRejection, CommandStatus,
-};
 use crate::command as command_contract;
+use crate::command::{CommandEnvelope, CommandId, CommandOutcome, CommandRejection, CommandStatus};
 use crate::session::SessionManager;
 
 /// canonical 命令指纹 — "什么叫同一个命令"的冻结语义 (**D9-A**)。
@@ -118,17 +116,27 @@ impl CommandIdempotency {
             return IdempotentDispatch::Rejected(rej);
         }
         let fp = fingerprint(env);
-        // 2. 锁内原子 check-and-insert (单临界区 — 非 check-then-act):
-        //    两线程同时到达, 只有一个插入成功成为 claimant。
+        // 2. 锁内原子 check-and-insert (**单临界区** — 非 check-then-act):
+        //    判断与插入必须同一锁段内完成——两线程同时到达, 只有一个插入成功
+        //    成为 claimant (若拆成两段, 两线程可先后都判 None → 双执行, D9-E 竞态)。
         enum Claim {
             New,
             DuplicateSame,
             Conflict(CommandFingerprint),
         }
         let claim = {
-            let guard = self.lock();
+            let mut guard = self.lock();
             match guard.get(&env.command_id) {
-                None => Claim::New,
+                None => {
+                    guard.insert(
+                        env.command_id,
+                        Record {
+                            fingerprint: fp.clone(),
+                            state: RecordState::InFlight,
+                        },
+                    );
+                    Claim::New
+                }
                 Some(rec) if rec.fingerprint == fp => Claim::DuplicateSame,
                 // 同 id 异 payload → 碰撞 (无论表内 InFlight/Completed; 记录零改写)。
                 Some(rec) => Claim::Conflict(rec.fingerprint.clone()),
@@ -161,16 +169,7 @@ impl CommandIdempotency {
                 }
             }
             Claim::New => {
-                {
-                    let mut guard = self.lock();
-                    guard.insert(
-                        env.command_id,
-                        Record {
-                            fingerprint: fp,
-                            state: RecordState::InFlight,
-                        },
-                    );
-                }
+                // (claim 已在步骤 2 的临界区内插入 — 此处仅执行。)
                 // 4. claimant 锁外独占执行 (执行期不持 records 锁 — 无关命令不被阻塞);
                 //    panic 兜底落终态 Failed, 防等待者死等。
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -414,7 +413,6 @@ mod tests {
         let idem = CommandIdempotency::new(Arc::clone(&mgr));
         let mut bad = start_env();
         bad.requested_by = String::new();
-        let id = bad.command_id;
         match idem.dispatch(&bad) {
             IdempotentDispatch::Rejected(rej) => assert_eq!(rej.code, "empty_requester"),
             other => panic!("期望 Rejected, 实得 {other:?}"),
@@ -582,8 +580,10 @@ mod tests {
                 })
             })
             .collect();
-        let results: Vec<IdempotentDispatch> =
-            handles.into_iter().map(|h| h.join().expect("join")).collect();
+        let results: Vec<IdempotentDispatch> = handles
+            .into_iter()
+            .map(|h| h.join().expect("join"))
+            .collect();
         let executed: Vec<&CommandOutcome> = results
             .iter()
             .filter_map(|r| match r {
@@ -611,7 +611,10 @@ mod tests {
         // 无其他出口混入。
         for r in &results {
             assert!(
-                matches!(r, IdempotentDispatch::Executed(_) | IdempotentDispatch::Replayed(_)),
+                matches!(
+                    r,
+                    IdempotentDispatch::Executed(_) | IdempotentDispatch::Replayed(_)
+                ),
                 "并发重复不得产生 Conflict/Rejected: {r:?}"
             );
         }
