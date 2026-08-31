@@ -10,6 +10,7 @@ mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可�
 mod config;
 mod contracts;
 mod device;
+mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离 CommandStatus≠IdempotentDispatch≠ErrorClassification)
 mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
 mod graph_intent;
@@ -906,8 +907,9 @@ fn main() {
                     };
                     if let Some(o) = &start_out {
                         println!(
-                            "IDEMPOTENCY-RT-01 step=start verdict=executed status={:?} detail={:?} sessions={}",
+                            "IDEMPOTENCY-RT-01 step=start verdict=executed status={:?} classification={:?} detail={:?} sessions={}",
                             o.status,
+                            o.classification,
                             o.detail,
                             mgr.list().len()
                         );
@@ -918,8 +920,8 @@ fn main() {
                         IdempotentDispatch::Replayed(o) => {
                             let replay_same = start_out.as_ref() == Some(&o);
                             println!(
-                                "IDEMPOTENCY-RT-01 step=duplicate verdict=replayed status={:?} sessions={sessions_before} outcome_equal={replay_same}",
-                                o.status
+                                "IDEMPOTENCY-RT-01 step=duplicate verdict=replayed status={:?} classification={:?} sessions={sessions_before} outcome_equal={replay_same}",
+                                o.status, o.classification
                             );
                         }
                         other => {
@@ -967,8 +969,8 @@ fn main() {
                         };
                         match idem.dispatch(&stop_env) {
                             IdempotentDispatch::Executed(o) => println!(
-                                "IDEMPOTENCY-RT-01 step=stop verdict=executed status={:?}",
-                                o.status
+                                "IDEMPOTENCY-RT-01 step=stop verdict=executed status={:?} classification={:?}",
+                                o.status, o.classification
                             ),
                             other => {
                                 println!(
@@ -985,12 +987,33 @@ fn main() {
                         };
                         match idem.dispatch(&rel_env) {
                             IdempotentDispatch::Executed(o) => println!(
-                                "IDEMPOTENCY-RT-01 step=release verdict=executed status={:?}",
-                                o.status
+                                "IDEMPOTENCY-RT-01 step=release verdict=executed status={:?} classification={:?}",
+                                o.status, o.classification
                             ),
                             other => {
                                 println!(
                                     "IDEMPOTENCY-RT-01 step=release verdict=UNEXPECTED {other:?}"
+                                );
+                            }
+                        }
+                        // P0.7C-5 ERROR-MODEL-RT-01 (Hardware): ghost 探针——
+                        // 对已 release 的会话再发 Stop (新 command_id) → Failed +
+                        // classification=PermanentFailure (UnknownSession 臂)。
+                        let ghost_env = CommandEnvelope {
+                            command_id: CommandId(uuid::Uuid::new_v4()),
+                            kind: CommandKind::StopSession,
+                            target: CommandTarget::SessionById { session_id: sid },
+                            issued_at_ms: 0,
+                            requested_by: "vbmf-error-model-gate".into(),
+                        };
+                        match idem.dispatch(&ghost_env) {
+                            IdempotentDispatch::Executed(o) => println!(
+                                "ERROR-MODEL-RT-01 step=ghost-stop status={:?} classification={:?} detail={:?}",
+                                o.status, o.classification, o.detail
+                            ),
+                            other => {
+                                println!(
+                                    "ERROR-MODEL-RT-01 step=ghost-stop verdict=UNEXPECTED {other:?}"
                                 );
                             }
                         }

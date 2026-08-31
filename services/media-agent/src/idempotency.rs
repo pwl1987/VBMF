@@ -180,6 +180,8 @@ impl CommandIdempotency {
                     kind: env.kind,
                     status: CommandStatus::Failed,
                     detail: Some("claimant panicked during execution".into()),
+                    // panic 归因不可知 — 不臆造 Retryable/Permanent (0.7C-5 Unknown 语义)。
+                    classification: Some(crate::error_model::ErrorClassification::Unknown),
                 });
                 {
                     let mut guard = self.lock();
@@ -338,6 +340,7 @@ mod tests {
             kind: CommandKind::StartSession,
             status: CommandStatus::Executed,
             detail: None,
+            classification: None,
         };
         let cases = [
             (
@@ -435,26 +438,22 @@ mod tests {
         let idem = CommandIdempotency::new(Arc::clone(&mgr));
         let env = start_env();
         let first = idem.dispatch(&env);
-        let CommandOutcome {
-            status: s1,
-            detail: d1,
-            ..
-        } = match &first {
+        let executed_outcome = match &first {
             IdempotentDispatch::Executed(o) => o.clone(),
             other => panic!("期望 Executed, 实得 {other:?}"),
         };
-        assert_eq!(s1, CommandStatus::Executed, "detail={d1:?}");
+        assert_eq!(
+            executed_outcome.status,
+            CommandStatus::Executed,
+            "detail={:?}",
+            executed_outcome.detail
+        );
+        assert_eq!(executed_outcome.classification, None);
         assert_eq!(mgr.list().len(), 1);
-        // 重复投递 → 重放原 outcome (逐字节相等), 会话数不增。
+        // 重复投递 → 重放原 outcome (逐字节相等, 含 classification), 会话数不增。
         match idem.dispatch(&env) {
             IdempotentDispatch::Replayed(o) => {
-                let expected = CommandOutcome {
-                    command_id: env.command_id,
-                    kind: env.kind,
-                    status: s1,
-                    detail: d1,
-                };
-                assert_eq!(o, expected, "replay 必须逐字节重放原 outcome");
+                assert_eq!(o, executed_outcome, "replay 必须逐字节重放原 outcome");
             }
             other => panic!("期望 Replayed, 实得 {other:?}"),
         }
@@ -474,6 +473,11 @@ mod tests {
             other => panic!("期望 Executed(Failed), 实得 {other:?}"),
         };
         assert_eq!(failed.status, CommandStatus::Failed);
+        assert_eq!(
+            failed.classification,
+            Some(crate::error_model::ErrorClassification::PermanentFailure),
+            "ghost stop (UnknownSession) 归因 Permanent"
+        );
         match idem.dispatch(&ghost) {
             IdempotentDispatch::Replayed(o) => assert_eq!(o, failed, "Failed 结果同样 replay"),
             other => panic!("期望 Replayed(Failed), 实得 {other:?}"),
