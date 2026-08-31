@@ -18,6 +18,18 @@ use crate::port::PortRegistry;
 use crate::resolver::ResolvedDeviceBinding;
 use crate::resource::{preflight, AcquisitionRequest, ResourceRegistry};
 
+/// 设备输入能力三态（D6 判定用; ProbeFailed→Unknown, absence≠evidence）。
+fn project_input_capability(
+    c: &crate::port::DeviceCapabilities,
+) -> crate::runtime_state::CapabilityFlag {
+    use crate::port::CapabilityValue as Cv;
+    match &c.input {
+        Cv::Supported(_) => crate::runtime_state::CapabilityFlag::Supported,
+        Cv::Unsupported => crate::runtime_state::CapabilityFlag::Unsupported,
+        Cv::Unknown | Cv::ProbeFailed(_) => crate::runtime_state::CapabilityFlag::Unknown,
+    }
+}
+
 /// Preflight 阶段 (判定顺序即报告顺序)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -341,19 +353,46 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
         }
     }
 
-    // 6. BackendCapability — WARN-only 报告 (探针占位, 不阻塞)。
-    if inputs.capabilities.is_empty() {
-        report.push(
-            PreflightStage::BackendCapability,
-            StageLevel::Warn,
-            "无能力探针报告 (占位 SPI)",
-        );
-    } else {
-        report.push(
-            PreflightStage::BackendCapability,
-            StageLevel::Warn,
-            format!("能力报告 {} 份 (占位)", inputs.capabilities.len()),
-        );
+    // 6. BackendCapability — **D6 (BACKEND-CAPABILITY-01, p07c-runtime-query): 硬判定**——
+    // 设备输入能力 Unsupported ⇒ FAIL（硬决策）; Unknown ⇒ WARN（absence≠evidence）;
+    // Supported ⇒ Pass。
+    {
+        let mut cap_failures: Vec<String> = Vec::new();
+        let mut unknown_devices = 0usize;
+        for d in &inputs.intent.devices {
+            let Ok(u) = Uuid::parse_str(&d.device_id) else {
+                continue;
+            };
+            let Some(dev) = inputs.devices.iter().find(|x| x.device_id == u) else {
+                continue;
+            };
+            match project_input_capability(&dev.capabilities) {
+                crate::runtime_state::CapabilityFlag::Unsupported => {
+                    cap_failures.push(format!("设备 {u} 无输入能力 (capability=unsupported)"));
+                }
+                crate::runtime_state::CapabilityFlag::Unknown => unknown_devices += 1,
+                crate::runtime_state::CapabilityFlag::Supported => {}
+            }
+        }
+        if !cap_failures.is_empty() {
+            report.push(
+                PreflightStage::BackendCapability,
+                StageLevel::Fail,
+                cap_failures.join("; "),
+            );
+        } else if unknown_devices > 0 {
+            report.push(
+                PreflightStage::BackendCapability,
+                StageLevel::Warn,
+                format!("{unknown_devices} 台设备输入能力 Unknown (未探测/未暴露; 不臆造)"),
+            );
+        } else {
+            report.push(
+                PreflightStage::BackendCapability,
+                StageLevel::Pass,
+                "目标设备输入能力全部 Supported",
+            );
+        }
     }
 
     // 7/8. Report-only 占位 (0.7B+)。

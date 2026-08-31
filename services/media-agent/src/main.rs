@@ -24,6 +24,7 @@ mod registry;
 mod resolver;
 mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
 mod rpc;
+mod runtime_query; // P0.7C-2: Runtime Query Model (Pure Read / Snapshot Semantics; 命令动词禁入)
 mod runtime_state; // P0.7C-F: Canonical Runtime State 聚合 (组合非展开; 第一条 Canonical→Runtime 生产边)
 mod session;
 mod timecode; // P0.7B-2C: Canonical Timecode (时间标签, 非时间本体; #148) // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
@@ -729,7 +730,7 @@ fn main() {
                         eprintln!("adapter feature 冲突 (fail-closed): {e}");
                         std::process::exit(2);
                     });
-                let mgr = crate::session::SessionManager::new(
+                let mgr = std::sync::Arc::new(crate::session::SessionManager::new(
                     resources,
                     lm.clone(),
                     sup.clone(),
@@ -739,7 +740,9 @@ fn main() {
                     Some(registry),
                     crate::pipeline::MaterializeMode::Diagnostic,
                     crate::session::SessionTuning::default(),
-                );
+                ));
+                // P0.7C-2: Runtime Query (Pure Read) 门面 — 硬件证据冒烟。
+                let _rq = crate::runtime_query::RuntimeQuery::new(std::sync::Arc::clone(&mgr));
                 let intent = crate::graph_intent::GraphRuntimeIntent {
                     version: "1.0".into(),
                     devices: vec![crate::graph_intent::DeviceIntent {
