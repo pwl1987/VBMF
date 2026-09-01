@@ -8,7 +8,7 @@ subagent_dispatch: null
 tdd_mode: direct
 review_mode: standard
 isolation: branch
-verify_mode: null
+verify_mode: full
 auto_transition: true
 base_ref: 456e75343be4fd38ea2dc84f083b8f5a202962d0
 design_doc: docs/superpowers/specs/2026-09-01-p07d-event-integration-design.md

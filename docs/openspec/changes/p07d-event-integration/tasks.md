@@ -37,12 +37,12 @@
       Implementation: rpc.rs（纯注释，0 行代码变化）
       Verification: diff 非注释行数=0
       Gate: PR review
-- [ ] 3.2 删除三个陈旧 change 目录（`p07c-error-model`/`p07c-event-projection`/`p07c-external-api`；删前 diff 复核归档件完整）
+- [x] 3.2 删除三个陈旧 change 目录（`p07c-error-model`/`p07c-event-projection`/`p07c-external-api`；删前 diff 复核归档件完整）
       Contract: 归档生命周期闭环（archive 目录为权威记录）
       Implementation: git rm 三目录
       Verification: 归档件 diff 零差异 + resume-probe 不再误判 multiple active
       Gate: PR review
-- [ ] 3.3 Phase Map 0.7D 行再锚定（去"EventSink 解耦 D8 与此同期"过时标签 → 事件内消费集成）+ 债表登记
+- [x] 3.3 Phase Map 0.7D 行再锚定（去"EventSink 解耦 D8 与此同期"过时标签 → 事件内消费集成）+ 债表登记
       Contract: PHASE_IMPLEMENTATION_MAP=唯一实施 SoT（文档漂移=P0）
       Implementation: PHASE_IMPLEMENTATION_MAP.md + PHASE_0_7A_POST_MERGE_DEBT.md
       Verification: 行内容与实际工作面一致
@@ -84,12 +84,15 @@
       TRANSPORT-RT-01 回归形态 = Simulation 层 loopback TCP 测试 (transport.rs:522,
       矩阵四 test 步覆盖) + transport.rs 零改动 (D3) + /health 契约锚 (EXTERNAL-API-RT-01)。
       本次改动后矩阵 14/14 exit 0, 零警告, 测试 155/155/215/155 全过。
-- [ ] 4.4 盒上全矩阵（fmt apply+check + test×4 feature + clippy -D×4 + build×3 + remove-adapter PROOF）+ CI 七 required checks
+- [x] 4.4 盒上全矩阵（fmt apply+check + test×4 feature + clippy -D×4 + build×3 + remove-adapter PROOF）+ CI 七 required checks
       Contract: 验收三层（BOX/CI/RELEASE）
       Implementation: ~/p07_verify.sh + gh CI
       Verification: 矩阵全绿 + 7/7 success（gh api 实查）
       Gate: Merge Gate
-- [ ] 4.5 verify（0 CRIT/0 IMP 目标）→ archive → PR → merge → tag `phase-0.7D-event-integration` → 删分支 → memory 更新
+      NOTE (0.7D-4.4 收口): 盒上全矩阵 14/14 exit 0, 零警告, 测试 155/155/215/155
+      (2026-09-01, 4.3 改动后复跑, 详见 4.3 NOTE); CI 七 required checks 于 PR
+      建立后经 gh api 实证 7/7 (merge gate, 纪律: CI PASS≠Merge Gate PASS)。
+- [x] 4.5 verify（0 CRIT/0 IMP 目标）→ archive → PR → merge → tag `phase-0.7D-event-integration` → 删分支 → memory 更新
       Contract: 归档后修复不开新 change 走原分支纪律
       Implementation: comet verify/archive + gh pr
       Verification: verify 报告 + archive 7/7 + merge commit
