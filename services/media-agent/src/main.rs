@@ -257,6 +257,15 @@ fn main() {
         std::process::exit(0);
     }
 
+    // P0-7D D3 (双日志分流定稿): 外送投影日志 (transport 投影端点 + gate 证据路径 drain) 与
+    // 内消费日志 (watchdog tick drain → health::reduce 派生 AgentState) 各自独立维持
+    // 0.7C-6 四语义; 生产者统一经 FanoutSink 同序双写 (emit 永不阻塞/永不失败)。
+    let projection_log = Arc::new(events::RuntimeEventLog::new());
+    let internal_log = Arc::new(events::RuntimeEventLog::new());
+    let event_sink: Arc<dyn events::RuntimeEventSink> = Arc::new(events::FanoutSink::new(
+        projection_log.clone(),
+        internal_log.clone(),
+    ));
     // HW-PORT-01D (Loopback): 真机 loopback 验收闭环 (STEP 11). 设置 VBMF_LOOPBACK=1 运行:
     // 加载 DeviceBindingManifest → 探测 GStreamer → 解析绑定 → 构建 PortRegistry → 加载 fixtures 目录
     // → 对每条 Fixture 在 source 渲染已知图案、在 sink 真实采集 (含加嵌音频探测) → verify_fixtures 双门
@@ -334,6 +343,33 @@ fn main() {
                 // registry → 真机观测装配 → CanonicalMediaDescriptor 证据输出
                 // (judge-only; 纪律① — descriptor 不进任何 pipeline)。
                 if all_pass {
+                    // P0-7D-2.1: LoopbackVerified 点亮 (词表在册, 原生产) — loopback 验收
+                    // 双门 (信号态+内容) 通过即语义时刻。fixture 级验证: 设备归属未在
+                    // FixtureVerification 携带 → nil=未归属 (观测记账, 不改 reducer 主态)。
+                    for _ in verifications.iter().filter(|v| v.passed) {
+                        event_sink.emit(events::RuntimeEvent::LoopbackVerified {
+                            device_id: uuid::Uuid::nil(),
+                            port_id: None,
+                        });
+                    }
+                    // P0-7D-4.3 (E4, 方案 A): 投影端计数闭环 — 每条通过 verification 恰好
+                    // 发一条, FanoutSink 双写经投影 drain 可精确计数 (loopback 为独立入口,
+                    // 本段日志仅含本段事件; 计数失配 = 生产接线缺陷, fail-closed)。
+                    let drained_lb = projection_log.drain();
+                    let p_lb = crate::event_projection::project(&drained_lb);
+                    let loopback_count = p_lb
+                        .kind_counts
+                        .get("loopback_verified")
+                        .copied()
+                        .unwrap_or(0);
+                    println!(
+                        "EVENT-INTEGRATION-RT-01 E4 loopback_verified={loopback_count} (期望 {})",
+                        verifications.len()
+                    );
+                    if loopback_count != verifications.len() {
+                        eprintln!("EVENT-INTEGRATION-RT-01 E4 verdict=FAIL (计数失配)");
+                        std::process::exit(2);
+                    }
                     let fresh_probes = match crate::resolver::probe_gstreamer_devices(
                         crate::resolver::MAX_PROBE_DEVICES,
                         false,
@@ -482,11 +518,11 @@ fn main() {
     // Gate 5: Supervisor seeded with device handles (watchdog state machine + budget/
     // backoff/circuit-breaker are unit-tested in supervisor.rs). 包 Arc<Mutex> 以便 watch
     // 线程与 GStreamer recover 接线共享 (Supervisor 只决策, 不碰 GStreamer).
-    // 0.7C-6 D8: 组合根唯一事件表 — SessionManager 与 Supervisor 共享 (单表单锁全局 FIFO)。
-    let event_log = Arc::new(events::RuntimeEventLog::new());
+    // 0.7C-6 D8 + 0.7D D3: 生产者 (SessionManager/Supervisor/ingest/点亮) 统一经
+    // FanoutSink 同序双写 projection+internal 两日志 (上方已构造); Supervisor 持 sink。
     let sup = Arc::new(std::sync::Mutex::new(supervisor::Supervisor::new(
         supervisor::RestartPolicy::default(),
-        event_log.clone(),
+        event_sink.clone(),
     )));
     for d in &devices {
         sup.lock().unwrap().register(d.device_id);
@@ -544,6 +580,8 @@ fn main() {
                             sup.clone(),
                             lm.clone(),
                             agent_state.clone(),
+                            event_sink.clone(),
+                            internal_log.clone(),
                         );
                     }
                     Err(e) => tracing::error!(error = %e, "MEDIA-RT-01 self-test 启动失败"),
@@ -755,7 +793,7 @@ fn main() {
                     Some(registry),
                     crate::pipeline::MaterializeMode::Diagnostic,
                     crate::session::SessionTuning::default(),
-                    event_log.clone(),
+                    event_sink.clone(),
                 ));
                 // P0.7C-2: Runtime Query (Pure Read) 门面 — 硬件证据冒烟。
                 let _rq = crate::runtime_query::RuntimeQuery::new(std::sync::Arc::clone(&mgr));
@@ -800,6 +838,32 @@ fn main() {
                         match mgr.start(&sid) {
                             Ok(()) => {
                                 println!("SESSION-RT-01 step=start verdict=OK (pipeline Running)");
+                                // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (E2/E3): gate 复用生产
+                                // ingest watchdog (与 auto_start 1256 同款装配, 非 gate 专用路径) —
+                                // SignalVerified 点亮 / internal drain→reduce→agent_state 写回 /
+                                // 回声谓词 全部走生产代码。device_uuid 与 IdentityResolved 的
+                                // device_id 同源 (first_id 解析), 保证回声归属匹配。
+                                let gate_dev_uuid =
+                                    Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
+                                if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
+                                    spawn_ingest_watchdog(
+                                        ctrl,
+                                        h,
+                                        gate_dev_uuid,
+                                        sup.clone(),
+                                        lm.clone(),
+                                        agent_state.clone(),
+                                        event_sink.clone(),
+                                        internal_log.clone(),
+                                    );
+                                }
+                                // P0-7D-4.3 (E5): 生产同款 5s tick 线程 — 真实驱动 lease 续期 /
+                                // 预留过期 (expire_reservations_of → ResourceReservationExpired)。
+                                let tick_mgr = mgr.clone();
+                                std::thread::spawn(move || loop {
+                                    std::thread::sleep(std::time::Duration::from_secs(5));
+                                    tick_mgr.tick();
+                                });
                                 println!("SESSION-RT-01 step=observe 10s ...");
                                 std::thread::sleep(std::time::Duration::from_secs(10));
                                 let running = mgr
@@ -811,6 +875,16 @@ fn main() {
                                     if running { "OK" } else { "FAIL" }
                                 );
                                 ok &= running;
+                                // P0-7D-4.3 (E2): 观察窗内 AgentState 必须由 reducer 从真实事件流
+                                // (SessionCreated/SessionStateChanged{running}/SignalVerified →
+                                // watchdog 每 tick drain internal → reduce) 派生为 Capturing —
+                                // gate 段无其他 agent_state 写入点, 排除旁路赋值。
+                                let derived_running = *agent_state.lock().unwrap();
+                                println!(
+                                    "EVENT-INTEGRATION-RT-01 step=E2 derived_during_running={:?}",
+                                    derived_running
+                                );
+                                ok &= matches!(derived_running, health::AgentState::Capturing);
                             }
                             Err(e) => {
                                 println!("SESSION-RT-01 step=start verdict=FAIL error={e}");
@@ -826,6 +900,55 @@ fn main() {
                             }
                         }
                         let _ = mgr.close(&sid);
+                        // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (E5): 真实 tick 驱动预留过期 —
+                        // 第二会话只 create 不 start (停留 Provisioning, 持真实预留/租约),
+                        // 超过 reservation_window (默认 30s) 由上方 5s tick 线程驱动
+                        // expire_reservations_of → 逐资源发射 ResourceReservationExpired,
+                        // 随后 Terminated 零孤儿 (RESOURCE-RT-01 crash cleanup 同路径)。
+                        println!(
+                            "EVENT-INTEGRATION-RT-01 step=E5 create (不 start, 等 tick 过期, ~42s) ..."
+                        );
+                        let e5_intent = crate::graph_intent::GraphRuntimeIntent {
+                            version: "1.0".into(),
+                            devices: vec![crate::graph_intent::DeviceIntent {
+                                device_id: first_id.clone(),
+                                role: "CAPTURE".into(),
+                                pipeline: crate::graph_intent::PipelineIntent {
+                                    source: crate::graph_intent::SourceIntent {
+                                        kind: "decklink".into(),
+                                        device_id: first_id.clone(),
+                                        port_id: None,
+                                    },
+                                    sink: crate::graph_intent::SinkIntent {
+                                        kind: "appsink".into(),
+                                    },
+                                },
+                            }],
+                        };
+                        match mgr.create(e5_intent) {
+                            Ok(e5) => {
+                                // 42s = 30s 预留窗口 + 5s tick 对齐余量 + 2s 边界裕量
+                                // (首会话 create 时刻在真机上有 ±5s 漂移, 断言必须晚于
+                                //  过期后首个 5s tick, 否则与 tick 线程竞态)。
+                                std::thread::sleep(std::time::Duration::from_secs(42));
+                                let e5_phase = mgr.status(&e5).map(|s| s.phase);
+                                println!(
+                                    "EVENT-INTEGRATION-RT-01 step=E5 expired_phase={:?} (期望 Terminated)",
+                                    e5_phase
+                                );
+                                ok &= matches!(
+                                    e5_phase,
+                                    Some(crate::session::SessionPhase::Terminated)
+                                );
+                                let _ = mgr.close(&e5);
+                            }
+                            Err(e) => {
+                                println!(
+                                    "EVENT-INTEGRATION-RT-01 step=E5 create verdict=FAIL error={e}"
+                                );
+                                ok = false;
+                            }
+                        }
                     }
                     Err(e) => {
                         println!("SESSION-RT-01 step=create verdict=FAIL error={e}");
@@ -1088,7 +1211,7 @@ fn main() {
                 }
                 // P0.7C-6 EVENT-PROJECTION-RT-01 (Hardware): 消费接线实证——
                 // 全生命周期事件 drain → project → 只读快照 (Observation, 不写回)。
-                let drained_events = event_log.drain();
+                let drained_events = projection_log.drain();
                 let p = crate::event_projection::project(&drained_events);
                 {
                     println!(
@@ -1101,9 +1224,41 @@ fn main() {
                     );
                     println!(
                         "EVENT-PROJECTION-RT-01 dropped_obs={} dropped_crit={}",
-                        event_log.dropped_observations(),
-                        event_log.dropped_criticals()
+                        projection_log.dropped_observations(),
+                        projection_log.dropped_criticals()
                     );
+                }
+                // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (Hardware): 事件内消费闭环真机实证。
+                // 计数证据取上方投影全量 drain (internal log 已被生产 watchdog 逐 tick 消费并
+                // 折叠进 reducer — 其可观测输出 = E2 Capturing 断言 [观察窗内] + 终态断言 [此处];
+                // 两路共享同一事件流, 投影端计数完整 = 内消费未破坏外送平面):
+                //   E1 IdentityResolved/SessionCreated 真实生命周期产生;
+                //   E3 SignalVerified 由生产 watchdog 点亮 (a4 双路首帧+PTS 单调翻真, 闩锁恰好一次);
+                //   E5 ResourceReservationExpired 经上方真实 tick 过期路径发射 (首设备=1 资源, 精确计数);
+                //   E6 Supervisor 回声不自激 — 无故障窗口 PipelineFault 计数为零 (若自激必以
+                //      tick 频率故障事件显现; 回声谓词排除语义 4.2 已证);
+                //   E7 双日志互不破坏 — 投影全量计数完整 + internal 残留 drain 干净;
+                //   E2 终态: E5 真实降级后 reducer 派生 Degraded (无更高级 pending);
+                //   E4 LoopbackVerified 由 VBMF_LOOPBACK 入口独立实跑闭环 (方案 A, 不在此重复验收)。
+                {
+                    let e1 = p.kind_counts.get("identity_resolved").copied().unwrap_or(0) >= 1
+                        && p.kind_counts.get("session_created").copied().unwrap_or(0) >= 1;
+                    let e3 = p.kind_counts.get("signal_verified").copied().unwrap_or(0) == 1;
+                    let e5 = p
+                        .kind_counts
+                        .get("resource_reservation_expired")
+                        .copied()
+                        .unwrap_or(0)
+                        == 1;
+                    let e6 = p.kind_counts.get("pipeline_fault").copied().unwrap_or(0) == 0;
+                    let final_state = *agent_state.lock().unwrap();
+                    let e7_residue = internal_log.drain();
+                    let e2_final = matches!(final_state, health::AgentState::Degraded);
+                    println!(
+                        "EVENT-INTEGRATION-RT-01 E1={e1} E3_signal_verified={e3} E5_expired_count={e5} E6_pipeline_fault_absent={e6} E7_internal_residue={:?} E2_final_state={final_state:?}",
+                        e7_residue.len()
+                    );
+                    ok &= e1 && e3 && e5 && e6 && e2_final;
                 }
                 // P0.7C-7 EXTERNAL-API-RT-01 (Hardware): API Boundary Model 实证——
                 // 真机 Runtime State → API 模型纯转换 + 序列化往返 (非 Web Server;
@@ -1214,7 +1369,7 @@ fn main() {
                             registry.clone(),
                             mode,
                             crate::session::SessionTuning::default(),
-                            event_log.clone(),
+                            event_sink.clone(),
                         ));
                     api_mgr = Some(mgr.clone());
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
@@ -1240,6 +1395,8 @@ fn main() {
                                         sup.clone(),
                                         lm.clone(),
                                         agent_state.clone(),
+                                        event_sink.clone(),
+                                        internal_log.clone(),
                                     );
                                 }
                                 // tick 驱动 lease 续期/预留过期 (无后台定时器, 借常驻线程节拍)。
@@ -1280,7 +1437,7 @@ fn main() {
     // events/agent_state/device_count 全路径可用)。/health 响应体经 transport::route 保持
     // 逐字段不变 (回归锚点)。
     let transport_ctx = crate::transport::TransportContext {
-        events: event_log.clone(),
+        events: projection_log.clone(),
         agent_state: agent_state.clone(),
         device_count,
         query: api_mgr
@@ -1322,6 +1479,7 @@ fn main() {
 /// 调用点 (self-test / canonical) 均在 `#[cfg(feature = "bmd-provider")]` 块内, 故本函数仅在 bmd && gstreamer 时编译.
 /// `ctrl` 已为 `Arc<dyn MediaBackend>` (C2c): Mock 与 GStreamer 共享同一 `PipelinePlan` 契约.
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+#[allow(clippy::too_many_arguments)] // P0-7D: +sink/+internal_log 事件内消费接线 (watchdog 装配参数, 非领域 API)
 fn spawn_ingest_watchdog(
     ctrl: Arc<dyn MediaBackend>,
     handle: crate::pipeline::PipelineHandle,
@@ -1329,6 +1487,8 @@ fn spawn_ingest_watchdog(
     sup: Arc<std::sync::Mutex<supervisor::Supervisor>>,
     lm: Arc<lease::InMemoryLeaseManager>,
     agent_state: Arc<std::sync::Mutex<health::AgentState>>,
+    sink: Arc<dyn events::RuntimeEventSink>,
+    internal_log: Arc<events::RuntimeEventLog>,
 ) {
     std::thread::spawn(move || {
         // A1/A2 在 start 前已由 materialize (身份解析) + lm.is_valid (租约) 保证, 否则不会进 watchdog.
@@ -1336,6 +1496,11 @@ fn spawn_ingest_watchdog(
         let mut prev_video = 0u64;
         let mut prev_audio = 0u64;
         let mut tick = 0u64;
+        // P0-7D-1.3: reducer 折叠上下文 — bootstrap = 当前实际态 (构造期/乐观写入是输入初值);
+        // 环内命令式 agent_state 散写全部收敛为 drain internal → reduce → 写回。
+        let mut health_fold = crate::health::HealthFold::bootstrap(*agent_state.lock().unwrap());
+        // P0-7D-2.1: SignalVerified 点亮闩锁 (a4 信号检出翻真只发一次)。
+        let mut signal_latched = false;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(500));
             // 真实 GStreamer bus 监控 (Error/EOS/StateChanged) —— Supervisor 闭环数据源 (#8).
@@ -1344,7 +1509,7 @@ fn spawn_ingest_watchdog(
             // 在共享 Arc 上就地更新 acceptance 子项: 只读 live 状态→推导→写回 acceptance,
             // 绝不覆盖 appsink 回调写入的 video_frame_count/audio_frame_count/PTS/video_pts_state/audio_pts_state,
             // 否则每轮 snapshot 写回会把实时计数回退, 破坏 c4(计数增长) 判定 (#4 回归).
-            let (pass, has_error) = if let Some(h) = crate::pipeline_events::HEALTH_ARCS
+            let (pass, has_error, a4_signal) = if let Some(h) = crate::pipeline_events::HEALTH_ARCS
                 .lock()
                 .unwrap()
                 .get(&handle)
@@ -1444,13 +1609,47 @@ fn spawn_ingest_watchdog(
                 (
                     g.acceptance.a_pass() && g.acceptance.b_pass() && g.acceptance.c_pass(),
                     g.last_error.is_some(),
+                    g.acceptance.a4_signal_detected,
                 )
             } else {
-                (false, false)
+                (false, false, false)
             };
 
-            // 错误 / 总线错误 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
+            // P0-7D-1.4 (ingest 接线): 上游总线观测 → canonical 事件流 (Supervisor.ingest
+            // 归一化, C2 契约首次接线; mapper 关键字: "error"→PipelineFault{retryable},
+            // "device lost"/"hotplug"→HardwareFault)。ingest 先于本 tick drain — 事件在
+            // 产生当 tick 即被消费 (drain 破坏性单次), 与轮询条件 OR 后同一 if 内至多一次
+            // report_failure, 无跨 tick 双计。
+            for e in events.iter() {
+                if matches!(e.kind, crate::pipeline_events::PipelineBusEventKind::Error) {
+                    sup.lock().unwrap().ingest(
+                        events::EventSource::Upstream,
+                        &format!("pipeline error: {}", e.detail),
+                    );
+                }
+            }
+            // P0-7D-2.1: SignalVerified 点亮 — a4 (信号检出) 翻真即语义时刻 (闩锁去重;
+            // 经 FanoutSink 双日志可见, 投影端点 kind_counts 同步可观测)。
+            if !signal_latched && a4_signal {
+                signal_latched = true;
+                sink.emit(events::RuntimeEvent::SignalVerified {
+                    device_id: device_uuid,
+                    port_id: None,
+                });
+            }
+            // P0-7D-1.3 (事件内消费): drain internal → reduce → 写回 agent_state。
+            let drained_internal = internal_log.drain();
+            // P0-7D-1.4 (事件驱动故障输入): 谓词抽为 supervisor::fault_trigger_from_events
+            // (纯函数, mock 面可测 — 见 evt_int_rt_01_fault_trigger_echo_never_retriggers);
+            // 自回声排除/归属判定/平面分离语义在彼处锁定。
+            let fault_from_events =
+                supervisor::fault_trigger_from_events(&drained_internal, device_uuid);
+            health_fold = crate::health::reduce(&health_fold, &drained_internal);
+            *agent_state.lock().unwrap() = health_fold.agent;
+
+            // 错误 / 总线错误 / 事件驱动故障 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
             if has_error
+                || fault_from_events
                 || events.iter().any(|e| {
                     matches!(
                         e.kind,
@@ -1464,7 +1663,12 @@ fn spawn_ingest_watchdog(
                         // Lease→Pipeline: recover 前必须重校租约仍在有效期内 (MEDIA-03 排他不变量).
                         if !lm.is_valid(&device_uuid) {
                             tracing::error!(device = %device_uuid, "recover 中止: lease 失效 (排他不变量)");
-                            *agent_state.lock().unwrap() = health::AgentState::ManualRequired;
+                            // P0-7D: 状态迁移必随事件 — 经 sink 发 HealthChanged (决策平面词表),
+                            // 由 reducer 折叠派生 (替代原命令式直写)。
+                            sink.emit(events::RuntimeEvent::HealthChanged {
+                                from: "restarting".into(),
+                                to: "manual_required".into(),
+                            });
                             continue;
                         }
                         let backoff = sup.lock().unwrap().backoff(&device_uuid);
@@ -1480,12 +1684,14 @@ fn spawn_ingest_watchdog(
                     }
                     Ok(supervisor::SupervisorAction::Escalate) => {
                         tracing::error!(handle = %handle.0, "MEDIA-RT-01 watchdog: Escalate (MANUAL_REQUIRED)");
-                        *agent_state.lock().unwrap() = health::AgentState::ManualRequired;
+                        // P0-7D: report_failure Escalate 路径已发 HealthChanged{manual_required},
+                        // ManualRequired 由 reducer 派生 (原命令式直写删除)。
                     }
                     Err(e) => tracing::error!(error = %e, "supervisor report_failure 失败"),
                 }
             } else if pass {
-                *agent_state.lock().unwrap() = health::AgentState::Capturing;
+                // P0-7D: Capturing 由 reducer 从 SignalVerified/SessionStateChanged{Running}
+                // 派生 (原命令式直写删除); 本分支仅保留证据日志。
                 tracing::info!(
                     handle = %handle.0,
                     video_frames = prev_video,

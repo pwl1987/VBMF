@@ -290,6 +290,48 @@ impl RuntimeEventSink for RuntimeEventLog {
     }
 }
 
+/// 组合根事件分流 (P0-7D D3 定稿: 双日志分流)。
+///
+/// 解决单日志多消费者竞争: 外送投影端点 (transport `drain→project`) 与内消费
+/// (watchdog tick `drain→health::reduce`) 共享同一日志时, 破坏性 `drain` 互相掏空。
+/// FanoutSink 在 emit 时**同序双写**两条独立 `RuntimeEventLog`:
+/// - `projection`: 外送侧 (transport 投影端点 + gate 证据路径照旧 drain);
+/// - `internal`: 内消费侧 (watchdog tick drain → reducer 派生 AgentState)。
+///
+/// 契约继承 `RuntimeEventSink`: 永不阻塞、永不失败。顺序保证: emit 内顺序双 push,
+/// 两日志事件全序一致; 各日志独立维持 0.7C-6 四语义 (FIFO/两级丢弃/重复容忍/failure 隔离)。
+pub struct FanoutSink {
+    projection: std::sync::Arc<RuntimeEventLog>,
+    internal: std::sync::Arc<RuntimeEventLog>,
+}
+
+impl FanoutSink {
+    pub fn new(
+        projection: std::sync::Arc<RuntimeEventLog>,
+        internal: std::sync::Arc<RuntimeEventLog>,
+    ) -> Self {
+        Self {
+            projection,
+            internal,
+        }
+    }
+    /// 外送投影日志 (transport `TransportContext.events` 与 gate 证据路径接此实例)。
+    pub fn projection(&self) -> std::sync::Arc<RuntimeEventLog> {
+        self.projection.clone()
+    }
+    /// 内消费日志 (watchdog tick drain → `health::reduce`)。
+    pub fn internal(&self) -> std::sync::Arc<RuntimeEventLog> {
+        self.internal.clone()
+    }
+}
+
+impl RuntimeEventSink for FanoutSink {
+    fn emit(&self, ev: RuntimeEvent) {
+        self.projection.push(ev.clone());
+        self.internal.push(ev);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,5 +468,71 @@ mod tests {
         assert_eq!(sf, b2);
         assert_eq!(sf.kind(), "session_failed");
         assert!(sf.is_fault(), "SessionFailed 为 Critical");
+    }
+
+    // ── P0-7D FanoutSink (D3 双日志分流) 四语义扩展 ──
+
+    fn fanout_pair(
+        cap: usize,
+    ) -> (
+        FanoutSink,
+        std::sync::Arc<RuntimeEventLog>,
+        std::sync::Arc<RuntimeEventLog>,
+    ) {
+        let projection = std::sync::Arc::new(RuntimeEventLog::with_capacity(cap));
+        let internal = std::sync::Arc::new(RuntimeEventLog::with_capacity(cap));
+        let sink = FanoutSink::new(projection.clone(), internal.clone());
+        (sink, projection, internal)
+    }
+
+    #[test]
+    fn fanout_dual_log_same_order_and_content() {
+        // 顺序一致: 同一 emit 序列在两日志逐条相等 (全序保持)。
+        let (sink, projection, internal) = fanout_pair(64);
+        let seq = [
+            RuntimeEvent::SessionCreated {
+                session_id: Uuid::nil(),
+            },
+            RuntimeEvent::SignalVerified {
+                device_id: Uuid::nil(),
+                port_id: None,
+            },
+            RuntimeEvent::PipelineFault {
+                pipeline: Uuid::nil(),
+                summary: "upstream".into(),
+                retryable: true,
+            },
+        ];
+        for ev in &seq {
+            sink.emit(ev.clone());
+        }
+        assert_eq!(projection.drain(), internal.drain());
+        // 重复容忍: 双日志各自消费语义独立, drain 后再 drain 为空。
+        assert!(projection.drain().is_empty());
+        assert!(internal.drain().is_empty());
+    }
+
+    #[test]
+    fn fanout_drop_counters_independent_per_log() {
+        // 丢弃独立: 消费节奏不同不互相影响计数 (两级丢弃语义按日志独立维持)。
+        // Critical 强推语义 (P1-3): 满时挤最旧 Critical 并计 dropped_criticals。
+        // cap=2; 批1 (3 条 Critical) 后 projection drain 腾空, 批2 (3 条) 再入。
+        // 精确账: internal 6 条未消费 → 丢 4 留 2; projection 批间消费 → 共丢 2 留 2。
+        let (sink, projection, internal) = fanout_pair(2);
+        let crit = || RuntimeEvent::SessionFailed {
+            session_id: Uuid::nil(),
+            reason: "force critical".into(),
+        };
+        for _ in 0..3 {
+            sink.emit(crit());
+        }
+        let _ = projection.drain();
+        for _ in 0..3 {
+            sink.emit(crit());
+        }
+        assert_eq!(internal.dropped_criticals(), 4);
+        assert_eq!(internal.len(), 2);
+        assert_eq!(projection.dropped_criticals(), 2);
+        assert_eq!(projection.len(), 2);
     }
 }

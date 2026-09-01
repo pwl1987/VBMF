@@ -24,7 +24,7 @@
 | **0.7C-7** | External API Foundation（**API Boundary Model**——五大独立 API 资源类型 + to_api_* 纯转换 + Command/Event/Idempotency 三平面 API 模型 + 契约层 Idempotency 持久化边界三选项冻结; **非 Web Server, 零 transport/持久化**; API-BOUNDARY-01 白盒 + 终审禁清单 11 项） | ✅ COMPLETE | (本 PR) | `phase-0.7C7-external-api`（合并后打） | EXTERNAL-API-RT-01 三层（真机 verdict=OK 实证） |
 | **0.7C-8** | Transport 实现（**API Boundary Model → wire 序列化边界**——std-only 五端点: /health 逐字段不变 + /api/v1/{runtime,commands,events/projection,idempotency/boundary}; 无持久连接 + 404/405/503/400 封闭; command_id UUID 直用/v5 派生 + kind 三词表封闭; **零新依赖, 不发明第六端点**; 生产路径无 mgr → 503 契约诚实） | ✅ COMPLETE | (本 PR) | `phase-0.7C8-transport`（合并后打） | TRANSPORT-RT-01 三层（真机 loopback HTTP 16 PASS + Simulation loopback 集成测试实证） |
 | **0.7C** | External Integration（§3 顺序全段收口: Runtime State → Query → Command → Idempotency → Error Model → Event Projection → External API → **Transport ✅ 0.7C-8**） | ✅ COMPLETE（**0.7C 全段收口**） | — | — | — |
-| **0.7D** | Event Projection / Integration（EventSink 解耦 D8 与此同期） | 📋 | — | — | — |
+| **0.7D** | Event Integration——**事件内消费**（Contract Probe 定层: 缺层=事件只外送不内耗; Health Reducer 纯函数折叠 + Supervisor 事件驱动故障输入 (回声谓词抽纯函数) + FanoutSink 双日志 D3 (内消费/外送投影互不破坏) + 4 事件点亮; 外部 Event 投影属 Fastify 控制面, 非本仓工作; D8 已 @0.7C-6 CLOSED） | 🚧 BUILD (4.3 Hardware gate 全实证, 待 verify→merge) | — | — | EVENT-INTEGRATION-RT-01 三层 (真机 E1-E8 双入口 ALL PASS, 见 change p07d-event-integration tasks 4.3 NOTE) |
 | **0.8** | Federation / Multi-site（P2） | 📋 | — | — | — |
 
 ## 2. 0.7 全阶段最高架构红线（终审 2026-08-30 冻结）

@@ -416,16 +416,18 @@ impl SharedResourceRegistry {
         self.0.lock().unwrap().release_allocation(holder)
     }
     /// 过期扫描入口 (Manager.tick 驱动): 将超时未确认的 Reserved 打回 Available,
-    /// 事件 `ResourceReservationExpired` 由调用方发射。0.7A 以 tick 周期近似 TTL。
-    pub fn expire_reservations_of(&self, holder: Uuid) -> usize {
+    /// 返回过期资源 ID 集; 事件 `ResourceReservationExpired` 由调用方逐资源发射
+    /// (P0-7D: 返回 `Vec<Uuid>` 供逐资源 emit, 不再是裸计数)。
+    /// 0.7A 以 tick 周期近似 TTL。
+    pub fn expire_reservations_of(&self, holder: Uuid) -> Vec<Uuid> {
         let mut g = self.0.lock().unwrap();
-        let mut expired = 0;
+        let mut expired = Vec::new();
         for res in g.resources.iter_mut() {
             if res.state == ResourceState::Reserved
                 && res.reservation.as_ref().map(|r| r.holder) == Some(holder)
                 && res.expire_reservation().is_ok()
             {
-                expired += 1;
+                expired.push(res.id);
             }
         }
         expired
@@ -690,7 +692,7 @@ mod tests {
         rr.resources[1].reserve(h2, "t2").unwrap();
         let shared = SharedResourceRegistry::new(rr);
         // 只过期 h1 的预留, 不碰 h2。
-        assert_eq!(shared.expire_reservations_of(h1), 1);
+        assert_eq!(shared.expire_reservations_of(h1).len(), 1);
         shared.with_inner(|g| {
             assert_eq!(g.resources[0].state, ResourceState::Available);
             assert_eq!(g.resources[1].state, ResourceState::Reserved);
