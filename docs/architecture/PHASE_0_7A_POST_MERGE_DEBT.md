@@ -53,7 +53,8 @@
 ### 优先级调整
 
 - **D11 Clock Observation Timeline：优先级上调**（广播时钟天然是时间序列——Locked→Lost→Recovered 是事件流；Clock 策略阶段的前置）
-- **D8 EventSink 解耦**：与 0.7D Event Projection 同期考虑
+- ~~D8 EventSink 解耦~~ ✅ CLOSED @ p07c-event-projection (0.7C-6, 2026-08-31)——RuntimeEventSink trait + 组合根单表 + Supervisor 收窄纯决策
+- **0.7D 定层记录（2026-09-01 Contract Probe）**：0.7D = 事件**内消费**（Health Reducer 纯函数折叠 + Supervisor 事件驱动故障输入 (回声谓词纯函数) + 4 事件点亮 + FanoutSink 双日志 D3 防内消费/外送投影互破坏）；外部 Event 投影属 Fastify 控制面（EVENT_CONTRACT §2 SoT），非本仓工作——避免把 0.7C-6 已完成的投影 API 再实现一遍
 
 ### 新登记 D13（0.7B-2C 终审）
 
