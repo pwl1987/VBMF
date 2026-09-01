@@ -124,3 +124,134 @@ impl Config {
         }
     }
 }
+
+/// P1a: Prototype 输出配置（**demo 层, 显式不进 Runtime Contract**——参数正式契约化
+/// 留产品配置模型阶段, 用户 2026-09-02 裁定）。驱动 `materialize` 的输出物化
+/// （pipeline.rs `materialize_with_output`）; env 缺失 ⇒ 无输出分支（行为与 P1a 前逐字节一致）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrototypeOutputConfig {
+    /// `VBMF_OUTPUT_KIND`: 覆盖诊断 intent 的 sink kind（main.rs 接线用; None = intent 原值）。
+    pub sink_kind_override: Option<String>,
+    /// `VBMF_OUTPUT_HLS_DIR`: HLS 分片目录（绝对路径; kind=hls 时必需）。
+    pub hls_dir: Option<String>,
+    /// `VBMF_OUTPUT_RTMP_URL`: RTMP 推流地址（kind=rtmp 时必需）。
+    pub rtmp_url: Option<String>,
+    /// `VBMF_OUTPUT_V_BITRATE_KBPS`: 视频码率（x264enc 单位 kbit/s; 默认 6000 = 6 Mbps）。
+    pub video_bitrate_kbps: u32,
+    /// `VBMF_OUTPUT_A_BITRATE_BPS`: 音频码率（avenc_aac 单位 bit/s; 默认 128000）。
+    pub audio_bitrate_bps: u32,
+}
+
+impl Default for PrototypeOutputConfig {
+    fn default() -> Self {
+        Self {
+            sink_kind_override: None,
+            hls_dir: None,
+            rtmp_url: None,
+            video_bitrate_kbps: 6000,
+            audio_bitrate_bps: 128_000,
+        }
+    }
+}
+
+impl PrototypeOutputConfig {
+    /// 真实 env 读取（生产入口）。
+    pub fn from_env() -> Self {
+        Self::from_env_lookup(|k| std::env::var(k).ok())
+    }
+
+    /// 可测变体: 注入查找函数（并行测试不碰进程 env）。
+    ///
+    /// 目标值卫生校验（review Minor#6）: `hls_dir`/`rtmp_url` 会内插进 gst-launch 串,
+    /// 含空白/`!`/`"` 的值按非法处理（→ None ⇒ fail-soft 降级, 绝不拼出可注入 launch）。
+    pub fn from_env_lookup(lookup: impl Fn(&str) -> Option<String>) -> Self {
+        let d = PrototypeOutputConfig::default();
+        let sane = |v: Option<String>| {
+            v.filter(|s| !s.chars().any(|c| c.is_whitespace() || c == '!' || c == '"'))
+        };
+        let bitrate = |k: &str, fallback: u32| {
+            lookup(k)
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(fallback)
+        };
+        Self {
+            sink_kind_override: sane(lookup("VBMF_OUTPUT_KIND")),
+            hls_dir: sane(lookup("VBMF_OUTPUT_HLS_DIR")),
+            rtmp_url: sane(lookup("VBMF_OUTPUT_RTMP_URL")),
+            video_bitrate_kbps: bitrate("VBMF_OUTPUT_V_BITRATE_KBPS", d.video_bitrate_kbps),
+            audio_bitrate_bps: bitrate("VBMF_OUTPUT_A_BITRATE_BPS", d.audio_bitrate_bps),
+        }
+    }
+}
+
+#[cfg(all(test, feature = "mock"))]
+mod tests {
+    use super::*;
+
+    fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |k| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.to_string())
+        }
+    }
+
+    #[test]
+    fn config_rt_01_prototype_output_defaults() {
+        let cfg = PrototypeOutputConfig::from_env_lookup(lookup(&[]));
+        assert_eq!(cfg, PrototypeOutputConfig::default());
+        assert!(cfg.sink_kind_override.is_none(), "无 env ⇒ 不覆盖 intent");
+        assert!(cfg.hls_dir.is_none() && cfg.rtmp_url.is_none());
+        assert_eq!(cfg.video_bitrate_kbps, 6000, "默认 6 Mbps (x264enc kbit/s)");
+        assert_eq!(cfg.audio_bitrate_bps, 128_000, "默认 AAC 128 kbps");
+    }
+
+    #[test]
+    fn config_rt_01_prototype_output_env_full() {
+        let cfg = PrototypeOutputConfig::from_env_lookup(lookup(&[
+            ("VBMF_OUTPUT_KIND", "hls"),
+            ("VBMF_OUTPUT_HLS_DIR", "/var/tmp/p1a"),
+            ("VBMF_OUTPUT_RTMP_URL", "rtmp://127.0.0.1:1935/live/p1a"),
+            ("VBMF_OUTPUT_V_BITRATE_KBPS", "4500"),
+            ("VBMF_OUTPUT_A_BITRATE_BPS", "96000"),
+        ]));
+        assert_eq!(cfg.sink_kind_override.as_deref(), Some("hls"));
+        assert_eq!(cfg.hls_dir.as_deref(), Some("/var/tmp/p1a"));
+        assert_eq!(
+            cfg.rtmp_url.as_deref(),
+            Some("rtmp://127.0.0.1:1935/live/p1a")
+        );
+        assert_eq!(cfg.video_bitrate_kbps, 4500);
+        assert_eq!(cfg.audio_bitrate_bps, 96_000);
+    }
+
+    #[test]
+    fn config_rt_01_prototype_output_invalid_bitrate_falls_back() {
+        let cfg = PrototypeOutputConfig::from_env_lookup(lookup(&[(
+            "VBMF_OUTPUT_V_BITRATE_KBPS",
+            "not-a-number",
+        )]));
+        assert_eq!(cfg.video_bitrate_kbps, 6000, "非法数值回退默认, 绝不 panic");
+    }
+
+    #[test]
+    fn config_rt_01_prototype_output_unsafe_target_rejected() {
+        // launch 注入卫生: 空白/!/引号 一律按未设置处理（fail-soft 降级, 不可注入）。
+        for (k, v) in [
+            ("VBMF_OUTPUT_HLS_DIR", "/tmp/a b"),
+            ("VBMF_OUTPUT_HLS_DIR", "/tmp/!inject"),
+            ("VBMF_OUTPUT_HLS_DIR", "/tmp/\"q\""),
+            ("VBMF_OUTPUT_RTMP_URL", "rtmp://x/live ! fakesink"),
+            ("VBMF_OUTPUT_KIND", "h ls"),
+        ] {
+            let cfg = PrototypeOutputConfig::from_env_lookup(lookup(&[(k, v)]));
+            let got = match k {
+                "VBMF_OUTPUT_HLS_DIR" => cfg.hls_dir,
+                "VBMF_OUTPUT_RTMP_URL" => cfg.rtmp_url,
+                _ => cfg.sink_kind_override,
+            };
+            assert!(got.is_none(), "{k}={v:?} 必须被拒绝");
+        }
+    }
+}

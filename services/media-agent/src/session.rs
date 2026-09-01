@@ -177,6 +177,9 @@ pub struct MediaSession {
     pub leases: Vec<DeviceLease>,
     /// Backend 所拥有的 pipeline 实例句柄 (Handle 链接 Session↔对象)。
     pub pipeline: Option<PipelineHandle>,
+    /// P1a: **物化**输出 kind 列表（start() 从 materialize 产物回填; 空 = 纯分析——
+    /// 含 kind 声明输出但目标 env 缺失的 fail-soft 降级, 绝不虚报声明态）。
+    pub outputs: Vec<String>,
     pub health: SessionHealthSnapshot,
     pub created_at: i64,
 }
@@ -358,6 +361,7 @@ impl SessionManager {
                     resource_claims: Vec::new(),
                     leases: Vec::new(),
                     pipeline: None,
+                    outputs: Vec::new(),
                     health: SessionHealthSnapshot::default(),
                     created_at: Self::now_ms() as i64,
                 },
@@ -555,6 +559,17 @@ impl SessionManager {
                 return Err(e.into());
             }
         };
+        // P1a: 物化输出回填会话（运行时可见性 = **物化事实**而非声明——kind=hls/rtmp 但
+        // 目标 env 缺失的 fail-soft 降级在这里自然体现为 outputs 空, 绝不虚报）。
+        {
+            let materialized: Vec<String> = plans
+                .iter()
+                .flat_map(|p| p.outputs.iter().map(|o| o.kind.as_str().to_string()))
+                .collect();
+            if let Some(inner) = self.sessions.lock().unwrap().get_mut(id) {
+                inner.session.outputs = materialized;
+            }
+        }
         let plan = match plans.first() {
             Some(p) => p,
             None => {

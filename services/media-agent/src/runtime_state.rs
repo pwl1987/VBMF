@@ -76,13 +76,19 @@ pub struct ResourceRuntimeState {
 }
 
 /// 会话运行态投影（运行事实摘要; 非会话语义复制品）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// P1a: 去 `Copy` derive（`outputs: Vec<String>` 非 Copy——该结构每次 assemble 重新
+/// 投影, Copy 非承重, 编译器全量核查波及面）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionRuntimeState {
     pub session_id: SessionId,
     pub state: SessionState,
     pub phase: SessionPhase,
     pub claims: usize,
     pub pipeline: Option<u64>,
+    /// P1a: 声明输出 kind 摘要（从 canonical intent `graphs` 投影, 非 appsink 词）。
+    /// 语义 = 声明态（非输出健康——输出健康属后续 bus 事件域）。
+    pub outputs: Vec<String>,
 }
 
 /// 媒体语义组合（**整值组合, 绝不平铺**——终审加严红线）。
@@ -189,6 +195,9 @@ impl CanonicalRuntimeState {
                 phase: s.phase,
                 claims: s.resource_claims.len(),
                 pipeline: s.pipeline.map(|h| h.0),
+                // P1a: 投影**物化事实**（start() 从 plans 回填于 MediaSession.outputs）——
+                // kind 声明输出但目标 env 缺失的 fail-soft 降级 = 空, 绝不虚报声明态。
+                outputs: s.outputs.clone(),
             })
             .collect();
         // 媒体语义组合: 仅稳定 port_id 的端口（与 ResourceRegistry 派生条件一致）。
@@ -424,6 +433,64 @@ mod tests {
         assert!(state.sessions.is_empty());
         assert_eq!(state.ports.len(), 1);
         assert_eq!(state.ports[0].direction, PortDirection::Input);
+    }
+
+    /// P1a: 最小会话 fixture（运行时可见性投影测试用; outputs 是唯一关心字段——
+    /// 物化事实语义: 声明 hls 但降级 = outputs 空）。
+    fn session_with_materialized(kind: &str, outputs: &[&str]) -> MediaSession {
+        MediaSession {
+            session_id: SessionId(Uuid::nil()),
+            state: crate::session::SessionState::Running,
+            phase: SessionPhase::Running,
+            graphs: crate::graph_intent::GraphRuntimeIntent {
+                version: "1.0".into(),
+                devices: vec![crate::graph_intent::DeviceIntent {
+                    device_id: "d".into(),
+                    role: "CAPTURE".into(),
+                    pipeline: crate::graph_intent::PipelineIntent {
+                        source: crate::graph_intent::SourceIntent {
+                            kind: "decklink".into(),
+                            device_id: "d".into(),
+                            port_id: None,
+                        },
+                        sink: crate::graph_intent::SinkIntent { kind: kind.into() },
+                    },
+                }],
+            },
+            source_ports: vec![],
+            output_ports: vec![],
+            resource_claims: vec![],
+            leases: vec![],
+            pipeline: None,
+            outputs: outputs.iter().map(|s| s.to_string()).collect(),
+            health: Default::default(),
+            created_at: 0,
+        }
+    }
+
+    #[test]
+    fn runtime_state_rt_01_session_outputs_project_materialized_facts() {
+        let (devices, registry, resources) = empty_world();
+        let hls_session = session_with_materialized("hls", &["hls"]);
+        // 声明 rtmp 但目标 env 缺失 ⇒ start() 物化回填为空 ⇒ 投影空（绝不虚报声明态）。
+        let degraded_session = session_with_materialized("rtmp", &[]);
+        let state = CanonicalRuntimeState::assemble(
+            &devices,
+            &registry,
+            &resources,
+            &HashMap::new(),
+            &[hls_session, degraded_session],
+            &TEST_OBS,
+        );
+        assert_eq!(
+            state.sessions[0].outputs,
+            vec!["hls".to_string()],
+            "物化输出 kind 投影可见 (P1a Runtime 可见性)"
+        );
+        assert!(
+            state.sessions[1].outputs.is_empty(),
+            "fail-soft 降级 = 物化空 ⇒ 投影空, 不虚报声明态"
+        );
     }
 
     #[test]

@@ -258,12 +258,21 @@ impl GStreamerPipelineController {
     > {
         gstreamer::init().map_err(|e| PipelineError::StartFailed(format!("gst init: {e}")))?;
         let (video_src, audio_src) = src_props(plan);
-        // 单一 launch 串内含两条 branch → 同属一个 GstPipeline (共享 Bus/Clock).
-        let video_branch =
-            format!("{video_src} ! video/x-raw ! appsink name=videosink async=false");
-        let audio_branch =
-            format!("{audio_src} ! audio/x-raw ! appsink name=audiosink async=false");
-        let launch = format!("{video_branch} {audio_branch}");
+        // P1a: 有输出段 ⇒ plan.output_launch 全串（tee 双分支: 分析 + 编码输出）;
+        // 无输出段 ⇒ 今日串逐字节不变（纯分析, 向后兼容承诺）。controller 纯拼接执行,
+        // 不在此出现任何编码/输出 element 名（用户边界修正: 输出物化在 pipeline.rs domain 层）。
+        let launch = {
+            let with_outputs = plan.output_launch(&video_src, &audio_src);
+            if with_outputs.is_empty() {
+                let video_branch =
+                    format!("{video_src} ! video/x-raw ! appsink name=videosink async=false");
+                let audio_branch =
+                    format!("{audio_src} ! audio/x-raw ! appsink name=audiosink async=false");
+                format!("{video_branch} {audio_branch}")
+            } else {
+                with_outputs
+            }
+        };
         let pipeline = gstreamer::parse::launch(&launch)
             .map_err(|e| PipelineError::StartFailed(format!("pipeline parse: {e}")))?
             .dynamic_cast::<gstreamer::Pipeline>()

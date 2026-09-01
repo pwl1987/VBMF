@@ -91,11 +91,51 @@ pub struct SourcePlan {
 ///
 /// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
 /// `persistent-id` 仅在 PersistentID 可用时由 `materialize` 填 (当前硬件走 device-number 路径).
+/// P1a: 物化后的输出计划（domain 持有; controller 纯执行, 不硬编码 element 名）。
+///
+/// 词表封闭: `Hls | Rtmp`。`appsink` = 纯分析 = 无输出段（不入此 enum, 现行为默认）;
+/// 未知 kind ⇒ materialize fail-closed 拒绝（词表第一次有牙齿, 用户 2026-09-02 裁定）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OutputKind {
+    Hls,
+    Rtmp,
+}
+
+impl OutputKind {
+    /// 契约词（与 `SinkIntent.kind` 词表一致; 运行时可见性投影用）。
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            OutputKind::Hls => "hls",
+            OutputKind::Rtmp => "rtmp",
+        }
+    }
+}
+
+/// P1a: 单输出计划。**单会话单输出**（`SinkIntent.kind` 是单字符串, materialize 至多产 1 项;
+/// 多输出 HLS+RTMP 并行留 Alpha）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutputPlan {
+    pub kind: OutputKind,
+    /// x264/openh264 视频码率 demo 默认（config 单位 kbps = 6000; launch 注入时转 bps;
+    /// 正式契约化留产品配置模型阶段）。
+    pub video_bitrate_kbps: u32,
+    /// avenc_aac 单位 bit/s（demo 默认 128000）。
+    pub audio_bitrate_bps: u32,
+    /// Hls: 分片目录（绝对路径）; Rtmp: `rtmp://` URL。
+    pub target: String,
+}
+
+/// 物化后的管线计划 (控制面只给 VBMF `device_id`; provider_persistent_id / device-number 由 materialize 解析).
+///
+/// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
+/// `persistent-id` 仅在 PersistentID 可用时由 `materialize` 填 (当前硬件走 device-number 路径).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
     pub normalize: bool,
     pub switch_mode: String,
+    /// P1a: 物化输出段（空 = 纯分析, 行为与 P1a 前逐字节一致）。
+    pub outputs: Vec<OutputPlan>,
 }
 
 impl PipelinePlan {
@@ -110,6 +150,61 @@ impl PipelinePlan {
         materialize(intent, devices, mode, bindings, registry)
     }
 
+    /// P1a: 输出物化 launch 全串（含 tee 双分支; 空 outputs ⇒ `""`, controller 走今日串）。
+    ///
+    /// **分析红线**: appsink 元素串与 `async=false` 语义与 P1a 前逐字符一致;
+    /// 编码分支独立 `queue` 解耦背压（P1a-05 appsink 不停滞的结构性保证）。
+    /// src 前缀由参数注入——本方法与 `src_props` 同层（domain 物化）, controller 纯拼接执行,
+    /// **不出现**于本方法外的 element 名硬编码（用户边界修正）。
+    pub(crate) fn output_launch(&self, video_src: &str, audio_src: &str) -> String {
+        let Some(out) = self.outputs.first() else {
+            return String::new();
+        };
+        let v = out.video_bitrate_kbps;
+        let a = out.audio_bitrate_bps;
+        // 接线 = 盒上实证（probe 2026-09-02, 自持 1080p25 环回信号交替复验）:
+        // - HLS 用 hlssink2 **命名 request pad** (out.video/out.audio; 内部自带 mux,
+        //   外置 mpegtsmux 反而链接失败);
+        // - RTMP 用 flvmux 命名 request pad (mux.video/mux.audio) + rtmpsink;
+        // - 视频编码器 = **openh264enc**（本机 x264enc 与任何格式 caps 约束互斥死锁
+        //   ——下游约束触发 decklinkvideosrc 运行中重协商即 Internal data stream error;
+        //   零 caps 时 x264 输出 4:4:4 浏览器不可播。openh264enc 零 caps 稳定且输出
+        //   Constrained Baseline yuv420p = 4:2:0 浏览器最大兼容）。bitrate 单位 **bps**。
+        let (v_sink, a_sink, tail) = match out.kind {
+            OutputKind::Hls => {
+                let dir = &out.target;
+                (
+                    "out.video".to_string(),
+                    "out.audio".to_string(),
+                    format!(
+                        "hlssink2 name=out playlist-location={dir}/index.m3u8 \
+                         location={dir}/seg%05d.ts target-duration=2 max-files=10 \
+                         playlist-length=5"
+                    ),
+                )
+            }
+            OutputKind::Rtmp => {
+                let url = &out.target;
+                (
+                    "mux.video".to_string(),
+                    "mux.audio".to_string(),
+                    format!(
+                        "flvmux name=mux streamable=true ! rtmpsink location=\"{url}\" sync=false"
+                    ),
+                )
+            }
+        };
+        format!(
+            "{video_src} ! video/x-raw ! tee name=v \
+             v. ! queue ! appsink name=videosink async=false \
+             v. ! queue ! videoconvert ! openh264enc bitrate={} ! h264parse ! {v_sink} \
+             {audio_src} ! audio/x-raw ! tee name=a \
+             a. ! queue ! appsink name=audiosink async=false \
+             a. ! queue ! audioconvert ! avenc_aac bitrate={a} ! aacparse ! {a_sink} {tail}",
+            v * 1000
+        )
+    }
+
     /// MEDIA-RT-01 自测计划 (videotestsrc/audiotestsrc, 不依赖 DeckLink).
     pub fn self_test() -> PipelinePlan {
         PipelinePlan {
@@ -122,6 +217,7 @@ impl PipelinePlan {
             },
             normalize: true,
             switch_mode: "FRAME_SWITCH".into(),
+            outputs: Vec::new(),
         }
     }
 }
@@ -434,6 +530,27 @@ pub fn materialize(
     bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
     registry: Option<&crate::port::PortRegistry>,
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
+    // P1a: env 读取在 materialize 内（签名零改动）——**显式 demo 层缝**, 正式配置模型阶段收口
+    // （Design Doc §3.2; 用户裁定 PrototypeOutputConfig 不进 Runtime Contract）。
+    materialize_with_output(
+        intent,
+        devices,
+        mode,
+        bindings,
+        registry,
+        &crate::config::PrototypeOutputConfig::from_env(),
+    )
+}
+
+/// P1a: 可测物化变体（cfg 注入; 全部物化逻辑在此, `materialize` 仅 env 委托）。
+pub fn materialize_with_output(
+    intent: &GraphRuntimeIntent,
+    devices: &[DeviceInfo],
+    mode: MaterializeMode,
+    bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+    registry: Option<&crate::port::PortRegistry>,
+    cfg: &crate::config::PrototypeOutputConfig,
+) -> Result<Vec<PipelinePlan>, PipelineError> {
     let mut plans = Vec::new();
     for d in &intent.devices {
         let info = devices
@@ -529,13 +646,60 @@ pub fn materialize(
             connector,
             selection_mode,
         };
+        // P1a: sink.kind 第一次被消费——输出意图 → 输出物化（词表 appsink/hls/rtmp）。
+        let outputs = materialize_outputs(&d.pipeline.sink.kind, cfg)?;
         plans.push(PipelinePlan {
             source,
             normalize: true,
             switch_mode: "FRAME_SWITCH".into(),
+            outputs,
         });
     }
     Ok(plans)
+}
+
+/// P1a: `SinkIntent.kind` 词表物化。
+///
+/// - `appsink` ⇒ 无输出段（纯分析, 现行为默认）;
+/// - `hls`/`rtmp` 且对应目标 env 在位 ⇒ 物化 `OutputPlan`（demo 默认码率注入）;
+/// - `hls`/`rtmp` 但目标缺失 ⇒ **fail-soft** 降级纯分析（部署态, 非契约违约; log warn）;
+/// - 其他未知 kind ⇒ **fail-closed** 拒绝（契约违约, 生产/诊断一致, 绝不静默回退）。
+fn materialize_outputs(
+    kind: &str,
+    cfg: &crate::config::PrototypeOutputConfig,
+) -> Result<Vec<OutputPlan>, PipelineError> {
+    let plan_for = |kind: OutputKind, target: String| {
+        vec![OutputPlan {
+            kind,
+            video_bitrate_kbps: cfg.video_bitrate_kbps,
+            audio_bitrate_bps: cfg.audio_bitrate_bps,
+            target,
+        }]
+    };
+    match kind {
+        "appsink" => Ok(Vec::new()),
+        "hls" => match &cfg.hls_dir {
+            Some(dir) => Ok(plan_for(OutputKind::Hls, dir.clone())),
+            None => {
+                tracing::warn!(
+                    "sink.kind=hls 但 VBMF_OUTPUT_HLS_DIR 未设 ⇒ 降级纯分析 (fail-soft)"
+                );
+                Ok(Vec::new())
+            }
+        },
+        "rtmp" => match &cfg.rtmp_url {
+            Some(url) => Ok(plan_for(OutputKind::Rtmp, url.clone())),
+            None => {
+                tracing::warn!(
+                    "sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)"
+                );
+                Ok(Vec::new())
+            }
+        },
+        other => Err(PipelineError::IdentityUnresolved(format!(
+            "未知 sink kind {other:?}: 词表=[appsink, hls, rtmp] (P1a 契约词, fail-closed)"
+        ))),
+    }
 }
 
 #[cfg(test)]
@@ -605,6 +769,274 @@ mod tests {
         }
     }
 
+    fn intent_with_sink(device_id: &str, kind: &str) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![DeviceIntent {
+                device_id: device_id.into(),
+                role: "CAPTURE".into(),
+                pipeline: PipelineIntent {
+                    source: SourceIntent {
+                        kind: "decklink".into(),
+                        device_id: device_id.into(),
+                        port_id: None,
+                    },
+                    sink: SinkIntent { kind: kind.into() },
+                },
+            }],
+        }
+    }
+
+    fn output_cfg_with(
+        hls_dir: Option<&str>,
+        rtmp_url: Option<&str>,
+        v_kbps: u32,
+        a_bps: u32,
+    ) -> crate::config::PrototypeOutputConfig {
+        crate::config::PrototypeOutputConfig {
+            sink_kind_override: None,
+            hls_dir: hls_dir.map(|s| s.to_string()),
+            rtmp_url: rtmp_url.map(|s| s.to_string()),
+            video_bitrate_kbps: v_kbps,
+            audio_bitrate_bps: a_bps,
+        }
+    }
+
+    fn plans_for_sink(
+        kind: &str,
+        cfg: &crate::config::PrototypeOutputConfig,
+    ) -> Result<Vec<PipelinePlan>, PipelineError> {
+        let dev = dev_handle(IdentityStrength::DeviceHandle);
+        let did = dev.device_id.to_string();
+        let devices = vec![dev];
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(
+            devices[0].device_id,
+            ResolvedDeviceBinding {
+                device_number: 1,
+                hw_serial_number: None,
+                persistent_id: None,
+                confidence: Confidence::High,
+                match_kind: ResolverMatch::ManifestVerified,
+            },
+        );
+        materialize_with_output(
+            &intent_with_sink(&did, kind),
+            &devices,
+            MaterializeMode::Diagnostic,
+            &bindings,
+            None,
+            cfg,
+        )
+    }
+
+    #[test]
+    fn pipeline_rt_01_sink_kind_hls_materializes_with_dir() {
+        let cfg = output_cfg_with(Some("/tmp/p1a-hls"), None, 6000, 128_000);
+        let plans = plans_for_sink("hls", &cfg).expect("hls + dir ⇒ 物化");
+        assert_eq!(plans.len(), 1);
+        assert_eq!(
+            plans[0].outputs,
+            vec![OutputPlan {
+                kind: OutputKind::Hls,
+                video_bitrate_kbps: 6000,
+                audio_bitrate_bps: 128_000,
+                target: "/tmp/p1a-hls".into(),
+            }],
+            "物化含 kind/默认码率/目标"
+        );
+    }
+
+    #[test]
+    fn pipeline_rt_01_sink_kind_rtmp_materializes_with_url() {
+        let cfg = output_cfg_with(None, Some("rtmp://127.0.0.1:1935/live/p1a"), 6000, 128_000);
+        let plans = plans_for_sink("rtmp", &cfg).expect("rtmp + url ⇒ 物化");
+        assert_eq!(
+            plans[0].outputs,
+            vec![OutputPlan {
+                kind: OutputKind::Rtmp,
+                video_bitrate_kbps: 6000,
+                audio_bitrate_bps: 128_000,
+                target: "rtmp://127.0.0.1:1935/live/p1a".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn pipeline_rt_01_sink_target_missing_degrades_to_analysis() {
+        // fail-soft: kind 声明输出但目标 env 缺失 ⇒ 无输出段（部署态, 非契约违约）。
+        let cfg = output_cfg_with(None, None, 6000, 128_000);
+        let plans = plans_for_sink("rtmp", &cfg).expect("缺目标不报错");
+        assert!(plans[0].outputs.is_empty(), "降级纯分析");
+        let plans = plans_for_sink("hls", &cfg).expect("缺目标不报错");
+        assert!(plans[0].outputs.is_empty(), "降级纯分析");
+    }
+
+    #[test]
+    fn pipeline_rt_01_sink_appsink_stays_analysis() {
+        let cfg = output_cfg_with(Some("/tmp/x"), Some("rtmp://x/live"), 6000, 128_000);
+        let plans = plans_for_sink("appsink", &cfg).expect("appsink 合法");
+        assert!(plans[0].outputs.is_empty(), "appsink = 纯分析（现行为）");
+    }
+
+    #[test]
+    fn pipeline_rt_01_sink_unknown_kind_rejected() {
+        let cfg = output_cfg_with(None, None, 6000, 128_000);
+        let err = plans_for_sink("bogus", &cfg).expect_err("未知 kind 必须 fail-closed");
+        assert!(
+            matches!(err, PipelineError::IdentityUnresolved(_)) || err.to_string().contains("sink"),
+            "词表第一次有牙齿: {err:?}"
+        );
+    }
+
+    #[test]
+    fn pipeline_rt_01_sink_kind_vocabulary_snapshot() {
+        // 词表快照: appsink/hls/rtmp 三词受纳, 其余拒绝（契约词锁定）。
+        let cfg = output_cfg_with(Some("/tmp/h"), Some("rtmp://h/l"), 6000, 128_000);
+        for ok in ["appsink", "hls", "rtmp"] {
+            assert!(plans_for_sink(ok, &cfg).is_ok(), "受纳词表: {ok}");
+        }
+        for bad in ["", "file", "rtsp", "hls2", "RTMP"] {
+            assert!(plans_for_sink(bad, &cfg).is_err(), "词表外拒绝: {bad:?}");
+        }
+    }
+
+    #[test]
+    fn pipeline_rt_01_output_bitrate_env_passthrough() {
+        let cfg = output_cfg_with(None, Some("rtmp://h/l"), 4500, 96_000);
+        let plans = plans_for_sink("rtmp", &cfg).expect("物化");
+        assert_eq!(plans[0].outputs[0].video_bitrate_kbps, 4500);
+        assert_eq!(plans[0].outputs[0].audio_bitrate_bps, 96_000);
+    }
+
+    #[test]
+    fn pipeline_rt_01_output_launch_empty_when_no_outputs() {
+        let plan = PipelinePlan {
+            outputs: Vec::new(),
+            ..analysis_only_plan()
+        };
+        assert_eq!(
+            plan.output_launch("VSRC", "ASRC"),
+            "",
+            "无输出 ⇒ 空 launch 段（controller 走今日串）"
+        );
+    }
+
+    fn analysis_only_plan() -> PipelinePlan {
+        PipelinePlan {
+            source: SourcePlan {
+                device_id: "d".into(),
+                provider_persistent_id: None,
+                device_number: 0,
+                connector: None,
+                selection_mode: SourceSelectionMode::SelfTest,
+            },
+            normalize: true,
+            switch_mode: "FRAME_SWITCH".into(),
+            outputs: Vec::new(),
+        }
+    }
+
+    fn plan_with_output(out: OutputPlan) -> PipelinePlan {
+        PipelinePlan {
+            outputs: vec![out],
+            ..analysis_only_plan()
+        }
+    }
+
+    #[test]
+    fn pipeline_rt_01_output_launch_hls_shape() {
+        let plan = plan_with_output(OutputPlan {
+            kind: OutputKind::Hls,
+            video_bitrate_kbps: 6000,
+            audio_bitrate_bps: 128_000,
+            target: "/tmp/p1a-hls".into(),
+        });
+        let launch = plan.output_launch(
+            "decklinkvideosrc device-number=0",
+            "decklinkaudiosrc device-number=0",
+        );
+        // 分析分支红线: appsink 元素串与 async=false 语义逐字符保留。
+        assert!(
+            launch.contains("v. ! queue ! appsink name=videosink async=false"),
+            "{launch}"
+        );
+        assert!(
+            launch.contains("a. ! queue ! appsink name=audiosink async=false"),
+            "{launch}"
+        );
+        // tee 双分支骨架。
+        assert!(launch.contains("video/x-raw ! tee name=v"), "{launch}");
+        assert!(launch.contains("audio/x-raw ! tee name=a"), "{launch}");
+        // 编码分支（openh264enc = probe 终裁: 零 caps 稳定 + Constrained Baseline yuv420p
+        // 4:2:0 浏览器最大兼容; bitrate 单位 bps。hlssink2 命名 request pad——内部自带 mux）。
+        assert!(
+            launch.contains(
+                "v. ! queue ! videoconvert ! openh264enc bitrate=6000000 ! h264parse ! out.video"
+            ),
+            "{launch}"
+        );
+        assert!(
+            launch.contains(
+                "a. ! queue ! audioconvert ! avenc_aac bitrate=128000 ! aacparse ! out.audio"
+            ),
+            "{launch}"
+        );
+        // HLS 落盘（hlssink2 属性 = 盒上 probe 实证面）。
+        assert!(
+            launch.contains(
+                "hlssink2 name=out playlist-location=/tmp/p1a-hls/index.m3u8 location=/tmp/p1a-hls/seg%05d.ts target-duration=2 max-files=10 playlist-length=5"
+            ),
+            "{launch}"
+        );
+        assert!(
+            !launch.contains("mpegtsmux"),
+            "hlssink2 内部 mux——外置 mpegtsmux 属接线错误: {launch}"
+        );
+        assert!(
+            launch.starts_with("decklinkvideosrc device-number=0 ! "),
+            "src 前缀由参数注入: {launch}"
+        );
+    }
+
+    #[test]
+    fn pipeline_rt_01_output_launch_rtmp_shape() {
+        let plan = plan_with_output(OutputPlan {
+            kind: OutputKind::Rtmp,
+            video_bitrate_kbps: 6000,
+            audio_bitrate_bps: 128_000,
+            target: "rtmp://127.0.0.1:1935/live/p1a".into(),
+        });
+        let launch = plan.output_launch(
+            "decklinkvideosrc device-number=0",
+            "decklinkaudiosrc device-number=0",
+        );
+        assert!(
+            launch.contains(
+                "flvmux name=mux streamable=true ! rtmpsink location=\"rtmp://127.0.0.1:1935/live/p1a\" sync=false"
+            ),
+            "{launch}"
+        );
+        assert!(
+            !launch.contains("hlssink2"),
+            "rtmp 串不得混入 hls sink: {launch}"
+        );
+    }
+
+    #[test]
+    fn pipeline_rt_01_output_launch_bitrate_injected() {
+        let plan = plan_with_output(OutputPlan {
+            kind: OutputKind::Hls,
+            video_bitrate_kbps: 4500,
+            audio_bitrate_bps: 96_000,
+            target: "/tmp/h".into(),
+        });
+        let launch = plan.output_launch("V", "A");
+        assert!(launch.contains("openh264enc bitrate=4500000"), "{launch}");
+        assert!(launch.contains("avenc_aac bitrate=96000"), "{launch}");
+        assert!(!launch.contains("bitrate=6000000"), "{launch}");
+    }
+
     #[test]
     fn src_props_sdi_uses_connection_sdi() {
         // canonical 边界回归: SDI ⇒ decklinkvideosrc connection=sdi, audiosrc 无 connection.
@@ -618,6 +1050,7 @@ mod tests {
             },
             normalize: true,
             switch_mode: "FRAME_SWITCH".into(),
+            outputs: Vec::new(),
         };
         let (v, a) = src_props(&plan);
         assert!(
@@ -641,6 +1074,7 @@ mod tests {
             },
             normalize: true,
             switch_mode: "FRAME_SWITCH".into(),
+            outputs: Vec::new(),
         };
         let (v, _) = src_props(&plan);
         assert!(
@@ -662,6 +1096,7 @@ mod tests {
             },
             normalize: true,
             switch_mode: "FRAME_SWITCH".into(),
+            outputs: Vec::new(),
         };
         let (v, _) = src_props(&plan);
         assert!(
