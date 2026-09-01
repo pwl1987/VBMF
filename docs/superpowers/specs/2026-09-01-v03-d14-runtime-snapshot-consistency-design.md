@@ -2,6 +2,8 @@
 comet_change: v03-d14-runtime-snapshot-consistency
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-v03-d14-runtime-snapshot-consistency
+status: final
 ---
 
 # V0.3-1 D14 Runtime Snapshot Consistency — Design Doc（深度技术设计）

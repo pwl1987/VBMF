@@ -2,6 +2,7 @@
 change: v03-d14-runtime-snapshot-consistency
 design-doc: docs/superpowers/specs/2026-09-01-v03-d14-runtime-snapshot-consistency-design.md
 base-ref: 4d13265bcb8e31314f08d04543255b8222724f9c
+archived-with: 2026-09-02-v03-d14-runtime-snapshot-consistency
 ---
 
 # V0.3-1 D14 Runtime Snapshot Consistency Implementation Plan
