@@ -1467,6 +1467,8 @@ fn main() {
         idem: api_mgr
             .as_ref()
             .map(|m| std::sync::Arc::new(crate::idempotency::CommandIdempotency::new(m.clone()))),
+        // P1b: 静态文件面 /hls/* 目录（A 方案; 诊断输出配置接线, 生产/未配置 None ⇒ 503）。
+        hls_dir: crate::config::PrototypeOutputConfig::from_env().hls_dir,
     };
 
     std::thread::spawn({
@@ -1477,6 +1479,10 @@ fn main() {
             Ok(listener) => {
                 tracing::info!(bind = %_cfg.health_bind, "health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
                 for s in listener.incoming().flatten() {
+                    // P1b: socket 超时（review Important#4）——串行 accept 循环下防单个
+                    // 停滞读者/空闲连接永久占住唯一 listener（原型级加固; 正式化记档 §7）。
+                    let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+                    let _ = s.set_write_timeout(Some(std::time::Duration::from_secs(30)));
                     crate::transport::serve_connection(s, &transport_ctx);
                 }
             }

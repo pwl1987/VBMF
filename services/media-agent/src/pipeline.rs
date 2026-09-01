@@ -179,7 +179,7 @@ impl PipelinePlan {
                     format!(
                         "hlssink2 name=out playlist-location={dir}/index.m3u8 \
                          location={dir}/seg%05d.ts target-duration=2 max-files=10 \
-                         playlist-length=5"
+                         playlist-length=5 send-keyframe-requests=true"
                     ),
                 )
             }
@@ -189,7 +189,7 @@ impl PipelinePlan {
                     "mux.video".to_string(),
                     "mux.audio".to_string(),
                     format!(
-                        "flvmux name=mux streamable=true ! rtmpsink location=\"{url}\" sync=false"
+                        "flvmux name=mux streamable=true ! rtmp2sink location=\"{url}\" timeout=5 sync=false"
                     ),
                 )
             }
@@ -197,7 +197,8 @@ impl PipelinePlan {
         format!(
             "{video_src} ! video/x-raw ! tee name=v \
              v. ! queue ! appsink name=videosink async=false \
-             v. ! queue ! videoconvert ! openh264enc bitrate={} ! h264parse ! {v_sink} \
+             v. ! queue ! videoconvert ! openh264enc bitrate={} gop-size=50 \
+             min-force-key-unit-interval=2000000000 ! h264parse ! {v_sink} \
              {audio_src} ! audio/x-raw ! tee name=a \
              a. ! queue ! appsink name=audiosink async=false \
              a. ! queue ! audioconvert ! avenc_aac bitrate={a} ! aacparse ! {a_sink} {tail}",
@@ -972,7 +973,7 @@ mod tests {
         // 4:2:0 浏览器最大兼容; bitrate 单位 bps。hlssink2 命名 request pad——内部自带 mux）。
         assert!(
             launch.contains(
-                "v. ! queue ! videoconvert ! openh264enc bitrate=6000000 ! h264parse ! out.video"
+                "v. ! queue ! videoconvert ! openh264enc bitrate=6000000 gop-size=50 min-force-key-unit-interval=2000000000 ! h264parse ! out.video"
             ),
             "{launch}"
         );
@@ -985,7 +986,7 @@ mod tests {
         // HLS 落盘（hlssink2 属性 = 盒上 probe 实证面）。
         assert!(
             launch.contains(
-                "hlssink2 name=out playlist-location=/tmp/p1a-hls/index.m3u8 location=/tmp/p1a-hls/seg%05d.ts target-duration=2 max-files=10 playlist-length=5"
+                "hlssink2 name=out playlist-location=/tmp/p1a-hls/index.m3u8 location=/tmp/p1a-hls/seg%05d.ts target-duration=2 max-files=10 playlist-length=5 send-keyframe-requests=true"
             ),
             "{launch}"
         );
@@ -1013,7 +1014,7 @@ mod tests {
         );
         assert!(
             launch.contains(
-                "flvmux name=mux streamable=true ! rtmpsink location=\"rtmp://127.0.0.1:1935/live/p1a\" sync=false"
+                "flvmux name=mux streamable=true ! rtmp2sink location=\"rtmp://127.0.0.1:1935/live/p1a\" timeout=5 sync=false"
             ),
             "{launch}"
         );
@@ -1032,7 +1033,10 @@ mod tests {
             target: "/tmp/h".into(),
         });
         let launch = plan.output_launch("V", "A");
-        assert!(launch.contains("openh264enc bitrate=4500000"), "{launch}");
+        assert!(
+            launch.contains("openh264enc bitrate=4500000 gop-size=50"),
+            "{launch}"
+        );
         assert!(launch.contains("avenc_aac bitrate=96000"), "{launch}");
         assert!(!launch.contains("bitrate=6000000"), "{launch}");
     }
