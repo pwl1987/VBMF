@@ -64,11 +64,26 @@
       等价 (fault_from_events 与轮询 OR 进同一 report_failure); IdentityResolved/
       ResourceReservationExpired 计数已锁; SignalVerified/LoopbackVerified 的 emit 站点
       在 main.rs cfg(bmd,gstreamer)/gate 路径 — 其计数验证归 4.3 真机层。
-- [ ] 4.3 Hardware：盒上真机 gate（生命周期事件流 → AgentState 派生实证 + TRANSPORT-RT-01/EVENT-PROJECTION-RT-01 回归——外送投影契约不因内消费破坏）
+- [x] 4.3 Hardware：盒上真机 gate（生命周期事件流 → AgentState 派生实证 + TRANSPORT-RT-01/EVENT-PROJECTION-RT-01 回归——外送投影契约不因内消费破坏）
       Contract: D3 约束（transport 零改动 + 投影端点行为不变）
       Implementation: main.rs gate 段
       Verification: 盒上 VBMF_SESSION_LIFECYCLE=1 真机跑 + 全门禁回归
       Gate: EVENT-INTEGRATION-RT-01 Hardware 层
+      NOTE (0.7D-4.3 收口): 盒上真机双入口 ALL PASS (2026-09-01, bmd,gstreamer dev 二进制):
+      ① VBMF_SESSION_LIFECYCLE=1 (~/gate_evt_int_rt01.log, exit 0): E1
+      identity_resolved=5/session_created=5; E2 derived_during_running=Capturing +
+      E2_final_state=Degraded (reducer 派生, gate 段无旁路写入点); E3 signal_verified=1
+      (生产 watchdog a4 双路首帧+PTS 单调翻真, 闩锁恰好一次, A+B+C 全过 236 帧实证);
+      E5 resource_reservation_expired=1 + expired_phase=Terminated (生产 5s tick 驱动
+      30s 预留窗口真实过期); E6 pipeline_fault=0 (回声不自激, 谓词排除 4.2 已证);
+      E7 投影全量 60 条完整 + internal 残留 10 条干净 drain (双日志互不破坏); 回归
+      SESSION/RESOURCE/COMMAND-CONTRACT/IDEMPOTENCY/ERROR-MODEL/EVENT-PROJECTION
+      (dropped_obs=0/dropped_crit=0)/EXTERNAL-API 全 OK, ALL PASS。
+      ② VBMF_LOOPBACK=1 (~/gate_loopback_e4.log, exit 0): E4 loopback_verified=1
+      (期望 1), LOOPBACK ALL PASS=true (fixture BMD-SDI-LOOPBACK-01 双门通过)。
+      TRANSPORT-RT-01 回归形态 = Simulation 层 loopback TCP 测试 (transport.rs:522,
+      矩阵四 test 步覆盖) + transport.rs 零改动 (D3) + /health 契约锚 (EXTERNAL-API-RT-01)。
+      本次改动后矩阵 14/14 exit 0, 零警告, 测试 155/155/215/155 全过。
 - [ ] 4.4 盒上全矩阵（fmt apply+check + test×4 feature + clippy -D×4 + build×3 + remove-adapter PROOF）+ CI 七 required checks
       Contract: 验收三层（BOX/CI/RELEASE）
       Implementation: ~/p07_verify.sh + gh CI

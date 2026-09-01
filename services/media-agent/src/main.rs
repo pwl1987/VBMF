@@ -343,7 +343,7 @@ fn main() {
                 // registry → 真机观测装配 → CanonicalMediaDescriptor 证据输出
                 // (judge-only; 纪律① — descriptor 不进任何 pipeline)。
                 if all_pass {
-                    // P0-7D-2.1: LoopbackVerified 点亮 (词表在册, 原零生产) — loopback 验收
+                    // P0-7D-2.1: LoopbackVerified 点亮 (词表在册, 原生产) — loopback 验收
                     // 双门 (信号态+内容) 通过即语义时刻。fixture 级验证: 设备归属未在
                     // FixtureVerification 携带 → nil=未归属 (观测记账, 不改 reducer 主态)。
                     for _ in verifications.iter().filter(|v| v.passed) {
@@ -351,6 +351,24 @@ fn main() {
                             device_id: uuid::Uuid::nil(),
                             port_id: None,
                         });
+                    }
+                    // P0-7D-4.3 (E4, 方案 A): 投影端计数闭环 — 每条通过 verification 恰好
+                    // 发一条, FanoutSink 双写经投影 drain 可精确计数 (loopback 为独立入口,
+                    // 本段日志仅含本段事件; 计数失配 = 生产接线缺陷, fail-closed)。
+                    let drained_lb = projection_log.drain();
+                    let p_lb = crate::event_projection::project(&drained_lb);
+                    let loopback_count = p_lb
+                        .kind_counts
+                        .get("loopback_verified")
+                        .copied()
+                        .unwrap_or(0);
+                    println!(
+                        "EVENT-INTEGRATION-RT-01 E4 loopback_verified={loopback_count} (期望 {})",
+                        verifications.len()
+                    );
+                    if loopback_count != verifications.len() {
+                        eprintln!("EVENT-INTEGRATION-RT-01 E4 verdict=FAIL (计数失配)");
+                        std::process::exit(2);
                     }
                     let fresh_probes = match crate::resolver::probe_gstreamer_devices(
                         crate::resolver::MAX_PROBE_DEVICES,
@@ -820,6 +838,32 @@ fn main() {
                         match mgr.start(&sid) {
                             Ok(()) => {
                                 println!("SESSION-RT-01 step=start verdict=OK (pipeline Running)");
+                                // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (E2/E3): gate 复用生产
+                                // ingest watchdog (与 auto_start 1256 同款装配, 非 gate 专用路径) —
+                                // SignalVerified 点亮 / internal drain→reduce→agent_state 写回 /
+                                // 回声谓词 全部走生产代码。device_uuid 与 IdentityResolved 的
+                                // device_id 同源 (first_id 解析), 保证回声归属匹配。
+                                let gate_dev_uuid =
+                                    Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
+                                if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
+                                    spawn_ingest_watchdog(
+                                        ctrl,
+                                        h,
+                                        gate_dev_uuid,
+                                        sup.clone(),
+                                        lm.clone(),
+                                        agent_state.clone(),
+                                        event_sink.clone(),
+                                        internal_log.clone(),
+                                    );
+                                }
+                                // P0-7D-4.3 (E5): 生产同款 5s tick 线程 — 真实驱动 lease 续期 /
+                                // 预留过期 (expire_reservations_of → ResourceReservationExpired)。
+                                let tick_mgr = mgr.clone();
+                                std::thread::spawn(move || loop {
+                                    std::thread::sleep(std::time::Duration::from_secs(5));
+                                    tick_mgr.tick();
+                                });
                                 println!("SESSION-RT-01 step=observe 10s ...");
                                 std::thread::sleep(std::time::Duration::from_secs(10));
                                 let running = mgr
@@ -831,6 +875,16 @@ fn main() {
                                     if running { "OK" } else { "FAIL" }
                                 );
                                 ok &= running;
+                                // P0-7D-4.3 (E2): 观察窗内 AgentState 必须由 reducer 从真实事件流
+                                // (SessionCreated/SessionStateChanged{running}/SignalVerified →
+                                // watchdog 每 tick drain internal → reduce) 派生为 Capturing —
+                                // gate 段无其他 agent_state 写入点, 排除旁路赋值。
+                                let derived_running = *agent_state.lock().unwrap();
+                                println!(
+                                    "EVENT-INTEGRATION-RT-01 step=E2 derived_during_running={:?}",
+                                    derived_running
+                                );
+                                ok &= matches!(derived_running, health::AgentState::Capturing);
                             }
                             Err(e) => {
                                 println!("SESSION-RT-01 step=start verdict=FAIL error={e}");
@@ -846,6 +900,55 @@ fn main() {
                             }
                         }
                         let _ = mgr.close(&sid);
+                        // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (E5): 真实 tick 驱动预留过期 —
+                        // 第二会话只 create 不 start (停留 Provisioning, 持真实预留/租约),
+                        // 超过 reservation_window (默认 30s) 由上方 5s tick 线程驱动
+                        // expire_reservations_of → 逐资源发射 ResourceReservationExpired,
+                        // 随后 Terminated 零孤儿 (RESOURCE-RT-01 crash cleanup 同路径)。
+                        println!(
+                            "EVENT-INTEGRATION-RT-01 step=E5 create (不 start, 等 tick 过期, ~42s) ..."
+                        );
+                        let e5_intent = crate::graph_intent::GraphRuntimeIntent {
+                            version: "1.0".into(),
+                            devices: vec![crate::graph_intent::DeviceIntent {
+                                device_id: first_id.clone(),
+                                role: "CAPTURE".into(),
+                                pipeline: crate::graph_intent::PipelineIntent {
+                                    source: crate::graph_intent::SourceIntent {
+                                        kind: "decklink".into(),
+                                        device_id: first_id.clone(),
+                                        port_id: None,
+                                    },
+                                    sink: crate::graph_intent::SinkIntent {
+                                        kind: "appsink".into(),
+                                    },
+                                },
+                            }],
+                        };
+                        match mgr.create(e5_intent) {
+                            Ok(e5) => {
+                                // 42s = 30s 预留窗口 + 5s tick 对齐余量 + 2s 边界裕量
+                                // (首会话 create 时刻在真机上有 ±5s 漂移, 断言必须晚于
+                                //  过期后首个 5s tick, 否则与 tick 线程竞态)。
+                                std::thread::sleep(std::time::Duration::from_secs(42));
+                                let e5_phase = mgr.status(&e5).map(|s| s.phase);
+                                println!(
+                                    "EVENT-INTEGRATION-RT-01 step=E5 expired_phase={:?} (期望 Terminated)",
+                                    e5_phase
+                                );
+                                ok &= matches!(
+                                    e5_phase,
+                                    Some(crate::session::SessionPhase::Terminated)
+                                );
+                                let _ = mgr.close(&e5);
+                            }
+                            Err(e) => {
+                                println!(
+                                    "EVENT-INTEGRATION-RT-01 step=E5 create verdict=FAIL error={e}"
+                                );
+                                ok = false;
+                            }
+                        }
                     }
                     Err(e) => {
                         println!("SESSION-RT-01 step=create verdict=FAIL error={e}");
@@ -1124,6 +1227,38 @@ fn main() {
                         projection_log.dropped_observations(),
                         projection_log.dropped_criticals()
                     );
+                }
+                // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (Hardware): 事件内消费闭环真机实证。
+                // 计数证据取上方投影全量 drain (internal log 已被生产 watchdog 逐 tick 消费并
+                // 折叠进 reducer — 其可观测输出 = E2 Capturing 断言 [观察窗内] + 终态断言 [此处];
+                // 两路共享同一事件流, 投影端计数完整 = 内消费未破坏外送平面):
+                //   E1 IdentityResolved/SessionCreated 真实生命周期产生;
+                //   E3 SignalVerified 由生产 watchdog 点亮 (a4 双路首帧+PTS 单调翻真, 闩锁恰好一次);
+                //   E5 ResourceReservationExpired 经上方真实 tick 过期路径发射 (首设备=1 资源, 精确计数);
+                //   E6 Supervisor 回声不自激 — 无故障窗口 PipelineFault 计数为零 (若自激必以
+                //      tick 频率故障事件显现; 回声谓词排除语义 4.2 已证);
+                //   E7 双日志互不破坏 — 投影全量计数完整 + internal 残留 drain 干净;
+                //   E2 终态: E5 真实降级后 reducer 派生 Degraded (无更高级 pending);
+                //   E4 LoopbackVerified 由 VBMF_LOOPBACK 入口独立实跑闭环 (方案 A, 不在此重复验收)。
+                {
+                    let e1 = p.kind_counts.get("identity_resolved").copied().unwrap_or(0) >= 1
+                        && p.kind_counts.get("session_created").copied().unwrap_or(0) >= 1;
+                    let e3 = p.kind_counts.get("signal_verified").copied().unwrap_or(0) == 1;
+                    let e5 = p
+                        .kind_counts
+                        .get("resource_reservation_expired")
+                        .copied()
+                        .unwrap_or(0)
+                        == 1;
+                    let e6 = p.kind_counts.get("pipeline_fault").copied().unwrap_or(0) == 0;
+                    let final_state = *agent_state.lock().unwrap();
+                    let e7_residue = internal_log.drain();
+                    let e2_final = matches!(final_state, health::AgentState::Degraded);
+                    println!(
+                        "EVENT-INTEGRATION-RT-01 E1={e1} E3_signal_verified={e3} E5_expired_count={e5} E6_pipeline_fault_absent={e6} E7_internal_residue={:?} E2_final_state={final_state:?}",
+                        e7_residue.len()
+                    );
+                    ok &= e1 && e3 && e5 && e6 && e2_final;
                 }
                 // P0.7C-7 EXTERNAL-API-RT-01 (Hardware): API Boundary Model 实证——
                 // 真机 Runtime State → API 模型纯转换 + 序列化往返 (非 Web Server;

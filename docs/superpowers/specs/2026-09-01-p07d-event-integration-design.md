@@ -96,10 +96,10 @@ watch loop tick 内：internal drain 出的故障类切片（`is_fault()`）与�
 
 | 事件 | 锚点 | 语义时机 |
 |------|------|----------|
-| `IdentityResolved` | resolver.rs 匹配成功调用侧（`ResolverMatch`+`Confidence` 判定点） | 身份解析收敛（confidence canonical 字符串，如 "high"） |
-| `SignalVerified` | signal.rs `evaluate_signal_content` `SignalState::Locked` 通过点 | 输入 Locked 且内容验收过 |
-| `LoopbackVerified` | pipeline.rs `c_pass()` 翻真点（loopback 验收） | 输出→SDI→输入收到预期信号 |
-| `ResourceReservationExpired` | resource.rs `expire_reservation` 过渡点 | 预留 TTL 到期自动回收 |
+| `IdentityResolved` | session.rs `create()` binding-verify 成功点（device_id 解析 + 绑定 confidence 收敛处） | 身份解析收敛（confidence canonical 字符串，如 "high/exact"） |
+| `SignalVerified` | main.rs watchdog a4 翻真点（`first_frame_ok()`: 双路首帧 + PTS 单调; 闩锁去重） | 输入信号检出且首缓冲验收（生产点亮, 4.3 真机实证 kind_counts=1） |
+| `LoopbackVerified` | main.rs VBMF_LOOPBACK gate 段 `all_pass` 验收点（signal.rs `verify_fixtures` 双门之后; fixture 级 → device_id=nil 未归属） | 输出→SDI→输入收到预期信号（4.3 真机实证 loopback_verified=1, 方案 A 独立入口闭环） |
+| `ResourceReservationExpired` | session.rs tick 过期滞留调用点（`expire_reservations_of`; resource.rs 仅持状态过渡） | 预留窗口到期自动回收（4.3 真机实证: 生产 5s tick 驱动 30s 窗口, 精确计数 1） |
 
 emit 经生产者既有注入 sink（FanoutSink）；词表/serde tag/平面零改动；Simulation 断言各 kind `kind_counts` 增量精确（不产生噪声事件）。
 
