@@ -247,6 +247,10 @@ pub struct SessionManager {
     tuning: SessionTuning,
     sessions: Mutex<HashMap<SessionId, SessionInner>>,
     events: Arc<dyn RuntimeEventSink>,
+    /// D14: 观察序号起点 1（0 = absent 保留给 serde default）; 每次 runtime_state() 递增。
+    observation_revision: std::sync::atomic::AtomicU64,
+    /// D14: 观察谱系（构造一次 UUIDv4; 重启换新 → (lineage, revision) 进程内全序）。
+    observation_lineage: uuid::Uuid,
 }
 
 impl SessionManager {
@@ -279,6 +283,8 @@ impl SessionManager {
             tuning,
             sessions: Mutex::new(HashMap::new()),
             events,
+            observation_revision: std::sync::atomic::AtomicU64::new(1),
+            observation_lineage: uuid::Uuid::new_v4(),
         }
     }
 
@@ -767,6 +773,11 @@ impl SessionManager {
     /// 持有的运行事实 (devices/bindings/registry/resources/sessions) 装配
     /// `CanonicalRuntimeState`（组合 canonical descriptor, 绝不平铺; 见 runtime_state.rs）。
     pub fn runtime_state(&self) -> crate::runtime_state::CanonicalRuntimeState {
+        // D14: 先取序号（观测开始锚点）, 再采集各源 —— swept, start-ordered（Design Doc §4.1）。
+        // Relaxed 充分: fetch_add 原子读改写在任何 ordering 下不重号不空洞（Design Doc §3.2）。
+        let rev = self
+            .observation_revision
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let resources = self.resources.with_inner(|r| r.clone());
         let registry = self.registry.clone().unwrap_or_default();
         let sessions = self.list();
@@ -776,6 +787,11 @@ impl SessionManager {
             &resources,
             &self.bindings,
             &sessions,
+            &crate::runtime_state::SnapshotObservation {
+                revision: rev,
+                lineage: self.observation_lineage,
+                observed_at_ms: Self::now_ms(),
+            },
         )
     }
 
@@ -1148,6 +1164,88 @@ mod tests {
 
     fn mock_manager(devices: &[DeviceInfo], lm: Arc<dyn LmTrait>) -> SessionManager {
         manager_with(Arc::new(MockBackend), devices, lm, SessionTuning::default())
+    }
+
+    #[test]
+    fn session_rt_01_observation_revision_starts_at_1_and_increments() {
+        let devices = mock_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm);
+        let first = mgr.runtime_state();
+        assert_eq!(
+            first.observation_revision, 1,
+            "首快照 revision 必为 1, 非 0"
+        );
+        let second = mgr.runtime_state();
+        assert_eq!(second.observation_revision, 2, "连续调用严格 +1");
+        assert_eq!(
+            first.observation_lineage, second.observation_lineage,
+            "同一 manager lineage 恒同"
+        );
+        assert_ne!(
+            first.observation_lineage,
+            Uuid::nil(),
+            "lineage 为真实 UUIDv4, 非 nil"
+        );
+    }
+
+    #[test]
+    fn session_rt_01_restart_semantics_new_lineage_revision_back_to_1() {
+        let devices = mock_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let gen1 = mock_manager(&devices, lm.clone());
+        let s1 = gen1.runtime_state();
+        assert_eq!(s1.observation_revision, 1);
+        let gen2 = mock_manager(&devices, lm); // "重启" = 新 SessionManager
+        let s2 = gen2.runtime_state();
+        assert_eq!(
+            s2.observation_revision, 1,
+            "重启后 revision 归 1 (不承诺跨重启连续)"
+        );
+        assert_ne!(
+            s1.observation_lineage, s2.observation_lineage,
+            "重启必换新 lineage"
+        );
+    }
+
+    #[test]
+    fn session_rt_01_observation_revision_8x1000_concurrency_pierce() {
+        let devices = mock_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = Arc::new(mock_manager(&devices, lm));
+        let workers = 8;
+        let per_worker = 1000usize;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(workers));
+        let mut handles = Vec::with_capacity(workers);
+        for _ in 0..workers {
+            let m = Arc::clone(&mgr);
+            let b = Arc::clone(&barrier);
+            handles.push(std::thread::spawn(move || {
+                b.wait();
+                (0..per_worker)
+                    .map(|_| m.runtime_state())
+                    .map(|s| (s.observation_revision, s.observation_lineage))
+                    .collect::<Vec<_>>()
+            }));
+        }
+        let mut all = Vec::with_capacity(workers * per_worker);
+        for h in handles {
+            all.extend(h.join().expect("worker 线程不得 panic"));
+        }
+        assert_eq!(all.len(), 8000, "8×1000 份快照全量收集");
+        let mut revs: Vec<u64> = all.iter().map(|(r, _)| *r).collect();
+        revs.sort_unstable();
+        revs.dedup();
+        let expect: Vec<u64> = (1..=8000).collect();
+        assert_eq!(
+            revs, expect,
+            "revision 集合恰为 {{1..8000}}: 无重号 (唯一) 无空洞 (连续覆盖)"
+        );
+        let lineage0 = all[0].1;
+        assert!(
+            all.iter().all(|(_, l)| *l == lineage0),
+            "8000 份快照 lineage 恒同 (单 manager)"
+        );
     }
 
     fn assert_zero_orphans(mgr: &SessionManager, lm: &InMemoryLm) {

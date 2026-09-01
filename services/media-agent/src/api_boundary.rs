@@ -144,6 +144,11 @@ pub struct ApiQuerySnapshot {
     pub sessions: Vec<ApiSession>,
     pub capabilities: Vec<(String, ApiCapability)>,
     pub generated_at_ms: u64,
+    /// D14: 观察信封 additive 投影（wire 同名字段, 非破坏）。
+    /// 有意**不带** `#[serde(default)]`: 本结构是响应模型, 无旧 JSON 反序列化消费方
+    /// （与 CanonicalRuntimeState 的 additive 兼容义务不对称是设计决定）。
+    pub observation_revision: u64,
+    pub observation_lineage: uuid::Uuid,
 }
 
 pub fn to_api_query_snapshot(state: &CanonicalRuntimeState) -> ApiQuerySnapshot {
@@ -160,6 +165,8 @@ pub fn to_api_query_snapshot(state: &CanonicalRuntimeState) -> ApiQuerySnapshot 
         sessions: state.sessions.iter().map(to_api_session).collect(),
         capabilities: to_api_capabilities(&caps),
         generated_at_ms: state.generated_at_ms,
+        observation_revision: state.observation_revision,
+        observation_lineage: state.observation_lineage,
     }
 }
 
@@ -489,9 +496,16 @@ mod tests {
             sessions: vec![],
             media_semantics: vec![],
             generated_at_ms: 1_700_000_000_000,
+            observation_revision: 42,
+            observation_lineage: uuid::Uuid::new_v4(),
         };
         let snap = to_api_query_snapshot(&state);
         assert_eq!(snap.generated_at_ms, 1_700_000_000_000);
+        assert_eq!(snap.observation_revision, 42, "投影透传 revision");
+        assert_eq!(
+            snap.observation_lineage, state.observation_lineage,
+            "投影透传 lineage"
+        );
         assert!(snap.devices.is_empty());
         assert!(snap.ports.is_empty());
         assert!(snap.resources.is_empty());
