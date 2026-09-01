@@ -1482,8 +1482,9 @@ fn spawn_ingest_watchdog(
 
             // P0-7D-1.4 (ingest 接线): 上游总线观测 → canonical 事件流 (Supervisor.ingest
             // 归一化, C2 契约首次接线; mapper 关键字: "error"→PipelineFault{retryable},
-            // "device lost"/"hotplug"→HardwareFault)。先于本 tick drain, 下一 tick 进入
-            // 事件驱动故障输入 (与轮询条件 OR, 每 tick 每设备至多一次 report_failure)。
+            // "device lost"/"hotplug"→HardwareFault)。ingest 先于本 tick drain — 事件在
+            // 产生当 tick 即被消费 (drain 破坏性单次), 与轮询条件 OR 后同一 if 内至多一次
+            // report_failure, 无跨 tick 双计。
             for e in events.iter() {
                 if matches!(e.kind, crate::pipeline_events::PipelineBusEventKind::Error) {
                     sup.lock().unwrap().ingest(
