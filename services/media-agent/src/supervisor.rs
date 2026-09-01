@@ -33,6 +33,30 @@ use crate::events::{EventSource, RuntimeEvent, RuntimeEventMapper, RuntimeEventS
 /// 随 tick 自激翻倍)。watchdog 侧按此常量精确排除回声。
 pub const RESTART_ECHO_SUMMARY: &str = "health probe failure; restart scheduled";
 
+/// P0-7D-1.4: 事件驱动故障触发谓词 (纯函数; watchdog 每 tick drain internal 后调用)。
+///
+/// 归属: `PipelineFault.pipeline == device` (Supervisor 决策句柄 = 设备维度, 见
+/// `register`/`report_failure` 均以 device_id 注册) 或 `Uuid::nil()` (mapper 产的上游
+/// 故障未归属); `HardwareFault.device_id` 同理。
+/// **自回声排除**: summary == `RESTART_ECHO_SUMMARY` 的 PipelineFault 是本 Supervisor
+/// `report_failure` 决策的回声, 不得再次触发决策 (否则 attempts/backoff 随 tick 自激翻倍)。
+/// 其余 kind 不在设备决策触发面: `HealthChanged` 是决策平面自身, `SessionFailed` 是
+/// 会话平面故障 (经 reducer 派生观测态, 不进设备重启决策)。
+pub fn fault_trigger_from_events(events: &[RuntimeEvent], device: Uuid) -> bool {
+    events.iter().any(|ev| match ev {
+        RuntimeEvent::PipelineFault {
+            pipeline, summary, ..
+        } => {
+            (*pipeline == device || *pipeline == Uuid::nil())
+                && summary.as_str() != RESTART_ECHO_SUMMARY
+        }
+        RuntimeEvent::HardwareFault { device_id, .. } => {
+            *device_id == device || *device_id == Uuid::nil()
+        }
+        _ => false,
+    })
+}
+
 /// Restart policy: bounded retries with exponential backoff (crash-loop guard).
 #[derive(Debug, Clone)]
 pub struct RestartPolicy {
@@ -410,5 +434,79 @@ mod tests {
         // 无故障语义的观测不产生事件 (不伪造)。
         s.ingest(EventSource::Upstream, "all nominal");
         assert!(log.drain().is_empty());
+    }
+
+    /// P0-7D-4.2: 事件驱动故障触发谓词 — 错误路径全覆盖
+    /// (自回声不自激 / 上游触发 / 归属判定 / 平面分离)。
+    #[test]
+    fn evt_int_rt_01_fault_trigger_echo_never_retriggers() {
+        let dev = Uuid::new_v4();
+        // (1) 自回声不触发 — 防 attempts/backoff 随 tick 自激翻倍 (核心错误路径)。
+        let echo = [RuntimeEvent::PipelineFault {
+            pipeline: dev,
+            summary: RESTART_ECHO_SUMMARY.into(),
+            retryable: true,
+        }];
+        assert!(!fault_trigger_from_events(&echo, dev));
+        // (2) 上游 PipelineFault (同设备, 非 echo) 触发。
+        let upstream = [RuntimeEvent::PipelineFault {
+            pipeline: dev,
+            summary: "decode error".into(),
+            retryable: true,
+        }];
+        assert!(fault_trigger_from_events(&upstream, dev));
+        // (3) nil 归属 (mapper 未归属) 触发; 异设备不触发。
+        let nil_attr = [RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "pipeline error: bus".into(),
+            retryable: true,
+        }];
+        assert!(fault_trigger_from_events(&nil_attr, dev));
+        assert!(!fault_trigger_from_events(
+            &[RuntimeEvent::PipelineFault {
+                pipeline: Uuid::new_v4(),
+                summary: "x".into(),
+                retryable: true,
+            }],
+            dev
+        ));
+        // (4) HardwareFault 同设备/nil 触发; 异设备不触发。
+        assert!(fault_trigger_from_events(
+            &[RuntimeEvent::HardwareFault {
+                device_id: dev,
+                summary: "lost".into(),
+            }],
+            dev
+        ));
+        assert!(fault_trigger_from_events(
+            &[RuntimeEvent::HardwareFault {
+                device_id: Uuid::nil(),
+                summary: "lost".into(),
+            }],
+            dev
+        ));
+        assert!(!fault_trigger_from_events(
+            &[RuntimeEvent::HardwareFault {
+                device_id: Uuid::new_v4(),
+                summary: "lost".into(),
+            }],
+            dev
+        ));
+        // (5) 平面分离: HealthChanged (决策平面) 与 SessionFailed (会话平面)
+        //     不在设备决策触发面。
+        assert!(!fault_trigger_from_events(
+            &[RuntimeEvent::HealthChanged {
+                from: "unhealthy".into(),
+                to: "manual_required".into(),
+            }],
+            dev
+        ));
+        assert!(!fault_trigger_from_events(
+            &[RuntimeEvent::SessionFailed {
+                session_id: Uuid::new_v4(),
+                reason: "r".into(),
+            }],
+            dev
+        ));
     }
 }

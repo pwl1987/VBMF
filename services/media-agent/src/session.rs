@@ -1751,4 +1751,144 @@ mod tests {
         assert!(s.leases.is_empty());
         mgr.close(&sid).expect("失败终态 close 应成功");
     }
+
+    /// P0-7D-4.2 (Simulation): D3 全链接线 + 新旧路径终态等价 —
+    /// 真实 SessionManager 事件流 (非手工事件) 经 FanoutSink 双日志:
+    /// internal drain → reduce 折叠出的观测态等价于原命令式写点语义
+    /// (start 后 Capturing = 原 main.rs:1233/1488; 全释放后 Ready = 原 1274);
+    /// projection drain → kind_counts 精确计数 (IdentityResolved 点亮 = 绑定验证成功点)。
+    #[test]
+    fn evt_int_rt_01_real_lifecycle_events_drive_agent_state_via_fanout() {
+        let devices = mock_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let resources = SharedResourceRegistry::new(ResourceRegistry::derive_from_discovery(
+            &port_registry_for_devices(&devices),
+        ));
+        let projection = Arc::new(crate::events::RuntimeEventLog::new());
+        let internal = Arc::new(crate::events::RuntimeEventLog::new());
+        let sink: Arc<dyn crate::events::RuntimeEventSink> = Arc::new(
+            crate::events::FanoutSink::new(projection.clone(), internal.clone()),
+        );
+        let sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            sink.clone(),
+        )));
+        // 生产级绑定 (D5: High + DeviceHandleExact) — 使 binding verify 步点亮 IdentityResolved。
+        let bindings: HashMap<Uuid, crate::resolver::ResolvedDeviceBinding> = devices
+            .iter()
+            .map(|d| {
+                (
+                    d.device_id,
+                    crate::resolver::ResolvedDeviceBinding {
+                        device_number: 0,
+                        hw_serial_number: None,
+                        persistent_id: None,
+                        confidence: crate::resolver::Confidence::High,
+                        match_kind: crate::resolver::ResolverMatch::DeviceHandleExact,
+                    },
+                )
+            })
+            .collect();
+        let mgr = SessionManager::new(
+            resources,
+            lm.clone(),
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(devices.clone()),
+            Arc::new(bindings),
+            None,
+            MaterializeMode::Diagnostic,
+            SessionTuning::default(),
+            sink,
+        );
+        let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
+        mgr.start(&sid).expect("start 应成功");
+
+        // 事件内消费: 真实事件流折叠 — start 后 Capturing + 活跃会话 1 (等价旧命令式)。
+        let drained = internal.drain();
+        let fold = crate::health::reduce(
+            &crate::health::HealthFold::bootstrap(crate::health::AgentState::Ready),
+            &drained,
+        );
+        assert_eq!(
+            fold.agent,
+            crate::health::AgentState::Capturing,
+            "start 后应等价旧 1233/1488 命令式 Capturing"
+        );
+        assert_eq!(fold.active_sessions, 1);
+
+        // 外送侧独立可观测: kind_counts 精确计数 (identity_resolved = 意图设备数 1;
+        // 无故障类事件 — has_critical=false)。
+        let proj = crate::event_projection::project(&projection.drain());
+        assert_eq!(proj.kind_counts.get("identity_resolved"), Some(&1));
+        assert_eq!(proj.kind_counts.get("session_created"), Some(&1));
+        assert!(!proj.has_critical);
+
+        // 释放: 折叠态回到 Ready (等价旧 1274 命令式), 活跃会话归零。
+        mgr.stop(&sid).expect("stop 应成功");
+        let fold2 = crate::health::reduce(&fold, &internal.drain());
+        assert_eq!(fold2.active_sessions, 0);
+        assert_eq!(
+            fold2.agent,
+            crate::health::AgentState::Ready,
+            "全释放后应等价旧 1274 命令式 Ready"
+        );
+        mgr.close(&sid).expect("close 应成功");
+        assert!(mgr.status(&sid).is_none());
+    }
+
+    /// P0-7D-4.2 (Simulation): ResourceReservationExpired 点亮 —
+    /// 预留过期 (tick 驱动) 精确计数 1 + reducer 集成 (资源面运维可见降级 → Degraded)。
+    #[test]
+    fn evt_int_rt_01_reservation_expiry_emits_event_and_derives_degraded() {
+        let devices = mock_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
+        let resources = SharedResourceRegistry::new(ResourceRegistry::derive_from_discovery(
+            &port_registry_for_devices(&devices),
+        ));
+        let sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
+        )));
+        let tuning = SessionTuning {
+            reservation_window_ms: 0,
+            ..SessionTuning::default()
+        };
+        let mgr = SessionManager::new(
+            resources,
+            lm.clone(),
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(devices.clone()),
+            Arc::new(HashMap::new()),
+            None,
+            MaterializeMode::Diagnostic,
+            tuning,
+            event_log.clone(),
+        );
+        let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        mgr.tick();
+        assert_eq!(
+            mgr.status(&sid).expect("会话保留").phase,
+            SessionPhase::Terminated
+        );
+
+        let drained = event_log.drain();
+        let proj = crate::event_projection::project(&drained);
+        // 单设备意图 × 1 端口 = 1 份 claim → 恰 1 条过期事件 (无噪声)。
+        assert_eq!(
+            proj.kind_counts.get("resource_reservation_expired"),
+            Some(&1)
+        );
+        // reducer 集成: 资源面降级可观测 (Degraded), 活跃会话未被偷释放 (仍 1,
+        // Terminated 非 Released — 会话平面释放语义不由资源过期伪造)。
+        let fold = crate::health::reduce(
+            &crate::health::HealthFold::bootstrap(crate::health::AgentState::Ready),
+            &drained,
+        );
+        assert_eq!(fold.agent, crate::health::AgentState::Degraded);
+        assert_eq!(fold.active_sessions, 1);
+    }
 }

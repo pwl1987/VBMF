@@ -1504,23 +1504,11 @@ fn spawn_ingest_watchdog(
             }
             // P0-7D-1.3 (事件内消费): drain internal → reduce → 写回 agent_state。
             let drained_internal = internal_log.drain();
-            // P0-7D-1.4 (事件驱动故障输入): 本 handle/device 归属的上游故障触发决策;
-            // 排除 Supervisor 自回声 (RESTART_ECHO_SUMMARY) — 否则决策事件自激,
-            // attempts/backoff 随 tick 翻倍。
-            let fault_from_events = drained_internal.iter().any(|ev| match ev {
-                events::RuntimeEvent::PipelineFault {
-                    pipeline, summary, ..
-                } => {
-                    // Supervisor 决策句柄 = device_uuid (register/report_failure 均以设备
-                    // 维度注册); mapper 产的上游故障 pipeline=nil (未归属)。
-                    (*pipeline == device_uuid || *pipeline == uuid::Uuid::nil())
-                        && summary.as_str() != supervisor::RESTART_ECHO_SUMMARY
-                }
-                events::RuntimeEvent::HardwareFault { device_id, .. } => {
-                    *device_id == device_uuid || *device_id == Uuid::nil()
-                }
-                _ => false,
-            });
+            // P0-7D-1.4 (事件驱动故障输入): 谓词抽为 supervisor::fault_trigger_from_events
+            // (纯函数, mock 面可测 — 见 evt_int_rt_01_fault_trigger_echo_never_retriggers);
+            // 自回声排除/归属判定/平面分离语义在彼处锁定。
+            let fault_from_events =
+                supervisor::fault_trigger_from_events(&drained_internal, device_uuid);
             health_fold = crate::health::reduce(&health_fold, &drained_internal);
             *agent_state.lock().unwrap() = health_fold.agent;
 
