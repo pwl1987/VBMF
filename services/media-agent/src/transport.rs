@@ -518,4 +518,46 @@ mod tests {
         assert_eq!(code, 200);
         assert!(body.contains("process_local"));
     }
+
+    /// TRANSPORT-RT-01 Simulation 层: serve_connection 端到端 (真实 loopback TCP) —
+    /// bind 127.0.0.1:0 (临时端口) → accept 单连接 → 客户端发 GET /health →
+    /// 断言 200 + Content-Type + 响应体五字段齐全 (/health 回归锚点, 无硬件依赖)。
+    #[test]
+    fn transport_rt_01_loopback_http() {
+        use std::io::{Read, Write};
+        // 临时端口 (127.0.0.1:0 → 内核分配), 避免端口冲突。
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let addr = listener.local_addr().expect("local_addr");
+        let ctx = TransportContext {
+            events: Arc::new(crate::events::RuntimeEventLog::new()),
+            agent_state: Arc::new(Mutex::new(crate::health::AgentState::Ready)),
+            device_count: 42,
+            query: None,
+            idem: None,
+        };
+        // 服务端: accept 单连接 → serve_connection (处理完关闭, 无持久连接)。
+        let server = std::thread::spawn(move || {
+            let (stream, _peer) = listener.accept().expect("accept");
+            serve_connection(stream, &ctx);
+        });
+        // 客户端: 连接 → 发 GET /health → 读至 EOF (服务端写完关闭)。
+        let mut client = std::net::TcpStream::connect(addr).expect("connect");
+        client
+            .write_all(b"GET /health HTTP/1.1\r\nHost: loopback-test\r\n\r\n")
+            .expect("write request");
+        let mut resp = String::new();
+        client.read_to_string(&mut resp).expect("read response");
+        // 状态行 200 + JSON Content-Type。
+        assert!(resp.starts_with("HTTP/1.1 200 OK"), "应 200: {resp}");
+        assert!(resp.contains("Content-Type: application/json"));
+        // 响应体 (CRLFCRLF 之后) 五字段齐全 (回归锚点)。
+        let body = resp.split("\r\n\r\n").nth(1).expect("response body 存在");
+        let v: serde_json::Value = serde_json::from_str(body).expect("body 可解析 JSON");
+        assert!(v.get("state").is_some());
+        assert_eq!(v["devices"], 42);
+        assert!(v.get("active_pipelines").is_some());
+        assert!(v.get("dropped_bus_events").is_some());
+        assert!(v.get("clock_lost_events").is_some());
+        let _ = server.join();
+    }
 }
