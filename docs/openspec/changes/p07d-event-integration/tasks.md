@@ -54,11 +54,16 @@
       Implementation: health.rs tests
       Verification: `cargo test -p media-agent --features mock` 新增全绿
       Gate: EVENT-INTEGRATION-RT-01 Unit 层
-- [ ] 4.2 Simulation：Mock 全链事件驱动派生 + Supervisor 消费等价 + 4 事件点亮精确计数 + 新旧等价性 + 0.7C-6 四语义回归（evt_proj_rt_01_* 不破）
+- [x] 4.2 Simulation：Mock 全链事件驱动派生 + Supervisor 消费等价 + 4 事件点亮精确计数 + 新旧等价性 + 0.7C-6 四语义回归（evt_proj_rt_01_* 不破）
       Contract: 0.7C-6 四语义零偷改
       Implementation: 集成测试
       Verification: 新增测试全绿 + 既有 evt_proj_rt_01_* 全绿
       Gate: EVENT-INTEGRATION-RT-01 Simulation 层
+      NOTE (0.7D-4.2 收口): evt_int_rt_01 ×3 @ d77f158 — 等价性用真实 SessionManager
+      事件流经 FanoutSink 断言 (非手工事件); 消费等价=谓词纯函数测试 + 单一调用点构造性
+      等价 (fault_from_events 与轮询 OR 进同一 report_failure); IdentityResolved/
+      ResourceReservationExpired 计数已锁; SignalVerified/LoopbackVerified 的 emit 站点
+      在 main.rs cfg(bmd,gstreamer)/gate 路径 — 其计数验证归 4.3 真机层。
 - [ ] 4.3 Hardware：盒上真机 gate（生命周期事件流 → AgentState 派生实证 + TRANSPORT-RT-01/EVENT-PROJECTION-RT-01 回归——外送投影契约不因内消费破坏）
       Contract: D3 约束（transport 零改动 + 投影端点行为不变）
       Implementation: main.rs gate 段
