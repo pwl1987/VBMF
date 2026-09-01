@@ -10,9 +10,11 @@
 //! **零新 DTO**: 全部查询返回既有 `CanonicalRuntimeState` 子项克隆——绝不制造
 //! 第二套查询模型（防 External DTO 化重复 0.6 前的问题）。
 //!
-//! D14 契约（登记不实现）: `get_runtime_state()` 返回的是**各源独立观测的拼合
-//! snapshot, 非事务一致**——一致性语义（source observation time / state version）
-//! 属后续（见 PHASE_0_7A_POST_MERGE_DEBT.md D14）。
+//! D14 契约（CLOSED @ v03-d14-runtime-snapshot-consistency, 2026-09-02）:
+//! `get_runtime_state()` 返回 **swept non-transactional** snapshot —— 各源在装配点
+//! 各自加锁观测, 跨源无原子性; 新旧关系由 (observation_lineage, observation_revision)
+//! 机器判定（revision 起点 1 单调唯一, 重启归 1 + 换新 lineage; 详见
+//! runtime_state.rs 结构注释与 PHASE_0_7A_POST_MERGE_DEBT.md D14）。
 
 #![allow(dead_code)]
 

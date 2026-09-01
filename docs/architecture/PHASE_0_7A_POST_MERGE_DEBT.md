@@ -66,7 +66,7 @@
 
 | # | 债务 | 说明 | 目标阶段 |
 |---|------|------|----------|
-| D14 | **Runtime Snapshot Consistency**：`runtime_state()` 是各源独立观测的拼合 snapshot，非事务一致 | 需定义 source observation time / state version / 一致性语义；已作为契约注释标注在 CanonicalRuntimeState | Runtime Query 后续 |
+| D14 | ~~**Runtime Snapshot Consistency**：`runtime_state()` 是各源独立观测的拼合 snapshot，非事务一致~~ ✅ **CLOSED @ v03-d14-runtime-snapshot-consistency (V0.3-1, 2026-09-02)**: 一致性类 = **swept non-transactional / start-ordered**（Design Doc §4.1）; 观察信封 `SnapshotObservation{revision,lineage,observed_at_ms}` + `CanonicalRuntimeState` additive 两字段（`#[serde(default)]` 旧 JSON→0/nil 双向非破坏）+ `assemble` 纯化（删隐式 `now_ms()`）+ `SessionManager` 唯一 owner（`AtomicU64` 起点 1 / `Uuid::new_v4()` 进程谱系, `new()` 10 参签名零改动）; 三层测试证据: Unit（8 键 serde / 旧 6 键 JSON default / assemble 纯度 / 起点 1 / 重启语义）+ Simulation（连续严格 +1 / **8 线程×1000 击穿, 8000 个 revision 集合恰为 {1..8000} 无重号无空洞, lineage 恒同**）+ Hardware（盒上 `transport_hw_gate.sh` D14 断言块: revision≥1 / lineage 36 字符 UUID / 两次调用同 lineage 严格 +1）; 证据锚: verify 报告 `docs/superpowers/reports/2026-09-02-v03-d14-runtime-snapshot-consistency-verify.md`（本 change 交付时落档） | ~~需定义 source observation time / state version / 一致性语义~~（已定义） | ~~Runtime Query 后续~~（已收口） |
 | D15 | **Media Flow Cardinality**：`PortId ≠ Media Stream`——一 Port 可对应 0/1/N flows | audio 多轨/timecode/metadata 进入后必须显式建模；已作为契约注释标注在 PortMediaSemantics（Vec 结构已避免过度限制） | 0.7B Audio 扩展/后续 |
 
 ## 失败矩阵覆盖现状（SESSION-RT-01 / RESOURCE-RT-01）
