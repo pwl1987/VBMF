@@ -3,36 +3,36 @@
 四栏纪律：`Contract: 已有(引用冻结文档节号) / Implementation / Verification / Gate`。
 
 ## 1. Health Reducer + 消费语义（design.md D1/D2/D3）
-- [ ] 1.1 D3 定稿：单日志多消费者 drain 语义（非破坏读 vs 分流 vs 游标），约束=transport 本体零改动 + 0.7C-6 四语义零偷改 + `/health` 字段不变；落 Design Doc
+- [x] 1.1 D3 定稿：单日志多消费者 drain 语义（非破坏读 vs 分流 vs 游标），约束=transport 本体零改动 + 0.7C-6 四语义零偷改 + `/health` 字段不变；落 Design Doc
       Contract: 0.7C-6 design §4 deferred（Health Reducer/消费循环）+ EVENT_CONTRACT §2（投影不改 Runtime 行为）
       Implementation: docs（Design Doc 决策记录）
       Verification: Design Doc 含三候选对勘 + 约束核对表
       Gate: design 阶段 guard
-- [ ] 1.2 `health.rs`：`reduce(current, events) -> AgentState` 纯函数 + AgentState 8 态 × RuntimeEvent 映射表逐态定稿（不足态显式声明来源，不造新事件）；去 `#![allow(dead_code)]`（Gate 2.1 skeleton → 完整实现）
+- [x] 1.2 `health.rs`：`reduce(current, events) -> AgentState` 纯函数 + AgentState 8 态 × RuntimeEvent 映射表逐态定稿（不足态显式声明来源，不造新事件）；去 `#![allow(dead_code)]`（Gate 2.1 skeleton → 完整实现）
       Contract: MEDIA_AGENT_STATE_MACHINE.md 8 态词汇 + 0.7C-6 design §4
       Implementation: health.rs
       Verification: Unit 测试（纯函数同输入同输出 + 逐态映射）
       Gate: EVENT-INTEGRATION-RT-01 Unit 层
-- [ ] 1.3 `main.rs` 七处命令式散写收敛到 reducer 派生（Ready:499 / Capturing:537,1233 / Degraded:1253,1258 / Ready:1274 / ManualRequired:1467,1483）
+- [x] 1.3 `main.rs` 七处命令式散写收敛到 reducer 派生（Ready:499 / Capturing:537,1233 / Degraded:1253,1258 / Ready:1274 / ManualRequired:1467,1483）
       Contract: 0.7 红线 1（Observation≠Configuration——reducer 输出仅观测面）
       Implementation: main.rs 接线
       Verification: 新旧路径等价性测试（同场景同终态，Simulation 逐场景断言）
       Gate: EVENT-INTEGRATION-RT-01 Simulation 层
-- [ ] 1.4 Supervisor 事件驱动输入接线（故障类事件视图 → `report_failure` 语义等价）；`report_failure/begin_restart/report_recovered` 调用面与决策纯度零变更
+- [x] 1.4 Supervisor 事件驱动输入接线（故障类事件视图 → `report_failure` 语义等价）；`report_failure/begin_restart/report_recovered` 调用面与决策纯度零变更
       Contract: 0.7C-6 design §4（"Supervisor 回归纯决策引擎"保持）
       Implementation: main.rs watchdog 接线层
       Verification: 消费等价性测试（事件驱动 vs 轮询快照同决策）+ supervisor.rs 既有测试回归
       Gate: EVENT-INTEGRATION-RT-01 Simulation 层
 
 ## 2. 4 项零生产事件点亮（design.md D5）
-- [ ] 2.1 定位并接线：IdentityResolved→身份解析成功点 / SignalVerified→信号验证通过点 / LoopbackVerified→loopback 验证通过点 / ResourceReservationExpired→预留过期点；只加 emit，词表/平面零改动
+- [x] 2.1 定位并接线：IdentityResolved→身份解析成功点 / SignalVerified→信号验证通过点 / LoopbackVerified→loopback 验证通过点 / ResourceReservationExpired→预留过期点；只加 emit，词表/平面零改动
       Contract: EVENT_CONTRACT TD-16（词表冻结）+ 0.7C-6 design §4（"零生产 4 项点亮——登记演进"）
       Implementation: 对应生产者模块（resolver/identity、signal、loopback、resource expiry 路径）
       Verification: Simulation 断言 `kind_counts` 增量精确（无噪声事件）
       Gate: EVENT-INTEGRATION-RT-01 Simulation 层
 
 ## 3. housekeeping（三项与语义变更同 change）
-- [ ] 3.1 `rpc.rs` 陈旧注释修正（工作区已就绪：指向 transport.rs 为当前 HTTP 边界、rpc.rs 为冻结 SoT §14 契约记录不在 wire 路径）
+- [x] 3.1 `rpc.rs` 陈旧注释修正（工作区已就绪：指向 transport.rs 为当前 HTTP 边界、rpc.rs 为冻结 SoT §14 契约记录不在 wire 路径）
       Contract: 0.7C-8 终审裁定（rpc.rs 修正并入 0.7D）
       Implementation: rpc.rs（纯注释，0 行代码变化）
       Verification: diff 非注释行数=0
@@ -49,7 +49,7 @@
       Gate: verify 阶段复核
 
 ## 4. 三层测试 + 真机 + 交付
-- [ ] 4.1 Unit：reducer 纯函数语义（同输入同输出 / 逐态映射 / 事件不足态显式来源）
+- [x] 4.1 Unit：reducer 纯函数语义（同输入同输出 / 逐态映射 / 事件不足态显式来源）
       Contract: D1/D2
       Implementation: health.rs tests
       Verification: `cargo test -p media-agent --features mock` 新增全绿
