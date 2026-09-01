@@ -22,7 +22,8 @@
 | **0.7C-5** | Error Model Foundation（失败归因分类平面 ErrorClassification 五词表 + classify_session_error 封闭映射 + outcome 分类不变量; **三平面分离红线: CommandStatus≠IdempotentDispatch≠ErrorClassification**） | ✅ COMPLETE | `a6c5925` (PR#12) | `phase-0.7C5-error-model` | ERROR-MODEL-RT-01 三层（真机 ghost-stop PermanentFailure 实证） |
 | **0.7C-6** | Event Projection Foundation + D8 EventSink Decoupling（RuntimeEventSink trait + 组合根单表 + SessionManager 直连 + Supervisor 收窄纯决策 + project() 纯函数投影; 四语义零偷改; **D8 CLOSED**） | ✅ COMPLETE | `9b475c1` (PR#13) | `phase-0.7C6-event-projection` | EVENT-PROJECTION-RT-01 三层（真机投影 46 事件实证） |
 | **0.7C-7** | External API Foundation（**API Boundary Model**——五大独立 API 资源类型 + to_api_* 纯转换 + Command/Event/Idempotency 三平面 API 模型 + 契约层 Idempotency 持久化边界三选项冻结; **非 Web Server, 零 transport/持久化**; API-BOUNDARY-01 白盒 + 终审禁清单 11 项） | ✅ COMPLETE | (本 PR) | `phase-0.7C7-external-api`（合并后打） | EXTERNAL-API-RT-01 三层（真机 verdict=OK 实证） |
-| **0.7C** | External Integration（§3 下一项 = **Transport 实现**——std-only 纪律, 单独开 change; API Boundary Model 已完成, transport 只做模型到 wire 的序列化边界） | 📋 NEXT | — | — | — |
+| **0.7C-8** | Transport 实现（**API Boundary Model → wire 序列化边界**——std-only 五端点: /health 逐字段不变 + /api/v1/{runtime,commands,events/projection,idempotency/boundary}; 无持久连接 + 404/405/503/400 封闭; command_id UUID 直用/v5 派生 + kind 三词表封闭; **零新依赖, 不发明第六端点**; 生产路径无 mgr → 503 契约诚实） | ✅ COMPLETE | (本 PR) | `phase-0.7C8-transport`（合并后打） | TRANSPORT-RT-01 三层（真机 loopback HTTP 16 PASS + Simulation loopback 集成测试实证） |
+| **0.7C** | External Integration（§3 顺序全段收口: Runtime State → Query → Command → Idempotency → Error Model → Event Projection → External API → **Transport ✅ 0.7C-8**） | ✅ COMPLETE（**0.7C 全段收口**） | — | — | — |
 | **0.7D** | Event Projection / Integration（EventSink 解耦 D8 与此同期） | 📋 | — | — | — |
 | **0.8** | Federation / Multi-site（P2） | 📋 | — | — | — |
 
@@ -37,8 +38,9 @@
 ## 3. 0.7C 前置顺序（终审裁定，不直接做 REST API）
 
 ```
-Canonical Runtime State → Runtime Query Model → Command Contract →
-Idempotency (✅ 0.7C-4) → Error Model (✅ 0.7C-5) → Event Projection → External API
+Canonical Runtime State (✅ 0.7C-1) → Runtime Query (✅ 0.7C-2) → Command Contract (✅ 0.7C-3) →
+Idempotency (✅ 0.7C-4) → Error Model (✅ 0.7C-5) → Event Projection (✅ 0.7C-6) →
+External API (✅ 0.7C-7) → Transport (✅ 0.7C-8)   [0.7C 全段收口]
 ```
 
 避免把 API 做成"直接把 Rust 内部结构暴露出去"。

@@ -33,6 +33,7 @@ mod runtime_query; // P0.7C-2: Runtime Query Model (Pure Read / Snapshot Semanti
 mod runtime_state; // P0.7C-F: Canonical Runtime State 聚合 (组合非展开; 第一条 Canonical→Runtime 生产边)
 mod session;
 mod timecode; // P0.7B-2C: Canonical Timecode (时间标签, 非时间本体; #148) // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner)
+mod transport; // P0.7C-8: Transport 实现 (API Boundary Model → wire 序列化边界; std-only 五端点)
 
 mod signal; // 信号探测 + 亮度黑场检测
 mod supervisor; // Gate 6/7: real DeckLink enumeration (feature `bmd-provider`)
@@ -53,7 +54,6 @@ use lease::LeaseManager;
 // `#[cfg(feature = "bmd-provider")]` 块内 → bmd && gstreamer 才编译.
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::backend::MediaBackend;
-use std::io::Write;
 use std::sync::Arc;
 // Uuid 使用点 (selftest/canonical watchdog/P0-7A SessionManager auto-start) 全部位于
 // bmd && gstreamer 块内; hardware-test (bmd, 无 gst) 路径已无直接 Uuid 使用
@@ -497,6 +497,13 @@ fn main() {
     // Gate 2.6 (P1②): 返回真实运行时状态, 与 Supervisor 状态机对齐 (不再固定 ready).
     let device_count = devices.len();
     let agent_state = Arc::new(std::sync::Mutex::new(health::AgentState::Ready));
+    // P0.7C-8: 诊断路径 SessionManager 提升到 transport 上下文 (生产路径 None → 503 契约诚实)。
+    // 声明在 main body 顶层 (4-space), 使下方 cfg 块内赋值 (Arc 化 mgr) 与 main body 的
+    // transport_ctx 构造 (health 线程) 共享同一作用域 — 块内声明无法被 main body 级引用。
+    // `mut` 仅在 gstreamer 构建下被消费 (诊断路径 Arc 化 mgr 赋值); 非 gstreamer 构建
+    // 该赋值被 cfg 移除 → `unused_mut` 属预期, 显式 allow (clippy -D 门禁)。
+    #[allow(unused_mut)]
+    let mut api_mgr: Option<std::sync::Arc<crate::session::SessionManager>> = None;
 
     // Gate 2.6 (CAP-01) — 关键边界澄清 (Phase 0.6 锁死):
     //   * `decklink::start_capture` (IDeckLinkInput) = SDK 能力 / 诊断探针
@@ -1149,6 +1156,7 @@ fn main() {
             // Production **绝不**自行取 first device 制造 GraphRuntimeIntent —— 必须等待 Control Plane
             // 显式 StartPipeline Intent. (rpc.rs 当前 No transport yet, 故 Production 在此 idle:
             // 仅校验 manifest + 提供 /health, 不自动启动任何媒体管线.)
+            // P0.7C-8: api_mgr 已提升到 main body 顶层 (见 agent_state 之后), 此处仅赋值。
             let auto_start = matches!(mode, crate::pipeline::MaterializeMode::Diagnostic);
             if auto_start {
                 let first_id = devices
@@ -1193,18 +1201,22 @@ fn main() {
                                 std::process::exit(2);
                             },
                         );
-                    let mgr = crate::session::SessionManager::new(
-                        resources,
-                        lm.clone(),
-                        sup.clone(),
-                        ctrl.clone(),
-                        std::sync::Arc::new(devices.clone()),
-                        std::sync::Arc::new(bindings.clone()),
-                        registry.clone(),
-                        mode,
-                        crate::session::SessionTuning::default(),
-                        event_log.clone(),
-                    );
+                    // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
+                    // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
+                    let mgr: std::sync::Arc<crate::session::SessionManager> =
+                        std::sync::Arc::new(crate::session::SessionManager::new(
+                            resources,
+                            lm.clone(),
+                            sup.clone(),
+                            ctrl.clone(),
+                            std::sync::Arc::new(devices.clone()),
+                            std::sync::Arc::new(bindings.clone()),
+                            registry.clone(),
+                            mode,
+                            crate::session::SessionTuning::default(),
+                            event_log.clone(),
+                        ));
+                    api_mgr = Some(mgr.clone());
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
                     // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。
                     let _ = lm.release(&crate::lease::DeviceLease {
@@ -1264,32 +1276,30 @@ fn main() {
         }
     }
 
+    // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径无 mgr → 503 契约诚实;
+    // events/agent_state/device_count 全路径可用)。/health 响应体经 transport::route 保持
+    // 逐字段不变 (回归锚点)。
+    let transport_ctx = crate::transport::TransportContext {
+        events: event_log.clone(),
+        agent_state: agent_state.clone(),
+        device_count,
+        query: api_mgr
+            .as_ref()
+            .map(|m| std::sync::Arc::new(crate::runtime_query::RuntimeQuery::new(m.clone()))),
+        idem: api_mgr
+            .as_ref()
+            .map(|m| std::sync::Arc::new(crate::idempotency::CommandIdempotency::new(m.clone()))),
+    };
+
     std::thread::spawn({
-        let agent_state = agent_state.clone();
+        let transport_ctx = transport_ctx.clone();
         // 管理面绑定 (用户 §二十二 P1 Security): 默认 127.0.0.1:8080 (仅本机回环), 不裸露公网;
         // 生产部署由 `MEDIA_AGENT_HEALTH_BIND` 覆盖为内网接口/经 Fastify/Nginx 反向代理 + 认证.
         move || match std::net::TcpListener::bind(&_cfg.health_bind) {
             Ok(listener) => {
-                tracing::info!(bind = %_cfg.health_bind, "health endpoint listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
-                for mut s in listener.incoming().flatten() {
-                    let st = *agent_state.lock().unwrap();
-                    let active = crate::pipeline_events::HEALTH_ARCS.lock().unwrap().len();
-                    // Bus channel 溢出计数 (P1 §十三): 暴露为 metric, 非零代表曾发生事件丢弃.
-                    let dropped = crate::pipeline::dropped_bus_events();
-                    let body = serde_json::json!({
-                        "state": st,
-                        "devices": device_count,
-                        "active_pipelines": active,
-                        "dropped_bus_events": dropped,
-                        "clock_lost_events": crate::pipeline::clock_lost_events()
-                    })
-                    .to_string();
-                    let resp = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                            body.len(),
-                            body
-                        );
-                    let _ = s.write_all(resp.as_bytes());
+                tracing::info!(bind = %_cfg.health_bind, "health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
+                for s in listener.incoming().flatten() {
+                    crate::transport::serve_connection(s, &transport_ctx);
                 }
             }
             Err(e) => tracing::error!(error = %e, "health bind failed"),
