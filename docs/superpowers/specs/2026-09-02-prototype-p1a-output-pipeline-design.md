@@ -2,6 +2,8 @@
 comet_change: prototype-p1a-output-pipeline
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-prototype-p1a-output-pipeline
+status: final
 ---
 
 # Design Doc — prototype-p1a-output-pipeline（Prototype-1 P1a：输出意图→输出物化）

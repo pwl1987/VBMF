@@ -1,3 +1,7 @@
+---
+archived-with: 2026-09-02-prototype-p1a-output-pipeline
+status: final
+---
 # 执行计划 — prototype-p1a-output-pipeline
 
 ---
