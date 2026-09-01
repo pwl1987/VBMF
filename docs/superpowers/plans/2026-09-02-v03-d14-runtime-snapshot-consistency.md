@@ -6,7 +6,7 @@ base-ref: 4d13265bcb8e31314f08d04543255b8222724f9c
 
 # V0.3-1 D14 Runtime Snapshot Consistency Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 关闭 D14 债务——为 `CanonicalRuntimeState` 快照引入机器可判定的观察信封（进程内单调 `observation_revision`，起点 1 + 进程生命周期稳定 `observation_lineage` UUIDv4），把 `assemble` 修复为真正的纯函数（显式 `SnapshotObservation` 输入，删隐式墙钟读），`ApiQuerySnapshot` additive 投影两字段，并以三层测试（Unit / Concurrency Simulation / Hardware Gate）+ 债务账本 CLOSED 收尾。
 
@@ -91,7 +91,7 @@ base-ref: 4d13265bcb8e31314f08d04543255b8222724f9c
 - **Verification:** 下方 4 条命令输出全部符合期望
 - **Gate:** 无（失败 = 不进入 Task 1，回报重新裁决）
 
-- [ ] **Step 1: 确认 HEAD = base-ref**
+- [x] **Step 1: 确认 HEAD = base-ref**
 
 Run（仓库根）:
 ```bash
@@ -100,7 +100,7 @@ cd /e/code/live && git rev-parse HEAD
 Expected: `4d13265bcb8e31314f08d04543255b8222724f9c`
 若不符 → **停止**，向 coordinator 回报当前 HEAD 与基线差异。
 
-- [ ] **Step 2: 目标函数/区域再 Read 自检（纪律 #2）**
+- [x] **Step 2: 目标函数/区域再 Read 自检（纪律 #2）**
 
 Read 以下区域并与 §0.2 比对（字段数/参数数/行号 ±15 内）：
 ```bash
@@ -113,7 +113,7 @@ sed -n '13,15p;39,41p' src/runtime_query.rs                # D14 镜像注释 + 
 Expected: 与 §0.2 一致（6 字段 struct、10 参 new、5 参 assemble、6 字段 ApiQuerySnapshot、L485 六字段字面量）。
 若不符 → **停止**回报漂移详情。
 
-- [ ] **Step 3: 记录改动前 mock 测试基线计数（零回退锚点，纪律 #1：不采信文档数字，以实跑为准）**
+- [x] **Step 3: 记录改动前 mock 测试基线计数（零回退锚点，纪律 #1：不采信文档数字，以实跑为准）**
 
 Run:
 ```bash
@@ -122,7 +122,7 @@ cd /e/code/live/services/media-agent && cargo test --features mock 2>&1 | grep -
 Expected: 多个 `test result: ok. X passed; 0 failed; ...`（含 lib 与 main 两个二进制）。
 记录 lib 二进制 passed 数 = **BASELINE_COUNT**（Design Doc 记载为 215，**以实跑输出为准**）。Task 1–6 全部落地后要求 `≥ BASELINE_COUNT + 6`（新增测试函数恰 6 个：runtime_state.rs ×3 + session.rs ×3；另有 2 个既有测试更新非新增；核对表见 §3，实数核对见 Task 9 Step 1）。
 
-- [ ] **Step 4: fmt 基线**
+- [x] **Step 4: fmt 基线**
 
 Run:
 ```bash
@@ -142,9 +142,9 @@ Expected: `FMT_CLEAN`（exit 0）。若基线本身不干净 → 停止回报（
 - **Gate:** 无
 - **停止条件（纪律 #10）:** 若发现 `assemble`/`CanonicalRuntimeState` 存在 §0.2 之外的生产调用点/构造点 → 停止回报。
 
-- [ ] **Step 1: 自检点** — Read `src/runtime_state.rs` L99-127、L179-187、L222-227（纪律 #2，对照 §0.2）。
+- [x] **Step 1: 自检点** — Read `src/runtime_state.rs` L99-127、L179-187、L222-227（纪律 #2，对照 §0.2）。
 
-- [ ] **Step 2: 先写失败测试（TDD）** — 在 `src/runtime_state.rs` 测试模块末尾（`runtime_state_rt_01_session_projection_and_resource_states` 之后、模块闭括号前）追加：
+- [x] **Step 2: 先写失败测试（TDD）** — 在 `src/runtime_state.rs` 测试模块末尾（`runtime_state_rt_01_session_projection_and_resource_states` 之后、模块闭括号前）追加：
 
 ```rust
     /// D14 测试助手: 空世界 + 常量观察信封（纯度/serde 测试不依赖 mock 设备）。
@@ -194,7 +194,7 @@ Expected: `FMT_CLEAN`（exit 0）。若基线本身不干净 → 停止回报（
     }
 ```
 
-- [ ] **Step 3: 运行确认失败（编译错 = 预期红）**
+- [x] **Step 3: 运行确认失败（编译错 = 预期红）**
 
 Run:
 ```bash
@@ -202,7 +202,7 @@ cd /e/code/live/services/media-agent && cargo test --features mock runtime_state
 ```
 Expected: 编译失败（`SnapshotObservation` 未定义 / `assemble` 参数不足 / 字段不存在）。
 
-- [ ] **Step 4: 最小实现** — 四处编辑（顺序执行）：
+- [x] **Step 4: 最小实现** — 四处编辑（顺序执行）：
 
 (4a) struct 前插入 `SnapshotObservation`（`PortMediaSemantics` 定义之后、`CanonicalRuntimeState` 之前，约 L98）：
 ```rust
@@ -258,7 +258,7 @@ pub struct SnapshotObservation {
 
 (4d) **整体删除** 私有 `now_ms()`（L222-227 整函数）——纪律 #5：`assemble` 不得留隐式 SystemTime 读；墙钟读唯一收敛点 = session.rs `Self::now_ms()`。
 
-- [ ] **Step 5: 运行新测试转绿**
+- [x] **Step 5: 运行新测试转绿**
 
 Run:
 ```bash
@@ -266,7 +266,7 @@ cd /e/code/live/services/media-agent && cargo test --features mock runtime_state
 ```
 Expected: 新 2 测试 pass；既有 3 测试中 **2 个因 `assemble` 参数不足编译失败**（调用点未传 obs——预期红，Task 4 修复）；若编译错涉及 §0.2 之外文件 → 停止回报（调用点计数漂移）。
 
-- [ ] **Step 6: 纯度 grep 门禁**
+- [x] **Step 6: 纯度 grep 门禁**
 
 Run:
 ```bash
@@ -286,9 +286,9 @@ Expected: 无任何输出行，`grep-exit=1`（`now_ms`/`SystemTime` 已从该�
 - **Gate:** 无
 - **停止条件:** `SessionManager` 字段数 ≠ 11 或 `new()` 参数数 ≠ 10（对照 §0.2）→ 停止回报。
 
-- [ ] **Step 1: 自检点** — Read `src/session.rs` L238-250、L256-267、L289-294、L766-780（纪律 #2）。
+- [x] **Step 1: 自检点** — Read `src/session.rs` L238-250、L256-267、L289-294、L766-780（纪律 #2）。
 
-- [ ] **Step 2: 先写失败测试（TDD）** — `src/session.rs` 测试模块末尾（闭括号前）追加：
+- [x] **Step 2: 先写失败测试（TDD）** — `src/session.rs` 测试模块末尾（闭括号前）追加：
 
 ```rust
     /// D14 (tasks 2.1, Design Doc §6.1): 观察序列语义 —— 首快照 revision=1（0 保留 absent）、
@@ -316,7 +316,7 @@ cd /e/code/live/services/media-agent && cargo test --features mock session_rt_01
 ```
 Expected: 编译失败（`observation_revision`/`observation_lineage` 字段不存在——预期红，Step 3 实现后转绿）。
 
-- [ ] **Step 3: 最小实现** — 三处编辑：
+- [x] **Step 3: 最小实现** — 三处编辑：
 
 (3a) `SessionManager` 追加两字段（`events` 之后）：
 ```rust
@@ -363,7 +363,7 @@ Expected: 编译失败（`observation_revision`/`observation_lineage` 字段不�
     }
 ```
 
-- [ ] **Step 4: TDD 转绿 + 编译门禁**
+- [x] **Step 4: TDD 转绿 + 编译门禁**
 
 Run:
 ```bash
@@ -389,9 +389,9 @@ Expected: `Finished`（生产路径唯一 `assemble` 调用点已更新；`cargo
 - **Gate:** 无
 - **停止条件:** `ApiQuerySnapshot {` 字面量出现 §0.2 之外的第二处 → 停止回报。
 
-- [ ] **Step 1: 自检点** — Read `src/api_boundary.rs` L138-164、L483-509（纪律 #2）。
+- [x] **Step 1: 自检点** — Read `src/api_boundary.rs` L138-164、L483-509（纪律 #2）。
 
-- [ ] **Step 2: 最小实现** — 三处编辑：
+- [x] **Step 2: 最小实现** — 三处编辑：
 
 (2a) `ApiQuerySnapshot` 追加同名字段（`generated_at_ms` 保留不动）：
 ```rust
@@ -436,7 +436,7 @@ pub struct ApiQuerySnapshot {
 ```
 （`api_rt_01_to_api_query_models` 内其余断言不动。）
 
-- [ ] **Step 3: 运行该测试**
+- [x] **Step 3: 运行该测试**
 
 Run:
 ```bash
@@ -444,7 +444,7 @@ cd /e/code/live/services/media-agent && cargo test --features mock api_rt_01_to_
 ```
 Expected: `test result: ok. 1 passed`。
 
-- [ ] **Step 4: 既有 selftest 编译级覆盖确认（零改动）**
+- [x] **Step 4: 既有 selftest 编译级覆盖确认（零改动）**
 
 `src/main.rs` L1268-1276 EXTERNAL-API-RT-01 selftest 对 `ApiQuerySnapshot` 做 `to_string` + `from_str` roundtrip——新字段自动经 serde 覆盖，**不改 main.rs**。
 Run:
@@ -465,7 +465,7 @@ Expected: 命中 selftest 使用点（import + roundtrip），无结构体字面
 - **Verification:** `cargo test --features mock` runtime_state 全绿；`CanonicalRuntimeState {` 字面量全仓仍仅 1 处（api_boundary.rs，已 8 字段）
 - **Gate:** 无
 
-- [ ] **Step 1: 自检点** — grep 确认待改调用点恰为 4 处：
+- [x] **Step 1: 自检点** — grep 确认待改调用点恰为 4 处：
 
 Run:
 ```bash
@@ -473,7 +473,7 @@ cd /e/code/live/services/media-agent && grep -n "CanonicalRuntimeState::assemble
 ```
 Expected: 恰 5 行命中 = runtime_state.rs 4 处测试（L279/329/345/357 附近）+ session.rs 1 处（Task 2 后已 6 参）。若数量 ≠ 5 或出现新文件 → 停止回报。
 
-- [ ] **Step 2: 修复 4 个测试调用点** — 在测试模块顶部（`world()` 助手旁）加常量信封助手，四处调用末尾追加 `&TEST_OBS`：
+- [x] **Step 2: 修复 4 个测试调用点** — 在测试模块顶部（`world()` 助手旁）加常量信封助手，四处调用末尾追加 `&TEST_OBS`：
 
 ```rust
     /// D14 测试常量观察信封（测试传常量, 编译错误驱动零遗漏; observed_at_ms 固定值锁定纯度）。
@@ -497,7 +497,7 @@ Expected: 恰 5 行命中 = runtime_state.rs 4 处测试（L279/329/345/357 附�
 ```
 （L329/L345 两处 `&bindings` 实参保持不变，仅追加第 6 参。）
 
-- [ ] **Step 3: 键集合断言 6 → 8**（`runtime_state_rt_01_composition_descriptor_not_flattened`，L288-299）：
+- [x] **Step 3: 键集合断言 6 → 8**（`runtime_state_rt_01_composition_descriptor_not_flattened`，L288-299）：
 
 ```rust
         assert_eq!(top_keys, {
@@ -517,7 +517,7 @@ Expected: 恰 5 行命中 = runtime_state.rs 4 处测试（L279/329/345/357 附�
 ```
 （注释 L276 同步：`// 绝不平铺到 state 顶层 (顶层键集合 == 八个固定键, D14 additive 两字段)。`）
 
-- [ ] **Step 4: 运行 runtime_state 全组测试**
+- [x] **Step 4: 运行 runtime_state 全组测试**
 
 Run:
 ```bash
@@ -525,7 +525,7 @@ cd /e/code/live/services/media-agent && cargo test --features mock runtime_state
 ```
 Expected: `test result: ok. 5 passed; 0 failed`（既有 3 + Task 1 新增 2）。
 
-- [ ] **Step 5: 字面量唯一性门禁**
+- [x] **Step 5: 字面量唯一性门禁**
 
 Run:
 ```bash
@@ -545,9 +545,9 @@ Expected: 恰 1 行命中（api_boundary.rs 测试字面量，已 8 字段）。
 - **Verification:** `cargo test --features mock` 全绿且 passed 数 ≥ BASELINE_COUNT + 5（Task 0 锚点；截至本任务新增测试函数 = Task 1 ×2 + Task 2 ×1 + 本任务 ×2 = 5，第 6 个并发测试在 Task 6，总账见 §3 核对表）
 - **Gate:** 无
 
-- [ ] **Step 1: 自检点** — Read Task 1/4 已落地的测试区域，确认 `TEST_OBS`/`empty_world()` 助手在场。
+- [x] **Step 1: 自检点** — Read Task 1/4 已落地的测试区域，确认 `TEST_OBS`/`empty_world()` 助手在场。
 
-- [ ] **Step 2: 追加 2 个测试**（连续调用测试 `session_rt_01_observation_revision_starts_at_1_and_increments` 已在 Task 2 Step 2 以 TDD 落地并转绿，此处不重复）
+- [x] **Step 2: 追加 2 个测试**（连续调用测试 `session_rt_01_observation_revision_starts_at_1_and_increments` 已在 Task 2 Step 2 以 TDD 落地并转绿，此处不重复）
 
 (2a) `src/runtime_state.rs` 测试模块追加（assemble 纯度，Design Doc §6.1 "Unit | assemble 纯函数"行）：
 ```rust
@@ -592,7 +592,7 @@ Expected: 恰 1 行命中（api_boundary.rs 测试字面量，已 8 字段）。
 ```
 （import 自检：runtime_state.rs 测试模块 `use super::*` 已覆盖 `SnapshotObservation`/`Uuid`/`CanonicalRuntimeState`/`empty_world`；session.rs 测试模块 `use super::*` 已覆盖 `Uuid`，`InMemoryLm`/`mock_manager`/`mock_devices` 为模块内既有助手。若编译报缺 import，仅补对应 `use` 行，不得改生产面。）
 
-- [ ] **Step 3: 运行 Unit 层全组**
+- [x] **Step 3: 运行 Unit 层全组**
 
 Run:
 ```bash
@@ -611,9 +611,9 @@ Expected: 全 `ok`，0 failed；lib passed 数 ≥ BASELINE_COUNT + 5（截至�
 - **Verification:** `cargo test --features mock session_rt_01_observation_revision_8x1000_concurrency_pierce` 通过；8000 个 revision 集合**恰为 {1..8000}**（无重号无空洞），8000 份快照 lineage 恒同（纪律 #8 逐字要求）
 - **Gate:** 无
 
-- [ ] **Step 1: 自检点** — Read `src/session.rs` `runtime_state()`（Task 2 后形态），确认 `fetch_add` 在场且无第二计数点。
+- [x] **Step 1: 自检点** — Read `src/session.rs` `runtime_state()`（Task 2 后形态），确认 `fetch_add` 在场且无第二计数点。
 
-- [ ] **Step 2: 追加并发击穿测试**（`src/session.rs` 测试模块末尾）：
+- [x] **Step 2: 追加并发击穿测试**（`src/session.rs` 测试模块末尾）：
 
 ```rust
     /// D14 (tasks 5.2, D9-C 同构, 用户纪律 #8): 8 线程 × 1000 次并发 runtime_state() 击穿 ——
@@ -660,7 +660,7 @@ Expected: 全 `ok`，0 failed；lib passed 数 ≥ BASELINE_COUNT + 5（截至�
     }
 ```
 
-- [ ] **Step 3: 实跑击穿（不得只编译不跑）**
+- [x] **Step 3: 实跑击穿（不得只编译不跑）**
 
 Run:
 ```bash
@@ -682,9 +682,9 @@ Expected: `test result: ok. 1 passed`（`--release` 提高交错压力；若 deb
 - **Verification:** 人工/grep 复核两处 D14 注释语义一致且与 proposal/design 声明逐句吻合（tasks.md 4.1/3.2）；账本行含 change 名、日期、证据锚（tasks.md 4.2）
 - **Gate:** 无
 
-- [ ] **Step 1: 自检点** — Read `src/runtime_state.rs` L99-112、`src/runtime_query.rs` L13-15（纪律 #2；确认 Task 1 后注释仍在原位）。
+- [x] **Step 1: 自检点** — Read `src/runtime_state.rs` L99-112、`src/runtime_query.rs` L13-15（纪律 #2；确认 Task 1 后注释仍在原位）。
 
-- [ ] **Step 2: `runtime_state.rs` D14 注释改写为关闭态**（替换 L101-103 三行，Design Doc §4.1 声明逐句落注）：
+- [x] **Step 2: `runtime_state.rs` D14 注释改写为关闭态**（替换 L101-103 三行，Design Doc §4.1 声明逐句落注）：
 
 ```rust
 /// **D14 契约（CLOSED @ v03-d14-runtime-snapshot-consistency, 2026-09-02）**:
@@ -700,7 +700,7 @@ Expected: `test result: ok. 1 passed`（`--release` 提高交错压力；若 deb
 /// —— 互不替代（Design Doc §4.3）。
 ```
 
-- [ ] **Step 3: `runtime_query.rs` L13-15 镜像注释同步关闭态**（与 Step 2 语义一致，façade 视角）：
+- [x] **Step 3: `runtime_query.rs` L13-15 镜像注释同步关闭态**（与 Step 2 语义一致，façade 视角）：
 
 ```rust
 //! D14 契约（CLOSED @ v03-d14-runtime-snapshot-consistency, 2026-09-02）:
@@ -711,7 +711,7 @@ Expected: `test result: ok. 1 passed`（`--release` 提高交错压力；若 deb
 ```
 （**本文件不得有任何非注释改动**——纪律 #7"runtime_query.rs 零改动"指零代码/行为改动。）
 
-- [ ] **Step 4: 债务账本 D14 行标 CLOSED**（`docs/architecture/PHASE_0_7A_POST_MERGE_DEBT.md` L69，格式对齐 D8 行 L29 先例）：
+- [x] **Step 4: 债务账本 D14 行标 CLOSED**（`docs/architecture/PHASE_0_7A_POST_MERGE_DEBT.md` L69，格式对齐 D8 行 L29 先例）：
 
 将 L69 整行替换为：
 ```markdown
@@ -719,7 +719,7 @@ Expected: `test result: ok. 1 passed`（`--release` 提高交错压力；若 deb
 ```
 （**日期/证据锚在 Task 9 verify 报告落档后复核一次**；若 verify 报告路径变动，本行同步修正——PHASE_IMPLEMENTATION_MAP/账本为唯一 SoT，漂移 = P0。）
 
-- [ ] **Step 5: 注释一致性门禁**
+- [x] **Step 5: 注释一致性门禁**
 
 Run:
 ```bash
@@ -740,19 +740,19 @@ Expected: 两处命中（均含 `CLOSED @ v03-d14-runtime-snapshot-consistency`�
 - **Gate:** BOX（盒上 matrix 含 D14 项）
 - **停止条件:** D14 断言块只允许**追加**探针行；改动既有探针/采集逻辑 = 违反纪律 #9 → 停止回报。
 
-- [ ] **Step 1: 盒上构建 + 全矩阵前置**（盒上执行；本地不可达时由持有盒权限者执行并把输出贴回 verify 报告）：
+- [x] **Step 1: 盒上构建 + 全矩阵前置**（盒上执行；本地不可达时由持有盒权限者执行并把输出贴回 verify 报告）：
 
 ```bash
 ssh lytv@10.30.15.10 'cd ~/media-agent && git pull --ff-only && cargo fmt --all && cargo build --release --features bmd,gstreamer 2>&1 | tail -3'
 ```
 Expected: `Finished` 无 error。（盒上仓库同步方式沿用既有 p07_verify.sh 流程，2026-09-01-p07c8-transport-verify.md §3 先例。）
 
-- [ ] **Step 2: 既有回归矩阵先跑（零回退确认）**
+- [x] **Step 2: 既有回归矩阵先跑（零回退确认）**
 
 按既有 `~/p07_verify.sh` 14 步矩阵执行（fmt ×2 / default test / sim+mock test / bmd,gstreamer test / clippy -D ×4 / build ×3 / remove-adapters proof），全部 exit 0 后方可进入 Step 3。
 Evidence: 每步 exit code 记录入 verify 报告。
 
-- [ ] **Step 3: `~/transport_hw_gate.sh` 追加 D14 断言块**（脚本不入库——改动仅存于盒；断言全文同步写入 verify 报告）：
+- [x] **Step 3: `~/transport_hw_gate.sh` 追加 D14 断言块**（脚本不入库——改动仅存于盒；断言全文同步写入 verify 报告）：
 
 在既有探针段（`GET /api/v1/runtime 200 (mgr active)` 之后）追加：
 ```bash
@@ -776,7 +776,7 @@ Run（盒上）: `bash ~/transport_hw_gate.sh`
 Expected: 既有 16/16 探针 PASS + `D14-1/2/3` 三行 PASS，脚本 exit 0。
 （`jq` 为盒上既有工具，transport 先例已用；若盒无 jq → 改用 `python3 -c` 等价解析，断言语义不变。）
 
-- [ ] **Step 4: 既有硬件采集行为零变更确认**
+- [x] **Step 4: 既有硬件采集行为零变更确认**
 
 Run（盒上）: 重跑 `VBMF_SESSION_LIFECYCLE=1` 回归门禁（SESSION-RT-01 + IDEMPOTENCY-RT-01 + ERROR-MODEL-RT-01 + RESOURCE-RT-01 + EXTERNAL-API-RT-01，2026-09-01-p07c8-transport-verify.md §4 回归门禁段先例）。
 Expected: ALL PASS（RUNTIME-STATE-RT-01 打印 JSON 现含 8 键——additive，非行为变更）。
@@ -793,7 +793,7 @@ Expected: ALL PASS（RUNTIME-STATE-RT-01 打印 JSON 现含 8 键——additive�
 - **Verification:** `gh api` 实查 required checks 全 green（非自报）; verify 报告落 docs; PR merged; 分支删除
 - **Gate:** CI + RELEASE
 
-- [ ] **Step 1: 本地全量 CI 等价矩阵（提交前最后门禁）**
+- [x] **Step 1: 本地全量 CI 等价矩阵（提交前最后门禁）**
 
 Run:
 ```bash
@@ -809,7 +809,7 @@ cargo clippy --all-targets --features mock -- -D warnings
 Expected: `FMT_OK` + 全部 `test result: ok`（0 failed）+ clippy 0 warning。
 **零回退核对（纪律 #1）**：mock lib passed 数 ≥ BASELINE_COUNT + 6（新增测试函数恰 6 个：runtime_state.rs ×3 —— roundtrip / legacy-6-key / assemble 纯度；session.rs ×3 —— 起点 1 / 重启语义 / 8×1000 并发；另有 2 个既有测试更新 —— 键集合 6→8 / api 字面量 6→8，非新增；**以 `git diff --stat` + `cargo test --features mock -- --list` 实数核对**，禁止目测）。
 
-- [ ] **Step 2: 提交（单 commit 交付，Design Doc §7）**
+- [x] **Step 2: 提交（单 commit 交付，Design Doc §7）**
 
 Run（仓库根；分支名沿用项目惯例，如 `v03-d14-runtime-snapshot-consistency`）:
 ```bash
@@ -830,7 +830,7 @@ git commit -m "V0.3-1 D14: runtime snapshot observation envelope (swept non-tran
 ```
 Expected: `git status --short` 恰列 5 文件；commit 成功。
 
-- [ ] **Step 3: 开 PR + CI 实查（非自报，tasks.md 6.2）**
+- [x] **Step 3: 开 PR + CI 实查（非自报，tasks.md 6.2）**
 
 ```bash
 gh pr create --base master --title "V0.3-1 D14 Runtime Snapshot Consistency" --body "$(cat <<'EOF'
@@ -843,14 +843,14 @@ gh pr checks <PR_NUMBER>    # 逐 job 实查
 ```
 Expected: 7 个 required jobs 全绿——`rust-format` / `rust-test-matrix` / `rust-clippy` / `session-lifecycle` / `hardware-test-compile` / `architecture-portability` / `gstreamer-build`（`.github/workflows/media-agent.yml` L10-11 冻结清单）。**任一红 → 停止排查，不得自报绿。**
 
-- [ ] **Step 4: verify 报告落档**（`docs/superpowers/reports/2026-09-02-v03-d14-runtime-snapshot-consistency-verify.md`）——必含：
+- [x] **Step 4: verify 报告落档**（`docs/superpowers/reports/2026-09-02-v03-d14-runtime-snapshot-consistency-verify.md`）——必含：
   1. 四栏纪律表（Contract/Implementation/Verification/Gate × tasks.md 全 14 项逐条）；
   2. 三层测试证据：Unit 测试名 + 通过输出；8×1000 击穿输出（`{1..8000}` 断言行）；盒上 D14-1/2/3 输出 + 14 步矩阵 exit code；
   3. **术语消歧表**（纪律 #4，Design Doc §4.3 逐字）：observation_revision（观察域, 本 change 新增）/ V0.2 §1.21 "Runtime Revision N+1"（config-apply 域, 不触碰）/ `If-Match: "revision-N"`（乐观并发域, 不触碰）；
   4. 范围冻结核查（纪律 #10）：DeviceId / RuntimeEvent / Control Plane / Federation / V0.2 Runtime Semantics 零触碰声明 + `git diff --stat` 佐证；
   5. 新增测试函数清单（6 新增 + 2 既有更新，文件/名/层）+ 零回退锚点（BASELINE_COUNT 实跑值 vs 交付值）。
 
-- [ ] **Step 5: archive → merge → 删分支**
+- [x] **Step 5: archive → merge → 删分支**
 
 ```bash
 cd /e/code/live
