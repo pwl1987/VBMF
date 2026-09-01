@@ -797,6 +797,11 @@ fn main() {
                 ));
                 // P0.7C-2: Runtime Query (Pure Read) 门面 — 硬件证据冒烟。
                 let _rq = crate::runtime_query::RuntimeQuery::new(std::sync::Arc::clone(&mgr));
+                // P1a: 诊断主会话 sink kind —— `VBMF_OUTPUT_KIND` 覆盖（hls/rtmp gate 用）;
+                // 默认 "rtmp" 与 P1a 前逐字节一致。无任何 VBMF_OUTPUT_* ⇒ materialize
+                // fail-soft 降级纯分析（向后兼容承诺, Design Doc §6）。
+                let out_cfg = crate::config::PrototypeOutputConfig::from_env();
+                let diag_sink_kind = out_cfg.sink_kind_override.unwrap_or_else(|| "rtmp".into());
                 let intent = crate::graph_intent::GraphRuntimeIntent {
                     version: "1.0".into(),
                     devices: vec![crate::graph_intent::DeviceIntent {
@@ -809,7 +814,7 @@ fn main() {
                                 port_id: None,
                             },
                             sink: crate::graph_intent::SinkIntent {
-                                kind: "rtmp".into(),
+                                kind: diag_sink_kind,
                             },
                         },
                     }],
@@ -1318,6 +1323,22 @@ fn main() {
                     .first()
                     .map(|d| d.device_id.to_string())
                     .unwrap_or_default();
+                // P1a: 诊断主会话 sink kind —— `VBMF_OUTPUT_KIND` 覆盖（hls/rtmp gate 用）;
+                // 默认 "rtmp" 与 P1a 前逐字节一致。无任何 VBMF_OUTPUT_* ⇒ materialize
+                // fail-soft 降级纯分析（向后兼容承诺, Design Doc §6）。
+                // 同一 cfg 供降级可见性检查（默认订阅 ERROR 级, tracing warn 不可见 →
+                // 启动面显式打印, review Important#2）。
+                let out_cfg = crate::config::PrototypeOutputConfig::from_env();
+                let diag_sink_kind = out_cfg.sink_kind_override.unwrap_or_else(|| "rtmp".into());
+                match diag_sink_kind.as_str() {
+                    "hls" if out_cfg.hls_dir.is_none() => println!(
+                        "WARN: sink.kind=hls 但 VBMF_OUTPUT_HLS_DIR 未设 ⇒ 降级纯分析 (fail-soft)"
+                    ),
+                    "rtmp" if out_cfg.rtmp_url.is_none() => println!(
+                        "WARN: sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)"
+                    ),
+                    _ => {}
+                }
                 let intent = crate::graph_intent::GraphRuntimeIntent {
                     version: "1.0".into(),
                     devices: vec![crate::graph_intent::DeviceIntent {
@@ -1330,7 +1351,7 @@ fn main() {
                                 port_id: None,
                             },
                             sink: crate::graph_intent::SinkIntent {
-                                kind: "rtmp".into(),
+                                kind: diag_sink_kind,
                             },
                         },
                     }],
