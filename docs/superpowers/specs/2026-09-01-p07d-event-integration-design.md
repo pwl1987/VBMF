@@ -2,6 +2,8 @@
 comet_change: p07d-event-integration
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-01-p07d-event-integration
+status: final
 ---
 
 # 0.7D 事件内消费集成 — Design Doc（深度技术设计）
