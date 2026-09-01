@@ -26,6 +26,13 @@ use uuid::Uuid;
 
 use crate::events::{EventSource, RuntimeEvent, RuntimeEventMapper, RuntimeEventSink};
 
+/// `report_failure` Restart 路径发射的 `PipelineFault` 摘要 (P0-7D)。
+///
+/// 双重身份: 既是决策事件的 canonical 摘要, 也是 watchdog 事件驱动输入的**自回声标记**——
+/// Supervisor 自己发出的重启排程事件不得再次触发 `report_failure` (否则 attempts/backoff
+/// 随 tick 自激翻倍)。watchdog 侧按此常量精确排除回声。
+pub const RESTART_ECHO_SUMMARY: &str = "health probe failure; restart scheduled";
+
 /// Restart policy: bounded retries with exponential backoff (crash-loop guard).
 #[derive(Debug, Clone)]
 pub struct RestartPolicy {
@@ -178,7 +185,7 @@ impl Supervisor {
             SupervisorAction::Restart => {
                 self.sink.emit(RuntimeEvent::PipelineFault {
                     pipeline: *handle,
-                    summary: "health probe failure; restart scheduled".into(),
+                    summary: RESTART_ECHO_SUMMARY.into(),
                     retryable: true,
                 });
             }

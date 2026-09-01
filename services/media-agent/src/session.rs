@@ -480,6 +480,24 @@ impl SessionManager {
                     "目标设备缺少生产绑定: {missing:?}"
                 )));
             }
+            // P0-7D: 绑定验证通过 = 身份解析收敛语义时刻, 逐设备点亮
+            // IdentityResolved (词表在册, 原零生产; confidence 用绑定时达到的
+            // Confidence+ResolverMatch canonical 描述)。
+            for u in intent
+                .devices
+                .iter()
+                .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
+            {
+                let confidence = self
+                    .bindings
+                    .get(&u)
+                    .map(|b| format!("{:?}/{:?}", b.confidence, b.match_kind).to_lowercase())
+                    .unwrap_or_else(|| "unverified".to_string());
+                self.events.emit(RuntimeEvent::IdentityResolved {
+                    device_id: u,
+                    confidence,
+                });
+            }
         }
         self.set_phase(session_id, SessionPhase::Binding)?;
         self.set_phase(session_id, SessionPhase::Leased)?;
@@ -845,7 +863,11 @@ impl SessionManager {
                     .map(|i| now - i.created_at_ms > self.tuning.reservation_window_ms)
                     .unwrap_or(false);
                 if stale {
-                    self.resources.expire_reservations_of(holder);
+                    // P0-7D: 逐资源发射 ResourceReservationExpired (词表在册, 原零生产)。
+                    for rid in self.resources.expire_reservations_of(holder) {
+                        self.events
+                            .emit(RuntimeEvent::ResourceReservationExpired { resource_id: rid });
+                    }
                     // 全部租约一并回收 (Terminated 零孤儿; RESOURCE-RT-01 crash cleanup)。
                     let leases = self
                         .sessions
