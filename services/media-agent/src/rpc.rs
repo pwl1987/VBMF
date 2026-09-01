@@ -1,9 +1,13 @@
-//! RPC — transport boundary to Node/Fastify Control Plane.
-//! Frozen interface per SoT §14 (Node=Control, Rust=Hardware). No transport yet.
+//! Node↔Rust control-plane contract skeleton (Gate 2.1, SoT §14: Node=Control, Rust=Hardware).
+//!
+//! NOTE (0.7C-8): the current HTTP transport boundary is [`transport`](crate::transport),
+//! which serves the API Boundary Model (`api_boundary`) over the five REST endpoints. It does
+//! NOT serialize this method-tagged AgentRequest/AgentResponse RPC. This file is retained as
+//! the frozen SoT §14 contract record for the Node↔Rust boundary; it is not on the wire path.
 //!
 //! Rust MUST NOT implement: API gateway, auth, RBAC, config UI, WebSocket aggregation.
 //! Those are Fastify's. Rust exposes only Hardware Plane operations below.
-#![allow(dead_code)] // Gate 2.1 skeleton: interfaces frozen, not yet invoked.
+#![allow(dead_code)] // Gate 2.1 skeleton: frozen SoT §14 contract, not on the wire path (see transport.rs).
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
