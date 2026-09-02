@@ -9,8 +9,8 @@
 //! 迁移自 main.rs 对应 env 块, 逐字节搬运（a2-0-runtime-repositioning, 行为零变）。
 
 pub mod config_probe;
+pub mod loopback;
 pub mod registry;
 pub mod resolver;
 // A20-02b 增量迁入（大块, 独立编译周期）:
-// pub mod loopback;
 // pub mod session_lifecycle;
