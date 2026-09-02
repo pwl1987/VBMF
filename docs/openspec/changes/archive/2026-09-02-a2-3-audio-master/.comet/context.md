@@ -3,7 +3,7 @@
 - Change: a2-3-audio-master
 - Phase: design
 - Mode: compact
-- Context hash: 160428482e891f9fb3a1d172a7faa110b10470eb888310e7640dd01c9c69ceb9
+- Context hash: efc264ecc4baf507aa31c681397e0f4f5f32b6cfc0c0ca544b7a9a10253db411
 
 Generated-by: comet-handoff.sh
 
@@ -12,8 +12,8 @@ OpenSpec remains the canonical capability spec. This handoff is a deterministic,
 ## docs/openspec/changes/a2-3-audio-master/proposal.md
 
 - Source: docs/openspec/changes/a2-3-audio-master/proposal.md
-- Lines: 1-49
-- SHA256: b680b1cc6bcd4275f69507364c46dcb2e9b5afe835079baf8324864b24a09962
+- Lines: 1-50
+- SHA256: 673203ddc331d2b4ea54169c79b59c0133d0c1ad4dc0a4746c7cfda475a1856c
 
 ```md
 # Proposal — a2-3-audio-master
@@ -61,7 +61,8 @@ A2-2 已立规（serde(default) 新生儿禁用 / 产物随代码同步 commit /
 1. 阶段词表快照恰五词, serde 名锁定（§3.7 Audio Graph 节点对应）
 2. advance_to 5×5 全组合矩阵（同 A2-2 纪律; `from/to` 载荷 wire 词表名）
 3. data_plane 恒 RawAudio（Errata-3 纪律同 Video）
-4. mix_layout 词表: STEREO/5_1/STEREO_AND_SUB（声明面; 实际 mix 行为属 A2-7+）
+4. mix_layout 词表: STEREO/FIVE_ONE/STEREO_AND_SUB（声明面; 实际 mix 行为属 A2-7+;
+   review Important#1 对账——FIVE_ONE 按 codebase SCREAMING_SNAKE_CASE 惯例, 非 5_1）
 5. delay_ms `Option<NonZeroU16>`（None=未声明; Some=具体值; 默认 80 仅 const 锁）
 6. loudness_lufs `Option<f32>`（None=未归一化; Some=目标 LUFS 值——控制面设值）
 7. 全回归零退化（mock 265 基线 + Audio-specific 测试）
@@ -121,14 +122,14 @@ delay/loudness 携带不变 / 结构级 serde 往返 + 缺字段 fail-closed。
 
 - Source: docs/openspec/changes/a2-3-audio-master/tasks.md
 - Lines: 1-6
-- SHA256: fdd0d1cb40be72b72187dd39aaf8c04fe632b6342422b2574770f4b0fa348a74
+- SHA256: eb32d3aeefd89e05c42d804ca5a9d7b5db48485024ee085f5fa2237a4a76e86a
 
 ```md
 # Tasks — a2-3-audio-master
 
 > 四栏纪律。TDD; cargo 经盒; 基线 mock 265。立规（A2-2 立）: serde(default) 新生儿禁用 / 产物随代码同步 commit / advance_to 显式目标矩阵 / 信任边界文档化。
 
-- [ ] 1. RED+GREEN: `audio_master.rs`（阶段词表快照/serde 名锁/advance_to 5×5 矩阵/RawAudio 类型层锁/mix_layout 词表+拒绝/DEFAULT_DELAY_MS 常量锁=80/advance 携带 delay+loudness/mix_layout 不变/结构级 serde+缺字段 fail-closed/is_program_scope_master 终态判定）+ mod.rs 声明 `Contract: V0.2 §3.7+§1.20+A2-2 立规` | `Implementation: 待` | `Verification: Unit + mock 265 零回退` | `Gate: 无`
-- [ ] 2. 全回归（矩阵/clippy 四组合）+ review + verify + 双 guard + archive + PR + CI + merge + memory `Contract: 交付纪律` | `Implementation: 待` | `Verification: PR merged` | `Gate: CI/RELEASE`
+- [x] 1. RED+GREEN: `audio_master.rs`（阶段词表快照/serde 名锁/advance_to 5×5 矩阵/RawAudio 类型层锁/mix_layout 词表+拒绝/DEFAULT_DELAY_MS 常量锁=80/advance 携带 delay+loudness/mix_layout 不变/结构级 serde+缺字段 fail-closed/is_program_scope_master 终态判定）+ mod.rs 声明 `Contract: V0.2 §3.7+§1.20+A2-2 立规` | `Implementation: 已` | `Verification: Unit + mock 265 零回退` | `Gate: 无`
+- [x] 2. 全回归（矩阵/clippy 四组合）+ review + verify + 双 guard + archive + PR + CI + merge + memory `Contract: 交付纪律` | `Implementation: 已` | `Verification: PR merged` | `Gate: CI/RELEASE`
 
 ```

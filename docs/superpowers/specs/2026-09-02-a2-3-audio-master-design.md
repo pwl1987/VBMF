@@ -2,6 +2,8 @@
 comet_change: a2-3-audio-master
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-a2-3-audio-master
+status: final
 ---
 
 # Design Doc — a2-3-audio-master（A2-3: Audio Master）
