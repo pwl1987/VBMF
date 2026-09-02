@@ -2,6 +2,8 @@
 comet_change: alpha1-multi-input-channel
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-alpha1-multi-input-channel
+status: final
 ---
 
 # Design Doc — alpha1-multi-input-channel（Alpha-1: 多输入 + Channel 模型 / D10 激活）
