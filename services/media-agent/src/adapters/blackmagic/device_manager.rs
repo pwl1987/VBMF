@@ -25,6 +25,8 @@ impl DeckLinkDeviceManager {
     // 在 `bmd-provider,gstreamer-backend,mock` 组合下, main 优先选用 MockProvider,
     // 本构造函数不被引用; 属 mock 优先接线的预期副作用, 故允许.
     #[allow(dead_code)]
+    // A2-0: lib 化公开面触发 clippy new_without_default 的最小 allow 处置（不借 A2-0 改语义）。
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self
     }

@@ -2,10 +2,23 @@
 name = "media-agent"
 version = "0.1.0"
 edition = "2021"
-description = "VBMF Rust Media Agent — Hardware Plane (DeckLink/GStreamer). Control Plane lives in Node/Fastify."
+description = "VBMF Media Agent — Runtime Kernel (Session/Pipeline/Resource/Event/Health) + Provider/Backend SPI adapters. Library-first: media-agent bin = production composition root; media-agent-gates bin = hardware acceptance entries."
 
-# Gate 2 skeleton: trait/struct shapes ONLY. No business logic yet.
-# Interface frozen against SoT §15.2 (MEDIA-02/03/04) + §14 (Node/Rust boundary).
+# A2-0 (2026-09-02): library-first 形态 — Domain/Contracts/Runtime/Adapters/Bootstrap/
+# Watchdog 在 lib; 双 bin 分别为生产组合根与真机验收入口。
+# Provider/Backend 契约冻结于 SoT §15.2 (MEDIA-02/03/04) + §14 (Node/Rust boundary)。
+
+[lib]
+name = "media_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "media-agent"
+path = "src/bin/media-agent.rs"
+
+[[bin]]
+name = "media-agent-gates"
+path = "src/bin/gates.rs"
 
 [dependencies]
 # Async runtime (supervisor/monitor loops)

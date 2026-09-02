@@ -5,7 +5,7 @@
 本脚本是 Architecture **Proof** —— 结构层真实验证:
 
     真实移除 adapters/blackmagic + adapters/gstreamer 目录
-      → 修补 mod.rs / main.rs 引用
+      → 修补 mod.rs / 双 bin 引用
       → cargo check (simulation / mock, 无厂商 feature)
     ⇒ 证明 Domain / Contracts / Runtime 层不依赖任何 concrete adapter。
 
@@ -30,7 +30,13 @@ MINIMAL_PATCHES: dict[str, list[tuple[str, str]]] = {
 }
 
 MAIN_PATCHES: list[tuple[str, str]] = [
-    # main.rs 对 adapters 的引用点 (blkmagic probe/registry + gstreamer runtime version)
+    # bin（main.rs / bin/gates.rs）对 adapters 的非 gated 引用点。
+    # A2-0 lib 化: bin 侧前缀为 media_agent::（lib 内部仍为 crate::——
+    # lib 内 gates/watchdog/registry 的 adapter 引用全部 cfg 于厂商 feature, 无需 stub）。
+    (
+        "media_agent::adapters::blackmagic::probe_sdk",
+        "media_agent::adapters::adapter_removed_stub_probe_sdk",
+    ),
     (
         "crate::adapters::blackmagic::probe_sdk",
         "crate::adapters::adapter_removed_stub_probe_sdk",
@@ -48,6 +54,8 @@ MAIN_PATCHES: list[tuple[str, str]] = [
         "crate::adapters::adapter_removed_stub_gst_version",
     ),
 ]
+
+BIN_FILES: list[str] = ["src/bin/media-agent.rs", "src/bin/gates.rs"]
 
 
 def patch(text: str, patches: list[tuple[str, str]], path: str) -> str:
@@ -73,17 +81,19 @@ def check_crate(crate: Path, cargo: str, features: list[str]) -> None:
         for rel, patches in MINIMAL_PATCHES.items():
             f = work / rel
             f.write_text(patch(f.read_text(encoding="utf-8"), patches, rel), encoding="utf-8")
-        # 3. main.rs: adapter 公共函数引用替换为临时 stub (stub 本体注入 mod.rs),
-        #    使 default/simulation/mock 构建无需这些 adapter 即可编译。
+        # 3. 双 bin（main.rs / bin/gates.rs）: adapter 公共函数引用替换为临时 stub
+        #    (stub 本体注入 mod.rs), 使 default/simulation/mock 构建无需这些 adapter 即可编译。
         #    若 Domain/Runtime 存在对 adapter 内部类型的**类型级**依赖, cargo check 仍会失败 — 这正是门禁。
-        main_rs = work / "src" / "main.rs"
-        txt = main_rs.read_text(encoding="utf-8")
-        # main.rs 的 cfg(feature = "bmd-provider") 代码块: 移除 adapter 后这些 feature 不存在,
-        # cfg 块自然不编译; 但块内文本仍引用被删符号 → 无需修补 (cfg 关闭即不编译)。
-        # 唯一需处理的是 non-gated 引用; 逐一尝试修补, 找不到则视为已无引用 (cfg-gated)。
-        for old, new in MAIN_PATCHES:
-            txt = txt.replace(old, new)
-        main_rs.write_text(txt, encoding="utf-8")
+        #    bin 的 cfg(feature = "bmd-provider") 代码块: 移除 adapter 后 feature 组合不触发, cfg 块不编译;
+        #    唯一需处理的是 non-gated 引用; 逐一尝试修补, 找不到则视为已无引用 (cfg-gated)。
+        for rel in BIN_FILES:
+            bin_rs = work / rel
+            if not bin_rs.is_file():
+                continue
+            txt = bin_rs.read_text(encoding="utf-8")
+            for old, new in MAIN_PATCHES:
+                txt = txt.replace(old, new)
+            bin_rs.write_text(txt, encoding="utf-8")
         stub = (
             "// remove-adapter proof: 临时 stub (仅存在于验证副本) — main 非 gated 引用的落点。\n"
             "pub mod adapter_stubs;\n"
