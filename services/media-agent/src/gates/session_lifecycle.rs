@@ -78,23 +78,16 @@ pub fn run(
             crate::resolver::GstProbeOutcome::Available { probes, .. } => probes,
             _ => Vec::new(),
         };
-        let bindings = crate::resolver::collect_bindings_from_manifest(
-            discovered,
-            &gst_probes,
-            &manifest,
-        );
-        let registry = match crate::port::PortRegistry::build(
-            discovered,
-            &gst_probes,
-            &manifest,
-            &bindings,
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
-                std::process::exit(2);
-            }
-        };
+        let bindings =
+            crate::resolver::collect_bindings_from_manifest(discovered, &gst_probes, &manifest);
+        let registry =
+            match crate::port::PortRegistry::build(discovered, &gst_probes, &manifest, &bindings) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
+                    std::process::exit(2);
+                }
+            };
         let resources = crate::resource::SharedResourceRegistry::new(
             crate::resource::ResourceRegistry::derive_from_discovery(&registry),
         );
@@ -260,16 +253,11 @@ pub fn run(
                             "EVENT-INTEGRATION-RT-01 step=E5 expired_phase={:?} (期望 Terminated)",
                             e5_phase
                         );
-                        ok &= matches!(
-                            e5_phase,
-                            Some(crate::session::SessionPhase::Terminated)
-                        );
+                        ok &= matches!(e5_phase, Some(crate::session::SessionPhase::Terminated));
                         let _ = mgr.close(&e5);
                     }
                     Err(e) => {
-                        println!(
-                            "EVENT-INTEGRATION-RT-01 step=E5 create verdict=FAIL error={e}"
-                        );
+                        println!("EVENT-INTEGRATION-RT-01 step=E5 create verdict=FAIL error={e}");
                         ok = false;
                     }
                 }
@@ -385,9 +373,7 @@ pub fn run(
                     );
                 }
                 other => {
-                    println!(
-                        "IDEMPOTENCY-RT-01 step=duplicate verdict=UNEXPECTED {other:?}"
-                    );
+                    println!("IDEMPOTENCY-RT-01 step=duplicate verdict=UNEXPECTED {other:?}");
                 }
             }
             // 同 command_id 换 intent → Conflict (零执行)。
@@ -406,9 +392,7 @@ pub fn run(
                     );
                 }
                 other => {
-                    println!(
-                        "IDEMPOTENCY-RT-01 step=conflict verdict=UNEXPECTED {other:?}"
-                    );
+                    println!("IDEMPOTENCY-RT-01 step=conflict verdict=UNEXPECTED {other:?}");
                 }
             }
             // observe: 幂等段创建的会话仍在运行。
@@ -594,16 +578,15 @@ pub fn run(
             };
             let state = _rq.get_runtime_state();
             let snap = to_api_query_snapshot(&state);
-            let snap_json =
-                serde_json::to_string(&snap).expect("ApiQuerySnapshot 必须可序列化");
+            let snap_json = serde_json::to_string(&snap).expect("ApiQuerySnapshot 必须可序列化");
             let _roundtrip: ApiQuerySnapshot =
                 serde_json::from_str(&snap_json).expect("ApiQuerySnapshot 必须可反序列化");
             let api_proj: ApiProjectionResponse = (&p).into();
-            let proj_json = serde_json::to_string(&api_proj)
-                .expect("ApiProjectionResponse 必须可序列化");
+            let proj_json =
+                serde_json::to_string(&api_proj).expect("ApiProjectionResponse 必须可序列化");
             let boundary = default_idempotency_boundary();
-            let boundary_json = serde_json::to_string(&boundary)
-                .expect("ApiIdempotencyBoundary 必须可序列化");
+            let boundary_json =
+                serde_json::to_string(&boundary).expect("ApiIdempotencyBoundary 必须可序列化");
             let api_ok = snap.devices.len() == state.devices.len()
                 && snap.sessions.len() == state.sessions.len()
                 && snap_json.contains("\"devices\"")

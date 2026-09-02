@@ -52,8 +52,8 @@ pub fn build() -> BootstrapContext {
     }
 
     // Gate 2.2: adapter 选择收口 (P0-4; mock > simulation > bmd-provider > default).
-    let provider: Box<dyn HardwareProvider> =
-        crate::registry::AdapterRegistry::build_provider().unwrap_or_else(|e| {
+    let provider: Box<dyn HardwareProvider> = crate::registry::AdapterRegistry::build_provider()
+        .unwrap_or_else(|e| {
             eprintln!("adapter feature 冲突 (fail-closed): {e}");
             std::process::exit(2);
         });
@@ -88,7 +88,11 @@ pub fn build() -> BootstrapContext {
     // Gate 2.3: lease manager + bootstrap 占位租约（初始化态; 真实会话让位语义在各消费方）。
     let lease_manager = Arc::new(InMemoryLeaseManager::new());
     for d in &devices {
-        match lease_manager.acquire(&d.device_id, "bootstrap", std::time::Duration::from_secs(60)) {
+        match lease_manager.acquire(
+            &d.device_id,
+            "bootstrap",
+            std::time::Duration::from_secs(60),
+        ) {
             Ok(l) => tracing::info!(device = %l.device_id, "lease acquired"),
             Err(e) => tracing::warn!(error = %e, "lease acquire failed"),
         }

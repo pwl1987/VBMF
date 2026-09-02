@@ -245,8 +245,13 @@ fn main() {
                 media_agent::resolver::DeviceBindingManifest::load(p)
                     .ok()
                     .map(|m| {
-                        media_agent::port::PortRegistry::build(discovered, &gst_probes, &m, &bindings)
-                            .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
+                        media_agent::port::PortRegistry::build(
+                            discovered,
+                            &gst_probes,
+                            &m,
+                            &bindings,
+                        )
+                        .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)")
                     })
             });
             // 非 gst 构建 (hardware-test): 端口注册表由真机闭环/会话路径消费, 此处不构建
@@ -355,12 +360,11 @@ fn main() {
                             .unwrap_or_default(),
                     );
                     let ctrl: std::sync::Arc<dyn MediaBackend> =
-                        media_agent::registry::AdapterRegistry::build_media_backend().unwrap_or_else(
-                            |e| {
+                        media_agent::registry::AdapterRegistry::build_media_backend()
+                            .unwrap_or_else(|e| {
                                 eprintln!("adapter feature 冲突 (fail-closed): {e}");
                                 std::process::exit(2);
-                            },
-                        );
+                            });
                     // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
                     // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
                     let mgr: std::sync::Arc<media_agent::session::SessionManager> =
@@ -393,7 +397,8 @@ fn main() {
                             Ok(()) => {
                                 tracing::info!(gst_version = ?media_agent::adapters::gstreamer::gstreamer_runtime_version(), "GStreamer runtime version (evidence)");
                                 tracing::info!(session = %sid, "P0-7A Session create+start 全链通过 (SessionManager owner)");
-                                *agent_state.lock().unwrap() = media_agent::health::AgentState::Capturing;
+                                *agent_state.lock().unwrap() =
+                                    media_agent::health::AgentState::Capturing;
                                 // watchdog 继续 Supervise pipeline (recover 前重验 lease 不变量保留)。
                                 if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
                                     spawn_ingest_watchdog(
@@ -415,12 +420,14 @@ fn main() {
                             }
                             Err(e) => {
                                 tracing::error!(error = %e, session = %sid, "P0-7A Session start 失败 (已逆序回滚, fail-closed)");
-                                *agent_state.lock().unwrap() = media_agent::health::AgentState::Degraded;
+                                *agent_state.lock().unwrap() =
+                                    media_agent::health::AgentState::Degraded;
                             }
                         },
                         Err(e) => {
                             tracing::error!(error = %e, "P0-7A Session create 失败 (Preflight/Reserve/Lease fail-closed, 零孤儿)");
-                            *agent_state.lock().unwrap() = media_agent::health::AgentState::Degraded;
+                            *agent_state.lock().unwrap() =
+                                media_agent::health::AgentState::Degraded;
                         }
                     }
                 }
@@ -451,9 +458,9 @@ fn main() {
         query: api_mgr
             .as_ref()
             .map(|m| std::sync::Arc::new(media_agent::runtime_query::RuntimeQuery::new(m.clone()))),
-        idem: api_mgr
-            .as_ref()
-            .map(|m| std::sync::Arc::new(media_agent::idempotency::CommandIdempotency::new(m.clone()))),
+        idem: api_mgr.as_ref().map(|m| {
+            std::sync::Arc::new(media_agent::idempotency::CommandIdempotency::new(m.clone()))
+        }),
         // P1b: 静态文件面 /hls/* 目录（A 方案; 诊断输出配置接线, 生产/未配置 None ⇒ 503）。
         hls_dir: media_agent::config::PrototypeOutputConfig::from_env().hls_dir,
     };
