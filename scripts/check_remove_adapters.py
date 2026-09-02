@@ -5,7 +5,7 @@
 本脚本是 Architecture **Proof** —— 结构层真实验证:
 
     真实移除 adapters/blackmagic + adapters/gstreamer 目录
-      → 修补 mod.rs / main.rs 引用
+      → 修补 mod.rs / 双 bin 引用
       → cargo check (simulation / mock, 无厂商 feature)
     ⇒ 证明 Domain / Contracts / Runtime 层不依赖任何 concrete adapter。
 

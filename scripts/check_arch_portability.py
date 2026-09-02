@@ -195,32 +195,57 @@ def main():
     # A20-03-BS-01 Single Bootstrap Source (用户 2026-09-02 裁定):
     # bin 入口不得复制生产依赖构造——Gate 是 Consumer 不是 Bootstrapper;
     # bootstrap.rs 与 lib 是唯一构造源（生产组合根同样经 bootstrap::build() 消费）。
+    # review Critical#1 修复: 词边界匹配（`PrototypeOutputConfig::from_env(` 不得误中
+    # `Config::from_env(`）; review Important#2 加固: 块注释剥离 + bin 清单从
+    # Cargo.toml [[bin]] path 派生（不假设 src/bin/ 布局）。
     BS_FORBIDDEN = [
-        "Config::from_env(",
-        "AdapterRegistry::build_provider(",
-        "FanoutSink::new(",
-        "Supervisor::new(",
-        "InMemoryLeaseManager::new(",
-        "RuntimeEventLog::new(",
-        ".discover()",
+        r"(?<![A-Za-z0-9_])Config::from_env\(",
+        r"(?<![A-Za-z0-9_:])AdapterRegistry::build_provider\(",
+        r"(?<![A-Za-z0-9_:])FanoutSink::new\(",
+        r"(?<![A-Za-z0-9_:])Supervisor::new\(",
+        r"(?<![A-Za-z0-9_:])InMemoryLeaseManager::new\(",
+        r"(?<![A-Za-z0-9_:])RuntimeEventLog::new\(",
+        r"(?<![A-Za-z0-9_])\.discover\(",
     ]
-    bs_errors = []
-    bin_dir = SRC / "bin"
-    if bin_dir.is_dir():
-        for p in sorted(bin_dir.rglob("*.rs")):
-            rel = str(p.relative_to(SRC))
-            try:
-                text = p.read_text(encoding="utf-8")
-            except OSError:
+    cargo_toml = SRC.parent / "Cargo.toml"
+    bin_paths = []
+    if cargo_toml.is_file():
+        cargo = cargo_toml.read_text(encoding="utf-8")
+        cur_bin = False
+        for line in cargo.splitlines():
+            s = line.strip()
+            if s == "[[bin]]":
+                cur_bin = True
                 continue
-            # 剥注释行（// 开头）与文档注释——只查真实代码
-            for i, line in enumerate(text.splitlines(), 1):
-                stripped = _strip_strings(line)
-                if _is_comment(stripped):
-                    continue
-                for tok in BS_FORBIDDEN:
-                    if tok in stripped:
-                        bs_errors.append((rel, i, tok))
+            if s.startswith("[") and s != "[[bin]]":
+                cur_bin = False
+                continue
+            if cur_bin and s.startswith("path"):
+                val = s.split("=", 1)[1].strip().strip('"')
+                bin_paths.append(SRC.parent / val)
+    if not bin_paths and (SRC / "bin").is_dir():
+        bin_paths = sorted((SRC / "bin").rglob("*.rs"))
+    bs_errors = []
+    for p in bin_paths:
+        if not p.is_file():
+            continue
+        rel = str(p.relative_to(SRC))
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        # 块注释剥离（与厂商扫描同法）+ 行级注释/字符串剥离——只查真实代码
+        code_lines, in_block = [], False
+        for line in text.splitlines():
+            stripped, in_block = _strip_block_comment(line, in_block)
+            code_lines.append(stripped)
+        for i, line in enumerate(code_lines, 1):
+            stripped = _strip_strings(line)
+            if _is_comment(stripped):
+                continue
+            for tok in BS_FORBIDDEN:
+                if re.search(tok, stripped):
+                    bs_errors.append((rel, i, tok))
 
     if all_errors:
         print("FAIL — ARCH-PORTABILITY-01 门禁: "
