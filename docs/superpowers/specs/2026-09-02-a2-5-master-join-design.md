@@ -153,7 +153,21 @@ pub enum AVSyncClassification { Acceptable, Degraded, Failed, Unknown }
 
 见 probe 报告 §3-§5。十危险点全部 V0.2+代码双证据锚定；五问
 （Join 输出×§8.9 / ProgramMaster 形态 / AVSync 范围 / classify 归属 /
-三路不对称就绪输入）交用户裁决。
+三路不对称就绪输入）已全部终裁（probe §8）。
+
+## 2'. A2-5-04 提案（Shape/Consumer Probe 结论，见 [04-probe 报告](../reports/2026-09-02-a2-5-master-join-04-probe.md)——待裁后实现）
+
+- `ProgramMaster { video, audio, metadata, join_result: Option<MasterJoinResult> }`
+  ——整值组合（PortMediaSemantics"绝不平铺"终审红线同律）；**不含**
+  eligibility/classification_input（Join 过程产物非终态成员）/AVSyncClassification
+  （双 SoT 禁）/stage/时间/健康/action；`compose()` 纯构造唯一入口（不做
+  from_join sugar——等 A2-6 真实消费者反推，与 03 终裁 inconsistency 留 05
+  同精神）；Default derive；serde + 零 serde(default) + 键集恰四锁（"绝不
+  平铺"的 wire 级表达）；PartialEq-only。
+- AVSyncClassification 唯一家 = master_join.rs；数据流单向（A2-7 measurement
+  →上游分类→JoinInput→透传→Runtime/Safety）；不挪不移。
+- 实现范围仅 `program_master.rs`（新）+ `mod.rs` 挂载；零 transport/Runtime/
+  三 Master 改动。
 
 ## 3. No-Build Gate
 

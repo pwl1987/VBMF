@@ -43,6 +43,17 @@
   `Contract: 02-adjudication §2 真值表+§4 十二红线` | 
   `Implementation: 已` | `Verification: 盒上 program::master_join 5/5 + 
   mock 287（282+5 恰）+ clippy 4-combo PASS + fmt clean` | `Gate: 无`
-- [ ] 6. A2-5-04..06（ProgramMaster 聚合+AVSync 边界/Semantic Review/收口
-  +交付链）——03 后续刀次待用户复核首刀后推进
-  `Contract: 七刀链+终裁 §5` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 6. A2-5-04 Shape/Consumer Probe（零代码）: 组合先例实查
+  （CanonicalRuntimeState 顶层组合根 + PortMediaSemantics"整值组合绝不
+  平铺"终审红线; D14 serde(default)=additive 先例不适用新生儿）+ ProgramMaster
+  域外零消费（A2-6 首个未来消费者）+ 形态提案（四字段整值组合/compose 
+  唯一入口/Default/serde 零 default/键集恰四）+ AVSyncClassification 层级
+  钉死（唯一家 master_join.rs·ProgramMaster 零持有·数据流单向）; 报告=
+  docs/superpowers/reports/2026-09-02-a2-5-master-join-04-probe.md + Design §2'
+  `Contract: A2-5-03 终裁（04 先 Probe）+OQ-B` | 
+  `Implementation: 已（提案待裁）` | `Verification: 先例/消费面全实锚` | `Gate: 无`
+- [ ] 7. A2-5-04 实现（提案终裁后）: program_master.rs（ProgramMaster + 
+  compose + 测试）+ mod.rs 挂载; A2-5-05 Semantic Review（含 inconsistency
+  深化）; A2-5-06 收口+交付链
+  `Contract: 04-probe §2-§4 提案` | `Implementation: 待` | 
+  `Verification: 后续核` | `Gate: 后续定`
