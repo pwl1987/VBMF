@@ -97,6 +97,39 @@ metadata declaration contract）出现前不预设。**当前唯一合法 Progra
 | OQ-8 | Fact 类型形态（§2①提案五域 vs 裁决调整）与 Custody 触发挂点（启动通知+周期采样 vs 单一） | A2-7-02 主裁 |
 | OQ-9 | Metadata producer 长期归属确认（A4 Channel 为唯一正源？） | 维持 UNKNOWN 至 A4 |
 
+---
+
+## 5. 用户终裁记录（A2-7-01 → A2-7-02 Gate，2026-09-03）
+
+> **A2-7-01 = CLOSED / APPROVED；A2-7-02 = APPROVED TO IMPLEMENT**
+>（顺序修正：**先最小 Execution Fact boundary → 再 Custody → 最后接
+> join→ProgramMaster**——不先写 Custody 再找事实，否则 Custody 倒逼临时
+> 发明事实）。normalize 缺口作为 A2-7-02 的**独立 execution-adapter 子任务/
+> 阻塞条件**记录，不得被 Custody 代码修饰掉。
+
+| OQ | 终裁 | 关键约束 |
+|---|---|---|
+| OQ-6 | normalize 缺口 = **正式登记 Execution Adapter Gap**；Custody 禁隐式吸收 | 禁 `normalize==true → Custody advance(Normalized)`（Intent=Execution Fact 直接成立，违反本阶段核心原则）；Gap 可见/可追踪/不伪装成成功；后续由 Execution Adapter 工作项补齐+独立真实 completion observation |
+| OQ-7 | completion fact 归 **Execution Adapter / Fact producer**，不归 Custody | Custody 职责 = "事实已发生 → 解释是否满足 transition 条件"，非"理论上应发生 → 假设已发生"；**b1/b2/b3/b4 正式归类 = Ingest Observation / Acceptance Evidence**（非 Normalize Execution Fact）；first_frame_ok() 同 |
+| OQ-8 | 按域拆分维持，但首版 = **最小可证事实模型**（真实 consumer 反推具体 struct） | 排除万能 ExecutionFact（=第二个 Runtime State）；**"fact absent 而非 fact=false"**——无证据无字段（switched/composed/mixed 等不建 false 字段，防 Unknown/Not observed/Not applicable/Failed/Not completed 压成一个 bool） |
+| OQ-9 | Metadata declaration 生产权 = **Control/Program orchestration 语义**；A4 = 未来合法 producer **candidate，不冻结为唯一 SoT**（未来还有 Program template/External metadata/Playlist/Live event/Control-plane declaration） | 当前 Unknown = 唯一诚实状态 |
+
+### 全局修正（终裁原文记档）
+
+**A2-7 不能追求"ProgramMaster 一定形成"**。当前事实下唯一合法状态 =
+`join_result: None`（非 UNKNOWN/FAILED/非人为推满终态）——A2-6 的
+None→null 语义在此成为**完整的上游约束**，闭环成立。
+
+### Custody 职责收紧（终裁 §Custody）
+
+可以做：consume execution facts / attribute facts to 三域 / **advance only
+when transition evidence exists** / build MasterJoinInput / call join() /
+compose ProgramMaster snapshot。
+不能：猜测执行完成 / 创建新 Runtime Health / 修改 Supervisor / 读取
+GStreamer 对象 / 修改 PipelinePlan / 执行 recovery / 生成 metadata truth。
+（与 SessionManager=Session lifecycle owner / Supervisor=recovery decision
+owner / MediaBackend=Pipeline execution 的既有边界完全兼容。）
+
 ## 4. No-Build Gate 复认
 
 零 .rs diff；未定义任何 ExecutionFact 类型；未写 Custody；未碰

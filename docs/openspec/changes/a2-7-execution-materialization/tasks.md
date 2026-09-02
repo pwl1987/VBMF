@@ -40,8 +40,31 @@
   2026-09-03-a2-7-execution-materialization-01-fact-probe.md
   `Contract: 00 终裁 §8 四空白+核心任务` | `Implementation: 已（零 .rs diff）` | 
   `Verification: normalize 零消费 grep 实锚+四空白全证据` | `Gate: 无`
-- [ ] 4. 用户对 OQ-6..9 终裁（normalize 缺口处置/NORMALIZED 事实前提归属/
-  Fact 形态+Custody 挂点/Metadata producer 长期归属）
-  `Contract: 用户裁定权` | `Implementation: 待` | `Verification: 裁决记录` | `Gate: 无`
-- [ ] 5. A2-7-02..05（Custody/链路/mock 验证/真机前置）按 OQ 裁决推进
+- [x] 4. 用户对 OQ-6..9 终裁（2026-09-03 落 01 报告 §5: OQ-6=normalize 缺口
+  正式登记 Execution Adapter Gap·Custody 禁隐式吸收[Intent≠Execution Fact]/
+  OQ-7=completion fact 归 Execution Adapter·**b1..b4 正式归类=Ingest 
+  Observation/Acceptance Evidence**/OQ-8=最小可证事实模型·**fact absent 
+  而非 fact=false**·排除万能 ExecutionFact/OQ-9=Metadata 生产权归 
+  Control/Program orchestration·A4=candidate 非唯一 SoT; 全局修正: A2-7 
+  不追求 ProgramMaster 一定形成——当前唯一合法=join_result:None; Custody 
+  七不终裁; A2-7-02 顺序修正: 先 Fact boundary→再 Custody→最后接 join;
+  A2-7-01 CLOSED）
+  `Contract: 用户裁定权` | `Implementation: 已` | `Verification: 01 报告 §5` | `Gate: 无`
+- [x] 5. A2-7-02 首刀（最小 Fact boundary + Custody）: `src/custody.rs` 
+  新模块——`FailureObservation{source:FailureSource 封闭词表, path}` +
+  `attribute_failures` 保守归因（管线粒度=设备级 video+audio 同 Handle,
+  media path 标注缺失→双路 failed 保守记档, element 级演进 deferred）+
+  `CustodyObservations{failures,avsync}`（零第二 SoT: 消费时装配参数包,
+  与 MasterJoinInput 同律）+ `custody_snapshot` 最小闭环（consume→归因→
+  **advance 零触发**[无 transition evidence, 三 Master 诚实停留初始态]→
+  build JoinInput→join→compose）; 4 测试: attribution 保守/无 failure=
+  None+初始态不虚推进/failure 穿透 readiness gate[单路→Degraded·双路→
+  Failed·AVSync FAILED 不改]/确定性+C′ 不可达; normalize Gap 正式登记
+  （PipelinePlan.normalize 字段 doc: Execution Adapter Gap·Custody 禁吸收）;
+  **不碰 materialize/SessionManager/watchdog/transport**（终裁禁止清单）
+  `Contract: 01 终裁 §5 Custody 七不+OQ-6..9` | `Implementation: 已` | 
+  `Verification: 盒上 custody 4/4 + mock 303（299+4 恰）+ clippy 4-combo 
+  PASS + fmt clean` | `Gate: 无`
+- [ ] 6. A2-7-03..05（链路扩展/mock lifecycle 验证/真机前置）——待用户
+  复核首刀后按 OQ-6..9 裁决推进; A2-8 双输入真机切换
   `Contract: Gate 链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`

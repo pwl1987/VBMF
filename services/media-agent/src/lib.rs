@@ -31,6 +31,7 @@ pub mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决�
 pub mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可执行性三重守护)
 pub mod config;
 pub mod contracts;
+pub mod custody; // A2-7-02: Program Runtime Custody (Program semantic lifecycle owner; Runtime/Orchestration 边界; 七不终裁)
 pub mod device;
 pub mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离)
 pub mod event_projection; // P0.7C-6: Event Projection Foundation (Runtime→Event→Projection 生产边)
