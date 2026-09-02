@@ -1,6 +1,6 @@
 workflow: full
 language: zh-CN
-phase: build
+phase: archive
 context_compression: off
 build_mode: executing-plans
 build_pause: null
@@ -13,13 +13,13 @@ auto_transition: true
 base_ref: f3f86effca61d4312320c1374e250633cd768aa6
 design_doc: docs/superpowers/specs/2026-09-02-a2-0-runtime-repositioning-design.md
 plan: null
-verify_result: pending
+verify_result: pass
 verify_failures: 0
-verification_report: null
+verification_report: docs/superpowers/reports/2026-09-02-a2-0-runtime-repositioning-verify.md
 branch_status: pending
 created_at: 2026-09-02
-verified_at: null
-archive_confirmation: null
+verified_at: 2026-09-02
+archive_confirmation: pending
 archived: false
 bound_branch: comet/a2-0-runtime-repositioning
 direct_override: null
