@@ -28,7 +28,7 @@ canonical_spec: openspec
 
 ```
 src/lib.rs            # 全模块根（含新 diagnostics/bootstrap/gates/watchdog; A2-1 腾位注释锚）
-src/main.rs           # 组合根: config→adapter→deps→wiring→transport→lifetime（<500 行）
+src/bin/media-agent.rs    # 组合根: bootstrap→diagnostic wiring→runtime wiring→transport→lifetime（A20-04 归位终态; 行数为 review target 非硬指标）
 src/bin/gates.rs      # 薄壳: env(VBMF_SESSION_LIFECYCLE/VBMF_LOOPBACK/VBMF_REGISTRY_ONLY)→lib::gates
 src/diagnostics.rs    # C1/CAP-01/MEDIA-RT-01 自测/EXTERNAL-API 证据（原条件原位置调用）
 src/bootstrap.rs      # DiagnosticWorld{cfg,mode,devices,bindings,registry,lm,sup,logs,mgr,ctrl,agent_state}

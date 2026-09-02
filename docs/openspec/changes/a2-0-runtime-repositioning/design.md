@@ -4,7 +4,7 @@
 
 ```
 src/lib.rs          # 全模块根（既有模块 + 新 watchdog/gates/diagnostics/bootstrap）
-src/main.rs         # media-agent 生产 bin = Composition Root（<500 行目标）
+src/bin/media-agent.rs  # media-agent 生产 bin = Composition Root（A20-04 物理归位终态; <500 为 review target 非硬指标——用户裁定）
 src/bin/gates.rs    # media-agent-gates 薄壳（env 分发 → lib::gates::*）
 ```
 

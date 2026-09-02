@@ -3,7 +3,7 @@
 - Change: a2-0-runtime-repositioning
 - Phase: design
 - Mode: compact
-- Context hash: e0a317acc23ec28b79174b6a42d8d8ce46232046e9069b85d9c0709675db02fc
+- Context hash: 8c5e9019d9b1a86d7f18cd89d625d794ff6aa1ec81f3df129e9bb8ab1d705960
 
 Generated-by: comet-handoff.sh
 
@@ -51,8 +51,8 @@ main.rs 头注释仍自称 "Gate 2 skeleton + Gate 5/6/7 scaffolding"; Cargo.tom
 ## docs/openspec/changes/a2-0-runtime-repositioning/design.md
 
 - Source: docs/openspec/changes/a2-0-runtime-repositioning/design.md
-- Lines: 1-34
-- SHA256: 6df57b4004bfdc5311798bcbe876f1a234ef9e7831675f842b5299a4ba0012ec
+- Lines: 1-42
+- SHA256: c20ae2ff9ca8367547fb49ec90e6065d296da14a6dca2c88066824a9759bb15d
 
 ```md
 # Design — a2-0-runtime-repositioning（高层框架）
@@ -61,7 +61,7 @@ main.rs 头注释仍自称 "Gate 2 skeleton + Gate 5/6/7 scaffolding"; Cargo.tom
 
 ```
 src/lib.rs          # 全模块根（既有模块 + 新 watchdog/gates/diagnostics/bootstrap）
-src/main.rs         # media-agent 生产 bin = Composition Root（<500 行目标）
+src/bin/media-agent.rs  # media-agent 生产 bin = Composition Root（A20-04 物理归位终态; <500 为 review target 非硬指标——用户裁定）
 src/bin/gates.rs    # media-agent-gates 薄壳（env 分发 → lib::gates::*）
 ```
 
@@ -89,6 +89,14 @@ lib.rs 模块声明区预留注释锚: `// A2-1+: program (Channel/SwitchPolicy/
 - **行为零变红线**: 生产路径输出/时序/相位逐段等价（A20-01 对照跑）; gates bin 仅入口换名（gate 内部逻辑逐字节搬运）。
 - 风险: 大块搬运漏改路径 → 全部保 `crate::`（lib 模块内自然成立）; bin 内引用经 `media_agent::`。
 - 盒 gate 脚本（不入库）调用点换 `media-agent-gates`（SESSION_LIFECYCLE/LOOPBACK/REGISTRY_ONLY 三 env）。
+
+## 用户 2026-09-02 Step 2 复核裁定（追加, 以此为准）
+
+1. **gates/ 模块族非单体**: `gates/{mod,config_probe,resolver,loopback,registry,session_lifecycle}.rs`; mod.rs 只做 façade `run()`。绝不形成"第二个 main.rs"。
+2. **顺序重排**: A20-02 Gate Extraction（先搬, 显式参数即可, 13 参数不怕——验证"搬出去不改变行为"）→ A20-03 Bootstrap Extraction（收口共享依赖; **硬边界: bootstrap 只构造不运行**——禁 session/pipeline start、watchdog、recover、sleep、gate 断言、process::exit、HTTP accept）→ A20-04 lib 化终刀（lib.rs crate 根; **main.rs → src/bin/media-agent.rs**; bin/gates.rs; Cargo description/头注释/旧 skeleton 注释统一在此刀修, 不在搬运步产生无关 diff）。
+3. **Gate 语义纪律**: Gate = 调用 Production Runtime 做验收, **不自造第二套 Runtime**; LOOPBACK 现存自建 registry/event sink = **"Gate-local diagnostic construction, A2-0 不合并 production runtime"**（Design 显式标记, 防误认为正式初始化路径）。
+4. **A20-02 六条验收**: ①生产默认路径零 Gate 执行 ②生产二进制不再 dispatch 五 env（dispatch responsibility 归 gates）③`cargo run --bin gates` 可进入 ④watchdog.rs 零漂移（Step 1 状态不动）⑤mock 251 全绿 ⑥硬件编译矩阵 default/simulation/mock/bmd-provider/bmd+gstreamer。
+5. 最终形态: lib(Domain/Contracts/Runtime/Adapters/Bootstrap/Watchdog) + media-agent(Production Root) + gates(Diagnostic Root)。
 
 ```
 
