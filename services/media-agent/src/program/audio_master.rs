@@ -265,7 +265,10 @@ mod tests {
             (MixLayout::FiveOne, "FIVE_ONE"),
             (MixLayout::StereoAndSub, "STEREO_AND_SUB"),
         ] {
-            assert_eq!(serde_json::to_string(&layout).unwrap(), format!("\"{wire}\""));
+            assert_eq!(
+                serde_json::to_string(&layout).unwrap(),
+                format!("\"{wire}\"")
+            );
             let back: MixLayout = serde_json::from_str(&format!("\"{wire}\"")).unwrap();
             assert_eq!(back, layout, "wire↔variant 恒等");
         }
