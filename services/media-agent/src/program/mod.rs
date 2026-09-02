@@ -16,6 +16,9 @@ pub mod video_master;
 pub use audio_master::{
     AudioDataPlane, AudioMaster, AudioMasterStage, MixLayout, DEFAULT_DELAY_MS,
 };
-pub use metadata_master::{MetadataDataPlane, MetadataType, METADATA_TYPES};
+pub use metadata_master::{
+    MetadataDataPlane, MetadataFact, MetadataJoinDeclaration, MetadataMaster, MetadataPresence,
+    MetadataType, JOIN_DECLARATIONS, METADATA_TYPES,
+};
 pub use switch_policy::{ProgramDomainError, SwitchIoPlane, SwitchPolicy, ACCEPTED_LIST};
 pub use video_master::{ProgramComposition, VideoDataPlane, VideoMaster, VideoMasterStage};

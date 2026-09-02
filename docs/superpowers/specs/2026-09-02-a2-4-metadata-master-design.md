@@ -36,9 +36,76 @@ status: ruled-a2-4-01-approved
 - 词表快照 const（同 SwitchPolicy ACCEPTED_LIST 纪律）+ serde fail-closed（拒 `SUBTITLE`/`SCTE_35`/未知串——测试锁定 OQ-2/OQ-4 裁决）。
 - serde(default) 新生儿禁用（A2-2 立规；MetadataType 无天然默认值——taxonomy 不是阶段）。
 
+## 1.5 A2-4-02 词表与字段锁定（SQ-1..SQ-5 终裁后，编码前冻结）
+
+> SQ 终裁（2026-09-02）：SQ-1 闭合 enum 最小三态 / SQ-2 enum declaration 禁裸 bool /
+> SQ-3 data_plane 入字段（禁加 EVENT）/ SQ-4 空 Vec 合法 / SQ-5 无 payload；
+> 补充裁决：**无 scope 字段**（Program Domain 结构即 scope，input scope 由
+> CanonicalSourceRef 表达）。16 行字段终裁表全冻结（12 不要/绝对不要）。
+
+### MetadataPresence（SQ-1）
+
+```rust
+pub enum MetadataPresence { Present, NotPresent, Unknown }
+```
+wire：`PRESENT / NOT_PRESENT / UNKNOWN`（SCREAMING_SNAKE_CASE，与 01 一致）。
+**不收** `INVALID/DISCONTINUOUS/RECOVERED`（Timecode Observation 域语义，
+绝不复制——测试锁定）。语义 = fact 在本对象中的存在性，非内容健康。
+锚：`AudioPresence::{Present{..},NotPresent,Unknown}` 三态同形。无 Default
+（fact 构造必须显式 presence，"默认存在/不存在"均无依据）。
+
+### MetadataJoinDeclaration（SQ-2）
+
+```rust
+pub enum MetadataJoinDeclaration { Participating, NotPresent, Unknown }
+```
+wire：`PARTICIPATING / NOT_PRESENT / UNKNOWN`；词表快照 const `JOIN_DECLARATIONS`。
+- `Participating` = Metadata 路正向声明参与 Program Master Join（facts 可空——
+  SQ-4 合法组合：明确知道无额外 metadata 的节目）；
+- `NotPresent` = 已观测并声明本 Program 无该路 metadata（≠ 没观测）；
+- `Unknown` = 观测不足以声明。
+命名论证：不叫 `READY`（Declaration≠Readiness 红线）；无 `JOINED/CONSUMED`
+（Join 消费态属 A2-5 侧）；无 `NOT_APPLICABLE`（业务裁决源不存在——控制面
+未建，加法演进留口）；类型名不用 `Status`（避免与 Health/readiness 混淆）。
+锚：SQ-4 终裁例句直接以 NOT_PRESENT/UNKNOWN 作 declaration 值。
+Default：`#[default] Unknown`（无观测前态）。
+
+### MetadataFact（字段顺序与 wire 锁定）
+
+```rust
+pub struct MetadataFact {
+    pub kind: MetadataType,          // 终裁表 "fact.type"; 物理名 kind=仓库压倒性惯例
+    pub source: CanonicalSourceRef,  // 复用, 禁 MetadataSourceId
+    pub presence: MetadataPresence,
+}
+```
+serde 字段名 = 声明名（kind/source/presence，snake_case 与 descriptor 家族一致）。
+无 timecode/timestamp/scope/payload 字段（终裁表四不要）。无 Default。
+
+### MetadataMaster（字段顺序与 wire 锁定）
+
+```rust
+pub struct MetadataMaster {
+    pub data_plane: MetadataDataPlane,            // SQ-3: canonical 自描述身份
+    pub facts: Vec<MetadataFact>,                 // SQ-4: 空 Vec 合法, 禁推导
+    pub join_declaration: MetadataJoinDeclaration,
+}
+```
+derive `Default`（data_plane=Metadata 唯一值 / facts=[] / Unknown）+ `new()`
+同值；**零字段级 `#[serde(default)]`**（A2-2 立规——缺字段 fail-closed，与
+VideoMaster/AudioMaster 现状逐字一致）。全家族 Eq+Hash（CanonicalSourceRef
+Copy+Eq 已备）。
+
+### 测试级红线锁定（随编码交付）
+
+拒收 `INVALID/DISCONTINUOUS/RECOVERED`（presence）；拒收 `READY/JOINED/
+CONSUMED/TRUE`（declaration）；fact/master JSON 键集恰三键（禁字段蔓延的
+wire 契约锁）；SQ-4 两组正交组合断言（空 facts+Participating 合法 /
+非空 facts+Unknown 不禁）。
+
 ## 2. 防伪需求三原则（不类推/不自创词/缺口原样上报）
 
-见 openspec design.md §2。词表冻结与结构设计**全部延后**至裁决后。
+见 openspec design.md §2。词表已按 §1.5 锁定后编码。
 
 ## 3. 裁决面（交用户）
 

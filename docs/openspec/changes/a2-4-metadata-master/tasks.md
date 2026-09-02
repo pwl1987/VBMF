@@ -32,8 +32,20 @@
   报告=docs/superpowers/reports/2026-09-02-a2-4-metadata-master-shape-probe.md
   `Contract: 用户 §一-§二十终裁` | `Implementation: 已` | 
   `Verification: 零 .rs diff·清单完好·十项全有代码实锚` | `Gate: 无`
-- [ ] 5. A2-4-02 编码（SQ-1..SQ-5 字段级裁决后）: MetadataFact/MetadataMaster
-  (facts+join declaration, Candidate B); A2-4-03 字段语义+serde; A2-4-04 Join
-  boundary review; A2-4-05 全回归+architecture guard; 交付链
-  `Contract: 终裁 §二十 NO-CODE 清单+SQ 裁决` | `Implementation: 待` | 
+- [x] 5. A2-4-02 编码（SQ-1..SQ-5 终裁 + scope 补裁 + 16 行字段表冻结后）:
+  Design Doc §1.5 词表先锁（编码前置纪律）——MetadataPresence 三态
+  （PRESENT/NOT_PRESENT/UNKNOWN; 拒 Timecode 域 INVALID/DISCONTINUOUS/
+  RECOVERED）/ MetadataJoinDeclaration 三态（PARTICIPATING/NOT_PRESENT/
+  UNKNOWN + JOIN_DECLARATIONS 快照; 拒 READY/JOINED/CONSUMED/NOT_APPLICABLE/
+  bool）/ MetadataFact{kind,source,presence}（无 payload/timecode/timestamp/
+  scope; source=CanonicalSourceRef 复用; PartialEq+Eq only 不为对称补 Hash）
+  / MetadataMaster{data_plane,facts,join_declaration}（SQ-3 入字段; Default+
+  new(); 零字段级 serde(default)）; 测试 05-09（词表红线拒收/fact+master 
+  JSON 键集恰三锁字段蔓延/SQ-4 正交组合断言/缺字段 fail-closed）
+  `Contract: SQ 终裁+Design §1.5+16 行字段表` | `Implementation: 已` | 
+  `Verification: 盒上 program 域 30/30（25+5 恰）+ mock 282（277+5 零回退）+
+  clippy 4-combo PASS + fmt clean` | `Gate: 无`
+- [ ] 6. A2-4-03 字段语义深度复核（serde 已随 02 交付, 03=review 深度项）;
+  A2-4-04 Join boundary review; A2-4-05 全回归+architecture guard; 交付链
+  `Contract: 终裁 §二十实施链` | `Implementation: 待` | 
   `Verification: 后续核` | `Gate: 后续定`
