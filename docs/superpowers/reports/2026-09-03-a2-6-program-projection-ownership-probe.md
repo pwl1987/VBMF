@@ -97,7 +97,8 @@ Domain 长 reason 字段）。
 
 - **零生产触发点事实**：`join()`/三 Master writer 零——**任何 projection
   设计在"三 Master 谁写"裁决前都是空中楼阁**（OQ-2 是全链第一前置）；
-- `assemble()` 唯一装配点不动；RuntimeQuery 纯读 allowlist（7 fn）在
+- `assemble()` 唯一装配点不动；RuntimeQuery 纯读 allowlist（7 个查询方法
+  + new 构造方法 = 8 项公开 surface）在
   A2-6-02 前零扩展；
 - transport `/api/v1/runtime` 响应体（ApiQuerySnapshot）冻结不动——A2-6-03
   才接新端点（若有）。
@@ -123,7 +124,71 @@ Master/Join/ProgramMaster；禁止捷径红线全程生效。
 
 session.rs L187/L254-268（MediaSession.health/SessionManager 字段全清点）·
 runtime_state.rs L122-160（SnapshotObservation/assemble）·
-runtime_query.rs L41-78（allowlist 7 fn）· api_boundary.rs L6-15/L37-160/
+runtime_query.rs L36-78（7 个 Pure-Read 查询方法 + new 构造方法, 公开
+surface 共 8 项）· api_boundary.rs L6-15/L37-160/
 L517（禁令原文/资源族/零 media 投影）· transport.rs L195-246（端点冻结）·
 master_join.rs（join() 零生产调用者）· program/mod.rs L7-9（Canonical/
 Adapter 边界纪律）。
+
+---
+
+## 7. 用户终裁记录（A2-6-00 → A2-6-01 Gate，2026-09-03）
+
+> 复核基准：master=2166d25 真实代码交叉核验。**A2-6-00 = APPROVED / CLOSED**
+> （不按报告倾向"B + 立即落地"直接进实现）。
+
+### 核心裁决：OQ-1/OQ-2 联合裁 = 逻辑定角色、工程暂不创建
+
+- **OQ-1 = B（角色批准，实现 deferred）**：批准方向 =
+  **Program Runtime Custody**（Runtime/Orchestration 侧独立角色，对当前
+  Program Domain snapshot 负责持有与刷新：receives execution facts →
+  advances domain declarations → invokes join() → publishes snapshot）。
+  **A2-6 不创建**——`join()` 零生产调用者时建 Owner 只能是"空壳容器"
+  （为了未来而设计）；等 A2-7 执行事实链建立后落地。
+- **🔴 双禁令**：ProgramMaster 塞入 CanonicalRuntimeState 禁；SessionManager
+  直接成为 owner 禁（两者都会把 Runtime aggregate 变成 Program Domain
+  aggregate）。
+- **OQ-2 = Deferred to A2-7（非无限期）**：生命周期终态 = **执行事实驱动**，
+  但链路必须是 `Execution/Materialization → Execution Fact → Custody/
+  Orchestration → advance/join() → snapshot`——**Watchdog 不是 ProgramMaster
+  writer**（Watchdog=观察/恢复，禁止升级为 Program Domain writer）。
+  正式表述："A2-5/A2-6 阶段不建立 ProgramMaster 生命周期写入实现；生产
+  触发点延后至 A2-7 Materialization/Execution Fact 链建立后，由独立
+  Program Runtime Custody 或等价 Orchestration boundary 负责；Watchdog/
+  Event Projection 不直接成为 Program Domain writer。"
+- **OQ-3 = 独立 snapshot（批准）+ 细则**："独立 snapshot" ≠ API 不能同时
+  展示——API 响应可并列 `runtime_snapshot + program_snapshot`（**并列
+  projection**），非存储/所有权层合并。
+- **OQ-4 = Deferred to A2-6-01**（消费语义出来再裁命名）。
+- **OQ-5 = 内部 CLOSED + wire Deferred**：内部 `None=尚未形成 Join Result`
+  绝不变（≠UNKNOWN/NOT_READY/DEGRADED/FAILED）；null vs 字段缺席属 wire
+  contract → A2-6-01。
+- **Q6/Q7/Q8 原裁决全部批准**（透传禁 Health 化 / failed 不暴露防三处
+  表示 / inconsistency 默认不暴露、需求出现在 API 层定义）。
+- **事实修正**："allowlist 7 fn" → **7 个 Pure-Read 查询方法 + new 构造
+  方法 = 8 项公开 surface**（本报告已改；不重开 00）。
+
+### A2-6 全局边界图（终裁 §十）
+
+```
+Program Domain（六类型） ◄── owned/refreshed by ── Program Runtime Custody
+        ▲                                             （角色已批, A2-7 落地）
+        │ semantic types                        ▲ execution facts
+        │                                              │
+        └────────────────────────────── Execution/Materialization（A2-7）
+
+Runtime State / Health·Watchdog / Event Projection ──┐
+ProgramMaster ───────────────────────────────────────┴──→ Projection / API
+```
+
+**最重要一条**：Runtime State 不反推 ProgramMaster；Watchdog 不直接写
+ProgramMaster；API 不负责制造 ProgramMaster。
+
+### 下一步
+
+**A2-6-01 Consumer + Projection Shape Probe**（立即开始，Probe Only）——
+七项：真实消费者 / API Resource 语义 / None wire / AVSync projection /
+snapshot 并列 / 是否需要 ProgramQuery / 到 API Boundary 的唯一转换点。
+**硬 Gate：不能因为没有 owner，就在 A2-6 里临时创建"假的当前
+ProgramMaster"用于投影。** 01 任务严格限定"真实消费者→Projection Shape"，
+不偷偷开始实现 Custody。

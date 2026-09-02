@@ -5,14 +5,28 @@ canonical_spec: openspec
 status: probe-stage
 ---
 
-# Design Doc — a2-6-program-projection（A2-6: Program Runtime Projection — Ownership Probe Stage）
+# Design Doc — a2-6-program-projection（A2-6: Program Runtime Projection）
 
-> 当前处于 **A2-6-00 Ownership/SoT Probe 阶段**（用户裁定：先解决
-> "ProgramMaster 由谁拥有、从哪里产生"，再谈 projection）。证据产物 =
-> [ownership-probe 报告](../reports/2026-09-03-a2-6-program-projection-ownership-probe.md)。
-> 编码期设计（Owner/写入通道/投影形态）在 OQ-1..5 裁决后补入。
+> **A2-6-00 已 CLOSED**（五问终裁全文见
+> [ownership-probe 报告 §7](../reports/2026-09-03-a2-6-program-projection-ownership-probe.md)）。
+> 当前阶段：**A2-6-01 Consumer + Projection Shape Probe**（Probe Only）。
 
-## 1. 探针决定性事实
+## 0'. 00 终裁要点
+
+- **OQ-1 = B 角色批准（Program Runtime Custody），实现 deferred to A2-7**——
+  `join()` 零生产调用者时建 Owner=空壳容器；🔴 双禁令：ProgramMaster 塞入
+  CanonicalRuntimeState 禁 / SessionManager 作 owner 禁。
+- **OQ-2 = Deferred to A2-7**：链路 = Execution→Execution Fact→Custody/
+  Orchestration→advance/join()→snapshot；**Watchdog 不是 ProgramMaster
+  writer**。
+- **OQ-3 = 独立 snapshot**；API 可并列 projection（runtime_snapshot +
+  program_snapshot），非存储合并。
+- **OQ-4/OQ-5 = deferred to 01**（命名 / None wire 形态）。
+- Q6/Q7/Q8 原裁决批准。事实修正：allowlist = 7 查询 + new = 8 项 surface。
+- **01 硬 Gate：不能因为没有 owner 就临时创建"假的当前 ProgramMaster"
+  用于投影**；01 严格限定"真实消费者→Projection Shape"。
+
+## 1. 探针决定性事实（00）
 
 - **ProgramMaster 当前无处产生**：`join()` 零生产调用者、三 Master writer
   零——SessionManager/MediaSession 字段全清点零 Program 引用。所有权问题
