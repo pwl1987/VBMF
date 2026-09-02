@@ -5,11 +5,25 @@ canonical_spec: openspec
 status: probe-stage
 ---
 
-# Design Doc — a2-5-master-join（A2-5: Master Join — SoT Probe Stage）
+# Design Doc — a2-5-master-join（A2-5: Master Join）
 
-> 当前处于 **A2-5-00 SoT Probe 阶段**（用户裁定七刀链第一刀）。技术设计 =
-> 探针方法论；证据产物 = [sot-probe 报告](../reports/2026-09-02-a2-5-master-join-sot-probe.md)。
-> 编码期设计（Join 形态/词表/输入输出模型）在 OQ-A..E 裁决后补入。
+> A2-5-00 已 CLOSED（五问终裁 + R-A..R-J 硬约束，全文见
+> [sot-probe 报告 §8](../reports/2026-09-02-a2-5-master-join-sot-probe.md)）。
+> 当前阶段：**A2-5-01 Domain Shape Probe**（16 项必查，零生产代码）。
+
+## 0'. 五问终裁要点 + R-A..R-J（全文见 probe §8）
+
+- **OQ-A**：Join 出判定声明，Runtime/Safety 消费定 DEGRADED/FAILOVER；
+  Join 零 Recovery 方法、也禁 `valid: bool` 空洞化。
+- **OQ-B**：ProgramMaster = **组合根**（三 Master + MasterJoinResult），
+  禁字段复制/展平，非第四 Stage Pipeline。
+- **OQ-C**：A2-5 只做 AVSync 声明面+分类输入；**DB schema ≠ Domain SoT**。
+- **OQ-D**：Join 出 classification input；classify→action 归 Runtime/Safety。
+- **OQ-E**：禁 `all==MASTER_JOINED` 与 `Participating→Ready` 提升；三路
+  **非对称输入**真值矩阵属 A2-5-02。
+- **R-A..R-J**：语义不可坍缩 / Facts≠Declaration / Declaration≠Readiness /
+  Readiness≠Health / Health≠Classification / Failure≠Action / Join≠Watchdog /
+  Join≠Safety / D14 不入 Join / Timecode SoT 不动。
 
 ## 1. 探针结论摘要
 

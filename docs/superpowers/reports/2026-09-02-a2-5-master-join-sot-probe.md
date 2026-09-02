@@ -120,3 +120,37 @@ ARCHITECTURE_V0.2.md：§1.20 L138-155 · §2.4 L319 · §3.7 L759-872（L830）
 代码 @1779429：program/{switch_policy,video,audio,metadata}_master.rs ·
 health.rs · runtime_state.rs L249-255 · events.rs · A2-4 归档
 （Design §1.5a-1.5b + join-boundary-review 报告）。
+
+---
+
+## 8. 用户终裁记录（A2-5-00 → A2-5-01 Gate，2026-09-02）
+
+> 复核基准：V0.2 全架构 + master 真实代码 + A2-4 已冻结语义。四层拆开：
+> Program Domain / Master Join / Runtime Health / Safety / Watchdog。
+
+### 五问终裁（全 CLOSED）
+
+| OQ | 终裁 | 补充边界 |
+|---|---|---|
+| A | Join 输出**联合判定结果/判定声明**；Runtime Health/Safety 消费并决定 DEGRADED/FAILOVER 行为；**Join 不直接操作 Recovery** | Join 非空表达（Jointly Acceptable/Degraded/Failed/Classification input/AVSync 分类——具体 enum 属 A2-5-02）；禁 failover/switch_source/insert_filler/recover 方法；也禁 `valid: bool` 空洞化 |
+| B | **ProgramMaster = 组合模型**：VideoMaster+AudioMaster+MetadataMaster+MasterJoinResult；**Program Domain 组合根**，非第四个 processing Master 非单纯 View | **禁字段复制**（不展平三 Master 字段——否则 God Object）；组合/引用既有 domain objects |
+| C | A2-5 实现 AVSync 的 **Program/Join 声明面与分类输入**；GStreamer/FFmpeg 对齐（resample/delay/pad adjustment）不实现 | **DB schema ≠ Domain SoT**：`avsync_measurements` 是 persistence/measurement 侧描述，禁直接复制成 Domain API Model |
+| D | classify→action 属 **Runtime/Safety/Watchdog**；Join 可产生/暴露 **classification input**（非被动输入桶） | 禁 `if av_sync.red { Action::Failover }`（PLAYER 绝不切源；§8.10 先分类后动作） |
+| E | **绝对禁 `all==MASTER_JOINED`**；按三域各自契约判断；真值矩阵留 A2-5-02 | 三路**非对称输入模型**（Video/Audio=processing stage；Metadata=declaration）；**禁 `Participating`/`≠UNKNOWN` 提升为 Ready**（PARTICIPATING≠READY，NOT_PRESENT≠READY，NOT_PRESENT 与 PARTICIPATING 不合并） |
+
+### R-A..R-J 硬约束（十危险点终裁升级版，A2-5 全程评审必查）
+
+R-A 语义状态不可坍缩（Unknown/NotPresent/Present/Failed/Degraded/Ready/
+Joined 各自独立）· R-B Facts≠Declaration · R-C Declaration≠Readiness
+（PARTICIPATING≠READY）· R-D Readiness≠Health · R-E Health≠Failure
+Classification · R-F Failure≠Recovery Action · R-G Join≠Watchdog（不
+spawn/restart/switch）· R-H Join≠Safety（提供判定信息，Safety 定策略）·
+R-I D14 不得进 Join 语义（observation_revision/generated_at_ms/lineage
+禁作 Join 一致性依据）· R-J Timecode SoT 不移动（Descriptor→Input
+Observation→Join consumes）。
+
+### 状态与准入
+
+**A2-5-00 = APPROVED / CLOSED**；无否决/回滚项；无真实架构冲突。
+准入 **A2-5-01 Domain Shape Probe**（16 项必查，D1-D16 见 01 报告；零生产
+Join 代码；真契约冲突才停，设计缺口不停）。
