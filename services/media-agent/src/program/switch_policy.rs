@@ -104,6 +104,19 @@ mod tests {
     }
 
     #[test]
+    fn program_rt_01_switch_policy_parse_roundtrip_identity() {
+        // review Minor#2: parse↔variant 恒等（词表快照与 serde 锁之外的缺环——
+        // match 臂交换也逃不过此断言）。
+        for p in [
+            SwitchPolicy::PacketSwitch,
+            SwitchPolicy::FrameSwitch,
+            SwitchPolicy::MasterSwitch,
+        ] {
+            assert_eq!(SwitchPolicy::parse(p.as_str()).unwrap(), p);
+        }
+    }
+
+    #[test]
     fn program_rt_01_switch_policy_serde_names_lock() {
         // serde 序列化名逐字锁定（wire 契约锚——未来任何 rename 都是破坏性变更）。
         for (policy, wire) in [
