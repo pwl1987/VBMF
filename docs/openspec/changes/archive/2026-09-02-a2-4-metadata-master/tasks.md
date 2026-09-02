@@ -68,7 +68,10 @@
   metadata-master-join-boundary-review.md
   `Contract: A2-4-03 终裁 §十一九项清单+V0.2 §1.20/§1.18/§3.8` | 
   `Implementation: 已（零代码）` | `Verification: 九项全有代码实锚` | `Gate: 无`
-- [ ] 9. A2-4-05 全回归（盒上矩阵 14 步）+ architecture guard + verify
-  报告 + 交付链（review/verify/guards/archive/PR/CI 七 checks/merge/memory）
-  `Contract: 交付纪律` | `Implementation: 待` | 
-  `Verification: 后续核` | `Gate: CI/RELEASE`
+- [x] 9. A2-4-05 全回归（盒上矩阵 14 步 ALL_DONE: fmt apply+check / test×4
+  =185/185/282/185 全 0 failed / clippy -D×4 EXIT=0 / build×3 EXIT=0 /
+  remove-adapter PROOF OK; mock 基线 277→282 +5 恰）+ 六架构不变量 G-A..G-F
+  逐项实证全 PASS（grep/结构实查, 见 verify 报告 §2）+ verify 报告 +
+  交付链（guards/archive/PR/CI/merge/memory）
+  `Contract: A2-4-04 终裁 G-A..G-F + 交付纪律` | `Implementation: 已` | 
+  `Verification: 矩阵 14 步 + 不变量六 PASS + verify 报告` | `Gate: CI/RELEASE`

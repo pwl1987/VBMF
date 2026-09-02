@@ -2,7 +2,8 @@
 comet_change: a2-4-metadata-master
 role: technical-design
 canonical_spec: openspec
-status: ruled-a2-4-01-approved
+archived-with: 2026-09-02-a2-4-metadata-master
+status: final
 ---
 
 # Design Doc — a2-4-metadata-master（A2-4: Metadata Master）
@@ -109,6 +110,39 @@ Default：`#[default] Unknown`（无观测前态）。
 - **A2-5 前瞻约束（A2-5 设计须消费）**：`Unknown ≠ failed`（观测不足不是
   故障，Join 侧禁把 Unknown 直接升格 DEGRADED 依据）；`Participating+[]`
   不阻断（空 ≠ failed；V0.2 §1.20 L155 只有"路 failed"才触发）。
+
+### §1.5b A2-4-05 验收不变量与 A2-5 前瞻红线（A2-4-04 终裁落盘，2026-09-02）
+
+> 终裁基准：真实仓库 `90d34dd` 反向裁决。04 = **Boundary Contract CLOSED**
+> （非 "Join 设计完成"——Join/ProgramMaster/AVSync 零生产代码是 A2-5 未
+> 开始的真实状态）。05 = **Verification & Delivery Closure**。
+
+**六验收不变量（G-A..G-F，05 必须逐项实证）**：
+- G-A Metadata 结构不扩张（stage/payload/timestamp/scope/health/status/
+  ready/revision 八类字段零出现）；
+- G-B Timecode SoT 不迁移（CanonicalTimecode 仍在 Observation 侧的
+  CanonicalMediaDescriptor）；
+- G-C Unknown 不坍缩（不得自动映射 NotPresent/Failed/Degraded）；
+- G-D 空 facts 无结论性语义（`facts.is_empty()` 不推导任何 declaration）；
+- G-E Metadata health 不入 MetadataMaster（fault 归 Runtime/Event/Projection）；
+- G-F A2-5 placeholder 不提前落地（05 只验证 boundary contract 存在）。
+
+**5a 终局加严**：`facts = evidence` / `join_declaration = declaration`
+（**不是 truth**）——fact-level presence 与 aggregate-level declaration 不同
+维度；`NotPresent + [Unknown]` 只表示"aggregate 声明为无而至少一条贡献
+fact 未定"，**Join consumer 不得把 facts 当 declaration 的自动证明器**
+（A2-5 硬边界）。
+
+**A2-5 附加红线（终裁 §8/§9）**：
+- **Event Projection 不能成为 Join**：禁 `RuntimeEvent → EventProjection →
+  ProgramMaster` 让 ProgramMaster 由 Runtime fault 推导 semantic state——
+  正确方向 = Program 域经 Master Join 出 program-level semantic projection，
+  Runtime 平面独立出 health/readiness projection，二者上层关联、**SoT 不互
+  相污染**；
+- **D14 不偷渡**：禁以"加 revision/timestamp 解决 Present+NotPresent 矛盾"
+  为由把 observation_revision 语义偷渡进 Program Domain（Runtime snapshot
+  自身 swept/non-transactional；若未来确需 metadata observation epoch 须
+  重开架构变更）。
 
 ### MetadataFact（字段顺序与 wire 锁定）
 

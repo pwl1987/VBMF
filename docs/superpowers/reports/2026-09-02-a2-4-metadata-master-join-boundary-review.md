@@ -1,6 +1,9 @@
 # A2-4-04 — Master Join Boundary Review（前置全盘代码探针 + 边界契约）
 
-> Status: `REVIEW ONLY / NO CODE CHANGE`
+> Status: `BOUNDARY CONTRACT CLOSED（终裁 2026-09-02）—— 非 "Join 设计完成"`
+> ⚠️ 语义澄清（终裁 §十）：本报告交付的是 **A2-5 输入边界契约**；真实仓库
+> MasterJoin/ProgramMaster/AVSync 零生产代码 = A2-5 尚未开始的真实状态。
+> A2-5 = Master Join implementation/design，与本 Boundary Contract 严格分开。
 > Authority: A2-4-03 终裁 §十一（九项实查清单；不能凭 V0.2 文档直接写 Join）
 > Date: 2026-09-02 · Base: master 分支 comet/a2-4-metadata-master（03 终裁落盘后）
 > 纪律：无真实代码证据不设计 A2-5。
