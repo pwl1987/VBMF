@@ -31,10 +31,17 @@ Master 同一构造信任模型（A2-2 纪律）; compose 锁语义入口唯一�
 侧）；现有最近似先例 = `supervisor::fault_trigger_from_events`——**输入是
 事件流（含 summary 文本），输出 bool 谓词**。即 §8.9 域分类（SOURCE/
 PIPELINE/MASTER/OUTPUT…7 域）的输入形态是**结构化事实集合**，不是单个
-reason 枚举。`JoinClassificationInput` 已携带 `avsync` + `inconsistency` +
-（via Output）`eligibility`/`result`——§8.9 所需的全部 Join 侧事实**已经
-可得**；缺的是故障域归属判定本身，而那是 §8.9 侧职责（红线 8: Join 零
-action；OQ-D: classify→action 归 Runtime）。
+reason 枚举。
+**⚠️ 表述修正（A2-5-05 终裁，与真实 `MasterJoinOutput` 对齐）**：当前
+Output 暴露的是联合结果（`result: Option<MasterJoinResult>`）、Eligibility
+以及 AVSync/C′ classification inputs；**`video_failed`/`audio_failed` 虽
+参与 Join 结果计算（五步真值表行 2/3），但当前未向 Output 暴露**。现阶段
+没有真实消费者证据要求通过 Join Output 获取该原始失败事实——Runtime 侧
+本就持有这两个事实（它们是 Runtime 注入的），无需从 Output 回读；因此不在
+A2-5-05 为 Output 增加字段。若 A2-6/Runtime/Safety 后续产生明确消费者需求，
+再以加法方式增加相应投影字段（Input/Output 无 wire 契约，演进零破坏）。
+"现在不加"是**架构克制，不是遗漏**——二者来源即 Runtime，回读反而制造
+第二真相源。
 
 ### Q-C: Watchdog/Recovery 需要什么？（未来消费者③）
 
@@ -69,12 +76,19 @@ Output 均 PartialEq-only 非 serde 对象，零 wire 破坏）；或 A2-6 投�
 Safety（classify_failure_domain → §8.9 action）。A2-5 内**无直连**——
 边界成立，本次复核零改动需求。
 
-## 2. 五项检查结论
+## 2. 五项检查结论（A2-5-05 终裁 CLOSED）
 
 `inconsistency: bool` **维持原样**——零字段追加。依据链：无消费者请求
 reason（三项取证全否）+ 分类职责归 §8.9 侧（红线）+ 加法演进路径畅通
 （Input/Output 无 wire 契约，将来加字段零破坏）+ God Object 风险实锤。
 **"不提前加字段"终裁经消费者反推检验成立。**
+
+**A2-5-05 终裁状态表（2026-09-02）**：compose 措辞 CLOSED /
+`inconsistency: bool` APPROVED（禁升级 enum——reason/failure_domain/
+failure_class/failure_source/recovery_action/incident_code/metadata error
+enum 全拒）/ AVSync 不入 Result（拒绝快捷转换）/ A2-6 projection 立即加
+字段拒绝（无证据）/ `video_failed/audio_failed` 暂不进 Output（维持）/
+未来消费者驱动加字段允许 / **APPROVED / CLOSED**。
 
 ## 3. 全模型语义复核（顺带扫描，非重点项）
 

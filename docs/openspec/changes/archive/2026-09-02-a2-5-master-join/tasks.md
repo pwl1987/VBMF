@@ -23,7 +23,7 @@
   docs/superpowers/reports/2026-09-02-a2-5-master-join-shape-probe.md
   `Contract: 终裁 §九 16 项清单+R-A..R-J` | `Implementation: 已（零 .rs diff）` | 
   `Verification: 16 项全有代码实锚` | `Gate: 无`
-- [ ] 4. A2-5-02 输入/输出模型裁定（**用户终裁 CLOSED @462f74f**: 四项全
+- [x] 4. A2-5-02 输入/输出模型裁定（**用户终裁 CLOSED @462f74f**: 四项全
   APPROVED + 矩阵优先序修正——failure/C′ 不受 readiness gate, None=Option
   语义非第四值; 报告=docs/superpowers/reports/2026-09-02-a2-5-master-join-
   02-adjudication.md 含 12 条 03 实现红线; Design §1 已标 supersede）
@@ -77,6 +77,6 @@
   `Contract: 04 终裁（05 五项检查）+R-A..R-J` | 
   `Implementation: 已（.rs 仅措辞）` | `Verification: 盒上 program 域 39/39
   零行为差异` | `Gate: 无`
-- [ ] 9. A2-5-06 收口+交付链: 盒上全矩阵 + verify 报告 + guards（record-check）
+- [x] 9. A2-5-06 收口+交付链: 盒上全矩阵（14 步 ALL_DONE, test 194/194/291/194）+ verify 报告 + guards（record-check）
   + archive + PR + CI 七 checks + merge + memory
   `Contract: 交付纪律` | `Implementation: 待` | `Verification: 后续核` | `Gate: CI/RELEASE`
