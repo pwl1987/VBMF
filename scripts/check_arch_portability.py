@@ -193,10 +193,8 @@ def main():
         all_errors.extend(check_file(rel, p))
 
     # A20-03-BS-01 Single Bootstrap Source (用户 2026-09-02 裁定):
-    # bin 入口（bin/gates.rs; bin 不得复制生产依赖构造——Gate 是 Consumer 不是
-    # Bootstrapper）。禁止在 bin 文件出现构造调用; bootstrap.rs 与 lib 是唯一构造源。
-    # main.rs（生产组合根）经 bootstrap::build() 消费, 自身也不得直接构造这些依赖
-    # （自测 ctrl 构建除外——那是 runtime wiring 非 bootstrap 件, 见豁免表）。
+    # bin 入口不得复制生产依赖构造——Gate 是 Consumer 不是 Bootstrapper;
+    # bootstrap.rs 与 lib 是唯一构造源（生产组合根同样经 bootstrap::build() 消费）。
     BS_FORBIDDEN = [
         "Config::from_env(",
         "AdapterRegistry::build_provider(",
@@ -206,7 +204,6 @@ def main():
         "RuntimeEventLog::new(",
         ".discover()",
     ]
-    BS_SCOPE = ["bin"] + os.sep.join(["bin"])  # bin/ 子树
     bs_errors = []
     bin_dir = SRC / "bin"
     if bin_dir.is_dir():
