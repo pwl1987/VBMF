@@ -192,6 +192,39 @@ def main():
             continue
         all_errors.extend(check_file(rel, p))
 
+    # A20-03-BS-01 Single Bootstrap Source (用户 2026-09-02 裁定):
+    # bin 入口（bin/gates.rs; bin 不得复制生产依赖构造——Gate 是 Consumer 不是
+    # Bootstrapper）。禁止在 bin 文件出现构造调用; bootstrap.rs 与 lib 是唯一构造源。
+    # main.rs（生产组合根）经 bootstrap::build() 消费, 自身也不得直接构造这些依赖
+    # （自测 ctrl 构建除外——那是 runtime wiring 非 bootstrap 件, 见豁免表）。
+    BS_FORBIDDEN = [
+        "Config::from_env(",
+        "AdapterRegistry::build_provider(",
+        "FanoutSink::new(",
+        "Supervisor::new(",
+        "InMemoryLeaseManager::new(",
+        "RuntimeEventLog::new(",
+        ".discover()",
+    ]
+    BS_SCOPE = ["bin"] + os.sep.join(["bin"])  # bin/ 子树
+    bs_errors = []
+    bin_dir = SRC / "bin"
+    if bin_dir.is_dir():
+        for p in sorted(bin_dir.rglob("*.rs")):
+            rel = str(p.relative_to(SRC))
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            # 剥注释行（// 开头）与文档注释——只查真实代码
+            for i, line in enumerate(text.splitlines(), 1):
+                stripped = _strip_strings(line)
+                if _is_comment(stripped):
+                    continue
+                for tok in BS_FORBIDDEN:
+                    if tok in stripped:
+                        bs_errors.append((rel, i, tok))
+
     if all_errors:
         print("FAIL — ARCH-PORTABILITY-01 门禁: "
               f"{len(all_errors)} 处受保护层出现厂商引用:")
@@ -199,8 +232,17 @@ def main():
             print(f"  {rel}:{lineno}:{col}: 受保护层出现厂商引用 '{tok}'")
         sys.exit(1)
 
+    if bs_errors:
+        print("FAIL — A20-03-BS-01 Single Bootstrap Source: "
+              f"{len(bs_errors)} 处 bin 入口出现生产依赖构造调用 "
+              "(必须经 bootstrap::build() 消费):")
+        for rel, lineno, tok in sorted(bs_errors):
+            print(f"  {rel}:{lineno}: bin 不得直接构造 '{tok}'")
+        sys.exit(1)
+
     print("PASS — 受保护层 (domain/contracts/runtime) 无厂商 crate 直接引用 "
-          "(ARCH-PORTABILITY-01 词法门禁)")
+          "(ARCH-PORTABILITY-01 词法门禁) + "
+          "A20-03-BS-01 Single Bootstrap Source (bin 零构造调用)")
     sys.exit(0)
 
 

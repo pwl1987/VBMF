@@ -27,6 +27,7 @@ compile_error!("hardware-test SDK 探针与 canonical GStreamer 运行时互斥;
 pub mod adapters;
 pub mod api_boundary; // P0.7C-7: External API Foundation (API Boundary Model + Idempotency 契约; 非 Web Server)
 pub mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)
+pub mod bootstrap; // A2-0/A20-03: 唯一构造源（只构造不运行; 双 bin 同源消费）
 pub mod clock; // P0.7B-2A: Canonical Clock Domain (只描述观测, 绝不决策; #147)
 pub mod command; // P0.7C-3: Command Contract (请求语义非执行计划; 不可执行性三重守护)
 pub mod config;
