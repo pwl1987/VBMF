@@ -14,10 +14,9 @@
 //! + Canonical 语义（normalize/clock/audio/timecode）+ Command/Idempotency/Error 平面
 //! + Transport 五端点 + 多输入编码输出（HLS/RTMP）。
 //!
-// A2-1+ 腾位锚（Program Domain 归位处, 本 change 零类型零实现）:
-//   pub mod program;  // Channel / SwitchPolicy(PACKET|FRAME|MASTER) / Video-Audio-Metadata
-//                     // Master / MasterJoin / ProgramMaster —— A2-1 起以 Canonical Domain
-//                     // Object 落位于此; GStreamer 仅为其 Execution Adapter。
+//! **Program Domain（A2-1 起落位, 用户裁定链 A2-1..A2-8）**: `program` 模块 =
+//! 节目生产模型 Canonical 层（SwitchPolicy 已落; Masters/MasterJoin/ProgramMaster
+//! 属 A2-2+）。GStreamer 仅为其 Execution Adapter——绝不反向推导。
 
 // 硬规则 (Phase 0.6): `hardware-test` (IDeckLinkInput SDK 探针) 与 canonical `gstreamer`
 // 运行时互斥 —— 生产运行不得同时打开同一块 DeckLink (避免双采 / 设备争用). 编译期强制.
@@ -48,6 +47,7 @@ pub mod pipeline;
 pub mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 pub mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
 pub mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
+pub mod program; // A2-1: Program Domain —— 节目生产模型 Canonical 层（SwitchPolicy 首块; A2-2+ Masters/MasterJoin/ProgramMaster）
 pub mod registry;
 pub mod resolver;
 pub mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
