@@ -167,7 +167,10 @@ ProgramMaster ── to_api_program_master() ── ApiProgramMaster
 ```
 
 薄镜像 DTO 字段严格 1:1 对应 canonical wire shape；mapper 只做显式复制/
-转换。**不碰**：ApiProgramQuery/RuntimeQuery/ApiQuerySnapshot/Transport/
+转换（措辞收紧 A2-6-06: 词表子类型复用 = "LOCK FINAL canonical vocabulary
+当前允许直接复用，其变化必须经对应版本/架构变更流程"——**非"零演化风险"**；
+叶子若开始承载 Runtime/vendor/execution 语义须重新判断复用合法性）。
+**不碰**：ApiProgramQuery/RuntimeQuery/ApiQuerySnapshot/Transport/
 Custody/producer/AVSync measurement DTO/failure reason DTO/Channel·Program
 identity（零挂载裁决仍有效）。A2-7 不提前跳转；修复通过 PMAPI-01..12 后
 **直接进 A2-6-06 收口**。

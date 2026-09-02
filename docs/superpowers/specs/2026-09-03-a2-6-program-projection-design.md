@@ -2,7 +2,8 @@
 comet_change: a2-6-program-projection
 role: technical-design
 canonical_spec: openspec
-status: probe-stage
+archived-with: 2026-09-03-a2-6-program-projection
+status: final
 ---
 
 # Design Doc — a2-6-program-projection（A2-6: Program Runtime Projection）

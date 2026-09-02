@@ -362,7 +362,9 @@ pub fn default_idempotency_boundary() -> ApiIdempotencyBoundary {
 // 仍有效）。
 
 /// VideoMaster 语义快照投影（薄镜像: 字段 1:1 canonical wire shape;
-/// 词表子类型为 V0.2 LOCK FINAL 封闭词表, 直接复用零演化风险）。
+/// 词表子类型为 LOCK FINAL canonical vocabulary, 当前允许直接复用——其变化
+/// 必须经对应版本/架构变更流程, 非天然"零风险"; 一旦叶子开始承载 Runtime/
+/// vendor/execution 语义须重新判断复用合法性）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApiVideoMaster {
     pub stage: crate::program::VideoMasterStage,

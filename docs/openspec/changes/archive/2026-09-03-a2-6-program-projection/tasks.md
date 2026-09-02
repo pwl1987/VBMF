@@ -52,6 +52,10 @@
   `Contract: 01 终裁 §5+PMAPI-01..12` | `Implementation: 已` | 
   `Verification: 盒上 PMAPI 7/7 + mock 298（291+7 恰）+ clippy 4-combo PASS 
   + fmt clean` | `Gate: 无`
-- [ ] 6. A2-6-03..06（Query 接线等消费者→API→Transport→收口+交付链）——
-  Query/Transport 真实 consumer 等 A2-7 生产生命周期后另裁
-  `Contract: 六刀链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 6. A2-6-06 收口+交付链: 盒上全矩阵（14 步 ALL_DONE, test 
+  194/194/299/194）+ verify 报告 + guards（record-check ×2）+ archive + 
+  PR + CI 七 checks + merge + memory; **03/04/05 保持延期**（A2-6-01 探针
+  实证零 Program 级消费者——Query/Transport 真实 consumer 等 A2-7 生产
+  生命周期后另裁; 零挂载=有意裁决非遗留）
+  `Contract: 交付纪律+A2-6-02 终裁` | `Implementation: 已` | 
+  `Verification: 矩阵 14 步 + verify 报告` | `Gate: CI/RELEASE`
