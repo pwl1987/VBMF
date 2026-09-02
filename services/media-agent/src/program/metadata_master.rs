@@ -99,10 +99,14 @@ pub enum MetadataPresence {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetadataJoinDeclaration {
-    /// Metadata 路正向声明参与 Program Master Join（facts 可空——SQ-4:
-    /// "明确知道无额外 metadata 的节目" 是合法组合）。
+    /// Metadata 路正向声明参与 Program Master Join（facts 可空——**快照语义**:
+    /// 本聚合快照无 fact, 不表示已确认无 metadata; 确认不存在必须用
+    /// `NotPresent`, A2-4-03 终裁 C′）。
     Participating,
-    /// 已观测并声明本 Program 无该路 metadata（≠ 没观测; Unknown≠Absent 原则）。
+    /// **结论性负声明**（A2-4-03 C′ 收紧）: 已充分观测、确认本 Program 不存在
+    /// 该路 metadata——有效性**不得**由 `facts.is_empty()` 推导; 若 facts 含
+    /// `Present` 证据则构成 semantic inconsistency, Master Join 必须 fail-closed
+    /// （≠ 没观测; Unknown≠Absent 原则）。
     NotPresent,
     /// 观测不足以作出声明（无观测前态, 亦为 `Default`）。
     #[default]
@@ -373,7 +377,7 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&empty_participating).unwrap(),
             r#"{"data_plane":"METADATA","facts":[],"join_declaration":"PARTICIPATING"}"#,
-            "空 facts + Participating = 明确知道无额外 metadata 的节目（合法组合）"
+            "空 facts + Participating = 本聚合快照无 fact（不表示已确认无; 确认无用 NotPresent——A2-4-03 C′）"
         );
         let facts_unknown = MetadataMaster {
             facts: vec![

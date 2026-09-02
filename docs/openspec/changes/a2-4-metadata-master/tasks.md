@@ -53,8 +53,22 @@
   docs/superpowers/reports/2026-09-02-a2-4-metadata-master-semantic-review.md
   `Contract: A2-4-02 终裁§2/§3/下一刀四问` | `Implementation: 已（零 .rs diff）` | 
   `Verification: 7342cdd diff 边界实查（禁入词 10 处全为禁令注释）` | `Gate: 无`
-- [ ] 7. TQ-1 裁决（组合 5b 矛盾处置: 案A 结构不禁+A2-5 fail-closed 推荐/
-  案B is_consistent 谓词/案C 定义收窄）; A2-4-04 Join boundary review;
-  A2-4-05 全回归+architecture guard; 交付链
-  `Contract: A2-4-03 报告 §4` | `Implementation: 待` | 
-  `Verification: 后续核` | `Gate: 后续定`
+- [x] 7. TQ-1 终裁 C′ 落盘（NotPresent 收紧定义/Join fail-closed/不加
+  is_consistent/producer-bug 定性撤销/5a 降级/三层规则）+ 4 处旧表述清除
+  （Design L64+代码注释×2+测试消息——快照语义统一, 盒上 9/9+fmt 验证）+
+  semantic-review 报告 §7 终裁记录（修正版六组合矩阵）; TQ-1 CLOSED,
+  A2-4-03 CLOSED
+  `Contract: A2-4-03 终裁 §一-§十` | `Implementation: 已` | 
+  `Verification: 4 处表述 grep 清零 + 盒上 9/9` | `Gate: 无`
+- [x] 8. A2-4-04 Join Boundary Review（前置九项全盘代码探针 J1-J9: Join/
+  ProgramMaster/AVSync/FAILOVER/READY_TO_TAKE 全零代码; failed/health 全在
+  Runtime 平面; absence≠evidence 先例=CapabilityFlag::Unknown 同构）+
+  Join 判定输入矩阵 + 五态混淆防护红线 R-1..R-5 + C′ 的 Join 侧消费规则
+  五条 + Gap 清单 G-1..G-4; 报告=docs/superpowers/reports/2026-09-02-a2-4-
+  metadata-master-join-boundary-review.md
+  `Contract: A2-4-03 终裁 §十一九项清单+V0.2 §1.20/§1.18/§3.8` | 
+  `Implementation: 已（零代码）` | `Verification: 九项全有代码实锚` | `Gate: 无`
+- [ ] 9. A2-4-05 全回归（盒上矩阵 14 步）+ architecture guard + verify
+  报告 + 交付链（review/verify/guards/archive/PR/CI 七 checks/merge/memory）
+  `Contract: 交付纪律` | `Implementation: 待` | 
+  `Verification: 后续核` | `Gate: CI/RELEASE`

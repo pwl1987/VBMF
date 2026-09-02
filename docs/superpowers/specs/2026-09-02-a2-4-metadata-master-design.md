@@ -61,7 +61,8 @@ pub enum MetadataJoinDeclaration { Participating, NotPresent, Unknown }
 ```
 wire：`PARTICIPATING / NOT_PRESENT / UNKNOWN`；词表快照 const `JOIN_DECLARATIONS`。
 - `Participating` = Metadata 路正向声明参与 Program Master Join（facts 可空——
-  SQ-4 合法组合：明确知道无额外 metadata 的节目）；
+  **快照语义：本聚合快照无 fact，不表示已确认无 metadata；确认不存在必须用
+  `NotPresent`**，A2-4-03 终裁 C′ 统一表述）；
 - `NotPresent` = 已观测并声明本 Program 无该路 metadata（≠ 没观测）；
 - `Unknown` = 观测不足以声明。
 命名论证：不叫 `READY`（Declaration≠Readiness 红线）；无 `JOINED/CONSUMED`
@@ -85,9 +86,26 @@ Default：`#[default] Unknown`（无观测前态）。
 - **条级/路级区分**：fact = 条级证据（某 source 某类型存在性）；declaration
   = 路级结论。部分条级证据到位不等于路级结论可下（`Unknown+[fact]` 合法，
   A2-4-03 §2 组合6）。
-- **已知矛盾组合（TQ-1 待裁）**：`NotPresent` + 任一 `presence: Present`
-  fact = 证据/声明矛盾。处置三案见 semantic-review 报告 §4——裁决前结构层
-  不增禁令、不加测试合法化。
+- **TQ-1 终裁 = C′（A2-4-03 终裁落盘）**：`NotPresent` 正式定义为"Metadata
+  路对当前 Program 聚合快照作出的**已充分观测、确认不存在该路 metadata 的
+  结论性声明**；其有效性**不得**由 `facts.is_empty()` 推导"。若 facts 存在
+  `Present` 证据 + `NotPresent` 声明 = **aggregate semantic inconsistency**——
+  A2-4 **不新增** `is_consistent()`/`validate()`（防 Metadata Domain 演进为
+  Join/Health/Readiness 承载者）；**Master Join 必须 fail-closed，不得将该
+  快照按有效 `NotPresent` 消费**（A2-5 契约）。矛盾定性 = "semantic
+  inconsistency detected; producer/aggregator responsibility to resolve"——
+  **不写死"producer bug"**（当前模型无 timestamp/revision，swept 非事务快照，
+  不足以区分聚合时序不一致/observation window 不一致/stale fact/declaration
+  未刷新/真实 bug）。
+- **5a 降级（终裁 §六）**：`NotPresent + [NotPresent/Unknown fact]` 结构可表
+  示且合法，但 **Join 不得仅凭 Unknown fact 认为 NotPresent 已被证实**——
+  Unknown fact 是证据不足，不是"无"的证明；亦不应由 facts 空间自动推导。
+- **三层规则（终裁 §七）**：L1 结构（SQ-4 正交，类型允许独立存在）→ L2 语义
+  （declaration=聚合层声明 / facts=条级证据，禁机械推导四条：empty≠NotPresent、
+  non-empty≠Participating、Unknown fact≠NotPresent 已证实、Present fact≠自动
+  Participating）→ L3 Join 消费（Master Join 回答"事实与 declaration 能否共同
+  形成可接受的 Program Master 输入"；矛盾→fail-closed；`Unknown+fact` 不得
+  自动变 DEGRADED——`Unknown ≠ failed` 前瞻约束仍立）。
 - **A2-5 前瞻约束（A2-5 设计须消费）**：`Unknown ≠ failed`（观测不足不是
   故障，Join 侧禁把 Unknown 直接升格 DEGRADED 依据）；`Participating+[]`
   不阻断（空 ≠ failed；V0.2 §1.20 L155 只有"路 failed"才触发）。

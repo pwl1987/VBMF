@@ -40,6 +40,11 @@ stage/advance` 全部命中为**禁令注释与测试断言文本**，零实际�
 | 3 | `Unknown` | `[]` | 观测不足，无证据亦无结论（冷启动初始态 = `Default`/`new()`） | ✅ 自洽 |
 | 4 | `Participating` | `[fact]` | 参与且有已聚合证据（常态） | ✅ 自洽 |
 | 5 | `NotPresent` | `[fact]` | **分两型**：(5a) fact.presence ∈ {NotPresent, Unknown}——"有观测记录且记录为'无'/'未定'"，**自洽**（负 fact 本身就是证据）；(5b) 任一 fact.presence = Present——**证据说有、声明说无，语义矛盾** | ⚠️ **5b 矛盾 → TQ-1 待裁** |
+
+> **⚠️ 勘误（A2-4-03 终裁 §六/§一）**：上表 5a 行的"自洽"表述**降级**——
+> `NotPresent + [Unknown fact]` 仅"结构可表示"，**Join 不得仅凭 Unknown fact
+> 认为 NotPresent 已被证实**（Unknown fact = 证据不足，非"无"之证明）；
+> 组合 1 的完整终裁表述见 §7 修正版矩阵。
 | 6 | `Unknown` | `[fact]` | 条级证据部分到位，但整体不足以作路级结论（如 Caption 已观测、SCTE-35 未完成——观测进行中） | ✅ 自洽（条级≠路级） |
 
 **结论：六组合中五组合半自洽；唯一张力 = 组合 5b**（`NotPresent` 声明 +
@@ -109,3 +114,63 @@ stage/advance` 全部命中为**禁令注释与测试断言文本**，零实际�
 本轮零 .rs diff；未加 stage/advance/payload/scope/Hash/serde(default)；
 组合 5b 未被任何测试"合法化"（现有测试仅断言正交组合不被结构禁止，
 未断言矛盾组合语义正确——两事有别的记录已在 SQ-4 测试注释）。
+
+---
+
+## 7. A2-4-03 用户终裁记录（2026-09-02，TQ-1 CLOSED = C′）
+
+> 终裁基准：`2a632ab`/`7342cdd` 真实 diff + `metadata_master.rs`/`program/
+> mod.rs`/`normalize.rs` 现状 + V0.2 Program Master / Master Join 冻结边界。
+
+### TQ-1 = **C′（收紧版）**：不采纳原案 A，不批准案 B
+
+- **不新增** `is_consistent()`/`validate()`（案 B 否决理由：防 Metadata
+  Domain 演进为 Join/Health/Readiness 承载者——"Canonical 描述是什么，
+  Execution 才执行"）。
+- 案 A 的"结构允许 → A2-5 再 fail"方向对一半但表述不准：矛盾涉及**同一
+  Program-scope aggregate 内部语义一致性**（V0.2 Master Join 是联合判定点
+  非数据转发器），不能描述成正常合法状态后甩给 A2-5。
+- **正式定义（C′）**：`NotPresent` = 已充分观测、确认不存在该路 metadata 的
+  **结论性声明**；有效性不得由 `facts.is_empty()` 推导。`NotPresent +
+  [Present fact]` = **aggregate semantic inconsistency**；A2-4 不加校验函数；
+  **Master Join 必须 fail-closed，不得按有效 NotPresent 消费**（A2-5 契约）。
+- **producer-bug 定性撤销**（§五）：当前模型无 timestamp/revision，swept
+  非事务快照（fact 快照 t1 与 declaration t2 可能不同时）——不足以区分
+  聚合时序不一致 / observation window 不一致 / stale fact / declaration
+  未刷新 / 真实 bug。正确定性："**Semantic inconsistency detected;
+  producer/aggregator responsibility to resolve**"。
+
+### 修正版六组合矩阵（终裁冻结版，替代 §2）
+
+| # | Declaration | Facts | 最终语义 | 裁决 |
+|---|---|---|---|---|
+| 1 | `PARTICIPATING` | `[]` | 参与 Join，**本快照没有提供 fact**（绝不等于确认无 metadata） | ✅ 合法 |
+| 2 | `NOT_PRESENT` | `[]` | 已充分观测，确认该路无 metadata | ✅ 合法 |
+| 3 | `UNKNOWN` | `[]` | 无充分观测，无法形成路级结论 | ✅ 合法 |
+| 4 | `PARTICIPATING` | `[Present]` | 参与且存在 metadata fact | ✅ 合法 |
+| 5a | `NOT_PRESENT` | `[NotPresent/Unknown]` | 有条级观测记录但无 Present 证据；路级声明为无——**合法，但不应由 facts 空间自动推导；Join 不得仅凭 Unknown fact 认为 NotPresent 已被证实** | ⚠️ 合法（推导禁） |
+| 5b | `NOT_PRESENT` | `[Present]` | **路级声明与条级正证据冲突** | 🔴 Semantic inconsistency |
+| 6 | `UNKNOWN` | `[fact]` | 有部分条级证据，但不足形成路级结论 | ✅ 合法 |
+
+### 三层规则（终裁 §七）
+
+- **L1 结构**：Rust 类型允许 facts 与 join_declaration 独立存在（SQ-4 正交）。
+- **L2 语义**：declaration = 聚合层声明 / facts = 条级证据；禁机械推导四条
+  （empty≠NotPresent / non-empty≠Participating / Unknown fact≠NotPresent 已
+  证实 / Present fact≠自动 Participating）。
+- **L3 Join 消费**：Master Join 回答"事实与 declaration 能否共同形成可接受
+  的 Program Master 输入"——矛盾→fail-closed；`Unknown+fact` 不得自动变
+  DEGRADED（`Unknown ≠ failed` 前瞻约束仍立）。
+
+### 双套解释清除（终裁 §一/§九，随终裁落盘）
+
+`Participating+[] = 明确知道无额外 metadata` 旧表述已在 Design §1.5、
+`metadata_master.rs` 注释（Participating/NotPresent variant doc）、测试
+断言消息共 4 处统一改为快照语义表述（零结构变更，注释/消息级 diff）。
+
+### 终裁状态
+
+A2-4-03 **APPROVED / CLOSED**；TQ-1 **CLOSED（C′）**；零新增字段/函数；
+Video/Audio 零修改；**准入 A2-4-04 Join Boundary Review**——但进入 04 前
+必须先对真实仓库 Join/ProgramMaster/Health/Projection 代码做全盘探针
+（九项实查清单见终裁 §十一），不能凭 V0.2 文档直接写 Join。
