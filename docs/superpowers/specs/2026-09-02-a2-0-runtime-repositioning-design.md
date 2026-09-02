@@ -2,6 +2,8 @@
 comet_change: a2-0-runtime-repositioning
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-a2-0-runtime-repositioning
+status: final
 ---
 
 # Design Doc — a2-0-runtime-repositioning（A2-0 四层归位）
