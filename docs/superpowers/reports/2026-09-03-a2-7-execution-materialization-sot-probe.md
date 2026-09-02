@@ -116,3 +116,45 @@ pipeline.rs L145/L245-259/L460/L529-549 · contracts/backend.rs L22-30 ·
 session.rs L11/L183/L530-531/L724-725/L874 · watchdog.rs L46/L65-67/L175-
 179/L237/255 · pipeline_events.rs L35-50 · A2-6-00 报告（writer 零清点）·
 A2-5 系列（R-A..R-J/五步优先序/Custody 角色）。
+
+---
+
+## 8. 用户终裁记录（A2-7-00 → A2-7-01 Gate，2026-09-03）
+
+> **A2-7-00 = CLOSED / APPROVED**。全局核心原则（终裁原文）：
+> **"A2-7 不是'把 Runtime 状态映射成 ProgramMaster'，而是建立一条有证据、
+> 有 ownership、有 attribution 的 Execution Fact → Program Semantic
+> Lifecycle 链。"** Runtime 世界（PipelineHealth/MediaRt01Acceptance/
+> PipelineBusEvent/SessionState/Phase/Lease/Resource/Supervisor/outputs）
+> 丰富但**无一可直接等价于 Program truth**。
+
+### 五问终裁
+
+| OQ | 终裁 | 关键收紧 |
+|---|---|---|
+| OQ-1 | **事实驱动 + 缺失则 Deferred**；无真实执行节点 ≠ Program stage | **否掉"声明性推进"**（Intent≠Execution Fact——"config 要求 SWITCH"不证明"SWITCH 已完成"）； SOURCE_RAW→NORMALIZED **收紧**：b1/b3 只证明"RAW ingest 首有效帧已形成"，**禁自动命名 NormalizeComplete**——是否足以证明 NORMALIZED 取决于 normalize=true 实际元素链与可观测完成点（01 必须查死，高风险点） |
+| OQ-2 | **无真实 producer → join_declaration=UNKNOWN → Join.ready=false**（fail-closed 正确行为） | **否掉 config/manifest 自动生成** Participating/NotPresent；禁 facts.is_empty()→NotPresent；A4 Channel 未来可为 producer 但禁提前借用不存在的语义 |
+| OQ-3 | Runtime 产生 failure fact → **Custody 按"来源+关联 execution identity+media path"attribution** → JoinInput 注入；Join 不读 Runtime | **禁止机械等价**：Session terminated/Lease lost/ClockLost/Health degraded/Supervisor restarting ≠ video_failed；**"Failure classification/path attribution first, Join bool injection second"；不建 FailureDomain/FailureReason enum**（A2-5 不污染 Join 维持） |
+| OQ-4 | **允许复用已有双路 PTS**（video/audio first/last pts + pts_state 独立维护）作为第一版 measurement source → AVSyncClassification | 三锁死：ClockLost≠AVSyncFailed / Health≠AVSyncClassification / Join 不计算阈值；**不建 AVSync Engine**；禁把 PipelineHealth 直接暴露成 AVSyncClassification |
+| OQ-5 | **独立 Program Runtime Custody**（Runtime/Orchestration 边界）；SessionManager=Session lifecycle owner（协作不拥有 Program）；Supervisor=Recovery decision owner（另一条横向线） | CLOSED；三分图落盘（session facts → Custody → 三 Master → join → snapshot） |
+
+### Stage 推进终裁表（OQ-1 附表）
+
+| Transition | 当前合法驱动 | 结论 |
+|---|---|---|
+| SOURCE_RAW→NORMALIZED | 真实 normalize 执行完成后的有效输出事实 | ✅ 可实现（**01 查死完成语义**） |
+| NORMALIZED→SWITCHED | 无 Switcher node/fact | ⏸️ Deferred |
+| SWITCHED→PROGRAM_COMPOSED | 无 Composition node/fact | ⏸️ Deferred |
+| MIXED（Audio） | 无 Mixer fact | ⏸️ Deferred |
+| LOUDNESS_NORMALIZED | 无 Loudness fact | ⏸️ Deferred |
+| DELAY_COMPENSATED | 无 Delay fact | ⏸️ Deferred |
+| →MASTER_JOINED | Join 判定形成之后 | ✅ 可定义 |
+
+### A2-7-01 放行（APPROVED TO IMPLEMENT，Probe+设计先行）
+
+四空白：① Execution Fact Shape（**禁万能巨型 struct**，按域拆候选）②
+Video/Audio attribution ③ Metadata declaration source ④ Custody lifecycle。
+**不写 Custody implementation/Query/Transport，不碰 A2-8。**
+**核心任务：查死 SOURCE_RAW→NORMALIZED 真实 execution completion 语义**
+（唯一"看似有事实、实际可能只是 ingest acceptance"的高风险点——否则
+NORMALIZED 成为无证据假状态）。
