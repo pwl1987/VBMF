@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 pub enum ProgramDomainError {
     #[error("未知 SwitchPolicy {0:?}: 受纳词表={ACCEPTED_LIST:?} (V0.2 §1.17, fail-closed)")]
     UnknownSwitchPolicy(String),
+    #[error("非法阶段迁移 {from:?} → {to:?}: 白名单相邻唯一 (跳级/倒退/终态拒绝, V0.2 §3.7)")]
+    InvalidStageTransition { from: String, to: String },
 }
 
 /// 受纳词表快照（错误信息与测试共用; 与 V0.2 §1.17 逐字一致）。

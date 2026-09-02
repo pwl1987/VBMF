@@ -9,5 +9,7 @@
 //! Channel 完整模型属控制面线（A4）。
 
 pub mod switch_policy;
+pub mod video_master;
 
 pub use switch_policy::{ProgramDomainError, SwitchIoPlane, SwitchPolicy, ACCEPTED_LIST};
+pub use video_master::{ProgramComposition, VideoDataPlane, VideoMaster, VideoMasterStage};
