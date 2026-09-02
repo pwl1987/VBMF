@@ -52,8 +52,18 @@
   docs/superpowers/reports/2026-09-02-a2-5-master-join-04-probe.md + Design §2'
   `Contract: A2-5-03 终裁（04 先 Probe）+OQ-B` | 
   `Implementation: 已（提案待裁）` | `Verification: 先例/消费面全实锚` | `Gate: 无`
-- [ ] 7. A2-5-04 实现（提案终裁后）: program_master.rs（ProgramMaster + 
-  compose + 测试）+ mod.rs 挂载; A2-5-05 Semantic Review（含 inconsistency
-  深化）; A2-5-06 收口+交付链
-  `Contract: 04-probe §2-§4 提案` | `Implementation: 待` | 
-  `Verification: 后续核` | `Gate: 后续定`
+- [x] 7. A2-5-04 实现（终裁 IMPLEMENTATION GO + 3 收紧执行）: 
+  `src/program/program_master.rs`——ProgramMaster 四字段整值组合 + compose 
+  纯组合唯一入口（行为证: "矛盾" join_result 原样保留=零重算）+ Default 
+  收紧语义 doc（结构性零参便利, 非健康/就绪/故障宣称）+ 4 测试覆盖 
+  PM-01..08（compose 纯度/键集**正反向**（正向四键必存在+反向 17 平铺
+  污染键禁入）/三 Master 缺字段 fail-closed + join_result 缺失=Option 
+  内建 absence（**实现级发现: serde Option 缺失→None 是内建语义, 恰=终裁
+  §8 "Option 本身已表达 absence"**）/Result 三态携带往返）; mod.rs 挂载;
+  零 from_join/channel_id/scope/serde(default)
+  `Contract: 04 终裁 3 收紧+PM-01..08+禁入清单` | 
+  `Implementation: 已` | `Verification: 盒上 program::program_master 4/4 +
+  mock 291（287+4 恰）+ clippy 4-combo PASS + fmt clean` | `Gate: 无`
+- [ ] 8. A2-5-05 Semantic Review（含 inconsistency 深化——从消费者反推）;
+  A2-5-06 收口+交付链（矩阵/verify/guards/archive/PR/CI/merge/memory）
+  `Contract: 七刀链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`

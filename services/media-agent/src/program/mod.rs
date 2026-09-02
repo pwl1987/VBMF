@@ -11,6 +11,7 @@
 pub mod audio_master;
 pub mod master_join;
 pub mod metadata_master;
+pub mod program_master;
 pub mod switch_policy;
 pub mod video_master;
 
@@ -25,5 +26,6 @@ pub use metadata_master::{
     MetadataDataPlane, MetadataFact, MetadataJoinDeclaration, MetadataMaster, MetadataPresence,
     MetadataType, JOIN_DECLARATIONS, METADATA_TYPES,
 };
+pub use program_master::ProgramMaster;
 pub use switch_policy::{ProgramDomainError, SwitchIoPlane, SwitchPolicy, ACCEPTED_LIST};
 pub use video_master::{ProgramComposition, VideoDataPlane, VideoMaster, VideoMasterStage};

@@ -55,3 +55,39 @@ pub struct ProgramMaster {
 ## 5. No-Build Gate
 
 本文件零 .rs diff; 提案未裁不编码; 不实现 from_join/投影/AVSync 挪动。
+
+---
+
+## 6. 用户终裁记录（A2-5-04 IMPLEMENTATION GO，2026-09-02）
+
+> 原则批准 + **3 个实现级收紧**；8 项验证 Gate PM-01..PM-08（04/05/08 为
+> 架构 Gate 非 style check）。
+
+### 3 个收紧
+
+1. **Default 语义**：可 derive，但 doc **禁**写"未初始化/未 Ready/UNKNOWN
+   ProgramMaster"——正确定性："Default 仅提供结构性零参构造便利；
+   `join_result: None` 表示当前尚未形成 Join Result；Default 本身不构成任何
+   健康、就绪或故障语义"。
+2. **compose() 纯组合**：唯一构造入口；**禁**内嵌 `join()/is_ready()/
+   calculate_result()/validate_join()/classify_failure()` 及任何 avsync/
+   metadata consistency 判断——`join_result` 是**已形成的结果快照**，不是
+   ProgramMaster 自己计算的事实；**禁 `from_join()`**（防第二判定入口）。
+3. **键集测试策略**：正向（顶层必存在 video/audio/metadata/join_result 四键）
+   + 反向（顶层**不得出现** video_stage/audio_stage/metadata_facts/
+   metadata_join_declaration/avsync/health/status/ready/revision/timestamp
+   等平铺与污染键）——比精确集合相等更能表达架构意图，不绑死 serde 实现
+   细节。
+
+### 附加边界
+
+零 `serde(default)`（Option 已表达 absence——尤其 join_result 禁 default）；
+**无 channel_id/program_id/scope**（结构性 ownership 表达 scope；A2-6 真实
+消费者反推——与不做 from_join 同纪律）；AVSync 双 SoT 禁维持。
+
+### PM-01..PM-08 验证 Gate
+
+PM-01 四字段存在 · PM-02 三 Master 整值组合 · PM-03 join_result:
+Option<MasterJoinResult> · PM-04 AVSyncClassification 不进入 · PM-05
+compose 纯组合不重 Join · PM-06 serde 顶层四键禁平铺 · PM-07 零
+serde(default) · PM-08 无 Runtime/Health/Action/Time/Revision 污染。
