@@ -648,7 +648,23 @@ pub fn materialize_with_output(
             selection_mode,
         };
         // P1a: sink.kind 第一次被消费——输出意图 → 输出物化（词表 appsink/hls/rtmp）。
-        let outputs = materialize_outputs(&d.pipeline.sink.kind, cfg)?;
+        // Alpha-1 单输出承诺（design D3）: **仅首设备**保留输出段; 次设备词表校验照常
+        // （fail-closed 不豁免）但强制纯分析（多输出/混流 = Alpha-2/3）。
+        let outputs = {
+            let o = materialize_outputs(&d.pipeline.sink.kind, cfg)?;
+            if plans.is_empty() {
+                o
+            } else {
+                if !o.is_empty() {
+                    tracing::warn!(
+                        "Alpha-1 单输出承诺: 仅首输入物化输出; 次设备 {} 声明 {} ⇒ 强制纯分析",
+                        d.device_id,
+                        d.pipeline.sink.kind
+                    );
+                }
+                Vec::new()
+            }
+        };
         plans.push(PipelinePlan {
             source,
             normalize: true,
@@ -845,6 +861,64 @@ mod tests {
                 target: "/tmp/p1a-hls".into(),
             }],
             "物化含 kind/默认码率/目标"
+        );
+    }
+
+    #[test]
+    fn pipeline_rt_01_multi_device_only_first_plan_gets_outputs() {
+        // Alpha-1 单输出承诺（design D3）: 多设备 intent 仅**首** plan 物化输出段,
+        // 其余设备强制纯分析（多输出/混流 = Alpha-2/3）。
+        let cfg = output_cfg_with(Some("/tmp/h"), Some("rtmp://h/l"), 6000, 128_000);
+        let devs = vec![
+            dev_handle(IdentityStrength::DeviceHandle),
+            dev_handle(IdentityStrength::DeviceHandle),
+        ];
+        let ids: Vec<String> = devs.iter().map(|d| d.device_id.to_string()).collect();
+        let mut bindings = std::collections::HashMap::new();
+        for (n, d) in devs.iter().enumerate() {
+            bindings.insert(
+                d.device_id,
+                ResolvedDeviceBinding {
+                    device_number: n as u32,
+                    hw_serial_number: None,
+                    persistent_id: None,
+                    confidence: Confidence::High,
+                    match_kind: ResolverMatch::ManifestVerified,
+                },
+            );
+        }
+        let intent = GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: ids
+                .iter()
+                .map(|id| DeviceIntent {
+                    device_id: id.clone(),
+                    role: "CAPTURE".into(),
+                    pipeline: PipelineIntent {
+                        source: SourceIntent {
+                            kind: "decklink".into(),
+                            device_id: id.clone(),
+                            port_id: None,
+                        },
+                        sink: SinkIntent { kind: "hls".into() },
+                    },
+                })
+                .collect(),
+        };
+        let plans = materialize_with_output(
+            &intent,
+            &devs,
+            MaterializeMode::Diagnostic,
+            &bindings,
+            None,
+            &cfg,
+        )
+        .expect("双设备物化");
+        assert_eq!(plans.len(), 2);
+        assert_eq!(plans[0].outputs.len(), 1, "首设备物化输出");
+        assert!(
+            plans[1].outputs.is_empty(),
+            "次设备强制纯分析（单输出承诺）"
         );
     }
 

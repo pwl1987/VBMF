@@ -176,12 +176,24 @@ pub struct MediaSession {
     pub resource_claims: Vec<ResourceClaim>,
     pub leases: Vec<DeviceLease>,
     /// Backend 所拥有的 pipeline 实例句柄 (Handle 链接 Session↔对象)。
+    /// Alpha-1 兼容保留 = 首输入主句柄（= `inputs.first()`）。
     pub pipeline: Option<PipelineHandle>,
     /// P1a: **物化**输出 kind 列表（start() 从 materialize 产物回填; 空 = 纯分析——
     /// 含 kind 声明输出但目标 env 缺失的 fail-soft 降级, 绝不虚报声明态）。
     pub outputs: Vec<String>,
+    /// Alpha-1 (D10 激活): 多输入句柄表（每实例化管线一行, 序 = plans 序;
+    /// 空 = 未 start。start() 全量回填, stop 逆序全停——creator=destroyer 延续）。
+    pub inputs: Vec<SessionInput>,
     pub health: SessionHealthSnapshot,
     pub created_at: i64,
+}
+
+/// Alpha-1: 会话输入摘要（D10 每管线句柄表行）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionInput {
+    /// canonical 设备身份（materialize 解析后所绑设备）。
+    pub device_id: Uuid,
+    pub handle: PipelineHandle,
 }
 
 /// 会话错误。
@@ -362,6 +374,7 @@ impl SessionManager {
                     leases: Vec::new(),
                     pipeline: None,
                     outputs: Vec::new(),
+                    inputs: Vec::new(),
                     health: SessionHealthSnapshot::default(),
                     created_at: Self::now_ms() as i64,
                 },
@@ -593,19 +606,35 @@ impl SessionManager {
             pipeline: Uuid::new_v5(&Uuid::nil(), format!("{:?}", plan).as_bytes()),
         });
 
-        // 步 2: Backend.instantiate (失败 → 逆序回滚 lease+reservation, 零孤儿)。
-        let handle = match backend.instantiate(plan) {
-            Ok(h) => h,
-            Err(e) => {
-                self.rollback_lease_and_reservation(id, &holder);
-                let _ = self.set_phase(id, SessionPhase::StartFailed);
-                self.emit(RuntimeEvent::SessionFailed {
-                    session_id: id.0,
-                    reason: format!("backend.instantiate: {e}"),
-                });
-                return Err(e.into());
+        // 步 2 (Alpha-1 / D10 激活): Backend.instantiate **全部** plans（逐个; 多输入会话
+        // 不再只物化首计划）。任一失败 → 已建句柄全 stop + 既有逆序回滚
+        // (lease+reservation, 零孤儿延续)。
+        let mut inputs: Vec<SessionInput> = Vec::with_capacity(plans.len());
+        for plan in &plans {
+            match backend.instantiate(plan) {
+                Ok(h) => inputs.push(SessionInput {
+                    device_id: Uuid::parse_str(&plan.source.device_id)
+                        .unwrap_or_else(|_| Uuid::nil()),
+                    handle: h,
+                }),
+                Err(e) => {
+                    for i in inputs.iter().rev() {
+                        let _ = backend.stop(&i.handle);
+                    }
+                    self.rollback_lease_and_reservation(id, &holder);
+                    let _ = self.set_phase(id, SessionPhase::StartFailed);
+                    self.emit(RuntimeEvent::SessionFailed {
+                        session_id: id.0,
+                        reason: format!("backend.instantiate: {e}"),
+                    });
+                    return Err(e.into());
+                }
             }
-        };
+        }
+        let handle = inputs
+            .first()
+            .map(|i| i.handle)
+            .expect("plans 非空已保证 inputs 非空");
 
         // 步 3: Allocate (Reserved → Allocated; 失败 → stop 句柄回滚)。
         let alloc_result: Result<(), crate::resource::ResourceStateError> = (|| {
@@ -638,7 +667,12 @@ impl SessionManager {
             Ok(())
         })();
         if let Err(e) = alloc_result {
-            let _ = backend.stop(&handle);
+            // Alpha-1 (review Critical#1): 已建句柄**全部**逆序 stop——allocate 失败与
+            // 实例化/启动失败同属零孤儿不变量（单停首句柄会泄漏 1..N-1 管线
+            // + bus-watch GLib 线程; review 实证抓出）。
+            for i in inputs.iter().rev() {
+                let _ = backend.stop(&i.handle);
+            }
             // P0-1: 先回收本会话**已 Allocated** 的资源 (release_reservations 只处理 Reserved,
             // 部分成功分配的资源若不在此回收即成 Allocated orphan), 再回收租约/预留。
             self.resources.release_allocation(holder);
@@ -651,17 +685,22 @@ impl SessionManager {
             return Err(e.into());
         }
 
-        // 步 4: Backend.start。失败 → 逆序: stop → release allocation → lease/reservation。
-        if let Err(e) = backend.start(&handle) {
-            let _ = backend.stop(&handle);
-            self.resources.release_allocation(holder);
-            self.rollback_lease_and_reservation(id, &holder);
-            let _ = self.set_phase(id, SessionPhase::StartFailed);
-            self.emit(RuntimeEvent::SessionFailed {
-                session_id: id.0,
-                reason: format!("backend.start: {e}"),
-            });
-            return Err(e.into());
+        // 步 4 (Alpha-1): Backend.start **全部**句柄。失败 → 逆序: 全 stop →
+        // release allocation → lease/reservation（零孤儿延续）。
+        for i in &inputs {
+            if let Err(e) = backend.start(&i.handle) {
+                for j in inputs.iter().rev() {
+                    let _ = backend.stop(&j.handle);
+                }
+                self.resources.release_allocation(holder);
+                self.rollback_lease_and_reservation(id, &holder);
+                let _ = self.set_phase(id, SessionPhase::StartFailed);
+                self.emit(RuntimeEvent::SessionFailed {
+                    session_id: id.0,
+                    reason: format!("backend.start: {e}"),
+                });
+                return Err(e.into());
+            }
         }
 
         // 成功: RUNNING。
@@ -670,6 +709,7 @@ impl SessionManager {
         let mut guard = self.sessions.lock().unwrap();
         let inner = guard.get_mut(id).expect("session registered");
         inner.session.pipeline = Some(handle);
+        inner.session.inputs = inputs;
         Self::transition_state(&mut inner.session.state, SessionState::Running)?;
         inner.session.health.last_ok_at = Some(Self::now_ms() as i64);
         drop(guard);
@@ -684,7 +724,7 @@ impl SessionManager {
     /// 停止会话: Backend.stop → release allocation → release lease → release reservation
     /// → Releasing→Released (精确逆序)。double-stop 返回 InvalidTransition (close 幂等)。
     pub fn stop(&self, id: &SessionId) -> Result<(), SessionError> {
-        let (handle, holder) = {
+        let (handles, holder) = {
             let guard = self.sessions.lock().unwrap();
             let inner = guard.get(id).ok_or(SessionError::UnknownSession(*id))?;
             if inner.session.phase == SessionPhase::Released
@@ -695,15 +735,23 @@ impl SessionManager {
                     inner.session.phase
                 )));
             }
-            (inner.session.pipeline, inner.holder)
+            // Alpha-1: 全句柄逆序停止（多输入句柄表; 兼容回退单 pipeline 字段）。
+            let mut hs: Vec<PipelineHandle> =
+                inner.session.inputs.iter().map(|i| i.handle).collect();
+            if hs.is_empty() {
+                if let Some(h) = inner.session.pipeline {
+                    hs.push(h);
+                }
+            }
+            (hs, inner.holder)
         };
         self.set_phase(id, SessionPhase::Stopping)?;
 
-        // 逆序 1: Backend.stop。**P0-2**: stop 失败只记录, **绝不截断后续释放链** —
-        // Session 层资源 (allocation/lease/reservation) 无论 backend 结果如何都必须归还,
-        // 否则停止失败会让整个资源生命周期卡死 (Stopping + Allocated + Lease remaining)。
+        // 逆序 1 (Alpha-1: 全句柄逆序): Backend.stop。**P0-2**: stop 失败只记录,
+        // **绝不截断后续释放链** — Session 层资源 (allocation/lease/reservation)
+        // 无论 backend 结果如何都必须归还, 否则停止失败会让整个资源生命周期卡死。
         let mut stop_error: Option<crate::pipeline::PipelineError> = None;
-        if let Some(h) = &handle {
+        for h in handles.iter().rev() {
             if let Err(e) = self.backend()?.stop(h) {
                 tracing::warn!(error = %e, "backend.stop 失败; 仍继续释放 Session 层资源 (P0-2)");
                 stop_error = Some(e);
@@ -719,6 +767,8 @@ impl SessionManager {
             let mut guard = self.sessions.lock().unwrap();
             let inner = guard.get_mut(id).expect("session registered");
             inner.session.pipeline = None;
+            // Alpha-1: 句柄表同步清空（released 投影诚实——无活动输入）。
+            inner.session.inputs = Vec::new();
             if let Some(e) = &stop_error {
                 inner.session.health.last_error = Some(format!("backend.stop: {e}"));
             }
@@ -1181,6 +1231,154 @@ mod tests {
         manager_with(Arc::new(MockBackend), devices, lm, SessionTuning::default())
     }
 
+    // ── Alpha-1: 多输入多管线（D10 激活） ────────────────────────────────────────
+
+    fn two_devices() -> Vec<DeviceInfo> {
+        MockProviderB
+            .discover()
+            .expect("mock-b discover")
+            .into_iter()
+            .map(|d| d.device)
+            .collect()
+    }
+
+    fn intent_for_all(devices: &[DeviceInfo]) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: devices
+                .iter()
+                .map(|d| crate::graph_intent::DeviceIntent {
+                    device_id: d.device_id.to_string(),
+                    role: "CAPTURE".into(),
+                    pipeline: crate::graph_intent::PipelineIntent {
+                        source: crate::graph_intent::SourceIntent {
+                            kind: "decklink".into(),
+                            device_id: d.device_id.to_string(),
+                            port_id: None,
+                        },
+                        sink: crate::graph_intent::SinkIntent {
+                            kind: "appsink".into(),
+                        },
+                    },
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn session_rt_01_multi_device_session_instantiates_all_inputs() {
+        let devices = two_devices();
+        assert_eq!(devices.len(), 2);
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm);
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.start(&sid).expect("start 双输入");
+        let s = mgr.status(&sid).expect("status");
+        assert_eq!(s.inputs.len(), 2, "D10: 全部 plan 实例化（不再只取 first）");
+        assert_eq!(
+            s.inputs[0].device_id, devices[0].device_id,
+            "输入序 = plans 序"
+        );
+        assert_eq!(s.inputs[1].device_id, devices[1].device_id);
+        assert_eq!(
+            s.pipeline,
+            s.inputs.first().map(|i| i.handle),
+            "pipeline = 首输入主句柄（兼容保留）"
+        );
+    }
+
+    #[test]
+    fn session_rt_01_multi_device_instantiate_failure_midway_zero_orphans() {
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let fb = FailingBackend::new(FailAt::InstantiateSecond);
+        let mgr = manager_with(fb.clone(), &devices, lm.clone(), SessionTuning::default());
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        let err = mgr.start(&sid).expect_err("第二个实例化注入失败必须传播");
+        assert!(err.to_string().contains("injected-second"), "{err:?}");
+        assert_eq!(
+            fb.instances.load(Ordering::SeqCst),
+            2,
+            "两次实例化尝试（第二次注入失败; instances 计尝试）"
+        );
+        assert_eq!(
+            fb.stops.load(Ordering::SeqCst),
+            1,
+            "已建首句柄必须 stop（零孤儿管线占卡）"
+        );
+        assert_zero_orphans(&mgr, &lm);
+        assert_eq!(
+            mgr.status(&sid).map(|s| s.phase),
+            Some(SessionPhase::StartFailed)
+        );
+    }
+
+    #[test]
+    fn session_rt_01_multi_device_stop_stops_all_handles() {
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let fb = FailingBackend::new(FailAt::Never);
+        let mgr = manager_with(fb.clone(), &devices, lm.clone(), SessionTuning::default());
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.start(&sid).expect("start");
+        assert_eq!(fb.instances.load(Ordering::SeqCst), 2);
+        mgr.stop(&sid).expect("stop");
+        assert_eq!(
+            fb.stops.load(Ordering::SeqCst),
+            2,
+            "全部句柄逆序停止（creator=destroyer 延续）"
+        );
+        assert_zero_orphans(&mgr, &lm);
+    }
+
+    #[test]
+    fn session_rt_01_multi_device_allocate_failure_stops_all_handles() {
+        // review Critical#1 回归锁: allocate 失败时已建句柄必须**全部** stop
+        // （注入 = 设备 2 资源 reservation 被外部接管 ⇒ allocate_for holder 不匹配）。
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let fb = FailingBackend::new(FailAt::Never);
+        let mgr = manager_with(fb.clone(), &devices, lm.clone(), SessionTuning::default());
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.resources.with_inner_mut(|r| {
+            for res in r.resources.iter_mut() {
+                if res.device_id == devices[1].device_id {
+                    if let Some(rv) = res.reservation.as_mut() {
+                        rv.holder = Uuid::new_v4();
+                    }
+                }
+            }
+        });
+        let err = mgr
+            .start(&sid)
+            .expect_err("allocate 第二设备注入失败必须传播");
+        assert!(
+            matches!(err, SessionError::ResourceState(_)),
+            "allocate 失败变体: {err:?}"
+        );
+        assert_eq!(
+            fb.stops.load(Ordering::SeqCst),
+            2,
+            "已建**全部**句柄 stop（含首句柄外的 1..N-1——review Critical#1）"
+        );
+        assert!(
+            lm.health().is_empty(),
+            "租约全还（注入污染的 Reserved 资源不属本路径泄漏）"
+        );
+        assert_eq!(
+            mgr.status(&sid).map(|s| s.phase),
+            Some(SessionPhase::StartFailed)
+        );
+        // 清理注入（测试卫生: 被接管 reservation 复位避免跨断言污染）。
+        mgr.resources.with_inner_mut(|r| {
+            for res in r.resources.iter_mut() {
+                if res.device_id == devices[1].device_id {
+                    let _ = res.expire_reservation();
+                }
+            }
+        });
+    }
+
     #[test]
     fn session_rt_01_observation_revision_starts_at_1_and_increments() {
         let devices = mock_devices();
@@ -1282,13 +1480,19 @@ mod tests {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum FailAt {
         Instantiate,
+        /// Alpha-1: 首个实例化成功后注入失败（多输入中途回滚测试）。
+        InstantiateSecond,
         Start,
         Stop,
+        /// Alpha-1: 从不失败（多句柄 stop 计数测试载体）。
+        Never,
     }
 
     struct FailingBackend {
         fail_at: FailAt,
         stop_called: AtomicBool,
+        /// Alpha-1: stop 调用计数（多句柄全停断言）。
+        stops: std::sync::atomic::AtomicU64,
         instances: AtomicU64,
     }
 
@@ -1297,6 +1501,7 @@ mod tests {
             Arc::new(Self {
                 fail_at,
                 stop_called: AtomicBool::new(false),
+                stops: std::sync::atomic::AtomicU64::new(0),
                 instances: AtomicU64::new(0),
             })
         }
@@ -1313,6 +1518,11 @@ mod tests {
                 ));
             }
             let n = self.instances.fetch_add(1, Ordering::SeqCst);
+            if self.fail_at == FailAt::InstantiateSecond && n >= 1 {
+                return Err(crate::pipeline::PipelineError::PrepareFailed(
+                    "injected-second".into(),
+                ));
+            }
             Ok(PipelineHandle(100 + n))
         }
         fn start(&self, _handle: &PipelineHandle) -> Result<(), crate::pipeline::PipelineError> {
@@ -1325,6 +1535,7 @@ mod tests {
         }
         fn stop(&self, _handle: &PipelineHandle) -> Result<(), crate::pipeline::PipelineError> {
             self.stop_called.store(true, Ordering::SeqCst);
+            self.stops.fetch_add(1, Ordering::SeqCst);
             if self.fail_at == FailAt::Stop {
                 return Err(crate::pipeline::PipelineError::StopFailed(
                     "injected stop failure".into(),

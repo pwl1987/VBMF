@@ -89,6 +89,15 @@ pub struct SessionRuntimeState {
     /// P1a: 声明输出 kind 摘要（从 canonical intent `graphs` 投影, 非 appsink 词）。
     /// 语义 = 声明态（非输出健康——输出健康属后续 bus 事件域）。
     pub outputs: Vec<String>,
+    /// Alpha-1 (D10): 每实例化管线的输入摘要（多输入可见性; 空 = 未 start/released）。
+    pub inputs: Vec<InputRuntimeSummary>,
+}
+
+/// Alpha-1: 会话输入运行态摘要（D10 句柄表的投影行）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InputRuntimeSummary {
+    pub device_id: String,
+    pub handle: u64,
 }
 
 /// 媒体语义组合（**整值组合, 绝不平铺**——终审加严红线）。
@@ -198,6 +207,15 @@ impl CanonicalRuntimeState {
                 // P1a: 投影**物化事实**（start() 从 plans 回填于 MediaSession.outputs）——
                 // kind 声明输出但目标 env 缺失的 fail-soft 降级 = 空, 绝不虚报声明态。
                 outputs: s.outputs.clone(),
+                // Alpha-1 (D10): 每管线输入摘要投影（device_id + handle, 序保持）。
+                inputs: s
+                    .inputs
+                    .iter()
+                    .map(|i| InputRuntimeSummary {
+                        device_id: i.device_id.to_string(),
+                        handle: i.handle.0,
+                    })
+                    .collect(),
             })
             .collect();
         // 媒体语义组合: 仅稳定 port_id 的端口（与 ResourceRegistry 派生条件一致）。
@@ -463,6 +481,7 @@ mod tests {
             leases: vec![],
             pipeline: None,
             outputs: outputs.iter().map(|s| s.to_string()).collect(),
+            inputs: Vec::new(),
             health: Default::default(),
             created_at: 0,
         }
@@ -491,6 +510,39 @@ mod tests {
             state.sessions[1].outputs.is_empty(),
             "fail-soft 降级 = 物化空 ⇒ 投影空, 不虚报声明态"
         );
+    }
+
+    #[test]
+    fn runtime_state_rt_01_session_inputs_projected_per_pipeline() {
+        // Alpha-1 (D10): 每实例化管线一行输入摘要（device_id + handle）。
+        let (devices, registry, resources) = empty_world();
+        let mut s = session_with_materialized("appsink", &[]);
+        s.inputs = vec![
+            crate::session::SessionInput {
+                device_id: Uuid::new_v4(),
+                handle: crate::pipeline::PipelineHandle(7),
+            },
+            crate::session::SessionInput {
+                device_id: Uuid::new_v4(),
+                handle: crate::pipeline::PipelineHandle(8),
+            },
+        ];
+        let expect_ids: Vec<String> = s.inputs.iter().map(|i| i.device_id.to_string()).collect();
+        let state = CanonicalRuntimeState::assemble(
+            &devices,
+            &registry,
+            &resources,
+            &HashMap::new(),
+            &[s],
+            &TEST_OBS,
+        );
+        let got: Vec<(String, u64)> = state.sessions[0]
+            .inputs
+            .iter()
+            .map(|i| (i.device_id.clone(), i.handle))
+            .collect();
+        let want: Vec<(String, u64)> = expect_ids.iter().cloned().zip([7u64, 8u64]).collect();
+        assert_eq!(got, want, "输入摘要投影（序保持）");
     }
 
     #[test]

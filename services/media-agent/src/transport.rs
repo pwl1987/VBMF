@@ -281,6 +281,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 <h1>VBMF Prototype — CH01</h1>
 <div class="row">AGENT <span id="agent">…</span> | DEVICES <span id="devices">…</span></div>
 <div class="row">SDI <span id="sdi">…</span> | SESSION <span id="phase">…</span> | OUTPUT <span id="outputs">…</span></div>
+<div class="row" id="inputs">…</div>
 <div class="row"><button id="btn_start">Start</button><button id="btn_stop">Stop</button>
  <span id="cmd"> </span></div>
 <video id="video" controls muted autoplay></video>
@@ -316,6 +317,12 @@ async function poll(){
   $("phase").textContent=s?s.phase:"none";
   $("phase").className=s&&s.phase==="running"?"ok":"bad";
   const outs=(s&&s.outputs)||[];
+  // Alpha-1: 输入行（多输入可见性; 序保持; 显示 uuid 前 8 位——Channel 聚合色/期望数
+  // 对比属 Alpha-2 Switch 阶段, 本期只如实逐行呈现）
+  const ins=(s&&s.inputs)||[];
+  $("inputs").textContent=ins.length
+    ?ins.map((x,i)=>`IN${i+1} dev-${x.id.slice(0,8)} h${x.handle}`).join(" | ")
+    :"INPUTS: none";
   $("outputs").textContent=outs.length?outs.join("+").toUpperCase():"ANALYSIS-ONLY";
   // 物化历史与会话并存: 仅活动会话的输出亮绿, 停止后调暗（不误导"正在输出"）
   $("outputs").className=outs.length&&s&&s.phase==="running"?"ok":"bad";

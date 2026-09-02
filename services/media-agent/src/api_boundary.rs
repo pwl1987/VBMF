@@ -79,6 +79,15 @@ pub struct ApiSession {
     pub phase: String,
     /// P1b: 物化输出事实投影（空 = 纯分析/降级, 绝不虚报——P1a 物化回填语义的 wire 面）。
     pub outputs: Vec<String>,
+    /// Alpha-1 (D10): 会话输入摘要 wire 投影（多输入可见性）。
+    pub inputs: Vec<ApiInputSummary>,
+}
+
+/// Alpha-1: 会话输入摘要 API 模型（独立 DTO, 不绑回内部 SessionInput）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiInputSummary {
+    pub id: String,
+    pub handle: u64,
 }
 
 // 纯函数: Query 五资源转换 (CanonicalRuntimeState 子项 → API 模型)
@@ -117,6 +126,14 @@ pub fn to_api_session(s: &SessionRuntimeState) -> ApiSession {
         state: format!("{:?}", s.state).to_lowercase(),
         phase: format!("{:?}", s.phase).to_lowercase(),
         outputs: s.outputs.clone(),
+        inputs: s
+            .inputs
+            .iter()
+            .map(|i| ApiInputSummary {
+                id: i.device_id.clone(),
+                handle: i.handle,
+            })
+            .collect(),
     }
 }
 
@@ -513,6 +530,29 @@ mod tests {
         assert!(snap.ports.is_empty());
         assert!(snap.resources.is_empty());
         assert!(snap.sessions.is_empty());
+        // Alpha-1: 会话输入摘要 wire 投影（多输入可见性）。
+        let mut s = state.clone();
+        s.sessions = vec![crate::runtime_state::SessionRuntimeState {
+            session_id: crate::session::SessionId(uuid::Uuid::new_v4()),
+            state: crate::session::SessionState::Running,
+            phase: crate::session::SessionPhase::Running,
+            claims: 0,
+            pipeline: Some(7),
+            outputs: vec!["hls".into()],
+            inputs: vec![
+                crate::runtime_state::InputRuntimeSummary {
+                    device_id: "d1".into(),
+                    handle: 7,
+                },
+                crate::runtime_state::InputRuntimeSummary {
+                    device_id: "d2".into(),
+                    handle: 8,
+                },
+            ],
+        }];
+        let snap2 = to_api_query_snapshot(&s);
+        assert_eq!(snap2.sessions[0].inputs.len(), 2, "输入行 wire 投影");
+        assert_eq!(snap2.sessions[0].inputs[0].handle, 7);
         // ErrorClassification → ApiErrorClass 转换闭包 (5 类齐全)。
         for (e, expected) in [
             (E::Rejected, ApiErrorClass::Rejected),
