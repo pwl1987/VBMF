@@ -1,7 +1,0 @@
-{
-  "openspec_proposal": "docs/openspec/changes/a2-1-canonical-switch-policy/proposal.md",
-  "openspec_design": "docs/openspec/changes/a2-1-canonical-switch-policy/design.md",
-  "openspec_tasks": "docs/openspec/changes/a2-1-canonical-switch-policy/tasks.md",
-  "handoff_context": "docs/openspec/changes/a2-1-canonical-switch-policy/.comet/handoff/design-context.json",
-  "handoff_markdown": "docs/openspec/changes/a2-1-canonical-switch-policy/.comet/handoff/design-context.md"
-}

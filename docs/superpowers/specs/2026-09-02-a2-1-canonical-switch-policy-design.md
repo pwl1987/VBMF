@@ -2,6 +2,8 @@
 comet_change: a2-1-canonical-switch-policy
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-a2-1-canonical-switch-policy
+status: final
 ---
 
 # Design Doc — a2-1-canonical-switch-policy（A2-1: Canonical SwitchPolicy）
