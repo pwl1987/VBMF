@@ -64,6 +64,19 @@
   `Contract: 04 终裁 3 收紧+PM-01..08+禁入清单` | 
   `Implementation: 已` | `Verification: 盒上 program::program_master 4/4 +
   mock 291（287+4 恰）+ clippy 4-combo PASS + fmt clean` | `Gate: 无`
-- [ ] 8. A2-5-05 Semantic Review（含 inconsistency 深化——从消费者反推）;
-  A2-5-06 收口+交付链（矩阵/verify/guards/archive/PR/CI/merge/memory）
-  `Contract: 七刀链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 8. A2-5-05 Semantic Review: **inconsistency 深化=维持 bool 零字段
+  追加**（消费者反推三问取证: A2-6 投影先例=to_api_* 整对象映射非 predicate
+  位/Runtime classify 零代码且先例输入=事实集合（fault_trigger_from_events
+  形态）/Watchdog 与 Join 零既有接口经 A2-6 转接——reason/failure_domain
+  candidate 无消费者请求+分类职责归 §8.9（红线 8）+加法路径畅通
+  （Input/Output 无 wire 契约）+God Object 风险实锤）; C′→Runtime/Safety
+  投影边界复核=维持 A2-4-04 §3; 全模型语义复核零越界 + 04 措辞修正
+  （compose=唯一的显式语义组合入口, 与现有 Master 同一 pub-field/serde
+  构造信任模型）; 报告=docs/superpowers/reports/2026-09-02-a2-5-master-
+  join-05-semantic-review.md
+  `Contract: 04 终裁（05 五项检查）+R-A..R-J` | 
+  `Implementation: 已（.rs 仅措辞）` | `Verification: 盒上 program 域 39/39
+  零行为差异` | `Gate: 无`
+- [ ] 9. A2-5-06 收口+交付链: 盒上全矩阵 + verify 报告 + guards（record-check）
+  + archive + PR + CI 七 checks + merge + memory
+  `Contract: 交付纪律` | `Implementation: 待` | `Verification: 后续核` | `Gate: CI/RELEASE`

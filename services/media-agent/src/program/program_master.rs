@@ -43,12 +43,13 @@ pub struct ProgramMaster {
 }
 
 impl ProgramMaster {
-    /// 纯组合器——**唯一构造入口**（终裁收紧 #2）。
+    /// 纯组合器——**唯一的显式语义组合入口**（04 终裁修正: 与现有 Master
+    /// 同一构造信任模型——pub 字段 + serde 重建合法, A2-2 信任边界纪律;
+    /// compose 锁的是语义入口唯一, 非语言级构造唯一）。
     ///
-    /// 不内嵌 `join()`/`is_ready()`/`validate_join()`/任何 avsync 或 metadata
-    /// consistency 判断（PM-05: 结果由 `join()` 单一判定入口产出, 本方法只
-    /// 组合）; 不提供 `from_join()`（防第二判定入口——A2-6 真实消费者出现
-    /// 后再反推）。
+    /// 锁定对象: 禁 `from_join()`/`build_from_join()`/`join_and_compose()`/
+    /// 本类型内重算 Join（PM-05: 结果由 `join()` 单一判定入口产出, 本方法
+    /// 只组合）。不提供 `from_join()`——A2-6 真实消费者出现后再反推。
     pub fn compose(
         video: VideoMaster,
         audio: AudioMaster,
