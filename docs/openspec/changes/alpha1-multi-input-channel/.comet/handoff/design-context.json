@@ -1,0 +1,13 @@
+{
+  "change": "alpha1-multi-input-channel",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "f3f148281049b1108f2fae71d12497405aa02b1ad437c4fcb5e61b2150ba4471",
+  "files": [
+    { "path": "docs/openspec/changes/alpha1-multi-input-channel/proposal.md", "sha256": "348b3c9cd4f4c78963f0a6286c89c642cc226aaf3d4083aaeeddcb149d37aa20" },
+    { "path": "docs/openspec/changes/alpha1-multi-input-channel/design.md", "sha256": "50eabfa267e53ba15b71adbbacc778d28ba4754237a4c62ae18f14a027afbc54" },
+    { "path": "docs/openspec/changes/alpha1-multi-input-channel/tasks.md", "sha256": "76721bb814c66c884831ddb49ae15bd06d3c5ba5518953df4cc8f21f2fac2bc6" }
+  ]
+}

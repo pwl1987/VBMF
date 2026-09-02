@@ -1,0 +1,7 @@
+{
+  "openspec_proposal": "docs/openspec/changes/alpha1-multi-input-channel/proposal.md",
+  "openspec_design": "docs/openspec/changes/alpha1-multi-input-channel/design.md",
+  "openspec_tasks": "docs/openspec/changes/alpha1-multi-input-channel/tasks.md",
+  "handoff_context": "docs/openspec/changes/alpha1-multi-input-channel/.comet/handoff/design-context.json",
+  "handoff_markdown": "docs/openspec/changes/alpha1-multi-input-channel/.comet/handoff/design-context.md"
+}
