@@ -129,3 +129,50 @@ RuntimeQuery/transport/CanonicalRuntimeState 零改动。
 flatten / 08 DTO 非 alias / 09 mapper 不创建 ProgramMaster / 10 mapper
 不触 RuntimeState/SessionManager/RuntimeQuery/EventLog / 11 零新端点 /
 12 零 serde(default)。
+
+---
+
+## 6. A2-6-02 复核终裁（CHANGES REQUIRED，2026-09-03）
+
+> 02 整体设计 APPROVED（命名/五字段/None→null/avsync 参数化/零挂载/
+> whole-value 全保留）；**唯一返工点 = Domain 容器类型直接作 API DTO 字段
+> → REJECT**。
+
+### 否决理由（两层权限不可混同）
+
+api_boundary 冻结规则是两层：①"Canonical types 属于 mapper **允许消费的
+输入来源**"；②"API Resource Model **独立定义**，禁内部 Rust DTO 直接作
+API DTO"。由①不能推出②——`ApiProgramMaster.video: VideoMaster` 已形成
+"API DTO 直接持有 Domain Object"结构。且 VideoMaster/AudioMaster 是 A2-2/
+A2-3 的 **Domain 真相对象**（含 data_plane/composition/NonZeroU16/f32 等
+Domain 表达）非 API Resource。**最大风险**：Domain struct 字段一变 → API
+wire 自动变——与独立 API Contract 直接冲突。
+
+### 架构认识纠正（终裁原文记档）
+
+**镜像 DTO ≠ 重新解释 Domain。** 真正危险的是"API Developer 重新命名/
+删减/创造另一套语义"；需要的是"Domain canonical fact → explicit mechanical
+mapping → API representation of the same fact"（语义来自 Domain，所有权与
+演进边界属于 API）——`to_api_device/port/session` 现行代码正是如此
+（ApiSession 并未把 SessionRuntimeState 当字段暴露）。**不创造"Canonical
+类型可直接暴露"例外，延续仓库既有纪律。**
+
+### 修复范围（仅 API nested DTO + mapper，其他零扩张）
+
+```text
+ProgramMaster ── to_api_program_master() ── ApiProgramMaster
+  ├── VideoMaster            ──►  ├── ApiVideoMaster
+  ├── AudioMaster            ──►  ├── ApiAudioMaster
+  └── MetadataMaster         ──►  └── ApiMetadataMaster
+```
+
+薄镜像 DTO 字段严格 1:1 对应 canonical wire shape；mapper 只做显式复制/
+转换。**不碰**：ApiProgramQuery/RuntimeQuery/ApiQuerySnapshot/Transport/
+Custody/producer/AVSync measurement DTO/failure reason DTO/Channel·Program
+identity（零挂载裁决仍有效）。A2-7 不提前跳转；修复通过 PMAPI-01..12 后
+**直接进 A2-6-06 收口**。
+
+### 附注
+
+a993a36 为 feature 分支提交，按先例不触发 CI（GitHub combined status 空
+= 正常；CI 在 PR 时跑）——盒上验证与 GitHub CI 不等同的口径接受。

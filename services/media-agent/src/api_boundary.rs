@@ -352,18 +352,51 @@ pub fn default_idempotency_boundary() -> ApiIdempotencyBoundary {
 }
 
 // === Program 平面：ProgramMaster 语义快照投影（A2-6-02） =====================
+//
+// **A2-6-02 复核终裁（CHANGES REQUIRED 已修复）**: API DTO 字段禁直接持有
+// Domain 容器对象——"Canonical types 允许 mapper 消费"≠"允许 DTO 字段类型
+// 等于 Domain 类型"（两层权限不可混同）。修复 = 薄镜像 DTO（字段严格 1:1
+// 对应 canonical wire shape, mapper 只做显式机械复制）——镜像 ≠ 重新解释
+// Domain（语义来自 Domain, 所有权与演进边界属于 API; Domain 字段增加不再
+// 自动改 API contract）。不碰: Query/Transport/Custody/producer（零挂载
+// 仍有效）。
+
+/// VideoMaster 语义快照投影（薄镜像: 字段 1:1 canonical wire shape;
+/// 词表子类型为 V0.2 LOCK FINAL 封闭词表, 直接复用零演化风险）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiVideoMaster {
+    pub stage: crate::program::VideoMasterStage,
+    pub data_plane: crate::program::VideoDataPlane,
+    pub composition: crate::program::ProgramComposition,
+}
+
+/// AudioMaster 语义快照投影（薄镜像, 同律）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiAudioMaster {
+    pub stage: crate::program::AudioMasterStage,
+    pub data_plane: crate::program::AudioDataPlane,
+    pub mix_layout: crate::program::MixLayout,
+    pub delay_ms: Option<std::num::NonZeroU16>,
+    pub loudness_lufs: Option<f32>,
+}
+
+/// MetadataMaster 语义快照投影（薄镜像, 同律; facts 元素 `MetadataFact` 与
+/// `CanonicalSourceRef` 属 LOCK FINAL 词表层直接复用——键集恰三已由 A2-4
+/// 测试锁死, 无容器演化面）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiMetadataMaster {
+    pub data_plane: crate::program::MetadataDataPlane,
+    pub facts: Vec<crate::program::MetadataFact>,
+    pub join_declaration: crate::program::MetadataJoinDeclaration,
+}
 
 /// ProgramMaster 语义快照投影（A2-6-01 终裁: 命名 `ApiProgramMaster`——
 /// 直译组合根; 禁 ApiProgram[过早吞 A2-7 完整 Program 语义]/ApiChannelProgram/
 /// ApiProgramSnapshot）。
 ///
-/// **whole-value 整体投影（禁 flatten）**: video/audio/metadata 嵌套 Domain
-/// 对象原样出现, 顶层禁 video_stage/audio_stage/metadata_xxx 平铺——API 不
-/// 重新解释 Domain。嵌套类型直接用 Program Domain canonical 类型是**有意
-/// 设计**: 这些类型的 serde wire 名 = V0.2 LOCK FINAL 词表（A2-1..A2-5 逐
-/// 刀锁定）, 属本模块允许消费清单的 "Canonical types"; 与 Runtime 内部
-/// 类型（vendor/执行语义需转换）本质不同, 故不造镜像 DTO（镜像=字段复制
-/// =另一种重新解释）。
+/// **whole-value 整体投影（禁 flatten）**: video/audio/metadata 嵌套 API
+/// DTO 原样出现, 顶层禁 video_stage/audio_stage/metadata_xxx 平铺——API 不
+/// 重新解释 Domain。
 ///
 /// **avsync = Join classification input projection**（A2-5 唯一家
 /// master_join.rs 的 `AVSyncClassification` 四值零转换透传）——**不是**
@@ -371,18 +404,47 @@ pub fn default_idempotency_boundary() -> ApiIdempotencyBoundary {
 /// 以外的任何语义（§8.10 red 后须 Runtime classify_failure_domain）。
 ///
 /// **零挂载（A2-6-01 终裁 OQ-8）**: 本 DTO 当前无 producer（join() 零生产
-/// 调用者）无 consumer——仅 `to_api_program_master` 纯映射到位; RuntimeQuery/
+/// 调用者）无 consumer——仅 to_api_* 纯映射到位; RuntimeQuery/
 /// ApiQuerySnapshot/transport 端点零接线（等 A2-7 生产生命周期 + 真实消费者）。
 /// 零 serde(default)（缺省语义=数据类型行为, 不放宽 API Contract）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApiProgramMaster {
-    pub video: crate::program::VideoMaster,
-    pub audio: crate::program::AudioMaster,
-    pub metadata: crate::program::MetadataMaster,
+    pub video: ApiVideoMaster,
+    pub audio: ApiAudioMaster,
+    pub metadata: ApiMetadataMaster,
     /// `None` = Join Result 尚未形成（wire: `null`; **禁** UNKNOWN/NOT_READY/
     /// FAILED/DEGRADED 字符串化——None 不是第五语义, R-A）。
     pub join_result: Option<crate::program::MasterJoinResult>,
     pub avsync: crate::program::AVSyncClassification,
+}
+
+/// VideoMaster → ApiVideoMaster 显式机械映射（薄镜像 1:1; 零语义创造）。
+pub fn to_api_video_master(v: &crate::program::VideoMaster) -> ApiVideoMaster {
+    ApiVideoMaster {
+        stage: v.stage,
+        data_plane: v.data_plane,
+        composition: v.composition,
+    }
+}
+
+/// AudioMaster → ApiAudioMaster 显式机械映射（薄镜像 1:1）。
+pub fn to_api_audio_master(a: &crate::program::AudioMaster) -> ApiAudioMaster {
+    ApiAudioMaster {
+        stage: a.stage,
+        data_plane: a.data_plane,
+        mix_layout: a.mix_layout,
+        delay_ms: a.delay_ms,
+        loudness_lufs: a.loudness_lufs,
+    }
+}
+
+/// MetadataMaster → ApiMetadataMaster 显式机械映射（薄镜像 1:1）。
+pub fn to_api_metadata_master(m: &crate::program::MetadataMaster) -> ApiMetadataMaster {
+    ApiMetadataMaster {
+        data_plane: m.data_plane,
+        facts: m.facts.clone(),
+        join_declaration: m.join_declaration,
+    }
 }
 
 /// ProgramMaster → ApiProgramMaster 纯映射（A2-6-02: PMAPI 属性——pure/
@@ -397,9 +459,9 @@ pub fn to_api_program_master(
     avsync: crate::program::AVSyncClassification,
 ) -> ApiProgramMaster {
     ApiProgramMaster {
-        video: pm.video,
-        audio: pm.audio,
-        metadata: pm.metadata.clone(),
+        video: to_api_video_master(&pm.video),
+        audio: to_api_audio_master(&pm.audio),
+        metadata: to_api_metadata_master(&pm.metadata),
         join_result: pm.join_result,
         avsync,
     }
@@ -724,8 +786,10 @@ mod tests {
 
     /// PMAPI-01/07/08: 顶层五键存在（whole-value——video/audio/metadata 是
     /// 嵌套对象非平铺标量; 反向禁 video_stage 等展平键与 eligibility/
-    /// classification_input/inconsistency 过程键）; DTO 非 alias（avsync
-    /// 字段独立于 ProgramMaster——结构不等价即非 alias 的行为证）。
+    /// classification_input/inconsistency 过程键）; **镜像独立性（A2-6-02
+    /// 复核终裁）**: ApiProgramMaster 字段类型为 Api* 镜像 DTO 非 Domain
+    /// 容器——行为证 = Domain 容器上不存在的构造/字段访问在 Api DTO 上成立,
+    /// 且独立结构各自序列化（Domain 字段未来增加不自动进 API wire）。
     #[test]
     fn pmapi_01_top_level_keys_whole_value_not_alias() {
         let pm = composed_program_master(None);
@@ -890,5 +954,70 @@ mod tests {
         let back: ApiProgramMaster =
             serde_json::from_value(serde_json::Value::Object(no_result)).unwrap();
         assert_eq!(back.join_result, None);
+    }
+
+    /// 薄镜像 1:1 映射保真（A2-6-02 复核终裁）: 三子 mapper 对**非默认状态**
+    /// 的逐字段显式复制——wire shape 与 Domain canonical shape 恒等（含
+    /// delay_ms=Some / loudness_lufs=Some / facts 非空等带值场景, 防映射漏
+    /// 字段）。
+    #[test]
+    fn pmapi_mirror_dtos_one_to_one_field_fidelity() {
+        use crate::program::{AudioMasterStage, MetadataType as Mt, MixLayout as Ml};
+        use std::num::NonZeroU16;
+
+        let mut video = crate::program::VideoMaster::new();
+        for _ in 0..2 {
+            video = video.advance().expect("推进");
+        }
+        let audio = crate::program::AudioMaster {
+            stage: AudioMasterStage::DelayCompensated,
+            mix_layout: Ml::StereoAndSub,
+            delay_ms: Some(NonZeroU16::new(80).unwrap()),
+            loudness_lufs: Some(-23.0),
+            ..crate::program::AudioMaster::new()
+        };
+        let metadata = crate::program::MetadataMaster {
+            facts: vec![crate::program::MetadataFact {
+                kind: Mt::Caption,
+                source: crate::normalize::CanonicalSourceRef {
+                    device_id: uuid::Uuid::nil(),
+                    port_id: None,
+                },
+                presence: crate::program::MetadataPresence::Present,
+            }],
+            join_declaration: MetadataJoinDeclaration::NotPresent,
+            ..MetadataMaster::default()
+        };
+
+        let av = to_api_video_master(&video);
+        assert_eq!(av.stage, video.stage);
+        assert_eq!(av.data_plane, video.data_plane);
+        assert_eq!(av.composition, video.composition);
+
+        let aa = to_api_audio_master(&audio);
+        assert_eq!(aa.stage, audio.stage);
+        assert_eq!(aa.data_plane, audio.data_plane);
+        assert_eq!(aa.mix_layout, audio.mix_layout);
+        assert_eq!(aa.delay_ms, audio.delay_ms);
+        assert_eq!(aa.loudness_lufs, audio.loudness_lufs);
+
+        let am = to_api_metadata_master(&metadata);
+        assert_eq!(am.data_plane, metadata.data_plane);
+        assert_eq!(am.facts, metadata.facts);
+        assert_eq!(am.join_declaration, metadata.join_declaration);
+
+        // 组合根映射后 wire 面与 Domain 事实逐字段一致（嵌套层同值）。
+        let pm = ProgramMaster::compose(video, audio, metadata, None);
+        let api = to_api_program_master(&pm, AVSyncClassification::Failed);
+        assert_eq!(api.video.stage, crate::program::VideoMasterStage::Switched);
+        assert_eq!(api.audio.stage, AudioMasterStage::DelayCompensated);
+        assert_eq!(api.audio.delay_ms, Some(NonZeroU16::new(80).unwrap()));
+        assert_eq!(api.metadata.facts.len(), 1);
+        assert_eq!(
+            api.metadata.join_declaration,
+            MetadataJoinDeclaration::NotPresent
+        );
+        assert_eq!(api.join_result, None);
+        assert_eq!(api.avsync, AVSyncClassification::Failed);
     }
 }
