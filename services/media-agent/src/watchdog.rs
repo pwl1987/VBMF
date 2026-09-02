@@ -5,20 +5,21 @@
 //! Supervisor 决策（只决策不碰 GStreamer——边界保留）→ backoff → recover。
 //! 归属: Runtime 层（main.rs 组合根与 gates bin 同源引用）。
 //!
-/// MEDIA-RT-01 watchdog (Supervisor → PipelineController.recover 运行时接线).
-///
-/// 单向健康链 (回应 #9): `GStreamer Bus → PipelineHealth → AgentState → Supervisor → Health API`.
-/// 周期: 真 bus 监控 (Error/EOS/StateChanged) + appsink 计数 → 推导 MEDIA-RT-01
-/// A1-A4 / B1-B4 / C1-C4 → 错误时报告 Supervisor (决策引擎) → Restart → 重校 lease → recover.
-/// Supervisor 仅决策, 不碰 GStreamer (硬边界); 实际重启由这里执行.
-/// 调用点 (self-test / canonical) 均在 `#[cfg(feature = "bmd-provider")]` 块内, 故本函数仅在 bmd && gstreamer 时编译.
-/// `ctrl` 已为 `Arc<dyn MediaBackend>` (C2c): Mock 与 GStreamer 共享同一 `PipelinePlan` 契约.
+//! MEDIA-RT-01 watchdog (Supervisor → PipelineController.recover 运行时接线):
+//! 单向健康链 (回应 #9): GStreamer Bus → PipelineHealth → AgentState → Supervisor → Health API;
+//! 周期真 bus 监控 (Error/EOS/StateChanged) + appsink 计数 → MEDIA-RT-01 A1-A4/B1-B4/C1-C4 →
+//! 错误报告 Supervisor (决策引擎) → Restart → 重校 lease → recover;
+//! Supervisor 仅决策不碰 GStreamer (硬边界); `ctrl` 为 `Arc<dyn MediaBackend>` (C2c)。
 
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use std::sync::Arc;
 
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use uuid::Uuid;
 
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::backend::MediaBackend;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::{events, health, lease, supervisor};
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]

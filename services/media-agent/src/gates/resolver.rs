@@ -6,7 +6,9 @@
 //! 证据, 供现场核对 "CH01 怎么采到了另一张卡" / "device-number 与正确输入设备未对应"。
 //! 与 CAP-01 生产路径严格隔离。
 
+#[cfg(feature = "gstreamer-backend")]
 use crate::config::Config;
+#[cfg(feature = "gstreamer-backend")]
 use crate::contracts::provider::DiscoveredDevice;
 
 #[cfg(feature = "gstreamer-backend")]
@@ -83,8 +85,8 @@ pub fn run(_cfg: &Config, discovered: &[DiscoveredDevice]) {
                     eprintln!("WARNING: 未提供 DeviceBindingManifest, 回退 legacy runtime auto-resolution (C1 诊断模式允许; 生产应禁用)");
                 }
                 let evidence = match &manifest {
-                    Some(m) => crate::resolver::resolve_with_manifest(&discovered, &probes, m),
-                    None => crate::resolver::resolve(&discovered, &probes),
+                    Some(m) => crate::resolver::resolve_with_manifest(discovered, &probes, m),
+                    None => crate::resolver::resolve(discovered, &probes),
                 };
                 match serde_json::to_string_pretty(&evidence) {
                     Ok(json) => {
@@ -95,9 +97,9 @@ pub fn run(_cfg: &Config, discovered: &[DiscoveredDevice]) {
                 }
                 let bindings = match &manifest {
                     Some(m) => {
-                        crate::resolver::collect_bindings_from_manifest(&discovered, &probes, m)
+                        crate::resolver::collect_bindings_from_manifest(discovered, &probes, m)
                     }
-                    None => crate::resolver::collect_bindings(&discovered, &probes),
+                    None => crate::resolver::collect_bindings(discovered, &probes),
                 };
                 match serde_json::to_string_pretty(&bindings) {
                     Ok(json) => {
@@ -113,7 +115,7 @@ pub fn run(_cfg: &Config, discovered: &[DiscoveredDevice]) {
                 // 绝不把当前 dn0/dn1/dn2 语义写死; 端口完全来自 Manifest + 运行时发现.
                 if let Some(m) = &manifest {
                     let registry =
-                        crate::port::PortRegistry::build(&discovered, &probes, m, &bindings)
+                        crate::port::PortRegistry::build(discovered, &probes, m, &bindings)
                             .expect("端口发现与 manifest 不一致 (fail-closed 拒绝)");
                     let report = crate::hw_port_01::verify(&registry, m);
                     match serde_json::to_string_pretty(&report) {

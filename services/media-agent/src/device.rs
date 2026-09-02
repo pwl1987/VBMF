@@ -86,6 +86,9 @@ pub struct DeviceInfo {
 pub struct FilesystemDeviceManager;
 
 impl FilesystemDeviceManager {
+    // A2-0: lib 化使本项进入 lib 公开面, clippy new_without_default 随之触发——
+    // 结构性编译后果的最小处置（allow 而非补 Default 语义; 不借 A2-0 改 Runtime）。
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self
     }
@@ -144,6 +147,8 @@ impl HardwareProvider for FilesystemDeviceManager {
 pub struct SimulatedDeviceManager;
 
 impl SimulatedDeviceManager {
+    // A2-0: 同 FilesystemDeviceManager——lib 公开面触发 clippy 的最小 allow 处置。
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self
     }

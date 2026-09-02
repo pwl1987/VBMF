@@ -10,10 +10,14 @@
 //! 初始化路径）; event_sink/projection_log 为调用方传入的共享实例。
 //! A2-0 不合并 production runtime——Gate = 调用 Production 组件做验收。
 
+#[cfg(feature = "gstreamer-backend")]
 use std::sync::Arc;
 
+#[cfg(feature = "gstreamer-backend")]
 use crate::config::Config;
+#[cfg(feature = "gstreamer-backend")]
 use crate::contracts::provider::DiscoveredDevice;
+#[cfg(feature = "gstreamer-backend")]
 use crate::events::{RuntimeEventLog, RuntimeEventSink};
 
 #[cfg(feature = "gstreamer-backend")]
@@ -55,9 +59,9 @@ pub fn run(
             _ => Vec::new(),
         };
         let bindings =
-            crate::resolver::collect_bindings_from_manifest(&discovered, &probes, &manifest);
+            crate::resolver::collect_bindings_from_manifest(discovered, &probes, &manifest);
         let registry =
-            match crate::port::PortRegistry::build(&discovered, &probes, &manifest, &bindings) {
+            match crate::port::PortRegistry::build(discovered, &probes, &manifest, &bindings) {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("PortRegistry 构建失败 (fail-closed): {e:?}");
@@ -130,7 +134,7 @@ pub fn run(
                         _ => Vec::new(),
                     };
                     let fresh_registry = crate::port::PortRegistry::build(
-                        &discovered,
+                        discovered,
                         &fresh_probes,
                         &manifest,
                         &bindings,

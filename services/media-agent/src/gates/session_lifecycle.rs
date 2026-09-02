@@ -10,22 +10,33 @@
 //! 非 production runtime 初始化路径）; 仅复用调用方传入的运行时基础件
 //! (lm/sup/agent_state/双日志/sink)。A2-0 不合并 production runtime。
 
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use std::sync::Arc;
 
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use uuid::Uuid;
 
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::config::Config;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::backend::MediaBackend;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::provider::DiscoveredDevice;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::device::DeviceInfo;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::events::{RuntimeEventLog, RuntimeEventSink};
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::health::AgentState;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::lease::{InMemoryLeaseManager, LeaseManager as _};
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::supervisor::Supervisor;
 
 /// 参数即原 main 词法依赖（用户裁定: 显式参数即可, 不过度抽象; bootstrap 收口在 A20-03）。
+/// cfg 精确复刻原位（main.rs bmd-provider 外层块 + gstreamer 内层 = all(bmd, gst)）。
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "gstreamer-backend")]
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 pub fn run(
     _cfg: &Config,
     devices: &[DeviceInfo],
@@ -68,12 +79,12 @@ pub fn run(
             _ => Vec::new(),
         };
         let bindings = crate::resolver::collect_bindings_from_manifest(
-            &discovered,
+            discovered,
             &gst_probes,
             &manifest,
         );
         let registry = match crate::port::PortRegistry::build(
-            &discovered,
+            discovered,
             &gst_probes,
             &manifest,
             &bindings,
