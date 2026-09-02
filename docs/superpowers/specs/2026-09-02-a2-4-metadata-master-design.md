@@ -70,6 +70,28 @@ wire：`PARTICIPATING / NOT_PRESENT / UNKNOWN`；词表快照 const `JOIN_DECLAR
 锚：SQ-4 终裁例句直接以 NOT_PRESENT/UNKNOWN 作 declaration 值。
 Default：`#[default] Unknown`（无观测前态）。
 
+#### §1.5a 语义精化（A2-4-03 Semantic Review 补，semantic-review 报告 §1-§4 同源）
+
+- **快照语义**：`MetadataMaster` 是聚合快照声明（swept, non-transactional，
+  与 D14 同一致性类），非终局裁决。`facts=[]` 恒指"**本次聚合快照无 fact**"
+  （observation 未回流/暂无事件的瞬时态）；"确认无"的规范表达是
+  `NotPresent`——二者不混同（收束 `Participating+[]` 歧义，A2-4-03 §2 组合1）。
+- **可观测语义锁死**：`Unknown ≠ NotPresent`——前者"不能声明"（观测不足），
+  后者"已有足够观察依据确认不存在"。二者是**可观测语义**，禁结构推导：
+  禁 `facts.is_empty() → NotPresent`；禁 `!facts.is_empty() → Participating`
+  （证据存在≠参与声明）。
+- **参与性隐含**：`NotPresent` 的参与性隐含在"已观测"中（已观测即已参与
+  观测过程），不另设"参与+确认无"复合态；三态单字段单值互斥。
+- **条级/路级区分**：fact = 条级证据（某 source 某类型存在性）；declaration
+  = 路级结论。部分条级证据到位不等于路级结论可下（`Unknown+[fact]` 合法，
+  A2-4-03 §2 组合6）。
+- **已知矛盾组合（TQ-1 待裁）**：`NotPresent` + 任一 `presence: Present`
+  fact = 证据/声明矛盾。处置三案见 semantic-review 报告 §4——裁决前结构层
+  不增禁令、不加测试合法化。
+- **A2-5 前瞻约束（A2-5 设计须消费）**：`Unknown ≠ failed`（观测不足不是
+  故障，Join 侧禁把 Unknown 直接升格 DEGRADED 依据）；`Participating+[]`
+  不阻断（空 ≠ failed；V0.2 §1.20 L155 只有"路 failed"才触发）。
+
 ### MetadataFact（字段顺序与 wire 锁定）
 
 ```rust

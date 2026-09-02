@@ -45,7 +45,16 @@
   `Contract: SQ 终裁+Design §1.5+16 行字段表` | `Implementation: 已` | 
   `Verification: 盒上 program 域 30/30（25+5 恰）+ mock 282（277+5 零回退）+
   clippy 4-combo PASS + fmt clean` | `Gate: 无`
-- [ ] 6. A2-4-03 字段语义深度复核（serde 已随 02 交付, 03=review 深度项）;
-  A2-4-04 Join boundary review; A2-4-05 全回归+architecture guard; 交付链
-  `Contract: 终裁 §二十实施链` | `Implementation: 待` | 
+- [x] 6. A2-4-03 Semantic Deep Review（零代码, 用户批准四问范围）: 六组合
+  语义矩阵逐一解释（5 组合自洽 + 组合5b 矛盾上报 TQ-1 不靠测试合法化）+
+  四问审查（三态自洽含 Participating+[] 快照语义收束/正交禁推导清单两条/
+  fact 非隐形容器/serde 与 A2-5 消费边界兼容+两条前瞻约束 Unknown≠failed·
+  Participating+空不阻断）; Design §1.5a 语义精化 D1-D4 落盘; 报告=
+  docs/superpowers/reports/2026-09-02-a2-4-metadata-master-semantic-review.md
+  `Contract: A2-4-02 终裁§2/§3/下一刀四问` | `Implementation: 已（零 .rs diff）` | 
+  `Verification: 7342cdd diff 边界实查（禁入词 10 处全为禁令注释）` | `Gate: 无`
+- [ ] 7. TQ-1 裁决（组合 5b 矛盾处置: 案A 结构不禁+A2-5 fail-closed 推荐/
+  案B is_consistent 谓词/案C 定义收窄）; A2-4-04 Join boundary review;
+  A2-4-05 全回归+architecture guard; 交付链
+  `Contract: A2-4-03 报告 §4` | `Implementation: 待` | 
   `Verification: 后续核` | `Gate: 后续定`
