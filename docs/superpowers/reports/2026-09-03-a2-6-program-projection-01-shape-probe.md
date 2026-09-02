@@ -106,3 +106,26 @@ projection 函数。01 交付物 = 本报告 + tasks 更新。
 
 零 .rs diff；未建假 ProgramMaster/Custody/ProgramQuery/投影函数；
 RuntimeQuery/transport/CanonicalRuntimeState 零改动。
+
+---
+
+## 5. 用户终裁记录（A2-6-01 → A2-6-02 Gate，2026-09-03）
+
+> **A2-6-01 = APPROVED / CLOSED；A2-6-02 = APPROVED TO IMPLEMENT**
+> （只做 API Projection implementation + tests，不接 Query/Transport——
+> 真正的 consumer 等 A2-7 ProgramMaster 生产生命周期出现后再接）。
+
+| 项 | 终裁 | 关键约束 |
+|---|---|---|
+| OQ-6 命名 | **`ApiProgramMaster`** | 禁 `ApiProgram`（过早吞未来 Program 语义——A2-7 完整消费者出现再定义）/`ApiChannelProgram`/`ApiProgramSnapshot` |
+| OQ-7 None wire | **JSON `null`** | `"join_result": null` = 尚未形成；禁 UNKNOWN/NOT_READY/FAILED/DEGRADED 字符串化；**serde(default) 仍禁**（缺省语义≠放宽 API Contract） |
+| OQ-8 挂载 | **只实现 Projection DTO + pure mapper，零挂载** | ProgramMaster→to_api_program_master()→ApiProgramMaster 到此为止；RuntimeQuery/ApiQuerySnapshot/新端点全不做——没有 producer 也没有 consumer，挂载=创造无生命周期来源的 API（空中楼阁） |
+| OQ-9 暴露面 | `ApiProgramMaster{video, audio, metadata, join_result, avsync}` | **whole-value 整体投影禁 flatten**（顶层禁 video_stage/audio_stage/metadata_xxx 平铺——API 不重新解释 Domain）；**avsync=Join classification input projection**（禁 health/status/program_status 化，AVSync=FAILED 禁推 ProgramMaster=FAILED）；**inconsistency 不暴露**（内部分类输入非用户语义）；**MasterJoinOutput 禁直接投影**（eligibility/classification_input 是 Join 运算过程输出非 API Resource；禁 alias） |
+
+### A2-6-02 十二测试 Gate（PMAPI-01..12）
+
+01 五键存在 / 02 Some 正确序列化 / 03 None→null / 04 None 禁语义化 /
+05 AVSync 四值零转换 / 06 inconsistency 不入 API / 07 whole-value 禁
+flatten / 08 DTO 非 alias / 09 mapper 不创建 ProgramMaster / 10 mapper
+不触 RuntimeState/SessionManager/RuntimeQuery/EventLog / 11 零新端点 /
+12 零 serde(default)。

@@ -30,7 +30,28 @@
   docs/superpowers/reports/2026-09-03-a2-6-program-projection-01-shape-probe.md
   `Contract: 00 终裁 §7 七项+硬 Gate` | `Implementation: 已（零 .rs diff）` | 
   `Verification: 七项全有代码实锚` | `Gate: 无`
-- [ ] 4. 用户对 OQ-6..9 终裁（A2-6-02 前置: 命名/None wire/挂载点/暴露面）
-  `Contract: 用户裁定权` | `Implementation: 待` | `Verification: 裁决记录` | `Gate: 无`
-- [ ] 5. A2-6-02..06（Projection 实现→Query 接线→API→Transport→收口）
+- [x] 4. 用户对 OQ-6..9 终裁（2026-09-03 落 01 报告 §5: OQ-6=`ApiProgramMaster`
+  禁 ApiProgram 等/OQ-7=JSON null+serde(default) 仍禁/OQ-8=只实现 DTO+pure
+  mapper 零挂载[RuntimeQuery/ApiQuerySnapshot/端点全不做——无 producer 无
+  consumer, 挂载=空中楼阁]/OQ-9=五字段暴露[whole-value 禁 flatten·avsync=
+  Join classification input projection 禁 Health 化·inconsistency 不暴露·
+  MasterJoinOutput 禁直接投影]; PMAPI-01..12 十二测试 Gate; A2-6-02 
+  APPROVED TO IMPLEMENT）
+  `Contract: 用户裁定权` | `Implementation: 已` | `Verification: 01 报告 §5` | `Gate: 无`
+- [x] 5. A2-6-02 实现: `api_boundary.rs` 增 `ApiProgramMaster`（五字段:
+  video/audio/metadata 整体投影嵌套 canonical 类型[允许消费清单 "Canonical
+  types" 内·wire 名=V0.2 LOCK FINAL 词表·doc 论证不造镜像 DTO] +
+  join_result:Option→null + avsync 透传）+ `to_api_program_master(&pm, 
+  avsync)` 纯映射（avsync 参数化=双 SoT 禁; mapper 禁创建 ProgramMaster/
+  禁 Runtime 依赖）; 7 测试覆盖 PMAPI-01..12（01 五键+whole-value+非 alias
+  行为证 / 02 Some 序列化 / 03·04 None→null+语义串拒收 / 05 AVSync 四值
+  零转换 / 06 inconsistency 不暴露 / 09·10 纯度确定性零 mutation / 12 零
+  serde(default)+Option absence）; **测试底座=真实 join() 产出**（三 Master 
+  推进+Participating→join→compose, 不从零构造假快照）; 零挂载（RuntimeQuery/
+  ApiQuerySnapshot/transport 零 diff）
+  `Contract: 01 终裁 §5+PMAPI-01..12` | `Implementation: 已` | 
+  `Verification: 盒上 PMAPI 7/7 + mock 298（291+7 恰）+ clippy 4-combo PASS 
+  + fmt clean` | `Gate: 无`
+- [ ] 6. A2-6-03..06（Query 接线等消费者→API→Transport→收口+交付链）——
+  Query/Transport 真实 consumer 等 A2-7 生产生命周期后另裁
   `Contract: 六刀链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
