@@ -1319,10 +1319,47 @@ fn main() {
             // P0.7C-8: api_mgr 已提升到 main body 顶层 (见 agent_state 之后), 此处仅赋值。
             let auto_start = matches!(mode, crate::pipeline::MaterializeMode::Diagnostic);
             if auto_start {
-                let first_id = devices
-                    .first()
+                // Alpha-1: 诊断多输入——`VBMF_DIAG_INPUTS`（默认 1 = 现行为）取**已绑定**
+                // 设备前 N 个（未绑定/输出卡不含; N 超可用数 ⇒ 取全部并 warn）。
+                // review Important#2: 无任何绑定设备 ⇒ 回退 devices.first()（单输入
+                // 兼容冻结点——绝不让 intent 落空）; 非法 N 值 warn 后按 1。
+                let diag_inputs = match std::env::var("VBMF_DIAG_INPUTS") {
+                    Ok(v) => match v.parse::<usize>() {
+                        Ok(n) if n >= 1 => n,
+                        _ => {
+                            println!("WARN: VBMF_DIAG_INPUTS={v:?} 非法（须 ≥1 整数）⇒ 按 1");
+                            1
+                        }
+                    },
+                    Err(_) => 1,
+                };
+                let bound: Vec<String> = devices
+                    .iter()
+                    .filter(|d| bindings.contains_key(&d.device_id))
                     .map(|d| d.device_id.to_string())
-                    .unwrap_or_default();
+                    .collect();
+                if diag_inputs > bound.len() && !bound.is_empty() {
+                    println!(
+                        "WARN: VBMF_DIAG_INPUTS={diag_inputs} 超已绑定设备数 {} ⇒ 取全部",
+                        bound.len()
+                    );
+                }
+                let mut diag_ids: Vec<String> = bound.into_iter().take(diag_inputs).collect();
+                if diag_ids.is_empty() {
+                    if let Some(d) = devices.first() {
+                        println!(
+                            "WARN: 无已绑定设备 ⇒ 诊断 intent 回退首设备 {}（单输入兼容）",
+                            d.device_id
+                        );
+                        diag_ids.push(d.device_id.to_string());
+                    }
+                }
+                let first_id = diag_ids.first().cloned().unwrap_or_else(|| {
+                    devices
+                        .first()
+                        .map(|d| d.device_id.to_string())
+                        .unwrap_or_default()
+                });
                 // P1a: 诊断主会话 sink kind —— `VBMF_OUTPUT_KIND` 覆盖（hls/rtmp gate 用）;
                 // 默认 "rtmp" 与 P1a 前逐字节一致。无任何 VBMF_OUTPUT_* ⇒ materialize
                 // fail-soft 降级纯分析（向后兼容承诺, Design Doc §6）。
@@ -1341,20 +1378,25 @@ fn main() {
                 }
                 let intent = crate::graph_intent::GraphRuntimeIntent {
                     version: "1.0".into(),
-                    devices: vec![crate::graph_intent::DeviceIntent {
-                        device_id: first_id.clone(),
-                        role: "CAPTURE".into(),
-                        pipeline: crate::graph_intent::PipelineIntent {
-                            source: crate::graph_intent::SourceIntent {
-                                kind: "decklink".into(),
-                                device_id: first_id.clone(),
-                                port_id: None,
+                    // Alpha-1: 多输入 intent（N=VBMF_DIAG_INPUTS; 首设备承载输出声明,
+                    // 次设备 materialize 强制纯分析——单输出承诺）。
+                    devices: diag_ids
+                        .iter()
+                        .map(|id| crate::graph_intent::DeviceIntent {
+                            device_id: id.clone(),
+                            role: "CAPTURE".into(),
+                            pipeline: crate::graph_intent::PipelineIntent {
+                                source: crate::graph_intent::SourceIntent {
+                                    kind: "decklink".into(),
+                                    device_id: id.clone(),
+                                    port_id: None,
+                                },
+                                sink: crate::graph_intent::SinkIntent {
+                                    kind: diag_sink_kind.clone(),
+                                },
                             },
-                            sink: crate::graph_intent::SinkIntent {
-                                kind: diag_sink_kind,
-                            },
-                        },
-                    }],
+                        })
+                        .collect(),
                 };
 
                 #[cfg(feature = "gstreamer-backend")]
@@ -1395,12 +1437,15 @@ fn main() {
                     api_mgr = Some(mgr.clone());
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
                     // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。
-                    let _ = lm.release(&crate::lease::DeviceLease {
-                        device_id: dev_uuid,
-                        owner: "bootstrap".into(),
-                        acquired_at: chrono::Utc::now(),
-                        ttl: std::time::Duration::from_secs(60),
-                    });
+                    // Alpha-1: **全部**诊断输入设备的占位租约让位（多输入; 单输入行为不变）。
+                    for id in std::iter::once(&first_id).chain(diag_ids.iter().skip(1)) {
+                        let _ = lm.release(&crate::lease::DeviceLease {
+                            device_id: Uuid::parse_str(id).unwrap_or(Uuid::nil()),
+                            owner: "bootstrap".into(),
+                            acquired_at: chrono::Utc::now(),
+                            ttl: std::time::Duration::from_secs(60),
+                        });
+                    }
                     match mgr.create(intent.clone()) {
                         Ok(sid) => match mgr.start(&sid) {
                             Ok(()) => {
