@@ -12,5 +12,4 @@ pub mod config_probe;
 pub mod loopback;
 pub mod registry;
 pub mod resolver;
-// A20-02b 增量迁入（大块, 独立编译周期）:
-// pub mod session_lifecycle;
+pub mod session_lifecycle;
