@@ -23,7 +23,17 @@
   `Contract: V0.2 §3.1 L394-399+§1.13 L69+决策#43+终裁 §7` | 
   `Implementation: 已` | `Verification: 盒上 program 域 25/25（21+4 恰）+
   mock 277（基线 273+4 零回退）+ clippy 4-combo 零警告 + fmt 对齐` | `Gate: 无`
-- [ ] 4. A2-4-02 domain shape（facts+join readiness, 字段逐项证明）; 
-  A2-4-03 字段语义+serde（Option 边界/Unknown≠Absent）; A2-4-04 Master Join 
+- [x] 4. A2-4-02-00 Domain Shape Probe（用户终裁: APPROVED TO PROBE, NOT TO CODE;
+  12 条 NO-CODE 清单冻结）: 10 项必查全证据落袋（P01 零 payload 类型/P02 
+  CanonicalSourceRef 已成熟·不新建 MetadataSourceId/P03 零 program identity/
+  P04 scope=结构归属/P05 events 时间字段计数 0/P06 组合非复制/P07 零容器/
+  P08 data_plane 两案/P09 enum+Option 复合惯例/P10 A2-5 零预留）+ Candidate 
+  A/B/C 对比（B 基座⊃C source 维度, A 被 P01 否决）+ SQ-1..SQ-5 字段级待裁;
+  报告=docs/superpowers/reports/2026-09-02-a2-4-metadata-master-shape-probe.md
+  `Contract: 用户 §一-§二十终裁` | `Implementation: 已` | 
+  `Verification: 零 .rs diff·清单完好·十项全有代码实锚` | `Gate: 无`
+- [ ] 5. A2-4-02 编码（SQ-1..SQ-5 字段级裁决后）: MetadataFact/MetadataMaster
+  (facts+join declaration, Candidate B); A2-4-03 字段语义+serde; A2-4-04 Join
   boundary review; A2-4-05 全回归+architecture guard; 交付链
-  `Contract: 终裁 §7 实施链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+  `Contract: 终裁 §二十 NO-CODE 清单+SQ 裁决` | `Implementation: 待` | 
+  `Verification: 后续核` | `Gate: 后续定`
