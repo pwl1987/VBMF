@@ -133,7 +133,9 @@ pub struct OutputPlan {
 pub struct PipelinePlan {
     pub source: SourcePlan,
     pub normalize: bool,
-    pub switch_mode: String,
+    /// A2-1: 类型化 SwitchPolicy（V0.2 §1.17 词表; 默认 FRAME_SWITCH = 旧占位值,
+    /// wire 序列化值不变——兼容锚见 tests）。
+    pub switch_mode: crate::program::SwitchPolicy,
     /// P1a: 物化输出段（空 = 纯分析, 行为与 P1a 前逐字节一致）。
     pub outputs: Vec<OutputPlan>,
 }
@@ -217,7 +219,7 @@ impl PipelinePlan {
                 selection_mode: SourceSelectionMode::SelfTest,
             },
             normalize: true,
-            switch_mode: "FRAME_SWITCH".into(),
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         }
     }
@@ -668,7 +670,7 @@ pub fn materialize_with_output(
         plans.push(PipelinePlan {
             source,
             normalize: true,
-            switch_mode: "FRAME_SWITCH".into(),
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs,
         });
     }
@@ -1007,7 +1009,7 @@ mod tests {
                 selection_mode: SourceSelectionMode::SelfTest,
             },
             normalize: true,
-            switch_mode: "FRAME_SWITCH".into(),
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         }
     }
@@ -1116,6 +1118,36 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_rt_01_switch_mode_wire_compat_anchor() {
+        // A2-1 wire 兼容锚: 类型化后序列化值不变（"FRAME_SWITCH" 在 JSON 中逐字保留）。
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: "d".into(),
+                provider_persistent_id: None,
+                device_number: 0,
+                connector: None,
+                selection_mode: SourceSelectionMode::SelfTest,
+            },
+            normalize: true,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        };
+        let json = serde_json::to_value(&plan).expect("serialize");
+        assert_eq!(
+            json.get("switch_mode").and_then(|v| v.as_str()),
+            Some("FRAME_SWITCH"),
+            "wire 值不变（V0.2 §1.17 词表名）: {json}"
+        );
+        let back: PipelinePlan = serde_json::from_value(json).expect("roundtrip");
+        assert_eq!(back.switch_mode, crate::program::SwitchPolicy::FrameSwitch);
+        // 反序列化未知串 fail-closed（与 parse 同牙齿）。
+        let bad = serde_json::to_string(&plan)
+            .expect("ser")
+            .replace("\"FRAME_SWITCH\"", "\"SWITCH\"");
+        assert!(serde_json::from_str::<PipelinePlan>(&bad).is_err());
+    }
+
+    #[test]
     fn src_props_sdi_uses_connection_sdi() {
         // canonical 边界回归: SDI ⇒ decklinkvideosrc connection=sdi, audiosrc 无 connection.
         let plan = PipelinePlan {
@@ -1127,7 +1159,7 @@ mod tests {
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
             },
             normalize: true,
-            switch_mode: "FRAME_SWITCH".into(),
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
         let (v, a) = src_props(&plan);
@@ -1151,7 +1183,7 @@ mod tests {
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
             },
             normalize: true,
-            switch_mode: "FRAME_SWITCH".into(),
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
         let (v, _) = src_props(&plan);
@@ -1173,7 +1205,7 @@ mod tests {
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
             },
             normalize: true,
-            switch_mode: "FRAME_SWITCH".into(),
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
         let (v, _) = src_props(&plan);
@@ -1400,7 +1432,7 @@ mod tests {
         assert_eq!(plan.source.device_id, "self-test");
         assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
         assert!(plan.normalize);
-        assert_eq!(plan.switch_mode, "FRAME_SWITCH");
+        assert_eq!(plan.switch_mode, crate::program::SwitchPolicy::FrameSwitch);
         // 自测哨兵: 无真实设备, `device_number: 0` 是占位, 不违反
         // "device-number 绝不默认 0" (该约束针对真实选卡不得静默落到 DeckLink 0 号).
         assert_eq!(plan.source.device_number, 0);
