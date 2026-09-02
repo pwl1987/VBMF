@@ -55,7 +55,7 @@ MAIN_PATCHES: list[tuple[str, str]] = [
     ),
 ]
 
-BIN_FILES: list[str] = ["src/main.rs", "src/bin/gates.rs"]
+BIN_FILES: list[str] = ["src/bin/media-agent.rs", "src/bin/gates.rs"]
 
 
 def patch(text: str, patches: list[tuple[str, str]], path: str) -> str:
