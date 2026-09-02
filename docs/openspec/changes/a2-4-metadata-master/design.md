@@ -40,9 +40,16 @@ OQ-6 A2-4 形态（无阶段链读法下的组合声明模型）。
 零 .rs diff；不冻结词表；不改已 CLOSED 的 A2-2/A2-3 类型；报告入 reports/
 （不建 probes/ 目录——用户裁定）。
 
-## 6. 后续（裁决后）
+## 6. 用户终裁（2026-09-02, probe 报告 §7 全文）与后续实施链
 
-A2-4-01 词表冻结 → A2-4-02 MetadataMaster domain object → A2-4-03 迁移/
-fail-closed/serde（形态依 OQ-6 裁决，可能是"在场性+joined 事实"而非 5×5）→
-A2-4-04 Master Join boundary review → A2-4-05 全回归 → 交付链。
-A2-5 Master Join 本 change 不碰。
+六 OQ 全裁：OQ-1 Timecode=Input-local observation / AV Sync=Join property（timecode.rs
+不动不搬）；OQ-2 CAPTION=canonical wire（禁 MetadataType::Subtitle）；OQ-3 Health
+Tree 张力 deferred→A2-6/X5；OQ-4 五值 taxonomy 冻结 + Graph 只三源（不凭 taxonomy
+造节点）；OQ-5 三层边界（L1 observation/L2 canonical fact/L3 program-scope;
+extraction 不属 A2-4）；OQ-6 **NO Stage/NO advance/NO matrix**（facts+join
+readiness）。红线：三域差异表 / Timecode ownership 四行 / Video+Audio 零 diff /
+A2-5 用 readiness 非 all==MASTER_JOINED。
+
+实施链冻结：A2-4-01 词表（METADATA+五值+Subtitle↔CAPTION 层级; 不写
+MetadataMaster）→ 02 shape → 03 字段+serde → 04 Join boundary review → 05
+回归+guard → A2-5。**已批准进入 A2-4-01。**

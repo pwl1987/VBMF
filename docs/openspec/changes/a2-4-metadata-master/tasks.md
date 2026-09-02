@@ -10,8 +10,20 @@
   （Evidence/Open Questions/Proposed Decisions/No-Build Gate 全节）
   `Contract: V0.2 §3.7+§3.1+§1.20+决策#29/#43+CLOCK_TIMECODE #148` | 
   `Implementation: 已` | `Verification: 报告七问全有节号级证据` | `Gate: 无`
-- [ ] 2. 用户对 OQ-1..OQ-6 逐项裁决（A2-4-01+ 的输入; 本 change 内不执行）
-  `Contract: 用户裁定权` | `Implementation: 待` | `Verification: 裁决记录` | `Gate: 无`
-- [ ] 3. A2-4-01+ 按 A2-4 裁决链推进（01 词表冻结→02 domain object→03 语义→
-  04 Join boundary review→05 全回归→交付链; **形态依 OQ-6, 不预设 5×5**）
-  `Contract: 裁决后另核` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 2. 用户对 OQ-1..OQ-6 逐项裁决（2026-09-02 终裁落 probe 报告 §7:
+  OQ-1 Timecode=observation+AVSync=Join property / OQ-2 CAPTION / OQ-3 deferred
+  X5 / OQ-4 五值 taxonomy+三源 topology / OQ-5 三层边界 / OQ-6 NO STAGE;
+  附加红线四条 + 实施链 01→05 冻结; 批准进入 A2-4-01）
+  `Contract: 用户裁定权` | `Implementation: 已` | `Verification: probe 报告 §7` | `Gate: 无`
+- [x] 3. A2-4-01 词表冻结: `MetadataType` 五值（wire TIMECODE/CAPTION/SCTE35/
+  KLV/SYSTEM 逐字 V0.2 §3.1+§1.13）+ `MetadataDataPlane` 单值 METADATA +
+  Subtitle↔CAPTION 层级 doc + 词表快照 METADATA_TYPES + fail-closed（拒 
+  SUBTITLE/SCTE_35/未知串, 测试锁定）+ 红线注释（三域差异/Timecode ownership
+  四行/taxonomy≠topology）; **未写 MetadataMaster**（属 02）
+  `Contract: V0.2 §3.1 L394-399+§1.13 L69+决策#43+终裁 §7` | 
+  `Implementation: 已` | `Verification: 盒上 program 域 25/25（21+4 恰）+
+  mock 277（基线 273+4 零回退）+ clippy 4-combo 零警告 + fmt 对齐` | `Gate: 无`
+- [ ] 4. A2-4-02 domain shape（facts+join readiness, 字段逐项证明）; 
+  A2-4-03 字段语义+serde（Option 边界/Unknown≠Absent）; A2-4-04 Master Join 
+  boundary review; A2-4-05 全回归+architecture guard; 交付链
+  `Contract: 终裁 §7 实施链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`

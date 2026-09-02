@@ -2,28 +2,39 @@
 comet_change: a2-4-metadata-master
 role: technical-design
 canonical_spec: openspec
-status: probe-stage
+status: ruled-a2-4-01-approved
 ---
 
-# Design Doc — a2-4-metadata-master（A2-4: Metadata Master — SoT Probe Stage）
+# Design Doc — a2-4-metadata-master（A2-4: Metadata Master）
 
-> 本 change 当前处于 **A2-4-00 SoT Probe 阶段**（用户裁定：先证明 Metadata 是
-> 什么，再决定它长什么样）。技术设计 = 探针方法论；证据产物 =
-> [sot-probe 报告](../reports/2026-09-02-a2-4-metadata-master-sot-probe.md)。
-> 编码期设计（词表/结构/迁移语义）在用户对 OQ-1..OQ-6 裁决后补入本文件。
+> A2-4-00 SoT Probe 已收口（证据 = [sot-probe 报告 §1-6](../reports/2026-09-02-a2-4-metadata-master-sot-probe.md)）；
+> 用户六项终裁已落盘（同报告 §7）。本文件自 §1' 起为**裁决后编码期设计**。
 
-## 1. 探针结论摘要（证据见报告）
+## 0'. 终裁要点（全文见 probe 报告 §7）
 
-- **拓扑**：Metadata Graph = 三路并列源（Timecode/Subtitle/SCTE-35）→
-  [Metadata Master Join] → Program-scope Master (METADATA)。**零中间处理节点**
-  ——与 Video/Audio（各 3 节点串行链）形态根本不同，五阶段模型不适用（PD-1）。
-- **Data Plane**：`METADATA`（§3.1 四层之一，决策 #43 唯一定义）；二级
-  `metadata_type: TIMECODE/CAPTION/SCTE35/KLV/SYSTEM`（UPPER_CASE 两处一致锁定）。
-- **Timecode**：V0.2 原文 = Metadata Graph 输入源（§3.7 L801）；代码已实现
-  Source 侧观测（timecode.rs CanonicalTimecode，#148）；AV Sync（≠Timecode）
-  才是 Master Join 属性（L830）——证据冲突进 OQ-1 待裁决。
-- **既有占位**：VideoMaster/AudioMaster 零 metadata/timecode 字段（Q8），
-  无迁移风险。
+- **OQ-1**：Timecode = Input-local observation（timecode.rs 不动不搬）；AV Sync = Master Join property。
+- **OQ-2**：CAPTION = canonical wire vocabulary；Subtitle = 源/载体语义。禁 `MetadataType::Subtitle`。
+- **OQ-3**：Health Tree 张力 DEFERRED → A2-6/X5 reconciliation（A2-4 不扩修）。
+- **OQ-4**：五值 taxonomy 全冻结；Graph source 只三路——**不凭 taxonomy 造节点**。
+- **OQ-5**：三层边界 L1 Input-local Observation / L2 Canonical Metadata Fact / L3 Program-scope Metadata Master；extraction/parsing 不属 A2-4。
+- **OQ-6**：**NO Stage / NO advance / NO transition matrix**；MetadataMaster = facts + join readiness/declaration；具体字段待 02/03 逐项证明。
+
+### 设计 guard 红线（随裁决冻结，评审必查）
+
+1. **三域差异**：VideoMaster=processing progression / AudioMaster=processing progression / **MetadataMaster=fact aggregation + join declaration**——形态不许趋同；Stage 化 Metadata = 创造 V0.3。
+2. **Timecode ownership**：Ownership→Observation domain / Consumption→Metadata/Join 可引用 / Authority→Master Join 可用 / **Mutation→MetadataMaster 禁改写**（并禁 clock selection/sync/drift correction 进入）。
+3. **VideoMaster/AudioMaster 零 diff**（含注释占位）。
+4. **A2-5 预约束**：Join 判定用 readiness/joined facts，非 `all==MASTER_JOINED`。
+
+## 1. A2-4-01 — Canonical Metadata Vocabulary Freeze（本轮已批范围）
+
+**只冻结词表，不写 MetadataMaster**（domain shape 属 A2-4-02）：
+
+- `MetadataType` 封闭五值：`Timecode/Caption/Scte35/Klv/System`，wire UPPER_CASE 逐字 `TIMECODE/CAPTION/SCTE35/KLV/SYSTEM`（V0.2 §3.1 L394-399 + §1.13 L69 两处一致，决策 #43）。
+- `MetadataDataPlane` 单值 `Metadata`，wire `METADATA`（对齐 VideoDataPlane/AudioDataPlane 单值模式；Program-scope Master (METADATA) §3.7 L807）。
+- Subtitle↔CAPTION 语义层级落 doc 注释：CAPTION=canonical taxonomy / Subtitle=Graph 源语义 / SRT/ASS=格式。
+- 词表快照 const（同 SwitchPolicy ACCEPTED_LIST 纪律）+ serde fail-closed（拒 `SUBTITLE`/`SCTE_35`/未知串——测试锁定 OQ-2/OQ-4 裁决）。
+- serde(default) 新生儿禁用（A2-2 立规；MetadataType 无天然默认值——taxonomy 不是阶段）。
 
 ## 2. 防伪需求三原则（不类推/不自创词/缺口原样上报）
 
@@ -31,17 +42,15 @@ status: probe-stage
 
 ## 3. 裁决面（交用户）
 
-OQ-1 Timecode 归属 · OQ-2 Subtitle vs CAPTION · OQ-3 Health Tree 缺节点 ·
-OQ-4 KLV/SYSTEM 未入图 · OQ-5 Program/Input 边界 · OQ-6 A2-4 形态
-（"源在场性 + joined 事实"组合模型 vs 其他）。
+~~OQ-1..OQ-6~~ **已全部裁决**（probe 报告 §7）。
 
-## 4. No-Build Gate
+## 4. No-Build Gate（01 期边界）
 
-零 .rs diff；不冻结词表；不改 A2-2/A2-3 已 CLOSED 类型；A2-5 Master Join
-不碰。本阶段产物仅 reports/ 探针报告 + 本设计文档。
+零 .rs diff 于 VideoMaster/AudioMaster/timecode.rs/Master Join；不写 MetadataMaster struct；不冻结未证字段；A2-5 不碰。
 
-## 5. 裁决后路线（占位，勿执行）
+## 5. 裁决后路线
 
-A2-4-01 词表冻结 → 02 domain object → 03 迁移/fail-closed/serde（形态依
-OQ-6）→ 04 Master Join boundary review → 05 全回归 → 交付链
+A2-4-01 词表冻结（本文件 §1）→ 02 domain shape（facts+readiness，字段逐项证明）→
+03 字段语义+serde（Option 边界/Unknown≠Absent）→ 04 Master Join boundary
+review → 05 全回归 + architecture guard → 交付链
 （review/verify/guards/archive/PR/CI/merge）。

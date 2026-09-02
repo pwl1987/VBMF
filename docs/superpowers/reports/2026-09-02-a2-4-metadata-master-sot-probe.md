@@ -154,3 +154,44 @@ V0.2 对 Metadata 字段级 Option/fail-closed **无规定**（无此粒度）�
 | services/media-agent/src/normalize.rs | L95-105（CanonicalMediaDescriptor.timecode 消费点） |
 | services/media-agent/src/runtime_state.rs | L100-112（D15 deferral 注释） |
 | services/media-agent/src/program/{video_master,audio_master,switch_policy}.rs | 结构体定义（Q8 零占位证据） |
+
+---
+
+## 7. 用户终裁记录（A2-4-00 → A2-4-01 Gate，2026-09-02）
+
+> 复查基准 = 整个 VBMF 当前架构 + V0.2 SoT + A2-1/2/3 已形成的 Domain 纪律 + 现有代码实际形态。
+> 六项裁决不是孤立投票，共同推出新的 Metadata Domain 形态。与探针 PD-1..PD-4 逐条对勘**零冲突**（PD-1≡OQ-6 / PD-2∈OQ-2+OQ-4 / PD-3⊂OQ-1 加严 / PD-4≡§十一）。
+
+| OQ | 终态 | 裁决内容 |
+|---|---|---|
+| OQ-1 | **CLOSED** | `Timecode = Source/Input-local observation`（timecode.rs 不修改、不搬进 program 域）；`AV Sync = Master Join property`（V0.2 L830 原文语义）。二者可在 A2-5 联合但**绝不合并类型语义**——否则 Observation 层与 Join 层混淆。用户显式推翻此前"时码=Join 属性"口头表述 |
+| OQ-2 | **CLOSED** | `CAPTION` = canonical `metadata_type` wire vocabulary；`Subtitle` = Graph 源/载体语义（SRT/ASS=格式）。禁 `MetadataType::Subtitle`（除非 V0.3 改 SoT） |
+| OQ-3 | **DEFERRED / NON-BLOCKING** | Metadata Master Join 是真实 Domain 节点；Health Tree（§3.9）是展示/示例层张力，**不在 A2-4 扩修**，留 A2-6 Runtime Projection / X5 reconciliation |
+| OQ-4 | **CLOSED** | 五值 taxonomy（TIMECODE/CAPTION/SCTE35/KLV/SYSTEM）全部冻结为 canonical vocabulary；但 §3.7 Graph source topology 只声明 V0.2 明确的三路 source——**不凭 taxonomy 虚构 Graph 节点/processing node/source lifecycle**（禁 KlvNormalizer/SystemMetadataProcessor 类臆造） |
+| OQ-5 | **CLOSED AS BOUNDARY PRINCIPLE** | 三层边界钉死：L1 Input-local Observation（CanonicalTimecode 已在此）→ L2 Canonical Metadata Fact（A2-4 承接层）→ L3 Program-scope Metadata Master（Join 后产物）。extraction/parsing（VANC/CEA-708/SCTE/KLV）**不属于 A2-4**。禁危险设计：`MetadataMaster{timecode: CanonicalTimecode}` 默认意味 Program Timecode |
+| OQ-6 | **CLOSED** | **无 MetadataMasterStage、无 advance()/advance_to()、无迁移矩阵**。MetadataMaster = canonical facts + source presence + join readiness/declaration。具体字段**本裁不批准**——Option 边界待 A2-4-02/03 逐字段证明（`Unknown ≠ Absent` 原则） |
+
+### 附加红线（随裁决冻结，写入 A2-4 设计 guard）
+
+1. **三域差异表**（A2-4-01 设计 guard 必载）：VideoMaster=processing progression / AudioMaster=processing progression / **MetadataMaster=fact aggregation + join declaration**——三者代码形态**不允许**长得一样；强行 Stage 化 = 偷偷创造 V0.3。
+2. **Timecode ownership 四行规矩**：Ownership: `CanonicalTimecode → Observation domain`；Consumption: `Metadata/Join may consume/reference`；Authority: `Master Join may use`；Mutation: `MetadataMaster MUST NOT rewrite observation`（亦禁 clock selection/sync correction/drift correction 行为进入）。
+3. **VideoMaster/AudioMaster 完全不动**（含注释占位亦无必要；撤销 deprecated_note 任何可能性）。
+4. **A2-5 前瞻约束**：Master Join 不做 `all three == MASTER_JOINED` 简单检查（Metadata 无 Stage）；readiness/joined facts + AV Sync + cross-domain consistency + failure policy 四件在 Join 层。
+
+### 实施链（冻结）
+
+```
+A2-4-01 Canonical Metadata Vocabulary（METADATA + 五值 + Subtitle↔CAPTION 层级落盘; 仅词表, 不写 MetadataMaster）
+   ↓
+A2-4-02 Metadata Master Domain Shape（NO STAGE/NO advance/NO matrix; facts + join readiness）
+   ↓
+A2-4-03 Field Semantics + Serde（Option 边界/Unknown≠Absent/fail-closed/wire compat, 逐字段证明）
+   ↓
+A2-4-04 Master Join Boundary Review（Timecode 仍 observation/AV Sync 归 Join/Program-scope 边界）
+   ↓
+A2-4-05 Regression + Architecture Guard
+   ↓
+A2-5 Master Join
+```
+
+**批准：进入 A2-4-01。**
