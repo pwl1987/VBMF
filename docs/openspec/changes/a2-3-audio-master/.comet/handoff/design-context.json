@@ -1,0 +1,13 @@
+{
+  "change": "a2-3-audio-master",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "160428482e891f9fb3a1d172a7faa110b10470eb888310e7640dd01c9c69ceb9",
+  "files": [
+    { "path": "docs/openspec/changes/a2-3-audio-master/proposal.md", "sha256": "b680b1cc6bcd4275f69507364c46dcb2e9b5afe835079baf8324864b24a09962" },
+    { "path": "docs/openspec/changes/a2-3-audio-master/design.md", "sha256": "85cea08e94358cbcae0ccf4b97f91b45b7958f0c6f24f780fe6a8f85c242de62" },
+    { "path": "docs/openspec/changes/a2-3-audio-master/tasks.md", "sha256": "fdd0d1cb40be72b72187dd39aaf8c04fe632b6342422b2574770f4b0fa348a74" }
+  ]
+}
