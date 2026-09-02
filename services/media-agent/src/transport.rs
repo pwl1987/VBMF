@@ -45,6 +45,9 @@ pub struct TransportContext {
     pub device_count: usize,
     pub query: Option<Arc<RuntimeQuery>>,
     pub idem: Option<Arc<CommandIdempotency>>,
+    /// P1b: HLS 分片目录（A 方案静态文件面; 诊断路径自 `VBMF_OUTPUT_HLS_DIR` 接线,
+    /// 生产/未配置 = None ⇒ `GET /hls/*` 503 契约诚实）。
+    pub hls_dir: Option<String>,
 }
 
 /// 请求解析结果 (method, path, body)。
@@ -258,6 +261,165 @@ fn error_body(msg: &str) -> String {
     serde_json::json!({ "error": msg }).to_string()
 }
 
+// === P1b: 静态文件面前置层（A 方案裁定） ======================================
+
+/// 最小 Web Console 页（内嵌 const, 无构建链/无磁盘依赖）。
+/// 状态全部来自 1s 活轮询（/health + /api/v1/runtime）——诚实状态红线:
+/// 输出停止后 phase/outputs 如实变化, 绝不虚报 RUNNING/READY。
+/// Start/Stop 全走既有 POST /api/v1/commands（零新 API）; sink kind 由
+/// /hls/index.m3u8 可达性诚实推导（页面看不到 env）。
+const INDEX_HTML: &str = r#"<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>VBMF Prototype Console</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+<style>
+ body{font-family:Consolas,monospace;background:#111;color:#ddd;margin:0;padding:16px}
+ h1{font-size:18px;color:#7fd} .row{margin:4px 0} .ok{color:#7f7} .bad{color:#f77}
+ video{background:#000;width:640px;max-width:100%} button{margin-right:8px;padding:6px 18px}
+ #vid_err{color:#f77;display:none} pre{color:#888;font-size:11px}
+</style></head><body>
+<h1>VBMF Prototype — CH01</h1>
+<div class="row">AGENT <span id="agent">…</span> | DEVICES <span id="devices">…</span></div>
+<div class="row">SDI <span id="sdi">…</span> | SESSION <span id="phase">…</span> | OUTPUT <span id="outputs">…</span></div>
+<div class="row"><button id="btn_start">Start</button><button id="btn_stop">Stop</button>
+ <span id="cmd"> </span></div>
+<video id="video" controls muted autoplay></video>
+<div id="vid_err">HLS UNAVAILABLE</div>
+<pre>Video 1080p H.264/AAC · HLS live window · Start/Stop = Session 生命周期</pre>
+<script>
+const $=id=>document.getElementById(id);
+let sinkKind="hls";
+// UUID: crypto.randomUUID 仅安全上下文（LAN plain HTTP 不可用）→ getRandomValues v4 回退。
+function uuid(){
+ if(crypto.randomUUID)return crypto.randomUUID();
+ const b=crypto.getRandomValues(new Uint8Array(16));b[6]=b[6]&0x0f|0x40;b[8]=b[8]&0x3f|0x80;
+ const x=[...b].map(n=>n.toString(16).padStart(2,"0")).join("");
+ return `${x.slice(0,8)}-${x.slice(8,12)}-${x.slice(12,16)}-${x.slice(16,20)}-${x.slice(20)}`;
+}
+async function cmd(kind,body){
+ $("btn_start").disabled=true;$("btn_stop").disabled=true;
+ try{const c=await(await fetch("/api/v1/commands",{method:"POST",
+  headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
+  $("cmd").textContent=kind+": "+JSON.stringify(c);
+ }catch(e){$("cmd").textContent=kind+" err";}
+ $("btn_start").disabled=false;$("btn_stop").disabled=false;
+}
+async function poll(){
+ try{
+  const h=await(await fetch("/health")).json();
+  const r=await(await fetch("/api/v1/runtime")).json();
+  const st=(h.state||"?").toLowerCase(); // wire 值 "Ready"/"Capturing" 首字母大写（serde 默认）
+  $("agent").textContent=h.state||"?";$("agent").className=st==="ready"||st==="capturing"?"ok":"bad";
+  $("devices").textContent=(r.devices||[]).length;
+  const ss=r.sessions||[];
+  const s=ss.find(x=>x.phase==="running")||ss[0]; // 优先活动会话（HashMap 无序——绝不依赖列表序）
+  $("phase").textContent=s?s.phase:"none";
+  $("phase").className=s&&s.phase==="running"?"ok":"bad";
+  const outs=(s&&s.outputs)||[];
+  $("outputs").textContent=outs.length?outs.join("+").toUpperCase():"ANALYSIS-ONLY";
+  // 物化历史与会话并存: 仅活动会话的输出亮绿, 停止后调暗（不误导"正在输出"）
+  $("outputs").className=outs.length&&s&&s.phase==="running"?"ok":"bad";
+  $("sdi").textContent=st==="ready"?"● LOCKED":"○ "+(h.state||"?");
+  $("sdi").className=st==="ready"?"ok":"bad";
+ }catch(e){$("agent").textContent="API ERR";$("agent").className="bad";}
+}
+async function probeHls(){try{const q=await fetch("/hls/index.m3u8");sinkKind=q.ok?"hls":"rtmp";}catch(e){sinkKind="rtmp";}}
+async function start(){
+ const r=await(await fetch("/api/v1/runtime")).json();
+ const dev=(r.devices||[])[0]; if(!dev){$("cmd").textContent="no device";return;}
+ await cmd("start",{command_id:uuid(),kind:"start_session",requested_by:"p1b-console",
+  target:{target_type:"session",intent:{version:"1.0",devices:[{device_id:dev.id,role:"CAPTURE",
+  pipeline:{source:{kind:"decklink",device_id:dev.id},sink:{kind:sinkKind}}}]}}});
+}
+async function stop(){
+ const r=await(await fetch("/api/v1/runtime")).json();
+ const ss=r.sessions||[];
+ const s=ss.find(x=>x.phase==="running"); if(!s){$("cmd").textContent="no running session";return;}
+ // wire id "session-<hex32>" → canonical dashed UUID（commands 平面要求）
+ const h=s.id.replace("session-","");
+ const sid=h.length===32?`${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`:s.id;
+ await cmd("stop",{command_id:uuid(),kind:"stop_session",requested_by:"p1b-console",
+  target:{target_type:"session_by_id",session_id:sid}});
+}
+function initVideo(){
+ const v=$("video");
+ if(v.canPlayType("application/vnd.apple.mpegurl")){v.src="/hls/index.m3u8";return;}
+ if(window.Hls&&Hls.isSupported()){
+  const h=new Hls({liveDurationInfinity:true});
+  h.loadSource("/hls/index.m3u8");h.attachMedia(v);
+  h.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal){$("vid_err").style.display="block";}});
+ }else{$("vid_err").style.display="block";}
+}
+$("btn_start").onclick=start;$("btn_stop").onclick=stop;
+probeHls().then(initVideo);setInterval(poll,1000);poll();
+</script></body></html>"#;
+
+/// P1b: 静态文件面前置层 —— 在既有 `route()` **之前**拦截（A 方案裁定）。
+///
+/// 仅处理 `GET /`（内嵌控制台页）与 `GET /hls/{单文件名}`（分片服务）;
+/// 其余返回 `None` 落回既有五端点 route 表（冻结语义逐字节不变）。
+/// 静态文件面**不是 API 资源**（无幂等/无命令; 生产 hls_dir=None ⇒ 503 契约诚实）。
+fn static_response(
+    method: &str,
+    path: &str,
+    hls_dir: Option<&str>,
+) -> Option<(u16, &'static str, Vec<u8>)> {
+    let json_err =
+        |code: u16, msg: &str| Some((code, "application/json", error_body(msg).into_bytes()));
+    match path {
+        "/" => {
+            if method == "GET" {
+                Some((
+                    200,
+                    "text/html; charset=utf-8",
+                    INDEX_HTML.as_bytes().to_vec(),
+                ))
+            } else {
+                json_err(405, "method_not_allowed")
+            }
+        }
+        p if p == "/hls" || p.starts_with("/hls/") => {
+            if method != "GET" {
+                return json_err(405, "method_not_allowed");
+            }
+            let Some(dir) = hls_dir else {
+                return json_err(503, "service_unavailable: /hls/* (hls_dir not configured)");
+            };
+            let name = p.strip_prefix("/hls/").unwrap_or("");
+            serve_hls_file(dir, name, json_err)
+        }
+        _ => None,
+    }
+}
+
+/// 分片服务: 仅单文件名 + 白名单字符集（`[A-Za-z0-9._-]`, 首字符非 `.`）——
+/// 拒绝穿越/子目录/绝对路径/编码花招; MIME 仅 `.m3u8`/`.ts`（不发明通用文件服务）。
+fn serve_hls_file(
+    dir: &str,
+    name: &str,
+    json_err: impl Fn(u16, &str) -> Option<(u16, &'static str, Vec<u8>)>,
+) -> Option<(u16, &'static str, Vec<u8>)> {
+    let name_ok = !name.is_empty()
+        && !name.starts_with('.')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    if !name_ok {
+        return json_err(404, "not_found");
+    }
+    let mime = if name.ends_with(".m3u8") {
+        "application/vnd.apple.mpegurl"
+    } else if name.ends_with(".ts") {
+        "video/mp2t"
+    } else {
+        return json_err(404, "not_found");
+    };
+    match std::fs::read(std::path::Path::new(dir).join(name)) {
+        Ok(bytes) => Some((200, mime, bytes)),
+        Err(_) => json_err(404, "not_found"),
+    }
+}
+
 /// 连接处理: 读→解析→路由→写 (无持久连接, 处理完关闭)。
 /// 读模型: 累积至 `parse_request` 成功 (头部+body 完整) 或连接关闭/超限;
 /// 与 /health 既有单 accept 循环并发模型一致 (不偷升级线程池/async)。
@@ -284,10 +446,28 @@ pub fn serve_connection(mut stream: TcpStream, ctx: &TransportContext) {
             Err(_) => break,
         }
     }
-    let (status, body) = match parsed {
-        Some(req) => route(&req.method, &req.path, &req.body, ctx),
-        None if buf.is_empty() => (400, error_body("empty_request")),
-        None => (400, error_body("malformed_request")),
+    let (status, ctype, body): (u16, &str, Vec<u8>) = match parsed {
+        Some(req) => {
+            // P1b: 静态文件面前置层先行; None ⇒ 既有 route()（五端点冻结）。
+            if let Some((s, ct, b)) =
+                static_response(&req.method, &req.path, ctx.hls_dir.as_deref())
+            {
+                (s, ct, b)
+            } else {
+                let (s, b) = route(&req.method, &req.path, &req.body, ctx);
+                (s, "application/json", b.into_bytes())
+            }
+        }
+        None if buf.is_empty() => (
+            400,
+            "application/json",
+            error_body("empty_request").into_bytes(),
+        ),
+        None => (
+            400,
+            "application/json",
+            error_body("malformed_request").into_bytes(),
+        ),
     };
     let reason = match status {
         200 => "OK",
@@ -297,11 +477,13 @@ pub fn serve_connection(mut stream: TcpStream, ctx: &TransportContext) {
         503 => "Service Unavailable",
         _ => "OK",
     };
-    let resp = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+    let mut resp = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
-    );
-    let _ = stream.write_all(resp.as_bytes());
+    )
+    .into_bytes();
+    resp.extend_from_slice(&body);
+    let _ = stream.write_all(&resp);
     let _ = stream.flush();
 }
 
@@ -318,6 +500,108 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── P1b: 静态文件面前置层（A 方案裁定; 五端点 route 表不动） ────────────────
+
+    #[test]
+    fn transport_rt_01_static_root_serves_console() {
+        let (code, ctype, body) = static_response("GET", "/", None).expect("GET / 必须命中静态层");
+        assert_eq!(code, 200);
+        assert_eq!(ctype, "text/html; charset=utf-8");
+        let html = String::from_utf8(body).unwrap();
+        assert!(html.contains("VBMF"), "页面必须是 VBMF 控制台");
+        assert!(html.contains("/api/v1/runtime"), "页面轮询既有 API");
+    }
+
+    #[test]
+    fn transport_rt_01_static_root_wrong_method_405() {
+        let (code, _, _) = static_response("POST", "/", None).expect("命中静态层");
+        assert_eq!(code, 405);
+    }
+
+    #[test]
+    fn transport_rt_01_hls_without_dir_503() {
+        let (code, _, body) = static_response("GET", "/hls/index.m3u8", None).expect("命中静态层");
+        assert_eq!(code, 503, "hls_dir 未配置 ⇒ 契约诚实 503");
+        assert!(String::from_utf8(body).unwrap().contains("hls_dir"));
+    }
+
+    #[test]
+    fn transport_rt_01_hls_traversal_rejected() {
+        for path in [
+            "/hls/..",
+            "/hls/../secret",
+            "/hls/a/b",
+            "/hls/",
+            "/hls/.hidden",
+            "/hls/%2e%2e",
+            "/hls/x;rm",
+        ] {
+            let resp = static_response("GET", path, Some("/tmp"));
+            let (code, _, _) = resp.unwrap_or_else(|| panic!("{path} 应命中静态层"));
+            assert_ne!(code, 200, "{path} 穿越样本必须拒绝");
+        }
+    }
+
+    #[test]
+    fn transport_rt_01_hls_serves_file_with_mime() {
+        let dir = std::env::temp_dir().join("p1b_hls_test_mime");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("index.m3u8"), b"#EXTM3U\n").unwrap();
+        std::fs::write(dir.join("seg00001.ts"), [0x47u8, 0x40, 0x00, 0x10]).unwrap();
+        let d = dir.to_str().unwrap();
+
+        let (code, ctype, body) = static_response("GET", "/hls/index.m3u8", Some(d)).expect("命中");
+        assert_eq!((code, ctype), (200, "application/vnd.apple.mpegurl"));
+        assert_eq!(body, b"#EXTM3U\n");
+
+        let (code, ctype, body) =
+            static_response("GET", "/hls/seg00001.ts", Some(d)).expect("命中");
+        assert_eq!((code, ctype), (200, "video/mp2t"));
+        assert_eq!(body, vec![0x47u8, 0x40, 0x00, 0x10], "分片字节与磁盘一致");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn transport_rt_01_hls_unknown_extension_404() {
+        let dir = std::env::temp_dir().join("p1b_hls_test_ext");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("evil.sh"), b"#!/bin/sh\n").unwrap();
+        let (code, _, _) =
+            static_response("GET", "/hls/evil.sh", Some(dir.to_str().unwrap())).expect("命中");
+        assert_eq!(code, 404, "不发明通用文件服务: 仅 m3u8/ts");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn transport_rt_01_static_other_paths_fall_through() {
+        for p in ["/health", "/api/v1/runtime", "/api/v1/commands", "/nope"] {
+            assert!(
+                static_response("GET", p, Some("/tmp")).is_none(),
+                "{p} 必须落回既有 route()（五端点冻结）"
+            );
+        }
+    }
+
+    /// review Important#1 锚: /health 的 `state` wire 值为 **首字母大写**
+    /// （serde 默认, "Ready"/"Capturing"）——页面 JS 按小写比较, 此锚防大小写漂移复发。
+    #[test]
+    fn transport_rt_01_health_state_wire_casing_anchor() {
+        let ctx = TransportContext {
+            events: Arc::new(crate::events::RuntimeEventLog::new()),
+            agent_state: Arc::new(Mutex::new(crate::health::AgentState::Ready)),
+            device_count: 1,
+            query: None,
+            idem: None,
+            hls_dir: None,
+        };
+        let (code, body) = route("GET", "/health", &[], &ctx);
+        assert_eq!(code, 200);
+        assert!(
+            body.contains("\"state\":\"Ready\""),
+            "wire 大小写锚失效: {body}"
+        );
+    }
 
     /// parse_request: 合法 GET (无 body) / 合法 POST + body / 无 Content-Length /
     /// 超限 / 畸形请求行 / 未知方法。
@@ -485,6 +769,7 @@ mod tests {
             device_count: 3,
             query: None,
             idem: None,
+            hls_dir: None,
         };
         // 404 未知。
         let (code, body) = route("GET", "/nope", &[], &ctx);
@@ -534,6 +819,7 @@ mod tests {
             device_count: 42,
             query: None,
             idem: None,
+            hls_dir: None,
         };
         // 服务端: accept 单连接 → serve_connection (处理完关闭, 无持久连接)。
         let server = std::thread::spawn(move || {

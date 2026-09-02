@@ -77,6 +77,8 @@ pub struct ApiSession {
     pub state: String,
     /// SessionPhase 字符串化 ("requested"/"provisioning"/"binding"/"leased"/"starting"/"running"/"stopping"/"released"/"failed")。
     pub phase: String,
+    /// P1b: 物化输出事实投影（空 = 纯分析/降级, 绝不虚报——P1a 物化回填语义的 wire 面）。
+    pub outputs: Vec<String>,
 }
 
 // 纯函数: Query 五资源转换 (CanonicalRuntimeState 子项 → API 模型)
@@ -114,6 +116,7 @@ pub fn to_api_session(s: &SessionRuntimeState) -> ApiSession {
         id: s.session_id.to_string(),
         state: format!("{:?}", s.state).to_lowercase(),
         phase: format!("{:?}", s.phase).to_lowercase(),
+        outputs: s.outputs.clone(),
     }
 }
 
