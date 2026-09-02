@@ -23,9 +23,17 @@
   docs/superpowers/reports/2026-09-02-a2-5-master-join-shape-probe.md
   `Contract: 终裁 §九 16 项清单+R-A..R-J` | `Implementation: 已（零 .rs diff）` | 
   `Verification: 16 项全有代码实锚` | `Gate: 无`
-- [ ] 4. A2-5-02 输入/输出模型裁定（MasterJoinResult enum/词表 + 三域
-  eligibility 真值矩阵 + AVSync 声明面与 Clock 词消歧——用户裁定后进 03 实现）
-  `Contract: OQ-A/B/C/E 终裁+D1-D16 事实` | `Implementation: 待` | 
-  `Verification: 后续核` | `Gate: 无`
+- [ ] 4. A2-5-02 输入/输出模型裁定（Design Doc §1 四件提案已交付, 待用户
+  终裁）: ①MasterJoinInput/Output 最小闭合（组合参数零 trait; avsync 非
+  Option; failed 事实参数注入; Result 三值 Acceptable/Degraded/Failed=Program
+  Join semantic failure）②三层矩阵（Eligibility 三域判定·复用
+  is_program_scope_master 不重定义/Readiness 合取/Result 四行: C′ 矛盾→
+  Failed·双路 failed→Failed·单路 failed→Degraded §1.20 逐字·否则 Acceptable;
+  AVSync 不改 Result 伴随输出——待裁）③AVSyncClassification 四值+
+  消歧三不（不复用 Clock/不复制 DB/不带 offset 字段名）+ 阈值归属 Join 零阈值
+  ④投影边界表（Degraded→§8.9 Master 域信号; 禁 Channel 直推/禁 
+  SupervisorAction 直映射）
+  `Contract: 01 终裁四必裁+R-A..R-J` | `Implementation: 提案已交（零代码）` | 
+  `Verification: Design §1.5 待终裁清单四项` | `Gate: 无`
 - [ ] 5. A2-5-03..06（实现/ProgramMaster+AVSync 边界/Semantic Review/收口）
   `Contract: 七刀链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`

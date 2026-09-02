@@ -106,3 +106,52 @@ health.rs L28-37（AgentState 八值, D6/D12）· events.rs L80-106（D7）·
 supervisor.rs L45/L98-141（D8 SupervisorAction）· api_boundary.rs（D10/D12）·
 runtime_state.rs L122-126（D13）· watchdog.rs L54-67（D14 PTS gate 观测）·
 transport.rs L195-246（D16 五端点）。
+
+---
+
+## 6. 用户终裁记录（A2-5-01 → A2-5-02 Gate，2026-09-02）
+
+> 复核基准：16 项探针结果 + Program/Runtime/Clock/Supervisor/API/Health Tree
+> 实际边界。01 三项待裁中**第 1/3 项收紧、第 2 项拆层后放行**。
+
+### 总裁决表
+
+| 项目 | 终裁 |
+|---|---|
+| MasterJoinResult | 允许建立，**必须是 Join 自身联合语义结果**；最小闭合方向 `{ACCEPTABLE, DEGRADED, FAILED}` 批准；`FAILED`=**Program Join semantic failure**（非 Runtime HealthState/非 SupervisorAction——doc+测试写死）；不承载 Health/Recovery/API Status |
+| 三域 eligibility | 建立显式矩阵，但**拆成 Eligibility ≠ Readiness 两层**（Eligibility=能否作为 Join 有效参与者；Readiness=联合结果是否具备进入下一步 Program Service 条件；Result=联合语义结果——三者禁合并） |
+| AVSync | 只建 Join-side classification/measurement declaration；**禁复用 Clock `offset/drift` 语义**、禁把 ClockObservation 当 AVSync、禁复制 avsync_measurements DB schema 成 domain struct（Database schema ≠ Domain object） |
+| `READY` | **禁作 Join Result 成员**（Readiness 独立 decision） |
+| action | Join 零 action；**禁新增 JoinAction/MasterJoinAction/FailoverAction/RecoveryAction**——SupervisorAction{Restart,Escalate} 唯一 |
+| 时间/revision | Join 零 timestamp/observation_revision/generated_at/epoch |
+| API | A2-5 不接 transport/API projection |
+| `Master` trait | **禁新增**——join(具体组合参数)，非接口抽象（保三 Master 非对称） |
+
+### 补充红线
+
+- 禁快捷规则：`V==MASTER_JOINED && A==MASTER_JOINED && M==PARTICIPATING → READY`
+  （PARTICIPATING 是参与声明非 Ready）；禁 `≠UNKNOWN` 合并（NOT_PRESENT 与
+  PARTICIPATING 语义不同）；**NOT_PRESENT 不自动 Join Failed**（合法结论性负
+  声明——最终矩阵由 Video/Audio eligibility × Metadata declaration × facts 共同决定）。
+- **JoinResult::Failed 不直接推 ChannelHealth::Failed**：Health Tree 有
+  ACTIVE/STANDBY/OFFLINE + required/optional 聚合（Primary FAILED+Backup 已接管
+  → Channel 仍 HEALTHY）——Join Result 只是 Program Join semantic fact，
+  Channel Health 由 Health Tree aggregation 决定。
+- AVSync 概念隔离：Clock=时钟基准关系（offset/drift 其 SoT）；Timecode=时间
+  标签；AVSync=Program-level AV temporal alignment；Master Join=把 AVSync 作
+  联合判定因素——四者职责互不偷渡。`AVSyncRed → FAILOVER` = 架构错误
+  （§8.10 先分类后动作）。
+- AVSyncClassification 候选 `{ACCEPTABLE, DEGRADED, FAILED, UNKNOWN}`（**非
+  最终批准**——02 须确认阈值归属/red 语义/UNKNOWN 行为/drift 归属/
+  measurement-classification 分离）。
+
+### A2-5-02 准入（零生产代码，必裁四件事）
+
+1. MasterJoinInput/MasterJoinResult 最小闭合模型（六件套结构：Input{三
+   Master+AVSync}→Eligibility{三域}→Readiness→AVSync classification→
+   Failure classification input→Result 三值）；
+2. **Eligibility ≠ Readiness 三域真值矩阵**（Video/Audio stage 轴 +
+   Metadata declaration 轴——具体 stage 参与集逐项裁）；
+3. AVSync classification 与 Clock observation 严格消歧；
+4. **JoinResult → Runtime/Safety/Health 投影边界**（谁消费/不消费/可转换/
+   禁转换；DEGRADED 不一定 Channel DEGRADED——预裁"不是"）。
