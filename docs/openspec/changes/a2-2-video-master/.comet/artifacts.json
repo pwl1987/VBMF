@@ -1,7 +1,0 @@
-{
-  "openspec_proposal": "docs/openspec/changes/a2-2-video-master/proposal.md",
-  "openspec_design": "docs/openspec/changes/a2-2-video-master/design.md",
-  "openspec_tasks": "docs/openspec/changes/a2-2-video-master/tasks.md",
-  "handoff_context": "docs/openspec/changes/a2-2-video-master/.comet/handoff/design-context.json",
-  "handoff_markdown": "docs/openspec/changes/a2-2-video-master/.comet/handoff/design-context.md"
-}

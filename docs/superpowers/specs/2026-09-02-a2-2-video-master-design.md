@@ -2,6 +2,8 @@
 comet_change: a2-2-video-master
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-a2-2-video-master
+status: final
 ---
 
 # Design Doc — a2-2-video-master（A2-2: Video Master）
