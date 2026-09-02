@@ -48,18 +48,32 @@ pub enum VideoDataPlane {
 /// （"Clean Master" 不存在——Master 一定处于二者之一的事实状态。）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct ProgramComposition {
-    #[serde(default)]
     pub applied: bool,
 }
 
+impl VideoMasterStage {
+    /// Canonical wire 名（serde 同源; 错误载荷/诊断统一用词表名——review Minor#8）。
+    pub fn as_wire(&self) -> &'static str {
+        match self {
+            Self::SourceRaw => "SOURCE_RAW",
+            Self::Normalized => "NORMALIZED",
+            Self::Switched => "SWITCHED",
+            Self::ProgramComposed => "PROGRAM_COMPOSED",
+            Self::MasterJoined => "MASTER_JOINED",
+        }
+    }
+}
+
 /// Video Master —— 视频路径 Master 侧 Canonical Domain Object。
+///
+/// **信任边界（review Important#2 记档）**: 字段 pub 且可 serde 重建——这是**有意的**
+/// （声明性数据对象需持久化/传输往返）; `advance_to` 是**语义守卫**（迁移合法性）,
+/// 不是唯一构造路径。`is_program_scope_master()` 将在 A2-5+ 消费——届时须在消费点
+/// 重审: 信任构造来源或收紧为构造器模式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct VideoMaster {
-    #[serde(default)]
     pub stage: VideoMasterStage,
-    #[serde(default)]
     pub data_plane: VideoDataPlane,
-    #[serde(default)]
     pub composition: ProgramComposition,
 }
 
@@ -73,27 +87,46 @@ impl VideoMaster {
         }
     }
 
-    /// 相邻阶段白名单迁移（恰四迁移, match 无通配臂——新增阶段编译期强制评审）。
-    /// 跳级/倒退/同阶段一律 fail-closed。
+    /// 显式目标迁移——白名单: 仅"相邻下一阶段"唯一合法目标。
+    /// 跳级/倒退/同阶段/终态后继一律 fail-closed（`{from, to}` 携带真实目标——
+    /// 控制面实际使用形态; review Important#3）。
+    pub fn advance_to(&self, target: VideoMasterStage) -> Result<Self, ProgramDomainError> {
+        let legal_next = match self.stage {
+            VideoMasterStage::SourceRaw => Some(VideoMasterStage::Normalized),
+            VideoMasterStage::Normalized => Some(VideoMasterStage::Switched),
+            VideoMasterStage::Switched => Some(VideoMasterStage::ProgramComposed),
+            VideoMasterStage::ProgramComposed => Some(VideoMasterStage::MasterJoined),
+            // 终态无后继（显式 None 而非通配放行）。
+            VideoMasterStage::MasterJoined => None,
+        };
+        match legal_next {
+            Some(next) if next == target => Ok(Self {
+                stage: next,
+                data_plane: self.data_plane,
+                composition: self.composition,
+            }),
+            _ => Err(ProgramDomainError::InvalidStageTransition {
+                from: self.stage.as_wire().to_string(),
+                to: target.as_wire().to_string(),
+            }),
+        }
+    }
+
+    /// 相邻下一步迁移（advance_to(next) sugar——链式推进惯用法）。
     pub fn advance(&self) -> Result<Self, ProgramDomainError> {
         let next = match self.stage {
             VideoMasterStage::SourceRaw => VideoMasterStage::Normalized,
             VideoMasterStage::Normalized => VideoMasterStage::Switched,
             VideoMasterStage::Switched => VideoMasterStage::ProgramComposed,
             VideoMasterStage::ProgramComposed => VideoMasterStage::MasterJoined,
-            // 终态无后继——显式拒绝而非通配放行。
             VideoMasterStage::MasterJoined => {
                 return Err(ProgramDomainError::InvalidStageTransition {
-                    from: format!("{:?}", self.stage),
-                    to: "<terminal: MasterJoined 无后继>".to_string(),
+                    from: "MASTER_JOINED".to_string(),
+                    to: "<terminal: 无后继>".to_string(),
                 })
             }
         };
-        Ok(Self {
-            stage: next,
-            data_plane: self.data_plane,
-            composition: self.composition,
-        })
+        self.advance_to(next)
     }
 
     /// 视频路 Program-scope Master 视角就绪（终态判定; join 语义完整实现属 A2-5）。
@@ -131,7 +164,8 @@ mod tests {
         assert!(serde_json::from_str::<VideoMasterStage>("\"RAW\"").is_err());
     }
 
-    /// advance 白名单全组合矩阵: 恰四相邻迁移 OK; 一切其他组合 fail-closed。
+    /// advance_to 白名单全组合矩阵: 恰四相邻迁移 OK; 跳级/倒退/同阶段/终态后继全部拒绝。
+    /// （review Important#3: 显式目标 API 使全组合矩阵真实可测; `{from,to}` 携带真实词表名。）
     #[test]
     fn program_rt_02_video_advance_whitelist_matrix() {
         let chain = [
@@ -141,53 +175,45 @@ mod tests {
             VideoMasterStage::ProgramComposed,
             VideoMasterStage::MasterJoined,
         ];
-        // 相邻迁移恰四且逐一通过; data_plane/composition 携带不变。
-        for (i, from) in chain.iter().enumerate().take(4) {
-            let m = VideoMaster {
-                stage: *from,
-                ..VideoMaster::new()
-            };
-            let next = m.advance().expect("相邻迁移必须通过");
-            assert_eq!(next.stage, chain[i + 1], "{from:?} 的后继");
-            assert_eq!(next.data_plane, VideoDataPlane::RawElementary);
-            assert_eq!(next.composition, m.composition);
-        }
-        // 终态: 无后继。
         let m = VideoMaster::new();
-        assert!(
-            VideoMaster {
-                stage: VideoMasterStage::MasterJoined,
-                ..m
+        // 全组合: from × to 的 5×5 矩阵逐一断言。
+        for (i, from) in chain.iter().enumerate() {
+            let cur = VideoMaster { stage: *from, ..m };
+            for (j, to) in chain.iter().enumerate() {
+                let r = cur.advance_to(*to);
+                if j == i + 1 {
+                    // 唯一合法: 相邻下一阶段。
+                    let ok = r.expect("相邻迁移必须通过");
+                    assert_eq!(ok.stage, *to);
+                    assert_eq!(ok.data_plane, VideoDataPlane::RawElementary, "携带不变");
+                    assert_eq!(ok.composition, cur.composition, "携带不变");
+                } else {
+                    // 同阶段(j==i)/跳级(j>i+1)/倒退(j<i)/终态后继(from 终态的一切目标)。
+                    let err = r.expect_err("非相邻必须拒绝");
+                    assert!(
+                        matches!(err, ProgramDomainError::InvalidStageTransition { .. }),
+                        "{from:?}→{to:?} 须拒: {err:?}"
+                    );
+                }
             }
+        }
+        // no-arg advance() = advance_to(next) sugar: 链式四步到终态。
+        let done = m
             .advance()
-            .is_err(),
-            "终态无后继"
-        );
+            .unwrap()
+            .advance()
+            .unwrap()
+            .advance()
+            .unwrap()
+            .advance()
+            .unwrap();
+        assert_eq!(done.stage, VideoMasterStage::MasterJoined);
+        // 终态 advance() 拒绝（from=MASTER_JOINED 词表名载荷）。
+        let err = done.advance().unwrap_err();
         assert!(
-            VideoMaster {
-                stage: VideoMasterStage::SourceRaw,
-                ..m
-            }
-            .advance()
-            .unwrap() // Normalized
-            .advance()
-            .unwrap() // Switched
-            .advance()
-            .unwrap() // ProgramComposed
-            .advance()
-            .unwrap() // MasterJoined
-            .advance()
-            .is_err(),
-            "全链后再 advance 终态拒绝"
+            err.to_string().contains("MASTER_JOINED"),
+            "错误载荷用词表名: {err}"
         );
-        // 倒退: 从 Normalized 的后继只能是 Switched, 绝非回 SourceRaw。
-        let norm = VideoMaster {
-            stage: VideoMasterStage::Normalized,
-            ..m
-        };
-        assert_eq!(norm.advance().unwrap().stage, VideoMasterStage::Switched);
-        // 跳级不可表达: API 唯一迁移入口是 advance（相邻一步）;
-        // 从 SourceRaw 到 MasterJoined 恰需四步（见 terminal 测试）——不存在一步路径。
     }
 
     /// RAW 域唯一（Errata-3）: data_plane 构造恒 RawElementary, serde 名锁定。
@@ -226,6 +252,28 @@ mod tests {
         assert!(
             burned.advance().unwrap().composition.applied,
             "advance 携带 applied 不变"
+        );
+    }
+
+    /// 结构级 serde 往返 + 缺字段 fail-closed（review Minor#7——新生儿类型无旧实例,
+    /// serde(default) 已按 Important#1 移除, 缺字段必须报错而非静默默认）。
+    #[test]
+    fn program_rt_02_video_master_struct_serde_and_default() {
+        let m = VideoMaster::new();
+        let json = serde_json::to_string(&m).unwrap();
+        let back: VideoMaster = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, m);
+        // Default == new()（#[default] 首变体 = SourceRaw/Raw/bypassed 契约锚）。
+        assert_eq!(VideoMaster::default(), VideoMaster::new());
+        // 缺字段 fail-closed: `{}` 不是合法 VideoMaster。
+        assert!(
+            serde_json::from_str::<VideoMaster>("{}").is_err(),
+            "缺 stage/data_plane/composition 必须拒绝"
+        );
+        let no_comp = json.replace(",\"composition\":{\"applied\":false}", "");
+        assert!(
+            serde_json::from_str::<VideoMaster>(&no_comp).is_err(),
+            "缺 composition 必须拒绝: {no_comp}"
         );
     }
 
