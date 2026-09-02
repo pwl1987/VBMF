@@ -1,0 +1,13 @@
+{
+  "change": "a2-0-runtime-repositioning",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "e0a317acc23ec28b79174b6a42d8d8ce46232046e9069b85d9c0709675db02fc",
+  "files": [
+    { "path": "docs/openspec/changes/a2-0-runtime-repositioning/proposal.md", "sha256": "b44a662d17d1626ad2b482348dba2445e58ea0c1fd837e3a477b2bfba90beb7b" },
+    { "path": "docs/openspec/changes/a2-0-runtime-repositioning/design.md", "sha256": "6df57b4004bfdc5311798bcbe876f1a234ef9e7831675f842b5299a4ba0012ec" },
+    { "path": "docs/openspec/changes/a2-0-runtime-repositioning/tasks.md", "sha256": "95996ac1f3912b13102c01353c6eb8c93b636999c8ea33dcf2ec57c68e86de82" }
+  ]
+}

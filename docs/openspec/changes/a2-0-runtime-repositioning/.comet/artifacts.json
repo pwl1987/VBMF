@@ -1,0 +1,7 @@
+{
+  "openspec_proposal": "docs/openspec/changes/a2-0-runtime-repositioning/proposal.md",
+  "openspec_design": "docs/openspec/changes/a2-0-runtime-repositioning/design.md",
+  "openspec_tasks": "docs/openspec/changes/a2-0-runtime-repositioning/tasks.md",
+  "handoff_context": "docs/openspec/changes/a2-0-runtime-repositioning/.comet/handoff/design-context.json",
+  "handoff_markdown": "docs/openspec/changes/a2-0-runtime-repositioning/.comet/handoff/design-context.md"
+}
