@@ -2,6 +2,8 @@
 comet_change: prototype-p1b-web-console
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-02-prototype-p1b-web-console
+status: final
 ---
 
 # Design Doc — prototype-p1b-web-console（P1b 最小 Web Console）
