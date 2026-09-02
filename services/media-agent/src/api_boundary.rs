@@ -351,6 +351,124 @@ pub fn default_idempotency_boundary() -> ApiIdempotencyBoundary {
     }
 }
 
+// === Program 平面：ProgramMaster 语义快照投影（A2-6-02） =====================
+//
+// **A2-6-02 复核终裁（CHANGES REQUIRED 已修复）**: API DTO 字段禁直接持有
+// Domain 容器对象——"Canonical types 允许 mapper 消费"≠"允许 DTO 字段类型
+// 等于 Domain 类型"（两层权限不可混同）。修复 = 薄镜像 DTO（字段严格 1:1
+// 对应 canonical wire shape, mapper 只做显式机械复制）——镜像 ≠ 重新解释
+// Domain（语义来自 Domain, 所有权与演进边界属于 API; Domain 字段增加不再
+// 自动改 API contract）。不碰: Query/Transport/Custody/producer（零挂载
+// 仍有效）。
+
+/// VideoMaster 语义快照投影（薄镜像: 字段 1:1 canonical wire shape;
+/// 词表子类型为 LOCK FINAL canonical vocabulary, 当前允许直接复用——其变化
+/// 必须经对应版本/架构变更流程, 非天然"零风险"; 一旦叶子开始承载 Runtime/
+/// vendor/execution 语义须重新判断复用合法性）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiVideoMaster {
+    pub stage: crate::program::VideoMasterStage,
+    pub data_plane: crate::program::VideoDataPlane,
+    pub composition: crate::program::ProgramComposition,
+}
+
+/// AudioMaster 语义快照投影（薄镜像, 同律）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiAudioMaster {
+    pub stage: crate::program::AudioMasterStage,
+    pub data_plane: crate::program::AudioDataPlane,
+    pub mix_layout: crate::program::MixLayout,
+    pub delay_ms: Option<std::num::NonZeroU16>,
+    pub loudness_lufs: Option<f32>,
+}
+
+/// MetadataMaster 语义快照投影（薄镜像, 同律; facts 元素 `MetadataFact` 与
+/// `CanonicalSourceRef` 属 LOCK FINAL 词表层直接复用——键集恰三已由 A2-4
+/// 测试锁死, 无容器演化面）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiMetadataMaster {
+    pub data_plane: crate::program::MetadataDataPlane,
+    pub facts: Vec<crate::program::MetadataFact>,
+    pub join_declaration: crate::program::MetadataJoinDeclaration,
+}
+
+/// ProgramMaster 语义快照投影（A2-6-01 终裁: 命名 `ApiProgramMaster`——
+/// 直译组合根; 禁 ApiProgram[过早吞 A2-7 完整 Program 语义]/ApiChannelProgram/
+/// ApiProgramSnapshot）。
+///
+/// **whole-value 整体投影（禁 flatten）**: video/audio/metadata 嵌套 API
+/// DTO 原样出现, 顶层禁 video_stage/audio_stage/metadata_xxx 平铺——API 不
+/// 重新解释 Domain。
+///
+/// **avsync = Join classification input projection**（A2-5 唯一家
+/// master_join.rs 的 `AVSyncClassification` 四值零转换透传）——**不是**
+/// health/status/program_status; `AVSync=FAILED` 禁推 `join_result=FAILED`
+/// 以外的任何语义（§8.10 red 后须 Runtime classify_failure_domain）。
+///
+/// **零挂载（A2-6-01 终裁 OQ-8）**: 本 DTO 当前无 producer（join() 零生产
+/// 调用者）无 consumer——仅 to_api_* 纯映射到位; RuntimeQuery/
+/// ApiQuerySnapshot/transport 端点零接线（等 A2-7 生产生命周期 + 真实消费者）。
+/// 零 serde(default)（缺省语义=数据类型行为, 不放宽 API Contract）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiProgramMaster {
+    pub video: ApiVideoMaster,
+    pub audio: ApiAudioMaster,
+    pub metadata: ApiMetadataMaster,
+    /// `None` = Join Result 尚未形成（wire: `null`; **禁** UNKNOWN/NOT_READY/
+    /// FAILED/DEGRADED 字符串化——None 不是第五语义, R-A）。
+    pub join_result: Option<crate::program::MasterJoinResult>,
+    pub avsync: crate::program::AVSyncClassification,
+}
+
+/// VideoMaster → ApiVideoMaster 显式机械映射（薄镜像 1:1; 零语义创造）。
+pub fn to_api_video_master(v: &crate::program::VideoMaster) -> ApiVideoMaster {
+    ApiVideoMaster {
+        stage: v.stage,
+        data_plane: v.data_plane,
+        composition: v.composition,
+    }
+}
+
+/// AudioMaster → ApiAudioMaster 显式机械映射（薄镜像 1:1）。
+pub fn to_api_audio_master(a: &crate::program::AudioMaster) -> ApiAudioMaster {
+    ApiAudioMaster {
+        stage: a.stage,
+        data_plane: a.data_plane,
+        mix_layout: a.mix_layout,
+        delay_ms: a.delay_ms,
+        loudness_lufs: a.loudness_lufs,
+    }
+}
+
+/// MetadataMaster → ApiMetadataMaster 显式机械映射（薄镜像 1:1）。
+pub fn to_api_metadata_master(m: &crate::program::MetadataMaster) -> ApiMetadataMaster {
+    ApiMetadataMaster {
+        data_plane: m.data_plane,
+        facts: m.facts.clone(),
+        join_declaration: m.join_declaration,
+    }
+}
+
+/// ProgramMaster → ApiProgramMaster 纯映射（A2-6-02: PMAPI 属性——pure/
+/// deterministic/零 cache/零 mutation/零 assembly/零 Runtime lookup/零
+/// Event/零 Query/零 transport/零 custody; **mapper 不创建 ProgramMaster**,
+/// 输入是已存在的引用[硬 Gate: 无 owner 时不产假快照]）。
+///
+/// `avsync` 独立参数化（ProgramMaster 无此字段——双 SoT 禁, A2-5-04 终裁;
+/// 来源 = 调用方持有的 `JoinClassificationInput.avsync` 透传）。
+pub fn to_api_program_master(
+    pm: &crate::program::ProgramMaster,
+    avsync: crate::program::AVSyncClassification,
+) -> ApiProgramMaster {
+    ApiProgramMaster {
+        video: to_api_video_master(&pm.video),
+        audio: to_api_audio_master(&pm.audio),
+        metadata: to_api_metadata_master(&pm.metadata),
+        join_result: pm.join_result,
+        avsync,
+    }
+}
+
 // === 单元测试 ================================================================
 
 #[cfg(all(test, feature = "mock"))]
@@ -626,5 +744,282 @@ mod tests {
             serde_json::to_string(&ApiCrossRestartSemantics::RestartAllowsReplay).unwrap(),
             "\"restart_allows_replay\""
         );
+    }
+
+    // === A2-6-02: ProgramMaster API Projection（PMAPI-01..12 终裁 Gate） ===
+
+    use crate::program::{
+        join, AVSyncClassification, MasterJoinInput, MasterJoinResult, MetadataJoinDeclaration,
+        MetadataMaster, ProgramMaster,
+    };
+
+    /// PMAPI 底座: 经**真实 join()** 产出的 ProgramMaster（不从零构造假快照
+    /// ——三 Master 推进到终态 + declaration 后 join, 与生产链同构）。
+    fn composed_program_master(join_result: Option<MasterJoinResult>) -> ProgramMaster {
+        let mut video = crate::program::VideoMaster::new();
+        for _ in 0..4 {
+            video = video.advance().expect("相邻推进");
+        }
+        let mut audio = crate::program::AudioMaster::new();
+        for _ in 0..4 {
+            audio = audio.advance().expect("相邻推进");
+        }
+        let metadata = crate::program::MetadataMaster {
+            join_declaration: MetadataJoinDeclaration::Participating,
+            ..MetadataMaster::default()
+        };
+        let input = MasterJoinInput {
+            video,
+            audio,
+            metadata: metadata.clone(),
+            avsync: AVSyncClassification::Unknown,
+            video_failed: false,
+            audio_failed: false,
+        };
+        let output = join(&input);
+        assert_eq!(output.result, Some(MasterJoinResult::Acceptable));
+        ProgramMaster::compose(
+            input.video,
+            input.audio,
+            metadata,
+            join_result.or(output.result),
+        )
+    }
+
+    /// PMAPI-01/07/08: 顶层五键存在（whole-value——video/audio/metadata 是
+    /// 嵌套对象非平铺标量; 反向禁 video_stage 等展平键与 eligibility/
+    /// classification_input/inconsistency 过程键）; **镜像独立性（A2-6-02
+    /// 复核终裁）**: ApiProgramMaster 字段类型为 Api* 镜像 DTO 非 Domain
+    /// 容器——行为证 = Domain 容器上不存在的构造/字段访问在 Api DTO 上成立,
+    /// 且独立结构各自序列化（Domain 字段未来增加不自动进 API wire）。
+    #[test]
+    fn pmapi_01_top_level_keys_whole_value_not_alias() {
+        let pm = composed_program_master(None);
+        let api = to_api_program_master(&pm, AVSyncClassification::Acceptable);
+        let obj = serde_json::to_value(&api)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone();
+        for must in ["video", "audio", "metadata", "join_result", "avsync"] {
+            assert!(obj.contains_key(must), "顶层必须存在 {must}");
+        }
+        // whole-value: 域是嵌套对象（非平铺标量键）。
+        assert!(obj.get("video").unwrap().is_object());
+        assert!(obj.get("audio").unwrap().is_object());
+        assert!(obj.get("metadata").unwrap().is_object());
+        // 反向: 平铺键与 Join 过程键禁入顶层。
+        for banned in [
+            "video_stage",
+            "audio_stage",
+            "metadata_facts",
+            "metadata_join_declaration",
+            "eligibility",
+            "classification_input",
+            "inconsistency",
+            "health",
+            "status",
+        ] {
+            assert!(!obj.contains_key(banned), "顶层禁入 {banned}");
+        }
+    }
+
+    /// PMAPI-02: join_result=Some → wire 词表正确（真实 join 产 ACCEPTABLE;
+    /// 显式 Degraded 亦逐字透传）。
+    #[test]
+    fn pmapi_02_join_result_some_serializes() {
+        let pm = composed_program_master(None);
+        let api = to_api_program_master(&pm, AVSyncClassification::Unknown);
+        assert_eq!(
+            serde_json::to_value(&api)
+                .unwrap()
+                .get("join_result")
+                .unwrap(),
+            &serde_json::json!("ACCEPTABLE")
+        );
+        let pm2 = ProgramMaster::compose(
+            pm.video,
+            pm.audio,
+            pm.metadata,
+            Some(MasterJoinResult::Degraded),
+        );
+        assert_eq!(
+            serde_json::to_value(to_api_program_master(&pm2, AVSyncClassification::Unknown))
+                .unwrap()
+                .get("join_result")
+                .unwrap(),
+            &serde_json::json!("DEGRADED")
+        );
+    }
+
+    /// PMAPI-03/04: join_result=None → wire `null`（**非** UNKNOWN/NOT_READY/
+    /// FAILED/DEGRADED 任何字符串化——None 不是第五语义）; 且 UNKNOWN 串在
+    /// join_result 位置反序列化 fail-closed。
+    #[test]
+    fn pmapi_03_04_join_result_none_is_null_not_semantic_string() {
+        // 显式 None（helper 的 or(output.result) 会回填真实结果, 此处须直取）。
+        let real = composed_program_master(None);
+        let pm = ProgramMaster::compose(real.video, real.audio, real.metadata, None);
+        let api = to_api_program_master(&pm, AVSyncClassification::Unknown);
+        let json = serde_json::to_value(&api).unwrap();
+        assert_eq!(
+            json.get("join_result").unwrap(),
+            &serde_json::Value::Null,
+            "None → null（Option absence 内建语义）"
+        );
+        // null 往返恒等 None。
+        let back: ApiProgramMaster = serde_json::from_value(json).unwrap();
+        assert_eq!(back.join_result, None);
+        // 语义串冒充 None 状态禁入 join_result 词表。
+        for fake in ["UNKNOWN", "NOT_READY"] {
+            let mut forged = serde_json::to_value(&api).unwrap();
+            forged
+                .as_object_mut()
+                .unwrap()
+                .insert("join_result".into(), serde_json::json!(fake));
+            assert!(
+                serde_json::from_value::<ApiProgramMaster>(forged).is_err(),
+                "join_result 拒收 {fake}（None≠语义串, 词表封闭）"
+            );
+        }
+    }
+
+    /// PMAPI-05: AVSync 四值零转换透传（ACCEPTABLE/DEGRADED/FAILED/UNKNOWN
+    /// 逐值恒等——投影层不是分类器也不是改写器）。
+    #[test]
+    fn pmapi_05_avsync_four_values_passthrough() {
+        let pm = composed_program_master(None);
+        for (input, wire) in [
+            (AVSyncClassification::Acceptable, "\"ACCEPTABLE\""),
+            (AVSyncClassification::Degraded, "\"DEGRADED\""),
+            (AVSyncClassification::Failed, "\"FAILED\""),
+            (AVSyncClassification::Unknown, "\"UNKNOWN\""),
+        ] {
+            let api = to_api_program_master(&pm, input);
+            let v = serde_json::to_value(&api).unwrap();
+            assert_eq!(v.get("avsync").unwrap(), &serde_json::json!(input));
+            assert_eq!(
+                serde_json::to_string(v.get("avsync").unwrap()).unwrap(),
+                wire
+            );
+        }
+    }
+
+    /// PMAPI-06: inconsistency/eligibility/classification_input 不进入 API
+    /// （Join 内部分类输入与运算过程输出非用户语义——05 终裁维持）。
+    #[test]
+    fn pmapi_06_inconsistency_not_exposed() {
+        let pm = composed_program_master(None);
+        let json =
+            serde_json::to_string(&to_api_program_master(&pm, AVSyncClassification::Unknown))
+                .unwrap();
+        for absent in ["inconsistency", "eligibility", "classification_input"] {
+            assert!(!json.contains(absent), "API 禁暴露 {absent}");
+        }
+    }
+
+    /// PMAPI-09/10: mapper 纯度——同输入两次调用恒等（deterministic 零
+    /// cache）; 输入 pm 不被 mutation; 签名零 Runtime 依赖（编译期: 参数仅
+    /// &ProgramMaster + AVSyncClassification——RuntimeState/SessionManager/
+    /// RuntimeQuery/EventLog 无法进入, 本测试锁定行为面）。
+    #[test]
+    fn pmapi_09_10_mapper_pure_deterministic_no_mutation() {
+        let pm = composed_program_master(None);
+        let before = pm.clone();
+        let a = to_api_program_master(&pm, AVSyncClassification::Degraded);
+        let b = to_api_program_master(&pm, AVSyncClassification::Degraded);
+        assert_eq!(a, b, "同输入恒等（零 cache 零随机性）");
+        assert_eq!(pm, before, "mapper 零 mutation");
+    }
+
+    /// PMAPI-12: 零 serde(default)——三 Master 字段与 avsync 缺失 fail-closed
+    /// （join_result 缺失=Option 内建 absence, 与 A2-5-04 同律）。
+    #[test]
+    fn pmapi_12_no_serde_default_fail_closed() {
+        let api = to_api_program_master(
+            &composed_program_master(None),
+            AVSyncClassification::Unknown,
+        );
+        let json = serde_json::to_value(&api).unwrap();
+        for drop_key in ["video", "audio", "metadata", "avsync"] {
+            let mut partial = json.as_object().unwrap().clone();
+            assert!(partial.remove(drop_key).is_some());
+            assert!(
+                serde_json::from_value::<ApiProgramMaster>(serde_json::Value::Object(partial))
+                    .is_err(),
+                "缺 {drop_key} 必须 fail-closed（零 serde(default)）"
+            );
+        }
+        // join_result 缺失 = Option 内建 absence（→None）。
+        let mut no_result = json.as_object().unwrap().clone();
+        assert!(no_result.remove("join_result").is_some());
+        let back: ApiProgramMaster =
+            serde_json::from_value(serde_json::Value::Object(no_result)).unwrap();
+        assert_eq!(back.join_result, None);
+    }
+
+    /// 薄镜像 1:1 映射保真（A2-6-02 复核终裁）: 三子 mapper 对**非默认状态**
+    /// 的逐字段显式复制——wire shape 与 Domain canonical shape 恒等（含
+    /// delay_ms=Some / loudness_lufs=Some / facts 非空等带值场景, 防映射漏
+    /// 字段）。
+    #[test]
+    fn pmapi_mirror_dtos_one_to_one_field_fidelity() {
+        use crate::program::{AudioMasterStage, MetadataType as Mt, MixLayout as Ml};
+        use std::num::NonZeroU16;
+
+        let mut video = crate::program::VideoMaster::new();
+        for _ in 0..2 {
+            video = video.advance().expect("推进");
+        }
+        let audio = crate::program::AudioMaster {
+            stage: AudioMasterStage::DelayCompensated,
+            mix_layout: Ml::StereoAndSub,
+            delay_ms: Some(NonZeroU16::new(80).unwrap()),
+            loudness_lufs: Some(-23.0),
+            ..crate::program::AudioMaster::new()
+        };
+        let metadata = crate::program::MetadataMaster {
+            facts: vec![crate::program::MetadataFact {
+                kind: Mt::Caption,
+                source: crate::normalize::CanonicalSourceRef {
+                    device_id: uuid::Uuid::nil(),
+                    port_id: None,
+                },
+                presence: crate::program::MetadataPresence::Present,
+            }],
+            join_declaration: MetadataJoinDeclaration::NotPresent,
+            ..MetadataMaster::default()
+        };
+
+        let av = to_api_video_master(&video);
+        assert_eq!(av.stage, video.stage);
+        assert_eq!(av.data_plane, video.data_plane);
+        assert_eq!(av.composition, video.composition);
+
+        let aa = to_api_audio_master(&audio);
+        assert_eq!(aa.stage, audio.stage);
+        assert_eq!(aa.data_plane, audio.data_plane);
+        assert_eq!(aa.mix_layout, audio.mix_layout);
+        assert_eq!(aa.delay_ms, audio.delay_ms);
+        assert_eq!(aa.loudness_lufs, audio.loudness_lufs);
+
+        let am = to_api_metadata_master(&metadata);
+        assert_eq!(am.data_plane, metadata.data_plane);
+        assert_eq!(am.facts, metadata.facts);
+        assert_eq!(am.join_declaration, metadata.join_declaration);
+
+        // 组合根映射后 wire 面与 Domain 事实逐字段一致（嵌套层同值）。
+        let pm = ProgramMaster::compose(video, audio, metadata, None);
+        let api = to_api_program_master(&pm, AVSyncClassification::Failed);
+        assert_eq!(api.video.stage, crate::program::VideoMasterStage::Switched);
+        assert_eq!(api.audio.stage, AudioMasterStage::DelayCompensated);
+        assert_eq!(api.audio.delay_ms, Some(NonZeroU16::new(80).unwrap()));
+        assert_eq!(api.metadata.facts.len(), 1);
+        assert_eq!(
+            api.metadata.join_declaration,
+            MetadataJoinDeclaration::NotPresent
+        );
+        assert_eq!(api.join_result, None);
+        assert_eq!(api.avsync, AVSyncClassification::Failed);
     }
 }
