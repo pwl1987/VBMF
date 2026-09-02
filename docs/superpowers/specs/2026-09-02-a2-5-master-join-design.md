@@ -25,7 +25,13 @@ status: probe-stage
   Readiness≠Health / Health≠Classification / Failure≠Action / Join≠Watchdog /
   Join≠Safety / D14 不入 Join / Timecode SoT 不动。
 
-## 1. A2-5-02 模型提案（四件事，待用户终裁后进 03——本节零代码纯设计）
+## 1. A2-5-02 模型提案（**已被终裁报告 supersede**——以 [02-adjudication](../reports/2026-09-02-a2-5-master-join-02-adjudication.md) @462f74f 为准）
+
+> ⚠️ 修正记录：本节原提案"Result 仅 readiness=Ready 时判定"存在逻辑冲突
+> （failed 事实常伴随非终态 Master，readiness gate 会屏蔽 §1.20 单路 failed
+> →DEGRADED）。终裁改为**五步优先序**（C′ 矛盾→双路 failed→单路 failed 均
+> **不受 readiness 限制**；无 failure 且 !Ready → `result=None`，None 是
+> Readiness 层语义非第四枚举值）。实现以终裁报告 §2 真值表 + §4 十二红线为准。
 
 > 提案基准：01 终裁（shape-probe §6）+ 16 项探针事实 + V0.2 §1.20 L155/
 > §3.7/§3.8/§5 阈值表/§8.9-8.10。所有形态为提案，未裁不编码。
@@ -71,7 +77,7 @@ MasterJoinOutput（三件分离——Eligibility≠Readiness≠Result）
 `Ready ⟺ video_eligible ∧ audio_eligible ∧ metadata_eligible`。
 非 Ready 的输出=NotReady（原因由三 eligibility 分量携带，不折叠成单 enum）。
 
-**Result 矩阵（仅 readiness=Ready 时判定）**：
+**Result 矩阵（终裁版五步优先序——failure/C′ 不受 readiness gate，见终裁 §2）**：
 
 | 条件（按序短路） | Result | 依据 |
 |---|---|---|

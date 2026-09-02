@@ -9,12 +9,17 @@
 //! Channel 完整模型属控制面线（A4）。
 
 pub mod audio_master;
+pub mod master_join;
 pub mod metadata_master;
 pub mod switch_policy;
 pub mod video_master;
 
 pub use audio_master::{
     AudioDataPlane, AudioMaster, AudioMasterStage, MixLayout, DEFAULT_DELAY_MS,
+};
+pub use master_join::{
+    join, AVSyncClassification, JoinClassificationInput, JoinEligibility, MasterJoinInput,
+    MasterJoinOutput, MasterJoinResult, AVSYNC_CLASSIFICATIONS, JOIN_RESULTS,
 };
 pub use metadata_master::{
     MetadataDataPlane, MetadataFact, MetadataJoinDeclaration, MetadataMaster, MetadataPresence,

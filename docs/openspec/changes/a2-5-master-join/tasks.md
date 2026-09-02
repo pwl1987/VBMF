@@ -23,17 +23,26 @@
   docs/superpowers/reports/2026-09-02-a2-5-master-join-shape-probe.md
   `Contract: 终裁 §九 16 项清单+R-A..R-J` | `Implementation: 已（零 .rs diff）` | 
   `Verification: 16 项全有代码实锚` | `Gate: 无`
-- [ ] 4. A2-5-02 输入/输出模型裁定（Design Doc §1 四件提案已交付, 待用户
-  终裁）: ①MasterJoinInput/Output 最小闭合（组合参数零 trait; avsync 非
-  Option; failed 事实参数注入; Result 三值 Acceptable/Degraded/Failed=Program
-  Join semantic failure）②三层矩阵（Eligibility 三域判定·复用
-  is_program_scope_master 不重定义/Readiness 合取/Result 四行: C′ 矛盾→
-  Failed·双路 failed→Failed·单路 failed→Degraded §1.20 逐字·否则 Acceptable;
-  AVSync 不改 Result 伴随输出——待裁）③AVSyncClassification 四值+
-  消歧三不（不复用 Clock/不复制 DB/不带 offset 字段名）+ 阈值归属 Join 零阈值
-  ④投影边界表（Degraded→§8.9 Master 域信号; 禁 Channel 直推/禁 
-  SupervisorAction 直映射）
-  `Contract: 01 终裁四必裁+R-A..R-J` | `Implementation: 提案已交（零代码）` | 
-  `Verification: Design §1.5 待终裁清单四项` | `Gate: 无`
-- [ ] 5. A2-5-03..06（实现/ProgramMaster+AVSync 边界/Semantic Review/收口）
-  `Contract: 七刀链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [ ] 4. A2-5-02 输入/输出模型裁定（**用户终裁 CLOSED @462f74f**: 四项全
+  APPROVED + 矩阵优先序修正——failure/C′ 不受 readiness gate, None=Option
+  语义非第四值; 报告=docs/superpowers/reports/2026-09-02-a2-5-master-join-
+  02-adjudication.md 含 12 条 03 实现红线; Design §1 已标 supersede）
+  `Contract: 02-adjudication §1-§4` | `Implementation: 已（终裁报告+Design 同步）` | 
+  `Verification: 矩阵五步/三件分离/消歧六锁死全落` | `Gate: 无`
+- [x] 5. A2-5-03 首刀: `src/program/master_join.rs` 最小生产模型 + 纯函数
+  矩阵测试——MasterJoinResult 三值（serde+快照+跨平面拒收 READY/NOT_READY/
+  RESTART/UNKNOWN/NONE）/ AVSyncClassification 四值（Default=Unknown; 消歧
+  三不 doc）/ MasterJoinInput 组合参数（avsync 非 Option; failed 事实参数
+  注入; PartialEq-only 含 f32 同律）/ JoinEligibility（复用 is_program_
+  scope_master; ready 合取 8 组合表驱动）/ JoinClassificationInput（avsync
+  透传+inconsistency）/ `join()` 纯函数五步优先序（行 1/2 合并条件保短路
+  序, clippy if_same_then_else）; 5 测试: 词表锁/eligibility 矩阵/Result
+  优先序（红线 11/12: C′ 与 failed 均在非 Ready 场景实证）/ 红线 3（AVSync
+  Failed 不改 Result）/ classification_input 联动; **不碰 ProgramMaster/
+  transport/Runtime wiring**（按终裁 §5 边界）
+  `Contract: 02-adjudication §2 真值表+§4 十二红线` | 
+  `Implementation: 已` | `Verification: 盒上 program::master_join 5/5 + 
+  mock 287（282+5 恰）+ clippy 4-combo PASS + fmt clean` | `Gate: 无`
+- [ ] 6. A2-5-04..06（ProgramMaster 聚合+AVSync 边界/Semantic Review/收口
+  +交付链）——03 后续刀次待用户复核首刀后推进
+  `Contract: 七刀链+终裁 §5` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
