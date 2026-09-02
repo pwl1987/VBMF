@@ -33,7 +33,7 @@ pub enum AudioMasterStage {
     Mixed,
     /// [Loudness] 后。
     LoudnessNormalized,
-    /// [Audio Delay] 后（+80ms 补偿由 Mixer/Loudness 之间参数控制——本层仅声明"已补偿"）。
+    /// [Audio Delay] 后（位于 Loudness 与 Audio Master Join 之间——V0.2 §3.7; 本层仅声明"已补偿"）。
     DelayCompensated,
     /// [Audio Master Join] 后（音频路 Program-scope Master 视角就绪）。
     MasterJoined,
@@ -130,7 +130,7 @@ impl AudioMaster {
             AudioMasterStage::DelayCompensated => AudioMasterStage::MasterJoined,
             AudioMasterStage::MasterJoined => {
                 return Err(ProgramDomainError::InvalidStageTransition {
-                    from: "MASTER_JOINED".to_string(),
+                    from: AudioMasterStage::MasterJoined.as_wire().to_string(),
                     to: "<terminal: 无后继>".to_string(),
                 })
             }
@@ -211,10 +211,13 @@ mod tests {
                     assert_eq!(ok.loudness_lufs, cur.loudness_lufs, "loudness 携带不变");
                 } else {
                     let err = r.expect_err("非相邻必须拒绝");
-                    assert!(
-                        matches!(err, ProgramDomainError::InvalidStageTransition { .. }),
-                        "{from:?}→{to:?} 须拒: {err:?}"
-                    );
+                    match &err {
+                        ProgramDomainError::InvalidStageTransition { from: ef, to: et } => {
+                            assert_eq!(ef, from.as_wire(), "from 载荷=wire 名");
+                            assert_eq!(et, to.as_wire(), "to 载荷=wire 名");
+                        }
+                        _ => panic!("必须是 InvalidStageTransition: {err:?}"),
+                    }
                 }
             }
         }
@@ -257,12 +260,14 @@ mod tests {
     #[test]
     fn program_rt_03_audio_mix_layout_vocabulary() {
         // 受纳三词。
-        for w in ["STEREO", "FIVE_ONE", "STEREO_AND_SUB"] {
-            let l: MixLayout = serde_json::from_str(&format!("\"{w}\"")).unwrap();
-            assert!(matches!(
-                l,
-                MixLayout::Stereo | MixLayout::FiveOne | MixLayout::StereoAndSub
-            ));
+        for (layout, wire) in [
+            (MixLayout::Stereo, "STEREO"),
+            (MixLayout::FiveOne, "FIVE_ONE"),
+            (MixLayout::StereoAndSub, "STEREO_AND_SUB"),
+        ] {
+            assert_eq!(serde_json::to_string(&layout).unwrap(), format!("\"{wire}\""));
+            let back: MixLayout = serde_json::from_str(&format!("\"{wire}\"")).unwrap();
+            assert_eq!(back, layout, "wire↔variant 恒等");
         }
         // 拒绝: 大小写敏感 + 空串 + 跨词表污染（VIDEO/RAW/RTMP/HLS 都不是 mix 布局）。
         for bad in [

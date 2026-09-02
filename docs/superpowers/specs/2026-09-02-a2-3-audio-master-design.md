@@ -74,3 +74,12 @@ impl AudioMaster {
 ## 5. CI（PR 后回填）
 
 七 required context: **见 PR 检查记录（合并前全 green 为 Merge Gate 前置）。**
+
+
+## 6. AudioLayout → MixLayout 映射姿态（review Important#2 记档）
+
+`audio.rs` 已有 `AudioLayout {Mono, Stereo, FiveOne, SevenOne, Unknown}`（snake_case）。
+`MixLayout {Stereo, FiveOne, StereoAndSub}`（SCREAMING_SNAKE_CASE）是 **Master 侧混合
+布局声明面**——两者**不是同一概念**（前者是 Source 侧观测布局, 后者是 Master 侧混合
+目标布局）。映射缺口（Mono/SevenOne 无 MixLayout 目标; StereoAndSub 无 AudioLayout
+对应）**显式 deferred to A2-7 Materialization 裁定**——本 change 不建映射不做归并。

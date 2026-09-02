@@ -43,7 +43,8 @@ A2-2 已立规（serde(default) 新生儿禁用 / 产物随代码同步 commit /
 1. 阶段词表快照恰五词, serde 名锁定（§3.7 Audio Graph 节点对应）
 2. advance_to 5×5 全组合矩阵（同 A2-2 纪律; `from/to` 载荷 wire 词表名）
 3. data_plane 恒 RawAudio（Errata-3 纪律同 Video）
-4. mix_layout 词表: STEREO/5_1/STEREO_AND_SUB（声明面; 实际 mix 行为属 A2-7+）
+4. mix_layout 词表: STEREO/FIVE_ONE/STEREO_AND_SUB（声明面; 实际 mix 行为属 A2-7+;
+   review Important#1 对账——FIVE_ONE 按 codebase SCREAMING_SNAKE_CASE 惯例, 非 5_1）
 5. delay_ms `Option<NonZeroU16>`（None=未声明; Some=具体值; 默认 80 仅 const 锁）
 6. loudness_lufs `Option<f32>`（None=未归一化; Some=目标 LUFS 值——控制面设值）
 7. 全回归零退化（mock 265 基线 + Audio-specific 测试）
