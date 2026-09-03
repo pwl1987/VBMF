@@ -52,27 +52,26 @@
   continuity, 真实 GStreamer 实证）` | `Gate: T1-T12 mock 层全落地+
   真实 GStreamer 切换实证; **A2-8-01 = IMPLEMENTATION COMPLETE +
   APPROVED（第三轮终裁, probe §8）**; **A2-8 NOT CLOSED**`
-- [ ] 4. A2-8-02 Real Dual-Input Program Execution Verification（第三轮
-  终裁重定义）: 真实 SDI A/B → Pipeline A/B → Program Switch 全过程
-  A→B→A; 验证五维——Input[A/B alive]·Execution[active=A→switch(B)→
-  active=B→switch(A)→active=A]·Output[Program output alive]·Timing[
-  PTS monotonic? discontinuity? Video/Audio continuity——**Program
-  Timeline Continuity / Timestamp Normalization 为 02 明确观察项**（四
-  方案未裁: A 切后 Regenerator/B 新 Clock-Segment Timeline/C 出口
-  normalization/D 切换建新 segment timebase——**不冻结具体方案**）]·
-  Supervision[A fail→B 仍可观测·B fail→A 仍可观测·Supervisor echo 不被
-  Custody 误计新故障（沿 A2-7 RuntimeEvent→Custody→FailureObservation
-  链零旁路）]; **Program Output = 一级 Observation 对象**（Input health
-  与 Program execution health 两维度分离——A/B/switch 全 healthy 而
-  program output DEAD 必须可检出; 与 V0.2 HealthState≠
-  EffectiveChannelStatus 一致）; **02 Design Gate（开工唯一前置）**:
-  裁真实双 SDI→Program Execution 的 materialization 注入面——
-  **不批准 pipeline.rs/build_pipeline 感知 Program/inter/Switch 语义**
-  （禁 `PipelinePlan{inter_channel}`/`build_pipeline(...,switch_channel)`
-  式耦合——Pipeline 不知自己是 A/B/Program; Program Execution 层组合
-  执行 handles/materialization resources）; 真机 Gate 记录
-  `Contract: 01 APPROVED+第三轮终裁（probe §8）` | `Implementation: 待` | 
-  `Verification: 真机 Gate` | `Gate: 02 Design Gate 先行`
+- [ ] 4. A2-8-02 Real Dual-Input Program Execution Verification（第四轮
+  终裁冻结五层验收模型）: **L1 Input**[SDI A/B alive]·**L2 Execution**
+  [Pipeline A/B+ExecutionGroup]·**L3 Switching**[A→B·B→A]·**L4
+  Program Output**[单输出·continuous buffers]·**L5 Program Timeline**
+  [PTS monotonic·segment/discontinuity semantics·A/V relation——**明确
+  未通过项**; Program Timeline Continuity/Timestamp Normalization 四
+  方案未裁]; Supervision[A fail→B+Program 仍可观测·B fail→A 仍可观测·
+  echo 不被 Custody 误计（沿 A2-7 链零旁路）]; **Program Output=一级
+  Observation 对象**; **模拟源边界**: 01 videotestsrc PASS≠真机 PASS
+  （archive 必录）; **02 Design Gate 已批准并交付**（零代码, 报告=
+  docs/superpowers/reports/2026-09-03-a2-8-02-design-gate.md: 六产出
+  全实码锚定——①构图链②MediaTap 首选落点[tee by_name("v"/"a")+
+  request_pad+inter sink; **C1 纯分析管线无 tee 须裁**·**C2 recover
+  丢 tap 须裁**]③生命周期[G1 会话停止联动缺口语录]④SessionInput
+  零新 registry ⑤audio=selector-style 非 mixer 实码澄清⑥Timeline
+  归一化四方案映射]; MediaTap 排序冻结[①通用 tap🟢②动态 tee🟡③Rust
+  桥🔴④双开设备🔴]; **编码待裁: C1[Program 会话是否强制带输出段]+
+  C2[tap 随 recover 重挂]+Gate 结论**; 真机 Gate 记录
+  `Contract: 01 ACCEPTED+第四轮终裁（probe §9）` | `Implementation: 待（Design Gate 已交付）` | 
+  `Verification: 真机 Gate` | `Gate: C1/C2 裁定后开工`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

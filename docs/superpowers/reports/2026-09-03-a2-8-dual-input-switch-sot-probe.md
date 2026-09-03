@@ -290,3 +290,71 @@ A2-8-04  PROGRAM TIMELINE / AV CONTINUITY
 A2-8-05  ARCHIVE / CI / MERGE
 A2-8     NOT CLOSED
 ```
+
+---
+
+## 9. 第四轮终裁：能力表拆分 + 五层验收 + MediaTap 排序 + Design Gate 开工（2026-09-03 落盘）
+
+> 前提声明（用户原话）: 01 新增代码未经远端逐行复核（当时未 push）——
+> 验证依据=盒上执行结果+已核实代码事实。**分支已于本轮推送远端**
+> （`c3d3e23..f349e23`）, 后续验证恢复 GitHub 代码级核验口径。
+
+### 9.1 A2-8-01 = Execution implementation accepted / Timeline acceptance NOT accepted
+
+| 能力 | 裁决 |
+|---|---|
+| 双输入 Execution Group / A/B 独立 Pipeline / Program-level switch | 🟢 已实现 |
+| A→B→A / active-pad 实际变化 / Program output 存活 | 🟢 已验证 |
+| PTS observation | 🟢 已实现 |
+| **PTS monotonicity / Program Timeline continuity** | 🔴 **未通过/未完成** |
+| 真双 SDI | 🟡 待 02 · 故障/监督闭环 🟡 待 03 · AV continuity 🔴 待 04 |
+
+### 9.2 Source Time / Program Time 架构分野（关键一步）
+
+每个输入自持 PTS/DTS/timebase/segment/discontinuity（Source Time）≠
+切换后统一 Program PTS/timeline/continuity（Program Time）——自动
+failover 前必须解决 B 源 PTS 与 Program timeline 不一致问题。
+
+### 9.3 02 五层验收模型（正式冻结）
+
+**L1 Input**[SDI A/B alive]·**L2 Execution**[Pipeline A/B+ExecutionGroup]·
+**L3 Switching**[A→B·B→A]·**L4 Program Output**[单输出·continuous
+buffers]·**L5 Program Timeline**[PTS monotonic·segment/discontinuity
+semantics·A/V relation——**明确未通过项**]。
+
+### 9.4 MediaTap 注入面（首选确认 + 排序）
+
+Controller 只知"媒体输出能力"（MediaTap）不知 Program——禁
+`ProgramSwitchInput` 语义/`PipelinePlan{program_id,switch_channel}`。
+排序: ① Controller 通用 Media Tap 🟢首选 · ② 动态 tee 注入 🟡可研究 ·
+③ appsink→appsrc Rust 桥 🔴不推荐 · ④ Program 直接开双设备 🔴禁止。
+
+### 9.5 Audio 澄清（audiomixer ≠ audio switch）
+
+成对切换≠audiomixer（混音可产生 Video=B/Audio=A+B 非 source switch）。
+02 必须明确 audio 机制=selector-style / mute-gating / mixer-based
+selection; 若只 audiomixer 无 active-source semantics → 不给 Audio
+Switch PASS。（Gate 复核: 01 现实现 audio 平面=input-selector+active
+语义, 非 mixer——probe"audiomixer 在"仅为元素清点, 见 design-gate §⑤。）
+
+### 9.6 Watchdog 边界维持 + 03 重点重定义
+
+watchdog 仍是 observe→fold→RuntimeEvent, 禁 switch/restart 决策/
+failover/health policy/program state machine; Supervisor 只 decide
+recovery。03 验证= A fail→B+Program 仍可观测 / B fail→A 仍可观测 /
+Program output failure→A/B healthy+Program 故障正确分类 / Supervisor
+recovery echo 不计为第二次物理故障（不破坏 A2-7 Custody 语义）。
+
+### 9.7 模拟源边界（必须写入 archive）
+
+**A2-8-01 GStreamer test PASS（videotestsrc 双源）≠ A2-8 真机 PASS**
+——不能证明真 DeckLink A/B 的 format/framerate/caps/clock/PTS/
+segment/audio timing 一致。
+
+### 9.8 Design Gate 批准开工（无需再问）
+
+只读调查六产出: ①真实 PipelineController 构图分析 ②MediaTap 注入
+落点 ③Program graph 生命周期（create/owns/start/stop/destroy）④A/B
+handle 关联（SessionInput, 零新 registry）⑤Audio topology ⑥Program
+Timeline 归一化点（**只调查不实现**）。产出=
+docs/superpowers/reports/2026-09-03-a2-8-02-design-gate.md。
