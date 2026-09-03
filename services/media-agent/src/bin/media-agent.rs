@@ -400,17 +400,76 @@ fn main() {
                                 *agent_state.lock().unwrap() =
                                     media_agent::health::AgentState::Capturing;
                                 // watchdog 继续 Supervise pipeline (recover 前重验 lease 不变量保留)。
-                                if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
-                                    spawn_ingest_watchdog(
-                                        ctrl,
-                                        h,
-                                        dev_uuid,
-                                        sup.clone(),
-                                        lm.clone(),
-                                        agent_state.clone(),
-                                        event_sink.clone(),
-                                        internal_log.clone(),
-                                    );
+                                // A2-8-01: 双输入诊断会话 → Execution Group 接线（组合根装配:
+                                // ExecutionGroup + program graph + MultiInputWatchdog——
+                                // SessionManager lifecycle only 不构图, probe §7 冻结 #1/#3/#5）。
+                                // 单输入路径逐字节保持; 组接线失败回落首句柄 watchdog
+                                // (fail-closed 降级——不中断会话采集)。
+                                let started_inputs: Vec<media_agent::session::SessionInput> =
+                                    mgr.status(&sid).map(|s| s.inputs).unwrap_or_default();
+                                let mut group_wired = false;
+                                if started_inputs.len() == 2 {
+                                    let initial_active = started_inputs[0].device_id;
+                                    let wiring = media_agent::switch_execution::ExecutionGroup::new(
+                                        sid,
+                                        started_inputs.clone(),
+                                        initial_active,
+                                    )
+                                    .and_then(|group| {
+                                        let switcher: std::sync::Arc<
+                                            dyn media_agent::contracts::switch::SwitchExecutionAdapter,
+                                        > = std::sync::Arc::new(
+                                            media_agent::adapters::gstreamer::GStreamerSwitchAdapter::default(),
+                                        );
+                                        let graph = switcher.build_program_graph(&group)?;
+                                        switcher.start_program(&graph)?;
+                                        Ok((group, switcher, graph))
+                                    });
+                                    match wiring {
+                                        Ok((group, switcher, graph)) => {
+                                            tracing::info!(
+                                                graph_handle = graph.0,
+                                                initial_active = %initial_active,
+                                                "A2-8-01 Execution Group 就绪: program graph 物化+启动, MultiInputWatchdog 四观测面 (A/B/Switch/Program) 接管"
+                                            );
+                                            let group =
+                                                std::sync::Arc::new(std::sync::Mutex::new(group));
+                                            media_agent::watchdog::spawn_execution_group_watchdog(
+                                                ctrl.clone(),
+                                                switcher,
+                                                started_inputs
+                                                    .iter()
+                                                    .map(|i| (i.device_id, i.handle))
+                                                    .collect(),
+                                                graph,
+                                                group,
+                                                sup.clone(),
+                                                lm.clone(),
+                                                agent_state.clone(),
+                                                event_sink.clone(),
+                                                internal_log.clone(),
+                                            );
+                                            group_wired = true;
+                                        }
+                                        Err(e) => tracing::error!(
+                                            error = ?e,
+                                            "A2-8-01 program graph 接线失败 (fail-closed: 回落单输入 watchdog, 会话采集不受影响)"
+                                        ),
+                                    }
+                                }
+                                if !group_wired {
+                                    if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
+                                        spawn_ingest_watchdog(
+                                            ctrl,
+                                            h,
+                                            dev_uuid,
+                                            sup.clone(),
+                                            lm.clone(),
+                                            agent_state.clone(),
+                                            event_sink.clone(),
+                                            internal_log.clone(),
+                                        );
+                                    }
                                 }
                                 // tick 驱动 lease 续期/预留过期 (无后台定时器, 借常驻线程节拍)。
                                 std::thread::spawn(move || loop {

@@ -468,4 +468,48 @@ mod tests {
             "active=A 存活时 program 持续"
         );
     }
+
+    #[test]
+    fn switch_rt_01_session_input_keyset_locked() {
+        // T9: SessionInput 键集恰 {device_id, handle}——active/is_active 等
+        // switch state 字段蔓延在此锁死（switch state 与 Session lifecycle
+        // 状态空间绝对分离, 终裁 §7.4; wire 面键集锁 = 字段蔓延防线）。
+        let json = serde_json::to_value(input(Uuid::new_v4(), 7)).expect("序列化");
+        let map = json.as_object().expect("SessionInput 序列化为对象");
+        let mut keys: Vec<&str> = map.keys().map(|k| k.as_str()).collect();
+        keys.sort();
+        assert_eq!(keys, vec!["device_id", "handle"], "键集锁死（恰两键）");
+    }
+
+    #[test]
+    fn switch_rt_01_no_auto_failover_path() {
+        // T12 类型级反证 #1: GroupAction 封闭词表穷尽 destructure——未来
+        // 新增任何切换/输入倒换变体将在此**编译失败**（词表膨胀 tripwire;
+        // 自动 failover 在观测折叠面不可构造）。
+        let sample = crate::watchdog::GroupAction::ReportInputFailure {
+            device_id: Uuid::new_v4(),
+            reason: crate::watchdog::InputFailureReason::CountersFrozen,
+        };
+        match sample {
+            crate::watchdog::GroupAction::ReportInputFailure { .. } => {}
+        }
+        // 反证 #2: 切换唯一入口 = 显式 Intent→plan→begin→adapter.switch 链。
+        // observe 零副作用（Observed 只读）; 无 Intent 即无 Plan（plan_switch
+        // 必收 &SwitchIntent——无 trigger/auto/recover 入口存在）。
+        let (a, b, mut group, graph, adapter) = running_group_and_graph();
+        let obs = adapter.observe(&graph);
+        assert_eq!(obs.observed_active, Some(a), "observe 零副作用不切换");
+        let plan = group
+            .plan_switch(&crate::switch_execution::SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("显式 Intent 产出 Plan");
+        group.begin_switch(&plan).expect("begin");
+        adapter.switch(&graph, &plan).expect("执行");
+        let obs2 = adapter.observe(&graph);
+        assert_eq!(obs2.observed_active, Some(b), "仅显式链生效");
+        assert!(!group.complete_switch(a), "旧源回显不落定");
+        assert!(group.complete_switch(b), "Observed=B 落定");
+    }
 }
