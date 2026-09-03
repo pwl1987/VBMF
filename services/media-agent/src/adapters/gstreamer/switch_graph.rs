@@ -86,10 +86,42 @@ impl SwitchGraph {
     }
 }
 
-/// GStreamer Switch Execution Adapter（`Default` 构造）。
+/// Program graph 物化形态（topology=实现细节, probe §7 冻结 #5——两形态
+/// 对 trait 接口同一, 可整体替换）。
+///
+/// - `Simulation`: 自持 is-live 测试源（自包含验证——无需输入管线）;
+/// - `Bridged`: **inter 系跨管线桥**（A2-8-02-F-03/04）——源=
+///   `intervideosrc/interaudiosrc`，channel 经 `program_execution::
+///   tap_channel`（DeviceId 派生 execution bridge address, 唯一约定
+///   来源）消费输入管线 MediaTap 挂出的媒体面。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SwitchMaterialization {
+    #[default]
+    Simulation,
+    Bridged,
+}
+
+/// GStreamer Switch Execution Adapter（`Default`=Simulation; 生产桥接用
+/// `bridged()`）。
 #[derive(Default)]
 pub struct GStreamerSwitchAdapter {
     graphs: Mutex<HashMap<PipelineHandle, SwitchGraph>>,
+    mode: SwitchMaterialization,
+}
+
+impl GStreamerSwitchAdapter {
+    /// 自包含仿真形态（测试源自持）。
+    pub fn simulation() -> Self {
+        Self::default()
+    }
+
+    /// inter 系跨管线桥形态（消费 MediaTap channel——F-03/F-04）。
+    pub fn bridged() -> Self {
+        Self {
+            mode: SwitchMaterialization::Bridged,
+            ..Self::default()
+        }
+    }
 }
 
 fn make_element(factory: &str, name: &str) -> Result<gstreamer::Element, SwitchError> {
@@ -158,10 +190,14 @@ fn attach_program_audio_sink(sink: &gstreamer_app::AppSink, handle: PipelineHand
 }
 
 impl GStreamerSwitchAdapter {
-    /// 物化 program pipeline（双测试源 → 双 input-selector → 双 appsink）。
+    /// 物化 program pipeline（双源 → 双 input-selector → 双 appsink）。
+    /// 源形态按 `mode`: Simulation=自持测试源 / Bridged=inter 系跨管线
+    /// 桥（intervideosrc/interaudiosrc 消费 MediaTap channel——
+    /// F-03/F-04; channel 经 `tap_channel` 唯一约定从 DeviceId 派生）。
     /// 返回 (pipeline, video_selector, audio_selector)。
     fn build_program_pipeline(
         handle: PipelineHandle,
+        mode: SwitchMaterialization,
         devices: [Uuid; 2],
         initial_active: Uuid,
     ) -> Result<(gstreamer::Pipeline, gstreamer::Element, gstreamer::Element), SwitchError> {
@@ -169,14 +205,22 @@ impl GStreamerSwitchAdapter {
 
         let pipeline = gstreamer::Pipeline::builder().name("program-graph").build();
 
-        // —— video 平面: 双测试源（可区分 pattern）→ input-selector → appsink ——
+        // —— video 平面: 双源 → input-selector → appsink ——
         let video_selector = make_element("input-selector", "program-video-selector")?;
-        let v_caps = make_element("capsfilter", "program-video-caps")?;
-        v_caps.set_property(
-            "caps",
-            gstreamer::Caps::from_str("video/x-raw,width=320,height=240,framerate=25/1")
-                .expect("caps 字面量恒可解析"),
-        );
+        // capsfilter 仅 Simulation 形态（Bridged 透传输入管线实际 caps——
+        // 强制 320x240 会与桥接媒体协商冲突）。
+        let v_caps = match mode {
+            SwitchMaterialization::Simulation => {
+                let c = make_element("capsfilter", "program-video-caps")?;
+                c.set_property(
+                    "caps",
+                    gstreamer::Caps::from_str("video/x-raw,width=320,height=240,framerate=25/1")
+                        .expect("caps 字面量恒可解析"),
+                );
+                Some(c)
+            }
+            SwitchMaterialization::Bridged => None,
+        };
         let v_queue = make_element("queue", "program-video-queue")?;
         let v_sink_el = make_element("appsink", "program-video-sink")?;
         v_sink_el.set_property("sync", false);
@@ -187,27 +231,39 @@ impl GStreamerSwitchAdapter {
             .map_err(|e| SwitchError::Backend(format!("appsink cast: {e:?}")))?;
         attach_program_video_sink(&v_appsink, handle);
 
-        let vsrc_a = make_element("videotestsrc", "program-vsrc-a")?;
-        vsrc_a.set_property("is-live", true);
-        vsrc_a.set_property_from_str("pattern", "ball");
-        let vsrc_b = make_element("videotestsrc", "program-vsrc-b")?;
-        vsrc_b.set_property("is-live", true);
-        vsrc_b.set_property_from_str("pattern", "smpte");
+        let (vsrc_a, vsrc_b) = match mode {
+            SwitchMaterialization::Simulation => {
+                let a = make_element("videotestsrc", "program-vsrc-a")?;
+                a.set_property("is-live", true);
+                a.set_property_from_str("pattern", "ball");
+                let b = make_element("videotestsrc", "program-vsrc-b")?;
+                b.set_property("is-live", true);
+                b.set_property_from_str("pattern", "smpte");
+                (a, b)
+            }
+            SwitchMaterialization::Bridged => {
+                // inter 系桥: 消费输入管线 MediaTap 挂出的 channel
+                //（tap_channel=DeviceId 派生唯一约定来源）。
+                let a = make_element("intervideosrc", "program-vsrc-a")?;
+                a.set_property("channel", crate::program_execution::tap_channel(devices[0]));
+                let b = make_element("intervideosrc", "program-vsrc-b")?;
+                b.set_property("channel", crate::program_execution::tap_channel(devices[1]));
+                (a, b)
+            }
+        };
 
-        for el in [
-            &vsrc_a,
-            &vsrc_b,
-            &video_selector,
-            &v_caps,
-            &v_queue,
-            &v_sink_el,
-        ] {
+        let mut video_els: Vec<&gstreamer::Element> =
+            vec![&vsrc_a, &vsrc_b, &video_selector, &v_queue, &v_sink_el];
+        if let Some(c) = &v_caps {
+            video_els.push(c);
+        }
+        for el in video_els {
             pipeline
                 .add(el)
                 .map_err(|e| map_bool_err(e, "add element"))?;
         }
 
-        // —— audio 平面: 双 audiotestsrc（可区分频率）→ input-selector → appsink ——
+        // —— audio 平面: 双源 → input-selector → appsink ——
         let audio_selector = make_element("input-selector", "program-audio-selector")?;
         let a_queue = make_element("queue", "program-audio-queue")?;
         let a_sink_el = make_element("appsink", "program-audio-sink")?;
@@ -219,12 +275,24 @@ impl GStreamerSwitchAdapter {
             .map_err(|e| SwitchError::Backend(format!("appsink cast: {e:?}")))?;
         attach_program_audio_sink(&a_appsink, handle);
 
-        let asrc_a = make_element("audiotestsrc", "program-asrc-a")?;
-        asrc_a.set_property("is-live", true);
-        asrc_a.set_property("freq", 440f64);
-        let asrc_b = make_element("audiotestsrc", "program-asrc-b")?;
-        asrc_b.set_property("is-live", true);
-        asrc_b.set_property("freq", 880f64);
+        let (asrc_a, asrc_b) = match mode {
+            SwitchMaterialization::Simulation => {
+                let a = make_element("audiotestsrc", "program-asrc-a")?;
+                a.set_property("is-live", true);
+                a.set_property("freq", 440f64);
+                let b = make_element("audiotestsrc", "program-asrc-b")?;
+                b.set_property("is-live", true);
+                b.set_property("freq", 880f64);
+                (a, b)
+            }
+            SwitchMaterialization::Bridged => {
+                let a = make_element("interaudiosrc", "program-asrc-a")?;
+                a.set_property("channel", crate::program_execution::tap_channel(devices[0]));
+                let b = make_element("interaudiosrc", "program-asrc-b")?;
+                b.set_property("channel", crate::program_execution::tap_channel(devices[1]));
+                (a, b)
+            }
+        };
 
         for el in [&asrc_a, &asrc_b, &audio_selector, &a_queue, &a_sink_el] {
             pipeline
@@ -260,12 +328,20 @@ impl GStreamerSwitchAdapter {
         video_selector
             .link(&v_queue)
             .map_err(|e| map_bool_err(e, "video 出口链"))?;
-        v_queue
-            .link(&v_caps)
-            .map_err(|e| map_bool_err(e, "video 出口链"))?;
-        v_caps
-            .link(&v_sink_el)
-            .map_err(|e| map_bool_err(e, "video 出口链"))?;
+        match &v_caps {
+            Some(c) => {
+                v_queue
+                    .link(c)
+                    .map_err(|e| map_bool_err(e, "video 出口链"))?;
+                c.link(&v_sink_el)
+                    .map_err(|e| map_bool_err(e, "video 出口链"))?;
+            }
+            None => {
+                v_queue
+                    .link(&v_sink_el)
+                    .map_err(|e| map_bool_err(e, "video 出口链"))?;
+            }
+        }
         audio_selector
             .link(&a_queue)
             .map_err(|e| map_bool_err(e, "audio 出口链"))?;
@@ -327,7 +403,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         let handle =
             PipelineHandle(NEXT_PIPELINE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
         let (pipeline, video_selector, audio_selector) =
-            Self::build_program_pipeline(handle, devices, initial_active)?;
+            Self::build_program_pipeline(handle, self.mode, devices, initial_active)?;
         let pad_index: HashMap<Uuid, usize> =
             devices.iter().enumerate().map(|(i, d)| (*d, i)).collect();
         self.graphs.lock().unwrap().insert(
@@ -623,5 +699,139 @@ mod tests {
         }
         assert_eq!(g.desired, SwitchDesired::ActiveInput(a));
         adapter.stop_program(&graph).expect("停止");
+    }
+
+    // ── A2-8-02-F-03/F-04: 真实跨管线 Program Media Path（十一轮终裁十项
+    // 清单; 盒上 bmd+gstreamer 非 mock）——输入管线（videotestsrc 真实帧,
+    // 无 SDI 亦真跑）→ tee → MediaTap[intervideosink/interaudiosink] →
+    // inter[video/audio]src → selector → program appsink。
+    // 清单映射: ①双输入真实帧 ②channel 正确 ③program 有帧 ④A→B→A
+    // ⑤双平面成对 ⑥A 断 B 仍供 ⑦B 断（经⑥对偶, 断非 active 路）⑨teardown
+    // 零残留 ⑩recover 重挂。⑧program 自身故障独立观察=观测维度分离已由
+    // fold 测试证（mock 层 GroupObservation 三维分离）——不在真桥强注。
+    // **不做任何 PTS 行为修改**（Timeline=G/H 独立裁决）。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn switch_graph_rt_01_real_bridge_cross_pipeline_media_path() {
+        use crate::contracts::media_tap::{MediaTapRequest, TapPlanes};
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::tap_channel;
+        use crate::session::SessionId;
+
+        let bundle =
+            crate::registry::AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+
+        // 两条真实输入管线（self_test=videotestsrc 源——真实帧/真实 tee）。
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("输入管线 A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("输入管线 B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        // ② channel 正确（tap_channel 唯一约定）。
+        for (h, d) in [(h1, a), (h2, b)] {
+            tap.attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: tap_channel(d),
+                    planes: TapPlanes::Both,
+                },
+            )
+            .expect("tap attach");
+            assert_eq!(tap.tap_attachments(&h)[0].channel, tap_channel(d));
+        }
+
+        // Bridged program graph: inter[video/audio]src 消费 tap channel。
+        let mut group = ExecutionGroup::new(
+            SessionId(Uuid::new_v4()),
+            vec![
+                SessionInput {
+                    device_id: a,
+                    handle: h1,
+                },
+                SessionInput {
+                    device_id: b,
+                    handle: h2,
+                },
+            ],
+            a,
+        )
+        .expect("组");
+        let adapter = GStreamerSwitchAdapter::bridged();
+        let graph = adapter.build_program_graph(&group).expect("bridged 物化");
+        adapter.start_program(&graph).expect("program 启动");
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+
+        // ① 双输入真实帧 + ③ program 有帧（跨管线桥真实流通）。
+        let ha = crate::pipeline_events::read_health(&h1).expect("A 健康弧");
+        let hb = crate::pipeline_events::read_health(&h2).expect("B 健康弧");
+        assert!(ha.video_frame_count > 0, "A 真实帧");
+        assert!(hb.video_frame_count > 0, "B 真实帧");
+        let obs = adapter.observe(&graph);
+        assert_eq!(obs.observed_active, Some(a), "初始 active=A（桥回读）");
+        assert!(obs.program_video_frames > 0, "program video 帧经桥到达");
+        assert!(obs.program_audio_frames > 0, "program audio 帧经桥到达");
+
+        // ④⑤ A→B→A 真实切换 + 双平面成对（桥形态）。
+        for target in [b, a] {
+            let plan = group
+                .plan_switch(&SwitchIntent {
+                    target,
+                    policy: SwitchPolicy::FrameSwitch,
+                })
+                .expect("计划");
+            group.begin_switch(&plan).expect("begin");
+            adapter.switch(&graph, &plan).expect("真实切换");
+            std::thread::sleep(std::time::Duration::from_millis(600));
+            let o = adapter.observe(&graph);
+            assert_eq!(o.observed_active, Some(target), "桥形态切换生效");
+            assert_eq!(o.video_active, o.audio_active, "双平面成对");
+            assert!(o.program_video_frames > 0, "切换后 program 持续");
+            assert!(group.complete_switch(target));
+        }
+
+        // ⑥ A 断（停 A 输入管线）而 active=B——B 侧与 program 均持续。
+        let frames_before = adapter.observe(&graph).program_video_frames;
+        let _ = bundle.backend.stop(&h1);
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        let obs_after = adapter.observe(&graph);
+        assert!(
+            obs_after.program_video_frames > frames_before,
+            "A 断（active=B）program 持续产出——B 侧供桥"
+        );
+
+        // ⑩ recover 重挂: recover 需运行中管线——对 B（运行中, 挂着 tap）
+        // recover → 销毁重建 → tap 簿记重放（channel 同源）。A 已停（实例
+        // 移除）——其残留性由 ⑨ 的空簿记断言覆盖。
+        bundle.backend.recover(&h2).expect("B recover 重建");
+        assert_eq!(
+            tap.tap_attachments(&h2).len(),
+            1,
+            "⑩ recover 后 tap 簿记重放（新管线同 channel）"
+        );
+
+        // ⑨ teardown 零残留: program 停 + 运行中 tap（h2）真摘; 已停 h1
+        // 实例已移除（bookkeeping 随之不可达=空——结构性零残留）。
+        adapter.stop_program(&graph).expect("program 停");
+        let ch2 = tap
+            .tap_attachments(&h2)
+            .first()
+            .map(|x| x.channel.clone())
+            .expect("h2 tap 在");
+        tap.detach_media_tap(&h2, &ch2).expect("tap 摘除");
+        assert!(tap.tap_attachments(&h2).is_empty(), "⑨ h2 零残留");
+        assert!(tap.tap_attachments(&h1).is_empty(), "⑨ h1 零残留");
+        let _ = bundle.backend.stop(&h2);
     }
 }

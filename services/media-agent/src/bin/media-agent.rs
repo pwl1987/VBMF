@@ -427,25 +427,23 @@ fn main() {
                                         initial_active,
                                     )
                                     .and_then(|group| {
+                                        // A2-8-02-F-03/04: **Bridged 形态**——
+                                        // inter 系跨管线桥（intervideosrc/
+                                        // interaudiosrc 消费 MediaTap channel）,
+                                        // Program Graph 真实消费双输入媒体面。
                                         let switcher: std::sync::Arc<
                                             dyn media_agent::contracts::switch::SwitchExecutionAdapter,
                                         > = std::sync::Arc::new(
-                                            media_agent::adapters::gstreamer::GStreamerSwitchAdapter::default(),
+                                            media_agent::adapters::gstreamer::GStreamerSwitchAdapter::bridged(),
                                         );
-                                        // A2-8-02-F-02: **真接 MediaTap**——
-                                        // bundle 同源 tap view + 由 device_id
-                                        // 派生的 execution bridge address
-                                        // （channel=桥接地址非新 identity）。
-                                        // attach 随 create; teardown 随 Session
-                                        // 停止链 detach。
+                                        // F-02: tap 接线经 tap_channel 唯一约定
+                                        // （DeviceId→bridge address 非新 identity;
+                                        // attach 随 create·detach 随 Session 停止链）。
                                         let tap_wirings: Vec<
                                             media_agent::program_execution::TapWiring,
                                         > = started_inputs
                                             .iter()
-                                            .map(|i| media_agent::program_execution::TapWiring {
-                                                input: i.handle,
-                                                channel: format!("tap-{}", i.device_id),
-                                            })
+                                            .map(media_agent::program_execution::TapWiring::for_input)
                                             .collect();
                                         media_agent::program_execution::ProgramExecutionRuntime::create(
                                             sid,

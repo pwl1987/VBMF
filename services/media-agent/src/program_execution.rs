@@ -26,11 +26,28 @@ use crate::pipeline::PipelineHandle;
 use crate::session::{SessionId, SessionStopHook};
 use crate::switch_execution::{ExecutionGroup, SwitchError};
 
-/// input 侧 tap 接线请求（channel 由组合根从设备标识派生——本模块不理解
-/// 其构成; 02-F 真机桥接消费）。
+/// tap channel 派生约定（**唯一来源**, F-02/F-03）：DeviceId → execution
+/// bridge address。**非新 identity**——仅 inter 桥接寻址（`intervideosink
+/// .channel` ↔ `intervideosrc.channel`）；组合根挂 tap 与 program graph
+/// 桥消费两侧均经本函数, 禁止内联重写格式（约定漂移=桥断）。
+pub fn tap_channel(device_id: uuid::Uuid) -> String {
+    format!("tap-{device_id}")
+}
+
+/// input 侧 tap 接线请求（channel 经 `tap_channel` 派生——唯一约定来源）。
 pub struct TapWiring {
     pub input: PipelineHandle,
     pub channel: String,
+}
+
+impl TapWiring {
+    /// 由 SessionInput 派生（channel=tap_channel(device_id)）。
+    pub fn for_input(input: &crate::session::SessionInput) -> Self {
+        Self {
+            input: input.handle,
+            channel: tap_channel(input.device_id),
+        }
+    }
 }
 
 struct Inner {

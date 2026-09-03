@@ -684,3 +684,49 @@ CI 独立验证（如实区分）。
 E-6/F-01/F-02 🟢; F-03[intervideosrc 双源]→F-04[跨管线接通]→F-05
 [成对切换]→G→H→I 待续; A2-8 NOT CLOSED。盒上: mock 342·
 bmd+gstreamer 208·clippy 双组合 clean·fmt clean。
+
+---
+
+## 16. 第十一轮终裁：F-02 全 CLOSED + F-03/F-04 合并执行（2026-09-04）
+
+> 证据基线: 远端 `0df5b4a` 实码; F-02 五项全 CLOSED（唯一构造路径/
+> 生产 bundle 接线/Runtime 真接/teardown/recover 兼容）+ Session 边界
+> + N×M 硬件模型复核全确认; 2 输入=ExecutionGroup/SwitchGraph MVP
+> 限制（非架构错误）。**F-03+F-04 合并一刀直接执行**（不再细拆）。
+
+### 16.1 F-03/F-04 交付（本轮）
+
+- **channel 唯一约定来源**: `program_execution::tap_channel(device_id)`
+  （`tap-{device_id}`=execution bridge address, 非新 identity）+
+  `TapWiring::for_input`——组合根挂 tap 与 program 桥消费两侧同源,
+  禁内联重写（漂移=桥断）;
+- **switch_graph 双形态**: `SwitchMaterialization{Simulation[自持测试
+  源——自包含验证保留]/Bridged[inter 系跨管线桥]}`——Bridged 源=
+  `intervideosrc/interaudiosrc` 消费 tap channel; capsfilter 仅
+  Simulation（Bridged 透传输入实际 caps——强制 320x240 会协商冲突）;
+  生产 bin 切 `bridged()`;
+- **真实跨管线 Program Media Path 实证**（盒上真实 GStreamer, 输入
+  管线=videotestsrc 真实帧无 SDI 亦真跑）:
+  `switch_graph_rt_01_real_bridge_cross_pipeline_media_path`——
+  输入管线→tee→MediaTap[intervideosink/interaudiosink]→inter src→
+  selector→program appsink 全链真实流通。
+
+### 16.2 十项验证清单映射（十一轮 §13）
+
+| # | 项 | 证据 |
+|---|---|---|
+| ① | A+B 真实帧 | 双输入管线 health 弧 video_frame_count>0 ✓真 |
+| ② | channel 正确 | tap 簿记 channel==tap_channel(device_id) ✓真 |
+| ③ | program 有帧 | program video/audio frames>0（跨管线桥流通）✓真 |
+| ④ | A→B→A | observed_active 双向 flip ✓真 |
+| ⑤ | 双平面成对 | video_active==audio_active 每次切换 ✓真 |
+| ⑥ | A 断 B 仍供 | 停 A 输入管线（active=B）program 持续 ✓真 |
+| ⑦ | B 断 A 仍供 | ⑥之对偶（swap 即得; F-05/Gate 补全量） |
+| ⑧ | program 自身故障独立观察 | 观测维度分离=GroupObservation 三维已证（mock fold 层） |
+| ⑨ | teardown 零残留 | program 停+tap 摘/停侧结构空 ✓真 |
+| ⑩ | recover 重挂 | 运行中 B recover→簿记重放同 channel ✓真 |
+
+**禁项遵守**: 零 PTS 行为修改（Timeline=G/H 独立裁决）·channel 未升
+identity·Supervisor/PipelinePlan/SwitchPolicy/Session 零触碰。
+盒上: mock 342·**bmd+gstreamer 209**·clippy 双组合 clean·fmt clean。
+下一刀: F-05（双 plane 成对切换全量验证）→G→H→I。A2-8 NOT CLOSED。
