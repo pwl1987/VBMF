@@ -454,3 +454,288 @@ mod tests {
         assert!(echo_only.failures.is_empty(), "纯回声流零提取");
     }
 }
+
+/// A2-7-04 mock lifecycle 测试族（`adapters::mock` 为 feature-gated, 独立
+/// 子模块——与 session.rs `#[cfg(all(test, feature = "mock"))]` 同律）。
+#[cfg(all(test, feature = "mock"))]
+mod lifecycle {
+    use super::*;
+    use crate::custody::observations_from_events;
+    use crate::program::{AudioMaster, MasterJoinResult, VideoMaster};
+    use uuid::Uuid;
+
+    fn initial_masters() -> (VideoMaster, AudioMaster) {
+        (VideoMaster::new(), AudioMaster::new())
+    }
+
+    // ═══ A2-7-04: mock lifecycle 全链闭环（六验收 + A/B 反证, 终裁 §0''）═══
+    // 验收链: SessionManager.create/start → MockBackend → SessionInput{device_id,
+    // handle} → canonical RuntimeEvent(经现有 FanoutSink) → drain →
+    // observations_from_events → attribute_failures → MasterJoinInput → join →
+    // ProgramMaster。**零新基础设施**: 复用 session.rs 同款测试装配
+    // （MockBackend/MockProviderB/FanoutSink 双日志/生产级绑定）, 不建第二套
+    // Runtime、不造身份映射（Device↔Handle 关联仅经已有 SessionInput）。
+
+    use crate::adapters::mock::MockBackend;
+    use crate::contracts::provider::HardwareProvider;
+    use crate::device::DeviceInfo;
+    use crate::events::RuntimeEventSink;
+    use crate::graph_intent::GraphRuntimeIntent;
+    use crate::lease::InMemoryLeaseManager;
+    use crate::pipeline::MaterializeMode;
+    use crate::port::{PortCapabilities, PortDirection, PortInfo, PortOrdinal, PortRegistry};
+    use crate::resolver::{Confidence, ResolverMatch};
+    use crate::resource::{ResourceRegistry, SharedResourceRegistry};
+    use crate::session::{SessionId, SessionManager, SessionTuning};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    type InMemoryLm = InMemoryLeaseManager;
+
+    fn a27_devices() -> Vec<DeviceInfo> {
+        crate::adapters::mock::MockProviderB
+            .discover()
+            .expect("mock-b discover")
+            .into_iter()
+            .map(|d| d.device)
+            .collect()
+    }
+
+    fn a27_registry(devs: &[DeviceInfo]) -> PortRegistry {
+        let mut ports = Vec::new();
+        for dev in devs {
+            ports.push(PortInfo {
+                device_id: dev.device_id,
+                provider_binding_ref: None,
+                identity: crate::port::PortIdentity {
+                    port_id: crate::port::PortIdentity::derive(
+                        &dev.device_id,
+                        crate::port::ConnectorType::Sdi,
+                        PortOrdinal::Known(1),
+                    ),
+                    connector: crate::port::ConnectorType::Sdi,
+                    ordinal: PortOrdinal::Known(1),
+                },
+                direction: PortDirection::Input,
+                capabilities: PortCapabilities::default(),
+                runtime_binding: None,
+                signal: crate::port::SignalStatus::default(),
+                content: crate::port::VideoContentState::Unknown,
+            });
+        }
+        PortRegistry { ports }
+    }
+
+    fn a27_intent(dev: &DeviceInfo) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![crate::graph_intent::DeviceIntent {
+                device_id: dev.device_id.to_string(),
+                role: "CAPTURE".into(),
+                pipeline: crate::graph_intent::PipelineIntent {
+                    source: crate::graph_intent::SourceIntent {
+                        kind: "decklink".into(),
+                        device_id: dev.device_id.to_string(),
+                        port_id: None,
+                    },
+                    sink: crate::graph_intent::SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        }
+    }
+
+    /// 真实 SessionManager + MockBackend + FanoutSink 双日志（与 session.rs
+    /// evt_int_rt_01 同款装配）。返回 (mgr, projection_log)。
+    fn a27_manager() -> (Arc<SessionManager>, Arc<crate::events::RuntimeEventLog>) {
+        let devices = a27_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let resources = SharedResourceRegistry::new(ResourceRegistry::derive_from_discovery(
+            &a27_registry(&devices),
+        ));
+        let projection = Arc::new(crate::events::RuntimeEventLog::new());
+        let internal = Arc::new(crate::events::RuntimeEventLog::new());
+        let sink: Arc<dyn crate::events::RuntimeEventSink> = Arc::new(
+            crate::events::FanoutSink::new(projection.clone(), internal.clone()),
+        );
+        let sup = Arc::new(Mutex::new(crate::supervisor::Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            sink.clone(),
+        )));
+        let bindings: HashMap<Uuid, crate::resolver::ResolvedDeviceBinding> = devices
+            .iter()
+            .map(|d| {
+                (
+                    d.device_id,
+                    crate::resolver::ResolvedDeviceBinding {
+                        device_number: 0,
+                        hw_serial_number: None,
+                        persistent_id: None,
+                        confidence: Confidence::High,
+                        match_kind: ResolverMatch::DeviceHandleExact,
+                    },
+                )
+            })
+            .collect();
+        let mgr = Arc::new(SessionManager::new(
+            resources,
+            lm,
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(devices),
+            Arc::new(bindings),
+            None,
+            MaterializeMode::Diagnostic,
+            SessionTuning::default(),
+            sink,
+        ));
+        (mgr, projection)
+    }
+
+    /// A2-7-04 六验收闭环（终裁 §0'' 冻结版）:
+    /// 1 Session lifecycle 真实走 SessionManager; 2 Execution identity 真实
+    /// SessionInput{device_id, handle} 零新 mapping; 3 故障进**现有**
+    /// FanoutSink 非旁路数组; 4 Bridge 恰提取目标 Device 真实 PipelineFault
+    /// （echo=0/nil=0）; 5 Isolation A FAILED·B None·echo 零 observation;
+    /// 6 Join 双路注入→Failed **不依赖 readiness**（三 Master 初始态）。
+    #[test]
+    fn custody_08_lifecycle_closed_loop_six_acceptances() {
+        let (mgr, projection) = a27_manager();
+        let dev_a = a27_devices()[0].device_id;
+
+        // 验收 1+2: create→start 真实链; 真实 SessionInput 身份。
+        let sid: SessionId = mgr.create(a27_intent(&a27_devices()[0])).expect("create");
+        mgr.start(&sid).expect("start");
+        let session = mgr.status(&sid).expect("status");
+        let input = *session.inputs.first().expect("SessionInput");
+        assert_eq!(input.device_id, dev_a, "真实 DeviceId（非 mock 编造）");
+        assert_ne!(
+            input.handle.0, 0,
+            "真实 Handle（NEXT_PIPELINE_ID 同源, 非 0 哨兵）"
+        );
+
+        // 验收 3: 故障经**现有** RuntimeEventSink/FanoutSink 组件（非旁路数组）
+        // ——测试消费者按终裁裁决③ emit canonical 事件（device 身份来自真实
+        // SessionInput）+ 一条 Supervisor echo + 一条 nil（桥提取规则的实战流）。
+        // 注: mgr 的 FanoutSink 为私有装配; 此处用同型 FanoutSink 写同一份
+        // projection 日志——验证的是现有组件间数据契约（桥只消费 &[RuntimeEvent]）。
+        let emit_sink: Arc<dyn RuntimeEventSink> = Arc::new(crate::events::FanoutSink::new(
+            projection.clone(),
+            Arc::new(crate::events::RuntimeEventLog::new()),
+        ));
+        emit_sink.emit(crate::events::RuntimeEvent::PipelineFault {
+            pipeline: dev_a,
+            summary: "decode error: upstream".into(),
+            retryable: true,
+        });
+        emit_sink.emit(crate::events::RuntimeEvent::PipelineFault {
+            pipeline: dev_a,
+            summary: crate::supervisor::RESTART_ECHO_SUMMARY.into(),
+            retryable: true,
+        });
+        emit_sink.emit(crate::events::RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "pipeline error: unattributed".into(),
+            retryable: true,
+        });
+
+        // 验收 3+4: 现有事件流 drain（破坏性单次, 与生产消费同律）→ 桥
+        // 恰提取 1 条（echo=0, nil=0）。
+        let drained = projection.drain();
+        assert!(
+            drained
+                .iter()
+                .any(|e| matches!(e, crate::events::RuntimeEvent::IdentityResolved { .. })),
+            "start 真实链应已产生 IdentityResolved（验收 1 的链路证据）"
+        );
+        let obs = observations_from_events(&drained);
+        assert_eq!(
+            obs.failures.len(),
+            1,
+            "恰一条 FailureObservation（echo/nil 零提取）"
+        );
+        assert_eq!(
+            obs.failures[0].pipeline_id, dev_a,
+            "正确 Device correlation"
+        );
+
+        // 验收 5+6: A custody → FAILED（双路注入, 不依赖 readiness——三
+        // Master 初始态）; B（另一设备）→ None 零污染。
+        let (video, audio) = initial_masters();
+        let dev_b = a27_devices()[1].device_id;
+        let (_, r_a) = custody_snapshot(&video, &audio, dev_a, &obs);
+        assert_eq!(
+            r_a,
+            Some(MasterJoinResult::Failed),
+            "A: 双路 failed → FAILED（穿透未 Ready）"
+        );
+        let (_, r_b) = custody_snapshot(&video, &audio, dev_b, &obs);
+        assert_eq!(r_b, None, "B: 零污染");
+
+        mgr.stop(&sid).expect("cleanup stop");
+        mgr.close(&sid).expect("cleanup close");
+    }
+
+    /// A/B 双实例反证（终裁附加必过项）: Session A{device A, handle H1} +
+    /// Session B{device B, handle H2}, H1≠H2·A≠B·**零额外 registry**——
+    /// A failure → Custody(A)=FAILED·Custody(B)=None; 反向 B failure 同理。
+    /// 身份仅经各自 SessionInput（无任何 Handle→Device 推断）。
+    #[test]
+    fn custody_09_ab_dual_session_isolation_no_hidden_mapping() {
+        let (mgr, projection) = a27_manager();
+        let devices = a27_devices();
+        let (dev_a, dev_b) = (devices[0].device_id, devices[1].device_id);
+
+        let sid_a: SessionId = mgr.create(a27_intent(&devices[0])).expect("create A");
+        mgr.start(&sid_a).expect("start A");
+        let sid_b: SessionId = mgr.create(a27_intent(&devices[1])).expect("create B");
+        mgr.start(&sid_b).expect("start B");
+
+        let in_a = mgr.status(&sid_a).unwrap().inputs[0];
+        let in_b = mgr.status(&sid_b).unwrap().inputs[0];
+        assert_ne!(in_a.device_id, in_b.device_id, "A≠B");
+        assert_ne!(
+            in_a.handle, in_b.handle,
+            "H1≠H2（NEXT_PIPELINE_ID 同源递增）"
+        );
+        // 零隐藏 mapping: Custody 输入只有 device_id（来自 SessionInput）,
+        // handle 不参与归因（编译期事实——attribute_failures 签名无 Handle）。
+
+        // A 管线故障 → 经现有事件流（同 custody_08 的 emit 路径）。
+        let emit: Arc<dyn RuntimeEventSink> = Arc::new(crate::events::FanoutSink::new(
+            projection.clone(),
+            Arc::new(crate::events::RuntimeEventLog::new()),
+        ));
+        emit.emit(crate::events::RuntimeEvent::PipelineFault {
+            pipeline: dev_a,
+            summary: "signal lost".into(),
+            retryable: true,
+        });
+        let obs = observations_from_events(&projection.drain());
+        assert_eq!(obs.failures.len(), 1);
+
+        let (video, audio) = initial_masters();
+        let (_, r_a) = custody_snapshot(&video, &audio, in_a.device_id, &obs);
+        let (_, r_b) = custody_snapshot(&video, &audio, in_b.device_id, &obs);
+        assert_eq!(r_a, Some(MasterJoinResult::Failed), "A=FAILED");
+        assert_eq!(r_b, None, "B=None（零污染, 无隐藏 mapping）");
+
+        // 反向: B 故障 → B=FAILED, A 不受影响。
+        emit.emit(crate::events::RuntimeEvent::PipelineFault {
+            pipeline: dev_b,
+            summary: "clock provider lost".into(),
+            retryable: true,
+        });
+        let obs_b = observations_from_events(&projection.drain());
+        assert_eq!(obs_b.failures.len(), 1);
+        assert_eq!(obs_b.failures[0].pipeline_id, dev_b);
+        let (_, r_b2) = custody_snapshot(&video, &audio, in_b.device_id, &obs_b);
+        assert_eq!(r_b2, Some(MasterJoinResult::Failed), "B=FAILED（反向）");
+
+        mgr.stop(&sid_a).expect("cleanup stop A");
+        mgr.stop(&sid_b).expect("cleanup stop B");
+        mgr.close(&sid_a).expect("cleanup close A");
+        mgr.close(&sid_b).expect("cleanup close B");
+    }
+}

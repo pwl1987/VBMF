@@ -1,8 +1,8 @@
 # A2-7-03 — Runtime Failure Fact → Custody 生产接线（身份 SoT 反推 + 实现）
 
-> Status: **ACCEPTED WITH REQUIRED FOLLOW-UP / NOT CLOSED**（终裁三段式:
-> Identity Probe **CLOSED** / Custody Bridge Implementation **CLOSED** /
-> Production Runtime Connection **DEFERRED TO 04**）
+> Status: **CLOSED / APPROVED（终裁封存 2026-09-03, 三段式）**:
+> Identity Probe = CLOSED · Bridge Implementation = CLOSED ·
+> Production Runtime Connection = **DEFERRED TO A2-7-04**。
 > Authority: A2-7-02 三轮终裁 §8（CLOSED；03 主任务 = 真实生产接线 + 反推
 > PipelineHandle↔Uuid 身份 SoT，不凭空设计 mapping table）
 > Date: 2026-09-03 · Base: `22e5e6c`
@@ -55,6 +55,38 @@ join() → ProgramMaster
 真实故障 → 正确 Device correlation → 他设备零污染 → Supervisor echo 不
 重复计故障 → Custody 收到**恰一次**真实 failure fact → Join 正确得到
 FAILED。此链跑通 = Runtime→Event→Custody→Join 真闭环。
+
+---
+
+## 0''. A2-7-04 终裁（APPROVED TO START，2026-09-03——六设计裁决 + 八红线 + 冻结验收）
+
+**六设计裁决**：① Mock 可造故障**不可造身份**（注入事件必须用已存在
+DeviceId；禁 Mock 猜 handle→device / 建 MockPipelineRegistry / 改 Handle 类型
+——Device↔Execution 关联只经已有 `SessionInput{device_id, handle}`）；②
+**Custody 不进 watchdog**（Custody 消费 Runtime facts 非 watchdog——禁
+watchdog 内嵌 custody_snapshot）；③ 可建**测试消费者**但不伪装成新生产
+运行时（禁 ProgramRuntimeRunner/CustodySupervisor/RuntimeEventCoordinator/
+parallel runtime）；④ **"恰一次" = 恰一条 FailureObservation**（.any() 存在
+性判断非计数器——禁 durable dedup/sequence infrastructure）；⑤ **不碰
+Event Contract cleanup**（PipelineFault.pipeline 双语义 = V0.3 债务, 禁本
+阶段顺手修 device_id/pipeline_id 字段）；⑥ **SourceMaterialized.pipeline
+不可靠**（= `Uuid::new_v5(nil,plan)` 非 Handle 本身——不可作 Handle↔Device
+事件关联事实源; 可靠关联仅 `MediaSession.inputs`）。
+
+**八红线**：不改 RuntimeEvent identity contract / 不改 Supervisor 身份语义 /
+不建 Handle↔Uuid mapping registry / 不把 Custody 塞进 watchdog / 不让
+Custody 直访 GStreamer / 不为测试造第二套 Runtime / 不引入 exactly-once
+durable dedup / 不为 DEGRADED 发明 VideoPath·AudioPath。
+
+**冻结验收（六项 + A/B 反证）**：
+1 Session lifecycle（create→start 真实走 SessionManager）/ 2 Execution
+identity（真实 SessionInput{device_id,handle}, 零新 mapping）/ 3 Event path
+（故障进**现有** RuntimeEvent/FanoutSink 非旁路数组）/ 4 Bridge（恰提取目标
+Device 真实 PipelineFault）/ 5 Isolation（A fault→A FAILED；B=None；
+echo=0 observation）/ 6 Join（双路注入→Failed 不依赖 readiness）。
+**A/B 反证**：Session A{device A, handle H1} + Session B{device B, handle
+H2}，H1≠H2、A≠B、**零额外 registry**——A failure → Custody(A)=FAILED、
+Custody(B)=None。
 
 ---
 

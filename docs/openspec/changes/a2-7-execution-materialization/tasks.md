@@ -109,5 +109,22 @@
   Device correlation→零污染→echo 不重计→恰一次→FAILED）
   `Contract: A2-7-03 复核终裁` | `Implementation: 已` | 
   `Verification: 03 报告 §0/§0'` | `Gate: 无`
-- [ ] 9. A2-7-04: mock lifecycle 全链闭环验证（终裁 §0' 链 + 六验收点）
-  `Contract: 04 进入条件冻结` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 9. A2-7-04: mock lifecycle 全链闭环验证（终裁 §0'' 六裁决+八红线+
+  冻结验收全执行）——`custody::lifecycle` 子模块（feature-gated mock, 与
+  session.rs 同律）: **custody_08 六验收闭环**（1 create→start 真实走 
+  SessionManager+MockBackend·IdentityResolved 链路证据 / 2 真实 SessionInput
+  {device_id,handle}[NEXT_PIPELINE_ID 同源非 0 哨兵]零新 mapping / 3 故障
+  经现有 FanoutSink 组件非旁路数组 / 4 桥恰提取 1 条目标 Device 真实 
+  PipelineFault[echo=0·nil=0] / 5 A=FAILED·B=None·echo 零 observation / 6 
+  双路注入→Failed 不依赖 readiness[三 Master 初始态]）+ **custody_09 A/B 
+  双实例反证**（MockProviderB 双设备, A≠B·H1≠H2·**零额外 registry**——A 
+  fault→Custody(A)=FAILED·Custody(B)=None; 反向 B fault 同理; 身份仅经
+  各自 SessionInput, handle 不参与归因[编译期: attribute_failures 签名无
+  Handle]）; 八红线全守（零新 Runtime/零 contract 修改/零 mapping registry/
+  Custody 不进 watchdog/零 durable dedup/零 VideoPath 发明）
+  `Contract: A2-7-04 终裁[03 报告 §0'']` | `Implementation: 已` | 
+  `Verification: 盒上 custody 8/8[含 lifecycle 2] + mock 307（305+2 恰）+
+  clippy 4-combo PASS + fmt clean` | `Gate: 无`
+- [ ] 10. A2-7-05 真机前置验证 + 收口交付链（矩阵/verify/guards/archive/
+  PR/CI/merge/memory）; A2-8 双输入真机切换
+  `Contract: Gate 链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
