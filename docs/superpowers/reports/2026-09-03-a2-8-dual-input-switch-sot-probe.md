@@ -424,3 +424,125 @@ Program 保持可观测。
 不改 PipelinePlan Program 语义·SwitchPolicy 不扩执行器·HLS/RTMP 不
 当 MediaTap·02 不冻结 Timeline Normalization 方案。**02 可进入编码,
 但按修正后范围执行。**
+
+---
+
+## 11. 第六轮终裁：假实现禁令 + 无第二 registry + 02-A..F 顺序修正（2026-09-03 落盘）
+
+> 证据基线: 远端 `0e0e3e1` 实码（02-B 已落地确认）。
+
+### 11.1 实码确认（六项）
+
+1. C1 修改点确定在 **controller.rs**（纯分析分支 L266-271 组装,
+   pipeline.rs 无关）——强制 output 获 tee 否决维持;
+2. Controller=GstPipeline 唯一 owner（GstInstance 直持 Pipeline;
+   recover=remove→stop→rebuild→Playing）——C2 非理论问题;
+3. **02-B SPI 边界正确**（attach/detach/tap_attachments; channel 不透明;
+   零 Program 词汇; 簿记=recover 重放事实源）——**契约不改**;
+4. Program Graph 确为独立资源（自申 handle/自建 pipeline/自持 graphs;
+   Session.stop 只遍历 inputs 逆序停）;
+5. **G1 必须先于 MediaTap→Program 接通解决**（否则双 owner 生命周期）;
+6. 顺序修正: 02-A[Controller generic tap point + GstInstance 簿记]→
+   02-C[MediaTapPort→Controller-owned pipeline 物化]→02-D[recover
+   attachment replay]→02-E[Program 入 Session 生命周期]→02-F[真机桥接]
+   ——**不先接 intervideosink/src**。
+
+### 11.2 假实现禁令（关键新裁决）
+
+`MediaTapRequest` 支持 Video/Audio/Both + 同管线多 channel ⇒ **禁**在
+build_pipeline 永久预塞 `tee→intervideosink channel=<固定值>` 再把
+attach 降级为"登记"——API 看似动态、物化只有一个预设 tap = **假实现**,
+与 AlreadyAttached/NotAttached/tap_attachments 语义不一致。正确形态:
+构造期只建**通用 tap 点**（tee）; 具体 tap branch 的**生命周期由
+MediaTapPort 控制**; `GstInstance.media_taps: Vec<MediaTapAttachment>`
+保存簿记。
+
+### 11.3 无第二 registry（红线）
+
+**禁**新建独立 `GStreamerMediaTapPort` 自持第二 Pipeline Registry——
+违反 "Controller=GstPipeline owner/不建第二 identity·execution
+registry"。实现路径: `impl MediaTapPort for GStreamerPipelineController`,
+attachment bookkeeping 入 GstInstance（同 ownership 边界）。
+
+### 11.4 模块影响表（裁决冻结）
+
+| 模块 | 裁决 |
+|---|---|
+| contracts/media_tap.rs | 已完成·**契约不改** |
+| adapters/mock.rs | 已完成·继续作契约测试基准 |
+| **controller.rs** | **核心修改点·必须改** |
+| pipeline.rs | **零 diff 维持** |
+| switch_graph.rs | 暂不改（02-F 才接真实 A/B） |
+| session.rs | 02-E 修改（**不让 Session 理解 GStreamer**——仅生命周期接线缝） |
+| switch_execution.rs / contracts/switch.rs | 不改 |
+| Supervisor | 不改（不进 MediaTap/Program execution） |
+| Health/PTS | 02-G/H 后续·不提前冻结 Timeline Normalization |
+
+### 11.5 状态
+
+02-B=完成; 02-A/C=**设计裁决完成, 不得以旁路 adapter 冒充实现**——
+直接进 GStreamerPipelineController/GstInstance ownership 边界;
+02-D 紧随（attachment replay 入 recover）; pipeline.rs 不动;
+Program Graph 不接真实输入直至 02-E 生命周期统一。A2-8 NOT CLOSED。
+
+---
+
+## 12. 第七轮终裁：02-A/C/D 盖章 + attach 原子性债 + 02-E 强制 Gate（2026-09-03 落盘）
+
+> 证据基线: 远端 `af3ef70` 实码逐行核验（controller/media_tap/
+> switch_execution/switch_graph/media-agent 组合根/session 调用链）。
+
+### 12.1 盖章
+
+- **02-A ACCEPTED**: GstInstance 直持 {pipeline,plan,bus_rx,stop_flag,
+  thread,media_taps}; 纯分析形态=构造期命名 tee（tap 点）非预塞 branch;
+  pipeline.rs 不污染。
+- **02-C ACCEPTED WITH ONE P2 DEBT**: MediaTapPort 在 Controller
+  ownership 边界内**真实图变更**（非登记式）; 无第二 registry;
+  **P2 债=attach 部分失败原子性**（§12.2）。
+- **02-D ACCEPTED**: recover 前读簿记→销毁→重建→新管线重放（真实
+  测试验证新 Pipeline 实体元素）; 依赖 C 的 bookkeeping↔graph 一致性。
+
+### 12.2 P2 债务（实码直接推出）: attach 部分成功污染
+
+`attach_tap_to_instance` 逐平面物化, `media_taps.push` 在**全平面成功
+后**——Both 时 video 成功 + audio 失败 ⇒ video branch 已入真实图而簿记
+无此行 ⇒ **Reality≠bookkeeping**（破坏"media_taps=recover 唯一事实源";
+下次 recover saved_taps 缺行, video branch 丢失）。补强（不重设计 SPI）:
+`attach_transactional_failure_cleanup`——video 成功+audio 失败→video
+branch 回滚[request pad release+Null/remove]→簿记零增加。
+
+### 12.3 G1 硬结论（比文档更明确）
+
+Session.stop() 逆序停 inputs+释放资源链——Program Graph handle 不在
+Session.inputs/任何生命周期集合 ⇒ **两套生命周期实存**; H3=真实管线却
+不属 Session lifecycle, 违反 "Session owns lifecycle/Backend owns real
+Pipeline/Handle links"。具体风险: Session Released+Inputs stopped+
+**Program Graph still alive**。
+
+### 12.4 02-E 结构（正式冻结, MANDATORY NEXT）
+
+- **不是** Session 理解 GStreamer / `Session{program_graph}`; 正确链:
+  SessionManager→lifecycle（经**抽象 Program/Execution lifecycle port**,
+  不直调 stop_program）→ExecutionGroup/Program Execution owner→
+  SwitchExecutionAdapter→graph;
+- 组合根"临时拥有"（group/switcher/graph/watchdog 四件散持）→02-E
+  必须形成 **ProgramExecution/ExecutionGroupRuntime 生命周期对象**
+  （creator=destroyer）;
+- 启动序: Session Create→inputs→ExecutionGroup→graph instantiate→
+  start→Running; 停止序: Session Stop→**Program Stop→Tap Detach**→
+  Input Stop→Resource Release→Released;
+- **四场景必证**: ①正常停止全序 ②Program 创建失败→部分清理→Input/
+  lease/resource rollback ③Released 后 Program/Tap/Input 零残留
+  ④Stop 失败不截断释放链（沿 session.rs 既有"stop 失败不截断"原则）。
+
+### 12.5 模块影响表（第七轮）+ 执行序冻结
+
+contracts/media_tap+mock/switch_execution/contracts-switch/pipeline.rs/
+Supervisor/pipeline_events: 不改; controller.rs: 🟡补 attach rollback;
+switch_graph: 🟡02-F 再接真实 tap; **session.rs 🔴02-E 生命周期接线必改
+（不触 GStreamer）**; **media-agent.rs 🔴02-E 重构 ownership/teardown**;
+watchdog.rs 🟡随 Program Runtime 调整; Timeline/PTS ❌不冻结。
+执行序: **02-E[可并入 02-C rollback debt]→02-F→02-G→02-H→02-I→
+Timeline decision→A2-8 CLOSE**。诚实边界维持: 205 passed≠真实 DeckLink
+A/B 通过; FrameAligned≠Timeline Continuity。A2-8 NOT CLOSED。

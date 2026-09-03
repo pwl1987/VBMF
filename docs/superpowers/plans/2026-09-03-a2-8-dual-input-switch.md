@@ -269,31 +269,30 @@ STOP 回报用户，不得现场破界。
 > 一体**（probe §10）; 五层验收 L1 Input/L2 Execution/L3 Output/L4
 > Timing/L5 Supervision; 02-A..02-I 序; 本节为编码分解, 逐切片四栏纪律。
 
-- [ ] 02-A Controller/Session 生命周期接线（组合根级基础）: bin 持
-  `session→program 装配记录`（SessionId→{graph, switcher, group} 簿记
-  ——execution resource bookkeeping）; SessionManager 零感知（冻结 #3）;
-  teardown 触发面=停会话的同一表面（gate/控制面）, 停止序 Program
-  Stop→Tap Detach→Inputs Stop→Release。实锚: session.rs:726-763（stop
-  逆序全停 SessionInput 句柄, 无 program——G1）; bin/media-agent.rs
-  L403 区域（现有唯一 program 装配点）。
-- [ ] 02-B Generic MediaTap contract: `src/contracts/media_tap.rs`——
-  `MediaTapPort` trait（attach/detach_media_tap）+ `MediaTapRequest{
-  channel, planes: video|audio|both}` + `MediaTapAttachment` 簿记类型
-  （video/audio/endpoint identity——**非新 Device Identity Registry**）+
-  `TapError` 封闭词表; 契约面零 Program/Switch 词汇（只知"要该管线的
-  媒体输出"）; Mock 实现（确定性 attach/detach/簿记查询）+ TDD。
-- [ ] 02-C MediaTap materialization（gstreamer controller 侧）:
-  **实码决定性事实——纯分析形态 launch 串在 controller.rs:266-271 组装
-  （`src!caps!appsink`）而非 pipeline.rs** ⇒ 方案 A（构造期天然 tap 点）
-  = controller 侧把纯分析分支改为 `src!caps!tee name=v  v.!queue!
-  appsink...`（**pipeline.rs 保持零 diff**; output 形态已有 tee）。加
-  `GStreamerPipelineController: MediaTapPort`（by_name("v"/"a")→
+- [x] 02-B Generic MediaTap contract: `src/contracts/media_tap.rs`
+  （MediaTapPort attach/detach/tap_attachments + MediaTapRequest{channel
+  不透明, planes} + MediaTapAttachment 簿记 + TapError 封闭词表; 契约面
+  零 Program 词汇）+ MockMediaTapPort（mock.rs）——**已交付 @0e0e3e1**
+  （RED 4→GREEN 334; 含 bookkeeping_is_replay_source=C2 契约级预演）;
+  第六轮终裁: 契约不改, mock 继续作基准。
+- [ ] 02-A Controller Generic Tap Point + GstInstance 簿记（第六轮终裁
+  修正——**直接进 ownership 边界, 禁旁路 adapter**）: controller.rs
+  build_pipeline 纯分析分支改 tee 形态（`src!caps!tee name=v  v.!queue!
+  appsink...`——构造期只建**通用 tap 点**; **假实现禁令**: 禁预塞固定
+  intervideosink 把 attach 降级为登记）; `GstInstance` 增
+  `media_taps: Vec<MediaTapAttachment>` 簿记; pipeline.rs 零 diff;
+  单输入行为等价性核验（tee 单消费=透传）。
+- [ ] 02-C MediaTapPort 物化（同 ownership）: `impl MediaTapPort for
+  GStreamerPipelineController`（**禁独立 GStreamerMediaTapPort 自持第
+  二管线 registry**）——attach: instances→by_name("v"/"a")→tee
   request_pad→intervideosink/interaudiosink channel=req→
-  sync_state_with_parent）; 单输入行为等价性（tee 单消费=透传）核验。
-- [ ] 02-D recover re-attach: `GstInstance` 增 `tap_attachments:
-  Vec<MediaTapAttachment>`; `recover()` 重建后按簿记重放 attach（禁裸调
-  ——簿记为唯一事实源）; 测试: attach→recover→tap 在场（mock 层簿记
-  逻辑 + hw 编译）。
+  sync_state_with_parent→簿记; detach: 按名移除元素+释放 pad+簿记删;
+  tap_attachments: 簿记读。真 GStreamer 测试（self_test 计划=纯分析
+  形态: attach/detach/重复拒/元素实存）。
+- [ ] 02-D recover attachment replay: recover() 重建后按旧实例
+  `media_taps` 簿记重放 attach（簿记=唯一事实源; 禁裸调）——真
+  GStreamer 测试: attach→recover→tap 在场（新 pipeline 上元素重挂+簿记
+  等值）。
 - [ ] 02-E Program Graph 入 Session 生命周期（G1 必修）: 组合根接线
   02-A 簿记 + teardown 调用（gate/停会话表面触发; SessionManager 零
   感知）; 验证: 会话停止后 program graph 不存活（真机 Gate 断言）。
