@@ -639,3 +639,48 @@ watchdog 不承担 Tap ownership（Tap=Runtime 创建/销毁资源的一部分�
 watchdog 恢复仍只 ctrl.recover(故障输入 handle) 非切换; pipeline.rs
 零 diff; Supervisor 不动; AVSync/Timeline 继续冻结; A2-8 NOT CLOSED。
 盒上: mock 342·bmd+gstreamer 207·clippy 双组合 clean·fmt clean。
+
+---
+
+## 15. 第十轮终裁：E-6/F-01 CLOSED + 唯一构造路径 + F-02 执行（2026-09-04）
+
+> 证据基线: 远端 `efc1b2a` 实码; E-6 正式 CLOSED[调用链结构补认:
+> hook 仅 Running 后注册→异常终态无 hook, close 防御性 remove=双保险;
+> 隐含不变量"close⇒无运行 Runtime"列为未来 Runtime 生命周期测试
+> 长期红线——Runtime 若提前到 Starting 阶段注册则须显式测试]; F-01
+> CLOSED[同源双 view+行为证明]; **残留发现: build_media_backend 旧
+> 单 view 入口仍在+bin 仍在用——F-02 必须替换而非叠加**。
+
+### 15.1 第十轮复核结论（全确认）
+
+2 输入限制=ExecutionGroup/SwitchGraph MVP 限制非硬件模型限制
+（port.rs N×M/Discovery 无双口硬编码——4/8/N 扩展只动 ExecutionGroup
+<N>/SwitchGraph<N>/watchdog<N>, Device/Port/SessionInput/lifecycle
+不改）; SimulatedDeviceManager 固定 (0..2)=🟡N 泛化阶段补 fixture;
+F-03 换 inter* **禁顺手修 PTS**（bridge 与 Timeline/G-H 独立成刀）;
+GitHub check-runs=0=feature 分支不触发 CI（既定惯例）——盒上证据非
+CI 独立验证（如实区分）。
+
+### 15.2 F-02 已执行（本轮交付）
+
+- **唯一构造路径封死**: `build_media_backend()` 改为
+  `Self::build_media_adapter_bundle()?.backend` 委托面——全仓库唯一
+  concrete controller 构造点= bundle; 旧独立 `Arc::new(controller)`
+  路径删除（恢复即制造第二 instances 表）;
+- **组合根切换**: bin 主装配改 `build_media_adapter_bundle()`——
+  backend→SessionManager（Session 仍只见 MediaBackend）, media_tap→
+  Program 装配;
+- **Runtime 真接 MediaTap**: `create(sid, group, switcher, Some
+  (tap_port), tap_wirings)`——wirings 由 device_id 派生
+  （`tap-{device_id}`=execution bridge address 非新 identity）; attach
+  随 create 真实发生, detach 随 Session 停止链;
+- **真实 GStreamer 生命周期集成测试**:
+  registry_rt_01_runtime_tap_lifecycle_on_same_controller——bundle
+  双 view→双真实管线→Runtime create 真挂（A/B 管线簿记各 1）→
+  teardown 真摘（清空）。
+
+### 15.3 状态
+
+E-6/F-01/F-02 🟢; F-03[intervideosrc 双源]→F-04[跨管线接通]→F-05
+[成对切换]→G→H→I 待续; A2-8 NOT CLOSED。盒上: mock 342·
+bmd+gstreamer 208·clippy 双组合 clean·fmt clean。

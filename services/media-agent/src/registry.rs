@@ -138,19 +138,18 @@ impl AdapterRegistry {
         Ok(provider)
     }
 
-    /// 选择并构造 `MediaBackend`。仅在 `bmd-provider,gstreamer-backend` 下编译
-    /// (与 C2c 接线一致: 真机盒需 `--features bmd-provider,gstreamer-backend`)。
+    /// 选择并构造 `MediaBackend`（**单 view 委托面**）。仅在
+    /// `bmd-provider,gstreamer-backend` 下编译。
     ///
-    /// 优先级(高→低): `mock` > `gstreamer-backend`。**P0-4**: 生产 fail-closed 见上。
+    /// A2-8-02-F-02（第十轮终裁）: 本函数**不再独立构造** concrete
+    /// controller——委托 `build_media_adapter_bundle()` 取 backend view
+    /// （全仓库唯一 controller 构造路径= bundle; 旧双路径已封死, 不得
+    /// 恢复独立 `Arc::new(GStreamerPipelineController)`——那会制造第二
+    /// instances ownership 表）。仅需 backend 的调用方（gates/自检）经
+    /// 此面; 组合根程序装配直接用 bundle。
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
     pub fn build_media_backend() -> Result<Arc<dyn MediaBackend>, String> {
-        ensure_adapter_selection_safe()?;
-        #[cfg(feature = "mock")]
-        let backend: Arc<dyn MediaBackend> = Arc::new(crate::adapters::mock::MockBackend);
-        #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
-        let backend: Arc<dyn MediaBackend> =
-            Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
-        Ok(backend)
+        Ok(Self::build_media_adapter_bundle()?.backend)
     }
 
     /// A2-8-02-F-01（第九轮终裁）: 同源 runtime adapter bundle——
@@ -240,5 +239,83 @@ mod tests {
         .expect("同源双 view: tap 可见 backend 实例化的 handle（分裂即 UnknownPipeline）");
         assert_eq!(tap.tap_attachments(&h).len(), 1, "簿记在（同一 ownership）");
         let _ = bundle.backend.stop(&h);
+    }
+
+    // A2-8-02-F-02: **真接 MediaTap 的 Runtime 生命周期**（盒上真实
+    // GStreamer）——bundle 双 view → 双输入管线 → Runtime::create 真挂
+    // tap（簿记在真实管线上）→ teardown 真摘（簿记清空）。channel=
+    // device_id 派生桥接地址。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn registry_rt_01_runtime_tap_lifecycle_on_same_controller() {
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::{ProgramExecutionRuntime, TapWiring};
+        use crate::session::{SessionId, SessionInput};
+        use crate::switch_execution::ExecutionGroup;
+        use uuid::Uuid;
+
+        let bundle = AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("管线 A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("管线 B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let group = ExecutionGroup::new(
+            sid,
+            vec![
+                SessionInput {
+                    device_id: a,
+                    handle: h1,
+                },
+                SessionInput {
+                    device_id: b,
+                    handle: h2,
+                },
+            ],
+            a,
+        )
+        .expect("组");
+        let switcher =
+            std::sync::Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::default());
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            group,
+            switcher,
+            Some(tap.clone()),
+            vec![
+                TapWiring {
+                    input: h1,
+                    channel: format!("tap-{a}"),
+                },
+                TapWiring {
+                    input: h2,
+                    channel: format!("tap-{b}"),
+                },
+            ],
+        )
+        .expect("Runtime 真接 tap 创建");
+        assert!(runtime.is_active());
+        assert_eq!(tap.tap_attachments(&h1).len(), 1, "A 管线 tap 真挂");
+        assert_eq!(tap.tap_attachments(&h2).len(), 1, "B 管线 tap 真挂");
+
+        runtime.teardown();
+        assert!(!runtime.is_active());
+        assert!(tap.tap_attachments(&h1).is_empty(), "teardown 真摘 A");
+        assert!(tap.tap_attachments(&h2).is_empty(), "teardown 真摘 B");
+        let _ = bundle.backend.stop(&h1);
+        let _ = bundle.backend.stop(&h2);
     }
 }

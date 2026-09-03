@@ -359,12 +359,19 @@ fn main() {
                             })
                             .unwrap_or_default(),
                     );
-                    let ctrl: std::sync::Arc<dyn MediaBackend> =
-                        media_agent::registry::AdapterRegistry::build_media_backend()
+                    // A2-8-02-F-02（第十轮终裁）: 组合根经 **bundle** 取同源双
+                    // view（backend→SessionManager; media_tap→Program 装配）——
+                    // 全仓库唯一 controller 构造路径, 禁二次构造。
+                    let adapter_bundle =
+                        media_agent::registry::AdapterRegistry::build_media_adapter_bundle()
                             .unwrap_or_else(|e| {
                                 eprintln!("adapter feature 冲突 (fail-closed): {e}");
                                 std::process::exit(2);
                             });
+                    let ctrl: std::sync::Arc<dyn MediaBackend> = adapter_bundle.backend;
+                    let media_tap_port: Option<
+                        std::sync::Arc<dyn media_agent::contracts::media_tap::MediaTapPort>,
+                    > = adapter_bundle.media_tap;
                     // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
                     // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
                     let mgr: std::sync::Arc<media_agent::session::SessionManager> =
@@ -425,14 +432,27 @@ fn main() {
                                         > = std::sync::Arc::new(
                                             media_agent::adapters::gstreamer::GStreamerSwitchAdapter::default(),
                                         );
-                                        // 02-E: tap 接线留 02-F（真机桥接时经
-                                        // MediaTapPort 注入 wirings; 此处 None=仿真形态）。
+                                        // A2-8-02-F-02: **真接 MediaTap**——
+                                        // bundle 同源 tap view + 由 device_id
+                                        // 派生的 execution bridge address
+                                        // （channel=桥接地址非新 identity）。
+                                        // attach 随 create; teardown 随 Session
+                                        // 停止链 detach。
+                                        let tap_wirings: Vec<
+                                            media_agent::program_execution::TapWiring,
+                                        > = started_inputs
+                                            .iter()
+                                            .map(|i| media_agent::program_execution::TapWiring {
+                                                input: i.handle,
+                                                channel: format!("tap-{}", i.device_id),
+                                            })
+                                            .collect();
                                         media_agent::program_execution::ProgramExecutionRuntime::create(
                                             sid,
                                             group,
                                             switcher,
-                                            None,
-                                            Vec::new(),
+                                            media_tap_port.clone(),
+                                            tap_wirings,
                                         )
                                     });
                                     match runtime {
