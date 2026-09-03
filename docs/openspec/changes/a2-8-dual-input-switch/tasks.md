@@ -27,7 +27,7 @@
   01 完成标准=真实 Execution Graph+真实 A/B 切换+MultiInputWatchdog 落地
   （不停在设计完成）; A2-8-00 正式 CLOSED; 落 probe §7
   `Contract: 用户裁定权` | `Implementation: 已` | `Verification: probe §7` | `Gate: 无`
-- [ ] 3. A2-8-01 最小 FRAME_SWITCH Execution Group MVP（"最小、可验证、
+- [x] 3. A2-8-01 最小 FRAME_SWITCH Execution Group MVP（"最小、可验证、
   可监督的 Program-level FRAME_SWITCH Execution Group"，非"input-selector+
   双 Pipeline"）: SwitchIntent→SwitchExecutionPlan→SwitchExecutionAdapter
   链（独立执行面）+ ExecutionGroup 概念（inputs/switch/program output/
@@ -36,10 +36,22 @@
   观测点（A/B/Program×video/audio）+ MultiInputWatchdog（修正 bin L403+
   gates L165 首 handle 用法为 ExecutionGroup 四视角单实例，禁 for 循环双
   spawn）+ T1-T12 落地（mock 层先行，盒上 cargo 验证）; 12 红线全程
-  `Contract: 00 终裁+Gate 十项冻结（probe §7）` | `Implementation: 待` | 
-  `Verification: T1-T12 mock 层+盒上 cargo` | `Gate: 后续定`
+  `Contract: 00 终裁+Gate 十项冻结（probe §7）` | `Implementation: 已
+  （五提交 0ee8ae2/4a07ca6/585ac23/72d9aa0/337a6b6: switch_execution 纯
+  模型·contracts/switch SPI+Mock·GStreamerSwitchAdapter 真实物化·
+  execution_group_observe_fold+薄壳·bin 双输入接线; gates L165 单输入
+  gate 保持原样——单输入路径不动）` | `Verification: 盒上矩阵全绿
+  [default 200·sim 200·mock 330(307+23)·bmd+gstreamer 202 含真实双测
+  2/2]·clippy 四组合 -D warnings 全 exit 0·fmt clean·边界门禁[冻结面
+  backend/session/events/supervisor/program/pipeline 零 diff·契约面签名
+  零拓扑耦合]; **T5 边界实证**: 回切 PTS 后跳被三态机如实检出——广播级
+  连续时间线=出口再生成平面（02 编码出口, A2-8-04 验收项）` | `Gate:
+  T1-T12 mock 层全落地+真实 GStreamer 切换实证; **A2-8 NOT CLOSED**`
 - [ ] 4. A2-8-02 真机验证: 双 SDI inputs=2 同 Session 双 Pipeline + A→B→A
-  显式切换 + frame boundary 实证 + Program output 存活; 真机 Gate 记录
+  显式切换 + frame boundary 实证 + Program output 存活; 真机 Gate 记录;
+  **02 前置设计点（01 登记）**: inter 系跨管线隧道需输入侧
+  intervideosink/intervideosrc 注入面（触及既有构链表面——01 未动
+  pipeline.rs/build_pipeline, 02 开工前须先裁注入面归属）
   `Contract: 01 交付链` | `Implementation: 待` | `Verification: 真机 Gate` | `Gate: 待`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）

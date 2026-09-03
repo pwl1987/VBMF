@@ -430,7 +430,7 @@ fn main() {
                                             tracing::info!(
                                                 graph_handle = graph.0,
                                                 initial_active = %initial_active,
-                                                "A2-8-01 Execution Group 就绪: program graph 物化+启动, MultiInputWatchdog 四观测面 (A/B/Switch/Program) 接管"
+                                                "A2-8-01 Execution Group 就绪: program graph 物化+启动, MultiInputWatchdog 四观测面 (A/B/Switch/Program) 接管 [v1 topology=测试源仿真; 真机 SDI inter 系接线=A2-8-02]"
                                             );
                                             let group =
                                                 std::sync::Arc::new(std::sync::Mutex::new(group));
