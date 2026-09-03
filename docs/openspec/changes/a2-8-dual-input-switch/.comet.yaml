@@ -2,10 +2,10 @@ workflow: full
 language: zh-CN
 phase: build
 context_compression: off
-build_mode: null
+build_mode: direct
 build_pause: null
 subagent_dispatch: null
-tdd_mode: null
+tdd_mode: tdd
 review_mode: standard
 isolation: branch
 verify_mode: null
@@ -22,7 +22,7 @@ verified_at: null
 archive_confirmation: null
 archived: false
 bound_branch: comet/a2-8-dual-input-switch
-direct_override: null
+direct_override: true
 handoff_context: docs/openspec/changes/a2-8-dual-input-switch/.comet/handoff/design-context.json
 handoff_hash: 1f4b201892a6ae95b09c3938f75e914b5e3ce6b46c2dce51427a1670da24adce
 classic_profile: full
