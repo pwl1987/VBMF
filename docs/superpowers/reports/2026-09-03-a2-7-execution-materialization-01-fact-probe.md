@@ -130,6 +130,52 @@ GStreamer 对象 / 修改 PipelinePlan / 执行 recovery / 生成 metadata truth
 （与 SessionManager=Session lifecycle owner / Supervisor=recovery decision
 owner / MediaBackend=Pipeline execution 的既有边界完全兼容。）
 
+---
+
+## 6. A2-7-02 复核终裁（CHANGES REQUIRED — attribution-only，2026-09-03）
+
+> e6627ca 其余全批准（Fact boundary/Custody/advance 零触发/Join 装配/
+> Metadata Unknown/AVSync passthrough）；**唯一返工 = Failure attribution**。
+
+### 否决理由（复核实锚）
+
+`FailureObservation{source, path: FailurePath}` + `attribute_failures` 的
+`any(|o| o.path == Video)` 实际语义 = **调用方已完成 media-path attribution，
+Custody 只把结论搬进 JoinInput**——违反模块 doc 自声明的"Custody 负责来源
++identity+media path 映射"。`obs(&[Video]) → video_failed=true,
+audio_failed=false` 是 plumbing test 非 attribution test（RuntimeEvent 真实
+模型 `PipelineFault{pipeline: Uuid}` 无 video/audio path，调用方无从得知
+path——标签是凭空的）。
+
+### 修正（最小，禁 FailureDomain/FailureReason 复杂化）
+
+`FailureObservation{source, scope: FailureScope}`；首版 scope 仅
+`SharedPipeline`（未来 additive 扩 VideoPath/AudioPath/Element(...)）。
+attribution 严格定义：**SharedPipeline → video_failed=true ∧ audio_failed=
+true**（真保守归因：Custody 承担 attribution，输入是 scope 证据非 path
+结论）。无 path 证据不凭空生成单路归因（scope 无 VideoPath/AudioPath
+变体 = 编译期即证）。
+
+### 来源边界（不机械映射）
+
+首版只接 **PipelineFault**（Shared Pipeline execution failure——唯一能归属
+执行管线的来源）；**SessionFailed/HardwareFault/HealthChanged/ClockLost 不
+机械映射**（SessionFailed=生命周期失败已回滚非 Master failure；其余等
+attribution contract 明确）。FailureSource 首版单值 `PipelineFault`，加法
+演进。
+
+### 语义连锁（记档）
+
+SharedPipeline → 双路 failed → Join 五步优先序**行 2** → `FAILED`——
+**Degraded（行 3 单路）在 SharedPipeline-only 首版不可达**，等 VideoPath/
+AudioPath scope 演进后可达（非缺陷，是保守归因的诚实后果）。
+
+### 测试修正
+
+删 plumbing test（path 标签搬运）；新锁：SharedPipeline（哪怕一条）→
+`{video_failed: true, audio_failed: true}`；空 → 双 false；custody_snapshot
+SharedPipeline → `FAILED`。
+
 ## 4. No-Build Gate 复认
 
 零 .rs diff；未定义任何 ExecutionFact 类型；未写 Custody；未碰

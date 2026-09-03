@@ -65,6 +65,22 @@
   `Contract: 01 终裁 §5 Custody 七不+OQ-6..9` | `Implementation: 已` | 
   `Verification: 盒上 custody 4/4 + mock 303（299+4 恰）+ clippy 4-combo 
   PASS + fmt clean` | `Gate: 无`
-- [ ] 6. A2-7-03..05（链路扩展/mock lifecycle 验证/真机前置）——待用户
-  复核首刀后按 OQ-6..9 裁决推进; A2-8 双输入真机切换
+- [x] 6. A2-7-02 复核终裁落实（CHANGES REQUIRED attribution-only → 修正版
+  @待推）: `FailureObservation{source: FailureSource[首版单值 PipelineFault],
+  scope: FailureScope[首版单值 SharedPipeline]}`——**输入=真实故障 scope 
+  证据非调用方预归因 path 结论**（PipelineFault{pipeline:Uuid} 无 video/
+  audio path, caller 无从得知; 旧 FailurePath plumbing test 删除）; 
+  attribute_failures=**Custody 真归因**（SharedPipeline→双路 failed; scope
+  无 VideoPath/AudioPath 变体=单路归因编译期不可构造）; 来源边界: 仅 
+  PipelineFault 可接[SessionFailed/HardwareFault/HealthChanged/ClockLost 
+  不机械映射——等 attribution contract]; 语义连锁记档: **Degraded[行 3 
+  单路]首版不可达**（等 scope 演进）; 测试重写: SharedPipeline 一条→双路
+  FAILED[穿透未 Ready]/空→双 false/AVSync FAILED 不改; **其余全维持**
+  （Fact boundary/Custody/advance 零触发/Metadata Unknown/AVSync 
+  passthrough/零扩张）
+  `Contract: A2-7-02 复核终裁[01 报告 §6]` | `Implementation: 已` | 
+  `Verification: 盒上 custody 4/4 + mock 303 + clippy 4-combo + fmt clean
+  + FailurePath 零残留` | `Gate: 无`
+- [ ] 7. A2-7-03..05（链路扩展/mock lifecycle 验证/真机前置）——待用户
+  复核修正版后推进; A2-8 双输入真机切换
   `Contract: Gate 链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`

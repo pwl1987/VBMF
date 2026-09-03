@@ -25,10 +25,12 @@
 //! false 字段（防五态压成一 bool）。advance 当前零触发（无 transition
 //! evidence）——三 Master 停留声明初始态是**诚实状态**。
 //!
-//! **attribution 首版规则（保守, 记档待演进）**: 当前管线粒度 = 设备级
-//! （video+audio 同一条 PipelineHandle）, 无 media path 标注——设备/管线级
-//! 故障**保守归因双路 failed**; element 级 attribution（BusEvent.source）
-//! 演进 deferred。
+//! **attribution 规则（A2-7-02 复核终裁修正）**: 输入 = 真实故障 **scope
+//! 证据**（非调用方预归因的 path 结论——`PipelineFault{pipeline}` 无
+//! video/audio path, caller 无从得知）。首版仅 `SharedPipeline`: 一个
+//! PipelineHandle 同载 video+audio 两路 → 归因**双路 failed**; 无 path
+//! 证据不凭空生成单路归因（scope 无 VideoPath/AudioPath 变体, 编译期即
+//! 证）。element 级 attribution（BusEvent.source）演进 deferred。
 
 use crate::program::{
     join, AVSyncClassification, MasterJoinInput, MasterJoinResult, MetadataMaster, ProgramMaster,
@@ -37,54 +39,55 @@ use crate::program::{
 /// 归因后的媒体路失败事实 —— Runtime failure fact 经 Custody attribution
 /// 的产物（OQ-3 终裁: Runtime 产生 failure fact, Custody 负责来源+identity
 /// +media path 映射, **Join 不读 Runtime**）。
-///
-/// 保守首版: 设备/管线级故障归因双路（media path 粒度缺失, 见模块注释）。
+/// 归因后的媒体路失败事实 —— Custody attribution 产物（注入 MasterJoinInput;
+/// **A2-7-02 复核终裁**: SharedPipeline 执行故障 → 双路 failed）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AttributedFailures {
     pub video_failed: bool,
     pub audio_failed: bool,
 }
 
-/// Runtime failure observation —— Custody 的归因输入（当前已有事实源:
-/// `PipelineFault{pipeline}` / `HardwareFault{device_id}` / bus Error;
-/// 非持久实体, 消费时装配的参数包——与 `MasterJoinInput` 同律, 零第二 SoT）。
+/// Runtime failure observation —— Custody 的归因输入（**A2-7-02 复核终裁
+/// 修正**: 输入是**真实故障 scope 证据**非调用方预归因的 path 结论——
+/// `PipelineFault{pipeline: Uuid}` 无 video/audio path, caller 无从得知;
+/// attribution 由 Custody 承担。非持久实体, 消费时装配的参数包——与
+/// `MasterJoinInput` 同律, 零第二 SoT）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FailureObservation {
-    /// 故障来源分类（封闭词表——A2-7-01 终裁: 禁 FailureDomain/FailureReason
-    /// Domain enum 污染 Join; 本词表仅 Custody 归因输入, 不入 wire/Join）。
+    /// 故障来源（首版单值: PipelineFault = 唯一能归属执行管线的来源;
+    /// SessionFailed/HardwareFault/HealthChanged/ClockLost **不机械映射**——
+    /// 等 attribution contract 明确, 加法演进）。
     pub source: FailureSource,
-    /// 请求归因的媒体路（Custody 按调用方身份分两次归因: video 路 / audio 路;
-    /// 管线粒度故障由调用方对本路重放——见 [`attribute`]）。
-    pub path: FailurePath,
+    /// 故障作用域证据（首版仅 SharedPipeline: 一个 PipelineHandle 同载
+    /// video+audio 两路, 无 media path 标注）。
+    pub scope: FailureScope,
 }
 
-/// 失败来源封闭词表（当前已证事实源; 新来源加法演进）。
+/// 失败来源封闭词表（首版单值; 新来源加法演进）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FailureSource {
-    /// Backend 管线故障（`PipelineFault`——可重试类）。
+    /// Backend 共享管线执行故障（`PipelineFault`——唯一能归属执行管线的来源）。
     PipelineFault,
-    /// 硬件故障（`HardwareFault`——需运维类）。
-    HardwareFault,
-    /// Bus Error/Eos（`PipelineBusEventKind::{Error,Eos}`）。
-    BusError,
 }
 
-/// 媒体路归因目标。
+/// 故障作用域（首版单值; **无 VideoPath/AudioPath 变体**——无 path 证据
+/// 不凭空生成单路归因, 编译期即证; additive 演进留口）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FailurePath {
-    Video,
-    Audio,
+pub enum FailureScope {
+    /// 共享管线执行故障: 一个 PipelineHandle 同载 video+audio 两路。
+    SharedPipeline,
 }
 
-/// 设备/管线级故障归因（保守首版）: 管线故障 → 该设备**双路** failed
-/// （video+audio 同管线, 无法区分 media path——模块注释记档）。
-/// HardwareFault 同律（设备级）。空切片 → 双路 false。
+/// Custody 归因（**真 attribution, 非调用方结论搬运**）: SharedPipeline
+/// 执行故障 → 该管线双路执行不可用（video+audio 同 Handle, conservative
+/// 双路）→ `video_failed=true ∧ audio_failed=true`。空切片 → 双路 false。
 pub fn attribute_failures(observations: &[FailureObservation]) -> AttributedFailures {
-    let video_failed = observations.iter().any(|o| o.path == FailurePath::Video);
-    let audio_failed = observations.iter().any(|o| o.path == FailurePath::Audio);
+    let shared_failed = observations
+        .iter()
+        .any(|o| o.scope == FailureScope::SharedPipeline);
     AttributedFailures {
-        video_failed,
-        audio_failed,
+        video_failed: shared_failed,
+        audio_failed: shared_failed,
     }
 }
 
@@ -104,8 +107,9 @@ pub struct CustodyObservations {
 /// `join()` → compose 快照。
 ///
 /// 返回 `(snapshot, join_result)`——join_result 透传自 [`join`]（当前事实下
-/// 恒 None: Metadata Unknown → 不 eligible; failure 注入可产 Degraded/
-/// Failed——五步优先序行 2/3 **不受 readiness gate**）。
+/// 恒 None: Metadata Unknown → 不 eligible; SharedPipeline failure 注入 →
+/// 双路 failed → 五步优先序**行 2 FAILED**——**Degraded（行 3 单路）首版
+/// 不可达**, 等 VideoPath/AudioPath scope 演进; 均不受 readiness gate）。
 pub fn custody_snapshot(
     video: &crate::program::VideoMaster,
     audio: &crate::program::AudioMaster,
@@ -141,28 +145,33 @@ mod tests {
         )
     }
 
-    fn obs(paths: &[FailurePath]) -> CustodyObservations {
+    fn obs(count: usize) -> CustodyObservations {
         CustodyObservations {
-            failures: paths
-                .iter()
-                .map(|&p| FailureObservation {
+            failures: (0..count)
+                .map(|_| FailureObservation {
                     source: FailureSource::PipelineFault,
-                    path: p,
+                    scope: FailureScope::SharedPipeline,
                 })
                 .collect(),
             avsync: AVSyncClassification::Unknown,
         }
     }
 
-    /// attribution 保守首版: 管线级故障归双路; 空观察=双路 false。
+    /// Custody 真归因（复核终裁修正）: **SharedPipeline 执行故障 → 双路
+    /// failed**; 空观察 = 双路 false。**单路归因不可构造**——FailureScope
+    /// 无 VideoPath/AudioPath 变体（编译期即证, 无 path 证据不凭空生成
+    /// 单路归因）。
     #[test]
-    fn custody_01_attribute_failures_conservative() {
+    fn custody_01_attribute_shared_pipeline_both_paths() {
         let none = attribute_failures(&[]);
         assert!(!none.video_failed && !none.audio_failed);
-        let both = attribute_failures(&obs(&[FailurePath::Video, FailurePath::Audio]).failures);
-        assert!(both.video_failed && both.audio_failed);
-        let video_only = attribute_failures(&obs(&[FailurePath::Video]).failures);
-        assert!(video_only.video_failed && !video_only.audio_failed);
+        let one = attribute_failures(&obs(1).failures);
+        assert!(
+            one.video_failed && one.audio_failed,
+            "一条 SharedPipeline 故障 → 双路"
+        );
+        let two = attribute_failures(&obs(2).failures);
+        assert!(two.video_failed && two.audio_failed);
     }
 
     /// 最小闭环（无 failure）: 三 Master 初始 + Metadata Unknown →
@@ -172,7 +181,7 @@ mod tests {
     #[test]
     fn custody_02_no_failure_snapshot_is_none_with_initial_masters() {
         let (video, audio) = initial_masters();
-        let (snapshot, result) = custody_snapshot(&video, &audio, &obs(&[]));
+        let (snapshot, result) = custody_snapshot(&video, &audio, &obs(0));
         assert_eq!(result, None);
         assert_eq!(snapshot.join_result, None);
         assert_eq!(
@@ -188,32 +197,23 @@ mod tests {
         );
     }
 
-    /// failure 注入穿透 readiness gate（A2-7-01 红线 12 的 Custody 级实证）:
-    /// Master 未 Ready + 单路 attributed failure → Degraded; 双路 → Failed;
+    /// SharedPipeline failure 注入穿透 readiness gate（红线 12 Custody 级
+    /// 实证）: Master 未 Ready + SharedPipeline 故障（双路 failed）→
+    /// **FAILED**（行 2）; **Degraded（行 3 单路）首版不可达**——scope 无
+    /// 单路变体（保守归因的诚实后果, 记档待 VideoPath/AudioPath 演进）;
     /// AVSync FAILED 不改 Result（仅透传——红线 3）。
     #[test]
-    fn custody_03_failure_injection_yields_degraded_failed() {
+    fn custody_03_shared_pipeline_failure_yields_failed() {
         let (video, audio) = initial_masters();
-        let (snapshot, result) = custody_snapshot(&video, &audio, &obs(&[FailurePath::Video]));
+        let (snapshot, result) = custody_snapshot(&video, &audio, &obs(1));
         assert_eq!(
             result,
-            Some(MasterJoinResult::Degraded),
-            "单路 failure 穿透未 Ready"
-        );
-        assert_eq!(snapshot.join_result, Some(MasterJoinResult::Degraded));
-
-        let (_, result2) = custody_snapshot(
-            &video,
-            &audio,
-            &obs(&[FailurePath::Video, FailurePath::Audio]),
-        );
-        assert_eq!(
-            result2,
             Some(MasterJoinResult::Failed),
-            "双路 failure → Failed"
+            "SharedPipeline 故障 → 双路 failed → 行 2 FAILED（穿透未 Ready）"
         );
+        assert_eq!(snapshot.join_result, Some(MasterJoinResult::Failed));
 
-        let mut avsync_failed = obs(&[]);
+        let mut avsync_failed = obs(0);
         avsync_failed.avsync = AVSyncClassification::Failed;
         let (snapshot3, result3) = custody_snapshot(&video, &audio, &avsync_failed);
         assert_eq!(
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn custody_04_deterministic_and_c_prime_unreachable() {
         let (video, audio) = initial_masters();
-        let observations = obs(&[FailurePath::Audio]);
+        let observations = obs(1);
         let a = custody_snapshot(&video, &audio, &observations);
         let b = custody_snapshot(&video, &audio, &observations);
         assert_eq!(a, b);
