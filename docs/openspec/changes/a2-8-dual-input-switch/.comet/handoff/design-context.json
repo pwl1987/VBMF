@@ -1,0 +1,13 @@
+{
+  "change": "a2-8-dual-input-switch",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "83e69346561f0425d70913637a9c1b13a6a36584e6648ccbb3b2173205d8fcea",
+  "files": [
+    { "path": "docs/openspec/changes/a2-8-dual-input-switch/proposal.md", "sha256": "31d65d3e05c7bbb3878559a8e3bdc5f7e970c4b5ff08355759a159d533d0093d" },
+    { "path": "docs/openspec/changes/a2-8-dual-input-switch/design.md", "sha256": "4db53edf273ad6aca6ea1d83cadec5ca731b14da847571a728d9cfc4701e94a3" },
+    { "path": "docs/openspec/changes/a2-8-dual-input-switch/tasks.md", "sha256": "41591e7ebc0f3129740467b0c4e527b922608afdf793242242e48143965de099" }
+  ]
+}
