@@ -318,4 +318,86 @@ mod tests {
         let _ = bundle.backend.stop(&h1);
         let _ = bundle.backend.stop(&h2);
     }
+
+    // A2-8-02-F-04 Evidence Patch §12.4（第十二轮）: **Runtime→Bridged 一体
+    // 路径**——bundle→SessionInput→TapWiring::for_input→
+    // ProgramExecutionRuntime::create[bridged switcher]→真实媒体→teardown
+    // 全链一体（此前 create 与 bridged 分别被证, 缺一体化证据）。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn registry_rt_01_full_integration_bridged_runtime() {
+        use crate::contracts::switch::SwitchExecutionAdapter;
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::{ProgramExecutionRuntime, TapWiring};
+        use crate::session::{SessionId, SessionInput};
+        use crate::switch_execution::ExecutionGroup;
+        use uuid::Uuid;
+
+        let bundle = AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let inputs = vec![
+            SessionInput {
+                device_id: a,
+                handle: h1,
+            },
+            SessionInput {
+                device_id: b,
+                handle: h2,
+            },
+        ];
+        // 与生产组合根同一构造: bridged switcher + TapWiring::for_input。
+        let switcher =
+            std::sync::Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged());
+        let switcher_view = switcher.clone();
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            ExecutionGroup::new(sid, inputs.clone(), a).expect("组"),
+            switcher,
+            Some(tap.clone()),
+            inputs.iter().map(TapWiring::for_input).collect(),
+        )
+        .expect("Runtime 一体创建[bridged]");
+        assert!(runtime.is_active());
+        assert_eq!(
+            tap.tap_attachments(&h1).len() + tap.tap_attachments(&h2).len(),
+            2
+        );
+
+        // 真实媒体经全链到达 program 出口。
+        let graph = runtime.graph_handle().expect("graph");
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let obs = switcher_view.observe(&graph);
+        assert_eq!(obs.observed_active, Some(a), "初始 active=A");
+        assert!(obs.program_video_frames > 0, "program video 真实到达");
+        assert!(obs.program_audio_frames > 0, "program audio 真实到达");
+
+        // teardown（Runtime 唯一 owner）: program 停 + tap 全摘。
+        runtime.teardown();
+        assert!(!runtime.is_active());
+        assert!(tap.tap_attachments(&h1).is_empty(), "teardown 真摘 A");
+        assert!(tap.tap_attachments(&h2).is_empty(), "teardown 真摘 B");
+        assert!(
+            switcher_view.observe(&graph).observed_active.is_none(),
+            "program 停（observe 归零）"
+        );
+        let _ = bundle.backend.stop(&h1);
+        let _ = bundle.backend.stop(&h2);
+    }
 }

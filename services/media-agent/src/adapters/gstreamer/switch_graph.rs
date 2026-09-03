@@ -801,25 +801,51 @@ mod tests {
             assert!(group.complete_switch(target));
         }
 
-        // ⑥ A 断（停 A 输入管线）而 active=B——B 侧与 program 均持续。
-        let frames_before = adapter.observe(&graph).program_video_frames;
-        let _ = bundle.backend.stop(&h1);
+        // ⑥ 严格 standby 隔离（第十二轮修正——原序有误: [b,a] 循环后
+        // active=A, 直接停 h1 停的是 **active 源**而非 standby）:
+        // 正确序 = 先切到 B 并确认 observed=B, 再停 A（standby）→
+        // B 作为 active source 独立持续供桥。
+        let plan_b = group
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("⑥ 切 B 计划");
+        group.begin_switch(&plan_b).expect("begin");
+        adapter.switch(&graph, &plan_b).expect("切到 B");
         std::thread::sleep(std::time::Duration::from_millis(600));
-        let obs_after = adapter.observe(&graph);
-        assert!(
-            obs_after.program_video_frames > frames_before,
-            "A 断（active=B）program 持续产出——B 侧供桥"
+        assert_eq!(
+            adapter.observe(&graph).observed_active,
+            Some(b),
+            "⑥前置: active=B"
         );
+        let frames_before = adapter.observe(&graph).program_video_frames;
+        let _ = bundle.backend.stop(&h1); // standby A 全停（不可逆——⑦ 对偶在独立测试）
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        let obs6 = adapter.observe(&graph);
+        assert!(
+            obs6.program_video_frames > frames_before,
+            "⑥ A 断（standby, active=B）program 持续——B 独立供桥"
+        );
+        assert_eq!(obs6.observed_active, Some(b), "⑥ active 仍=B");
 
-        // ⑩ recover 重挂: recover 需运行中管线——对 B（运行中, 挂着 tap）
-        // recover → 销毁重建 → tap 簿记重放（channel 同源）。A 已停（实例
-        // 移除）——其残留性由 ⑨ 的空簿记断言覆盖。
+        // ⑩ 媒体路径恢复（第十二轮升级——非仅簿记）: recover 运行中的
+        // active B → 簿记重放 → 帧继续增长 = 媒体真实重新穿越整条桥
+        //（intervideosrc/interaudiosrc → selector → program appsink）。
+        let frames_pre_recover = adapter.observe(&graph).program_video_frames;
         bundle.backend.recover(&h2).expect("B recover 重建");
         assert_eq!(
             tap.tap_attachments(&h2).len(),
             1,
-            "⑩ recover 后 tap 簿记重放（新管线同 channel）"
+            "⑩a recover 后 tap 簿记重放（新管线同 channel）"
         );
+        std::thread::sleep(std::time::Duration::from_millis(900));
+        let obs10 = adapter.observe(&graph);
+        assert!(
+            obs10.program_video_frames > frames_pre_recover,
+            "⑩b recover 后媒体重新穿越全桥（帧增长）——media-path recovery"
+        );
+        assert_eq!(obs10.observed_active, Some(b), "⑩ active 维持=B");
 
         // ⑨ teardown 零残留: program 停 + 运行中 tap（h2）真摘; 已停 h1
         // 实例已移除（bookkeeping 随之不可达=空——结构性零残留）。
@@ -833,5 +859,96 @@ mod tests {
         assert!(tap.tap_attachments(&h2).is_empty(), "⑨ h2 零残留");
         assert!(tap.tap_attachments(&h1).is_empty(), "⑨ h1 零残留");
         let _ = bundle.backend.stop(&h2);
+    }
+
+    // ⑦ 严格对偶（第十二轮新增——独立场景, 不可与⑥共用管线: stop 不可逆）:
+    // active=A, standby B 全停 → A 独立持续供桥 + observed 维持=A。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn switch_graph_rt_01_real_bridge_standby_b_failure_dual() {
+        use crate::contracts::media_tap::{MediaTapRequest, TapPlanes};
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::tap_channel;
+        use crate::session::SessionId;
+
+        let bundle =
+            crate::registry::AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        for (h, d) in [(h1, a), (h2, b)] {
+            tap.attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: tap_channel(d),
+                    planes: TapPlanes::Both,
+                },
+            )
+            .expect("tap attach");
+        }
+        let adapter = GStreamerSwitchAdapter::bridged();
+        let graph = adapter
+            .build_program_graph(
+                &ExecutionGroup::new(
+                    SessionId(Uuid::new_v4()),
+                    vec![
+                        SessionInput {
+                            device_id: a,
+                            handle: h1,
+                        },
+                        SessionInput {
+                            device_id: b,
+                            handle: h2,
+                        },
+                    ],
+                    a,
+                )
+                .expect("组"),
+            )
+            .expect("bridged 物化");
+        adapter.start_program(&graph).expect("启动");
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        assert_eq!(
+            adapter.observe(&graph).observed_active,
+            Some(a),
+            "前置: active=A"
+        );
+        let frames_before = adapter.observe(&graph).program_video_frames;
+        assert!(frames_before > 0, "program 帧在流");
+
+        let _ = bundle.backend.stop(&h2); // standby B 全停
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        let obs = adapter.observe(&graph);
+        assert!(
+            obs.program_video_frames > frames_before,
+            "⑦ B 断（standby, active=A）program 持续——A 独立供桥"
+        );
+        assert_eq!(obs.observed_active, Some(a), "⑦ active 维持=A");
+        assert_eq!(obs.video_active, obs.audio_active, "⑦ 双平面成对维持");
+
+        adapter.stop_program(&graph).expect("program 停");
+        let ch1 = tap
+            .tap_attachments(&h1)
+            .first()
+            .map(|x| x.channel.clone())
+            .expect("h1 tap 在");
+        tap.detach_media_tap(&h1, &ch1).expect("摘除");
+        assert!(tap.tap_attachments(&h1).is_empty());
+        assert!(tap.tap_attachments(&h2).is_empty(), "已停 B 结构性零残留");
+        let _ = bundle.backend.stop(&h1);
     }
 }

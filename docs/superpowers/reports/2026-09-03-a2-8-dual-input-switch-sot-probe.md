@@ -730,3 +730,41 @@ bmd+gstreamer 208·clippy 双组合 clean·fmt clean。
 identity·Supervisor/PipelinePlan/SwitchPolicy/Session 零触碰。
 盒上: mock 342·**bmd+gstreamer 209**·clippy 双组合 clean·fmt clean。
 下一刀: F-05（双 plane 成对切换全量验证）→G→H→I。A2-8 NOT CLOSED。
+
+---
+
+## 17. 第十二轮终裁：⑥ 序错修正 + 证据补强刀（2026-09-04）
+
+> 证据基线: 远端 `7de6fec` 实码交叉裁决——架构/实现/主链 PASS;
+> **⑥ 测试逻辑错误确认**[for target in [b,a] 循环后 active=A, 直接停
+> h1 停的是 active 源非 standby——证明语义完全不同]; ⑦ 未真证[对偶
+> 不能由结构对称自动成立]; ⑩ 仅证簿记未证媒体恢复; 缺 Runtime→
+> Bridged 一体化。**F-03/F-04=实现 CLOSED·证据 PARTIAL→本轮补严**。
+
+### 17.1 F-04 Evidence Patch（仅测试, 零生产代码改动）
+
+1. **⑥ 严格序修正**: 切 B→确认 observed=B→停 A（standby）→B 独立
+   持续供桥+active 维持 B（`real_bridge_cross_pipeline_media_path`
+   重写尾段）;
+2. **⑦ 真对偶新测试**: `real_bridge_standby_b_failure_dual`——独立
+   场景[stop 不可逆故不共用管线]: active=A→停 B（standby）→A 独立
+   持续+成对维持;
+3. **⑩ 升级媒体路径恢复**: recover 运行中 active B→簿记重放**+帧继续
+   增长**[intervideosrc→selector→appsink 媒体真实重新穿越全桥——
+   media-path recovery 非 bookkeeping-only];
+4. **Runtime→Bridged 一体化**: `registry_rt_01_full_integration_
+   brid_runtime`——bundle→SessionInput→TapWiring::for_input→
+   Runtime::create[bridged]→真实媒体到达 program 出口→teardown 全摘。
+
+### 17.2 架构债务登记（非阻塞, 不动）
+
+`adapters/gstreamer → program_execution::tap_channel` 层级债务:
+bridge address 命名规则长期应独立为 bridge-address primitive——
+**F-05/G/H 后低风险搬迁, 现在不为漂亮切模块**。
+
+### 17.3 证据等级维持
+
+盒上记录≠CI 独立验证[GitHub status checks 空=feature 分支惯例];
+⑧真桥级 FULL PASS 仍未做[结构性具备+fold 层已证——不伪闭合]。
+盒上: mock 342·**bmd+gstreamer 211**[209+2]·clippy clean·fmt clean。
+F-03/F-04 证据链闭合→**F-05 即刻可做**（多切换序列+三态不串+禁 PTS）。
