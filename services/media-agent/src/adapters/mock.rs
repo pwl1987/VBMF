@@ -137,6 +137,74 @@ impl MediaBackend for MockBackend {
     }
 }
 
+/// A2-8-02: Mock MediaTap——确定性簿记实现（attach/detach/查询,
+/// 供 02-D recover 重放逻辑的契约级验证）。
+#[derive(Default)]
+pub struct MockMediaTapPort {
+    taps: std::sync::Mutex<
+        std::collections::HashMap<
+            PipelineHandle,
+            Vec<crate::contracts::media_tap::MediaTapAttachment>,
+        >,
+    >,
+}
+
+impl MockMediaTapPort {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl crate::contracts::media_tap::MediaTapPort for MockMediaTapPort {
+    fn attach_media_tap(
+        &self,
+        handle: &PipelineHandle,
+        req: &crate::contracts::media_tap::MediaTapRequest,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::{MediaTapAttachment, TapError};
+        let mut taps = self.taps.lock().unwrap();
+        let rows = taps.entry(*handle).or_default();
+        if rows.iter().any(|a| a.channel == req.channel) {
+            return Err(TapError::AlreadyAttached(req.channel.clone()));
+        }
+        rows.push(MediaTapAttachment {
+            channel: req.channel.clone(),
+            planes: req.planes,
+        });
+        Ok(())
+    }
+
+    fn detach_media_tap(
+        &self,
+        handle: &PipelineHandle,
+        channel: &str,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::TapError;
+        let mut taps = self.taps.lock().unwrap();
+        let rows = taps
+            .get_mut(handle)
+            .ok_or(TapError::NotAttached(channel.into()))?;
+        let before = rows.len();
+        rows.retain(|a| a.channel != channel);
+        if rows.len() == before {
+            return Err(TapError::NotAttached(channel.into()));
+        }
+        Ok(())
+    }
+
+    fn tap_attachments(
+        &self,
+        handle: &PipelineHandle,
+    ) -> Vec<crate::contracts::media_tap::MediaTapAttachment> {
+        self.taps
+            .lock()
+            .unwrap()
+            .get(handle)
+            .cloned()
+            .unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,5 +242,120 @@ mod tests {
         backend.recover(&handle).expect("recover 应成功");
         backend.stop(&handle).expect("stop 应成功");
         assert!(backend.observe(&handle).is_empty());
+    }
+
+    #[test]
+    fn media_tap_rt_01_attach_records_bookkeeping() {
+        // 02-B: attach → 簿记唯一事实源（恰一行, channel/planes 保真）。
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_242);
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-a-raw".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach 应成功");
+        assert_eq!(
+            tap.tap_attachments(&h),
+            vec![crate::contracts::media_tap::MediaTapAttachment {
+                channel: "dev-a-raw".into(),
+                planes: TapPlanes::Both,
+            }],
+            "簿记恰一行且保真"
+        );
+        assert!(
+            tap.tap_attachments(&PipelineHandle(1)).is_empty(),
+            "无关管线零簿记"
+        );
+    }
+
+    #[test]
+    fn media_tap_rt_01_double_attach_fail_closed() {
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapError, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_243);
+        let req = MediaTapRequest {
+            channel: "dev-b-raw".into(),
+            planes: TapPlanes::Video,
+        };
+        tap.attach_media_tap(&h, &req).expect("首次 attach");
+        assert_eq!(
+            tap.attach_media_tap(&h, &req),
+            Err(TapError::AlreadyAttached("dev-b-raw".into())),
+            "同 channel 重复 attach fail-closed（不静默重定义）"
+        );
+        // 不同 channel 可并存（双平面分列属合法簿记形态）。
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-b-raw-audio".into(),
+                planes: TapPlanes::Audio,
+            },
+        )
+        .expect("异 channel 并存");
+        assert_eq!(tap.tap_attachments(&h).len(), 2);
+    }
+
+    #[test]
+    fn media_tap_rt_01_detach_removes_and_unknown_rejected() {
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapError, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_244);
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-c-raw".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach");
+        tap.detach_media_tap(&h, "dev-c-raw").expect("detach");
+        assert!(tap.tap_attachments(&h).is_empty(), "摘除后簿记清空");
+        assert_eq!(
+            tap.detach_media_tap(&h, "dev-c-raw"),
+            Err(TapError::NotAttached("dev-c-raw".into())),
+            "重复 detach 拒收"
+        );
+    }
+
+    #[test]
+    fn media_tap_rt_01_bookkeeping_is_replay_source() {
+        // 02-D 契约级预演（C2 裁定形式）: 簿记=恢复重放唯一事实源——
+        // 模拟 recover 丢失 tap（detach 全部）后, 仅凭 tap_attachments()
+        // 快照重放 attach → 能力恢复。recover 内"裸调 attach"禁令的
+        // 替代路径即此: 簿记驱动重放。
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_245);
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-d-raw".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach");
+        // 快照（恢复前唯一可得事实）。
+        let snapshot = tap.tap_attachments(&h);
+        // 模拟 recover: 管线重建, tap 全失。
+        for a in &snapshot {
+            tap.detach_media_tap(&h, &a.channel).expect("模拟丢失");
+        }
+        assert!(tap.tap_attachments(&h).is_empty());
+        // 仅凭快照重放（02-D controller 恢复钩的契约依据）。
+        for a in &snapshot {
+            tap.attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: a.channel.clone(),
+                    planes: a.planes,
+                },
+            )
+            .expect("簿记重放 attach");
+        }
+        assert_eq!(tap.tap_attachments(&h), snapshot, "重放后簿记等值恢复");
     }
 }
