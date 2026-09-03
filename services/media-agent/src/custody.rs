@@ -58,10 +58,14 @@ pub struct AttributedFailures {
 /// 消费时装配的参数包——与 `MasterJoinInput` 同律, 零第二 SoT）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FailureObservation {
-    /// 关联执行身份（= `RuntimeEvent::PipelineFault.pipeline` 的**真实语义
-    /// = 设备 canonical 身份**——Supervisor 决策句柄, register/report_failure
-    /// 均按 device_id; A2-7-03 身份反推结论。归因只消费与本 Custody 周期
-    /// 匹配的 observation——跨实例污染防线。字段名承事件字段名）。
+    /// 关联身份——**legacy event-field correlated identity = 设备 canonical
+    /// 身份（DeviceId）in current RuntimeEvent implementation**（A2-7-03 终裁
+    /// 标记: `PipelineFault.pipeline` 当前实现承载 device identity 属
+    /// legacy/misnamed——同 enum 内 `SourceMaterialized.pipeline` 是 Pipeline
+    /// identity, 同名双语义=Event Contract ambiguity, 类型级修正留 V0.3
+    /// cleanup; 本字段名承事件字段名避免 churn, **勿误读为 PipelineHandle/
+    /// PipelineId**）。归因只消费与本 Custody 周期匹配的 observation——
+    /// 跨实例污染防线。
     pub pipeline_id: Uuid,
     /// 故障来源（首版单值: PipelineFault = 唯一能归属执行管线的来源;
     /// SessionFailed/HardwareFault/HealthChanged/ClockLost **不机械映射**——
@@ -111,6 +115,12 @@ pub fn attribute_failures(
 /// 生产桥（A2-7-03）—— `RuntimeEvent` 流 → `CustodyObservations` 的唯一
 /// 转换点（Runtime failure fact → Custody 归因输入; **纯函数**, 消费点
 /// 自行 drain 事件后调用——Custody 不订阅不持 Runtime 引用）。
+///
+/// **接线状态（03 终裁三段式: Production Runtime Connection DEFERRED TO
+/// 04）**: 本桥已实现但**尚无生产调用者**——真实生产故障链现状为 mapper
+/// 产 `PipelineFault(nil)`（本桥拒收）+ Supervisor echo（本桥再拒收）,
+/// 即真实故障尚未经本桥进入 Custody; 闭合（真实 drain→桥→custody 周期）
+/// 属 A2-7-04 mock lifecycle 验证。
 ///
 /// 提取规则（身份 SoT 反推结论, 03 报告 §1）:
 /// - 只提取 `PipelineFault{pipeline, summary, ..}`——`pipeline` 的真实语义

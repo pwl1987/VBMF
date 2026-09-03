@@ -1,9 +1,60 @@
 # A2-7-03 — Runtime Failure Fact → Custody 生产接线（身份 SoT 反推 + 实现）
 
-> Status: `PROBE + IMPLEMENTATION`
+> Status: **ACCEPTED WITH REQUIRED FOLLOW-UP / NOT CLOSED**（终裁三段式:
+> Identity Probe **CLOSED** / Custody Bridge Implementation **CLOSED** /
+> Production Runtime Connection **DEFERRED TO 04**）
 > Authority: A2-7-02 三轮终裁 §8（CLOSED；03 主任务 = 真实生产接线 + 反推
 > PipelineHandle↔Uuid 身份 SoT，不凭空设计 mapping table）
 > Date: 2026-09-03 · Base: `22e5e6c`
+
+---
+
+## 0. 终裁修正记录（2026-09-03 复核，§1-§7 要点）
+
+1. **mapping 表表述收紧**：§1.2 "不需要也不应建立映射表" 的正确含义 =
+   **"No new mapping table / No second identity registry"**——Session 已存
+   `SessionInput{device_id, handle}` 关联（属 Session/Execution 生命周期），
+   并非系统无 Handle↔Device 关联；未来 execution attribution 优先从
+   Session→SessionInput 建 correlation，禁建第二张全局身份表（此点终裁
+   明确批准）。
+2. **`PipelineFault.pipeline` = Legacy/misnamed field（债务登记）**：当前
+   实现里承载 device identity 是**事实**，但**不得升格为"本来就应该
+   DeviceId"**——同 enum 内 `SourceMaterialized.pipeline` = Pipeline
+   identity（`Uuid::new_v5(nil, plan)` 物化身份），**同字段名同类型双语义
+   = Canonical Event Contract ambiguity**（CANONICAL_IDENTITY.md 已分
+   DeviceId/PipelineId/SessionId 三 scope）。类型级修正留 **Event Contract
+   cleanup / V0.3**（本 change 不蔓延）。
+3. **`FailureObservation.pipeline_id` 标记 legacy event-field correlated
+   identity（= DeviceId in current RuntimeEvent implementation）**——防未来
+   开发者误读为 PipelineHandle/PipelineId；类型级重命名同留 V0.3。
+4. **三身份语义分层记档**（终裁 §5）：DeviceId=Supervisor fault
+   attribution/hardware ownership · PipelineHandle/PipelineId=Execution
+   instance/backend lifecycle · SessionId=Orchestration lifecycle——禁一个
+   Uuid 字段兼任三者；未来多 Pipeline/多输入下 `PipelineFault.pipeline=
+   DeviceId` 只能表达"哪个设备维度需 Supervisor 决策"，不能表达"哪个
+   Pipeline 实例失败"（当前 Supervisor 最小模型下可行，精确 attribution
+   属后续）。
+5. **Bridge 尚无生产调用者（03 未 CLOSED 的核心原因）**：真实生产故障链
+   现状 = GStreamer ERROR → watchdog → `Supervisor::ingest` → mapper 产
+   `PipelineFault(nil)` → 桥**拒收** → Supervisor recovery 产 RESTART_ECHO
+   → 桥**再拒收**——即真实故障**尚未经桥进入 Custody**。桥已写好（中段），
+   首尾未闭合；闭合属 04。
+
+## 0'. A2-7-04 进入条件（终裁冻结）
+
+```text
+SessionManager.create/start → Backend.instantiate/start →
+PipelineHandle + SessionInput{device_id, handle} →
+Watchdog real bus observation → RuntimeEvent →
+event consumer/drain → observations_from_events() →
+attribute_failures(device_id, ...) → MasterJoinInput →
+join() → ProgramMaster
+```
+
+**04 第一验收重点 ≠ "ProgramMaster 必须 ACCEPTABLE"**，而是：
+真实故障 → 正确 Device correlation → 他设备零污染 → Supervisor echo 不
+重复计故障 → Custody 收到**恰一次**真实 failure fact → Join 正确得到
+FAILED。此链跑通 = Runtime→Event→Custody→Join 真闭环。
 
 ---
 

@@ -94,8 +94,20 @@
   `Contract: A2-7-02 二轮复核终裁[01 报告 §7]` | `Implementation: 已` | 
   `Verification: 盒上 custody 5/5（新增跨实例污染回归）+ mock 304（303+1 
   恰）+ clippy 4-combo PASS + fmt clean` | `Gate: 无`
-- [ ] 8. A2-7-03..05（Runtime failure fact 接入 Custody/链路扩展/mock 
-  lifecycle 验证/真机前置）——待用户复核修正版[确认 A2-7-02 CLOSED]后
-  推进; 03 负责 Runtime/Event→Custody 真实接线+PipelineHandle↔Uuid SoT 
-  确认; A2-8 双输入真机切换
-  `Contract: Gate 链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 8. A2-7-03 复核终裁落实（ACCEPTED WITH REQUIRED FOLLOW-UP / NOT
+  CLOSED——三段式: Identity Probe CLOSED/Bridge CLOSED/**Production 
+  Connection DEFERRED TO 04**）: 03 报告 §0 修正（mapping 表表述收紧=
+  No new mapping table/No second identity registry·Session 已存 
+  SessionInput{device_id,handle} 关联非无关联; **PipelineFault.pipeline 
+  标记 legacy/misnamed field**——SourceMaterialized.pipeline=Pipeline 
+  identity 同名双语义=Event Contract ambiguity 债务, 类型级修正留 V0.3;
+  FailureObservation.pipeline_id 标记 legacy event-field correlated 
+  identity=DeviceId 勿误读; 三身份分层记档[Device/Handle/Session 禁一
+  Uuid 兼任]; 桥尚无生产调用者[真实链现状: mapper nil 拒收+echo 再拒收=
+  故障未经桥]）+ custody.rs doc 同步（字段 legacy 标记+桥接线状态）+
+  **04 进入条件冻结**（§0' 全链 + 验收重点≠ACCEPTABLE 而是=真实故障→
+  Device correlation→零污染→echo 不重计→恰一次→FAILED）
+  `Contract: A2-7-03 复核终裁` | `Implementation: 已` | 
+  `Verification: 03 报告 §0/§0'` | `Gate: 无`
+- [ ] 9. A2-7-04: mock lifecycle 全链闭环验证（终裁 §0' 链 + 六验收点）
+  `Contract: 04 进入条件冻结` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
