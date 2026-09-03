@@ -4,10 +4,10 @@
   "mode": "compact",
   "canonical_spec": "openspec",
   "generated_by": "comet-handoff.sh",
-  "context_hash": "83e69346561f0425d70913637a9c1b13a6a36584e6648ccbb3b2173205d8fcea",
+  "context_hash": "1f4b201892a6ae95b09c3938f75e914b5e3ce6b46c2dce51427a1670da24adce",
   "files": [
-    { "path": "docs/openspec/changes/a2-8-dual-input-switch/proposal.md", "sha256": "31d65d3e05c7bbb3878559a8e3bdc5f7e970c4b5ff08355759a159d533d0093d" },
-    { "path": "docs/openspec/changes/a2-8-dual-input-switch/design.md", "sha256": "4db53edf273ad6aca6ea1d83cadec5ca731b14da847571a728d9cfc4701e94a3" },
-    { "path": "docs/openspec/changes/a2-8-dual-input-switch/tasks.md", "sha256": "41591e7ebc0f3129740467b0c4e527b922608afdf793242242e48143965de099" }
+    { "path": "docs/openspec/changes/a2-8-dual-input-switch/proposal.md", "sha256": "ea8a72420b588b21ba85a83b67c90f61897d7e9ed970b6b78eee2371bae91734" },
+    { "path": "docs/openspec/changes/a2-8-dual-input-switch/design.md", "sha256": "f43d9d3341682c9b3d91b3b11883ae04429326d47ae7ed29b8462ccc74053fa3" },
+    { "path": "docs/openspec/changes/a2-8-dual-input-switch/tasks.md", "sha256": "b50d845a2c060165baf08f57e9e938eb50023a13dc6e354544906e9b930d1325" }
   ]
 }

@@ -3,7 +3,7 @@
 - Change: a2-8-dual-input-switch
 - Phase: design
 - Mode: compact
-- Context hash: 83e69346561f0425d70913637a9c1b13a6a36584e6648ccbb3b2173205d8fcea
+- Context hash: 1f4b201892a6ae95b09c3938f75e914b5e3ce6b46c2dce51427a1670da24adce
 
 Generated-by: comet-handoff.sh
 
@@ -12,8 +12,8 @@ OpenSpec remains the canonical capability spec. This handoff is a deterministic,
 ## docs/openspec/changes/a2-8-dual-input-switch/proposal.md
 
 - Source: docs/openspec/changes/a2-8-dual-input-switch/proposal.md
-- Lines: 1-35
-- SHA256: 31d65d3e05c7bbb3878559a8e3bdc5f7e970c4b5ff08355759a159d533d0093d
+- Lines: 1-37
+- SHA256: ea8a72420b588b21ba85a83b67c90f61897d7e9ed970b6b78eee2371bae91734
 
 ```md
 # Proposal — a2-8-dual-input-switch
@@ -36,8 +36,10 @@ switch"执行基础**（无 Switch 节点/watchdog 单视角/switch_mode 是预�
   - 六问逐答（含盒上 GStreamer 元素实查：input-selector[active-pad/
     switch-mode]/inter 系/audiomixer 全在）
   - 12 红线 + PipelinePlan 禁塞 A/B 三案落盘；OQ-1..5 交裁
-- **A2-8-01（最小 FRAME_SWITCH Execution Switch）在 OQ 终裁后实现**——
-  PACKET/MASTER Switch Deferred（终裁预裁）
+- **A2-8-01（最小、可验证、可监督的 Program-level FRAME_SWITCH Execution
+  Group）经 Pre-Implementation Gate 后实现**——十项冻结 + T1-T12 验收矩阵 +
+  Video/Audio 成对切换（方案 A）落 probe §7；PACKET/MASTER Switch 与
+  auto-failover Deferred（终裁预裁）
 
 ## Non-Goals
 
@@ -57,8 +59,8 @@ Switcher 不进 SessionManager/Supervisor 不切换/不虚构 Metadata/Normalize
 ## docs/openspec/changes/a2-8-dual-input-switch/design.md
 
 - Source: docs/openspec/changes/a2-8-dual-input-switch/design.md
-- Lines: 1-25
-- SHA256: 4db53edf273ad6aca6ea1d83cadec5ca731b14da847571a728d9cfc4701e94a3
+- Lines: 1-32
+- SHA256: f43d9d3341682c9b3d91b3b11883ae04429326d47ae7ed29b8462ccc74053fa3
 
 ```md
 # Design — a2-8-dual-input-switch（A2-8-00 SOT Probe）
@@ -73,33 +75,42 @@ Switcher 不进 SessionManager/Supervisor 不切换/不虚构 Metadata/Normalize
 事实断言先复核（8 项全锚）；GStreamer 能力盒上实查（非文档推测）；缺口
 如实披露（watchdog 单视角=Precondition Gate；AVSync 升级 A2-8 硬前置）。
 
-## 3. 裁决面
+## 3. 裁决面（已终裁，2026-09-03 两轮）
 
-OQ-1 Program graph 形态（inter 系倾向）· OQ-2 Switch Adapter 形态（独立
-trait 倾向）· OQ-3 MultiInputWatchdog · OQ-4 AVSync 测量边界 · OQ-5 构图归属。
+OQ-1 inter 系=**候选 Materialization 非架构合同**（topology=实现细节）·
+OQ-2 独立 Switch Execution Adapter（不塞 Backend 五方法）· OQ-3
+ExecutionGroup 级 MultiInputWatchdog 单实例（概念正式冻结）· OQ-4 六路
+PTS 观测 only（无 Engine/无 threshold）· OQ-5 Program pipeline 归 Program
+Execution/Switch 层。全部终裁与十项冻结落 probe §7。
 
 ## 4. No-Build Gate
 
 零 .rs diff；12 红线；禁 PipelinePlan 硬塞 A/B。
 
-## 5. 后续（OQ 终裁后）
+## 5. A2-8-01 范围（Gate 后）
 
-01 最小 FRAME_SWITCH Execution Switch（T1-T5 验收：ACTIVE/STANDBY 双向
-显式切换；自动 failover 留后）→ 真机验证 → 收口。
+目标=**最小、可验证、可监督的 Program-level FRAME_SWITCH Execution
+Group**（非"input-selector+双 Pipeline"）。T1-T12 验收矩阵；Video/Audio
+成对切换（方案 A）；Desired≠Execution≠Observed 三分离；Event Identity
+Debt 不修；完成标准=真实 Execution Graph+真实 A/B 切换+MultiInputWatchdog
+落地（不停在设计完成）。链：01 实现→02 真机→03 failure/supervision→
+04 AV continuity→05 archive+CI+merge；A2-8 NOT CLOSED until 05。
 
 ```
 
 ## docs/openspec/changes/a2-8-dual-input-switch/tasks.md
 
 - Source: docs/openspec/changes/a2-8-dual-input-switch/tasks.md
-- Lines: 1-19
-- SHA256: 41591e7ebc0f3129740467b0c4e527b922608afdf793242242e48143965de099
+- Lines: 1-52
+- SHA256: b50d845a2c060165baf08f57e9e938eb50023a13dc6e354544906e9b930d1325
 
 ```md
 # Tasks — a2-8-dual-input-switch
 
-> 四栏纪律。00 Probe → 01 最小 FRAME_SWITCH Execution Switch（OQ 终裁后）
-> → 真机验证 → 收口。12 红线全程。
+> 四栏纪律。Gate 链（用户两轮终裁冻结）：00 Probe（CLOSED）→ OQ 终裁 +
+> Pre-Implementation 十项冻结 → 01 FRAME_SWITCH Execution Group MVP（T1-T12）
+> → 02 真机 → 03 failure/supervision → 04 AV continuity → 05 archive+CI+merge。
+> **A2-8 NOT CLOSED until 05。**
 
 - [x] 1. A2-8-00 SOT Probe: 裁决事实断言复核（8 项全锚）+ 六问逐答
   （Q1 双 Pipeline 真机=A1 已证 inputs=2·Q2 三候选形态[inter 系倾向]·
@@ -110,10 +121,41 @@ trait 倾向）· OQ-3 MultiInputWatchdog · OQ-4 AVSync 测量边界 · OQ-5 �
   docs/superpowers/reports/2026-09-03-a2-8-dual-input-switch-sot-probe.md
   `Contract: A2-8 终裁[12 红线+六问+否决直接编码]` | `Implementation: 已` | 
   `Verification: 六问全实锚·零 .rs diff` | `Gate: 无`
-- [ ] 2. 用户对 OQ-1..5 终裁（01 前置）
-  `Contract: 用户裁定权` | `Implementation: 待` | `Verification: 裁决记录` | `Gate: 无`
-- [ ] 3. A2-8-01 最小 FRAME_SWITCH Execution Switch（T1-T5 显式切换验收；
-  PACKET/MASTER Deferred）→ 真机验证 → 收口交付链
-  `Contract: 00 终裁+OQ 裁决` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 2. 用户两轮终裁落盘（2026-09-03）: 第一轮 OQ-1..5 批准 + 01 批准;
+  第二轮修正=**不批准直接编码，批准 Pre-Implementation Gate**——十项冻结
+  [ExecutionGroup=Program execution boundary/Switch≠Backend SPI/
+  SessionManager≠graph builder/Supervisor≠switch executor/topology=实现
+  细节/FRAME first/**Video+Audio 成对切换=方案 A**/AV continuity mandatory/
+  MASTER Deferred/failover Deferred] + OQ-1 降格[inter 系=候选
+  Materialization 非架构合同] + T1-T12 验收矩阵（替代 T1-T5） +
+  Desired≠Execution≠Observed 三分离 + 禁 Session.active_input/
+  SessionInput.is_active + Event Identity Debt 不修[PipelineFault.pipeline
+  兼容层维持，新增代码不扩大歧义] + watchdog 四观测非 God Object +
+  01 完成标准=真实 Execution Graph+真实 A/B 切换+MultiInputWatchdog 落地
+  （不停在设计完成）; A2-8-00 正式 CLOSED; 落 probe §7
+  `Contract: 用户裁定权` | `Implementation: 已` | `Verification: probe §7` | `Gate: 无`
+- [ ] 3. A2-8-01 最小 FRAME_SWITCH Execution Group MVP（"最小、可验证、
+  可监督的 Program-level FRAME_SWITCH Execution Group"，非"input-selector+
+  双 Pipeline"）: SwitchIntent→SwitchExecutionPlan→SwitchExecutionAdapter
+  链（独立执行面）+ ExecutionGroup 概念（inputs/switch/program output/
+  supervision；SessionInput 原样）+ Program graph 构建（topology=实现细节，
+  归 Program Execution/Switch 层）+ **Video/Audio 成对显式切换** + 六路 PTS
+  观测点（A/B/Program×video/audio）+ MultiInputWatchdog（修正 bin L403+
+  gates L165 首 handle 用法为 ExecutionGroup 四视角单实例，禁 for 循环双
+  spawn）+ T1-T12 落地（mock 层先行，盒上 cargo 验证）; 12 红线全程
+  `Contract: 00 终裁+Gate 十项冻结（probe §7）` | `Implementation: 待` | 
+  `Verification: T1-T12 mock 层+盒上 cargo` | `Gate: 后续定`
+- [ ] 4. A2-8-02 真机验证: 双 SDI inputs=2 同 Session 双 Pipeline + A→B→A
+  显式切换 + frame boundary 实证 + Program output 存活; 真机 Gate 记录
+  `Contract: 01 交付链` | `Implementation: 待` | `Verification: 真机 Gate` | `Gate: 待`
+- [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
+  RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
+  `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+- [ ] 6. A2-8-04 AV continuity 验证: 六路 PTS before/after switch 无
+  rollback/discontinuity/divergence/starvation（observation only，无 Engine）
+  `Contract: 03` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+- [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
+  CLOSED）
+  `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
 
 ```
