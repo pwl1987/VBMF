@@ -12,8 +12,12 @@
 #[allow(unused_imports)]
 pub(crate) mod controller;
 #[cfg(feature = "gstreamer-backend")]
+pub(crate) mod switch_graph; // A2-8-01: Switch Execution Adapter 真实物化（topology=实现细节）
+#[cfg(feature = "gstreamer-backend")]
 #[allow(unused_imports)]
 pub use controller::GStreamerPipelineController;
+#[cfg(feature = "gstreamer-backend")]
+pub use switch_graph::GStreamerSwitchAdapter;
 
 /// 运行时 GStreamer 版本 (证据归档用). 仅在其唯一消费者 `main` 的 evidence 日志
 /// (`#[cfg(feature = "bmd-provider")]` 块内) 编译时才被引用, 故收紧到
