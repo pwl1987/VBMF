@@ -125,6 +125,13 @@
   `Contract: A2-7-04 终裁[03 报告 §0'']` | `Implementation: 已` | 
   `Verification: 盒上 custody 8/8[含 lifecycle 2] + mock 307（305+2 恰）+
   clippy 4-combo PASS + fmt clean` | `Gate: 无`
-- [ ] 10. A2-7-05 真机前置验证 + 收口交付链（矩阵/verify/guards/archive/
-  PR/CI/merge/memory）; A2-8 双输入真机切换
-  `Contract: Gate 链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 10. A2-7-05 前置确认+收口（04 终裁: 封存名=Mock Closed-Loop Validation
+  非生产闭环; **05 第一项前置确认=不具备**[mapper 兜底产 nil, 桥正确拒收]
+  → A2-7 收尾 Custody 模型, 生产链三缺口[Backend attributed 事件/watchdog
+  归属/常驻消费者]保留后续 Event Contract·Failure Attribution change）:
+  盒上全矩阵 14 步 ALL_DONE（test 200/200/307/200 全 0 failed[mock 
+  299→307 +8 恰]+clippy -D×4+build×3+remove-adapter PROOF 全 EXIT=0）+
+  verify 报告（分层定位+债务清单五项）+ guards（record-check）+ archive
+  + PR + CI 七 checks + merge + memory
+  `Contract: A2-7-04 终裁+交付纪律` | `Implementation: 已` | 
+  `Verification: 矩阵 14 步 + verify 报告 §2` | `Gate: CI/RELEASE`

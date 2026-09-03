@@ -2,7 +2,8 @@
 comet_change: a2-7-execution-materialization
 role: technical-design
 canonical_spec: openspec
-status: probe-stage
+archived-with: 2026-09-03-a2-7-execution-materialization
+status: final
 ---
 
 # Design Doc — a2-7-execution-materialization（A2-7: Execution Materialization — SoT/Ownership Probe Stage）

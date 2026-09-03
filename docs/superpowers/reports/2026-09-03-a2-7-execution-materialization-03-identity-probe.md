@@ -90,6 +90,41 @@ Custody(B)=None。
 
 ---
 
+## 0'''. A2-7-04 终裁（CLOSED，2026-09-03——封存名与边界）
+
+> **封存名 = "A2-7-04 — Mock Runtime Lifecycle / Event-to-Custody
+> Closed-Loop Validation"**（非 "Production Runtime→Custody Integration
+> Complete"——后者形成架构性误导）。70ffb5e 分支交付，八红线全守（零返工）；
+> **措辞纠正**："首次真闭合" 不成立——故障由测试消费者 emit 非 Backend
+> 产生（MockBackend.observe() = Vec::new()）；测试用**同型** FanoutSink
+> （第二个实例）非生产那条；直接 drain projection 非生产消费 topology。
+> 已证明 = **组件间数据契约闭合**（SessionManager→MockBackend→SessionInput
+> →canonical event→FanoutSink→bridge→Custody→Join）。
+
+### 分层裁决表（生产链三缺口如实）
+
+| 层 | 状态 |
+|---|---|
+| A2-7-03 Identity Probe / Bridge Implementation | CLOSED |
+| A2-7-04 Mock Lifecycle Validation（六验收+A/B 反证全 PASS） | **CLOSED / APPROVED** |
+| Runtime 真故障 → Canonical Event（Backend.observe 产 attributed 事件） | **未完成**（MockBackend.observe 空 + mapper 兜底产 nil） |
+| watchdog → Attributed PipelineFault | 未完成（nil 链现状） |
+| Production Event Consumer → Custody 常驻接线 | 未完成（测试消费者非常驻） |
+| PipelineFault.pipeline 双语义 | V0.3 debt 维持 |
+| Handle↔Uuid registry | 禁止新增（维持） |
+
+### A2-7-05 第一项前置确认（终裁指定）
+
+**"真实 BMD/GStreamer 故障能否产生带正确设备归属的 canonical
+RuntimeEvent"——前置条件现状 = 不具备**（DefaultRuntimeEventMapper 兜底产
+`PipelineFault{pipeline: Uuid::nil()}`，桥 fail-closed 拒收——正确行为）。
+故 A2-7 按终裁收尾其 **Custody 模型**交付；生产 Runtime→Custody 链完整化
+（failure attribution contract）**保留到后续 Event Contract / Failure
+Attribution change**。GitHub 状态澄清：70ffb5e 为 feature 分支（按先例不
+触发 CI）；盒上验证为开发机事实，CI 于 PR 时跑。
+
+---
+
 ## 1. 身份 SoT 反推（现有真实代码与生命周期，非新设计）
 
 ### 1.1 `PipelineFault.pipeline: Uuid` 的值来源全量清点
