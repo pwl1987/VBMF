@@ -10,6 +10,13 @@
 //! 周期真 bus 监控 (Error/EOS/StateChanged) + appsink 计数 → MEDIA-RT-01 A1-A4/B1-B4/C1-C4 →
 //! 错误报告 Supervisor (决策引擎) → Restart → 重校 lease → recover;
 //! Supervisor 仅决策不碰 GStreamer (硬边界); `ctrl` 为 `Arc<dyn MediaBackend>` (C2c)。
+//!
+//! A2-8-01: **MultiInputWatchdog** —— `execution_group_observe_fold`（纯函数,
+//! mock 可测）+ `spawn_execution_group_watchdog`（hw 门控薄壳）。单实例服务
+//! 整个 execution group（Input A/B + Switch + Program Output 四观测面,
+//! 终裁 §7.3——**禁 for 循环 spawn 多 watchdog**）。`GroupAction` 封闭词表
+//! **不含任何切换变体**（T10/T12 类型级反证——自动 failover 不可构造;
+//! 切换只经显式 Intent→ExecutionGroup→Adapter 链）。
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use std::sync::Arc;
@@ -273,4 +280,476 @@ pub fn spawn_ingest_watchdog(
             tick += 1;
         }
     });
+}
+
+// === A2-8-01: Execution Group 观测折叠（MultiInputWatchdog 核心; 纯函数） ===
+//
+// 四观测面（终裁 §7.3）: Input A · Input B · Switch · Program Output。
+// 输入=每输入 read_health 快照 + 上一 tick 计数 + ProgramObservation +
+// Desired（薄壳装配, 本函数零 IO）; 输出=分组健康事实 + 封闭动作集。
+// 动作**只含故障上报**（沿既有 RuntimeEvent/Supervisor 链）——切换永不
+// 在此发生（T10/T12 类型级: GroupAction 无切换变体）。
+
+use crate::contracts::switch::ProgramObservation;
+use crate::pipeline::{PipelineHealth, PtsMonotonicity};
+use crate::switch_execution::SwitchDesired;
+
+/// 单输入一个观测 tick（watchdog 薄壳装配）。
+pub struct InputTick {
+    pub device_id: uuid::Uuid,
+    /// `read_health` 快照; None = HEALTH_ARCS 无条目（**观测缺席≠健康**,
+    /// absence≠evidence——HealthAbsent 上报）。
+    pub health: Option<PipelineHealth>,
+    pub prev_video_frames: u64,
+    pub prev_audio_frames: u64,
+}
+
+/// 组观测 tick 输入包。
+pub struct GroupTickInputs {
+    pub inputs: Vec<InputTick>,
+    pub observation: ProgramObservation,
+    pub desired: SwitchDesired,
+}
+
+/// 封闭动作词表——**无任何切换/输入倒换变体**（自动 failover 在本 fold
+/// 不可构造; 仅故障证据上报, 归因恰好单一设备——跨设备污染不可构造）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupAction {
+    ReportInputFailure {
+        device_id: uuid::Uuid,
+        reason: InputFailureReason,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputFailureReason {
+    /// 健康快照缺席（HEALTH_ARCS 无条目）。
+    HealthAbsent,
+    /// 曾有帧后计数冻结（停滞证据）。
+    CountersFrozen,
+    /// 管线上报错误。
+    PipelineError,
+}
+
+/// 单输入健康事实折叠（事实位非结论位——归因结论属 Custody）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InputHealthFold {
+    pub device_id: uuid::Uuid,
+    pub observed: bool,
+    pub advancing: bool,
+    /// None = PTS Unknown（无证据）; Some(false) = 观测到回退。
+    pub pts_monotonic: Option<bool>,
+    /// adapter Observation 停滞事实位。
+    pub stalled: bool,
+}
+
+/// Switch/Program 观测面折叠（Desired vs Observed 一致性 + AV 成对校验）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwitchFold {
+    pub desired: SwitchDesired,
+    pub observed_active: Option<uuid::Uuid>,
+    /// video/audio 双平面是否同源（方案 A 成对语义的**观测侧**校验;
+    /// 分离态在此可检出——Master Join 前置证据）。
+    pub av_paired: bool,
+    /// Desired 与 Observed 是否一致（Active(x)↔observed x;
+    /// Switching{to}↔observed to = 可落定）。
+    pub consistent: bool,
+}
+
+/// 一个观测 tick 的组级折叠结果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupObservation {
+    pub per_input: Vec<InputHealthFold>,
+    pub switch_state: SwitchFold,
+    /// program 出口存活（PTS 在且未回退）。
+    pub program_alive: bool,
+    pub actions: Vec<GroupAction>,
+}
+
+/// 纯函数 fold（零 IO; mock 可测）。首版判定（保守, 事实驱动）:
+/// - 输入: 缺席→HealthAbsent / 曾有帧后冻结→CountersFrozen / 上报错误→
+///   PipelineError（互斥优先级: 缺席 > 冻结 > 错误; 恰好归因本设备）;
+/// - Switch: av_paired = 双平面同源且非 None; consistent 按 Desired 形态;
+/// - Program: PTS 在场且双平面均未回退。
+pub fn execution_group_observe_fold(tick: &GroupTickInputs) -> GroupObservation {
+    let mut actions: Vec<GroupAction> = Vec::new();
+    let per_input = tick
+        .inputs
+        .iter()
+        .map(|it| {
+            let observed = it.health.is_some();
+            let (vf, af) = it
+                .health
+                .as_ref()
+                .map(|h| (h.video_frame_count, h.audio_frame_count))
+                .unwrap_or((0, 0));
+            let advancing = observed && (vf > it.prev_video_frames || af > it.prev_audio_frames);
+            let stalled = tick
+                .observation
+                .input_pts
+                .iter()
+                .any(|p| p.device_id == it.device_id && p.stalled);
+            let pts_monotonic =
+                it.health
+                    .as_ref()
+                    .and_then(|h| match (h.video_pts_state, h.audio_pts_state) {
+                        (PtsMonotonicity::Unknown, _) | (_, PtsMonotonicity::Unknown) => None,
+                        (v, a) => Some(
+                            v == PtsMonotonicity::ValidMonotonic
+                                && a == PtsMonotonicity::ValidMonotonic,
+                        ),
+                    });
+            if !observed {
+                actions.push(GroupAction::ReportInputFailure {
+                    device_id: it.device_id,
+                    reason: InputFailureReason::HealthAbsent,
+                });
+            } else {
+                let had_frames = it.prev_video_frames > 0 || it.prev_audio_frames > 0;
+                if had_frames && !advancing {
+                    actions.push(GroupAction::ReportInputFailure {
+                        device_id: it.device_id,
+                        reason: InputFailureReason::CountersFrozen,
+                    });
+                } else if it.health.as_ref().is_some_and(|h| h.last_error.is_some()) {
+                    actions.push(GroupAction::ReportInputFailure {
+                        device_id: it.device_id,
+                        reason: InputFailureReason::PipelineError,
+                    });
+                }
+            }
+            InputHealthFold {
+                device_id: it.device_id,
+                observed,
+                advancing,
+                pts_monotonic,
+                stalled,
+            }
+        })
+        .collect();
+
+    let obs = &tick.observation;
+    let av_paired = obs.video_active.is_some() && obs.video_active == obs.audio_active;
+    let consistent = match (&tick.desired, obs.observed_active) {
+        (SwitchDesired::ActiveInput(x), Some(o)) => *x == o,
+        (SwitchDesired::Switching { to, .. }, Some(o)) => *to == o,
+        _ => false,
+    };
+    let program_alive = obs.program_video_pts.is_some()
+        && obs.program_video_pts_state != PtsMonotonicity::NonMonotonic
+        && obs.program_audio_pts_state != PtsMonotonicity::NonMonotonic;
+    GroupObservation {
+        per_input,
+        switch_state: SwitchFold {
+            desired: tick.desired,
+            observed_active: obs.observed_active,
+            av_paired,
+            consistent,
+        },
+        program_alive,
+        actions,
+    }
+}
+
+/// A2-8-01: MultiInputWatchdog 薄壳（hw 门控; 单实例服务整个 execution
+/// group——禁 for 循环 spawn 多 watchdog, 终裁修正方向）。
+///
+/// 与单管线 `spawn_ingest_watchdog` 同链: fold → RuntimeEvent/Supervisor
+/// （recovery only）→ lease 重校 → `ctrl.recover`（仅故障输入的**自身**
+/// handle——绝不切换源）。Observed 确认时推进 Desired 落定
+/// （`complete_switch`——Observation 驱动, 非命令回显; 不发起切换）。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+#[allow(clippy::too_many_arguments)] // 装配参数（组合根一次性接线）, 非领域 API
+pub fn spawn_execution_group_watchdog(
+    ctrl: Arc<dyn MediaBackend>,
+    switcher: Arc<dyn crate::contracts::switch::SwitchExecutionAdapter>,
+    // 组输入 (device_id, handle)（来自 SessionManager status——零第二 registry）。
+    group_inputs: Vec<(Uuid, crate::pipeline::PipelineHandle)>,
+    graph: crate::pipeline::PipelineHandle,
+    group: Arc<std::sync::Mutex<crate::switch_execution::ExecutionGroup>>,
+    sup: Arc<std::sync::Mutex<supervisor::Supervisor>>,
+    lm: Arc<lease::InMemoryLeaseManager>,
+    agent_state: Arc<std::sync::Mutex<health::AgentState>>,
+    sink: Arc<dyn events::RuntimeEventSink>,
+    internal_log: Arc<events::RuntimeEventLog>,
+) {
+    std::thread::spawn(move || {
+        let mut prev: std::collections::HashMap<Uuid, (u64, u64)> =
+            group_inputs.iter().map(|(d, _)| (*d, (0, 0))).collect();
+        let mut health_fold = crate::health::HealthFold::bootstrap(*agent_state.lock().unwrap());
+        let mut signal_latched: std::collections::HashSet<Uuid> = Default::default();
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let observation = switcher.observe(&graph);
+            let (desired, inputs_tick): (SwitchDesired, Vec<InputTick>) = {
+                let g = group.lock().unwrap();
+                let tick_inputs = group_inputs
+                    .iter()
+                    .map(|(d, h)| InputTick {
+                        device_id: *d,
+                        health: crate::pipeline_events::read_health(h),
+                        prev_video_frames: prev.get(d).copied().unwrap_or((0, 0)).0,
+                        prev_audio_frames: prev.get(d).copied().unwrap_or((0, 0)).1,
+                    })
+                    .collect();
+                (g.desired, tick_inputs)
+            };
+            for it in &inputs_tick {
+                if let Some(h) = &it.health {
+                    prev.insert(it.device_id, (h.video_frame_count, h.audio_frame_count));
+                }
+            }
+            let folded = execution_group_observe_fold(&GroupTickInputs {
+                inputs: inputs_tick,
+                observation,
+                desired,
+            });
+            // SignalVerified 闩锁（每设备一次——沿单管线 watchdog 语义）。
+            if folded.switch_state.consistent {
+                if let Some(active) = folded.switch_state.observed_active {
+                    if !signal_latched.contains(&active) {
+                        signal_latched.insert(active);
+                        sink.emit(events::RuntimeEvent::SignalVerified {
+                            device_id: active,
+                            port_id: None,
+                        });
+                    }
+                }
+            }
+            // Observed 确认 → Desired 落定（不发起切换——T10）。
+            if let SwitchDesired::Switching { to, .. } = folded.switch_state.desired {
+                if folded.switch_state.observed_active == Some(to) {
+                    group.lock().unwrap().complete_switch(to);
+                }
+            }
+            // 事件内消费: drain internal → reduce → 写回 agent_state。
+            let drained = internal_log.drain();
+            health_fold = crate::health::reduce(&health_fold, &drained);
+            *agent_state.lock().unwrap() = health_fold.agent;
+            // 故障动作 → Supervisor 决策（recovery only; 切换永不在此发生）。
+            for action in &folded.actions {
+                let GroupAction::ReportInputFailure { device_id, .. } = action;
+                match sup.lock().unwrap().report_failure(device_id) {
+                    Ok(supervisor::SupervisorAction::Restart) => {
+                        if !lm.is_valid(device_id) {
+                            tracing::error!(device = %device_id, "recover 中止: lease 失效 (排他不变量)");
+                            sink.emit(events::RuntimeEvent::HealthChanged {
+                                from: "restarting".into(),
+                                to: "manual_required".into(),
+                            });
+                            continue;
+                        }
+                        let backoff = sup.lock().unwrap().backoff(device_id);
+                        let _ = sup.lock().unwrap().begin_restart(device_id);
+                        std::thread::sleep(backoff);
+                        // 仅恢复故障输入自身管线（handle 来自组输入表——
+                        // 归因恰好该设备, 跨设备污染不可构造）。
+                        if let Some((_, handle)) = group_inputs.iter().find(|(d, _)| d == device_id)
+                        {
+                            match ctrl.recover(handle) {
+                                Ok(()) => {
+                                    sup.lock().unwrap().report_recovered(device_id).ok();
+                                    tracing::warn!(
+                                        handle = handle.0,
+                                        "A2-8-01 group watchdog: 输入 recover 成功 (Supervisor→recover 闭环)"
+                                    );
+                                }
+                                Err(e) => tracing::error!(error = %e, "recover 失败"),
+                            }
+                        }
+                    }
+                    Ok(supervisor::SupervisorAction::Escalate) => {
+                        tracing::error!(device = %device_id, "A2-8-01 group watchdog: Escalate (MANUAL_REQUIRED)");
+                    }
+                    Err(e) => tracing::error!(error = %e, "supervisor report_failure 失败"),
+                }
+            }
+        }
+    });
+}
+
+#[cfg(all(test, feature = "mock"))]
+mod group_fold_tests {
+    use super::*;
+    use crate::contracts::switch::InputPts;
+    use crate::pipeline::PtsMonotonicity;
+    use uuid::Uuid;
+
+    fn healthy(device: Uuid, video: u64, audio: u64) -> InputTick {
+        InputTick {
+            device_id: device,
+            health: Some(PipelineHealth {
+                video_frame_count: video,
+                audio_frame_count: audio,
+                video_pts_state: PtsMonotonicity::ValidMonotonic,
+                audio_pts_state: PtsMonotonicity::ValidMonotonic,
+                ..Default::default()
+            }),
+            prev_video_frames: video.saturating_sub(10),
+            prev_audio_frames: audio.saturating_sub(8),
+        }
+    }
+
+    fn observation(
+        observed_active: Option<Uuid>,
+        video_active: Option<Uuid>,
+        audio_active: Option<Uuid>,
+        a: Uuid,
+        b: Uuid,
+    ) -> ProgramObservation {
+        ProgramObservation {
+            observed_active,
+            video_active,
+            audio_active,
+            switch_epoch: 0,
+            input_pts: vec![
+                InputPts {
+                    device_id: a,
+                    video_pts: Some(1000),
+                    audio_pts: Some(800),
+                    video_pts_state: PtsMonotonicity::ValidMonotonic,
+                    audio_pts_state: PtsMonotonicity::ValidMonotonic,
+                    stalled: false,
+                },
+                InputPts {
+                    device_id: b,
+                    video_pts: Some(2000),
+                    audio_pts: Some(1600),
+                    video_pts_state: PtsMonotonicity::ValidMonotonic,
+                    audio_pts_state: PtsMonotonicity::ValidMonotonic,
+                    stalled: false,
+                },
+            ],
+            program_video_pts: Some(4400),
+            program_audio_pts: Some(2200),
+            program_video_pts_state: PtsMonotonicity::ValidMonotonic,
+            program_audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            program_video_frames: 100,
+            program_audio_frames: 80,
+        }
+    }
+
+    #[test]
+    fn group_fold_rt_01_standby_b_observed_and_flagged() {
+        // T7: B 路曾被观测（prev>0）后计数冻结——fold 检出并恰好归因 B;
+        // A 路照常推进零动作。证明组观测覆盖全部输入（非 first() 单视角）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut b_frozen = healthy(b, 100, 80);
+        b_frozen.prev_video_frames = 100;
+        b_frozen.prev_audio_frames = 80; // 计数不再增长
+        let folded = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![healthy(a, 110, 88), b_frozen],
+            observation: observation(Some(a), Some(a), Some(a), a, b),
+            desired: SwitchDesired::ActiveInput(a),
+        });
+        assert_eq!(folded.per_input.len(), 2, "双输入均在折叠面");
+        let fa = folded.per_input.iter().find(|f| f.device_id == a).unwrap();
+        let fb = folded.per_input.iter().find(|f| f.device_id == b).unwrap();
+        assert!(fa.observed && fa.advancing);
+        assert!(fb.observed, "B 在观测面（standby 也被观测）");
+        assert!(!fb.advancing, "B 计数冻结被检出");
+        assert_eq!(
+            folded.actions,
+            vec![GroupAction::ReportInputFailure {
+                device_id: b,
+                reason: InputFailureReason::CountersFrozen,
+            }],
+            "恰好归因 B, A 零动作"
+        );
+    }
+
+    #[test]
+    fn group_fold_rt_01_fault_attributed_to_own_device_only() {
+        // T8: B 上报错误——动作恰好 {B, PipelineError}, A 不受牵连。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut b_err = healthy(b, 100, 80);
+        b_err.health.as_mut().unwrap().last_error = Some("decklink signal lost".into());
+        let folded = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![healthy(a, 110, 88), b_err],
+            observation: observation(Some(a), Some(a), Some(a), a, b),
+            desired: SwitchDesired::ActiveInput(a),
+        });
+        assert_eq!(
+            folded.actions,
+            vec![GroupAction::ReportInputFailure {
+                device_id: b,
+                reason: InputFailureReason::PipelineError,
+            }]
+        );
+        // 健康缺席 → HealthAbsent（absence≠evidence, 上报非猜测健康）。
+        let absent = Uuid::new_v4();
+        let folded2 = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![InputTick {
+                device_id: absent,
+                health: None,
+                prev_video_frames: 0,
+                prev_audio_frames: 0,
+            }],
+            observation: observation(None, None, None, a, b),
+            desired: SwitchDesired::ActiveInput(a),
+        });
+        assert_eq!(
+            folded2.actions,
+            vec![GroupAction::ReportInputFailure {
+                device_id: absent,
+                reason: InputFailureReason::HealthAbsent,
+            }]
+        );
+        assert!(!folded2.per_input[0].observed);
+        assert_eq!(folded2.per_input[0].pts_monotonic, None, "无证据≠false");
+    }
+
+    #[test]
+    fn group_fold_rt_01_switch_success_no_recovery_action() {
+        // T10: 切换成功（Desired=Switching→B, Observed=B, AV 成对）——
+        // 动作集为空; Supervisor 无从被切换触发（词表无此变体）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let folded = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![healthy(a, 110, 88), healthy(b, 100, 80)],
+            observation: observation(Some(b), Some(b), Some(b), a, b),
+            desired: SwitchDesired::Switching { from: a, to: b },
+        });
+        assert!(folded.actions.is_empty(), "切换成功零故障动作");
+        assert!(folded.switch_state.consistent, "Observed=B 可落定");
+        assert!(folded.switch_state.av_paired);
+        assert!(folded.program_alive);
+    }
+
+    #[test]
+    fn group_fold_rt_01_av_divergence_detected() {
+        // T5 观测侧: video=B / audio=A 分离态——av_paired=false 检出
+        // （Master Join 前置证据; Mock adapter 结构性构造不出, 折叠面可检）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let folded = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![healthy(a, 110, 88), healthy(b, 100, 80)],
+            observation: observation(None, Some(b), Some(a), a, b),
+            desired: SwitchDesired::ActiveInput(a),
+        });
+        assert!(!folded.switch_state.av_paired, "双平面分离必须可检出");
+        assert!(!folded.switch_state.consistent);
+    }
+
+    #[test]
+    fn group_fold_rt_01_pts_rollback_breaks_program_alive() {
+        // AV continuity（T5/T6 观测侧）: program PTS 回退 → program_alive=false
+        //（PTS 单调三态——NonMonotonic 是证据非猜测）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut obs = observation(Some(a), Some(a), Some(a), a, b);
+        obs.program_video_pts_state = PtsMonotonicity::NonMonotonic;
+        let folded = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![healthy(a, 110, 88), healthy(b, 100, 80)],
+            observation: obs,
+            desired: SwitchDesired::ActiveInput(a),
+        });
+        assert!(!folded.program_alive);
+        assert!(
+            folded.switch_state.av_paired,
+            "AV 平面成对性独立于 PTS 回退"
+        );
+    }
 }
