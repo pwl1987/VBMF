@@ -215,6 +215,33 @@ SharedPipeline→双路 failed / 单路 Degraded 首版不可达 / 只接 Pipeli
 Reason / 不虚推进 Master Stage / Metadata Unknown / AVSync 不改 Join Result /
 不重做 00/01。
 
+---
+
+## 8. A2-7-02 三轮终裁（CLOSED，2026-09-03）
+
+> 22e5e6c67552f81f2d27a6d68dcebd6cb34c5acd 实际 diff 复核通过。
+> **A2-7-02 = CLOSED / APPROVED**——20 项 Gate 全 PASS（FailurePath 删除/
+  FailureScope/双路保守/联合约束/**identity correlation 真闭合**[归因谓词
+  含 identity]/跨实例防线含 mixed 隔离/Handle↔Uuid 未强行统一/HardwareFault
+  暂不接/…/Custody 不越权）。
+
+### 两条"不继续扩张"禁令（记档）
+
+1. **不现在加 VideoPath/AudioPath**——只为让 DEGRADED 可达 = "为覆盖矩阵
+   而发明事实"；DEGRADED 不可达是**当前证据边界不是缺陷**。
+2. **不现在接 HardwareFault**——须先证明 Hardware identity→which
+   execution pipeline(s)→which custody→which scope；否则五类事实压同层。
+
+### A2-7-03 放行 + 主任务（终裁原文）
+
+**不再停留在 FailureObservation 人工装配测试**。主任务：
+1. `RuntimeEvent::PipelineFault → Runtime failure fact → Custody` **真实
+   生产接线**；
+2. 解决第二个身份问题：`PipelineHandle(u64) ↔ PipelineFault.pipeline(Uuid)`
+   谁是 SoT、如何关联、在哪层映射——**通过现有真实代码与实际生命周期
+   反推**，不凭空设计 mapping table；
+3. Join 维持只消费 Custody 注入事实（不退回直接读 Runtime）。
+
 ## 4. No-Build Gate 复认
 
 零 .rs diff；未定义任何 ExecutionFact 类型；未写 Custody；未碰

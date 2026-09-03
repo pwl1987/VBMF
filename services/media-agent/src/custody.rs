@@ -58,8 +58,10 @@ pub struct AttributedFailures {
 /// 消费时装配的参数包——与 `MasterJoinInput` 同律, 零第二 SoT）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FailureObservation {
-    /// 关联执行管线身份（= `RuntimeEvent::PipelineFault.pipeline`; 归因
-    /// 只消费与本 Custody 周期匹配的 observation——跨实例污染防线）。
+    /// 关联执行身份（= `RuntimeEvent::PipelineFault.pipeline` 的**真实语义
+    /// = 设备 canonical 身份**——Supervisor 决策句柄, register/report_failure
+    /// 均按 device_id; A2-7-03 身份反推结论。归因只消费与本 Custody 周期
+    /// 匹配的 observation——跨实例污染防线。字段名承事件字段名）。
     pub pipeline_id: Uuid,
     /// 故障来源（首版单值: PipelineFault = 唯一能归属执行管线的来源;
     /// SessionFailed/HardwareFault/HealthChanged/ClockLost **不机械映射**——
@@ -103,6 +105,45 @@ pub fn attribute_failures(
     AttributedFailures {
         video_failed: shared_failed,
         audio_failed: shared_failed,
+    }
+}
+
+/// 生产桥（A2-7-03）—— `RuntimeEvent` 流 → `CustodyObservations` 的唯一
+/// 转换点（Runtime failure fact → Custody 归因输入; **纯函数**, 消费点
+/// 自行 drain 事件后调用——Custody 不订阅不持 Runtime 引用）。
+///
+/// 提取规则（身份 SoT 反推结论, 03 报告 §1）:
+/// - 只提取 `PipelineFault{pipeline, summary, ..}`——`pipeline` 的真实语义
+///   = **设备 canonical 身份**（Supervisor 决策句柄: register/report_failure
+///   均按 device_id; supervisor.rs L38 注释原文）;
+/// - **回声排除**: `summary == RESTART_ECHO_SUMMARY` 的 PipelineFault 是
+///   Supervisor 决策回声非新故障事实（与 fault_trigger_from_events 同律）;
+/// - **`Uuid::nil()` 不吸收**（mapper 产的上游故障未归属）——无身份证据
+///   不归因（fail-closed; 显式跳过表达意图, 防误归因到任何真实设备）;
+/// - HardwareFault/SessionFailed/HealthChanged/ClockLost 不提取（02 终裁
+///   维持——等 attribution contract）;
+/// - `avsync` 恒 `Unknown`（OQ-4 deferred 维持——Join 零阈值零测量）。
+pub fn observations_from_events(events: &[crate::events::RuntimeEvent]) -> CustodyObservations {
+    let failures = events
+        .iter()
+        .filter_map(|ev| match ev {
+            crate::events::RuntimeEvent::PipelineFault {
+                pipeline, summary, ..
+            } if *pipeline != Uuid::nil()
+                && summary.as_str() != crate::supervisor::RESTART_ECHO_SUMMARY =>
+            {
+                Some(FailureObservation {
+                    pipeline_id: *pipeline,
+                    source: FailureSource::PipelineFault,
+                    scope: FailureScope::SharedPipeline,
+                })
+            }
+            _ => None,
+        })
+        .collect();
+    CustodyObservations {
+        failures,
+        avsync: AVSyncClassification::Unknown,
     }
 }
 
@@ -339,5 +380,67 @@ mod tests {
 
     fn snapshot_metadata_declaration(s: &ProgramMaster) -> crate::program::MetadataJoinDeclaration {
         s.metadata.join_declaration
+    }
+
+    /// 生产桥（A2-7-03）: RuntimeEvent 流 → observations 提取规则全锁——
+    /// 真实 device_id PipelineFault 提取 / 回声排除 / nil 不吸收 / 其他
+    /// kind（HardwareFault/SessionFailed）零提取 / avsync 恒 Unknown。
+    #[test]
+    fn custody_07_observations_from_events_extraction_rules() {
+        use crate::events::RuntimeEvent;
+        let device = Uuid::new_v4();
+        let events = vec![
+            RuntimeEvent::PipelineFault {
+                pipeline: device,
+                summary: "upstream decode error".into(),
+                retryable: true,
+            },
+            // Supervisor 决策回声——非新故障事实, 不提取。
+            RuntimeEvent::PipelineFault {
+                pipeline: device,
+                summary: crate::supervisor::RESTART_ECHO_SUMMARY.into(),
+                retryable: true,
+            },
+            // mapper 未归属的上游故障——无身份证据不吸收。
+            RuntimeEvent::PipelineFault {
+                pipeline: Uuid::nil(),
+                summary: "pipeline error: unknown source".into(),
+                retryable: true,
+            },
+            // 其他 kind 零提取（02 终裁维持）。
+            RuntimeEvent::HardwareFault {
+                device_id: device,
+                summary: "device lost".into(),
+            },
+            RuntimeEvent::SessionFailed {
+                session_id: Uuid::new_v4(),
+                reason: "preflight".into(),
+            },
+        ];
+        let obs = observations_from_events(&events);
+        assert_eq!(obs.failures.len(), 1, "恰提取 1 条真实故障");
+        assert_eq!(obs.failures[0].pipeline_id, device);
+        assert_eq!(obs.failures[0].source, FailureSource::PipelineFault);
+        assert_eq!(obs.failures[0].scope, FailureScope::SharedPipeline);
+        assert_eq!(obs.avsync, AVSyncClassification::Unknown);
+
+        // 生产链端到端: 事件流 → 桥 → 该设备 custody → FAILED;
+        // 他设备 custody → None（identity correlation 经生产桥仍成立）。
+        let (video, audio) = initial_masters();
+        let other = Uuid::new_v4();
+        let (_, r_self) = custody_snapshot(&video, &audio, device, &obs);
+        assert_eq!(r_self, Some(MasterJoinResult::Failed));
+        let (_, r_other) = custody_snapshot(&video, &audio, other, &obs);
+        assert_eq!(r_other, None, "他设备零污染（生产桥+归因双层防线）");
+
+        // 空流/纯回声流 → 零提取 → 双 false。
+        let empty = observations_from_events(&[]);
+        assert!(empty.failures.is_empty());
+        let echo_only = observations_from_events(&[RuntimeEvent::PipelineFault {
+            pipeline: device,
+            summary: crate::supervisor::RESTART_ECHO_SUMMARY.into(),
+            retryable: true,
+        }]);
+        assert!(echo_only.failures.is_empty(), "纯回声流零提取");
     }
 }
