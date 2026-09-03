@@ -58,6 +58,7 @@ pub mod runtime_state; // 0.7C-1: Canonical Runtime State 聚合 (组合非展�
 pub mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner; D10 多输入)
 pub mod signal; // 信号探测 + 亮度黑场检测
 pub mod supervisor; // Gate 6/7: Runtime Supervisor — 恢复决策引擎（只决策, 不碰 GStreamer）
+pub mod switch_execution; // A2-8-01: Switch Execution 执行面（ExecutionGroup/Intent/Plan; 纯模型零 GStreamer, probe §7 冻结）
 pub mod timecode; // P0.7B-2C: Canonical Timecode (时间标签, 非时间本体; #148)
 pub mod transport; // P0.7C-8: Transport (五端点 + P1b 静态文件面; std-only)
 pub mod watchdog; // A2-0: Ingest Watchdog — Runtime Health/Recovery 模块
