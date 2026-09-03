@@ -358,3 +358,69 @@ segment/audio timing 一致。
 handle 关联（SessionInput, 零新 registry）⑤Audio topology ⑥Program
 Timeline 归一化点（**只调查不实现**）。产出=
 docs/superpowers/reports/2026-09-03-a2-8-02-design-gate.md。
+
+---
+
+## 10. 第五轮终裁：C1/C2 成立 + G1 升级必修 + 02 重定义为 Execution Integration（2026-09-03 落盘）
+
+> 证据基线升级: 以远端 `d132b6c` 实码为主证（GitHub 可读）; 本轮全部
+> 断言经实码复核（含 Session.stop() 逆序全停 session.rs:726-763——
+> 本轮新锚定, 此前未亲验）。
+
+### 10.1 裁定表
+
+| 项目 | 裁决 |
+|---|---|
+| C1 纯分析管线无 tee | **成立**（但修正实现建议, 见 10.2） |
+| C2 recover 重建丢 tap | **成立 / MUST FIX**（attachment bookkeeping 形式, 非 recover 内裸调 attach） |
+| MediaTap 独立能力/平行 SPI | 批准 |
+| PipelinePlan 加 Program/A-B 字段 | 否决 |
+| **强制 pipeline 带 HLS/RTMP output 获得 tee** | **否决**（内部 tap 需求≠业务 OutputPlan; 无意义编码 CPU/输出失败污染输入/生命周期耦合） |
+| 动态 tee 手术 | 暂不批准为首选（排序 A>C>B） |
+| inter 系真机桥接 | 批准调查, 不冻结 |
+| **G1 Program Graph 未入 Session 生命周期** | **当前存在, 升级为 02 必修 Gate**（Session.stop 只停 SessionInput 句柄; stop_program 存在但零接线——Program pipeline orphan/lifecycle leak 实证） |
+| Program Graph 自生成 PipelineHandle | 可作为执行资源句柄, 必须纳入生命周期治理 |
+| 01 videotestsrc 双源 | 只证明 GStreamer switch execution ≠ 真机输入验证 |
+| Timeline continuity | 仍未通过; **FrameAligned ≠ TimelineContinuous 继续冻结** |
+| A2-8 | NOT CLOSED 维持 |
+
+### 10.2 C1 修正裁定
+
+方向排序 **A > C > B**: A=Generic MediaTap Capability（构造期天然
+generic tap: src→tee→{canonical appsink, generic tap}; Controller 持有
+真实 GstPipeline 所有权）> C=intervideo 桥 > B=运行期动态插 tee。
+tap 只知"要该管线的 video/audio media output", 不知 Program/A/B/
+Switch/active——Program Execution 消费两个 tap 组合 Program Graph。
+
+### 10.3 C2 实现形式裁定
+
+禁"recover 内裸调 attach_tap()"——GstInstance 现无 attachment state。
+须落 **MediaTapAttachment 簿记**（video/audio/endpoint identity——
+**execution resource attachment bookkeeping, 非新 Device Identity
+Registry**）, recover 重建后按簿记重放 attach。
+
+### 10.4 A2-8-02 重定义 = Real Dual-Input Program Execution Integration
+
+五层（替代 §9.3 层序, 本轮为准）: **L1 Input**[DeckLink A/B 各自真实
+video/audio RAW+PTS+health+bus]·**L2 Execution**[A/B 真实进入 Program
+Graph]·**L3 Output**[Program video/audio output 真有 frames+PTS 非
+仅 selector 状态]·**L4 Timing**[A/B/Program 三列 PTS, A→B/B→A 切换
+前后 monotonic?/continuous?]·**L5 Supervision**[A fail→B alive·B
+fail→A alive·Program output fail 不误判为 A fail·recovery echo 不成
+第二物理 failure fact]。
+
+三件事一个完整 Execution Integration: **MediaTap + Program Graph
+Lifecycle + Recover Reattachment**。执行序: 02-A Controller/Session
+生命周期接线 → 02-B Generic MediaTap contract → 02-C MediaTap
+materialization → 02-D recover re-attach → 02-E Program Graph 入
+Session 生命周期 → 02-F intervideo A/B 真机桥接 → 02-G Program
+Output observation → 02-H Timing/PTS measurement → 02-I 真机双
+DeckLink 验证。停止序: Program Stop→Tap Detach→Input B/A Stop→
+Resource Release; 恢复序: Supervisor 决策→Controller 重建→tap 重挂→
+Program 保持可观测。
+
+### 10.5 红线维持
+
+不改 PipelinePlan Program 语义·SwitchPolicy 不扩执行器·HLS/RTMP 不
+当 MediaTap·02 不冻结 Timeline Normalization 方案。**02 可进入编码,
+但按修正后范围执行。**

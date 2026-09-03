@@ -260,3 +260,53 @@ cargo check --features bmd-provider,gstreamer-backend      # 编译矩阵
 改 V0.2/Event contract/identity/SwitchPolicy/SessionManager/Supervisor/
 PipelinePlan 塞 A/B/MASTER/PACKET/auto-failover/HLS+RTMP 多输出 → 一律
 STOP 回报用户，不得现场破界。
+
+---
+
+# A2-8-02 Integration 切片（第五轮终裁后增补, 2026-09-03）
+
+> 范围=**MediaTap + Program Graph Lifecycle + Recover Reattachment 三件
+> 一体**（probe §10）; 五层验收 L1 Input/L2 Execution/L3 Output/L4
+> Timing/L5 Supervision; 02-A..02-I 序; 本节为编码分解, 逐切片四栏纪律。
+
+- [ ] 02-A Controller/Session 生命周期接线（组合根级基础）: bin 持
+  `session→program 装配记录`（SessionId→{graph, switcher, group} 簿记
+  ——execution resource bookkeeping）; SessionManager 零感知（冻结 #3）;
+  teardown 触发面=停会话的同一表面（gate/控制面）, 停止序 Program
+  Stop→Tap Detach→Inputs Stop→Release。实锚: session.rs:726-763（stop
+  逆序全停 SessionInput 句柄, 无 program——G1）; bin/media-agent.rs
+  L403 区域（现有唯一 program 装配点）。
+- [ ] 02-B Generic MediaTap contract: `src/contracts/media_tap.rs`——
+  `MediaTapPort` trait（attach/detach_media_tap）+ `MediaTapRequest{
+  channel, planes: video|audio|both}` + `MediaTapAttachment` 簿记类型
+  （video/audio/endpoint identity——**非新 Device Identity Registry**）+
+  `TapError` 封闭词表; 契约面零 Program/Switch 词汇（只知"要该管线的
+  媒体输出"）; Mock 实现（确定性 attach/detach/簿记查询）+ TDD。
+- [ ] 02-C MediaTap materialization（gstreamer controller 侧）:
+  **实码决定性事实——纯分析形态 launch 串在 controller.rs:266-271 组装
+  （`src!caps!appsink`）而非 pipeline.rs** ⇒ 方案 A（构造期天然 tap 点）
+  = controller 侧把纯分析分支改为 `src!caps!tee name=v  v.!queue!
+  appsink...`（**pipeline.rs 保持零 diff**; output 形态已有 tee）。加
+  `GStreamerPipelineController: MediaTapPort`（by_name("v"/"a")→
+  request_pad→intervideosink/interaudiosink channel=req→
+  sync_state_with_parent）; 单输入行为等价性（tee 单消费=透传）核验。
+- [ ] 02-D recover re-attach: `GstInstance` 增 `tap_attachments:
+  Vec<MediaTapAttachment>`; `recover()` 重建后按簿记重放 attach（禁裸调
+  ——簿记为唯一事实源）; 测试: attach→recover→tap 在场（mock 层簿记
+  逻辑 + hw 编译）。
+- [ ] 02-E Program Graph 入 Session 生命周期（G1 必修）: 组合根接线
+  02-A 簿记 + teardown 调用（gate/停会话表面触发; SessionManager 零
+  感知）; 验证: 会话停止后 program graph 不存活（真机 Gate 断言）。
+- [ ] 02-F intervideo A/B 真机桥接: switch_graph 双测试源 → 双
+  intervideosrc（channel=MediaTap attach 时派生）; selector 及其后复用
+  01 已验证结构; videotestsrc 形态保留为仿真分支（gate env 切换）。
+- [ ] 02-G Program Output observation: program appsink frames/PTS 真机
+  证据（01 观测面复用+真机输出记录）。
+- [ ] 02-H Timing/PTS measurement: A/B/Program 三列 PTS before/after
+  A→B/B→A（观测面列+交付面列双录——以数据裁 Timeline 方案 C; 不实现
+  Normalization）。
+- [ ] 02-I 真机双 DeckLink 验证: 五层矩阵 Gate 记录（L1-L5 全项）。
+
+红线维持: PipelinePlan 零 Program 语义·SwitchPolicy 非执行器·
+HLS/RTMP 不当 MediaTap·02 不冻结 Timeline Normalization·Event contract
+不动。

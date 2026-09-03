@@ -52,26 +52,29 @@
   continuity, 真实 GStreamer 实证）` | `Gate: T1-T12 mock 层全落地+
   真实 GStreamer 切换实证; **A2-8-01 = IMPLEMENTATION COMPLETE +
   APPROVED（第三轮终裁, probe §8）**; **A2-8 NOT CLOSED**`
-- [ ] 4. A2-8-02 Real Dual-Input Program Execution Verification（第四轮
-  终裁冻结五层验收模型）: **L1 Input**[SDI A/B alive]·**L2 Execution**
-  [Pipeline A/B+ExecutionGroup]·**L3 Switching**[A→B·B→A]·**L4
-  Program Output**[单输出·continuous buffers]·**L5 Program Timeline**
-  [PTS monotonic·segment/discontinuity semantics·A/V relation——**明确
-  未通过项**; Program Timeline Continuity/Timestamp Normalization 四
-  方案未裁]; Supervision[A fail→B+Program 仍可观测·B fail→A 仍可观测·
-  echo 不被 Custody 误计（沿 A2-7 链零旁路）]; **Program Output=一级
-  Observation 对象**; **模拟源边界**: 01 videotestsrc PASS≠真机 PASS
-  （archive 必录）; **02 Design Gate 已批准并交付**（零代码, 报告=
-  docs/superpowers/reports/2026-09-03-a2-8-02-design-gate.md: 六产出
-  全实码锚定——①构图链②MediaTap 首选落点[tee by_name("v"/"a")+
-  request_pad+inter sink; **C1 纯分析管线无 tee 须裁**·**C2 recover
-  丢 tap 须裁**]③生命周期[G1 会话停止联动缺口语录]④SessionInput
-  零新 registry ⑤audio=selector-style 非 mixer 实码澄清⑥Timeline
-  归一化四方案映射]; MediaTap 排序冻结[①通用 tap🟢②动态 tee🟡③Rust
-  桥🔴④双开设备🔴]; **编码待裁: C1[Program 会话是否强制带输出段]+
-  C2[tap 随 recover 重挂]+Gate 结论**; 真机 Gate 记录
-  `Contract: 01 ACCEPTED+第四轮终裁（probe §9）` | `Implementation: 待（Design Gate 已交付）` | 
-  `Verification: 真机 Gate` | `Gate: C1/C2 裁定后开工`
+- [ ] 4. A2-8-02 Real Dual-Input Program Execution **Integration**（第五轮
+  终裁重定义, probe §10）: 三件事一个完整集成——**MediaTap + Program
+  Graph Lifecycle + Recover Reattachment**; 五层验收 **L1 Input**[
+  DeckLink A/B 真实 RAW+PTS+health+bus]·**L2 Execution**[A/B 真实进入
+  Program Graph]·**L3 Output**[Program output 真 frames+PTS]·**L4
+  Timing**[A/B/Program 三列 PTS·切换前后 monotonic/continuous]·**L5
+  Supervision**[A fail→B alive·B fail→A alive·Program fail 不误判 A·
+  echo 不成第二物理 fact]; **G1 升级必修 Gate**（Session.stop 只停
+  SessionInput 句柄 session.rs:726-763·stop_program 零接线=Program
+  orphan 实证）; **C1 修正裁定**: 否决强制 HLS/RTMP output 获得 tee
+  （内部 tap≠业务 OutputPlan）; 方向 A>C>B（Generic MediaTap 构造期能
+  力>intervideo 桥>动态手术）; **C2 必修**: MediaTapAttachment 簿记
+  （execution resource bookkeeping 非新 Device Identity Registry）+
+  recover 重放 attach; 停止序 Program Stop→Tap Detach→Inputs Stop→
+  Release; **模拟边界**: 01 videotestsrc=仅 GStreamer switch execution
+  证明; FrameAligned≠TimelineContinuous 冻结; 执行序 **02-A Controller/
+  Session 生命周期接线→02-B Generic MediaTap contract→02-C MediaTap
+  materialization→02-D recover re-attach→02-E Program Graph 入 Session
+  生命周期→02-F intervideo A/B 真机桥接→02-G Program Output
+  observation→02-H Timing/PTS measurement→02-I 真机双 DeckLink 验证**
+  `Contract: 第四轮五层+第五轮 Integration 重定义（probe §9.3+§10）` | 
+  `Implementation: 待（编码已批准, 按修正范围）` | 
+  `Verification: 真机 Gate + 五层矩阵` | `Gate: 02-A..02-I 序`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
