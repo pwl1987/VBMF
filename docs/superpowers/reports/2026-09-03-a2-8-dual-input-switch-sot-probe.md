@@ -125,3 +125,86 @@ session.rs（inputs 句柄表/pipeline 兼容字段）· 盒上 gst-inspect：
 input-selector（active-pad/switch-mode/drop-backwards/cache-buffers）/
 output-selector/audiomixer/intervideosink/intervideosrc/valve 全在 ·
 A1 收口记录（双 SDI inputs=2 真机）· A2-7 系列归档（identity/债务）。
+
+---
+
+## 7. OQ-1..5 终裁 + A2-8-01 Pre-Implementation Gate 十项冻结（2026-09-03 用户两轮终裁落盘）
+
+> 终裁链：第一轮批准 OQ-1..5 + 01 开工 → 第二轮修正：**不批准直接编码**，
+> 批准进入 **A2-8-01 Pre-Implementation Gate**（先在 change 记录冻结十项再
+> 开工）。**A2-8-00 正式 CLOSED**（`c3d3e23` SOT Probe / Design-only /
+> No-Build Gate 定格；00 与 01 不得混为一个 change 节点）。
+
+### 7.1 OQ 终裁（含第二轮修正边界）
+
+| OQ | 终裁 | 第二轮修正/边界 |
+|---|---|---|
+| OQ-1 | ✅ A/B 各自 Pipeline → inter → Program Pipeline → selector | **inter 系 = 候选 Execution Materialization，非架构合同**——GStreamer topology（inter 系 / 单图 selector / 其他）属实现细节；换 topology 不得触及 Program Domain |
+| OQ-2 | ✅ 独立 Switch Execution Adapter/组件 | 不塞 Backend 五方法（复认 contracts/backend.rs:22 生命周期语义） |
+| OQ-3 | ✅ Session/ExecutionGroup 级 MultiInputWatchdog 单实例 | **ExecutionGroup 概念正式冻结**（§7.3）；watchdog 职责严格限定四观测非 God Object；喂现有 RuntimeEvent→Custody→Health 链 |
+| OQ-4 | ✅ APPROVED WITH SCOPE LIMIT | 六路 PTS 观测（A/B/Program × video/audio）+ before/after switch 无 rollback/discontinuity/divergence/starvation；禁 AvSyncEngine·禁 threshold 进 MasterJoin |
+| OQ-5 | ✅ Program pipeline 归 Program Execution/Switch 层 | SessionManager lifecycle only（复认 session.rs:609 仅经 backend.instantiate） |
+
+### 7.2 Pre-Implementation Gate 十项冻结（开工前置，编码全程生效）
+
+1. **ExecutionGroup = Program execution boundary**（inputs[]+switch+program
+   output+supervision；SessionInput{device_id,handle} 原样保留）
+2. **Switch Execution ≠ Backend lifecycle SPI**
+3. **SessionManager ≠ GStreamer graph builder**
+4. **Supervisor ≠ switch executor**（decides recovery only）
+5. **GStreamer topology = implementation detail**
+6. **FRAME_SWITCH first**（PACKET/MASTER 不偷渡）
+7. **Video + Audio switch semantics 必须显式——终裁采方案 A：Video/Audio
+   成对切换**（不是 video-only；audiomixer 放进去 ≠ Audio 已解决）
+8. **AV continuity observation is mandatory**（六路 PTS；T4 element property
+   ≠ PASS——须实证 switch→B 成为 program source→output 存活）
+9. **MASTER_SWITCH remains Deferred**（normalize Gap 不顺手补）
+10. **automatic failover remains Deferred**
+
+### 7.3 ExecutionGroup 职责分层（冻结）
+
+- **Session**：Create/Reserve/Instantiate/Start/Stop/Recover/Destroy（生命周期）
+- **ExecutionGroup**：哪些 Pipeline 属同一 Program execution · 当前 active
+  source · switch execution · Program graph · group-level observation
+- **Switch Execution**：A→B / B→A
+- **Watchdog**：观察 Input A · Input B · Switch · Program Output（四面）
+
+### 7.4 状态空间三分离（Desired ≠ Execution ≠ Observed）
+
+Domain/Intent：ACTIVE_A / ACTIVE_B / SWITCHING；Execution：selector pad A /
+pad B；Observation：actual active pad · PTS · output frames。Session RUNNING
+与 Program ACTIVE=A→B 正交，**绝对不共享状态机**：禁 `Session.active_input`
+与 `SessionInput.is_active`（switch state 不得污染 Session lifecycle model）。
+
+### 7.5 A2-8-01 验收矩阵 T1-T12（替代第一轮 T1-T5）
+
+| Gate | 必须证明 |
+|---|---|
+| T1 | A/B 两个真实输入同时运行 |
+| T2 | A/B 汇入同一个 Program Execution（非 A→output A / B→output B） |
+| T3 | A→B→A 真实执行切换（改 GStreamer execution graph active source，非 Rust 状态字段） |
+| T4 | 切换发生于合法 frame boundary（element property ≠ PASS，实证 A active→switch(B)→B=program source→output 存活） |
+| T5 | Video/Audio Program continuity 可观测（成对切换语义） |
+| T6 | A/B/Program 三者 PTS 可追踪 |
+| T7 | MultiInputWatchdog 不再只看 `first()`（ExecutionGroup 四视角） |
+| T8 | RuntimeEvent/Custody 不产生跨设备污染 |
+| T9 | Session lifecycle 与 switch state 分离 |
+| T10 | Supervisor 不执行 switch |
+| T11 | `SwitchPolicy` 未被执行逻辑污染 |
+| T12 | `MASTER_SWITCH` / auto-failover 未偷渡 |
+
+### 7.6 其他维持项与完成标准
+
+- **Event Identity Debt 不修**：`PipelineFault.pipeline`（legacy DeviceId
+  承载）双语义 = V0.3 Event Contract debt，A2-8 沿用兼容层，**新增代码不得
+  扩大歧义**——否则 change 膨胀为 Switch+Event Contract+Identity+Watchdog
+  四合一。
+- **依赖链冻结**：SwitchPolicy(semantic declaration)→SwitchIntent→
+  SwitchExecutionPlan→Switch Execution Adapter→{Input A/B Pipeline, Program
+  Graph}→Program Output→Observation/PTS→RuntimeEvent→Watchdog→Health/Custody；
+  SessionManager owns lifecycle only / Supervisor decides recovery only。
+- **01 完成标准**：不停在"设计完成"——须至少 **真实 Execution Graph + 真实
+  A/B 切换 + MultiInputWatchdog 架构落地**，之后进入 02 真机验证。
+- **收口链**：01 实现→02 真机→03 failure/supervision→04 AV continuity→
+  05 archive+CI+merge；**A2-8 NOT CLOSED until 05**（任一中间节点完成
+  不宣布 CLOSED）。

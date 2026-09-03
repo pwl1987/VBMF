@@ -1,7 +1,9 @@
 # Tasks — a2-8-dual-input-switch
 
-> 四栏纪律。00 Probe → 01 最小 FRAME_SWITCH Execution Switch（OQ 终裁后）
-> → 真机验证 → 收口。12 红线全程。
+> 四栏纪律。Gate 链（用户两轮终裁冻结）：00 Probe（CLOSED）→ OQ 终裁 +
+> Pre-Implementation 十项冻结 → 01 FRAME_SWITCH Execution Group MVP（T1-T12）
+> → 02 真机 → 03 failure/supervision → 04 AV continuity → 05 archive+CI+merge。
+> **A2-8 NOT CLOSED until 05。**
 
 - [x] 1. A2-8-00 SOT Probe: 裁决事实断言复核（8 项全锚）+ 六问逐答
   （Q1 双 Pipeline 真机=A1 已证 inputs=2·Q2 三候选形态[inter 系倾向]·
@@ -12,8 +14,39 @@
   docs/superpowers/reports/2026-09-03-a2-8-dual-input-switch-sot-probe.md
   `Contract: A2-8 终裁[12 红线+六问+否决直接编码]` | `Implementation: 已` | 
   `Verification: 六问全实锚·零 .rs diff` | `Gate: 无`
-- [ ] 2. 用户对 OQ-1..5 终裁（01 前置）
-  `Contract: 用户裁定权` | `Implementation: 待` | `Verification: 裁决记录` | `Gate: 无`
-- [ ] 3. A2-8-01 最小 FRAME_SWITCH Execution Switch（T1-T5 显式切换验收；
-  PACKET/MASTER Deferred）→ 真机验证 → 收口交付链
-  `Contract: 00 终裁+OQ 裁决` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`
+- [x] 2. 用户两轮终裁落盘（2026-09-03）: 第一轮 OQ-1..5 批准 + 01 批准;
+  第二轮修正=**不批准直接编码，批准 Pre-Implementation Gate**——十项冻结
+  [ExecutionGroup=Program execution boundary/Switch≠Backend SPI/
+  SessionManager≠graph builder/Supervisor≠switch executor/topology=实现
+  细节/FRAME first/**Video+Audio 成对切换=方案 A**/AV continuity mandatory/
+  MASTER Deferred/failover Deferred] + OQ-1 降格[inter 系=候选
+  Materialization 非架构合同] + T1-T12 验收矩阵（替代 T1-T5） +
+  Desired≠Execution≠Observed 三分离 + 禁 Session.active_input/
+  SessionInput.is_active + Event Identity Debt 不修[PipelineFault.pipeline
+  兼容层维持，新增代码不扩大歧义] + watchdog 四观测非 God Object +
+  01 完成标准=真实 Execution Graph+真实 A/B 切换+MultiInputWatchdog 落地
+  （不停在设计完成）; A2-8-00 正式 CLOSED; 落 probe §7
+  `Contract: 用户裁定权` | `Implementation: 已` | `Verification: probe §7` | `Gate: 无`
+- [ ] 3. A2-8-01 最小 FRAME_SWITCH Execution Group MVP（"最小、可验证、
+  可监督的 Program-level FRAME_SWITCH Execution Group"，非"input-selector+
+  双 Pipeline"）: SwitchIntent→SwitchExecutionPlan→SwitchExecutionAdapter
+  链（独立执行面）+ ExecutionGroup 概念（inputs/switch/program output/
+  supervision；SessionInput 原样）+ Program graph 构建（topology=实现细节，
+  归 Program Execution/Switch 层）+ **Video/Audio 成对显式切换** + 六路 PTS
+  观测点（A/B/Program×video/audio）+ MultiInputWatchdog（修正 bin L403+
+  gates L165 首 handle 用法为 ExecutionGroup 四视角单实例，禁 for 循环双
+  spawn）+ T1-T12 落地（mock 层先行，盒上 cargo 验证）; 12 红线全程
+  `Contract: 00 终裁+Gate 十项冻结（probe §7）` | `Implementation: 待` | 
+  `Verification: T1-T12 mock 层+盒上 cargo` | `Gate: 后续定`
+- [ ] 4. A2-8-02 真机验证: 双 SDI inputs=2 同 Session 双 Pipeline + A→B→A
+  显式切换 + frame boundary 实证 + Program output 存活; 真机 Gate 记录
+  `Contract: 01 交付链` | `Implementation: 待` | `Verification: 真机 Gate` | `Gate: 待`
+- [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
+  RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
+  `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+- [ ] 6. A2-8-04 AV continuity 验证: 六路 PTS before/after switch 无
+  rollback/discontinuity/divergence/starvation（observation only，无 Engine）
+  `Contract: 03` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+- [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
+  CLOSED）
+  `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

@@ -18,8 +18,10 @@ switch"执行基础**（无 Switch 节点/watchdog 单视角/switch_mode 是预�
   - 六问逐答（含盒上 GStreamer 元素实查：input-selector[active-pad/
     switch-mode]/inter 系/audiomixer 全在）
   - 12 红线 + PipelinePlan 禁塞 A/B 三案落盘；OQ-1..5 交裁
-- **A2-8-01（最小 FRAME_SWITCH Execution Switch）在 OQ 终裁后实现**——
-  PACKET/MASTER Switch Deferred（终裁预裁）
+- **A2-8-01（最小、可验证、可监督的 Program-level FRAME_SWITCH Execution
+  Group）经 Pre-Implementation Gate 后实现**——十项冻结 + T1-T12 验收矩阵 +
+  Video/Audio 成对切换（方案 A）落 probe §7；PACKET/MASTER Switch 与
+  auto-failover Deferred（终裁预裁）
 
 ## Non-Goals
 
