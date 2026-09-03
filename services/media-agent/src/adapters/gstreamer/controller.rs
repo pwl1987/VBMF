@@ -48,6 +48,11 @@ struct GstInstance {
     bus_rx: Receiver<PipelineBusEvent>,
     stop_flag: Arc<std::sync::atomic::AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
+    /// A2-8-02-D: MediaTap attachment bookkeeping——recover 重建后重放
+    /// attach 的**唯一事实源**（第六轮终裁: execution resource bookkeeping,
+    /// 非第二 identity/execution registry; tap branch 生命周期由
+    /// MediaTapPort 控制, 本字段只做簿记）。
+    media_taps: Vec<crate::contracts::media_tap::MediaTapAttachment>,
 }
 
 #[cfg(feature = "gstreamer-backend")]
@@ -107,6 +112,7 @@ impl PipelineController for GStreamerPipelineController {
                     bus_rx,
                     stop_flag,
                     thread: Some(thread),
+                    media_taps: Vec::new(),
                 },
             );
             Ok(handle)
@@ -155,6 +161,14 @@ impl PipelineController for GStreamerPipelineController {
                 })?
             };
             // 停止并丢弃旧实例: 通知 GLib 线程退出 + join + 释放 DeckLink 设备.
+            // A2-8-02-D: 旧实例销毁前捕获 tap 簿记（重建后重放——唯一事实源）。
+            let saved_taps: Vec<crate::contracts::media_tap::MediaTapAttachment> = {
+                let guard = self.instances.lock().unwrap();
+                guard
+                    .get(handle)
+                    .map(|i| i.media_taps.clone())
+                    .unwrap_or_default()
+            };
             if let Some(mut old) = self.instances.lock().unwrap().remove(handle) {
                 old.stop();
             }
@@ -172,10 +186,37 @@ impl PipelineController for GStreamerPipelineController {
                     bus_rx,
                     stop_flag,
                     thread: Some(thread),
+                    media_taps: Vec::new(),
                 },
             );
             if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(handle) {
                 hp.lock().unwrap().playing = true;
+            }
+            // A2-8-02-D: attachment replay——新管线上按簿记重放 tap（失败
+            // 不阻断 recover 本体: 管线已恢复, tap 恢复失败诚实记录降级）。
+            {
+                let mut guard = self.instances.lock().unwrap();
+                if let Some(inst) = guard.get_mut(handle) {
+                    for tap in saved_taps {
+                        let req = crate::contracts::media_tap::MediaTapRequest {
+                            channel: tap.channel.clone(),
+                            planes: tap.planes,
+                        };
+                        match Self::attach_tap_to_instance(inst, &req) {
+                            Ok(()) => tracing::info!(
+                                handle = handle.0,
+                                channel = %tap.channel,
+                                "A2-8-02-D recover: tap 簿记重放成功 (新管线)"
+                            ),
+                            Err(e) => tracing::warn!(
+                                handle = handle.0,
+                                channel = %tap.channel,
+                                error = ?e,
+                                "A2-8-02-D recover: tap 重放失败 (管线本体已恢复, tap 降级待重挂)"
+                            ),
+                        }
+                    }
+                }
             }
             Ok(())
         }
@@ -264,10 +305,19 @@ impl GStreamerPipelineController {
         let launch = {
             let with_outputs = plan.output_launch(&video_src, &audio_src);
             if with_outputs.is_empty() {
-                let video_branch =
-                    format!("{video_src} ! video/x-raw ! appsink name=videosink async=false");
-                let audio_branch =
-                    format!("{audio_src} ! audio/x-raw ! appsink name=audiosink async=false");
+                // A2-8-02-A: 纯分析形态同样构造**命名 tee = 通用 tap 点**
+                // （MediaTapPort attach 的物化前提; tee 单消费分支行为等价
+                // =透传, appsink 名/async 语义不变; **假实现禁令**: 构造期
+                // 只建 tap 点, 不预塞 tap branch——branch 生命周期归
+                // MediaTapPort）。pipeline.rs 零 diff（本组装在 controller 侧）。
+                let video_branch = format!(
+                    "{video_src} ! video/x-raw ! tee name=v \
+                     v. ! queue ! appsink name=videosink async=false"
+                );
+                let audio_branch = format!(
+                    "{audio_src} ! audio/x-raw ! tee name=a \
+                     a. ! queue ! appsink name=audiosink async=false"
+                );
                 format!("{video_branch} {audio_branch}")
             } else {
                 with_outputs
@@ -467,5 +517,258 @@ impl GStreamerPipelineController {
             Some(inst) => inst.bus_rx.try_iter().collect(),
             None => Vec::new(),
         }
+    }
+
+    /// tap branch 元素名（detach 定位/簿记外独立验证锚）。
+    #[cfg(feature = "gstreamer-backend")]
+    fn tap_element_name(plane: &str, channel: &str) -> String {
+        format!("tap-{plane}-{channel}")
+    }
+
+    /// 在实例管线上物化一个 tap branch（tee request pad → inter sink →
+    /// sync_state_with_parent），并记入簿记。构造期命名 tee（"v"/"a"）
+    /// = 通用 tap 点（两形态皆有, §02-A）; branch 本体在此动态创建
+    /// （**非构造期预设**——假实现禁令, probe §11.2）。
+    #[cfg(feature = "gstreamer-backend")]
+    fn attach_tap_to_instance(
+        inst: &mut GstInstance,
+        req: &crate::contracts::media_tap::MediaTapRequest,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::{TapError, TapPlanes};
+        use gstreamer::prelude::*;
+        let wants_video = matches!(req.planes, TapPlanes::Video | TapPlanes::Both);
+        let wants_audio = matches!(req.planes, TapPlanes::Audio | TapPlanes::Both);
+        // (tee 名, 是否需要, inter sink 工厂, 平面前缀)——video/audio 平面
+        // 独立命名空间, 同 channel 两平面互不冲突。
+        for (tee_name, want, factory, plane) in [
+            ("v", wants_video, "intervideosink", "v"),
+            ("a", wants_audio, "interaudiosink", "a"),
+        ] {
+            if !want {
+                continue;
+            }
+            let tee = inst.pipeline.by_name(tee_name).ok_or_else(|| {
+                TapError::TapPointUnavailable(format!("命名 tee {tee_name} 不在管线（tap 点缺失）"))
+            })?;
+            let el = gstreamer::ElementFactory::make(factory)
+                .name(Self::tap_element_name(plane, &req.channel))
+                .build()
+                .map_err(|e| TapError::Backend(format!("{factory} 构造失败: {e}")))?;
+            el.set_property("channel", req.channel.as_str());
+            inst.pipeline
+                .add(&el)
+                .map_err(|e| TapError::Backend(format!("tap 元素入管线: {e}")))?;
+            el.sync_state_with_parent()
+                .map_err(|e| TapError::Backend(format!("tap 元素状态同步: {e}")))?;
+            let tee_src = tee
+                .request_pad_simple("src_%u")
+                .ok_or_else(|| TapError::Backend("tee request pad 失败".into()))?;
+            let el_sink = el
+                .static_pad("sink")
+                .ok_or_else(|| TapError::Backend("tap 元素 sink pad 缺失".into()))?;
+            tee_src
+                .link(&el_sink)
+                .map_err(|e| TapError::Backend(format!("tap 链接: {e:?}")))?;
+        }
+        inst.media_taps
+            .push(crate::contracts::media_tap::MediaTapAttachment {
+                channel: req.channel.clone(),
+                planes: req.planes,
+            });
+        Ok(())
+    }
+}
+
+// === A2-8-02-C: MediaTapPort 物化（同 ownership——无第二 registry, probe §11.3） ===
+#[cfg(feature = "gstreamer-backend")]
+impl crate::contracts::media_tap::MediaTapPort for GStreamerPipelineController {
+    fn attach_media_tap(
+        &self,
+        handle: &PipelineHandle,
+        req: &crate::contracts::media_tap::MediaTapRequest,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::TapError;
+        let mut guard = self.instances.lock().unwrap();
+        let inst = guard
+            .get_mut(handle)
+            .ok_or(TapError::UnknownPipeline(*handle))?;
+        if inst.media_taps.iter().any(|a| a.channel == req.channel) {
+            return Err(TapError::AlreadyAttached(req.channel.clone()));
+        }
+        Self::attach_tap_to_instance(inst, req)
+    }
+
+    fn detach_media_tap(
+        &self,
+        handle: &PipelineHandle,
+        channel: &str,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::{TapError, TapPlanes};
+        use gstreamer::prelude::*;
+        let mut guard = self.instances.lock().unwrap();
+        let inst = guard
+            .get_mut(handle)
+            .ok_or(TapError::UnknownPipeline(*handle))?;
+        let planes = inst
+            .media_taps
+            .iter()
+            .find(|a| a.channel == channel)
+            .map(|a| a.planes)
+            .ok_or_else(|| TapError::NotAttached(channel.into()))?;
+        let wants_video = matches!(planes, TapPlanes::Video | TapPlanes::Both);
+        let wants_audio = matches!(planes, TapPlanes::Audio | TapPlanes::Both);
+        for (tee_name, want, plane) in [("v", wants_video, "v"), ("a", wants_audio, "a")] {
+            if !want {
+                continue;
+            }
+            let name = Self::tap_element_name(plane, channel);
+            let Some(el) = inst.pipeline.by_name(&name) else {
+                continue;
+            };
+            // 解链 + 释放 tee request pad + 移除元素（分支生命周期归本端口）。
+            if let Some(sink_pad) = el.static_pad("sink") {
+                if let Some(peer) = sink_pad.peer() {
+                    let _ = sink_pad.unlink(&peer);
+                    if let Some(tee) = inst.pipeline.by_name(tee_name) {
+                        tee.release_request_pad(&peer);
+                    }
+                }
+            }
+            let _ = el.set_state(gstreamer::State::Null);
+            let _ = inst.pipeline.remove(&el);
+        }
+        inst.media_taps.retain(|a| a.channel != channel);
+        Ok(())
+    }
+
+    fn tap_attachments(
+        &self,
+        handle: &PipelineHandle,
+    ) -> Vec<crate::contracts::media_tap::MediaTapAttachment> {
+        self.instances
+            .lock()
+            .unwrap()
+            .get(handle)
+            .map(|i| i.media_taps.clone())
+            .unwrap_or_default()
+    }
+}
+
+// —— 真实 GStreamer tap 验证（盒上 bmd+gstreamer; self_test 计划=纯分析形态） ——
+#[cfg(all(test, feature = "gstreamer-backend"))]
+mod media_tap_tests {
+    use super::*;
+    use crate::contracts::backend::MediaBackend;
+    use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapError, TapPlanes};
+    use crate::pipeline::PipelinePlan;
+
+    fn started_analysis_pipeline() -> (GStreamerPipelineController, PipelineHandle) {
+        let ctrl = GStreamerPipelineController::new();
+        let h =
+            MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("纯分析管线物化");
+        MediaBackend::start(&ctrl, &h).expect("启动");
+        (ctrl, h)
+    }
+
+    fn element_present(ctrl: &GStreamerPipelineController, h: &PipelineHandle, name: &str) -> bool {
+        ctrl.instances
+            .lock()
+            .unwrap()
+            .get(h)
+            .map(|i| i.pipeline.by_name(name).is_some())
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn tap_rt_01_analysis_form_attach_detach_cycle() {
+        // 02-A/C: 纯分析形态（原无 tee）现具通用 tap 点; attach 动态物化
+        // 分支（簿记外独立验证元素实存——非"登记式假实现"）。
+        let (ctrl, h) = started_analysis_pipeline();
+        let req = MediaTapRequest {
+            channel: "tap-t1".into(),
+            planes: TapPlanes::Both,
+        };
+        ctrl.attach_media_tap(&h, &req)
+            .expect("纯分析形态 attach（tee tap 点在）");
+        assert_eq!(
+            ctrl.tap_attachments(&h),
+            vec![crate::contracts::media_tap::MediaTapAttachment {
+                channel: "tap-t1".into(),
+                planes: TapPlanes::Both,
+            }],
+            "簿记恰一行保真"
+        );
+        assert_eq!(
+            ctrl.attach_media_tap(&h, &req),
+            Err(TapError::AlreadyAttached("tap-t1".into())),
+            "重复 attach fail-closed"
+        );
+        assert!(element_present(&ctrl, &h, "tap-v-tap-t1"), "video 分支实存");
+        assert!(element_present(&ctrl, &h, "tap-a-tap-t1"), "audio 分支实存");
+
+        ctrl.detach_media_tap(&h, "tap-t1").expect("detach");
+        assert!(ctrl.tap_attachments(&h).is_empty());
+        assert!(!element_present(&ctrl, &h, "tap-v-tap-t1"), "分支已移除");
+        assert!(!element_present(&ctrl, &h, "tap-a-tap-t1"));
+        assert_eq!(
+            ctrl.detach_media_tap(&h, "tap-t1"),
+            Err(TapError::NotAttached("tap-t1".into()))
+        );
+        let _ = ctrl.stop(&h);
+    }
+
+    #[test]
+    fn tap_rt_01_video_only_planes_and_unknown_pipeline() {
+        let (ctrl, h) = started_analysis_pipeline();
+        ctrl.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "tap-vonly".into(),
+                planes: TapPlanes::Video,
+            },
+        )
+        .expect("video-only attach");
+        assert!(element_present(&ctrl, &h, "tap-v-tap-vonly"));
+        assert!(
+            !element_present(&ctrl, &h, "tap-a-tap-vonly"),
+            "video-only 不建 audio 分支"
+        );
+        let _ = ctrl.stop(&h);
+
+        let unknown = PipelineHandle(987_654);
+        assert_eq!(
+            ctrl.attach_media_tap(
+                &unknown,
+                &MediaTapRequest {
+                    channel: "x".into(),
+                    planes: TapPlanes::Both
+                }
+            ),
+            Err(TapError::UnknownPipeline(unknown))
+        );
+    }
+
+    #[test]
+    fn tap_rt_01_recover_replays_attachments() {
+        // 02-D: recover 销毁重建管线→簿记重放→tap 在新管线上恢复
+        // （元素实存于**新** pipeline 对象——C2 闭环实证）。
+        let (ctrl, h) = started_analysis_pipeline();
+        ctrl.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "tap-rc".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach");
+        MediaBackend::recover(&ctrl, &h).expect("recover 重建");
+        assert_eq!(ctrl.tap_attachments(&h).len(), 1, "簿记等值恢复");
+        assert_eq!(ctrl.tap_attachments(&h)[0].channel, "tap-rc");
+        assert!(
+            element_present(&ctrl, &h, "tap-v-tap-rc"),
+            "新管线上 video tap 分支重挂"
+        );
+        assert!(element_present(&ctrl, &h, "tap-a-tap-rc"), "audio 分支重挂");
+        let _ = ctrl.stop(&h);
     }
 }
