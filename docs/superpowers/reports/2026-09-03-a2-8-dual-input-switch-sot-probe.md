@@ -768,3 +768,31 @@ bridge address 命名规则长期应独立为 bridge-address primitive——
 ⑧真桥级 FULL PASS 仍未做[结构性具备+fold 层已证——不伪闭合]。
 盒上: mock 342·**bmd+gstreamer 211**[209+2]·clippy clean·fmt clean。
 F-03/F-04 证据链闭合→**F-05 即刻可做**（多切换序列+三态不串+禁 PTS）。
+
+---
+
+## 18. 第十三轮终裁：F-03/F-04 正式 CLOSED + F-05 开工（2026-09-04）
+
+> 证据基线: 远端 `7531e87` 实码交叉核查。评分表十六层 PASS +
+> PTS🟡观察不修复 + ⑧🟡OPEN + N-input🟡MVP未实现 + CI🟡无status。
+
+### 18.1 新登记（不修, 冻结到对应刀）
+
+- **RECOVER_PARTIAL_DEGRADED 债务**: recover=Ok 但 tap replay 失败
+  目前仅 warning——"pipeline 成功·bridge degraded"不可长期只靠日志;
+  属 G/H runtime health/observation 工作, 现在不修;
+- **N×M 边界冻结**: "设备模型 N×M"≠"Program Switch 已 N 输入"——
+  F-05 禁顺手声称 4-way switch（MVP 边界非 bug）;
+- **tap_channel 层级债务**: 继续冻结到 G/H 后搬迁。
+
+### 18.2 F-05 范围（本轮执行）
+
+多跳 A→B→A→B→A 每跳六点验证[plan.target→selector actual→
+video/audio_active→observed_active→complete_switch→Desired]+核心
+断言[成对/observed==target/desired==target/epoch+=1/帧持续]+快速
+A→B→A+四类 fail-closed 真适配器级[invalid target/duplicate target/
+wrong epoch/PACKET·MASTER]+**⑧真桥级区分性小验收**[program 停后
+observed 归零而输入健康仍在推进——Input healthy 与 Program failed
+不混淆]。禁项: PTS/Session/Supervisor/PipelinePlan/N-input 零触碰。
+F-05 后 G/H 合并为观测与时间线证据大刀[三列 Input/Bridge/Program
+PTS]→Timeline Normalization 裁决。

@@ -40,6 +40,12 @@ struct SwitchGraph {
     /// 组输入 (device, handle)——observe 读输入健康弧（无第二 registry）。
     input_handles: [(Uuid, PipelineHandle); 2],
     started: bool,
+    /// 构造期 Desired 提取的初始 active（start_program 时点亮 active 簿记）。
+    initial_active: Uuid,
+    /// Execution 实态簿记: 当前 active 源（start 时=initial; switch 推进）。
+    /// F-05 修复: 此前缺失导致 switch() 无"切当前 active"纵深拒收（Mock
+    /// 适配器有而真适配器漏——伪造 plan 可对 active 源重复执行）。
+    active: Option<Uuid>,
     av_epoch: u64,
     pipeline: gstreamer::Pipeline,
     video_selector: gstreamer::Element,
@@ -412,6 +418,8 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 devices,
                 input_handles,
                 started: false,
+                initial_active,
+                active: None,
                 av_epoch: 0,
                 pipeline,
                 video_selector,
@@ -431,6 +439,8 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             .set_state(gstreamer::State::Playing)
             .map_err(|e| SwitchError::Backend(format!("program play: {e}")))?;
         g.started = true;
+        // Execution 实态初始化: 启动即 active=initial（构造期已置初始 pad）。
+        g.active = Some(g.initial_active);
         drop(graphs);
         if let Some(hp) = crate::pipeline_events::HEALTH_ARCS
             .lock()
@@ -466,10 +476,16 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 expected: g.av_epoch + 1,
             });
         }
+        // F-05 修复: 切当前 active 源纵深拒收（与 Mock 适配器对齐——
+        // 此前真适配器缺失, 伪造 plan 可对 active 源重复执行）。
+        if g.active == Some(plan.target) {
+            return Err(SwitchError::TargetAlreadyActive(plan.target));
+        }
         // 成对切换: video+audio 双 selector 同目标 active-pad（同 epoch——
         // 方案 A; input-selector 于下一缓冲生效 = 帧边界对齐）。
         SwitchGraph::set_active(&g.video_selector, plan.target, g)?;
         SwitchGraph::set_active(&g.audio_selector, plan.target, g)?;
+        g.active = Some(plan.target);
         g.av_epoch = plan.epoch;
         Ok(SwitchExecuted {
             boundary: FrameBoundary::FrameAligned,
@@ -950,5 +966,255 @@ mod tests {
         assert!(tap.tap_attachments(&h1).is_empty());
         assert!(tap.tap_attachments(&h2).is_empty(), "已停 B 结构性零残留");
         let _ = bundle.backend.stop(&h1);
+    }
+
+    // ── A2-8-02-F-05: Multi-Switch / State Consistency（第十三轮 §16）——
+    // 多跳 A→B→A→B→A 每跳六点验证 + 快速连切 + 四类 fail-closed 真适配器
+    // 级 + ⑧真桥级区分性验收。禁: PTS/Session/Supervisor/PipelinePlan/
+    // N-input（零触碰）。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn switch_graph_rt_01_real_bridge_multi_switch_state_consistency() {
+        use crate::contracts::media_tap::{MediaTapRequest, TapPlanes};
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::tap_channel;
+        use crate::session::SessionId;
+        use crate::switch_execution::{SwitchError, SwitchExecutionPlan};
+
+        let bundle =
+            crate::registry::AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        for (h, d) in [(h1, a), (h2, b)] {
+            tap.attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: tap_channel(d),
+                    planes: TapPlanes::Both,
+                },
+            )
+            .expect("tap attach");
+        }
+        let mut group = ExecutionGroup::new(
+            SessionId(Uuid::new_v4()),
+            vec![
+                SessionInput {
+                    device_id: a,
+                    handle: h1,
+                },
+                SessionInput {
+                    device_id: b,
+                    handle: h2,
+                },
+            ],
+            a,
+        )
+        .expect("组");
+        let adapter = GStreamerSwitchAdapter::bridged();
+        let graph = adapter.build_program_graph(&group).expect("bridged 物化");
+        adapter.start_program(&graph).expect("启动");
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+
+        // ── 多跳 A→B→A→B→A: 每跳六点验证[plan.target→selector→双平面→
+        // observed→complete→Desired]+核心断言[成对/observed==target/
+        // desired==target/epoch+=1/帧持续]。
+        let mut prev_epoch = 0u64;
+        let mut prev_frames = adapter.observe(&graph).program_video_frames;
+        let mut prev_active = a;
+        for (i, target) in [b, a, b, a].into_iter().enumerate() {
+            let plan = group
+                .plan_switch(&SwitchIntent {
+                    target,
+                    policy: SwitchPolicy::FrameSwitch,
+                })
+                .expect("计划");
+            assert_eq!(plan.target, target, "跳{i}: plan.target 一致");
+            assert_eq!(plan.epoch, prev_epoch + 1, "跳{i}: epoch 恰递增");
+            group.begin_switch(&plan).expect("begin");
+            assert_eq!(
+                group.desired,
+                SwitchDesired::Switching {
+                    from: prev_active,
+                    to: target
+                },
+                "跳{i}: Desired=Switching（三态不串之一）"
+            );
+            let executed = adapter.switch(&graph, &plan).expect("真实切换");
+            assert_eq!(executed.av_epoch, plan.epoch, "跳{i}: 执行 epoch=计划");
+            std::thread::sleep(std::time::Duration::from_millis(450));
+            let obs = adapter.observe(&graph);
+            assert_eq!(obs.video_active, obs.audio_active, "跳{i}: 双平面成对");
+            assert_eq!(obs.observed_active, Some(target), "跳{i}: observed=target");
+            assert!(
+                obs.program_video_frames > prev_frames,
+                "跳{i}: program 帧持续"
+            );
+            assert!(group.complete_switch(target), "跳{i}: Observed 落定");
+            assert_eq!(
+                group.desired,
+                SwitchDesired::ActiveInput(target),
+                "跳{i}: Desired==target（三态不串之二）"
+            );
+            prev_epoch = plan.epoch;
+            prev_frames = obs.program_video_frames;
+            prev_active = target;
+        }
+        assert_eq!(group.switch_epoch, 4, "四跳后 epoch==4");
+
+        // ── 快速 A→B→A（300ms 间隔）: 状态链在快节奏下仍一致。
+        for target in [b, a] {
+            let plan = group
+                .plan_switch(&SwitchIntent {
+                    target,
+                    policy: SwitchPolicy::FrameSwitch,
+                })
+                .expect("快切计划");
+            group.begin_switch(&plan).expect("begin");
+            adapter.switch(&graph, &plan).expect("快切执行");
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let obs = adapter.observe(&graph);
+            assert_eq!(obs.video_active, obs.audio_active, "快切: 成对");
+            assert_eq!(obs.observed_active, Some(target), "快切: observed=target");
+            assert!(group.complete_switch(target));
+        }
+
+        // ── 四类 fail-closed（真适配器级纵深 + 组级）: 全部拒收且状态零变。
+        let desired_before = group.desired;
+        let epoch_before = group.switch_epoch;
+        let obs_before = adapter.observe(&graph);
+        // 1) invalid target（组外 Uuid）。
+        let outsider = Uuid::new_v4();
+        assert_eq!(
+            group.plan_switch(&SwitchIntent {
+                target: outsider,
+                policy: SwitchPolicy::FrameSwitch,
+            }),
+            Err(SwitchError::TargetNotInGroup(outsider)),
+            "fail-closed: 组外目标（组级）"
+        );
+        // 2) duplicate target（当前 active=a）。
+        assert_eq!(
+            group.plan_switch(&SwitchIntent {
+                target: a,
+                policy: SwitchPolicy::FrameSwitch,
+            }),
+            Err(SwitchError::TargetAlreadyActive(a)),
+            "fail-closed: 切当前 active（组级）"
+        );
+        // 3) PACKET/MASTER。
+        for policy in [SwitchPolicy::PacketSwitch, SwitchPolicy::MasterSwitch] {
+            assert_eq!(
+                group.plan_switch(&SwitchIntent { target: b, policy }),
+                Err(SwitchError::UnsupportedPolicy(policy)),
+                "fail-closed: {policy:?}（组级）"
+            );
+        }
+        // 4) 伪造 plan 打真适配器: 组外/duplicate/错 epoch/非 FRAME——
+        //    adapter 纵深重校验（不信任调用方）。
+        let forged = |target: Uuid, policy: SwitchPolicy, epoch: u64| SwitchExecutionPlan {
+            from: a,
+            target,
+            policy,
+            epoch,
+        };
+        assert_eq!(
+            adapter.switch(
+                &graph,
+                &forged(outsider, SwitchPolicy::FrameSwitch, epoch_before + 1)
+            ),
+            Err(SwitchError::TargetNotInGroup(outsider)),
+            "fail-closed: 组外目标（适配器纵深）"
+        );
+        assert_eq!(
+            adapter.switch(
+                &graph,
+                &forged(a, SwitchPolicy::FrameSwitch, epoch_before + 1)
+            ),
+            Err(SwitchError::TargetAlreadyActive(a)),
+            "fail-closed: 切 active（适配器纵深）"
+        );
+        assert_eq!(
+            adapter.switch(
+                &graph,
+                &forged(b, SwitchPolicy::FrameSwitch, epoch_before + 5)
+            ),
+            Err(SwitchError::StalePlanEpoch {
+                got: epoch_before + 5,
+                expected: epoch_before + 1
+            }),
+            "fail-closed: 错 epoch（适配器纵深）"
+        );
+        assert_eq!(
+            adapter.switch(
+                &graph,
+                &forged(b, SwitchPolicy::MasterSwitch, epoch_before + 1)
+            ),
+            Err(SwitchError::UnsupportedPolicy(SwitchPolicy::MasterSwitch)),
+            "fail-closed: MASTER（适配器纵深）"
+        );
+        // 状态零变（Desired/epoch/observed/帧仍推进）。
+        assert_eq!(group.desired, desired_before, "拒收后 Desired 零变");
+        assert_eq!(group.switch_epoch, epoch_before, "拒收后 epoch 零变");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let obs_after = adapter.observe(&graph);
+        assert_eq!(obs_after.observed_active, obs_before.observed_active);
+        assert_eq!(obs_after.switch_epoch, obs_before.switch_epoch);
+        assert!(
+            obs_after.program_video_frames > obs_before.program_video_frames,
+            "拒收风暴后 program 帧照常推进"
+        );
+
+        // ── ⑧ 真桥级区分性小验收（第十三轮批准并入）: 主动停 Program
+        // graph → observed 归零, 而两路输入健康弧仍在推进——
+        // "Input healthy"与"Program failed"不混淆。
+        let (ia, ib) = (
+            crate::pipeline_events::read_health(&h1)
+                .unwrap()
+                .video_frame_count,
+            crate::pipeline_events::read_health(&h2)
+                .unwrap()
+                .video_frame_count,
+        );
+        adapter
+            .stop_program(&graph)
+            .expect("program 停（主动故障注入）");
+        let obs_dead = adapter.observe(&graph);
+        assert_eq!(obs_dead.observed_active, None, "⑧ Program 停→observed 归零");
+        assert_eq!(obs_dead.program_video_frames, 0);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let (ia2, ib2) = (
+            crate::pipeline_events::read_health(&h1)
+                .unwrap()
+                .video_frame_count,
+            crate::pipeline_events::read_health(&h2)
+                .unwrap()
+                .video_frame_count,
+        );
+        assert!(ia2 > ia && ib2 > ib, "⑧ 输入健康照常推进——两故障面不混淆");
+
+        // teardown。
+        for (h, _) in [(h1, a), (h2, b)] {
+            let ch = tap.tap_attachments(&h).first().map(|x| x.channel.clone());
+            if let Some(ch) = ch {
+                tap.detach_media_tap(&h, &ch).expect("摘除");
+            }
+            assert!(tap.tap_attachments(&h).is_empty());
+            let _ = bundle.backend.stop(&h);
+        }
     }
 }
