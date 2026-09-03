@@ -67,6 +67,15 @@ impl ProgramExecutionRuntime {
         tap_port: Option<Arc<dyn MediaTapPort>>,
         tap_wirings: Vec<TapWiring>,
     ) -> Result<Self, SwitchError> {
+        // 第八轮终裁 P1: session/group 身份一致性 fail-closed（组合根当前
+        // 同源 sid 不会错——类型面强制不变量, 防未来调用方构造
+        // Runtime=A/Group=B 的分裂态; 不引入新 identity 类型）。
+        if session_id != group.session_id {
+            return Err(SwitchError::Backend(format!(
+                "session/group 身份不一致 (runtime={} group={})——fail-closed",
+                session_id.0, group.session_id.0
+            )));
+        }
         // 步 1: input 侧 tap attach（失败 → 已挂部分全部 detach）。
         let mut attached: Vec<(PipelineHandle, String)> = Vec::new();
         if let Some(port) = tap_port.as_ref() {
@@ -222,12 +231,12 @@ mod tests {
     use crate::switch_execution::SwitchDesired;
     use uuid::Uuid;
 
-    fn dual_group(a: Uuid, b: Uuid) -> ExecutionGroup {
+    fn dual_group(session_id: SessionId, a: Uuid, b: Uuid) -> ExecutionGroup {
         let backend = MockBackend;
         let h1 = backend.instantiate(&PipelinePlan::self_test()).unwrap();
         let h2 = backend.instantiate(&PipelinePlan::self_test()).unwrap();
         ExecutionGroup::new(
-            SessionId(Uuid::new_v4()),
+            session_id,
             vec![
                 SessionInput {
                     device_id: a,
@@ -276,10 +285,10 @@ mod tests {
         // observe 归零——非仅内部标志）。
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
-        let group = dual_group(a, b);
+        let sid = SessionId(Uuid::new_v4());
+        let group = dual_group(sid, a, b);
         let h1 = group.inputs[0].handle;
         let h2 = group.inputs[1].handle;
-        let sid = SessionId(Uuid::new_v4());
         let switcher = Arc::new(MockSwitchExecutionAdapter::new());
         let taps = Arc::new(MockMediaTapPort::new());
         let runtime = ProgramExecutionRuntime::create(
@@ -330,12 +339,13 @@ mod tests {
         // ——零部分资源残留。
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
-        let group = dual_group(a, b);
+        let sid = SessionId(Uuid::new_v4());
+        let group = dual_group(sid, a, b);
         let h1 = group.inputs[0].handle;
         let h2 = group.inputs[1].handle;
         let taps = Arc::new(MockMediaTapPort::new());
         let err = ProgramExecutionRuntime::create(
-            SessionId(Uuid::new_v4()),
+            sid,
             group,
             Arc::new(FailingSwitcher),
             Some(taps.clone()),
@@ -363,9 +373,10 @@ mod tests {
         // hook 仅对本 session 触发 teardown（他 session 停止零副作用）。
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
         let runtime = ProgramExecutionRuntime::create(
-            SessionId(Uuid::new_v4()),
-            dual_group(a, b),
+            sid,
+            dual_group(sid, a, b),
             Arc::new(MockSwitchExecutionAdapter::new()),
             None,
             Vec::new(),
@@ -378,5 +389,29 @@ mod tests {
         SessionStopHook::on_session_stopping(&runtime, &own).unwrap();
         assert!(!runtime.is_active(), "本 session 停止触发 teardown");
         let _ = SwitchDesired::ActiveInput(a); // 引用锚（模块语义完整性）
+    }
+
+    #[test]
+    fn program_exec_rt_01_session_group_identity_mismatch_rejected() {
+        // 第八轮终裁 P1: runtime.session_id ≠ group.session_id → fail-closed
+        // 拒收（防未来调用方构造 Runtime=A/Group=B 分裂态; 不引入新
+        // identity 类型——仅既有身份的一致性强制）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let group = dual_group(SessionId(Uuid::new_v4()), a, b);
+        let mismatch = SessionId(Uuid::new_v4()); // ≠ group.session_id
+        let err = ProgramExecutionRuntime::create(
+            mismatch,
+            group,
+            Arc::new(MockSwitchExecutionAdapter::new()),
+            None,
+            Vec::new(),
+        )
+        .expect_err("身份不一致必须拒收");
+        assert!(matches!(err, SwitchError::Backend(_)));
+        assert!(
+            err.to_string().contains("身份不一致"),
+            "错误信息可观测: {err}"
+        );
     }
 }

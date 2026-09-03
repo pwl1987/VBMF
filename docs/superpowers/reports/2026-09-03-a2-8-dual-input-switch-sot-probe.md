@@ -546,3 +546,52 @@ watchdog.rs 🟡随 Program Runtime 调整; Timeline/PTS ❌不冻结。
 执行序: **02-E[可并入 02-C rollback debt]→02-F→02-G→02-H→02-I→
 Timeline decision→A2-8 CLOSE**。诚实边界维持: 205 passed≠真实 DeckLink
 A/B 通过; FrameAligned≠Timeline Continuity。A2-8 NOT CLOSED。
+
+---
+
+## 13. 第八轮终裁：stop_hook 单槽缺陷（P0）+ 身份一致性（P1）+ 修复落盘（2026-09-03）
+
+> 证据基线: 远端 `4825a5c` 实码; 02-C/02-D ACCEPTED 复认, 02-E 判
+> IMPLEMENTED / NOT CLOSED（多 Session 生命周期错误）。
+
+### 13.1 P0 缺陷（实码直证）
+
+SessionManager 多 Session（HashMap<SessionId, SessionInner>）但
+stop_hook=**单槽 Option**——第二 Session 注册覆盖第一（`set_stop_hook`
+简单覆写）→ 停止首 Session 调到第二 Runtime 的 hook → session-id guard
+使其 no-op → **首 Session 的 Program Graph/Tap 存活=G1 多 Session
+复现**。Runtime 自身的"错误 id 不触发"测试恰不能救 Manager 单槽。
+
+### 13.2 修复（本轮落地）
+
+- session.rs: `stop_hooks: Mutex<HashMap<SessionId, Arc<dyn
+  SessionStopHook>>>`——**Session-scoped 生命周期回调关联表**（Session
+  生命周期回调关联, 非 Device/execution identity registry——红线不破）;
+  `register_stop_hook(id, hook)`（同 Session 覆盖/他 Session 不受影响）;
+  stop() 按 id 查调 + **Released 后条目移除**（E-5: 防 Runtime 引用残留）。
+- program_execution.rs: create() 增 **P1 一致性校验**
+  `session_id == group.session_id` fail-closed（复用 SwitchError::Backend,
+  零新 identity 类型/零词表扩张——switch_execution.rs 不动）。
+- media-agent.rs: `register_stop_hook(&sid, runtime)`。
+- **不回滚** 00ca2dc/ProgramExecutionRuntime（本轮发现是外围关联模型
+  缺陷, 非 owner 设计错误）。
+
+### 13.3 测试（E-1..E-5 Gate 全过, mock 341）
+
+- **E-4 多 Session 回归**: session_rt_01_stop_hooks_session_scoped_
+  multi_session_regression——双 Session 各注册; A 停止恰调 A 的 hook
+  [B 的 hook 零调用+B 会话 Running 完整保留]; E-5: A Released 后条目
+  移除[B 条目保留], B 停止后关联表清空（零引用残留）。
+- **P1**: program_exec_rt_01_session_group_identity_mismatch_rejected
+  ——身份不一致 fail-closed 拒收（错误可观测）。P1 校验上线即拦截测试
+  助手自身的不一致构造（dual_group 内造随机 sid）——防御有效性顺带
+  实证; helper 改为显式传 sid。
+- E-1/E-2/E-3 既有测试复认（create/teardown 幂等·失败清理·hook 不截断）。
+
+### 13.4 02-F 前置（第八轮冻结）
+
+registry 必须提供**同一 concrete GStreamerPipelineController 实例的
+多 trait view**（Arc<dyn MediaBackend> + Arc<dyn MediaTapPort> 同源
+对象——否则 instances 表不共享, attach 得 UnknownPipeline）;
+**禁第二 registry**（GStreamerMediaTapRegistry/独立 port 持第二表=两
+个 execution ownership 表）。02-E 修复后按序 02-F。

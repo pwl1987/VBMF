@@ -264,9 +264,13 @@ pub trait SessionStopHook: Send + Sync {
 pub struct SessionManager {
     resources: SharedResourceRegistry,
     leases: Arc<dyn LeaseManager>,
-    /// A2-8-02-E: 停止生命周期 hook（组合根注入; 内部可变——Arc 共享下
-    /// 允许会话启动后接线）。
-    stop_hook: Mutex<Option<std::sync::Arc<dyn SessionStopHook>>>,
+    /// A2-8-02-E（第八轮终裁 P0 修复）: **Session-scoped** 停止生命周期
+    /// 回调关联表——多 Session 各自注册互不覆盖（原单槽 Option 会被第二
+    /// Session 覆盖, 使首 Session 的 Program 资源永不 teardown=G1 多
+    /// Session 复现）。stop 完成后条目移除（防 Runtime 引用残留）。
+    /// 这是 Session 生命周期回调关联表, **非 Device/execution identity
+    /// registry**。
+    stop_hooks: Mutex<HashMap<SessionId, std::sync::Arc<dyn SessionStopHook>>>,
     sup: Arc<Mutex<Supervisor>>,
     backend: OnceLock<Arc<dyn MediaBackend>>,
     devices: Arc<Vec<DeviceInfo>>,
@@ -303,7 +307,7 @@ impl SessionManager {
         Self {
             resources,
             leases,
-            stop_hook: Mutex::new(None),
+            stop_hooks: Mutex::new(HashMap::new()),
             sup,
             backend: b,
             devices,
@@ -322,10 +326,17 @@ impl SessionManager {
         self.events.emit(ev);
     }
 
-    /// A2-8-02-E: 注入停止生命周期 hook（组合根接线；内部可变, Arc 共享
-    /// 下会话启动后可接线）。同槽重复注入=后者覆盖（单 hook 语义）。
-    pub fn set_stop_hook(&self, hook: std::sync::Arc<dyn SessionStopHook>) {
-        *self.stop_hook.lock().unwrap() = Some(hook);
+    /// A2-8-02-E: 注册**本 Session** 的停止生命周期 hook（Session-scoped
+    /// 关联表; 同 Session 重复注册=覆盖, 他 Session 条目不受影响——
+    /// 第八轮终裁 E-4）。组合根在 program 装配后接线。
+    pub fn register_stop_hook(&self, id: &SessionId, hook: std::sync::Arc<dyn SessionStopHook>) {
+        self.stop_hooks.lock().unwrap().insert(*id, hook);
+    }
+
+    /// 回归测试锚（E-5: Released 后条目移除的可观测性）。
+    #[cfg(test)]
+    pub(crate) fn stop_hooks_len(&self) -> usize {
+        self.stop_hooks.lock().unwrap().len()
     }
 
     fn now_ms() -> u64 {
@@ -768,11 +779,13 @@ impl SessionManager {
         };
         self.set_phase(id, SessionPhase::Stopping)?;
 
-        // A2-8-02-E: 停止序首步——执行资源经抽象 hook 收尾（Program
-        // Stop→Tap Detach **先于** Input Stop; SessionManager 不理解
-        // hook 背后的资源形态）。hook 失败只记录, 绝不截断后续停止/释放链。
+        // A2-8-02-E: 停止序首步——**本 Session** 的执行资源经抽象 hook 收尾
+        // （Program Stop→Tap Detach **先于** Input Stop; SessionManager 不
+        // 理解 hook 背后的资源形态）。**Session-scoped 关联表**（第八轮
+        // P0: 只调用本 Session 注册的 hook——他 Session 的 program 资源
+        // 不受牵连）。hook 失败只记录, 绝不截断后续停止/释放链。
         {
-            let hook = self.stop_hook.lock().unwrap().clone();
+            let hook = self.stop_hooks.lock().unwrap().get(id).cloned();
             if let Some(hook) = hook {
                 if let Err(e) = hook.on_session_stopping(id) {
                     tracing::warn!(
@@ -822,6 +835,9 @@ impl SessionManager {
             from: "running".into(),
             to: "released".into(),
         });
+        // A2-8-02-E（第八轮 E-5）: 停止完成——移除本 Session 的 hook 条目
+        //（防 Runtime 引用残留; 他 Session 条目不受影响）。
+        self.stop_hooks.lock().unwrap().remove(id);
         // P0-2: 全部释放已完成 — stop 失败在此上报 (错误不吞, 资源不卡;
         // 会话终态 Released, 停止失败详情在 health.last_error)。
         if let Some(e) = stop_error {
@@ -2285,8 +2301,8 @@ mod tests {
             fail: true, // 注入 hook 失败
             seen: Default::default(),
         });
-        mgr.set_stop_hook(spy.clone());
         let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.register_stop_hook(&sid, spy.clone());
         mgr.start(&sid).expect("start");
         mgr.stop(&sid).expect("hook 失败仍必须完成停止链（不截断）");
         assert_eq!(
@@ -2314,8 +2330,8 @@ mod tests {
             fail: false,
             seen: Default::default(),
         });
-        mgr.set_stop_hook(spy.clone());
         let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.register_stop_hook(&sid, spy.clone());
         mgr.start(&sid).expect("start");
         mgr.stop(&sid).expect("stop");
         assert_eq!(spy.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
@@ -2325,5 +2341,63 @@ mod tests {
             mgr.stop(&sid),
             Err(SessionError::InvalidTransition(_))
         ));
+    }
+
+    #[test]
+    fn session_rt_01_stop_hooks_session_scoped_multi_session_regression() {
+        // 第八轮终裁 E-4/E-5: **Session-scoped 关联表**——两个并发 Session
+        // 各自注册 hook; A 停止只调用 A 的 hook（B 的 program 语义完整
+        // 保留=Running 不受牵连）; A Released 后条目移除, B 条目保留至
+        // B 停止后清空。原单槽缺陷（第二注册覆盖第一, A 的 program 资源
+        // 永不 teardown=G1 多 Session 复现）在此回归锁死。
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm);
+        // 各占一设备（避免资源冲突）; hook 语义与输入数无关。
+        let sid_a = mgr.create(intent_for_all(&devices[..1])).expect("create A");
+        let sid_b = mgr.create(intent_for_all(&devices[1..])).expect("create B");
+        mgr.start(&sid_a).expect("start A");
+        mgr.start(&sid_b).expect("start B");
+        let spy_a = Arc::new(SpyStopHook {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            fail: false,
+            seen: Default::default(),
+        });
+        let spy_b = Arc::new(SpyStopHook {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            fail: false,
+            seen: Default::default(),
+        });
+        mgr.register_stop_hook(&sid_a, spy_a.clone());
+        mgr.register_stop_hook(&sid_b, spy_b.clone());
+        assert_eq!(mgr.stop_hooks_len(), 2);
+
+        mgr.stop(&sid_a).expect("stop A");
+        assert_eq!(
+            spy_a.calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "A 的 hook 恰被调用"
+        );
+        assert_eq!(*spy_a.seen.lock().unwrap(), vec![sid_a]);
+        assert_eq!(
+            spy_b.calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "B 的 hook 不被 A 的停止触发（E-4）"
+        );
+        assert_eq!(
+            mgr.status(&sid_b).unwrap().phase,
+            SessionPhase::Running,
+            "B 会话完整保留（A 停止零牵连）"
+        );
+        assert_eq!(
+            mgr.stop_hooks_len(),
+            1,
+            "A Released 后条目移除, B 条目保留（E-5）"
+        );
+
+        mgr.stop(&sid_b).expect("stop B");
+        assert_eq!(spy_b.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(*spy_b.seen.lock().unwrap(), vec![sid_b]);
+        assert_eq!(mgr.stop_hooks_len(), 0, "全停后关联表清空（零引用残留）");
     }
 }

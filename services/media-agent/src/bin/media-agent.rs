@@ -463,8 +463,12 @@ fn main() {
                                                 initial_active = %initial_active,
                                                 "A2-8-02-E Execution Group 就绪: ProgramExecutionRuntime 接管 (program 资源唯一 owner), MultiInputWatchdog 四观测面启动, Session 停止链经 hook 接 teardown [v1 topology=测试源仿真; 真机 SDI inter 系+MediaTap=A2-8-02-F]"
                                             );
-                                            // 生命周期接线: Session 停止 → hook → teardown。
-                                            mgr.set_stop_hook(std::sync::Arc::new(runtime));
+                                            // 生命周期接线: Session 停止 → hook → teardown
+                                            // （Session-scoped 注册——第八轮 P0: 多会话互不覆盖）。
+                                            mgr.register_stop_hook(
+                                                &sid,
+                                                std::sync::Arc::new(runtime),
+                                            );
                                             group_wired = true;
                                         }
                                         Err(e) => {
