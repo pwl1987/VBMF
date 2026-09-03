@@ -49,6 +49,7 @@ pub mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖
 pub mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
 pub mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
 pub mod program; // A2-1: Program Domain —— 节目生产模型 Canonical 层（SwitchPolicy 首块; A2-2+ Masters/MasterJoin/ProgramMaster）
+pub mod program_execution; // A2-8-02-E: Program Execution Runtime（program 执行资源生命周期唯一 owner; creator=destroyer）
 pub mod registry;
 pub mod resolver;
 pub mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)

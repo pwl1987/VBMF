@@ -472,13 +472,21 @@ pub fn spawn_execution_group_watchdog(
     agent_state: Arc<std::sync::Mutex<health::AgentState>>,
     sink: Arc<dyn events::RuntimeEventSink>,
     internal_log: Arc<events::RuntimeEventLog>,
-) {
+) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    // A2-8-02-E: 停止旗（ProgramExecutionRuntime teardown 置位——线程随
+    // program 生命周期退出, 不再进程常驻）。
+    let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop_for_thread = stop_flag.clone();
     std::thread::spawn(move || {
         let mut prev: std::collections::HashMap<Uuid, (u64, u64)> =
             group_inputs.iter().map(|(d, _)| (*d, (0, 0))).collect();
         let mut health_fold = crate::health::HealthFold::bootstrap(*agent_state.lock().unwrap());
         let mut signal_latched: std::collections::HashSet<Uuid> = Default::default();
         loop {
+            if stop_for_thread.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::info!("A2-8-02-E group watchdog: 停止旗置位, 观测线程退出");
+                break;
+            }
             std::thread::sleep(std::time::Duration::from_millis(500));
             let observation = switcher.observe(&graph);
             let (desired, inputs_tick): (SwitchDesired, Vec<InputTick>) = {
@@ -566,6 +574,7 @@ pub fn spawn_execution_group_watchdog(
             }
         }
     });
+    stop_flag
 }
 
 #[cfg(all(test, feature = "mock"))]

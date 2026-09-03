@@ -245,6 +245,17 @@ struct SessionInner {
     created_at_ms: u64,
 }
 
+/// A2-8-02-E: Session 停止生命周期接线缝（第七轮终裁 §12.4）。
+///
+/// SessionManager 只见**抽象 hook**, 不理解 Program/GStreamer（禁
+/// `Session{program_graph}`/直调 stop_program）。hook 在 Input 停止**之前**
+/// 触发（停止序: Program Stop→Tap Detach→Input Stop→Resource Release）;
+/// **hook 失败不截断停止/释放链**（沿既有"backend.stop 失败不截断"原则）。
+pub trait SessionStopHook: Send + Sync {
+    /// 会话进入 Stopping 时的执行资源收尾；Err 只记录，停止链继续。
+    fn on_session_stopping(&self, id: &SessionId) -> Result<(), String>;
+}
+
 /// Runtime Session Manager — **Session 唯一创建者/销毁者** (模型 §4.1)。
 ///
 /// **0.7C-6 D8 解耦**: 事件经注入的 `RuntimeEventSink` 直连组合根唯一
@@ -253,6 +264,9 @@ struct SessionInner {
 pub struct SessionManager {
     resources: SharedResourceRegistry,
     leases: Arc<dyn LeaseManager>,
+    /// A2-8-02-E: 停止生命周期 hook（组合根注入; 内部可变——Arc 共享下
+    /// 允许会话启动后接线）。
+    stop_hook: Mutex<Option<std::sync::Arc<dyn SessionStopHook>>>,
     sup: Arc<Mutex<Supervisor>>,
     backend: OnceLock<Arc<dyn MediaBackend>>,
     devices: Arc<Vec<DeviceInfo>>,
@@ -289,6 +303,7 @@ impl SessionManager {
         Self {
             resources,
             leases,
+            stop_hook: Mutex::new(None),
             sup,
             backend: b,
             devices,
@@ -305,6 +320,12 @@ impl SessionManager {
 
     fn emit(&self, ev: RuntimeEvent) {
         self.events.emit(ev);
+    }
+
+    /// A2-8-02-E: 注入停止生命周期 hook（组合根接线；内部可变, Arc 共享
+    /// 下会话启动后可接线）。同槽重复注入=后者覆盖（单 hook 语义）。
+    pub fn set_stop_hook(&self, hook: std::sync::Arc<dyn SessionStopHook>) {
+        *self.stop_hook.lock().unwrap() = Some(hook);
     }
 
     fn now_ms() -> u64 {
@@ -746,6 +767,22 @@ impl SessionManager {
             (hs, inner.holder)
         };
         self.set_phase(id, SessionPhase::Stopping)?;
+
+        // A2-8-02-E: 停止序首步——执行资源经抽象 hook 收尾（Program
+        // Stop→Tap Detach **先于** Input Stop; SessionManager 不理解
+        // hook 背后的资源形态）。hook 失败只记录, 绝不截断后续停止/释放链。
+        {
+            let hook = self.stop_hook.lock().unwrap().clone();
+            if let Some(hook) = hook {
+                if let Err(e) = hook.on_session_stopping(id) {
+                    tracing::warn!(
+                        session = %id.0,
+                        error = %e,
+                        "stop hook 失败; 仍继续输入停止与资源释放（不截断停止链）"
+                    );
+                }
+            }
+        }
 
         // 逆序 1 (Alpha-1: 全句柄逆序): Backend.stop。**P0-2**: stop 失败只记录,
         // **绝不截断后续释放链** — Session 层资源 (allocation/lease/reservation)
@@ -2214,5 +2251,79 @@ mod tests {
         );
         assert_eq!(fold.agent, crate::health::AgentState::Degraded);
         assert_eq!(fold.active_sessions, 1);
+    }
+
+    // ── A2-8-02-E: 停止生命周期 hook 缝 ────────────────────────────────────
+
+    /// 间谍 hook：计数 + 可注入失败。
+    struct SpyStopHook {
+        calls: std::sync::atomic::AtomicUsize,
+        fail: bool,
+        seen: std::sync::Mutex<Vec<SessionId>>,
+    }
+    impl SessionStopHook for SpyStopHook {
+        fn on_session_stopping(&self, id: &SessionId) -> Result<(), String> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.seen.lock().unwrap().push(*id);
+            if self.fail {
+                Err("注入: hook 失败".into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn session_rt_01_stop_hook_called_before_release_and_failure_does_not_truncate() {
+        // A2-8-02-E 四场景之④: hook 失败**不截断**停止/释放链——会话仍
+        // 走完 Input 停止 + 资源释放 + Released（沿"stop 失败不截断"原则）。
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm);
+        let spy = Arc::new(SpyStopHook {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            fail: true, // 注入 hook 失败
+            seen: Default::default(),
+        });
+        mgr.set_stop_hook(spy.clone());
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.start(&sid).expect("start");
+        mgr.stop(&sid).expect("hook 失败仍必须完成停止链（不截断）");
+        assert_eq!(
+            spy.calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "hook 恰被调用一次"
+        );
+        assert_eq!(*spy.seen.lock().unwrap(), vec![sid], "携带正确 SessionId");
+        assert_eq!(
+            mgr.status(&sid).unwrap().phase,
+            SessionPhase::Released,
+            "释放链未被 hook 失败截断"
+        );
+    }
+
+    #[test]
+    fn session_rt_01_stop_hook_success_path_no_residue() {
+        // 场景①③: 正常路径 hook 成功——Released 后零残留（inputs 清空
+        // 语义经 Released 断言; program 资源残留由 runtime 侧测试证明）。
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm);
+        let spy = Arc::new(SpyStopHook {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            fail: false,
+            seen: Default::default(),
+        });
+        mgr.set_stop_hook(spy.clone());
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.start(&sid).expect("start");
+        mgr.stop(&sid).expect("stop");
+        assert_eq!(spy.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(mgr.status(&sid).unwrap().phase, SessionPhase::Released);
+        // 已释放会话再 stop → InvalidTransition（double-stop 防护不因 hook 改变）。
+        assert!(matches!(
+            mgr.stop(&sid),
+            Err(SessionError::InvalidTransition(_))
+        ));
     }
 }

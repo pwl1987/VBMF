@@ -540,42 +540,74 @@ impl GStreamerPipelineController {
         let wants_audio = matches!(req.planes, TapPlanes::Audio | TapPlanes::Both);
         // (tee 名, 是否需要, inter sink 工厂, 平面前缀)——video/audio 平面
         // 独立命名空间, 同 channel 两平面互不冲突。
-        for (tee_name, want, factory, plane) in [
-            ("v", wants_video, "intervideosink", "v"),
-            ("a", wants_audio, "interaudiosink", "a"),
-        ] {
-            if !want {
-                continue;
+        // **事务式物化（第七轮终裁 P2 债修复）**: 成功项入 staged, 任一平面
+        // 失败 → 全部回滚（释放 tee request pad + Null + remove）——保证
+        // Gst 真实图与 media_taps 簿记**原子一致**（簿记=recover 唯一事实
+        // 源, Reality≠bookkeeping 不可发生）。
+        let mut staged: Vec<(gstreamer::Element, gstreamer::Pad, gstreamer::Element)> = Vec::new();
+        let materialize = (|| -> Result<(), TapError> {
+            for (tee_name, want, factory, plane) in [
+                ("v", wants_video, "intervideosink", "v"),
+                ("a", wants_audio, "interaudiosink", "a"),
+            ] {
+                if !want {
+                    continue;
+                }
+                let tee = inst.pipeline.by_name(tee_name).ok_or_else(|| {
+                    TapError::TapPointUnavailable(format!(
+                        "命名 tee {tee_name} 不在管线（tap 点缺失）"
+                    ))
+                })?;
+                let el = gstreamer::ElementFactory::make(factory)
+                    .name(Self::tap_element_name(plane, &req.channel))
+                    .build()
+                    .map_err(|e| TapError::Backend(format!("{factory} 构造失败: {e}")))?;
+                el.set_property("channel", req.channel.as_str());
+                inst.pipeline
+                    .add(&el)
+                    .map_err(|e| TapError::Backend(format!("tap 元素入管线: {e}")))?;
+                el.sync_state_with_parent()
+                    .map_err(|e| TapError::Backend(format!("tap 元素状态同步: {e}")))?;
+                let tee_src = tee
+                    .request_pad_simple("src_%u")
+                    .ok_or_else(|| TapError::Backend("tee request pad 失败".into()))?;
+                let el_sink = el
+                    .static_pad("sink")
+                    .ok_or_else(|| TapError::Backend("tap 元素 sink pad 缺失".into()))?;
+                tee_src
+                    .link(&el_sink)
+                    .map_err(|e| TapError::Backend(format!("tap 链接: {e:?}")))?;
+                staged.push((tee, tee_src, el));
             }
-            let tee = inst.pipeline.by_name(tee_name).ok_or_else(|| {
-                TapError::TapPointUnavailable(format!("命名 tee {tee_name} 不在管线（tap 点缺失）"))
-            })?;
-            let el = gstreamer::ElementFactory::make(factory)
-                .name(Self::tap_element_name(plane, &req.channel))
-                .build()
-                .map_err(|e| TapError::Backend(format!("{factory} 构造失败: {e}")))?;
-            el.set_property("channel", req.channel.as_str());
-            inst.pipeline
-                .add(&el)
-                .map_err(|e| TapError::Backend(format!("tap 元素入管线: {e}")))?;
-            el.sync_state_with_parent()
-                .map_err(|e| TapError::Backend(format!("tap 元素状态同步: {e}")))?;
-            let tee_src = tee
-                .request_pad_simple("src_%u")
-                .ok_or_else(|| TapError::Backend("tee request pad 失败".into()))?;
-            let el_sink = el
-                .static_pad("sink")
-                .ok_or_else(|| TapError::Backend("tap 元素 sink pad 缺失".into()))?;
-            tee_src
-                .link(&el_sink)
-                .map_err(|e| TapError::Backend(format!("tap 链接: {e:?}")))?;
+            Ok(())
+        })();
+        match materialize {
+            Ok(()) => {
+                inst.media_taps
+                    .push(crate::contracts::media_tap::MediaTapAttachment {
+                        channel: req.channel.clone(),
+                        planes: req.planes,
+                    });
+                Ok(())
+            }
+            Err(e) => {
+                // 回滚（逆序）: 已物化分支全部移除, 簿记零增加。
+                for (tee, tee_src, el) in staged.into_iter().rev() {
+                    if let Some(sink_pad) = el.static_pad("sink") {
+                        let _ = sink_pad.unlink(&tee_src);
+                        tee.release_request_pad(&tee_src);
+                    }
+                    let _ = el.set_state(gstreamer::State::Null);
+                    let _ = inst.pipeline.remove(&el);
+                }
+                tracing::warn!(
+                    channel = %req.channel,
+                    error = ?e,
+                    "A2-8-02-C attach 部分失败已整体回滚（图与簿记原子一致）"
+                );
+                Err(e)
+            }
         }
-        inst.media_taps
-            .push(crate::contracts::media_tap::MediaTapAttachment {
-                channel: req.channel.clone(),
-                planes: req.planes,
-            });
-        Ok(())
     }
 }
 
@@ -769,6 +801,42 @@ mod media_tap_tests {
             "新管线上 video tap 分支重挂"
         );
         assert!(element_present(&ctrl, &h, "tap-a-tap-rc"), "audio 分支重挂");
+        let _ = ctrl.stop(&h);
+    }
+
+    #[test]
+    fn tap_rt_01_attach_partial_failure_rolls_back() {
+        // 02-C P2 债（第七轮终裁）: Both 时 video 成功 + audio 失败 →
+        // video 分支必须整体回滚, 簿记零增加——Gst 图与 media_taps 原子
+        // 一致（簿记=recover 唯一事实源, Reality≠bookkeeping 不可发生）。
+        // 故障注入: 从运行中管线移除 audio tee（模拟 tap 点缺失）。
+        let (ctrl, h) = started_analysis_pipeline();
+        {
+            let mut guard = ctrl.instances.lock().unwrap();
+            let inst = guard.get_mut(&h).unwrap();
+            if let Some(a_tee) = inst.pipeline.by_name("a") {
+                let _ = inst.pipeline.remove(&a_tee);
+            }
+        }
+        let err = ctrl
+            .attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: "tap-pf".into(),
+                    planes: TapPlanes::Both,
+                },
+            )
+            .expect_err("audio tap 点缺失应失败");
+        assert!(matches!(err, TapError::TapPointUnavailable(_)));
+        assert!(
+            ctrl.tap_attachments(&h).is_empty(),
+            "簿记零增加（无半条 attachment）"
+        );
+        assert!(
+            !element_present(&ctrl, &h, "tap-v-tap-pf"),
+            "已物化的 video 分支被回滚（图与簿记一致）"
+        );
+        assert!(!element_present(&ctrl, &h, "tap-a-tap-pf"));
         let _ = ctrl.stop(&h);
     }
 }
