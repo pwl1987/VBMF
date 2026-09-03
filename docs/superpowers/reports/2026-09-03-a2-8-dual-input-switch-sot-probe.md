@@ -208,3 +208,85 @@ pad B；Observation：actual active pad · PTS · output frames。Session RUNNIN
 - **收口链**：01 实现→02 真机→03 failure/supervision→04 AV continuity→
   05 archive+CI+merge；**A2-8 NOT CLOSED until 05**（任一中间节点完成
   不宣布 CLOSED）。
+
+---
+
+## 8. 第三轮终裁：A2-8-01 APPROVED + T5 拆分裁定 + 02 重定义（2026-09-03 落盘）
+
+> 终裁链：第一轮（OQ 批准）→ 第二轮（Pre-Implementation Gate 十项冻结）
+> → 第三轮（本节; 01 实现完成后裁决）。
+
+### 8.1 A2-8-01 = IMPLEMENTATION COMPLETE / APPROVED
+
+ExecutionGroup 模型/Switch Execution 独立于 Backend SPI/双路并存/汇入
+Program Execution/A→B→A 真实切换/active-pad 实测/成对语义类型约束/
+MultiInputWatchdog 脱离 first()/PTS 观测/冻结面零 diff——**正式通过**。
+流程 agent 代选（决策点未应答→direct+tdd+standard）裁定为
+"Process deviation disclosed, no technical invalidation"——不返工;
+**改变冻结架构边界仍必须停**，普通实现细节不停。
+
+### 8.2 T5 拆分裁定（本轮最重要）
+
+```text
+Switch Execution        PASS
+Program Output Alive    PASS
+Frame Switch            PASS
+PTS Observation         PASS
+PTS Continuity          FAIL / NOT YET SATISFIED
+```
+
+**T5 = 观测能力 PASS / 连续时间线 NOT YET PASS**——绝不能整体写 PASS。
+01 状态记录为：**FRAME_SWITCH execution PASS; Program timeline
+continuity DEFERRED / FAIL-PENDING-CORRECTION**。
+
+### 8.3 架构级硬事实（提升为 A2-8 后续设计硬事实，非普通 bug）
+
+真实 GStreamer 实证：**source switching 与 Program Timeline continuity
+是两个不同问题**——input-selector 可正确完成 A/B 切换但原生透传源
+时间戳不构成 Program Timeline（A→B 与 B→A 不对称; 回切可现 <1 帧 PTS
+后跳→NonMonotonic）。未来应存在 Source Timeline→Switch Execution→
+**Program Timeline（monotonic PTS/discontinuity handling/source
+transition/潜在 AV alignment）**→Output 的连续性层; **现在不立即做
+Engine**——属 02/04 设计裁决。
+
+### 8.4 术语修正（防实现方案提前变架构合同）
+
+登记为 **Program Timeline Continuity / Timestamp Normalization**（四
+方案未裁: A 切后 Program Timestamp Regenerator / B Program Pipeline 新
+Clock-Segment Timeline / C Encoder-Output boundary normalization / D
+Switch transition 新 segment-timebase）——**不冻结 "Output Timestamp
+Regenerator" 表述**（01 报告原"出口再生成平面"措辞废止）。
+
+### 8.5 inter 注入面裁决（OQ-1 再进一步）
+
+**不批准 pipeline.rs 直接耦合**——禁 `PipelinePlan{inter_channel}` /
+`build_pipeline(..., switch_channel)` 式改动（Pipeline 将感知 Program/
+Switch/ExecutionGroup = Program 层污染 Pipeline 层）。正确关系：
+**Program Execution 层组合 execution handles/materialization resources;
+Pipeline 本身不知自己是 A、B 还是 Program 的一部分**。inter 系作为
+GStreamer materialization **可继续研究**，但代码 API 不得耦合。
+
+### 8.6 A2-8-02 重定义 = Real Dual-Input Program Execution Verification
+
+五维验证矩阵：Input[A/B alive]·Execution[A→B→A active 推进]·Output
+[Program alive]·Timing[PTS monotonic/discontinuity/AV continuity——
+**Program Timeline Continuity / Timestamp Normalization 为 02 明确观察
+项**]·Supervision[A fail→B 仍可观测·B fail→A 仍可观测·Supervisor
+echo 不被 Custody 误计新故障（沿 A2-7 链零旁路）]。
+**Program Output = 一级 Observation 对象**（Input health 与 Program
+execution health 两维度分离——A/B/switch 全 healthy 而 program DEAD
+必须可检出; 与 V0.2 HealthState≠EffectiveChannelStatus 一致）。
+**开工唯一前置 = 02 Design Gate**：裁 materialization 注入面（按 §8.5
+边界约束），先裁边界再编码。
+
+### 8.7 最终状态表
+
+```text
+A2-8-00  CLOSED
+A2-8-01  IMPLEMENTATION COMPLETE / APPROVED（T5=观测 PASS·连续性未 PASS）
+A2-8-02  NEXT  = Real Dual-SDI Program Execution（02 Design Gate 先行）
+A2-8-03  FAILURE / SUPERVISION
+A2-8-04  PROGRAM TIMELINE / AV CONTINUITY
+A2-8-05  ARCHIVE / CI / MERGE
+A2-8     NOT CLOSED
+```

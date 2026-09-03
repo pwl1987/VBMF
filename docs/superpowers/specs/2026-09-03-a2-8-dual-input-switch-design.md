@@ -51,9 +51,14 @@ Plan≠Execution Fact）。
 - Event Identity Debt（PipelineFault.pipeline）不修，新增代码不扩大歧义；
 - 01 完成标准=真实 Execution Graph+真实 A/B 切换+MultiInputWatchdog 落地。
 
-## 5. 收口链
+## 5. 收口链（第三轮终裁更新, probe §8）
 
-01 实现 → 02 真机 → 03 failure/supervision → 04 AV continuity →
-05 archive+CI+merge；**A2-8 NOT CLOSED until 05**（MASTER_SWITCH /
-auto-failover / PACKET_SWITCH 全程 Deferred）。
+01 IMPLEMENTATION COMPLETE / APPROVED（T5 拆分=观测 PASS·连续性 NOT
+YET PASS）→ 02 Real Dual-Input Program Execution Verification
+（**02 Design Gate 先行**: 注入面不污染 PipelinePlan/pipeline.rs——
+Program Execution 层组合, Pipeline 不感知 Program; Program Output=
+一级 Observation 对象; Program Timeline Continuity / Timestamp
+Normalization=02 明确观察项·四方案未裁）→ 03 failure/supervision →
+04 Program Timeline / AV continuity → 05 archive+CI+merge；
+**A2-8 NOT CLOSED until 05**。
 

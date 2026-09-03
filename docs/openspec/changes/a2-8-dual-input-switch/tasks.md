@@ -44,20 +44,42 @@
   [default 200·sim 200·mock 330(307+23)·bmd+gstreamer 202 含真实双测
   2/2]·clippy 四组合 -D warnings 全 exit 0·fmt clean·边界门禁[冻结面
   backend/session/events/supervisor/program/pipeline 零 diff·契约面签名
-  零拓扑耦合]; **T5 边界实证**: 回切 PTS 后跳被三态机如实检出——广播级
-  连续时间线=出口再生成平面（02 编码出口, A2-8-04 验收项）` | `Gate:
-  T1-T12 mock 层全落地+真实 GStreamer 切换实证; **A2-8 NOT CLOSED**`
-- [ ] 4. A2-8-02 真机验证: 双 SDI inputs=2 同 Session 双 Pipeline + A→B→A
-  显式切换 + frame boundary 实证 + Program output 存活; 真机 Gate 记录;
-  **02 前置设计点（01 登记）**: inter 系跨管线隧道需输入侧
-  intervideosink/intervideosrc 注入面（触及既有构链表面——01 未动
-  pipeline.rs/build_pipeline, 02 开工前须先裁注入面归属）
-  `Contract: 01 交付链` | `Implementation: 待` | `Verification: 真机 Gate` | `Gate: 待`
+  零拓扑耦合]; **T5 边界实证（第三轮终裁拆分记录）**: 回切 selector 原生
+  透传源时间戳可现 <1 帧 PTS 后跳，三态机如实检出 NonMonotonic——
+  **T5 = 观测能力 PASS / 连续时间线 NOT YET PASS**（01 状态=FRAME_SWITCH
+  execution PASS; Program timeline continuity DEFERRED/FAIL-PENDING-
+  CORRECTION——架构级事实: source switching ≠ Program Timeline
+  continuity, 真实 GStreamer 实证）` | `Gate: T1-T12 mock 层全落地+
+  真实 GStreamer 切换实证; **A2-8-01 = IMPLEMENTATION COMPLETE +
+  APPROVED（第三轮终裁, probe §8）**; **A2-8 NOT CLOSED**`
+- [ ] 4. A2-8-02 Real Dual-Input Program Execution Verification（第三轮
+  终裁重定义）: 真实 SDI A/B → Pipeline A/B → Program Switch 全过程
+  A→B→A; 验证五维——Input[A/B alive]·Execution[active=A→switch(B)→
+  active=B→switch(A)→active=A]·Output[Program output alive]·Timing[
+  PTS monotonic? discontinuity? Video/Audio continuity——**Program
+  Timeline Continuity / Timestamp Normalization 为 02 明确观察项**（四
+  方案未裁: A 切后 Regenerator/B 新 Clock-Segment Timeline/C 出口
+  normalization/D 切换建新 segment timebase——**不冻结具体方案**）]·
+  Supervision[A fail→B 仍可观测·B fail→A 仍可观测·Supervisor echo 不被
+  Custody 误计新故障（沿 A2-7 RuntimeEvent→Custody→FailureObservation
+  链零旁路）]; **Program Output = 一级 Observation 对象**（Input health
+  与 Program execution health 两维度分离——A/B/switch 全 healthy 而
+  program output DEAD 必须可检出; 与 V0.2 HealthState≠
+  EffectiveChannelStatus 一致）; **02 Design Gate（开工唯一前置）**:
+  裁真实双 SDI→Program Execution 的 materialization 注入面——
+  **不批准 pipeline.rs/build_pipeline 感知 Program/inter/Switch 语义**
+  （禁 `PipelinePlan{inter_channel}`/`build_pipeline(...,switch_channel)`
+  式耦合——Pipeline 不知自己是 A/B/Program; Program Execution 层组合
+  执行 handles/materialization resources）; 真机 Gate 记录
+  `Contract: 01 APPROVED+第三轮终裁（probe §8）` | `Implementation: 待` | 
+  `Verification: 真机 Gate` | `Gate: 02 Design Gate 先行`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
-- [ ] 6. A2-8-04 AV continuity 验证: 六路 PTS before/after switch 无
-  rollback/discontinuity/divergence/starvation（observation only，无 Engine）
+- [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
+  六路 PTS before/after switch 无 rollback/discontinuity/divergence/
+  starvation; Program Timeline Continuity / Timestamp Normalization 方案
+  裁决与验证（observation only，无 Engine——方案设计裁决属 02/04）
   `Contract: 03` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
