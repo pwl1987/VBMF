@@ -152,6 +152,44 @@ impl AdapterRegistry {
             Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
         Ok(backend)
     }
+
+    /// A2-8-02-F-01（第九轮终裁）: 同源 runtime adapter bundle——
+    /// **同一 concrete `GStreamerPipelineController` 的双 trait view**
+    /// （`MediaBackend` + `MediaTapPort` 指向同一对象; 禁二次构造——两个
+    /// controller 即两个 instances ownership 表, tap attach 将得
+    /// UnknownPipeline）。组合根经此取得双 view; SessionManager 仍只见
+    /// `MediaBackend`（Session 抽象边界不破）。
+    #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+    pub fn build_media_adapter_bundle() -> Result<MediaAdapterBundle, String> {
+        ensure_adapter_selection_safe()?;
+        #[cfg(feature = "mock")]
+        {
+            // Mock 世界无共享 instances 表——独立实例语义等价。
+            Ok(MediaAdapterBundle {
+                backend: Arc::new(crate::adapters::mock::MockBackend),
+                media_tap: Some(Arc::new(crate::adapters::mock::MockMediaTapPort::new())),
+            })
+        }
+        #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
+        {
+            // 单次构造 concrete controller → 两次 clone 各自 coerce——
+            // 两个 trait object 同源同一对象（结构保证 + 行为证明见
+            // registry_rt_01_bundle_dual_view_same_controller）。
+            let controller =
+                Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+            Ok(MediaAdapterBundle {
+                backend: controller.clone(),
+                media_tap: Some(controller),
+            })
+        }
+    }
+}
+
+/// A2-8-02-F-01: 同源 adapter bundle（backend + media tap 双 trait view）。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+pub struct MediaAdapterBundle {
+    pub backend: Arc<dyn MediaBackend>,
+    pub media_tap: Option<Arc<dyn crate::contracts::media_tap::MediaTapPort>>,
 }
 
 #[cfg(test)]
@@ -170,5 +208,37 @@ mod tests {
                 }
             }
         }
+    }
+
+    // A2-8-02-F-01 同源双 view **行为证明**（盒上 bmd+gstreamer 非 mock）:
+    // 经 backend view 实例化的 handle, 经 tap view attach 成功——若为两个
+    // controller（二次构造）, instances 表分裂 → UnknownPipeline（反证）。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn registry_rt_01_bundle_dual_view_same_controller() {
+        use crate::contracts::media_tap::{MediaTapRequest, TapPlanes};
+        use crate::pipeline::PipelinePlan;
+
+        let bundle = AdapterRegistry::build_media_adapter_bundle().expect("bundle 构造");
+        let tap = bundle.media_tap.expect("tap view 在");
+        let h = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("物化");
+        bundle.backend.start(&h).expect("启动");
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "bundle-proof".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("同源双 view: tap 可见 backend 实例化的 handle（分裂即 UnknownPipeline）");
+        assert_eq!(tap.tap_attachments(&h).len(), 1, "簿记在（同一 ownership）");
+        let _ = bundle.backend.stop(&h);
     }
 }

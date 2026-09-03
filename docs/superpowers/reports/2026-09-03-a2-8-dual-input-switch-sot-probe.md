@@ -595,3 +595,47 @@ registry 必须提供**同一 concrete GStreamerPipelineController 实例的
 对象——否则 instances 表不共享, attach 得 UnknownPipeline）;
 **禁第二 registry**（GStreamerMediaTapRegistry/独立 port 持第二表=两
 个 execution ownership 表）。02-E 修复后按序 02-F。
+
+---
+
+## 14. 第九轮终裁：E-6 close-path 边界 + 02-F 执行序 + 本轮修复落盘（2026-09-04）
+
+> 证据基线: 远端 `ed388dc` 实码; 第八轮 P0/P1 复认 PASS。
+
+### 14.1 E-6 CLOSE-PATH GAP（实码确认并已修）
+
+close() 是**独立终态路径**（session.rs:852-879——接受 Released/
+Terminated/ProvisioningFailed/BindingFailed/StartFailed; sessions.remove
++防御性回收, **零 stop_hooks 处理**）⇒ 异常终态→close 理论上残留
+Runtime 引用。**修复**: close() 增 `stop_hooks.remove(id)`——不变量
+**任何 close(id) ⇒ hook 条目不存在**（防御性兜底, 与 stop 路径的
+Released 后移除双保险）; 测试 session_rt_01_close_path_clears_stop_
+hook_entry[终态后残留注册→close→条目必不存在]。
+
+### 14.2 02-F 执行序（第九轮冻结）
+
+02-E-E6[本轮已修]→**02-F-01** AdapterRegistry 同一 concrete controller
+双 trait view→**02-F-02** Runtime 真接 tap_port→**02-F-03**
+switch_graph videotestsrc→intervideosrc/interaudiosrc→**02-F-04** A/B
+跨 pipeline 接通→**02-F-05** 双 plane 成对切换→02-G→02-H→02-I。
+
+### 14.3 02-F-01 已交付（本轮）
+
+- registry.rs 增 `MediaAdapterBundle{backend, media_tap}` +
+  `build_media_adapter_bundle()`——**单次构造 concrete controller →
+  双 clone 各自 coerce**（两 trait object 同源同一对象; 禁二次构造）;
+  mock 分支无共享 instances 表（独立实例语义等价）;
+- **同源行为证明**（盒上真实 GStreamer）:
+  registry_rt_01_bundle_dual_view_same_controller——经 backend view
+  实例化的 handle 经 tap view attach 成功+簿记在（**若二次构造两
+  controller, instances 分裂 → UnknownPipeline——反证排除**）;
+- SessionManager 仍只见 MediaBackend（Session 抽象边界不破——组合根
+  持双 view）; channel 语义维持: DeviceId=canonical hardware identity,
+  tap channel=execution bridge address（不提升新 identity）。
+
+### 14.4 边界维持
+
+watchdog 不承担 Tap ownership（Tap=Runtime 创建/销毁资源的一部分）;
+watchdog 恢复仍只 ctrl.recover(故障输入 handle) 非切换; pipeline.rs
+零 diff; Supervisor 不动; AVSync/Timeline 继续冻结; A2-8 NOT CLOSED。
+盒上: mock 342·bmd+gstreamer 207·clippy 双组合 clean·fmt clean。

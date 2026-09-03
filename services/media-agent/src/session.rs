@@ -875,6 +875,12 @@ impl SessionManager {
                 let _ = self.leases.release(l);
             }
         }
+        // A2-8-02-E E-6（第九轮终裁）: close 是独立终态路径（Released 之外
+        // 还有 Terminated/ProvisioningFailed/BindingFailed/StartFailed）——
+        // 本 Session 的 stop hook 条目必须不存在（防异常终态下 Runtime
+        // 引用残留; 正常 stop 路径已在 Released 后移除, 此行为兜底不变量:
+        // **任何 close(id) ⇒ hook 条目不存在**）。
+        self.stop_hooks.lock().unwrap().remove(id);
         Ok(())
     }
 
@@ -2399,5 +2405,37 @@ mod tests {
         assert_eq!(spy_b.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
         assert_eq!(*spy_b.seen.lock().unwrap(), vec![sid_b]);
         assert_eq!(mgr.stop_hooks_len(), 0, "全停后关联表清空（零引用残留）");
+    }
+
+    #[test]
+    fn session_rt_01_close_path_clears_stop_hook_entry() {
+        // 第九轮 E-6: close 是独立终态路径（异常终态 Terminated/
+        // ProvisioningFailed/BindingFailed/StartFailed 不经 stop）——
+        // 不变量: **任何 close(id) ⇒ hook 条目不存在**（防御性兜底: 即使
+        // 终态前残留注册, close 后 Runtime 引用零滞留）。
+        let devices = two_devices();
+        let lm = Arc::new(InMemoryLm::new());
+        let mgr = mock_manager(&devices, lm);
+        let sid = mgr.create(intent_for_all(&devices)).expect("create");
+        mgr.start(&sid).expect("start");
+        mgr.stop(&sid).expect("stop（正常路径 hook 已移除）");
+        // 模拟异常/防御性残留: 终态后仍有注册（如外部误注册或未走 stop 的
+        // 终态路径）——close 必须清除。
+        mgr.register_stop_hook(
+            &sid,
+            Arc::new(SpyStopHook {
+                calls: std::sync::atomic::AtomicUsize::new(0),
+                fail: false,
+                seen: Default::default(),
+            }),
+        );
+        assert_eq!(mgr.stop_hooks_len(), 1, "前置: 残留条目在");
+        mgr.close(&sid).expect("close（Released 终态）");
+        assert_eq!(
+            mgr.stop_hooks_len(),
+            0,
+            "E-6: close 后 hook 条目必不存在（零 Runtime 引用滞留）"
+        );
+        assert!(mgr.status(&sid).is_none(), "会话已从表移除");
     }
 }
