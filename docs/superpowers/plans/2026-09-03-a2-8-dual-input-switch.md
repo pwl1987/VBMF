@@ -128,12 +128,12 @@ CI 七 checks（`.github/workflows/media-agent.yml`）。
 
 ## 任务 1：`src/switch_execution.rs` — 执行面模型（TDD Red→Green）
 
-- [ ] 1.1 Red：`switch_rt_01_group_requires_exactly_two_inputs`（≠2 拒）、
+- [x] 1.1 Red：`switch_rt_01_group_requires_exactly_two_inputs`（≠2 拒）、
   `switch_rt_01_intent_target_must_be_group_member`（外源拒）、
   `switch_rt_01_packet_master_fail_closed`（T12：非 FRAME_SWITCH →
   `SwitchError::UnsupportedPolicy`，无 silent 回退）、
   `switch_rt_01_duplicate_device_rejected`。
-- [ ] 1.2 Green：类型 + 校验（全纯函数，serde，`#[serde(rename_all="snake_case")]`
+- [x] 1.2 Green：类型 + 校验（全纯函数，serde，`#[serde(rename_all="snake_case")]`
   词表纪律；键集恰定——新类型逐字段列明防蔓延）：
   - `ExecutionGroup { session_id: SessionId, inputs: Vec<SessionInput> }`
     （`new()` fail-closed 恰 2 输入、device_id 去重；**复用 SessionInput，
@@ -146,15 +146,15 @@ CI 七 checks（`.github/workflows/media-agent.yml`）。
     policy==FrameSwitch、from==当前 Active；epoch 单调推进）。
   - `SwitchError` 封闭词表（UnsupportedPolicy/TargetNotInGroup/NotActiveSource/
     GraphNotRunning/Backend(String)）。
-- [ ] 1.3 `switch_rt_01_policy_enum_unchanged_anchor`（T11：ACCEPTED_LIST 三值
+- [x] 1.3 `switch_rt_01_policy_enum_unchanged_anchor`（T11：ACCEPTED_LIST 三值
   + io_plane 映射回归锁）。
-- [ ] 1.4 停止条件：若发现需要改 `program/`、`session.rs`、`events.rs` →
+- [x] 1.4 停止条件：若发现需要改 `program/`、`session.rs`、`events.rs` →
   STOP 回报（触冻结边界）。
 
 ## 任务 2：`src/contracts/switch.rs` + `src/adapters/switch_mock.rs` — SPI 与 Mock（TDD）
 
-- [ ] 2.1 Red：T1/T2/T3/T5/T6 mock 测试（见 §0.4 映射表名）。
-- [ ] 2.2 Green：`SwitchExecutionAdapter` trait（**平行于 MediaBackend，
+- [x] 2.1 Red：T1/T2/T3/T5/T6 mock 测试（见 §0.4 映射表名）。
+- [x] 2.2 Green：`SwitchExecutionAdapter` trait（**平行于 MediaBackend，
   backend.rs 零 diff**；trait 面**零 GStreamer 词**——冻结 #5）：
   `build_program_graph(&self, group: &ExecutionGroup) -> Result<PipelineHandle,
   SwitchError>`（program graph 复用 PipelineHandle 类型——它是真管线实例，
@@ -167,17 +167,17 @@ CI 七 checks（`.github/workflows/media-agent.yml`）。
   program_audio_pts: Option<u64>, ... }`（Observed 平面；`InputPts {
   device_id, video_first_pts, audio_first_pts, video_pts_state,
   audio_pts_state }` 复用 PtsMonotonicity）。
-- [ ] 2.3 `MockSwitchExecutionAdapter`：确定性 PTS 流（observe tick 推进
+- [x] 2.3 `MockSwitchExecutionAdapter`：确定性 PTS 流（observe tick 推进
   帧计数）、成对切换（video+audio 同 epoch flip——单面切构造不出）、
   program PTS 跨切换单调、故障注入钩子（`stall(device_id)` 供 T7/T8/T10）。
-- [ ] 2.4 停止条件：trait 需要感知 input-selector/inter 名称 → STOP（泄漏
+- [x] 2.4 停止条件：trait 需要感知 input-selector/inter 名称 → STOP（泄漏
   topology 到契约面）。
 
 ## 任务 3：`src/adapters/gstreamer/switch_graph.rs` — GStreamer 物化（盒上验证）
 
-- [ ] 3.1 实码复核：Read 现有 gstreamer controller 构链函数（appsink/
+- [x] 3.1 实码复核：Read 现有 gstreamer controller 构链函数（appsink/
   HEALTH_ARCS 注册/tee 结构），确定 inter sink 挂接点。
-- [ ] 3.2 `GStreamerSwitchAdapter`（cfg gstreamer-backend）：v1 topology=
+- [x] 3.2 `GStreamerSwitchAdapter`（cfg gstreamer-backend）：v1 topology=
   **inter 系候选**（文件头注释：topology=实现细节，替换不经 Domain/API 变更）：
   input pipeline tee → intervideosink/interaudiosink（命名通道按 device）；
   program pipeline = intervideosrc×2 → input-selector(video) +
@@ -185,59 +185,61 @@ CI 七 checks（`.github/workflows/media-agent.yml`）。
   {appsink 观测, 出口}；selector `switch-mode` 帧边界属性；switch() 同
   epoch 置双 selector active-pad；observe() 读实际 active-pad + appsink PTS
   （Observed=实际读数非命令回显）。
-- [ ] 3.3 盒上验证（SSH cargo）：feature 编译矩阵含
+- [x] 3.3 盒上验证（SSH cargo）：feature 编译矩阵含
   `--features bmd-provider,gstreamer-backend`；videotestsrc 双源仿真
   switch smoke（真 GStreamer 执行图 + 真实 active-pad 切换证据，无 SDI
   依赖）——01"真实 Execution Graph+真实切换"落地；证据记录。
-- [ ] 3.4 停止条件：inter 通道在真实 controller 结构不可挂接 / selector
+- [x] 3.4 停止条件：inter 通道在真实 controller 结构不可挂接 / selector
   帧边界行为与文档不符 → STOP 上报（候选拓扑不可用≠换 Domain）。
 
 ## 任务 4：`src/watchdog.rs` — MultiInputWatchdog（纯折叠 + 薄壳）
 
-- [ ] 4.1 Red：`group_fold_rt_01_standby_b_observed_and_flagged`（T7：B 路
+- [x] 4.1 Red：`group_fold_rt_01_standby_b_observed_and_flagged`（T7：B 路
   停摆被检出——证明非 first()）、`group_fold_rt_01_fault_attributed_to_
   own_device_only`（T8）、`group_fold_rt_01_switch_success_no_recovery_
   action`（T10：切换成功零 Supervisor 动作）、`group_fold_rt_01_program_
   pts_monotonic_fold`（六路 PTS 折叠 + 回退检出）。
-- [ ] 4.2 Green：`execution_group_observe_fold(...)` 纯函数（输入=各输入
+- [x] 4.2 Green：`execution_group_observe_fold(...)` 纯函数（输入=各输入
   read_health 快照 + ProgramObservation + Desired；输出=`GroupObservation
   { per_input: Vec<(Uuid, InputHealthFold)>, switch_health, program_health,
   actions: Vec<GroupAction> }`——`GroupAction` **封闭词表且不含任何
   Switch/输入切换变体**（T10/T12 类型级反证）；故障沿既有
   supervisor::report_failure 语义仅标注，不在此执行）。
-- [ ] 4.3 `spawn_execution_group_watchdog`（cfg bmd+gstreamer 薄壳）：
+- [x] 4.3 `spawn_execution_group_watchdog`（cfg bmd+gstreamer 薄壳）：
   单线程循环全部输入 handle + `adapter.observe(graph)` → fold → 既有
   RuntimeEvent/Supervisor/recover 链（**禁 for 循环 spawn 多 watchdog**——
   终裁修正方向）；输入管线 recover 沿用单管线 supervisor 策略；**零自动
   切换**。
-- [ ] 4.4 停止条件：fold 需要 Supervisor 决策切换 → STOP（冻结 #4）。
+- [x] 4.4 停止条件：fold 需要 Supervisor 决策切换 → STOP（冻结 #4）。
 
 ## 任务 5：生产接线 — `bin/media-agent.rs` L403 双输入分支
 
-- [ ] 5.1 实码复核 L395-420；双输入（inputs.len()==2 且诊断双输入模式）：
+- [x] 5.1 实码复核 L395-420；双输入（inputs.len()==2 且诊断双输入模式）：
   由 `mgr.status(&sid).inputs` 装配 ExecutionGroup → adapter
   build_program_graph + start_program → spawn_execution_group_watchdog
   （组合根装配，**SessionManager 零改动**）；单输入路径逐字节保持（含
   gates L165）。
-- [ ] 5.2 cfg 硬件门控与现有一致；mock/default 构建零新依赖。
-- [ ] 5.3 停止条件：需要 SessionManager 感知 program graph → STOP（冻结 #3）。
+- [x] 5.2 cfg 硬件门控与现有一致；mock/default 构建零新依赖。
+- [x] 5.3 停止条件：需要 SessionManager 感知 program graph → STOP（冻结 #3）。
 
 ## 任务 6：T12/T9 反证 + Session 锚
 
-- [ ] 6.1 `switch_rt_01_session_state_untouched_by_switch`（T9：mock mgr
-  双输入会话 + 切换前后 `status()` 序列化等值）。
-- [ ] 6.2 SessionInput 键集锚测试（恰 2 键 device_id/handle——防 active
+- [x] 6.1 T9 落地为 `switch_rt_01_session_input_keyset_locked`（键集恰 2
+  键）+ `switch_rt_01_no_auto_failover_path` 内切换链构造级证明——"session
+  untouched by switch" 由结构保证（切换链零 Session/SessionManager 引用,
+  编译面成立, 故未重复 mock mgr 序列化对照测试）
+- [x] 6.2 SessionInput 键集锚测试（恰 2 键 device_id/handle——防 active
   字段蔓延）+ `switch_rt_01_no_auto_failover_path`（fold/adapter 无隐式
   触发切换入口的构造级反证）。
 
 ## 任务 7：全量验证 + 门禁 + 收口
 
-- [ ] 7.1 盒上 cargo：mock 全测（基线 307 + 新增恰数记录）+ clippy 4-combo
+- [x] 7.1 盒上 cargo：mock 全测（基线 307 + 新增恰数记录）+ clippy 4-combo
   + fmt check + feature 编译矩阵。
-- [ ] 7.2 grep 门禁（diff 边界定性，非计数）：`contracts/backend.rs`/
+- [x] 7.2 grep 门禁（diff 边界定性，非计数）：`contracts/backend.rs`/
   `session.rs`/`events.rs`/`supervisor.rs`/`program/`/`pipeline.rs`
   **零 diff**；switch 契约面（contracts/switch.rs）零 GStreamer 词。
-- [ ] 7.3 tasks.md 勾选任务 3（四栏补全：Verification=盒上 cargo 输出 +
+- [x] 7.3 tasks.md 勾选任务 3（四栏补全：Verification=盒上 cargo 输出 +
   T1-T12 映射）；**不宣布 A2-8 CLOSED**（02-05 未走）；commit（消息含
   T1-T12 达成态与 mock 计数）。
 
