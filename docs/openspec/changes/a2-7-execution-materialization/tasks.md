@@ -81,6 +81,21 @@
   `Contract: A2-7-02 复核终裁[01 报告 §6]` | `Implementation: 已` | 
   `Verification: 盒上 custody 4/4 + mock 303 + clippy 4-combo + fmt clean
   + FailurePath 零残留` | `Gate: 无`
-- [ ] 7. A2-7-03..05（链路扩展/mock lifecycle 验证/真机前置）——待用户
-  复核修正版后推进; A2-8 双输入真机切换
+- [x] 7. A2-7-02 二轮终裁落实（identity correlation, CHANGES REQUIRED →
+  修正版 @待推）: `FailureObservation` 增 `pipeline_id: Uuid`（沿用 
+  `RuntimeEvent::PipelineFault.pipeline` 真实身份; **禁**强行统一 
+  PipelineHandle(u64)↔Uuid——两级身份映射留 A2-7-03 确认 SoT）+
+  `attribute_failures(pipeline_id, observations)` 只消费 **pipeline_id 
+  匹配 ∧ (PipelineFault, SharedPipeline) 联合证据**（matches! 联合匹配
+  ——source+scope 是联合证据非 scope 单独定语义）+ `custody_snapshot` 增
+  pipeline_id 参数; **跨实例污染回归测试**（custody_05: A 故障流 → 
+  B snapshot=None 零污染 + 混合流各归各 + 反向不污染）; 语义连锁记档:
+  Degraded 首版不可达; 二轮测试教训: helper 装配注意混合流身份构成
+  `Contract: A2-7-02 二轮复核终裁[01 报告 §7]` | `Implementation: 已` | 
+  `Verification: 盒上 custody 5/5（新增跨实例污染回归）+ mock 304（303+1 
+  恰）+ clippy 4-combo PASS + fmt clean` | `Gate: 无`
+- [ ] 8. A2-7-03..05（Runtime failure fact 接入 Custody/链路扩展/mock 
+  lifecycle 验证/真机前置）——待用户复核修正版[确认 A2-7-02 CLOSED]后
+  推进; 03 负责 Runtime/Event→Custody 真实接线+PipelineHandle↔Uuid SoT 
+  确认; A2-8 双输入真机切换
   `Contract: Gate 链` | `Implementation: 待` | `Verification: 后续核` | `Gate: 后续定`

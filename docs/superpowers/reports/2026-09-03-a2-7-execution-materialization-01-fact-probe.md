@@ -176,6 +176,45 @@ AudioPath scope 演进后可达（非缺陷，是保守归因的诚实后果）�
 `{video_failed: true, audio_failed: true}`；空 → 双 false；custody_snapshot
 SharedPipeline → `FAILED`。
 
+---
+
+## 7. A2-7-02 二轮复核终裁（CHANGES REQUIRED — identity correlation，2026-09-03）
+
+> ded0221 的 scope 修正**确认成立**（FailurePath 删除/SharedPipeline 表达
+> "作用域证据"/双路归因规则全 PASS）；**唯一剩余硬问题 = FailureObservation
+> 无 pipeline identity**——多实例隔离是实际矛盾非未来优化（SessionManager
+> 允许 Session1→Pipeline1 / Session2→Pipeline2；Pipeline A fault + 无身份
+> observations → custody_snapshot(B) 误判 B 双路 failed）。
+
+- **identity correlation 缺失**：Custody doc 声明"来源+identity+media path
+  映射"，实做只完成 source→scope→video/audio，**identity match 未实现**；
+  A2-7-03 将建 Execution→Fact→Custody→Join→Snapshot 全链——现在接入无身份
+  observation，后续会形成"Pipeline A fault → generic observation → Pipeline
+  B snapshot failed"的跨实例污染，后补成本远大于现在。
+- **source+scope 联合约束补强**：归因判定应 `matches!((&source,&scope),
+  (PipelineFault, SharedPipeline))`——source+scope 是**联合证据**，非 scope
+  单独决定语义（防未来加 HardwareFault 等来源时因 scope 相同被误归因）。
+- **身份键裁决**：沿用 `PipelineFault.pipeline: Uuid`（真实 Runtime 事件
+  身份）；**禁**强行统一 `PipelineHandle(u64)` ↔ Uuid（两级身份未经证明
+  同一，映射关系留 A2-7-03 接线时确认 SoT）。
+
+### 修正（收缩到极小一刀）
+
+```text
+FailureObservation { source, pipeline_id: Uuid, scope }
+attribute_failures(pipeline_id: Uuid, observations)
+  = 只消费 pipeline_id 匹配 ∧ PipelineFault ∧ SharedPipeline → 双路 failed
+custody_snapshot(video, audio, pipeline_id, observations)
+新增回归测试: Pipeline A fault 不污染 Pipeline B
+```
+
+### 维持批准项（全 PASS）
+
+SharedPipeline→双路 failed / 单路 Degraded 首版不可达 / 只接 PipelineFault /
+不机械吸收 HardwareFault·SessionFailed·ClockLost / 不引入 FailureDomain·
+Reason / 不虚推进 Master Stage / Metadata Unknown / AVSync 不改 Join Result /
+不重做 00/01。
+
 ## 4. No-Build Gate 复认
 
 零 .rs diff；未定义任何 ExecutionFact 类型；未写 Custody；未碰
