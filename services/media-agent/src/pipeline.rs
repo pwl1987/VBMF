@@ -132,6 +132,12 @@ pub struct OutputPlan {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
+    /// A2-7-01 Execution Adapter Gap（正式登记, 用户终裁 OQ-6）: 本声明当前
+    /// **未被 Execution Adapter 消费**——normalize=true/false 生成管线相同
+    /// （分析分支 `src ! caps ! appsink` 无 Normalize 元素）。Gap 可见/可
+    /// 追踪/不伪装成成功: Program Custody 禁因本声明 advance(Normalized)
+    /// （Intent≠Execution Fact）; 补齐 = Execution Adapter 工作项（实插
+    /// Normalize 元素链 + 可观测完成点）, 属 A2-7-02+ 子任务。
     pub normalize: bool,
     /// A2-1: 类型化 SwitchPolicy（V0.2 §1.17 词表; 默认 FRAME_SWITCH = 旧占位值,
     /// wire 序列化值不变——兼容锚见 tests）。

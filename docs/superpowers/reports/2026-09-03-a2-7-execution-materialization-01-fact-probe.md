@@ -1,0 +1,257 @@
+# A2-7-01 — Execution Fact Shape / Ownership Probe
+
+> Status: `PROBE + DESIGN PROPOSAL / NO CODE CHANGE`
+> Authority: A2-7-00 终裁 §8（四空白 + 核心任务：查死 SOURCE_RAW→NORMALIZED
+> 真实 execution completion 语义）
+> Date: 2026-09-03 · Base: 分支 `a45a9d5`
+
+---
+
+## 1. 核心任务查死：SOURCE_RAW → NORMALIZED（高风险点结论）
+
+### 1.1 决定性事实：`normalize` 声明被 Materialization 静默忽略
+
+- `PipelinePlan.normalize: bool`（pipeline.rs L135）在 **GStreamer controller
+  零消费**：grep 全库唯一非测试消费点 = 零；`to_pipeline_description`/
+  controller 构造均不读它；
+- 实际生成管线（controller.rs L268/L270）：
+  - 视频：`{video_src} ! video/x-raw ! appsink`
+  - 音频：`{audio_src} ! audio/x-raw ! appsink`
+  - **normalize=true 与 false 生成的 pipeline 完全相同**（无 videoconvert/
+    videorate/videoscale 等 Normalize 元素；唯一 `videoconvert` 在 output
+    编码分支 L1052 = delivery 侧 encode 前色彩转换，非 V0.2 Normalize 语义）；
+- b1/b3（first_video_pts/valid_pts）证明的是 **`src→caps→appsink` 链首帧**
+  ——由于链中**无 normalize 元素**，该首帧就是 raw 源帧，与 NORMALIZED 无关。
+
+### 1.2 终裁表再收紧（比 A2-7-00 §8 更进一步）
+
+| Transition | A2-7-00 终裁 | **01 实查修正** |
+|---|---|---|
+| SOURCE_RAW→NORMALIZED | ✅ 可实现（01 查死完成语义） | **⏸️ Deferred——Normalize 执行元素不存在**；b1/b3 = RAW ingest acceptance 非 normalize completion。事实前提 = Execution Adapter 为 normalize=true **实际插入** Normalize 元素链 + 建立可观测完成点（pad probe / normalize 后首帧）——属 A2-7-02+ Execution Adapter 侧工作 |
+| 其余六步 | ⏸️ Deferred | 维持（无变化） |
+
+### 1.3 附带发现（如实上报，不在本 change 修）
+
+`GraphRuntimeIntent.normalize` 是 V0.2 Normalize 能力的 canonical 声明，
+而 Execution Adapter 未实现该声明——**声明与执行的缺口**（normalize 字段
+静默忽略）。处置待裁：A2-7-02+ 实现 normalize 元素 / 登记 execution gap
+债务 / 两者。**本 change 不动 materialize**（禁止清单）。
+
+---
+
+## 2. 四空白 Probe
+
+### ① Execution Fact Shape（按域拆——禁万能 struct）
+
+现有事实素材分域盘点：
+
+| 域 | 现有素材（实锚） | Fact 候选形态（01 提案） |
+|---|---|---|
+| Video | `video_first_pts/video_pts_state`（appsink 回调）+ b1/b3 | `VideoExecutionFacts { ingest_first_frame: bool, pts_valid: bool }`——**ingest 级**（非 normalize 级，§1） |
+| Audio | `audio_first_pts/audio_pts_state` + b2 | `AudioExecutionFacts { ingest_first_frame: bool, pts_valid: bool }` 同构 |
+| Metadata | **零** | 无 Fact 可定义 → declaration 恒 Unknown（OQ-2 终裁 fail-closed） |
+| Failure | `PipelineFault{pipeline:Uuid}` / `PipelineBusEvent{handle,source,...}` / `HardwareFault{device_id}` / bus Error/Eos | `FailureFacts`（来源+身份 attribution，见②） |
+| AVSync | 双路独立 PTS（video/audio first/last + state） | `AVSyncObservation`（测量候选见 OQ-4 终裁：measurement source 复用双 PTS） |
+
+**红线重申**：以上全部是**候选形态提案**——A2-7-02 前不写任何 Fact 类型；
+具体字段按 Custody 消费需求逐项裁（OQ-3 attribution 规则裁决后）。
+
+### ② Video/Audio attribution
+
+**正面发现**：`PipelineBusEvent{handle: PipelineHandle, source: String,
+timestamp, detail, severity}`（pipeline_events.rs L102-110）已**结构化携带
+element 粒度身份**——`source` = 发出元素名。即 attribution 的技术通道
+（element 级）已存在；**但当前分析分支仅 src/caps/appsink 三元素**，无
+可归属的中间处理节点（§1）。`PipelineFault{pipeline: Uuid}` 亦带管线身份。
+→ **attribution 底座已备**：`handle ↔ SessionInput.device_id` 映射 +
+`source` 字段保留 element 粒度，A2-7-02 Custody 实现时直接可用。
+
+### ③ Metadata declaration source
+
+全库排查：`config.rs`/`fixture.rs` **零 metadata 字段**；manifest 亦无。
+→ **维持 OQ-2 终裁**：无 producer → `join_declaration=UNKNOWN` →
+`Join.ready=false`（fail-closed）。producer 候选（A4 Channel / 未来
+metadata declaration contract）出现前不预设。**当前唯一合法 ProgramMaster
+= `join_result: None`**（三 Master 永不可能全 eligible）——这与"零挂载"
+（A2-6）互为印证：整条链在 Metadata producer 落地前无法产出 READY。
+
+### ④ Program Runtime Custody lifecycle（形态建议，不实现）
+
+- **挂载层**：独立模块（Runtime/Orchestration 侧；OQ-5 终裁）；
+- **触发挂点候选**：(a) SessionManager start 成功（Running 转移）后通知；
+  (b) watchdog tick 周期采样；(c) Production StartPipeline Intent。三者
+  非互斥（启动通知 + 周期刷新），**A2-7-02 裁**；
+- **职责**（A2-6-00 终裁原文）：receives execution facts → advances
+  declarations → invokes join() → publishes snapshot；
+- **与 SessionManager 协作接口**：Custody 只**读** session/runtime facts
+  （单向依赖），SessionManager 不知道 Custody 存在（禁反向接线）；
+- **红线继承**：Custody 零 recovery 动作（Supervisor 域）、零 transport、
+  零 transport。
+
+## 3. Open Questions（交用户，A2-7-02 前置）
+
+| # | 问题 | 倾向（非裁决） |
+|---|---|---|
+| OQ-6 | `normalize` 声明-执行缺口处置：A2-7-02+ 实现 Normalize 元素 / 登记 execution gap 债务 / 两者（先登记，实现随 A2-7-02） | 倾向两者 |
+| OQ-7 | SOURCE_RAW→NORMALIZED 事实前提（Normalize 元素 + 可观测完成点）的实现归属 | A2-7-02 Execution Adapter 侧（属"补 normalize 声明的执行"非新能力） |
+| OQ-8 | Fact 类型形态（§2①提案五域 vs 裁决调整）与 Custody 触发挂点（启动通知+周期采样 vs 单一） | A2-7-02 主裁 |
+| OQ-9 | Metadata producer 长期归属确认（A4 Channel 为唯一正源？） | 维持 UNKNOWN 至 A4 |
+
+---
+
+## 5. 用户终裁记录（A2-7-01 → A2-7-02 Gate，2026-09-03）
+
+> **A2-7-01 = CLOSED / APPROVED；A2-7-02 = APPROVED TO IMPLEMENT**
+>（顺序修正：**先最小 Execution Fact boundary → 再 Custody → 最后接
+> join→ProgramMaster**——不先写 Custody 再找事实，否则 Custody 倒逼临时
+> 发明事实）。normalize 缺口作为 A2-7-02 的**独立 execution-adapter 子任务/
+> 阻塞条件**记录，不得被 Custody 代码修饰掉。
+
+| OQ | 终裁 | 关键约束 |
+|---|---|---|
+| OQ-6 | normalize 缺口 = **正式登记 Execution Adapter Gap**；Custody 禁隐式吸收 | 禁 `normalize==true → Custody advance(Normalized)`（Intent=Execution Fact 直接成立，违反本阶段核心原则）；Gap 可见/可追踪/不伪装成成功；后续由 Execution Adapter 工作项补齐+独立真实 completion observation |
+| OQ-7 | completion fact 归 **Execution Adapter / Fact producer**，不归 Custody | Custody 职责 = "事实已发生 → 解释是否满足 transition 条件"，非"理论上应发生 → 假设已发生"；**b1/b2/b3/b4 正式归类 = Ingest Observation / Acceptance Evidence**（非 Normalize Execution Fact）；first_frame_ok() 同 |
+| OQ-8 | 按域拆分维持，但首版 = **最小可证事实模型**（真实 consumer 反推具体 struct） | 排除万能 ExecutionFact（=第二个 Runtime State）；**"fact absent 而非 fact=false"**——无证据无字段（switched/composed/mixed 等不建 false 字段，防 Unknown/Not observed/Not applicable/Failed/Not completed 压成一个 bool） |
+| OQ-9 | Metadata declaration 生产权 = **Control/Program orchestration 语义**；A4 = 未来合法 producer **candidate，不冻结为唯一 SoT**（未来还有 Program template/External metadata/Playlist/Live event/Control-plane declaration） | 当前 Unknown = 唯一诚实状态 |
+
+### 全局修正（终裁原文记档）
+
+**A2-7 不能追求"ProgramMaster 一定形成"**。当前事实下唯一合法状态 =
+`join_result: None`（非 UNKNOWN/FAILED/非人为推满终态）——A2-6 的
+None→null 语义在此成为**完整的上游约束**，闭环成立。
+
+### Custody 职责收紧（终裁 §Custody）
+
+可以做：consume execution facts / attribute facts to 三域 / **advance only
+when transition evidence exists** / build MasterJoinInput / call join() /
+compose ProgramMaster snapshot。
+不能：猜测执行完成 / 创建新 Runtime Health / 修改 Supervisor / 读取
+GStreamer 对象 / 修改 PipelinePlan / 执行 recovery / 生成 metadata truth。
+（与 SessionManager=Session lifecycle owner / Supervisor=recovery decision
+owner / MediaBackend=Pipeline execution 的既有边界完全兼容。）
+
+---
+
+## 6. A2-7-02 复核终裁（CHANGES REQUIRED — attribution-only，2026-09-03）
+
+> e6627ca 其余全批准（Fact boundary/Custody/advance 零触发/Join 装配/
+> Metadata Unknown/AVSync passthrough）；**唯一返工 = Failure attribution**。
+
+### 否决理由（复核实锚）
+
+`FailureObservation{source, path: FailurePath}` + `attribute_failures` 的
+`any(|o| o.path == Video)` 实际语义 = **调用方已完成 media-path attribution，
+Custody 只把结论搬进 JoinInput**——违反模块 doc 自声明的"Custody 负责来源
++identity+media path 映射"。`obs(&[Video]) → video_failed=true,
+audio_failed=false` 是 plumbing test 非 attribution test（RuntimeEvent 真实
+模型 `PipelineFault{pipeline: Uuid}` 无 video/audio path，调用方无从得知
+path——标签是凭空的）。
+
+### 修正（最小，禁 FailureDomain/FailureReason 复杂化）
+
+`FailureObservation{source, scope: FailureScope}`；首版 scope 仅
+`SharedPipeline`（未来 additive 扩 VideoPath/AudioPath/Element(...)）。
+attribution 严格定义：**SharedPipeline → video_failed=true ∧ audio_failed=
+true**（真保守归因：Custody 承担 attribution，输入是 scope 证据非 path
+结论）。无 path 证据不凭空生成单路归因（scope 无 VideoPath/AudioPath
+变体 = 编译期即证）。
+
+### 来源边界（不机械映射）
+
+首版只接 **PipelineFault**（Shared Pipeline execution failure——唯一能归属
+执行管线的来源）；**SessionFailed/HardwareFault/HealthChanged/ClockLost 不
+机械映射**（SessionFailed=生命周期失败已回滚非 Master failure；其余等
+attribution contract 明确）。FailureSource 首版单值 `PipelineFault`，加法
+演进。
+
+### 语义连锁（记档）
+
+SharedPipeline → 双路 failed → Join 五步优先序**行 2** → `FAILED`——
+**Degraded（行 3 单路）在 SharedPipeline-only 首版不可达**，等 VideoPath/
+AudioPath scope 演进后可达（非缺陷，是保守归因的诚实后果）。
+
+### 测试修正
+
+删 plumbing test（path 标签搬运）；新锁：SharedPipeline（哪怕一条）→
+`{video_failed: true, audio_failed: true}`；空 → 双 false；custody_snapshot
+SharedPipeline → `FAILED`。
+
+---
+
+## 7. A2-7-02 二轮复核终裁（CHANGES REQUIRED — identity correlation，2026-09-03）
+
+> ded0221 的 scope 修正**确认成立**（FailurePath 删除/SharedPipeline 表达
+> "作用域证据"/双路归因规则全 PASS）；**唯一剩余硬问题 = FailureObservation
+> 无 pipeline identity**——多实例隔离是实际矛盾非未来优化（SessionManager
+> 允许 Session1→Pipeline1 / Session2→Pipeline2；Pipeline A fault + 无身份
+> observations → custody_snapshot(B) 误判 B 双路 failed）。
+
+- **identity correlation 缺失**：Custody doc 声明"来源+identity+media path
+  映射"，实做只完成 source→scope→video/audio，**identity match 未实现**；
+  A2-7-03 将建 Execution→Fact→Custody→Join→Snapshot 全链——现在接入无身份
+  observation，后续会形成"Pipeline A fault → generic observation → Pipeline
+  B snapshot failed"的跨实例污染，后补成本远大于现在。
+- **source+scope 联合约束补强**：归因判定应 `matches!((&source,&scope),
+  (PipelineFault, SharedPipeline))`——source+scope 是**联合证据**，非 scope
+  单独决定语义（防未来加 HardwareFault 等来源时因 scope 相同被误归因）。
+- **身份键裁决**：沿用 `PipelineFault.pipeline: Uuid`（真实 Runtime 事件
+  身份）；**禁**强行统一 `PipelineHandle(u64)` ↔ Uuid（两级身份未经证明
+  同一，映射关系留 A2-7-03 接线时确认 SoT）。
+
+### 修正（收缩到极小一刀）
+
+```text
+FailureObservation { source, pipeline_id: Uuid, scope }
+attribute_failures(pipeline_id: Uuid, observations)
+  = 只消费 pipeline_id 匹配 ∧ PipelineFault ∧ SharedPipeline → 双路 failed
+custody_snapshot(video, audio, pipeline_id, observations)
+新增回归测试: Pipeline A fault 不污染 Pipeline B
+```
+
+### 维持批准项（全 PASS）
+
+SharedPipeline→双路 failed / 单路 Degraded 首版不可达 / 只接 PipelineFault /
+不机械吸收 HardwareFault·SessionFailed·ClockLost / 不引入 FailureDomain·
+Reason / 不虚推进 Master Stage / Metadata Unknown / AVSync 不改 Join Result /
+不重做 00/01。
+
+---
+
+## 8. A2-7-02 三轮终裁（CLOSED，2026-09-03）
+
+> 22e5e6c67552f81f2d27a6d68dcebd6cb34c5acd 实际 diff 复核通过。
+> **A2-7-02 = CLOSED / APPROVED**——20 项 Gate 全 PASS（FailurePath 删除/
+  FailureScope/双路保守/联合约束/**identity correlation 真闭合**[归因谓词
+  含 identity]/跨实例防线含 mixed 隔离/Handle↔Uuid 未强行统一/HardwareFault
+  暂不接/…/Custody 不越权）。
+
+### 两条"不继续扩张"禁令（记档）
+
+1. **不现在加 VideoPath/AudioPath**——只为让 DEGRADED 可达 = "为覆盖矩阵
+   而发明事实"；DEGRADED 不可达是**当前证据边界不是缺陷**。
+2. **不现在接 HardwareFault**——须先证明 Hardware identity→which
+   execution pipeline(s)→which custody→which scope；否则五类事实压同层。
+
+### A2-7-03 放行 + 主任务（终裁原文）
+
+**不再停留在 FailureObservation 人工装配测试**。主任务：
+1. `RuntimeEvent::PipelineFault → Runtime failure fact → Custody` **真实
+   生产接线**；
+2. 解决第二个身份问题：`PipelineHandle(u64) ↔ PipelineFault.pipeline(Uuid)`
+   谁是 SoT、如何关联、在哪层映射——**通过现有真实代码与实际生命周期
+   反推**，不凭空设计 mapping table；
+3. Join 维持只消费 Custody 注入事实（不退回直接读 Runtime）。
+
+## 4. No-Build Gate 复认
+
+零 .rs diff；未定义任何 ExecutionFact 类型；未写 Custody；未碰
+materialize/transport/A2-8。
+
+## 5. 证据文件清单
+
+pipeline.rs L135/L202/L1052（normalize 声明+output 分支 videoconvert）·
+adapters/gstreamer/controller.rs L229-290/L406/L434（实际元素链 src→caps→
+appsink + appsink 首帧/PTS 回调）· pipeline_events.rs L102-110（BusEvent
+结构化身份 handle/source）· events.rs L43（PipelineFault 管线身份）·
+config.rs/fixture.rs（metadata 零字段）· session.rs L48-64（粗态白名单）·
+watchdog.rs（tick 驱动）。
