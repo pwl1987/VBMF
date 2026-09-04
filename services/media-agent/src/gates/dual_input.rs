@@ -88,14 +88,36 @@ const SAMPLE_GAP_SECS: u64 = 3;
 /// 故障注入后等待（确保越过活性窗口 + 帧计数冻结可判）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 const L5_WAIT_SECS: u64 = 5;
-/// L5.4 Program 停滞观测排空 grace（第三十六轮方案②: Fault t0 → Drain
-/// Grace → q1/GAP/q2 观测窗）。故障注入后下游已缓冲数据（inter/queue→
-/// appsink, sync=false 不依赖播放时钟）仍会以消费速率排空——真机
-/// 2026-09-05 00:19 实测 t0+8..11s program 帧计数仍在增长, 采样窗与
-/// runway 重叠即假阴性。grace 相对注入时刻锚定（非流水 sleep 叠加）,
-/// 覆盖 runway 后才允许判定停滞; 未来帧率/queue/格式变化只调此单 knob。
+/// L5.4 三阶段观测器（第三十七轮方案③「有界 eventual-stall」）:
+/// Phase A 输入故障确认（现有 5.3）→ Phase B 最小排空 grace → Phase C
+/// 停滞确认循环。故障注入后下游已缓冲数据（inter/queue→appsink,
+/// sync=false 不依赖播放时钟）以消费速率排空——真机实测 runway 下界
+/// 两跑递推 >11s/>18s, 恰证"固定 grace 后单窗采样"非稳定判定语义;
+/// Phase B 仅决定"何时允许开始判定", 不再承担"排空必已结束"证明。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 const L5_PROGRAM_DRAIN_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
+/// Phase C: 确认停滞所需的连续无增长采样窗数（单窗零增量可能是调度/
+/// 分发/桥抖动, 禁以单窗判停; 3 窗 × SAMPLE_GAP 3s = 9s 确认窗）。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+const L5_PROGRAM_STALL_CONFIRM_ROUNDS: usize = 3;
+/// Phase C 硬上限（相对 t0）: 到期仍未确认停滞 ⇒ FAIL/TIMEOUT（分类
+/// 结局非静默超时）。取值依据=两跑下界 >11/>18s + "积压≈冻结前 B 生产
+/// 窗 ~25.5s"假设 + grace + N×GAP + 余量——**是验证期限不是通过常数**。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+const L5_PROGRAM_STALL_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// L5.4 Phase C 结束原因（第三十七轮: evidence 必记"最终为什么结束",
+/// 三词表禁静默超时）。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+#[derive(Debug)]
+enum L5ProgramStallOutcome {
+    /// 连续 N 个采样窗无增长——Program 停滞确认, 进入故障域分类。
+    StalledConfirmed,
+    /// deadline（相对 t0）到期仍未确认——L5.4 FAIL/TIMEOUT。
+    StillAdvancingAtDeadline,
+    /// 帧计数簿记回退等观测面异常——本轮禁判停滞。
+    ObservationInvalid,
+}
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 fn sleep(sec: u64) {
@@ -813,18 +835,46 @@ pub fn run(
             (Some(p), Some(c)) => crate::program_execution::input_progress_since(p, c),
             _ => false,
         };
-        // 方案②（第三十六轮批准）: 排空 grace 相对 t0 锚定——wait_until 语义,
-        // 前置 L5_WAIT/桥检查/a1a2 采样已耗时间自动折算为剩余等待, 不随
-        // 流水 sleep 漂移。grace 内不采样 Program 增量（drain runway 排空前
-        // 帧仍在到达, 采样即假阴性）。
+        // 方案③（第三十七轮批准）Phase B: 最小排空 grace 相对 t0 锚定——
+        // wait_until 语义, 前置 L5_WAIT/桥检查/a1a2 采样已耗时间自动折算
+        // 为剩余等待, 不随流水 sleep 漂移（第三十六轮真机时间线闭合已证
+        // 精确执行）。grace 内不采样 Program 增量（drain runway 排空前帧
+        // 仍在到达, 采样即假阴性）。
         std::thread::sleep(
             (fault_started_at + L5_PROGRAM_DRAIN_GRACE)
                 .saturating_duration_since(std::time::Instant::now()),
         );
-        let q1 = switcher.observe(&graph).program;
-        sleep(SAMPLE_GAP_SECS);
-        let q2 = switcher.observe(&graph).program;
-        let prog_adv2 = crate::program_execution::program_progress_since(&q1, &q2);
+        // 方案③ Phase C: 停滞确认循环——连续 N 个采样窗无增长才判
+        // Program 停滞; deadline（相对 t0）到期仍未确认 ⇒ FAIL/TIMEOUT。
+        // 非确认结局保守按"未证停滞"进 classify（prog_advancing=true ⇒
+        // A 行=None ⇒ 自然 FAIL）, 结束原因在证据行区分——判据表达式与
+        // classify 调用面零变化。A 行输入侧证据（a_input_adv/a_bridge_alive）
+        // 为 Phase A/B 时点采样: 输入侧不受 program 排空影响。
+        let mut q_prev = switcher.observe(&graph).program;
+        let (v_first, a_first) = (q_prev.program_video_frames, q_prev.program_audio_frames);
+        let mut stall_rounds: usize = 0;
+        let mut samples: usize = 0;
+        let stall_outcome = loop {
+            sleep(SAMPLE_GAP_SECS);
+            let q_cur = switcher.observe(&graph).program;
+            samples += 1;
+            let backward = q_cur.program_video_frames < q_prev.program_video_frames
+                || q_cur.program_audio_frames < q_prev.program_audio_frames;
+            let advanced = crate::program_execution::program_progress_since(&q_prev, &q_cur);
+            stall_rounds = if advanced { 0 } else { stall_rounds + 1 };
+            q_prev = q_cur;
+            if backward {
+                break L5ProgramStallOutcome::ObservationInvalid;
+            }
+            if stall_rounds >= L5_PROGRAM_STALL_CONFIRM_ROUNDS {
+                break L5ProgramStallOutcome::StalledConfirmed;
+            }
+            if std::time::Instant::now() >= fault_started_at + L5_PROGRAM_STALL_DEADLINE {
+                break L5ProgramStallOutcome::StillAdvancingAtDeadline;
+            }
+        };
+        let elapsed_s = fault_started_at.elapsed().as_secs_f32();
+        let prog_adv2 = !matches!(stall_outcome, L5ProgramStallOutcome::StalledConfirmed);
         let row_a = crate::program_execution::classify_failure_domain(
             a_input_adv,
             a_bridge_alive,
@@ -835,8 +885,10 @@ pub fn run(
             && matches!(row_b, crate::program_execution::FailureDomain::Input);
         l5_all &= l5d;
         l5_notes.push(format!(
-            "故障域不越域={} (A行={row_a:?} B行={row_b:?}; Program 停滞不归因存活输入)",
-            l5d
+            "故障域不越域={} (A行={row_a:?} B行={row_b:?}; Program 停滞不归因存活输入; L5.4={stall_outcome:?} samples={samples} stall_rounds={stall_rounds} prog_frames v {v_first}->{} a {a_first}->{} @t0+{elapsed_s:.1}s)",
+            l5d,
+            q_prev.program_video_frames,
+            q_prev.program_audio_frames,
         ));
 
         // 恢复 B（teardown 前还原运行态, best-effort）。
