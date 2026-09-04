@@ -875,3 +875,71 @@ Batch 1 不改变门禁状态。
 真机复跑（步骤 14）见 §18；`recover`/Supervisor/SessionManager/Resolver/
 PortRegistry/ResourceRegistry/MediaTap/C1/switch_execution.rs 全零触碰；
 identity/send_event/readback/`install=TimelineMapped` 全禁做清单遵守。
+
+## 18. 步骤 14：真机 A2-8-02-I 复跑（2026-09-04 22:15 CST，Batch 2 后首跑）
+
+### 18.1 执行纪律（§29.2/§28.3）
+
+- 证据头：date 2026-09-04 22:14 CST / date -u 14:14 UTC / timedatectl
+  Asia/Shanghai（**同日无 host clock mismatch**）；repo HEAD=**3ff66ad**
+  （已 push；盒非 git checkout——逐文件 sha256 **68/68 .rs 全等** 于 HEAD）；
+  bin `media-agent-gates` sha256 `31e294f4…`（build 后复核）；manifest=v5
+  （`~/a2-8-02i-v5.manifest.json`，当日 L1a 2/2 production_grade 复核绑定
+  仍成立）。
+- 硬件前置核验：ball 测试源常驻（PID 992634, 7h17m, dn=2 sink **勿杀**）；
+  `gst decklinkvideosrc dn=0/dn=1` 双卡可开且出帧（信号在）。观察事实：
+  ffmpeg decklink 输入打不开（"No such device or address"）——ffmpeg 仅曾
+  作 correlation 工具，非 gate 依赖（gate 走 gst/resolver）。
+- 证据归档：盒 `~/a2-8-02i-evidence/2026-09-04-2230-batch2-ctimeline/`
+  （header.txt + run.log 9688B, sha256 前缀 `5758c42d`）。
+
+### 18.2 结果（EXIT=2, 8/10 verdicts, 全链 L1→L5+Teardown 完成）
+
+| 层 | 判定 | 关键证据 |
+| --- | --- | --- |
+| L1a | PASS | 2/2 production_grade（v5 绑定当日复核成立） |
+| L1b | PASS | 双卡 Sdi/input Supported（audio=video 推导注记） |
+| **L1c** | **PASS** | **双卡 signal=true（dn0/dn1——C1 后再次真机成立）** |
+| L1d | PASS | 双设备唯一 InputResource+ID 对应（H2 闭环） |
+| L2a | PASS | 双输入 session；H3 精确 port 定位 |
+| L2b | PASS | 双 tap 各 80 帧 |
+| L3 | PASS | video 120→210 / audio 160→280, prog ValidMonotonic |
+| **L4** | **FAIL（单失败项=判据转写）** | **switch_ok=true**（completed/observed=B/epoch=1/
+ValidMonotonic/pts 在场）∧ **timeline_ok=false——但 outcome=Preserved**：offset=118799ns（相位级, F1 预测同源）·Segment(B) 观测·首枚映射缓冲 source 6971476040→mapped 6971594839（==f(source) 过 Authority 校验）·V/A **双平面 Continuous**·无未声明回退·DiscontinuityDeclared·**epoch 保持 0（Preserve）**·settle 后 authority 位置 7138261506 持续推进 |
+| L5 | SKIPPED BY H1 | L4 FAIL → 注入序列跳过（设计性） |
+| Teardown | PASS | Program Stop→Tap Detach→Input Stop→Release |
+
+### 18.3 决定性事实
+
+1. **A2-8-01 架构硬事实的真机表达（prog NonMonotonic 确定性签名）已消失**
+   ——post-switch prog state=**ValidMonotonic**（02-I 历次 L4 FAIL 根因
+   不复现）。Timeline 层在**真实 DeckLink 双输入**上全链成立：
+   声明→pre-flip 安装→翻转→Segment(B) 自然事件→首枚映射缓冲（声明
+   offset 施加+证据校验）→V/A 双平面连续→Preserve（epoch 不变）。
+2. **L4 唯一失败项=九项合取中 `mapped_program_pts > pre_v` 的严格大于**：
+   真机首枚 B 帧落位与 A 末帧时间线位置**精确相等**（6971594839 ==
+   6971594839, 零隙拼接; 两帧共享同一 PTS 值——非回退）。机制: 翻转
+   时刻 selector 已在途的 B 帧≈branch 锚帧位; 锚公式结构性保证
+   `mapped ∈ [pv, pv+delta]` **恒不回退**（等节拍下 dA−dB 相消）。冻结
+   语义（PtsMonotonicity "非回退 = pts≥last"）下相等=合法连续——
+   健康弧 equal→保持 ValidMonotonic ✓, Authority `>=`→Continuous ✓,
+   均与 Gate 转写的严格 `>` 不一致。
+
+### 18.4 分类（首跑 FAIL 留证纪律——**未改任何代码**）
+
+- **B 类 Gate 判据转写**：`dual_input.rs` L4 项 `ev.mapped_program_pts >
+  pre_v` 应为 `>=`（对齐冻结"非回退"语义）。非 A 类（硬件全好: 双信号/
+  双绑定/桥/出口全 PASS）；非 C 类（实现无缺陷——Preserved+双平面
+  Continuous 真机达成; 失败在验收转写层）。
+- **修正待用户裁决后执行**（单字符 `>`→`>=`）→ 复跑预期 L4 PASS→L5
+  注入序列首次真机执行。
+- 已知工件（隔离队列不变）：gst_video_converter interlace 断言每跑出现
+  （1080i25 电视源）；teardown `gst_pad_unlink` CRITICAL ×4 同历跑。
+
+### 18.5 02-I 状态
+
+**仍 FAIL-PENDING-CORRECTION（8/10）**——但性质迁移：由"架构缺口
+（L4-TIMELINE 不可证明）"变为"验收判据单点转写（B 类）"。A2-8 Switch
+Execution + Program Timeline Continuity 基础能力在真实双输入硬件上
+**执行级达成**（Preserve 证据链完整）；正式 PASS 待 B 类修正+复跑
+（含 L5 首次真机注入序列）。

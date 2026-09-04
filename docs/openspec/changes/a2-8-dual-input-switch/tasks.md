@@ -447,7 +447,22 @@
   SIM-01 F2/F5/F6 在生产 switch_graph 实证]**/clippy×2 全绿; gstreamer-rs
   实锚 make_mut 返回 &mut BufferRef 非 Result; 披露[三 trait 证据方法·
   双 timeline 行分工（NewEpoch 后 adapter 行滞后 Domain 真值→裁决面恒
-  Domain]·锚公式 F5 同构·settle 停滞不 FailClosed]; ⑭真机复跑=§18**
+  Domain]·锚公式 F5 同构·settle 停滞不 FailClosed]; ⑭真机复跑=§18;
+  **⑭ 已执行（2026-09-04 22:15 CST, 设计探针 §18+主账 §41）: HEAD=3ff66ad
+  已 push·bin 31e294f4·68/68 源 sha==HEAD·v5 当日复核 2/2 production_grade
+  ·双卡 signal=true·证据=盒 ~/a2-8-02i-evidence/2026-09-04-2230-batch2-
+  ctimeline（run.log sha 5758c42d）; **L1a-d/L2a/L2b/L3/Teardown 8/10
+  PASS——L4=switch_ok true ∧ outcome=Preserved[真 DeckLink 双输入全链:
+  offset 118799ns 相位级·Segment(B) 观测·首枚映射缓冲过证据校验·V/A
+  双平面 Continuous·无未声明回退·epoch 保持 0·post-switch prog
+  ValidMonotonic=A2-8-01 确定性 NonMonotonic 签名消失]**; L4 overall
+  FAIL 单点=九项合取转写 `mapped>pre` 严格大于 vs 真机零隙拼接精确相等
+  [冻结语义=非回退 ≥·锚公式结构性保证 mapped∈[pv,pv+delta] 恒不回退]
+  =**B 类 Gate 判据转写·未改码待用户裁决（单字符 >→>=）→复跑预期 L4
+  PASS+L5 首次真机注入**; ffmpeg decklink 打不开=观察事实非 gate 依赖;
+  interlace 断言/pad_unlink 工件同历跑（隔离队列）; 02-I 仍
+  FAIL-PENDING-CORRECTION（8/10）——性质迁移=架构缺口→验收判据单点
+  转写**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

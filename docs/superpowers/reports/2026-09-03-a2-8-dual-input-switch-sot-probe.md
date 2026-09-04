@@ -2223,3 +2223,22 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
   recover·Supervisor 不碰）。全文=设计探针 §16。
 - 本轮执行落账=设计探针 §17；主账状态机不变（02-I 仍
   FAIL-PENDING-CORRECTION 直至真机 Timeline Evidence PASS）。
+
+## 41. Batch 2 落地 + 真机复跑：Timeline 层真机 Preserve 达成（跨账引用，第三十二轮收官，2026-09-04）
+
+- Batch 2 十四步全落地（设计探针 §17, commits e86d0e8 终裁账/59aec43
+  Freeze epoch 统一/3ff66ad Batch 2）；盒矩阵 fmt/default 217/mock 381/
+  **bmd+gst 237（含真实 GStreamer 全链 Preserve 实证）**/clippy×2 全绿。
+- **真机 02-I 复跑（步骤 14, 22:15 CST, HEAD=3ff66ad, bin 31e294f4,
+  68/68 源 sha==HEAD, 证据=盒 ~/a2-8-02i-evidence/2026-09-04-2230-batch2-
+  ctimeline/）**: L1a-d/L2a/L2b/L3/Teardown **8/10 PASS（EXIT=2）**——
+  **L4=switch_ok true ∧ outcome=Preserved（真 DeckLink 双输入全链: 声明
+  offset 118799ns 相位级·Segment(B) 观测·首枚映射缓冲过证据校验·V/A
+  双平面 Continuous·无未声明回退·epoch 保持 0）**; L4 overall FAIL 单点
+  =九项合取转写 `mapped>pre` 严格大于 vs 真机零隙拼接**精确相等**（冻结
+  语义=非回退 ≥）——**B 类 Gate 判据转写, 未改码待裁决**; L5 H1 跳过;
+  **A2-8-01 架构硬事实真机表达（prog NonMonotonic 确定性签名）消失**
+  （post-switch ValidMonotonic）。全文=设计探针 §18。
+- 02-I 仍 FAIL-PENDING-CORRECTION（8/10）——性质迁移=架构缺口→验收判据
+  单点转写; 正式 PASS 待 B 类修正（`>`→`>=`）+复跑（L5 首次真机注入）。
+- 主账状态机：02-I FAIL-PENDING-CORRECTION（8/10 verdicts）暂记。
