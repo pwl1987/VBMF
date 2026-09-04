@@ -369,7 +369,7 @@ impl GStreamerPipelineController {
         PipelineError,
     > {
         gstreamer::init().map_err(|e| PipelineError::StartFailed(format!("gst init: {e}")))?;
-        let (video_src, audio_src) = src_props(plan);
+        let (video_src, audio_src) = src_props(plan)?;
         // P1a: 有输出段 ⇒ plan.output_launch 全串（tee 双分支: 分析 + 编码输出）;
         // 无输出段 ⇒ 今日串逐字节不变（纯分析, 向后兼容承诺）。controller 纯拼接执行,
         // 不在此出现任何编码/输出 element 名（用户边界修正: 输出物化在 pipeline.rs domain 层）。

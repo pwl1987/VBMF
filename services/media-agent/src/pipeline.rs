@@ -473,7 +473,7 @@ pub struct PipelineHandle(pub u64);
 ///   确定的 GStreamer `device-number` → `decklinkvideosrc device-number=<n>`.
 /// - `hw-serial-number` 是 **GStreamer 侧** 硬件序列号/硬件 ID 探测属性 (只读), 与 "BMD PersistentID"
 ///   是两回事; 它不是 PersistentID 的别名. SDK 枚举 index 绝不直接当 device-number.
-pub(crate) fn src_props(plan: &PipelinePlan) -> (String, String) {
+pub(crate) fn src_props(plan: &PipelinePlan) -> Result<(String, String), PipelineError> {
     // 连接类型 → GStreamer `connection=` 属性. 仅 decklinkvideosrc 需要; decklinkaudiosrc 无此属性
     // (音频内嵌于视频 SDI/HDMI 流, 跟随视频连接). `None` 或无对应枚举的连接器 → 不显式指定, 由插件默认
     // (auto) 探测, 绝不硬编码 `connection=sdi`.
@@ -489,19 +489,23 @@ pub(crate) fn src_props(plan: &PipelinePlan) -> (String, String) {
     };
     let (video_src, audio_src) = match plan.source.selection_mode {
         // PersistentID 可用 → 官方首选 `persistent-id`.
-        SourceSelectionMode::PersistentIdCanonical => (
-            format!(
-                "decklinkvideosrc persistent-id={}{}",
-                plan.source.provider_persistent_id.unwrap_or(0),
-                connection
-            ),
-            // 注: decklinkaudiosrc 无 `connection` 属性 (音频内嵌于 SDI 视频流, 跟随视频连接),
-            // 绝不可像 videosrc 那样设 `connection=sdi`, 否则 launch 串解析失败 (MEDIA-RT-01 真机实测).
-            format!(
-                "decklinkaudiosrc persistent-id={}",
-                plan.source.provider_persistent_id.unwrap_or(0)
-            ),
-        ),
+        SourceSelectionMode::PersistentIdCanonical => {
+            // 02-I 前置（第十七轮 §七①）belt: materialize 已拒绝无证据的
+            // PersistentIdCanonical; 此处 launch 串拼装是最后一道防线——伪造/未来
+            // 生产者也无法把 None 物化成 persistent-id=0 (盲开 device 0)。
+            let pid = plan.source.provider_persistent_id.ok_or_else(|| {
+                PipelineError::IdentityUnresolved(format!(
+                    "PersistentIdCanonical 但 provider_persistent_id=None (device_id={}); 拒绝生成 persistent-id=0",
+                    plan.source.device_id
+                ))
+            })?;
+            (
+                format!("decklinkvideosrc persistent-id={pid}{connection}"),
+                // 注: decklinkaudiosrc 无 `connection` 属性 (音频内嵌于 SDI 视频流, 跟随视频连接),
+                // 绝不可像 videosrc 那样设 `connection=sdi`, 否则 launch 串解析失败 (MEDIA-RT-01 真机实测).
+                format!("decklinkaudiosrc persistent-id={pid}"),
+            )
+        }
         // DeviceHandle 经 Resolver 解析到确定 device-number (当前硬件正式生产路径).
         // 注: `hw-serial-number` 是 GStreamer 侧硬件序列号/硬件 ID 探测属性 (只读),
         // 与 "BMD PersistentID" 是两回事; 此处经 Resolver 已映射到 device-number.
@@ -521,7 +525,7 @@ pub(crate) fn src_props(plan: &PipelinePlan) -> (String, String) {
             "audiotestsrc is-live=true".to_string(),
         ),
     };
-    (video_src, audio_src)
+    Ok((video_src, audio_src))
 }
 
 /// 物化 `GraphRuntimeIntent` → `PipelinePlan` 列表.
@@ -574,8 +578,21 @@ pub fn materialize_with_output(
         // 身份层级状态机: 严格按 identity_strength (provider 自证), 绝不默认.
         let selection_mode = match info.identity_strength {
             IdentityStrength::PersistentId => {
-                // 官方首选: persistent-id (优先级高于 device-number).
-                SourceSelectionMode::PersistentIdCanonical
+                // 02-I 前置（第十七轮 §七①）: PersistentIdCanonical 是最高档选卡路径,
+                // 证据必须闭合——binding 在且 persistent_id=Some 才可成计划。缺失即
+                // IdentityUnresolved, 绝不让 src_props 把 None 物化成 persistent-id=0
+                // (盲开 device 0)。生产/诊断一致: 无 binding 时 device_number 同样无据,
+                // 降级 device-number 路径仍是盲 0, 故不降级。
+                if binding.and_then(|b| b.persistent_id).is_some() {
+                    // 官方首选: persistent-id (优先级高于 device-number).
+                    SourceSelectionMode::PersistentIdCanonical
+                } else {
+                    return Err(PipelineError::IdentityUnresolved(format!(
+                        "{}: PersistentId 档位但 persistent_id 证据缺失 (binding 存在={}); 拒绝生成 persistent-id=0",
+                        d.device_id,
+                        binding.is_some()
+                    )));
+                }
             }
             IdentityStrength::DeviceHandle if resolved_device_number.is_some() => {
                 // 当前硬件正式路径: DeviceHandle → Resolver → 确定 GStreamer device-number.
@@ -1168,7 +1185,7 @@ mod tests {
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let (v, a) = src_props(&plan);
+        let (v, a) = src_props(&plan).expect("src_props");
         assert!(
             v.contains("decklinkvideosrc device-number=2 connection=sdi"),
             "video={v}"
@@ -1192,7 +1209,7 @@ mod tests {
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let (v, _) = src_props(&plan);
+        let (v, _) = src_props(&plan).expect("src_props");
         assert!(
             v.contains("connection=optical-sdi"),
             "video={v} (不得 optical)"
@@ -1214,10 +1231,118 @@ mod tests {
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let (v, _) = src_props(&plan);
+        let (v, _) = src_props(&plan).expect("src_props");
         assert!(
             !v.contains("connection"),
             "Unknown 不得显式 connection: {v}"
+        );
+    }
+
+    #[test]
+    fn materialize_persistent_id_without_evidence_rejected_both_modes() {
+        // 02-I 前置（第十七轮 §七①）: PersistentId 档位但无 binding / 无 persistent_id
+        // ⇒ IdentityUnresolved（生产/诊断一致）, 绝不物化 persistent-id=0。
+        let dev = dev_handle(IdentityStrength::PersistentId);
+        let did = dev.device_id.to_string();
+        let devices = vec![dev];
+        let intent = intent_with_sink(&did, "appsink");
+        let cfg = output_cfg_with(None, None, 6000, 128_000);
+        // 无 binding:
+        for mode in [MaterializeMode::Production, MaterializeMode::Diagnostic] {
+            let err = materialize_with_output(
+                &intent,
+                &devices,
+                mode,
+                &std::collections::HashMap::new(),
+                None,
+                &cfg,
+            )
+            .expect_err("无 binding 的 PersistentId 档必须拒绝");
+            assert!(
+                matches!(err, PipelineError::IdentityUnresolved(_))
+                    && err.to_string().contains("persistent-id=0"),
+                "拒绝信息锚定盲 0: {err:?}"
+            );
+        }
+        // binding 在但 persistent_id=None（证据断链）:
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(
+            devices[0].device_id,
+            ResolvedDeviceBinding {
+                device_number: 3,
+                hw_serial_number: None,
+                persistent_id: None,
+                confidence: Confidence::High,
+                match_kind: ResolverMatch::ManifestVerified,
+            },
+        );
+        for mode in [MaterializeMode::Production, MaterializeMode::Diagnostic] {
+            assert!(
+                materialize_with_output(&intent, &devices, mode, &bindings, None, &cfg).is_err(),
+                "persistent_id=None 同样拒绝 ({mode:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn materialize_persistent_id_with_evidence_uses_canonical() {
+        // 正控制: binding.persistent_id=Some → PersistentIdCanonical + launch 串
+        // persistent-id=<id>（unwrap_or(0) 影子路径已封死）。
+        let dev = dev_handle(IdentityStrength::PersistentId);
+        let did = dev.device_id.to_string();
+        let devices = vec![dev];
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(
+            devices[0].device_id,
+            ResolvedDeviceBinding {
+                device_number: 0,
+                hw_serial_number: None,
+                persistent_id: Some(77),
+                confidence: Confidence::High,
+                match_kind: ResolverMatch::PersistentIdExact,
+            },
+        );
+        let plans = materialize_with_output(
+            &intent_with_sink(&did, "appsink"),
+            &devices,
+            MaterializeMode::Production,
+            &bindings,
+            None,
+            &output_cfg_with(None, None, 6000, 128_000),
+        )
+        .expect("证据齐备的 PersistentId 档应物化");
+        assert_eq!(
+            plans[0].source.selection_mode,
+            SourceSelectionMode::PersistentIdCanonical
+        );
+        assert_eq!(plans[0].source.provider_persistent_id, Some(77));
+        let (v, a) = src_props(&plans[0]).expect("src_props");
+        assert!(v.contains("persistent-id=77"), "video={v}");
+        assert!(a.contains("persistent-id=77"), "audio={a}");
+        assert!(!v.contains("persistent-id=0"), "绝不盲 0: {v}");
+    }
+
+    #[test]
+    fn src_props_persistent_id_canonical_without_evidence_rejected() {
+        // belt: 伪造 plan（PersistentIdCanonical + None）在 launch 串拼装层也被拒,
+        // 任何未来生产者都无法把 None 物化成 persistent-id=0。
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: "d".into(),
+                provider_persistent_id: None,
+                device_number: 0,
+                connector: None,
+                selection_mode: SourceSelectionMode::PersistentIdCanonical,
+            },
+            normalize: true,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        };
+        let err = src_props(&plan).expect_err("None 证据必须拒绝");
+        assert!(
+            matches!(err, PipelineError::IdentityUnresolved(_))
+                && err.to_string().contains("persistent-id=0"),
+            "{err:?}"
         );
     }
 

@@ -959,3 +959,79 @@ failure isolation→recover 代码全就绪零阻塞; 唯一前置=用户侧双 
 input-selector `%u` 模板请求 pad 自 0 顺序编号（忽略请求名后缀）——先按
 模板名顺序请求再释放多余 pad 才能构造"仅 sink_1"形态; 裸元素 NULL 态
 active-pad 属性不保证可读——stand-in 断言改走真实 selector 实读。
+
+## 22. 第十七轮终裁: Identity final closure + PortId 碰撞防线（base f28b9bf）
+
+### 22.1 裁决账（逐条复核, 全部对实码）
+
+- **P0-1 PASS**（组合根已共同构造）; 精确口径收纳: **dependency composition
+  ≠ 生产 Session API 打通**——`api_mgr` 仍仅 diagnostic auto-start 赋值,
+  query/idem 生产 503/idle 保持（0.7C-8 冻结语义, 非 bug）;
+- **P0-2 主链 PASS** + **audio capability 独立性 = P1 债务**: port.rs
+  `audio_input/output` 由 video 连接器能力推导（SDI 嵌入音频工程成立但
+  非独立 SDK audio 证据）——02-I 不得偷报"独立真实探针", 已登记;
+- **P1-1 PASS**（degraded=真实状态, 无边界破坏）; **P1-2 PASS** +
+  **serial production binding 债务**: `identity_handle()` 仍只取
+  device_handle（resolver.rs:509-511）, Serial 档无 manifest 交叉键——
+  语义校正非完整实现, 已登记;
+- **§二 PersistentId fail-open 实锤**: pipeline.rs:575 档位只看
+  identity_strength 直接 PersistentIdCanonical·:653 `binding.and_then
+  (persistent_id)` 可 None·src_props `unwrap_or(0)` → `persistent-id=0`
+  盲开路径确实存在——**本轮已修（22.2①）**;
+- **§三 三项实锤**: `connector_from_mask` Component/Composite/SVideo 三位
+  全折 Analog（:674-682）·真实发现序号恒 `Known(1)`（:707/:715）·
+  `PortIdentity::derive` 键 `device_id+connector+ordinal` **不含
+  direction**（:255）——in/out 同 connector 必同 port_id——**本轮已立
+  防线（22.2②）**; N×M = 架构模型完成非 BMD 发现实现完成（02-I 硬件
+  形态边界不变: 两块独立单输入卡）;
+- G/H/G-H1 维持 CLOSED 不退回; 调用链 ownership 边界（SessionManager
+  只持 SessionInput{device_id,handle}）本轮未破坏。
+
+### 22.2 本轮两刀（十七轮 §七①②）
+
+1. **① Identity final closure**（pipeline.rs）: `PersistentId` 档证据门
+   ——binding 在且 `persistent_id=Some` 才可 PersistentIdCanonical, 否则
+   `IdentityUnresolved`（生产/诊断一致: 无 binding 时 device_number 同样
+   无据, 降级 device-number 仍是盲 0, 故不降级）; **src_props 改 Result**
+   belt——launch 串拼装层最后一道防线, 伪造/未来生产者也无法把 None 拼成
+   `persistent-id=0`; controller prepare `?` 接线; 测试×3（无证据双模式
+   拒/证据齐备 persistent-id=77 正控制/belt 单测）;
+2. **② PortId 碰撞防线**（port.rs）: **证据面告警 + 消费面 fail-closed**
+   两层分工——`warn_duplicate_discovery_port_ids`（SDK 双口是真实物理
+   事实, 模型无法区分命名=已登记缺口, 拒绝整个 build 会 brick 全部真实
+   流程）; registry 装配层重复 port_id → `DiscoveryMismatch` fail-closed
+   （别名 port_id 永远进不了寻址 SoT）。三个裁决案例全部 registry 层
+   fail-closed 测试锁死: in/out 同 connector+ordinal（manifest 声明
+   双侧）·多 Analog 位（双 Analog/1 声明）·同 connector+ordinal 重复
+   声明; 正控制×2（双工掩码单侧声明 OK=盒上实测形态·不同 connector
+   不碰撞）。
+
+### 22.3 实证发现: 盒上两张 DeckLink SDI 均为双工卡（in/out 同 port_id）
+
+初版防线（discovery 层 fail-closed）在盒上真实硬件直接击穿 build:
+resolver gate（VBMF_RESOLVER + hw-ident-02 manifest）panic 于
+`Input/Sdi/Known(1)@DeckLink SDI (1)` vs `Output/Sdi/Known(1)` 共享
+port_id `e43d8f5a-…`; 复跑（收窄后）双卡各告警一次（`e43d8f5a-…`/
+`f0f53b80-…`）, build 通过, HW-PORT-01 报告正常产出。**"如果未来处理
+双向接口"不是未来——两张在装卡就是 direction 碰撞拓扑**, 这是 collision
+closure（direction 入键或等效）从"登记债务"升格为 **02-I L1 硬前置**
+的直接证据（L1 端口寻址在双工卡在机时必须先能区分 in/out 身份）。收窄
+决策（证据面告警/消费面拒绝）为执行侧最小正确解, closure 本身待专门
+change 裁决。
+
+### 22.4 债务登记（第十七轮新增/确认）
+
+- **collision closure**（direction 入键或等效）——已从登记债务升格为
+  02-I L1 硬前置候选, 待裁决;
+- **audio capability 独立性**（P1）: 现为 video 连接器推导, 02-I 不得
+  偷报独立探针;
+- **serial production binding**（P1）: identity_handle 只认 device_handle;
+- **A2-8 Dual Input Gate 正式入口**: gates.rs 现仅 probe→resolver→
+  loopback→session_lifecycle, 无 A2-8 五层专用 gate——02-I 执行首刀;
+- Serial production binding/closure 前的既有冻结全部不变（PTS
+  normalization·N-input·recover() 返回类型·Supervisor-as-executor·
+  MASTER/PACKET/auto-failover）。
+
+盒上: mock **356**[348+3 persistent-id+5 碰撞防线]·bmd+gstreamer **226**
+[218+8 同]·clippy 双组合 -D warnings clean·fmt clean·resolver gate
+真机复跑双工卡 warn×2 落盘。

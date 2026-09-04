@@ -385,6 +385,11 @@ impl PortRegistry {
     ) -> Result<PortRegistry, DiscoveryMismatch> {
         // 三层 Discovery: discover_ports → (manifest.bindings 即 project_manifest_bindings) → validate (fail-closed).
         let discovery = discover_ports(devices, manifest);
+        // 02-I 前置（第十七轮 §七②）: PortId 碰撞——**证据面显式告警**（SDK 双工卡
+        // 真实双口是装机现实, 拒绝整个 build 会 brick 全部真实流程; 模型命名缺口
+        // = collision closure 专门 change）; **消费面 fail-closed** 见下方 registry
+        // 装配防线——别名 port_id 永远进不了寻址 SoT。
+        warn_duplicate_discovery_port_ids(&discovery);
         validate_manifest_against_discovery(&discovery, manifest)?;
         let mut ports: Vec<PortInfo> = Vec::new();
 
@@ -512,6 +517,24 @@ impl PortRegistry {
                     VideoContentState::Unknown
                 },
             });
+        }
+
+        // 02-I 前置（第十七轮 §七②）belt: manifest 侧多条声明共享同一 port_id
+        // 同样拒绝（discovery 校验之后的 registry 装配层最后一道）。
+        {
+            let mut seen: HashMap<Uuid, String> = HashMap::new();
+            for p in &ports {
+                let Some(pid) = p.identity.port_id else {
+                    continue;
+                };
+                let desc = format!(
+                    "{:?}/{:?}/{:?}",
+                    p.direction, p.identity.connector, p.identity.ordinal
+                );
+                if let Some(prev) = seen.insert(pid, desc.clone()) {
+                    return Err(duplicate_port_id_mismatch(pid, &prev, &desc));
+                }
+            }
         }
 
         Ok(PortRegistry { ports })
@@ -833,6 +856,47 @@ pub fn validate_manifest_against_discovery(
     Ok(())
 }
 
+/// 02-I 前置（第十七轮 §七②）: PortId 碰撞——**证据面告警**。
+///
+/// `PortIdentity::derive` 键为 `device_id+connector+ordinal`（**不含 direction**）,
+/// 而 BMD 发现侧 Component/Composite/SVideo 三个模拟位都折叠为
+/// `ConnectorType::Analog`、真实端口序号当前恒为 `Known(1)`——同一设备
+/// in/out 同 connector（**盒上 DeckLink SDI 双工卡即此形态, 已实证**）、或多位
+/// 模拟掩码, 会派生出重复 port_id。
+///
+/// 两层分工: 本函数只把证据面碰撞**显式告警**（SDK 双口是真实物理事实, 模型
+/// 无法区分命名是已登记缺口——专门的 collision closure change 处理; 拒绝整个
+/// build 会 brick 全部真实流程）; **消费面**（registry 装配, port_id 寻址 SoT）
+/// 仍 fail-closed——别名 port_id 永远进不了 registry。
+fn warn_duplicate_discovery_port_ids(discovery: &[DeviceDiscovery]) {
+    let mut seen: HashMap<Uuid, String> = HashMap::new();
+    for d in discovery {
+        for p in &d.ports {
+            let Some(pid) = p.port_id else { continue };
+            let desc = format!(
+                "{:?}/{:?}/{:?}@{}",
+                p.direction, p.connector, p.ordinal, d.device.display_name
+            );
+            if let Some(prev) = seen.insert(pid, desc.clone()) {
+                tracing::warn!(
+                    port_id = %pid,
+                    first = %prev,
+                    second = %desc,
+                    "PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change"
+                );
+            }
+        }
+    }
+}
+
+fn duplicate_port_id_mismatch(pid: Uuid, first: &str, second: &str) -> DiscoveryMismatch {
+    DiscoveryMismatch {
+        binding: format!("duplicate-port-id:{pid}"),
+        expected: format!("唯一 PortIdentity: {first}"),
+        found: vec![second.to_string()],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -882,6 +946,28 @@ mod tests {
             port: Some(crate::resolver::PortBinding {
                 connector: ConnectorType::Sdi,
                 ordinal: num.max(1),
+                direction,
+                required: false,
+                verification: VerificationLevel::Declared,
+            }),
+        }
+    }
+
+    /// 02-I 前置（第十七轮 §七②）测试夹具: 指定 connector 的 manifest 端口声明。
+    fn manifest_entry_conn(
+        handle: &str,
+        direction: PortDirection,
+        connector: ConnectorType,
+    ) -> BindingEntry {
+        BindingEntry {
+            label: None,
+            bmd_device_handle: handle.to_string(),
+            gst_device_number: 1,
+            expected_hw_serial_number: None,
+            expected_model: None,
+            port: Some(crate::resolver::PortBinding {
+                connector,
+                ordinal: 1,
                 direction,
                 required: false,
                 verification: VerificationLevel::Declared,
@@ -1126,5 +1212,101 @@ mod tests {
         let manifest = base_manifest(vec![entry]);
         let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new()).expect("build 应成功");
         assert_eq!(reg.ports[0].capabilities.input, CapabilityValue::Unknown);
+    }
+
+    #[test]
+    fn build_sdi_direction_collision_manifest_fail_closed() {
+        // 02-I 前置（第十七轮 §七②）: derive 键不含 direction → 同设备 SDI/1 Input
+        // 与 SDI/1 Output 共享 port_id（**盒上 DeckLink SDI 双工卡实证形态**）。
+        // 证据面仅告警; manifest 同时声明双侧 → registry 装配层 fail-closed 拒绝。
+        let mut d = dev("46:00000000:002e4700");
+        d.device.video_input_connections = 0x1; // SDI in
+        d.device.video_output_connections = 0x1; // SDI out
+        let manifest = base_manifest(vec![
+            manifest_entry("46:00000000:002e4700", 1, PortDirection::Input),
+            manifest_entry("46:00000000:002e4700", 1, PortDirection::Output),
+        ]);
+        let err = PortRegistry::build(&[d], &[], &manifest, &HashMap::new())
+            .expect_err("manifest 声明 in/out 同 connector+ordinal 必须 fail-closed");
+        assert!(err.binding.contains("duplicate-port-id"), "{err:?}");
+    }
+
+    #[test]
+    fn build_duplex_mask_single_direction_manifest_ok() {
+        // 正控制（盒上实测形态）: 双工掩码（SDI in+out）+ manifest 只声明输入侧 →
+        // 证据面碰撞告警不 brick 流程, registry 无别名（单端口）。
+        let mut d = dev("46:00000000:002e4500");
+        d.device.video_input_connections = 0x1;
+        d.device.video_output_connections = 0x1;
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4500",
+            1,
+            PortDirection::Input,
+        )]);
+        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new())
+            .expect("双工卡只声明消费侧端口应成功");
+        assert_eq!(reg.ports.len(), 1);
+        let mut ids: Vec<Uuid> = reg
+            .ports
+            .iter()
+            .filter_map(|p| p.identity.port_id)
+            .collect();
+        ids.dedup();
+        assert_eq!(ids.len(), reg.ports.len(), "registry 内无别名 port_id");
+    }
+
+    #[test]
+    fn build_duplicate_analog_port_identity_fail_closed() {
+        // 02-I 前置（第十七轮 §七②）: Component(0x8)+Composite(0x10) 都折叠为
+        // Analog 且发现序号恒 Known(1)（证据面重复只告警）; manifest 声明两个
+        // Analog/1 → registry 装配层 fail-closed（专门的 Analog 位区分留 closure）。
+        let mut d = dev("46:00000000:002e4600");
+        d.device.video_input_connections = 0x8 | 0x10; // Component | Composite
+        let manifest = base_manifest(vec![
+            manifest_entry_conn(
+                "46:00000000:002e4600",
+                PortDirection::Input,
+                ConnectorType::Analog,
+            ),
+            manifest_entry_conn(
+                "46:00000000:002e4600",
+                PortDirection::Input,
+                ConnectorType::Analog,
+            ),
+        ]);
+        let err = PortRegistry::build(&[d], &[], &manifest, &HashMap::new())
+            .expect_err("Analog 同 connector+ordinal 重复声明必须 fail-closed");
+        assert!(err.binding.contains("duplicate-port-id"), "{err:?}");
+    }
+
+    #[test]
+    fn build_duplicate_manifest_port_identity_fail_closed() {
+        // 02-I 前置（第十七轮 §七②）belt: 真实掩码只有 SDI 输入时, 两条 manifest
+        // 声明同 handle 同 SDI/1 → registry 装配出重复 port_id（discovery 层无碰撞,
+        // 由 registry 侧防线捕获）。
+        let mut d = dev("46:00000000:002e4800");
+        d.device.video_input_connections = 0x1;
+        let manifest = base_manifest(vec![
+            manifest_entry("46:00000000:002e4800", 1, PortDirection::Input),
+            manifest_entry("46:00000000:002e4800", 1, PortDirection::Input),
+        ]);
+        let err = PortRegistry::build(&[d], &[], &manifest, &HashMap::new())
+            .expect_err("manifest 重复声明同一 PortIdentity 必须 fail-closed");
+        assert!(err.binding.contains("duplicate-port-id"), "{err:?}");
+    }
+
+    #[test]
+    fn build_distinct_connectors_do_not_collide() {
+        // 正控制: 同设备不同 connector（SDI|HDMI 输入）不触发碰撞防线。
+        let mut d = dev("46:00000000:002e4900");
+        d.device.video_input_connections = 0x1 | 0x2; // SDI | HDMI
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4900",
+            1,
+            PortDirection::Input,
+        )]);
+        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new())
+            .expect("不同 connector 不碰撞");
+        assert_eq!(reg.ports.len(), 1);
     }
 }
