@@ -187,7 +187,28 @@
   230-232 set_state 后仅 300ms 即读 signal·检测器锁定需 1-3s=
   结构性假阴性; ffmpeg 同分钟双输入出帧+gst 12s 手动双卡 false→
   true 翻转——A 类证据自动化候选, 冻结未修, probe 不修 L1c 确定性
-  false=02-I 唯一代码级阻塞待裁决]**`
+  false=02-I 唯一代码级阻塞待裁决]**;
+  **第二十六轮（probe §33, **A2-8-C1 授权落地**——APPROVED/FROZEN/
+  CHANGE REQUIRED）: C1=Resolver signal 观察窗最小修[仅 resolver.rs
+  +86/−3, commit 1c3032b: PROBE_SIGNAL_WINDOW=3000ms 自 PLAYING 起算/
+  INTERVAL=100ms 重采样/锁定提前结束/超时 Some(false) fail-closed;
+  Option<bool> 契约零变更·错误分类与生产绑定语义原样·gate 零改动=
+  单一设备打开者; 3 单测=transient false×2→true 锁定/全窗 false
+  fail-closed 重采样≥2/首采 true 恰 1 次]; 盒矩阵: sha256 68/68 盒源
+  ==HEAD·fmt OK·mock 211→214·bmd+gst 233 全过·clippy ×2 -D warnings
+  OK; **第三次 02-I 验收（v5, 15:59:24 CST, 五件套+bin sha 入 log）:
+  L0/L1a 2/2/L1b/L1c PASS[dn0/dn1 signal=true——C1 真机成立]/L1d/
+  L2a[双输入 session·H3 精确]/L2b[双 tap 83 帧]/L3[120→210·
+  ValidMonotonic] PASS·**L4 FAIL**·L5 FAIL[H1 设计性跳过非独立失败]·
+  Teardown PASS——8/10 verdicts EXIT=2 全链首次完成**; **L4 FAIL=
+  确定性签名复跑 2 逐项复现[判据锚 dual_input.rs:644-648 唯一失败项
+  =prog pts NonMonotonic; 切换机制 completed/observed=B/epoch=1 全对;
+  A/B in 列互差 8-10ms·in/bridge 各列 ValidMonotonic 仅 prog 翻转·
+  alive=false=复合字段推论 program_execution.rs:111-112]=A2-8-01
+  第三轮已裁架构硬事实[switching≠Program Timeline continuity·
+  Timestamp Normalization 四方案未裁]的真机表达——初步 §11 归 C 类
+  候选待终裁; 工件: converter interlace 断言两跑各 9 条未定性]`;
+  v4=INVALID/ARCHIVED·v5 保留**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

@@ -1697,3 +1697,102 @@ L1c signal=Some(false) 同受此窗口影响（当时信号在场性另议）。
 ② BNC#4 独立 ball 源物理对端 + dn2→Mini 输出线缆去向=现场项
 （照片/线缆追踪, 用户侧）; ③ 电视分钟级抖动=L2-L5 潜在 B 类时序
 （撞窗重跑不改码）; ④ 其余 C 类债务账本不变。
+
+## §33 第二十六轮终裁执行: A2-8-C1 授权落地 + 第三/四次 02-I 验收（L1c 修复真机成立·L4 新签名确定性复现）
+
+### 33.1 裁决接收（第二十六轮: APPROVED / FROZEN / **CHANGE REQUIRED**）
+
+状态梯子: Architecture APPROVED · Runtime FROZEN · Provisioning Identity
+CLOSED · v5 VALID · Hardware PASS · L1a/b PASS · **L1c=BLOCKED BY PROBE
+DEFECT** · L1d PASS · L2-L5=NOT YET VALIDLY EXECUTED · **Change REQUIRED**。
+定性更正: L1c false **非 Hardware FAIL**——probe 把 "检测器未锁定" 误投影为
+"无信号" = 证据语义错误（§11 归 A 类, 开 C1）。**A2-8-C1 授权范围**: 仅
+resolver.rs; 允许=观察窗/重采样/窗口内重读/锁定提前结束/超时 fail-closed/
+保留错误分类与生产绑定语义; 禁止=改 Manifest/v5/identity/L1c 判定原则/H1/
+Session/ProgramRuntime/SwitchGraph/Supervisor/MediaTap/recover SPI/L0-L5
+状态机/独立 Gate pipeline/**顺手重构 Option\<bool\>**/其他 P1 债务。
+probe contract 冻结: `PROBE_SIGNAL_WINDOW=3000ms` ·
+`PROBE_SIGNAL_INTERVAL=100ms`（当前 A2-8 验收策略值非永久冻结）。
+v4=**INVALID/ARCHIVED**（historical invalid provisioning artifact, 任何
+Gate 默认配置禁再引用）; v5 保留不重生成。
+
+### 33.2 C1 实现（1 文件 +86/−3, commit **1c3032b**）
+
+- 常量 `PROBE_SIGNAL_WINDOW`/`PROBE_SIGNAL_INTERVAL`（resolver.rs:22-25,
+  注释写明 1-3s 实测依据与策略值性质）;
+- 观察窗自 **set_state(Playing) 起算**（:239-240 deadline 锚点, 窗口覆盖
+  既有 300ms 错误上报宽限——裁决契约 "t=0 在 Playing"）;
+- signal 读取: 单次快照 → `poll_signal_until_locked` 窗口化（:267-274:
+  100ms 间隔重采样·锁定即返·耗尽 `Some(false)` fail-closed·find_property
+  缺失仍 None）;
+- 纯决策核 `poll_signal_until_locked`（:370-387, 抽样器注入, 双 profile
+  可测）;
+- **契约零变更**: `GStreamerDeviceProbe.signal` 仍 `Option<bool>`;
+  错误分类链（OpenFailed/StateFailed/PropertyMissing）与生产绑定语义原样;
+- 3 单测: `false,false→true` 窗口内锁定 PASS / 全窗 false fail-closed 且
+  重采样≥2（证非单次快照）/ 首采 true 恰 1 次采样（证不烧窗）;
+- **dual_input.rs 零改动**（:232-249 仍消费 resolver probe = 单一设备
+  打开者, 裁决 §8/§9 天然合规）。
+
+### 33.3 盒上矩阵（§29.2 纪律）
+
+sha256 **68/68 盒源==HEAD 1c3032b**; bin `media-agent-gates`
+（--features bmd,gstreamer）sha `f0ca5db9…`。fmt --check OK;
+**mock 211→214**（同命令前后实测, +3 恰为新测试; 注: 账本历史 mock 数为
+workspace 口径, 盒 crate 口径以 211→214 为准）; **bmd+gstreamer 233 全过**
+（新 3 测命中日志）; clippy `--all-targets -- -D warnings` 双 profile OK。
+证据: 盒 `/tmp/c1-{mock,hw}-test.log`。
+
+### 33.4 第三次 02-I 验收（v5, 2026-09-04 15:59:24 CST）
+
+证据头五件套+bin sha 已入 log（盒 `~/a2-8-02i-evidence/
+2026-09-04-02i-c1-acceptance.log`; NTP synchronized; HEAD=1c3032b;
+status clean）。结果: L0 PASS · L1a PASS（bindings=2/2 production_grade,
+双 ManifestVerified+HIGH）· L1b PASS · **L1c PASS**（dn0/dn1 均
+`signal=Some(true)`——**C1 窗口语义真机成立, §32 根因确认修复**）· L1d
+PASS（双卡 closure）· L2a PASS（session 双输入·H3 port_id 精确消费）·
+L2b PASS（双 tap frames=83）· L3 PASS（video 120→210·audio 160→280·
+ValidMonotonic）· **L4 FAIL** · L5 FAIL（=H1 设计性跳过, 非独立失败）·
+Teardown PASS（Program Stop→Tap Detach→Input Stop→Release 全真）。
+总 **8/10 verdicts, EXIT=2, 全链完成 L0→L5+Teardown**（A2-8 历史上
+首次越过 L1）。
+
+### 33.5 L4 FAIL: 确定性签名 + 初步归类（待终裁）
+
+- **判据锚 dual_input.rs:644-648**: PASS = completed ∧ observed==B ∧
+  epoch==1 ∧ **prog pts state≠NonMonotonic** ∧ pts.is_some。本跑前四项
+  **全真**（切换机制 Desired=Execution=Observed 完整成立）, 唯一失败项=
+  NonMonotonic;
+- **复跑 2**（rerun2.log, 同日 16:0x CST）: 同签名逐项复现（8/10·EXIT=2）
+  → **确定性签名, 排除电视分钟级抖动（B 类瞬态）**;
+- 数字: 两跑 pre→post prog +4.0s≈settle 窗推进; A/B in 列互差 8-10ms
+  （B 落后）; **in/bridge 各列保持 ValidMonotonic, 仅 prog 列翻转**;
+  alive=false 为复合字段推论（program_execution.rs:111-112:
+  pts.is_some ∧ ≠NonMonotonic）非独立停流证据;
+- 机制: 两路自由跑源时钟（电视 1080i25/ball 1080p25 独立发生器）在
+  input-selector 衔接, Program 出口无 normalization ⇒ 切换点时钟域衔接
+  被观测历史分类器判 NonMonotonic——**即 A2-8-01 第三轮已裁架构级硬事实
+  （source switching≠Program Timeline continuity·Timestamp Normalization
+  四方案未裁·timeline continuity=DEFERRED/FAIL-PENDING-CORRECTION）的
+  真机表达**;
+- **初步 §11 归类: C 类（已登记架构债务）候选**——非新代码缺陷·非硬件
+  前置; 最终裁归用户。连带: L5（故障注入/recover/隔离）因 H1 规则未
+  执行, 真机 L5 证据仍缺;
+- 工件附录（上报不定性）: `gst_video_converter` interlace 断言两跑各恰
+  9 条（均在 A=interleaved 活动期; 帧流未断, L2/L3 PASS 不受影响）;
+  Bus watch MainContext warn ×1/跑; teardown `pad_unlink` ×4/跑。
+
+### 33.6 状态梯子（本轮后）
+
+Architecture APPROVED · Runtime FROZEN（C1=授权内唯一破冰, 已并入）·
+Provisioning Identity CLOSED · v5 VALID · Hardware PASS ·
+**L1a/b/c/d 全 PASS** · **L2/L3 PASS** · L4=C 类候选待裁 ·
+L5=未执行（H1 跳过）· Teardown PASS。
+
+### 33.7 残余清单
+
+① **L4/L5 终裁待用户**（选项: 裁 Timestamp Normalization 四方案之一后
+开 normalization change 再跑 / 裁 L4 判据或 H1 例外（改 Gate 表面, 需
+授权）——本轮零改）; ② 现场项不变（BNC#4 独立 ball 源对端/dn2→Mini
+线缆去向/照片, 用户侧）; ③ converter interlace 断言=潜在独立候选
+未定性; ④ 其余 C 类债务账本不变。
