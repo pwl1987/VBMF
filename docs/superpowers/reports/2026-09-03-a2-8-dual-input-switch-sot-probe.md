@@ -2131,3 +2131,26 @@ R1-R8）：
 本主线状态机不变：A2-8-02-I = FAIL-PENDING-CORRECTION（L4-SWITCH
 PASS / L4-TIMELINE FAIL-PENDING-CORRECTION / L5 SKIPPED BY H1）；
 A2-8 Switch Execution 基础能力 = PASS 并立。
+
+## 37. Design Freeze 复核通过 + Implementation Impact Map 交付（跨账引用，2026-09-04，零代码）
+
+- 用户复核 f3158a0：**Design Freeze 有效**（核心冻结与十问终裁一致，
+  本轮闭合不回裁）；**正式进入 A2-8-C-TIMELINE-01 Implementation
+  Change**——纪律=先实现前代码拓扑探针/Impact Map→最小变更面冻结→
+  再写代码；第 4/5/6 落点项须以真实 Rust/GStreamer API 为准不凭
+  架构图猜。
+- 工程状态表照录冻结（C1 CLOSED·C1-P1 隔离·L0-L3/L4-SWITCH PASS·
+  L4-TIMELINE FAIL-PENDING-CORRECTION·L5 SKIPPED BY H1·02-I
+  FAIL-PENDING-CORRECTION·Design FROZEN·Implementation=下一阶段·
+  converter interlace/PortIdentity/UUID=独立队列）。
+- **Implementation Impact Map 已交付**：
+  `2026-09-04-c-timeline-01-implementation-impact-map.md`（十项逐项
+  实锚+盒上 GStreamer 1.28.2 gst-inspect 实证+gstreamer-0.23.7
+  crate 源码实证+OQ-IMP-1..7 待裁+最小变更面候选）。关键实证：
+  input-selector 自身零时间戳改写（drop-backwards=丢帧藏证禁入）；
+  **identity `single-segment` 真实存在**（"eat segments, appear as
+  one segment"=方案 B 现成 primitive 候选，精确行为留 sim 实验锚定）；
+  crate `event::Segment::new`/`Pad::send_event`/
+  `PadProbeInfo::buffer_mut` 全真实可用；全仓 GStreamer 高层 API
+  零存量。
+- 全文落账=设计探针 §12；主账状态机不变。

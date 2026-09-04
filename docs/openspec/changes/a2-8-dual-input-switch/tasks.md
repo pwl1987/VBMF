@@ -294,6 +294,41 @@
   条件]; 下一动作=开 implementation change（冻结后）; C1-P1/
   converter interlace/PORT-IDENTITY/canonical UUID namespace 四独立
   债隔离禁顺手修**
+  ; **第二十九轮=Design Freeze 复核通过+Implementation Change 正式
+  开启（设计探针 §12+主账 §37, 零代码, commit f3158a0 复核有效）:
+  用户实核 Freeze 核心内容与十问终裁一致——ProgramExecutionRuntime
+  现有组合根增设 TimelineAuthority 零新 Engine 层/三时钟职权分离/
+  epoch 拆分/映射语义+双禁/Fact≠Healthy/evidence 独立/四方案=B 核心+
+  A 机制 C-D 淘汰; 工程状态表冻结[C1 CLOSED·C1-P1 隔离·L0-L3+
+  L4-SWITCH PASS·L4-TIMELINE FAIL-PENDING-CORRECTION·L5 SKIPPED
+  BY H1·02-I FAIL-PENDING-CORRECTION·Design FROZEN·Implementation
+  =下一阶段·converter interlace+PortIdentity/UUID=独立队列]; 纪律=
+  先实现前拓扑探针/Impact Map→最小变更面冻结→再写代码·十项落点
+  钉死[4/5/6 项须真实 Rust/GStreamer API 实证不凭架构图猜]; **
+  Implementation Impact Map 已交付**[2026-09-04-c-timeline-01-
+  implementation-impact-map.md: As-Is 拓扑实锚=组合根两生产构造点
+  [bin:464+gate:480]/Plan 面 8 构造点 2 生产[self_test+materialize]
+  零消费/切换全序[plan_switch→begin→switcher.switch[set_active 成对
+  +P1-1 回滚]→settle→observe→complete_switch·watchdog 只观测不驱动]/
+  观测链[appsink→HEALTH_ARCS→PipelineHealth·桥=tap probe=全 adapter
+  层唯一 probe]/GStreamer 高层 API 全仓零存量; 盒上 GStreamer 1.28.2
+  实证=input-selector 零时间戳改写[drop-backwards=丢帧藏证禁入方案·
+  sync-streams/sync-mode 行为面·pad 级 running-time 可读]/intersrc
+  do-timestamp=false 原始终戳透传=双时钟域直通机制根源/**identity
+  single-segment 真实存在**[eat segments appear as one segment=方案
+  B 现成 primitive·精确数学留 sim 实验锚定]; gstreamer-0.23.7 crate
+  实证=event::Segment::new+SegmentBuilder[crate event.rs:778/:2493]/
+  Pad::send_event[pad.rs:369]/Element::send_event[element.rs:138]/
+  PadProbeInfo::buffer_mut[pad.rs:68=in-probe PTS 重写可行]/
+  EVENT_DOWNSTREAM probe; 十项逐项现状锚+候选+**OQ-IMP-1..7 待裁**
+  [1 normalize 删 vs Policy+wire/2 timeline 入 adapter 路径/3 执行点
+  组合须 sim 实验裁/4 evidence 读出面/5 adapter 微观序实验裁/6 失败
+  三结局谓词/7 L4 新谓词]; 最小变更面候选 9 行[新 program_timeline.rs
+  纯 Domain+contracts/switch 契约扩展+program_execution 挂点+
+  switch_graph 执行面+pipeline.rs 字段处置+dual_input L4 谓词+bin
+  接线+tests·controller MediaTap/watchdog/supervisor/resolver 零触碰];
+  执行序=裁纯设计项+授权 sim 实验刀→Domain→契约+Mock→Adapter→Gate
+  升级→真机复跑 §29.2]——待用户裁 OQ-IMP 后冻结最小变更面进实现**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

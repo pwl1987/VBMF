@@ -345,3 +345,63 @@ Timeline（X4）与 Playout 时间线——**无 Program 媒体时间线 Authori
 - 结论照录："**C-TIMELINE-01 十问可以冻结；架构方向正式确定为
   'Program Timeline Authority + Clock-Segment Timeline + Source Segment
   Mapping'，不进入实现，下一动作只做 Design Freeze。**"
+
+## 12. Design Freeze 复核通过 + Implementation Change 正式开启（2026-09-04，零代码）
+
+### 12.1 裁决接收
+
+- 用户实际复核 f3158a0 推送后的 Design Freeze：**核心冻结内容与十问
+  终裁一致**——复核通过，本轮闭合，不需回裁、不需补探针。
+  - `f3158a0 = 有效 Design Freeze`。
+  - 用户确认要点：ProgramExecutionRuntime=现有组合根增设
+    TimelineAuthority 未凭空造 Engine 层；Program Timeline 与
+    wall-clock/Channel Reference Clock/AVSync 职责分离；ProgramEpoch
+    与 switch_epoch 拆分+V/A 共 epoch 各自 mapping；SourceSegment/
+    TimelineMapping 冻结"映射问题非数字调大"+双禁（wall-clock/
+    max 假闭合）；TimelineMapped≠TimelineHealthy 防 Intent 冒 Fact；
+    TimelineObservation 独立+observed_at 限观察；四方案=B 核心+
+    A 的 Segment 重建机制、C/D 淘汰，未被偷换成"简单选 A/B"。
+- **正式进入 A2-8-C-TIMELINE-01 Implementation Change**。
+- 工程纪律（照录）："下一轮不是'看到 Freeze 就直接大改代码'"——
+  第一步=**实现前代码拓扑探针 / Impact Map → 最小变更面冻结 → 再写
+  代码**；重点钉死十项落点（①PipelinePlan 替换 normalize ②Runtime
+  构造/生命周期挂入 ③SourceSegment 注入边界 ④intersrc 后/selector
+  前后承担 timestamp/segment ⑤GStreamer SEGMENT/EVENT 真实发送路径
+  ⑥V/A 分别处理 segment ⑦appsink 观察与 TimelineEvidence 对齐
+  ⑧switch→mapping→observation 事务顺序 ⑨failure/rollback timeline
+  处置 ⑩L4 判据升级为 Timeline Mapping Evidence）；**第 4/5/6 项
+  不准凭架构图猜，以真实 Rust/GStreamer API 与现有 graph 生命周期
+  为准**。
+
+### 12.2 工程状态表（照录冻结）
+
+| 项目 | 状态 |
+| --- | --- |
+| C1 Resolver Timing | PASS / CLOSED |
+| C1-P1 async Bus Error | 独立 P1，隔离 |
+| L0–L3 | PASS |
+| L4-SWITCH | PASS |
+| L4-TIMELINE | FAIL-PENDING-CORRECTION |
+| L5 | SKIPPED BY H1 |
+| A2-8-02-I | FAIL-PENDING-CORRECTION |
+| C-TIMELINE-01 Design | FROZEN |
+| C-TIMELINE-01 Implementation | 下一阶段 |
+| converter interlace assertion | 独立队列 |
+| PortIdentity / UUID namespace | 独立队列 |
+
+### 12.3 本轮入口动作
+
+- **Implementation Impact Map 已交付（零代码）**：
+  `2026-09-04-c-timeline-01-implementation-impact-map.md`——As-Is
+  拓扑实锚（组合根两生产构造点/Plan 面 8 构造点 2 生产/切换全序/
+  观测链/GStreamer 高层 API 零存量）+ 盒上 gst-inspect 实证
+  （GStreamer 1.28.2：input-selector 无时间戳改写·drop-backwards=
+  丢帧藏证禁入方案·intersrc do-timestamp=false 原始终戳透传·
+  **identity single-segment 真实存在=方案 B 现成 primitive 候选**）
+  + gstreamer-0.23.7 crate 实证（event::Segment::new/Pad::send_event/
+  PadProbeInfo::buffer_mut/EVENT_DOWNSTREAM 全真实可用）+ 十项逐项
+  现状锚+候选+**OQ-IMP-1..7 待裁清单**+最小变更面候选 9 行+执行序
+  提案（sim 实验刀前置）。
+- 节奏指示（照录）："先一轮完整 Impact Map + implementation probe，
+  确认实际代码落点后一次性进入最小实现批次；不要再把已经冻结的架构
+  重新讨论。"
