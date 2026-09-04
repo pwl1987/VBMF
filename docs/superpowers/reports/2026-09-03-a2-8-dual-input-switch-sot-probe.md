@@ -1796,3 +1796,156 @@ L5=未执行（H1 跳过）· Teardown PASS。
 授权）——本轮零改）; ② 现场项不变（BNC#4 独立 ball 源对端/dn2→Mini
 线缆去向/照片, 用户侧）; ③ converter interlace 断言=潜在独立候选
 未定性; ④ 其余 C 类债务账本不变。
+
+## 34. 第二十六轮终裁：C1 收口 + L4 双维记账 + C-TIMELINE-01 正式登记（零代码）
+
+> 落账：2026-09-04，分支 comet/a2-8-dual-input-switch（基线 470f1a0 之上，
+> **本轮零源码改动**）。裁决来源=用户第二十六轮终裁全文；本节为接收、
+> 逐条锚点复核与登记。用户侧核验边界（原话要旨）：GitHub 连接器可读
+> master 0b3c73a 基线，但 1c3032b/470f1a0 分支引用当前无法直接解析——
+> "C1 的 resolver.rs 新增代码本身，我不把你贴出的报告当成已独立核验源码"；
+> L4 相关 dual_input.rs / program_execution.rs / switch_execution.rs /
+> pipeline.rs 可直接核验且足以支撑架构裁决。
+
+### 34.1 终裁结论（照录骨架）
+
+- **A2-8-C1：PASS / CLOSED**；
+- **A2-8-02-I：L0～L3 PASS；L4 = PASS（Switch Execution 子项）+
+  FAIL-PENDING-CORRECTION（Program Timeline Continuity 子项）；L5 =
+  SKIPPED BY H1（合法前置条件未满足，不计独立失败）；Teardown PASS**；
+- **A2-8-02-I 整体 = FAIL-PENDING-CORRECTION**——精确语义：非 A2-8 基础
+  设施失败；A2-8 已完成真实双输入切换执行闭环，但 Program Timeline
+  Continuity 未实现，"切换 + 节目时间线连续"完整验收尚未闭合；
+- **下一阶段：单独开 Timeline/PTS Normalization change；不修改 A2-8 的
+  L4 证据原则；不修改 H1；本轮零代码。**
+
+四不批准（红线，后续任何轮次禁偷渡）：
+
+1. **不批准现在直接进入 Timestamp Normalization 实现**——
+   `PipelinePlan.normalize` 仍是声明层字段未被 Execution Adapter 消费
+   （A2-7 已登记 Adapter Gap）；为跑绿临时插入 normalize 会把
+   声明/Execution/Observation 三层重新耦合，违反 Intent→Plan→Fact 冻结
+   边界；
+2. **不批准 H1 例外**（L4-TIMELINE FAIL 仍跑 L5）——Program Timeline
+   已知异常时 L5 的 Program 级观察会被污染，无法区分 failure isolation
+   与 pre-existing PTS discontinuity，违反 evidence purity；
+3. **不批准把 L4 判据降为只看切换成功**——会把真实架构问题从验收系统
+   抹掉；
+4. **不批准在 SwitchGraph / ExecutionGroup / SwitchDesired /
+   SwitchExecutionPlan 内做 Normalize**（PTS offset / timestamp
+   rewriting / segment manipulation / GstPadProbe timestamp mutation
+   全禁）——Switch Intent 与 Timeline Execution 禁止重新耦合。
+
+### 34.2 终裁代码锚点复核（HEAD 470f1a0 本地实证；盒==HEAD 已于 §33.3 sha256 68/68 复核）
+
+| 终裁引用 | 实锚 | 复核 |
+| --- | --- | --- |
+| L4 前四项=Switch Execution 维（completed/observed==B/epoch==1） | gates/dual_input.rs:644-648 | ✅ 逐字一致，本跑全真 |
+| L4 后两项=Timeline 维（state≠NonMonotonic ∧ pts.is_some） | 同上 | ✅ 唯一失败项=NonMonotonic（§33.5） |
+| TimelineSample 三列独立测量 | program_execution.rs:59-77（input/bridge/program × video/audio 各 pts+state） | ✅ 三列拆开、只观测 |
+| sampled_at_ms=wall-clock 与 PTS=media-clock 分离 | program_execution.rs:60 | ✅ C2 禁拿 sampled_at_ms 修 PTS |
+| program_alive=复合字段（非把 PLAYING 冒充 Timeline Healthy） | program_execution.rs:111-112 | ✅ pts.is_some ∧ ≠NonMonotonic |
+| PipelinePlan.normalize 声明未被消费 | pipeline.rs:136-141（doc 自认"**未被 Execution Adapter 消费**——normalize=true/false 生成管线相同"）；全仓消费点仅测试断言 | ✅ Adapter Gap 成立 |
+| ExecutionGroup 不存时间戳、不 Normalize | switch_execution.rs:93-100（恰 {session_id, inputs, desired, switch_epoch}） | ✅ 切换执行与时间戳=两责任域 |
+| SwitchExecution 纯模型边界 | switch_execution.rs:4/:16-17（零 GStreamer 依赖·不构图·不 recovery） | ✅ |
+| H1: L4 FAIL→L5 跳过 | gates/dual_input.rs:774 | ✅ 设计性跳过维持 |
+| C1 落点（收口对象） | resolver.rs:25/:27/:240/:268/:373 + 3 单测 | ✅ 在 1c3032b，用户侧源码核验见 §34.7 |
+
+### 34.3 第二十六轮终裁表（照录）
+
+| 项目 | 最终裁决 |
+| --- | --- |
+| C1 Resolver Signal Probe | **PASS / CLOSED** |
+| L0 | **PASS** |
+| L1a | **PASS** |
+| L1b | **PASS** |
+| L1c | **PASS** |
+| L1d | **PASS** |
+| L2a | **PASS** |
+| L2b | **PASS** |
+| L3 | **PASS** |
+| L4-SWITCH | **PASS** |
+| L4-TIMELINE | **FAIL-PENDING-CORRECTION** |
+| L4 Overall | **FAIL-PENDING-CORRECTION** |
+| L5 | **SKIPPED BY H1** |
+| Teardown | **PASS** |
+| v5 Manifest | **VALID / RETAIN** |
+| v4 Manifest | **INVALID / ARCHIVED** |
+| Identity | **CLOSED** |
+| Port collision issue | **当前 A2-8 不再阻塞** |
+| Normalize | **仍为 Adapter Gap** |
+| H1 | **保持不变** |
+| Supervisor | **不改** |
+| SessionManager | **不改** |
+| SwitchExecution | **不改** |
+| MediaBackend SPI | **不改** |
+
+### 34.4 C-TIMELINE-01 正式登记（C 类债务，取代 §33.5 "初步 C 类候选"）
+
+- **定义**：Program Timeline Continuity Gap——双输入各自独立 clock domain
+  经 selector 汇入 Program，切换点无负责重建 Program PTS continuity 的
+  执行组件；真机表达=Input/Bridge 全列 ValidMonotonic 而 Program 列
+  NonMonotonic（§33.5 确定性签名复跑 2 复现）。终裁定性=Architecture /
+  Execution Adapter Gap（A2-7 已登记项）被真实双输入硬件首次暴露，
+  **非 C1 残留的 Resolver/硬件/切换执行缺陷**。
+- **排除项（终裁明确否定）**：非 C1 Resolver bug / 非 DeckLink identity /
+  非 PortRegistry / 非 SwitchAdapter partial execution / 非 Supervisor /
+  非 Hardware signal instability。
+- **正面确证（终裁第十三节）**：Device→Port→Resource→Manifest→Resolver
+  →dn→Session→SessionInput A/B→ExecutionGroup→Tap→Bridge→
+  SwitchAdapter→Observed Active→Program 全链真实走通；首次真实暴露
+  Input Timeline ≠ Program Timeline——证明验收系统没有把"两个输入能
+  切换"错误等同"节目时间线连续"，ExecutionGroup / Observed-Desired
+  分离 / 三列 Timeline Evidence 设计经受住实机验证。
+- **设计裁决十问（独立 change 开工前置，冻结前禁写 normalization 代码）**：
+  ① Program timeline 的 authority 是谁；② 切换时新源 PTS 如何映射；
+  ③ video/audio 是否共享 epoch；④ discontinuity 如何处理；⑤ switch
+  settle 期间如何处理；⑥ PTS 是否允许 offset；⑦ wall-clock 与
+  media-clock 如何分离；⑧ downstream encoder 如何看到 continuity；
+  ⑨ recover 后是否重新建立 epoch；⑩ observation 如何证明 normalization
+  真执行。
+- **开工门（第一问）**：Program Timeline Authority 放在哪里 + A→B 切换时
+  Video/Audio PTS 如何建立连续映射——未冻结前开发助手禁写 normalization
+  代码（终裁原令）。
+- **必须保留的架构边界（"不要顺手修"清单）**：`sampled_at_ms`（wall-clock）
+  绝不能修 PTS（media-clock）；Bridge liveness=observation clock 窗口与
+  PTS monotonicity=media time 两证据域分层不变（二十轮 G/H-1 已建）；
+  switch_execution.rs 纯模型边界（不构建 GStreamer graph / 不执行
+  recovery / 不负责 timeline）不变。
+
+### 34.5 L4 双维记账口径（验收账面模型；Gate 代码不动）
+
+| 子项 | 判据 | 本次真机 |
+| --- | --- | --- |
+| L4-SWITCH | completed ∧ observed==target ∧ epoch==1 | **PASS** |
+| L4-TIMELINE | program pts exists ∧ monotonic | **FAIL-PENDING-CORRECTION** |
+| L4 overall | 双维合取 | **FAIL-PENDING-CORRECTION** |
+| L5 | H1 前置=L4 overall | **SKIPPED BY H1** |
+
+注：现行 dual_input.rs 单 `bool l4` 输出 FAIL，与 L4 overall 口径**零改码
+天然一致**；终裁批准的"L4 子项拆分"为验收记账模型——**代码级 Gate 表面
+拆分未授权于本轮**（本轮零代码），留待后续独立授权或随 normalization
+change 一并裁。
+
+### 34.6 状态梯子（终裁后）
+
+Architecture APPROVED · Runtime FROZEN（fe71b7c + C1 1c3032b）·
+Provisioning Identity CLOSED · v5 VALID（v4=INVALID/ARCHIVED）·
+Hardware PASS · L1a/b/c/d PASS · L2/L3 PASS · L4-SWITCH PASS ·
+L4-TIMELINE FAIL-PENDING-CORRECTION（L4 overall=FAIL-PENDING-
+CORRECTION）· L5=SKIPPED BY H1（不计独立失败）· Teardown PASS ·
+**02-I 整体=FAIL-PENDING-CORRECTION（停在明确 correction point）** ·
+下一阶段=独立 Timeline/PTS Normalization 设计裁决（未开工）。
+
+### 34.7 边界披露与残余
+
+- **C1 源码的用户侧独立核验**：用户声明 GitHub 连接器当前无法解析
+  1c3032b/470f1a0 分支引用，不将本报告当作"已独立核验源码"。如实登记：
+  C1 CLOSED 依据=真机验收证据（L1c PASS ×2 轮）+ 盒==HEAD sha256 68/68
+  + 测试矩阵；分支已推送远端（0b3c73a→1c3032b→470f1a0→本轮落账），
+  用户侧独立源码核验随时可做，本账不宣称"用户已核验源码"。
+- 残余：① 下一刀=Timeline/PTS Normalization 设计裁决（独立 change；
+  十问未裁禁写码；本轮仅登记未开工）；② converter interlace 断言
+  （每跑恰 9 条）待裁；③ 现场项（BNC#4 对端/dn2→Mini 线缆/照片）
+  用户侧不阻塞；④ 冻结债务不变（PORT-IDENTITY-AND-RESOURCE-
+  ADDRESSING · canonical UUID namespace · A2-8-03/04/05）。

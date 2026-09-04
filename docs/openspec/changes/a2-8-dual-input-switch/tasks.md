@@ -209,6 +209,27 @@
   Timestamp Normalization 四方案未裁]的真机表达——初步 §11 归 C 类
   候选待终裁; 工件: converter interlace 断言两跑各 9 条未定性]`;
   v4=INVALID/ARCHIVED·v5 保留**`
+  ; **第二十六轮终裁（probe §34, 落账零代码）: C1=PASS/CLOSED·
+  02-I 整体=FAIL-PENDING-CORRECTION[L0-L3 PASS·L4 双维记账:
+  L4-SWITCH=PASS·L4-TIMELINE=FAIL-PENDING-CORRECTION·L4 overall
+  同·L5=SKIPPED BY H1 不计独立失败·Teardown PASS·v5 VALID/v4
+  INVALID/ARCHIVED·Identity CLOSED·Port collision 不再阻塞]——
+  精确语义=基础设施完成真实双输入切换执行闭环但 Program Timeline
+  Continuity 未实现, 非基础设施失败; C-TIMELINE-01 正式登记[Program
+  Timeline Continuity Gap=Architecture/Execution Adapter Gap 真机
+  首证·排除 C1/identity/PortRegistry/SwitchAdapter/Supervisor/硬件
+  不稳定·设计十问[authority/PTS 映射/epoch 共享/discontinuity/
+  settle/offset/双 clock/encoder/recover/observation 证明]未冻结禁
+  写码·开工门=Program Timeline Authority+A→B 切换 Video/Audio PTS
+  连续映射]; 四不批准[①禁直接实现 Normalize——PipelinePlan.normalize
+  声明未消费·三层禁再耦合 ②禁 H1 例外——evidence purity ③禁降 L4
+  判据 ④禁 SwitchGraph/ExecutionGroup 内做 Normalize]; L4 证据原则+
+  H1+Gate 表面全不动[L4 子项拆分=验收记账模型非代码授权——现行单
+  bool 输出 FAIL 与 overall 口径零改码一致]; 保留边界[sampled_at_ms
+  wall-clock 禁修 PTS media-clock·Bridge liveness 观察时钟分层];
+  下一刀=独立 Timeline/PTS Normalization change 设计裁决（十问未裁
+  不开工）; 边界披露: 1c3032b 用户侧未独立核验源码[分支已推送·C1
+  CLOSED 依真机证据非报告自证]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
