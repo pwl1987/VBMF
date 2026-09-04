@@ -1150,3 +1150,19 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   连续第四次真机 PASS**（Preserve·epoch 0·offset 130924ns 逐 ns 闭合·
   V/A Continuous·undeclared_backward_jump=None）——Preserve 路径四跑四证。
 - NewEpoch rebase P1 / DiscontinuityDeclared P1 不变（Final Close 前必修）。
+
+## 25. 第三十七轮跨账引用: L5.4 观测语义升级方案③「有界 eventual-stall」批准——Gate 观测面限定（2026-09-05）
+
+- 主账 §48: ①30s 盲调 ❌ ②grace+帧计数 print ❌ ③有界 eventual-stall ✅
+  ——三阶段观测器[Phase A 输入故障确认（现有 5.3）/Phase B 最小排空
+  grace（t0 锚定保留·真机已证精确）/Phase C 连续 N 窗无增长=
+  StalledConfirmed·t0+deadline 仍未确认=StillAdvancingAtDeadline=
+  FAIL/TIMEOUT·观测面异常=ObservationInvalid——结束原因三词表进
+  evidence 禁静默超时]。
+- **C-TIMELINE-01 域零触碰**: 方案③只动 gates/dual_input.rs 的 L5.4
+  观测时序——Timeline 域（program_timeline.rs / switch_graph timeline
+  面 / contracts/switch.rs）零 diff 维持; L4 九项合取判据零变化。
+- NewEpoch rebase P1（program_timeline.rs:682-688 不变量
+  new.offset==program_start−source_start·四条回归）与
+  DiscontinuityDeclared 概念锁（Declared boundary vs Observed
+  backward jump 两概念独立）维持 Final Close 前必修。

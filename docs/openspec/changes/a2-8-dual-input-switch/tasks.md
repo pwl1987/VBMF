@@ -569,7 +569,29 @@
   B 生产窗（本跑 ~25.5s）"两假设均相容; 候选待裁 ①grace 15→30s
   ②①+q1/q2 帧计数 print（观测性一行·推荐）③eventually-stalled-deadline
   语义升级]**; 14 项中 13 PASS 维持; 工件 converter×6 间歇/pad_unlink×4/
-  MainContext×2 隔离队列]**
+  MainContext×2 隔离队列]**; **第三十六轮（主账 §48+设计探针 §25
+  跨账）: L5.4 终裁=方案③「有界 eventual-stall」正式批准——三阶段
+  观测器冻结**[Phase A 输入故障确认（现有 5.3 不变）→Phase B 最小排空
+  grace（t0 锚定保留·第三十六轮真机时间线闭合已证精确）→Phase C 连续
+  N=L5_PROGRAM_STALL_CONFIRM_ROUNDS 窗无增长=StalledConfirmed·t0+
+  L5_PROGRAM_STALL_DEADLINE 仍未确认=StillAdvancingAtDeadline=FAIL/
+  TIMEOUT·帧计数簿记回退=ObservationInvalid——结束原因三词表进
+  evidence 禁静默超时; ①grace 15→30s ❌ 禁盲调（>11/>18s 只是下界
+  非定值·经验 tuning≠failure-domain verification）②grace+帧计数
+  print ❌ 已不足; classify (true,true,true)→None 与 FailureDomain
+  封闭四词表冻结·Bridge liveness 与 Program 推进证据模型分离维持·
+  queue 水位维持 ❌; 裁决六项代码主张全实锚[现行锚定链 dual_input.rs:
+  793-827/Program Graph 拓扑 switch_graph.rs:397·399-400·441·443-444
+  （3ff66ad 后未变）/classify program_execution.rs:186-200/session
+  teardown :782-798（efc1b2a 后未变）/bridge liveness 分层 :131-143/
+  诊断注入 controller 第四 view（bb1360c 后未变）]; 执行=只改 gates/
+  dual_input.rs·三常量[GRACE 15s 维持不调参·ROUNDS=3 配 SAMPLE_GAP=3
+  ⇒ 9s 确认窗·DEADLINE=60s=验证期限非通过常数]+循环+evidence·判据
+  表达式零变化·禁改九面维持[program_execution/diagnostic/controller/
+  switch_graph/session/backend/program_timeline/Supervisor/SPI];
+  后续序=修改→fmt→矩阵→bin rebuild→真机→核对 14/14→NewEpoch P1
+  独立刀→Final Close→A2-8-05 archive; 隔离队列维持[pad_unlink×4/
+  MainContext WARN/interlace 断言]]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

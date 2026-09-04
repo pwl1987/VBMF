@@ -2534,3 +2534,85 @@ pad_unlink ×4 同刻）。**wait_until 语义按设计精确执行**（前置�
 converter interlace 断言 ×6（历跑 9·间歇性）; pad_unlink CRITICAL ×4
 （teardown 时刻复现）; MainContext already-acquired WARN ×2（两次 recover
 各一·无功能影响·recover tap 重放成功 ×2 同批）。
+
+## 48. 第三十七轮（repo 账第三十六轮）— L5.4 终裁: 方案③「有界 eventual-stall」批准（2026-09-05; 裁决轮·零代码）
+
+### 48.1 终裁主文（对 §47.4 三候选的再裁决）
+
+- **①grace 15s→30s = ❌ 不作为最终收口方案**。>11s/>18s 只是"本次实验
+  尚未排空的下界", 不证 runway=20/25/<30s; 15→30 若 PASS 只能得出
+  "本次环境 30s 够了", 不能得出"L5.4 故障域语义已被严格证明"——那会把
+  Gate 降级为经验性 timeout tuning 而非 failure-domain verification。
+  **禁止再做 30s（及后续 30→60）盲调**。
+- **②grace+q1/q2 帧计数 print = ❌ 已不足以解决根本问题**（观测性仍留
+  在"固定 grace 后单窗采样"的脆弱假设上）。
+- **③有界 eventual-stall（收敛版）= ✅ 正式批准**。两轮真机证据
+  （15s grace FAIL·t0+15..18 仍推进）+ inter 积压不可仓库级观测 ⇒ 已无
+  证据为"固定 grace"找到可证明常数——继续调常数反不如把判定语义升级为
+  "eventually stalled, bounded by deadline" 严谨。
+
+### 48.2 批准的 L5.4 语义: 三阶段观测器
+
+- **Phase A 确认输入故障**: inject(B) → L5_WAIT → bridgeB=false ∧
+  bridgeA=true（现有 5.3 检查即 Phase A, 结构不变）。
+- **Phase B 排空期**: fault t0 → minimum drain grace（wait_until(t0+grace)
+  锚定——第三十六轮真机时间线闭合已证精确执行, **机制保留**; 期间禁判
+  停滞——runway 排空前采样即假阴性）。
+- **Phase C 停滞确认循环**: grace 后取 q1 基线, 按采样间隔循环观测
+  Program 增量——有增长 ⇒ stall_rounds 归零; 无增长 ⇒ +1; **连续 N=
+  L5_PROGRAM_STALL_CONFIRM_ROUNDS 个采样窗无增长 ⇒ StalledConfirmed**
+  （单窗零增量可能是调度/分发/桥抖动, 禁以单窗判停）; **now ≥ t0+
+  L5_PROGRAM_STALL_DEADLINE 仍未确认 ⇒ StillAdvancingAtDeadline =
+  L5.4 FAIL/TIMEOUT**（明确分类结局, 终结 grace 数值调参循环）。
+- **结束原因三词表（evidence 必记"最终为什么结束", 禁静默超时）**:
+  `StalledConfirmed`（→ 继续用 classify_failure_domain 判 Program 域）/
+  `StillAdvancingAtDeadline`（明确 FAIL·不再猜"也许再等 20 秒"）/
+  `ObservationInvalid`（帧计数簿记回退等观测面异常, 本轮禁判停滞）。
+- **分层不变**: classify_failure_domain 与 FailureDomain 封闭四词表
+  {None,Input,Bridge,Program} 冻结——真正变化的只是 prog_advancing
+  这一观测输入的产生方式（固定单窗 → 有界循环）。Bridge liveness
+  （last_observed 观察时钟）与 Program 推进（帧计数增量）两证据模型
+  维持分离, 禁"bridgeB 死 ⇒ program 立即停滞"推导。
+- **queue 水位读取维持 ❌**（vendor/topology-specific fact 会把故障域
+  体系拉出第四个执行内部子域, 破坏封闭四词表）。
+
+### 48.3 裁决代码主张核验（六项·全实锚）
+
+| # | 主张 | 实锚 | 结果 |
+| --- | --- | --- | --- |
+| 1 | 现行 Gate=B inject→t0=Instant::now()→wait_until(t0+15s)→q1→3s→q2 | dual_input.rs:793-827（inject :793/t0 :795/grace wait :820-823/q1 :824/gap :825/q2 :826） | ✓ |
+| 2 | Program Graph=intervideosrc(B)→selector→queue→appsink; queue 默认容量·appsink sync/async=false | switch_graph.rs:397·399-400·441·443-444; git log 证 3ff66ad 后未变 | ✓ |
+| 3 | classify 优先序 !input→Input / !bridge→Bridge / !program→Program / else None | program_execution.rs:186-200 | ✓ |
+| 4 | Teardown 顺序 Program Stop→Tap Detach→Backend.stop·hook 失败不截断 | session.rs:782-798; efc1b2a 后未变 | ✓ |
+| 5 | Bridge liveness=last_observed 观察时钟·frames=历史证据分层 | program_execution.rs:131-143（alive_in_window 过滤 :139-143） | ✓ |
+| 6 | 诊断注入=运行态暂停·handle/instances 保持·recover 同 handle 真实重建 | controller.rs 第四 view（R34 bb1360c 落地·后未变·diagnostic_rt ×3） | ✓ |
+
+### 48.4 执行令与边界
+
+- **只改 `gates/dual_input.rs`**; 允许面=三常量 + 观测循环 + evidence
+  输出: `L5_PROGRAM_DRAIN_GRACE`（语义改写为 minimum drain grace, **值
+  维持 15s**——不因新框架调参）+ `L5_PROGRAM_STALL_CONFIRM_ROUNDS`（=3;
+  裁决建议 2 或 3, 取 3 配合既有 SAMPLE_GAP_SECS=3 ⇒ 9s 确认窗）+
+  `L5_PROGRAM_STALL_DEADLINE`（=60s; 取值依据=两跑下界 >11/>18s+"积压≈
+  冻结前 B 生产窗 ~25.5s"假设+grace+N×GAP+余量——**是验证期限不是
+  通过常数**, 到期是分类结局非静默超时）。采样间隔复用 SAMPLE_GAP_SECS
+  不新增第四 knob。
+- 非确认结局（StillAdvancingAtDeadline/ObservationInvalid）保守按
+  "未证停滞"进 classify（prog_advancing=true ⇒ A 行=None ⇒ L5.4 自然
+  FAIL）, 结束原因在证据行区分——**判据表达式零变化**。
+- **禁改九面维持**: program_execution.rs / contracts/diagnostic.rs /
+  controller.rs / switch_graph.rs / session.rs / backend.rs /
+  program_timeline.rs / Supervisor / MediaBackend SPI（stop/recover
+  零修改）。
+- 后续序: 修改→fmt→矩阵（default/mock/bmd+gst/clippy×2）→gates bin
+  rebuild→真机 02-I→**核对 14/14**→NewEpoch P1 关闭（独立刀）→
+  C-TIMELINE-01 Final Close→A2-8-05 archive。
+- 隔离队列维持不得顺手修: pad_unlink CRITICAL ×4 / MainContext
+  already-acquired WARN / converter interlace 断言; NewEpoch rebase P1
+  不与本轮混修。
+
+### 48.5 02-I 状态重定级
+
+L0/L1a-d/L2a-b/L3 PASS·L4 PASS×4·L5.1-5.3 PASS·Teardown PASS——
+**"Runtime 功能未做完"已排除, 唯一剩余=L5.4 Gate 观测语义**（本裁决即
+其收口刀）。14 项中 13 PASS 维持。
