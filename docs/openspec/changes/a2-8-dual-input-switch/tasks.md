@@ -329,6 +329,38 @@
   接线+tests·controller MediaTap/watchdog/supervisor/resolver 零触碰];
   执行序=裁纯设计项+授权 sim 实验刀→Domain→契约+Mock→Adapter→Gate
   升级→真机复跑 §29.2]——待用户裁 OQ-IMP 后冻结最小变更面进实现**
+  ; **第三十轮=OQ-IMP-1..7 裁决+SIM-01 实验刀完成（设计探针 §13+主账
+  §38+SIM-01 报告, 落账零生产代码）: 5 ADOPT——IMP-1 normalize→
+  TimelinePolicy[SourceNative/ProgramTimelineMapped·删 normalize 语义·
+  禁含糊 bool]/IMP-2 走现有 Plan/materialization 链[禁新 Timeline
+  trait/Port/SPI·ProgramEpoch authority 永在 ProgramExecutionRuntime/
+  TimelineAuthority]/IMP-4 TimelineEvidence=Adapter 装配+Runtime 独立
+  读取[禁塞 PipelineHealth·evidence 非 authority 禁自动接受]/IMP-6
+  失败三结局 Preserve/NewEpoch/FailClosed[continuity 不可证→epoch++·
+  禁硬接 PTS=R2 绝对禁区·禁第四种猜测成功]/IMP-7 L4-TIMELINE=Timeline
+  Mapping Evidence 七合取[TimelineTransitionEvidence 结构·'B 是否按
+  声明 SourceSegment 映射合法进入同一 Program Timeline 且 V/A 双连续
+  成立']; IMP-3/IMP-5 授权 sim 实验; **SIM-01 已执行**[2026-09-04-
+  c-timeline-01-sim-01-experiment.md·9 变体 2583 行·盒 ~/ct-sim-01
+  sha256 归档·工程不入库]: F1 inter 桥按接收墙钟重定基=200ms 生产者
+  基差跨桥后仅剩 0.1-0.3ms 相位差[真机 8-10ms 同源·NonMonotonic=相位
+  回退]/F2 翻 active-pad 自然转发 stream-start(B)→caps→segment(B) 到
+  appsink=免费边界标记/**F3 identity single-segment 只吃段不修 PTS
+  [appsink 单 segment 但 PTS 回退 −0.155ms]=吞段假阳性实证 禁作机制
+  或证明面**/**F4 控制线程 Pad::send_event(Segment) 两序均被拒**/
+  **F5 selector 后 per-plane BUFFER probe+Domain 声明映射[anchor−
+  B_anchor offset]=完整可行[vd-pre backward=0·B 首帧精确落 anchor=
+  A 末帧+40ms·121/121 节拍规整·aud-map 162/162=V/A 双平面独立]**/
+  F6 微观序 pre-flip 安装结构性无竞态[规范序候选]·post-flip ~1ms 赢
+  竞态[窗口真实窄]+**附带发现 set_property 后立即 readback=旧值
+  sink_0 9/9 而流已切→'已执行'证明禁立即 readback 生效边界=下一
+  缓冲**/F7 基线复现生产 L4 签名[实验有效性锚]; 顺带发现 gstreamer-rs
+  0.23 无公开 parse_launch[auto/functions crate-private·生产程序化构链
+  不受影响]; IMP-3/IMP-5 候选结论待终裁[执行点=selector 后 per-plane
+  probe 声明映射+F2 自然段边界·序=取锚→声明映射→pre-flip 安装→翻
+  pad→生效边界=下一缓冲→Observed 走帧/事件序列]→冻结最小变更面→正式
+  实现批次; 实验禁改清单全守[normalize/PipelineHealth/L4/SwitchGraph
+  正式逻辑/Production graph 零触碰]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

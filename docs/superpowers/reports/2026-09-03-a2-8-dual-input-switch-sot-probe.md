@@ -2154,3 +2154,28 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
   `PadProbeInfo::buffer_mut` 全真实可用；全仓 GStreamer 高层 API
   零存量。
 - 全文落账=设计探针 §12；主账状态机不变。
+
+## 38. OQ-IMP-1..7 裁决 + SIM-01 实验刀完成（跨账引用，2026-09-04）
+
+- 用户裁决 OQ-IMP-1..7：**5 ADOPT**（IMP-1 normalize→TimelinePolicy[
+  SourceNative/ProgramTimelineMapped·禁含糊 bool]/IMP-2 走现有
+  Plan/materialization 链[禁新 Timeline trait/Port/SPI·ProgramEpoch
+  authority 永在 ProgramExecutionRuntime]/IMP-4 TimelineEvidence=
+  Adapter 装配 Runtime 独立读取[禁塞 PipelineHealth·Evidence≠Authority]/
+  IMP-6 失败三结局[Preserve/NewEpoch/FailClosed·禁第四种猜测成功·R2
+  绝对禁区]/IMP-7 L4-TIMELINE 升级为 Timeline Mapping Evidence 七合取
+  [TimelineTransitionEvidence 结构]）+ **IMP-3/IMP-5 授权 sim 实验**。
+- **SIM-01 已执行**（设计探针 §13+`2026-09-04-c-timeline-01-sim-01-
+  experiment.md`，9 变体 2583 行，盒 ~/ct-sim-01 sha256 归档）：
+  F1 桥按接收墙钟重定基=独立时钟域只剩相位差（真机 8-10ms 同源）·
+  F2 selector 自然转发 stream-start/caps/segment(B)=免费边界标记·
+  **F3 identity single-segment 只吃段不修 PTS=吞段假阳性实证**·
+  **F4 控制线程 send_event(Segment) 两序均被拒**·**F5 selector 后
+  BUFFER probe+Domain 声明映射=完整可行[backward=0·首帧精确落
+  anchor·V/A 双平面 121/121+162/162]**·F6 pre-flip 安装无竞态+
+  **set_property 后立即 readback=旧值而流已切**·F7 基线复现生产
+  L4 签名。
+- IMP-3/IMP-5 候选结论待用户终裁→冻结最小变更面→正式实现批次。
+- 实验零架构漂移：normalize/PipelineHealth/L4/SwitchGraph 正式逻辑/
+  Production graph 全未触碰；实验工程不入库。
+- 主账状态机不变。

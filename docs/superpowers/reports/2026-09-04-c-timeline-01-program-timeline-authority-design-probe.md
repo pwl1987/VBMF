@@ -405,3 +405,58 @@ Timeline（X4）与 Playout 时间线——**无 Program 媒体时间线 Authori
 - 节奏指示（照录）："先一轮完整 Impact Map + implementation probe，
   确认实际代码落点后一次性进入最小实现批次；不要再把已经冻结的架构
   重新讨论。"
+
+## 13. OQ-IMP-1..7 裁决 + SIM-01 实验刀执行（2026-09-04）
+
+### 13.1 裁决接收（照录决策表）
+
+| OQ | 裁决 | 结论 |
+| --- | --- | --- |
+| IMP-1 | `normalize: bool` → `TimelinePolicy` | **ADOPT**：删除 normalize 语义；TimelinePolicy 为明确域语义（首版表达 SourceNative / ProgramTimelineMapped），禁任何含糊 bool 开关（normalize=true/fix_pts/force_continuity 类禁） |
+| IMP-2 | Timeline 数据入 Adapter 方式 | **ADOPT**：扩展现有 Plan/materialization 链，**不新增** Timeline trait/Port/Controller SPI，不改 MediaBackend::recover；链=Runtime→TimelineAuthority→Timeline Plan/Mapping→PipelinePlan/materialization→GStreamer Adapter；禁 SessionManager/Supervisor/MediaBackend/GStreamerController 横向侵入；ProgramEpoch authority 永在 ProgramExecutionRuntime/TimelineAuthority |
+| IMP-3 | Segment 执行点组合 | **SIM EXPERIMENT**（授权 sim-only 实验刀） |
+| IMP-4 | TimelineEvidence 读出面 | **ADOPT**：Adapter 装配、Runtime 独立读取；**不塞进 PipelineHealth**；结构=GStreamer Adapter{PipelineHealth, BridgeObservation, TimelineEvidence}→Runtime→TimelineAuthority；**Evidence 不是 Authority**——禁"GStreamer 说 PTS=xxx→Authority 自动接受" |
+| IMP-5 | Adapter 微观序 | **SIM EXPERIMENT**；必须验证 SwitchExecuted 后 TimelineTransition 已成立（settle=等稳定证据非等时间线重建） |
+| IMP-6 | 失败三结局 | **ADOPT**：①Preserve（同 epoch+mapping valid+continuity valid→保持）②NewEpoch（执行成功但 continuity 不可证→ProgramEpoch++，禁硬接 PTS/max 假闭合=R2 绝对禁区）③FailClosed（mapping/segment transition/epoch invalid·undeclared backward jump·evidence 不足→transition=failed）；**不增第四种"猜测成功"** |
+| IMP-7 | L4-TIMELINE 谓词 | **ADOPT**：升级为 Timeline Mapping Evidence 判定（TimelineMapped∧Program PTS continuity∧Video∧Audio∧ProgramEpoch consistent∧Segment transition declared∧No undeclared backward jump）；参考结构 TimelineTransitionEvidence{declared_segment, observed_segment, program_epoch, source_id, source_pts, mapped_program_pts, mapping_offset, video_continuity, audio_continuity, discontinuity_state, undeclared_backward_jump}；L4 之问从"PTS 有没有倒退"改为"B 是否按 TimelineAuthority 声明的 SourceSegment 映射合法进入同一 Program Timeline 且 V/A 双连续性证据成立" |
+
+- 实验范围授权（照录）：A2-8-C-TIMELINE-01-SIM-01 十项（最小双源模拟 graph/
+  A/B 独立 PTS 源/input-selector/Segment 注入位置/identity.single-segment/
+  Pad::send_event(Segment)/buffer PTS probe/V-A 分开/记录 active-pad/
+  记录 Segment→buffer→appsink 事件 PTS 序列）；**只回答 IMP-3+IMP-5**。
+- 实验禁改清单（照录遵守）：normalize/PipelineHealth/L4/SwitchGraph 正式
+  逻辑/Production graph 全未触碰；实验工程=盒上 scratch 不入库。
+
+### 13.2 SIM-01 已执行（2026-09-04T12:16Z 收官，9 变体 2583 行日志）
+
+报告=`2026-09-04-c-timeline-01-sim-01-experiment.md`（F1-F7 全证据+候选
+结论+诚实边界）；工程/日志在盒 `~/ct-sim-01/`（sha256 归档）。关键事实：
+
+- **F1** inter 桥隐式按接收墙钟重定基——200ms 生产者基差跨桥后仅剩
+  **0.108-0.267ms 相位差**；真机 8-10ms 同源现象；Program NonMonotonic=
+  切换点相位回退（问题规模=帧内相位级，与 Freeze 映射模型吻合）。
+- **F2** 翻 active-pad 后 selector **自然转发** stream-start(B)→caps(B)
+  →segment(B) 到 appsink——切换边界在事件流上天然可见（免费边界标记）。
+- **F3** identity single-segment **只吃段不修 PTS**：vb 下游只见 1 个
+  segment 但 PTS 仍回退 −0.155ms——**"吞段假阳性"实证**（观察点 7）；
+  不得作为机制或证明面。
+- **F4** 控制线程 `Pad::send_event(Segment)` **两序均被拒**（sent=false）
+  ——外部段注入路径不可行。
+- **F5** selector src BUFFER probe + Domain 声明映射（anchor−B_anchor）
+  **完整可行**：vd-pre backward=0、B 首帧精确落 anchor（A 末帧+40ms）、
+  121/121 映射节拍规整；aud-map 同（162/162）——**V/A 双平面独立成立**。
+- **F6** 微观序：pre-flip 安装结构性无竞态（规范序候选）；post-flip 以
+  ~1ms 赢得竞态（窗口真实但窄）；**附带发现：set_property 后立即 readback
+  =旧值 sink_0（9/9）而 buffer 流已切**——"已执行"证明禁立即 readback，
+  生效边界=下一缓冲。
+- **F7** v0/aud 基线唯一翻转点=切换后相位回退——与生产 L4 签名同构，
+  实验有效性锚。
+
+### 13.3 状态
+
+- IMP-3/IMP-5 候选结论已出（报告 §4/§5：执行点=selector 后 per-plane
+  BUFFER probe 声明映射+F2 自然段边界；微观序=pre-flip 安装→翻 pad→
+  生效边界=下一缓冲→Observed 走帧/事件序列），**待用户终裁**。
+- 裁后即冻结最小变更面（Impact Map §4 九行候选）→ 正式最小实现批次。
+- 顺带发现（登记不阻塞）：gstreamer-rs 0.23 无公开 parse_launch
+  （auto/functions crate-private）——生产同构程序化构链不受影响。
