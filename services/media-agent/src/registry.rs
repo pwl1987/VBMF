@@ -390,7 +390,8 @@ mod tests {
         // 真实媒体经全链到达 program 出口。
         let graph = runtime.graph_handle().expect("graph");
         std::thread::sleep(std::time::Duration::from_millis(1500));
-        let obs = switcher_view.observe(&graph);
+        // C-TIMELINE-01: observe() 组合面机械适配（.program 取既有平面）。
+        let obs = switcher_view.observe(&graph).program;
         assert_eq!(obs.observed_active, Some(a), "初始 active=A");
         assert!(obs.program_video_frames > 0, "program video 真实到达");
         assert!(obs.program_audio_frames > 0, "program audio 真实到达");
@@ -401,7 +402,11 @@ mod tests {
         assert!(tap.tap_attachments(&h1).is_empty(), "teardown 真摘 A");
         assert!(tap.tap_attachments(&h2).is_empty(), "teardown 真摘 B");
         assert!(
-            switcher_view.observe(&graph).observed_active.is_none(),
+            switcher_view
+                .observe(&graph)
+                .program
+                .observed_active
+                .is_none(),
             "program 停（observe 归零）"
         );
         let _ = bundle.backend.stop(&h1);

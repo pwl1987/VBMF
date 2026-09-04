@@ -488,7 +488,10 @@ pub fn spawn_execution_group_watchdog(
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(500));
-            let observation = switcher.observe(&graph);
+            // C-TIMELINE-01: observe() 契约演进（ProgramExecutionObservation
+            // 组合面）——fold 消费既有 program 平面（timeline 证据行不入
+            // fold——观测折叠语义零变化, 机械路径适配）。
+            let observation = switcher.observe(&graph).program;
             let (desired, inputs_tick): (SwitchDesired, Vec<InputTick>) = {
                 let g = group.lock().unwrap();
                 let tick_inputs = group_inputs

@@ -649,3 +649,59 @@ correctness/1080i-1080p format 全 NO。
    纠偏链落为 SwitchExecutionAdapter 既有 trait 上的最小方法
    （默认=未实装 fail-closed 错误；GStreamer 实装=第二批）——非第二
    SPI、非新 trait。
+
+## 15. Batch 1 实现账（Domain + contract + Mock，2026-09-04 落地）
+
+按 §14.4 批次授权执行；第二批（GStreamer Adapter+L4）与真机复跑未动。
+
+### 15.1 交付面
+
+| 文件 | 变更 | 形状 |
+| --- | --- | --- |
+| `src/program_timeline.rs`（**新**，纯 Domain 零 GStreamer） | 全部时间线 Domain | `ProgramEpoch`/`SegmentId`/`MediaPlane`/`AnchorPair`/`SourceSegment{source_id, program_epoch, segment_id, source_start_pts, program_start_pts, offset}`（`declare`=program_anchor−source_anchor 单点生产 + `map_pts` 段内映射）/`ProgramTimelinePlan{target, switch_epoch, video, audio}`（Freeze §4 结构+§7 segment_id 补全）/`PlaneContinuity{Unproven,Continuous,DeclaredDiscontinuity,Violated}`（禁裸 bool）/`BackwardJumpFact`/`TimelineTransitionEvidence`（IMP-7 十一字段照录）/`TimelineMapped`（Freeze §7 五字段）/`TimelineObservation`（Freeze §8 恰十键 + `no_evidence` 诚实缺席行）/`TransitionFailure`（九词封闭 + thiserror）/`TransitionOutcome{Preserved,NewEpoch,Failed}`/`PlaneTransitionState{AwaitSegmentEvent→AwaitFirstMappedBuffer→Mapped}`（⑤⑥）/`TimelinePhase{Stable→SwitchRequested→SwitchExecuted→TimelineTransition→Stable; TransitionFailed=IMP-6 终态}`/`PlaneTimeline`（§七 per-plane 形状）/`TimelineAuthority`（`declare_transition`/`abort_transition`/`on_switch_executed`(epoch 联动校验)/`on_segment_event`(⑤ 身份闭合)/`on_mapped_buffer`(⑥⑦ mapped==f(source) 证据校验+四态+连续性+双平面齐备闭合 ⑧)/`close_transition`(Preserve=epoch 不变/NewEpoch=epoch+1 按观测实况 re-base offset 不改 PTS)/`confirm_settled`(⑨⑩)/`on_program_pts`(稳态四态机·未声明回退=NonMonotonic sticky+FailClosed)/`fail_closed`(外部检出入口)/`snapshot` |
+| `src/pipeline.rs` | IMP-1 契约清理 + 四态 | `TimelinePolicy{SourceNative, ProgramTimelineMapped}` 取代 `normalize: bool`（8 处构造位 true→ProgramTimelineMapped；serde 无 default；Gap 登记移交文档化）；`PtsMonotonicity` + `DiscontinuityDeclared` 四态 + `observe_video/audio_pts_declared`（声明边界非回退→DiscontinuityDeclared；**声明不豁免回退**——declared 路径回退仍 NonMonotonic sticky）；既有 `observe_*_pts` 语义零变化 |
+| `src/contracts/switch.rs` | IMP-4 契约演进 | `ProgramExecutionObservation{program, timeline}`；trait `observe()` 返回组合面（单一 observation surface）；`install_timeline_transition(graph, &ProgramTimelinePlan)` 默认=未实装 fail-closed Err（§14.5.3） |
+| `src/adapters/switch_mock.rs` | Mock 闭环 | 双模式出口（未安装=legacy 独立再生成流**逐字节保持**；已安装+已执行=映射后源流 `program=f(source)`，F5 同构；翻转后首个 observe tick=Segment(B) 等价事件、无缓冲交付，再下一 tick=首枚映射缓冲——F6 生效边界=下一缓冲同构）；`install_timeline_transition` 实装（pre-flip epoch 联动/target 非 active fail-closed）；`switch` 增声明↔计划联动纵深；timeline 证据行仅在首枚映射缓冲后成事实（此前 no_evidence） |
+| `src/adapters/gstreamer/switch_graph.rs` | 诚实边界 | 仅 `observe()` 包装（timeline 行=`no_evidence`——**第二批实装 probe 前 absence≠evidence 不伪造**）；probe/TimelineExecutionState/安装=第二批；tests 机械 `.program` |
+| 机械适配（§14.5.1 披露） | `.program` 路径 | `watchdog.rs`（fold 输入 1 处+注释）、`registry.rs`（2 处）、`gates/dual_input.rs`（**恰 7 处绑定行**，L4 判据表达式零变化）、`program_execution.rs`（FailingSwitcher 签名+2 测试位）、`lib.rs`（模块注册） |
+
+### 15.2 实现期裁定（disclosed，第二批复核点）
+
+1. **§8/IMP-7 单行字段规范载体=video 平面**（source_pts/mapped_program_pts/
+   mapping_offset/input_pts/discontinuity_state 单值取 video 边界帧；audio
+   独立性由 audio_continuity+PlaneTimeline 承载）——冻结单行形状内的实现
+   约定，代码文档注明。
+2. **顺序违反 ≠ 终态**：⑤ 重复/⑥ 先于 ⑤=拒收当前证据（`EvidenceOutOfOrder`
+   Err，transition 仍在途）；身份/映射不匹配（SegmentMismatch/MappingMismatch）
+   =`fail_closed` 终态——前者可重报证据，后者为矛盾不可自愈。
+3. **epoch 口径**按 §14.5.2（Preserve 保持/NewEpoch+1/初始 0）。
+4. **Mock 双模式**：legacy 行为逐字节保持由既有测试锁死
+   （switch_rt_01_program_pts_monotonic_across_switch 等全绿）。
+
+### 15.3 验证（盒 10.30.15.10，2026-09-04）
+
+- `cargo fmt --check` OK；`cargo test`（default）**217** pass；
+  `cargo test --features mock` **377** pass 0 fail（新增 18：timeline_rt_01
+  ×12 + switch_rt_02 ×3 + pipeline 四态/wire ×3）；
+  `cargo test --features bmd-provider,gstreamer-backend` **236** pass 0 fail
+  （含真实双切换 GStreamer 双测——observe 契约演进零回退实证）；
+  `cargo clippy --features mock --all-targets -- -D warnings` PASS；
+  `cargo clippy --features bmd-provider,gstreamer-backend --all-targets -- -D
+  warnings` PASS。
+- 关键闭环测试 `switch_rt_02_canonical_order_and_mapped_outlet_close_loop`：
+  真实 `TimelineAuthority` 声明→pre-flip 安装→翻转→边界 tick 无缓冲交付→
+  首枚映射缓冲出口=f(source)→Authority 校验证据→**Preserve(epoch 不变)→
+  settle→Stable**——§14.4 实现纪律（Authority 声明+Adapter 证据+Runtime
+  闭合）在 Mock 层全链成立。
+- `timeline_rt_01_observation_keyset_locked_to_freeze_shape`：§8 键集恰十键
+  wire 锁。
+
+### 15.4 未做（第二批范围，未越界）
+
+switch_graph selector 后 per-plane EVENT+BUFFER probe（IMP-3 执行点）·
+adapter 侧 `TimelineExecutionState`（终裁 §七）·GStreamer
+`install_timeline_transition` 实装·`ProgramExecutionRuntime` 挂
+TimelineAuthority+transition orchestration（①-⑩ 驱动）·`dual_input.rs`
+L4-TIMELINE 谓词升级（IMP-7 九项合取）·真机复跑（§29.2 纪律）。以上全未
+触碰；`recover`/Supervisor/SessionManager/Resolver/PortRegistry/
+ResourceRegistry/MediaTap/C1 零触碰。

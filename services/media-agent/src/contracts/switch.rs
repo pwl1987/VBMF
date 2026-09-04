@@ -15,6 +15,7 @@
 //! （`ExecutionGroup::complete_switch`）。
 
 use crate::pipeline::{PipelineHandle, PtsMonotonicity};
+use crate::program_timeline::{ProgramTimelinePlan, TimelineObservation};
 use crate::switch_execution::{ExecutionGroup, SwitchError, SwitchExecutionPlan};
 use uuid::Uuid;
 
@@ -72,6 +73,20 @@ pub struct ProgramObservation {
     pub program_audio_frames: u64,
 }
 
+/// C-TIMELINE-01（IMP-4, 第三十一轮终裁 §六）: Program observation **唯一
+/// 面**——既有 `ProgramObservation` 语义零污染, timeline 证据**并列同行**
+/// （不塞字段进 ProgramObservation, 亦非第二 observation SPI）。
+///
+/// 消费方经 `.program` 读既有列、经 `.timeline` 读时间线证据行; L4-TIMELINE
+/// 直接消费 timeline evidence（第二批升级判据时接线）。`TimelineObservation`
+/// 是 **evidence 不是 authority**（IMP-4）——观测行不裁时间线, 裁决权在
+/// `TimelineAuthority`（Domain）。
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProgramExecutionObservation {
+    pub program: ProgramObservation,
+    pub timeline: TimelineObservation,
+}
+
 /// Switch Execution Adapter——Program graph 的物化/切换/观测 owner。
 ///
 /// SPI 方法在无调用点的 feature 组合下可能未消费; 与 `MediaBackend`
@@ -94,8 +109,29 @@ pub trait SwitchExecutionAdapter: Send + Sync {
         plan: &SwitchExecutionPlan,
     ) -> Result<SwitchExecuted, SwitchError>;
 
-    /// Observed 平面读数（实际 active + 六路 PTS + 帧计数）。
-    fn observe(&self, graph: &PipelineHandle) -> ProgramObservation;
+    /// C-TIMELINE-01（IMP-5 ③, Freeze §11 签名=implementation 首刀落地）:
+    /// 安装 timeline transition 声明（`TimelineAuthority` 产出 → adapter 侧
+    /// 执行态: expected target + per-plane segments/mapping——终裁 §七
+    /// `TimelineExecutionState` 的安装入口）。**必须在 `switch` 之前安装**
+    /// （pre-flip canonical 序; F6 实证无竞态）。
+    ///
+    /// 默认=**未实装 fail-closed**（诚实错误非静默）: GStreamer 实装=
+    /// C-TIMELINE-01 第二批（selector 后 per-plane EVENT+BUFFER probe）;
+    /// Mock 已实装（确定性仿真: 安装→翻转→Segment(B)→首枚映射缓冲）。
+    fn install_timeline_transition(
+        &self,
+        graph: &PipelineHandle,
+        plan: &ProgramTimelinePlan,
+    ) -> Result<(), SwitchError> {
+        let _ = (graph, plan);
+        Err(SwitchError::Backend(
+            "timeline execution layer not installed (C-TIMELINE-01 batch 2)".into(),
+        ))
+    }
+
+    /// Observed 平面读数（实际 active + 六路 PTS + 帧计数 + timeline 证据
+    /// 行——C-TIMELINE-01 起经 `ProgramExecutionObservation` 单一组合面）。
+    fn observe(&self, graph: &PipelineHandle) -> ProgramExecutionObservation;
 
     /// 停止 Program graph（Observed 归零; 输入管线生命周期不受影响——
     /// 归 SessionManager）。

@@ -28,11 +28,22 @@ use gstreamer::prelude::*;
 use uuid::Uuid;
 
 use crate::contracts::switch::{
-    FrameBoundary, InputPts, ProgramObservation, SwitchExecuted, SwitchExecutionAdapter,
+    FrameBoundary, InputPts, ProgramExecutionObservation, ProgramObservation, SwitchExecuted,
+    SwitchExecutionAdapter,
 };
 use crate::pipeline::{PipelineHandle, PipelineHealth, PtsMonotonicity, NEXT_PIPELINE_ID};
 use crate::program::SwitchPolicy;
+use crate::program_timeline::TimelineObservation;
 use crate::switch_execution::{ExecutionGroup, SwitchDesired, SwitchError, SwitchExecutionPlan};
+
+/// 观察层 wall clock（C-TIMELINE-01: observed_at 只作证据行元数据——
+/// 绝不用于计算 program_pts, R1）。
+fn now_observed_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 /// 一张已物化的 Program graph（真实 GStreamer 元素引用 + 观测簿记）。
 struct SwitchGraph {
@@ -523,21 +534,24 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         })
     }
 
-    fn observe(&self, graph: &PipelineHandle) -> ProgramObservation {
+    fn observe(&self, graph: &PipelineHandle) -> ProgramExecutionObservation {
         let graphs = self.graphs.lock().unwrap();
         let Some(g) = graphs.get(graph) else {
-            return ProgramObservation {
-                observed_active: None,
-                video_active: None,
-                audio_active: None,
-                switch_epoch: 0,
-                input_pts: Vec::new(),
-                program_video_pts: None,
-                program_audio_pts: None,
-                program_video_pts_state: PtsMonotonicity::Unknown,
-                program_audio_pts_state: PtsMonotonicity::Unknown,
-                program_video_frames: 0,
-                program_audio_frames: 0,
+            return ProgramExecutionObservation {
+                program: ProgramObservation {
+                    observed_active: None,
+                    video_active: None,
+                    audio_active: None,
+                    switch_epoch: 0,
+                    input_pts: Vec::new(),
+                    program_video_pts: None,
+                    program_audio_pts: None,
+                    program_video_pts_state: PtsMonotonicity::Unknown,
+                    program_audio_pts_state: PtsMonotonicity::Unknown,
+                    program_video_frames: 0,
+                    program_audio_frames: 0,
+                },
+                timeline: TimelineObservation::no_evidence(now_observed_ms()),
             };
         };
         let video_plane = SwitchGraph::observed_plane(&g.video_selector);
@@ -575,7 +589,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             .collect();
 
         let ph = crate::pipeline_events::read_health(graph);
-        ProgramObservation {
+        let program = ProgramObservation {
             observed_active: g.started.then_some(observed_active).flatten(),
             video_active: g.started.then_some(video_active).flatten(),
             audio_active: g.started.then_some(audio_active).flatten(),
@@ -593,6 +607,13 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 .unwrap_or(PtsMonotonicity::Unknown),
             program_video_frames: ph.as_ref().map(|x| x.video_frame_count).unwrap_or(0),
             program_audio_frames: ph.as_ref().map(|x| x.audio_frame_count).unwrap_or(0),
+        };
+        // C-TIMELINE-01 Batch 1 诚实边界: GStreamer 侧 timeline 执行层
+        // （selector 后 per-plane EVENT+BUFFER probe——IMP-3 终裁）=第二批
+        // 实装; 此前行=no_evidence 诚实缺席（absence≠evidence, 不伪造）。
+        ProgramExecutionObservation {
+            program,
+            timeline: TimelineObservation::no_evidence(now_observed_ms()),
         }
     }
 
@@ -653,7 +674,7 @@ mod tests {
         wait_frames(&adapter, &graph, 1200);
 
         // 真实数据流 + 初始 active=A。
-        let obs = adapter.observe(&graph);
+        let obs = adapter.observe(&graph).program;
         assert_eq!(
             obs.observed_active,
             Some(a),
@@ -676,7 +697,7 @@ mod tests {
         assert_eq!(executed.av_epoch, 1);
         wait_frames(&adapter, &graph, 600);
 
-        let after = adapter.observe(&graph);
+        let after = adapter.observe(&graph).program;
         assert_eq!(after.observed_active, Some(b), "active-pad 实际翻到 B");
         assert_eq!(after.video_active, Some(b));
         assert_eq!(after.audio_active, Some(b), "audio 平面同切（成对）");
@@ -713,7 +734,7 @@ mod tests {
         wait_frames(&adapter, &graph, 1000);
 
         // 期内（A active, 未切换）: PTS 单调确定性成立。
-        let pre = adapter.observe(&graph);
+        let pre = adapter.observe(&graph).program;
         assert_eq!(pre.observed_active, Some(a));
         assert_eq!(
             pre.program_video_pts_state,
@@ -732,7 +753,7 @@ mod tests {
             g.begin_switch(&plan).expect("begin");
             adapter.switch(&graph, &plan).expect("执行");
             wait_frames(&adapter, &graph, 600);
-            let obs = adapter.observe(&graph);
+            let obs = adapter.observe(&graph).program;
             assert_eq!(obs.observed_active, Some(target), "双向切换均生效");
             assert_eq!(obs.video_active, obs.audio_active, "全程成对");
             assert!(g.complete_switch(target));
@@ -824,7 +845,7 @@ mod tests {
         let hb = crate::pipeline_events::read_health(&h2).expect("B 健康弧");
         assert!(ha.video_frame_count > 0, "A 真实帧");
         assert!(hb.video_frame_count > 0, "B 真实帧");
-        let obs = adapter.observe(&graph);
+        let obs = adapter.observe(&graph).program;
         assert_eq!(obs.observed_active, Some(a), "初始 active=A（桥回读）");
         assert!(obs.program_video_frames > 0, "program video 帧经桥到达");
         assert!(obs.program_audio_frames > 0, "program audio 帧经桥到达");
@@ -840,7 +861,7 @@ mod tests {
             group.begin_switch(&plan).expect("begin");
             adapter.switch(&graph, &plan).expect("真实切换");
             std::thread::sleep(std::time::Duration::from_millis(600));
-            let o = adapter.observe(&graph);
+            let o = adapter.observe(&graph).program;
             assert_eq!(o.observed_active, Some(target), "桥形态切换生效");
             assert_eq!(o.video_active, o.audio_active, "双平面成对");
             assert!(o.program_video_frames > 0, "切换后 program 持续");
@@ -861,14 +882,14 @@ mod tests {
         adapter.switch(&graph, &plan_b).expect("切到 B");
         std::thread::sleep(std::time::Duration::from_millis(600));
         assert_eq!(
-            adapter.observe(&graph).observed_active,
+            adapter.observe(&graph).program.observed_active,
             Some(b),
             "⑥前置: active=B"
         );
-        let frames_before = adapter.observe(&graph).program_video_frames;
+        let frames_before = adapter.observe(&graph).program.program_video_frames;
         let _ = bundle.backend.stop(&h1); // standby A 全停（不可逆——⑦ 对偶在独立测试）
         std::thread::sleep(std::time::Duration::from_millis(600));
-        let obs6 = adapter.observe(&graph);
+        let obs6 = adapter.observe(&graph).program;
         assert!(
             obs6.program_video_frames > frames_before,
             "⑥ A 断（standby, active=B）program 持续——B 独立供桥"
@@ -878,7 +899,7 @@ mod tests {
         // ⑩ 媒体路径恢复（第十二轮升级——非仅簿记）: recover 运行中的
         // active B → 簿记重放 → 帧继续增长 = 媒体真实重新穿越整条桥
         //（intervideosrc/interaudiosrc → selector → program appsink）。
-        let frames_pre_recover = adapter.observe(&graph).program_video_frames;
+        let frames_pre_recover = adapter.observe(&graph).program.program_video_frames;
         bundle.backend.recover(&h2).expect("B recover 重建");
         assert_eq!(
             tap.tap_attachments(&h2).len(),
@@ -886,7 +907,7 @@ mod tests {
             "⑩a recover 后 tap 簿记重放（新管线同 channel）"
         );
         std::thread::sleep(std::time::Duration::from_millis(900));
-        let obs10 = adapter.observe(&graph);
+        let obs10 = adapter.observe(&graph).program;
         assert!(
             obs10.program_video_frames > frames_pre_recover,
             "⑩b recover 后媒体重新穿越全桥（帧增长）——media-path recovery"
@@ -969,16 +990,16 @@ mod tests {
         adapter.start_program(&graph).expect("启动");
         std::thread::sleep(std::time::Duration::from_millis(1200));
         assert_eq!(
-            adapter.observe(&graph).observed_active,
+            adapter.observe(&graph).program.observed_active,
             Some(a),
             "前置: active=A"
         );
-        let frames_before = adapter.observe(&graph).program_video_frames;
+        let frames_before = adapter.observe(&graph).program.program_video_frames;
         assert!(frames_before > 0, "program 帧在流");
 
         let _ = bundle.backend.stop(&h2); // standby B 全停
         std::thread::sleep(std::time::Duration::from_millis(600));
-        let obs = adapter.observe(&graph);
+        let obs = adapter.observe(&graph).program;
         assert!(
             obs.program_video_frames > frames_before,
             "⑦ B 断（standby, active=A）program 持续——A 独立供桥"
@@ -1064,7 +1085,7 @@ mod tests {
         // observed→complete→Desired]+核心断言[成对/observed==target/
         // desired==target/epoch+=1/帧持续]。
         let mut prev_epoch = 0u64;
-        let mut prev_frames = adapter.observe(&graph).program_video_frames;
+        let mut prev_frames = adapter.observe(&graph).program.program_video_frames;
         let mut prev_active = a;
         for (i, target) in [b, a, b, a].into_iter().enumerate() {
             let plan = group
@@ -1087,7 +1108,7 @@ mod tests {
             let executed = adapter.switch(&graph, &plan).expect("真实切换");
             assert_eq!(executed.av_epoch, plan.epoch, "跳{i}: 执行 epoch=计划");
             std::thread::sleep(std::time::Duration::from_millis(450));
-            let obs = adapter.observe(&graph);
+            let obs = adapter.observe(&graph).program;
             assert_eq!(obs.video_active, obs.audio_active, "跳{i}: 双平面成对");
             assert_eq!(obs.observed_active, Some(target), "跳{i}: observed=target");
             assert!(
@@ -1117,7 +1138,7 @@ mod tests {
             group.begin_switch(&plan).expect("begin");
             adapter.switch(&graph, &plan).expect("快切执行");
             std::thread::sleep(std::time::Duration::from_millis(300));
-            let obs = adapter.observe(&graph);
+            let obs = adapter.observe(&graph).program;
             assert_eq!(obs.video_active, obs.audio_active, "快切: 成对");
             assert_eq!(obs.observed_active, Some(target), "快切: observed=target");
             assert!(group.complete_switch(target));
@@ -1126,7 +1147,7 @@ mod tests {
         // ── 四类 fail-closed（真适配器级纵深 + 组级）: 全部拒收且状态零变。
         let desired_before = group.desired;
         let epoch_before = group.switch_epoch;
-        let obs_before = adapter.observe(&graph);
+        let obs_before = adapter.observe(&graph).program;
         // 1) invalid target（组外 Uuid）。
         let outsider = Uuid::new_v4();
         assert_eq!(
@@ -1201,7 +1222,7 @@ mod tests {
         assert_eq!(group.desired, desired_before, "拒收后 Desired 零变");
         assert_eq!(group.switch_epoch, epoch_before, "拒收后 epoch 零变");
         std::thread::sleep(std::time::Duration::from_millis(300));
-        let obs_after = adapter.observe(&graph);
+        let obs_after = adapter.observe(&graph).program;
         assert_eq!(obs_after.observed_active, obs_before.observed_active);
         assert_eq!(obs_after.switch_epoch, obs_before.switch_epoch);
         assert!(
@@ -1223,7 +1244,7 @@ mod tests {
         adapter
             .stop_program(&graph)
             .expect("program 停（主动故障注入）");
-        let obs_dead = adapter.observe(&graph);
+        let obs_dead = adapter.observe(&graph).program;
         assert_eq!(obs_dead.observed_active, None, "⑧ Program 停→observed 归零");
         assert_eq!(obs_dead.program_video_frames, 0);
         std::thread::sleep(std::time::Duration::from_millis(500));
@@ -1320,7 +1341,7 @@ mod tests {
                 .into_iter()
                 .find(|o| o.channel == tap_channel(dev));
             let input = crate::pipeline_events::read_health(&h);
-            let program = adapter.observe(&graph);
+            let program = adapter.observe(&graph).program;
             assemble_timeline_sample(dev, input.as_ref(), bridge_row.as_ref(), &program)
         };
 
@@ -1395,9 +1416,9 @@ mod tests {
                 .any(|l| l.alive_in_window)
         };
         let program_advancing = || {
-            let f = adapter.observe(&graph).program_video_frames;
+            let f = adapter.observe(&graph).program.program_video_frames;
             std::thread::sleep(std::time::Duration::from_millis(300));
-            adapter.observe(&graph).program_video_frames > f
+            adapter.observe(&graph).program.program_video_frames > f
         };
         assert_eq!(
             classify_failure_domain(input_advancing(), bridge_alive(&h1), program_advancing()),

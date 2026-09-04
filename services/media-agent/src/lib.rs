@@ -50,6 +50,7 @@ pub mod port; // 五层模型: Device → Port → Capability → Runtime Bindin
 pub mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
 pub mod program; // A2-1: Program Domain —— 节目生产模型 Canonical 层（SwitchPolicy 首块; A2-2+ Masters/MasterJoin/ProgramMaster）
 pub mod program_execution; // A2-8-02-E: Program Execution Runtime（program 执行资源生命周期唯一 owner; creator=destroyer）
+pub mod program_timeline; // A2-8-C-TIMELINE-01: Program Timeline Authority（Program Execution 层媒体时间线权威; 纯 Domain 零 GStreamer）
 pub mod registry;
 pub mod resolver;
 pub mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)

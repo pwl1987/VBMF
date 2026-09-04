@@ -552,9 +552,9 @@ pub fn run(
     }
 
     // ── L3: Output（帧计数与 PTS 真实增长——非 PLAYING 态）──
-    let obs1 = switcher.observe(&graph);
+    let obs1 = switcher.observe(&graph).program;
     sleep(SAMPLE_GAP_SECS);
-    let obs2 = switcher.observe(&graph);
+    let obs2 = switcher.observe(&graph).program;
     let l3 = crate::program_execution::program_progress_since(&obs1, &obs2)
         && obs2.program_video_pts.is_some()
         && obs2.program_video_pts_state != PtsMonotonicity::NonMonotonic
@@ -632,7 +632,7 @@ pub fn run(
     match switch_res {
         Ok((plan, executed)) => {
             sleep(SETTLE_SECS);
-            let post = switcher.observe(&graph);
+            let post = switcher.observe(&graph).program;
             let completed = post
                 .observed_active
                 .is_some_and(|a| group_arc.lock().unwrap().complete_switch(a));
@@ -681,9 +681,9 @@ pub fn run(
             _ => false,
         };
         let b_alive = bridge_rows_of(&started_inputs[1]).is_some_and(|l| l.alive_in_window);
-        let p1 = switcher.observe(&graph);
+        let p1 = switcher.observe(&graph).program;
         sleep(SAMPLE_GAP_SECS);
-        let p2 = switcher.observe(&graph);
+        let p2 = switcher.observe(&graph).program;
         let prog_adv = crate::program_execution::program_progress_since(&p1, &p2);
         let l5a = !a_advancing && b_alive && prog_adv;
         l5_all &= l5a;
@@ -748,9 +748,9 @@ pub fn run(
             (Some(p), Some(c)) => crate::program_execution::input_progress_since(p, c),
             _ => false,
         };
-        let q1 = switcher.observe(&graph);
+        let q1 = switcher.observe(&graph).program;
         sleep(SAMPLE_GAP_SECS);
-        let q2 = switcher.observe(&graph);
+        let q2 = switcher.observe(&graph).program;
         let prog_adv2 = crate::program_execution::program_progress_since(&q1, &q2);
         let row_a = crate::program_execution::classify_failure_domain(
             a_input_adv,

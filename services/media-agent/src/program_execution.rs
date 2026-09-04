@@ -432,7 +432,10 @@ mod tests {
         ) -> Result<crate::contracts::switch::SwitchExecuted, SwitchError> {
             unreachable!("失败注入不用于切换")
         }
-        fn observe(&self, _g: &PipelineHandle) -> crate::contracts::switch::ProgramObservation {
+        fn observe(
+            &self,
+            _g: &PipelineHandle,
+        ) -> crate::contracts::switch::ProgramExecutionObservation {
             unreachable!("失败注入不用于观测")
         }
         fn stop_program(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
@@ -477,7 +480,7 @@ mod tests {
         );
         let graph = runtime.graph_handle().expect("graph 在");
         assert!(
-            switcher.observe(&graph).observed_active.is_some(),
+            switcher.observe(&graph).program.observed_active.is_some(),
             "program 运行中（观测面）"
         );
 
@@ -488,7 +491,7 @@ mod tests {
             "Tap Detach 完成（簿记清空）"
         );
         assert!(
-            switcher.observe(&graph).observed_active.is_none(),
+            switcher.observe(&graph).program.observed_active.is_none(),
             "Program Stop 完成（observe 归零）"
         );
         runtime.teardown(); // 幂等

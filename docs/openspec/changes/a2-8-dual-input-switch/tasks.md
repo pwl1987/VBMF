@@ -387,7 +387,22 @@
   observe() 契约演进机械波及 watchdog/registry/dual_input .program 路径
   ·epoch 口径按 §十一 实现[Preserve 保持·与 Freeze §3 字面差异已披露]
   ·install 路径=既有 trait 最小方法默认 fail-closed[GStreamer 实装=
-  Batch 2]]**
+  Batch 2]]**; **第三十一轮 Batch 1 已落地（设计探针 §15, 生产代码 commit）:
+  program_timeline.rs 纯 Domain 全量[SourceSegment declare=anchor−anchor·
+  TimelineAuthority ①-⑩ 状态机·三结局 Preserve=epoch 不变/NewEpoch=rebase
+  不改 PTS/FailClosed 终态·四态·§8 恰十键 wire 锁·timeline_rt_01 ×12]+
+  pipeline.rs[TimelinePolicy 取代 normalize 8 构造位·PtsMonotonicity
+  +DiscontinuityDeclared 四态+declared 观测·既有 observe 语义零变化]+
+  contracts/switch.rs[ProgramExecutionObservation{program,timeline}=observe
+  () 单一组合面+install_timeline_transition 默认 fail-closed]+switch_mock
+  [双模式出口 legacy 逐字节保持+映射后源流 F5 同构+边界 tick 无缓冲 F6
+  同构+pre-flip 安装联动+switch_rt_02 ×3 含 Authority 全链 Preserve 闭环]+
+  机械适配[watchdog 1/registry 2/dual_input 恰 7 绑定行 L4 判据零变化/
+  switch_graph tests .program]+switch_graph observe=timeline no_evidence
+  诚实边界[Batch 2 probe 前不伪造]; 盒矩阵 fmt OK·default **217**·mock
+  **377**[+18 新测]·bmd+gst **236** 全过·clippy ×2 -D warnings PASS;
+  Batch 2[switch_graph EVENT+BUFFER probe+TimelineExecutionState+GStreamer
+  install+Runtime 挂 Authority+L4 九项合取+真机复跑]未动零越界**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

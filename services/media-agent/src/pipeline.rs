@@ -125,6 +125,27 @@ pub struct OutputPlan {
     pub target: String,
 }
 
+/// C-TIMELINE-01（IMP-1/OQ-10, 第三十一轮终裁）: 时间线声明策略——取代
+/// 裸 `normalize: bool`（词表纪律: 裸 bool 禁; normalize=true/fix_pts/
+/// force_continuity 类无法证明语义的开关禁）。
+///
+/// **纯声明面（Intent）**: 本字段只承载控制面对该输入的媒体时间线意图,
+/// Program Timeline 的建立/映射/证据在 Program Execution 层
+/// （`program_timeline.rs::TimelineAuthority`——IMP-2 纠偏: PipelinePlan
+/// 属 ingest, 不承载 Program Timeline 语义）; **改本声明 ≠ 完成 Program
+/// Timeline**。当前 Execution Adapter 仍不消费（A2-7-01 Execution Adapter
+/// Gap 登记移交至此）: 两值生成的 ingest 管线相同, Gap 可见/可追踪/不伪装
+/// 成成功; Intent ≠ Execution Fact。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimelinePolicy {
+    /// 源原生时间戳直通（不声明 Program Timeline 映射意图）。
+    SourceNative,
+    /// 声明: 该输入进入 Program 时应映射到 Program Timeline（映射/证据由
+    /// Program Execution 层 Timeline Authority 承担——本字段不是 Fact）。
+    ProgramTimelineMapped,
+}
+
 /// 物化后的管线计划 (控制面只给 VBMF `device_id`; provider_persistent_id / device-number 由 materialize 解析).
 ///
 /// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
@@ -132,13 +153,9 @@ pub struct OutputPlan {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
-    /// A2-7-01 Execution Adapter Gap（正式登记, 用户终裁 OQ-6）: 本声明当前
-    /// **未被 Execution Adapter 消费**——normalize=true/false 生成管线相同
-    /// （分析分支 `src ! caps ! appsink` 无 Normalize 元素）。Gap 可见/可
-    /// 追踪/不伪装成成功: Program Custody 禁因本声明 advance(Normalized)
-    /// （Intent≠Execution Fact）; 补齐 = Execution Adapter 工作项（实插
-    /// Normalize 元素链 + 可观测完成点）, 属 A2-7-02+ 子任务。
-    pub normalize: bool,
+    /// C-TIMELINE-01: 时间线声明策略（IMP-1——原裸 `normalize: bool` 删除,
+    /// 语义迁移见 `TimelinePolicy` 文档; A2-7-01 Gap 登记同步移交）。
+    pub timeline_policy: TimelinePolicy,
     /// A2-1: 类型化 SwitchPolicy（V0.2 §1.17 词表; 默认 FRAME_SWITCH = 旧占位值,
     /// wire 序列化值不变——兼容锚见 tests）。
     pub switch_mode: crate::program::SwitchPolicy,
@@ -224,24 +241,36 @@ impl PipelinePlan {
                 connector: None,
                 selection_mode: SourceSelectionMode::SelfTest,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         }
     }
 }
 
-/// PTS 单调性三态 (P1-3, 用户复核 §三/§十一):
-/// 区分 "未观测任何有效 PTS" / "已观测且帧间非回退" / "观测到回退".
-/// 旧 `pts_monotonic: bool` 把 `Unknown` 与 `NonMonotonic` 压成一个 `false`,
-/// 导致 UI/Evidence/Supervisor 无法区分 "没收到帧" 与 "流损坏", 故升级为枚举.
-/// 语义独立到 video/audio 两路 (PIPELINE-AV 之前的最小解耦, 用户 §三).
+/// PTS 单调性四态 (P1-3 三态 + C-TIMELINE-01 §6 第四态, 第三十一轮终裁 §十):
+/// 区分 "未观测任何有效 PTS" / "已观测且帧间非回退" / "已声明的合法时间线
+/// 边界被观测证实" / "观测到回退"。旧 `pts_monotonic: bool` 把 `Unknown`
+/// 与 `NonMonotonic` 压成一个 `false`, 导致 UI/Evidence/Supervisor 无法
+/// 区分 "没收到帧" 与 "流损坏", 故升级为枚举. 语义独立到 video/audio 两路
+/// (PIPELINE-AV 之前的最小解耦, 用户 §三)。
+///
+/// **四态纪律（Freeze §6/终裁 §十）**: `declared discontinuity + expected
+/// transition ≠ unexpected backward PTS`——前者=系统知道发生了合法时间线
+/// 边界; 后者=观测到不符合当前连续性规则的事实。**禁把 NonMonotonic 简单
+/// 改回 ValidMonotonic, 也禁把两者混同**（不洗状态）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PtsMonotonicity {
     /// 尚未收到任何有效 PTS — 无证据, 不得等同于 NonMonotonic 或 PASS (absence≠evidence).
     Unknown,
     /// 已收到且帧间严格非回退 (`pts >= last_pts`) — 流时间戳健康.
     ValidMonotonic,
+    /// C-TIMELINE-01: 已声明的合法时间线边界被观测证实（Segment transition
+    /// declared + expected transition）——合法边界事实, 非 NonMonotonic,
+    /// 亦非普通 ValidMonotonic（保留"发生过边界"事实; L4 判定不计为未声明
+    /// 回退, Freeze §14）。仅经 `observe_*_pts_declared` 产生——ingest 平面
+    /// 无声明源, 永不出现。
+    DiscontinuityDeclared,
     /// 观测到 PTS 回退 (`pts < last_pts`) — 流损坏/时间戳错乱; sticky (一旦回退不再自动恢复).
     NonMonotonic,
 }
@@ -313,6 +342,37 @@ impl PipelineHealth {
             // 否则保持当前状态 (sticky).
         } else {
             self.audio_pts_state = PtsMonotonicity::ValidMonotonic;
+        }
+        self.audio_last_pts = Some(pts);
+    }
+
+    /// C-TIMELINE-01 §6 四态: 观测一枚**已声明边界**的 video 帧（Segment
+    /// transition declared + expected transition 被证实——如切换后首枚
+    /// 已映射 B 帧）。PTS 非回退 → `DiscontinuityDeclared`（合法边界事实,
+    /// 保留不洗）; **即便有声明, PTS 回退仍 → NonMonotonic sticky**——声明
+    /// 不豁免连续性违反（映射的职责就是连续; 禁以声明洗回退）。
+    pub fn observe_video_pts_declared(&mut self, pts: u64) {
+        if self.video_last_pts.is_some_and(|last| pts < last) {
+            self.video_pts_state = PtsMonotonicity::NonMonotonic;
+        } else {
+            // 已声明边界被证实——即便此前 ValidMonotonic 亦升级为
+            // DiscontinuityDeclared（边界事实保留）; NonMonotonic 不洗（sticky）。
+            if self.video_pts_state != PtsMonotonicity::NonMonotonic {
+                self.video_pts_state = PtsMonotonicity::DiscontinuityDeclared;
+            }
+        }
+        self.video_last_pts = Some(pts);
+    }
+
+    /// C-TIMELINE-01 §6 四态: audio 侧已声明边界观测（语义同
+    /// `observe_video_pts_declared`, audio 路独立）。
+    pub fn observe_audio_pts_declared(&mut self, pts: u64) {
+        if self.audio_last_pts.is_some_and(|last| pts < last) {
+            self.audio_pts_state = PtsMonotonicity::NonMonotonic;
+        } else {
+            if self.audio_pts_state != PtsMonotonicity::NonMonotonic {
+                self.audio_pts_state = PtsMonotonicity::DiscontinuityDeclared;
+            }
         }
         self.audio_last_pts = Some(pts);
     }
@@ -692,7 +752,7 @@ pub fn materialize_with_output(
         };
         plans.push(PipelinePlan {
             source,
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs,
         });
@@ -1031,7 +1091,7 @@ mod tests {
                 connector: None,
                 selection_mode: SourceSelectionMode::SelfTest,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         }
@@ -1151,7 +1211,7 @@ mod tests {
                 connector: None,
                 selection_mode: SourceSelectionMode::SelfTest,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
@@ -1181,7 +1241,7 @@ mod tests {
                 connector: Some(ConnectorType::Sdi),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
@@ -1205,7 +1265,7 @@ mod tests {
                 connector: Some(ConnectorType::Optical),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
@@ -1227,7 +1287,7 @@ mod tests {
                 connector: Some(ConnectorType::Unknown),
                 selection_mode: SourceSelectionMode::DeviceHandleResolved,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
@@ -1334,7 +1394,7 @@ mod tests {
                 connector: None,
                 selection_mode: SourceSelectionMode::PersistentIdCanonical,
             },
-            normalize: true,
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
@@ -1479,6 +1539,60 @@ mod tests {
         assert_eq!(h.audio_pts_state, PtsMonotonicity::ValidMonotonic);
     }
 
+    // ── C-TIMELINE-01 §6: 四态纪律（第三十一轮终裁 §十）────────────────
+
+    #[test]
+    fn declared_boundary_observation_sets_discontinuity_declared() {
+        // 已声明边界 + expected transition（映射后非回退）→
+        // DiscontinuityDeclared（合法边界事实）; 首观测经 declared 路径亦同。
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        h.observe_video_pts(1040);
+        h.observe_video_pts_declared(1080); // 声明边界帧, 非回退
+        assert_eq!(h.video_pts_state, PtsMonotonicity::DiscontinuityDeclared);
+        // 后续普通单调帧保持 DiscontinuityDeclared（边界事实保留, 不洗）。
+        h.observe_video_pts(1120);
+        assert_eq!(h.video_pts_state, PtsMonotonicity::DiscontinuityDeclared);
+        // 首观测即声明边界（recover 后重建场景）。
+        let mut h2 = PipelineHealth::default();
+        h2.observe_audio_pts_declared(1000);
+        assert_eq!(h2.audio_pts_state, PtsMonotonicity::DiscontinuityDeclared);
+    }
+
+    #[test]
+    fn declared_boundary_does_not_wash_backward_regression() {
+        // 声明不豁免连续性违反: declared 路径观测到回退 → NonMonotonic
+        // sticky（映射的职责就是连续; 禁以声明洗回退）。
+        let mut h = PipelineHealth::default();
+        h.observe_video_pts(1000);
+        h.observe_video_pts_declared(900); // 声明边界但 PTS 回退
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+        h.observe_video_pts_declared(5000); // 后续声明帧也不洗回
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+        h.observe_video_pts(6000); // 普通帧同样不洗
+        assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+    }
+
+    #[test]
+    fn timeline_policy_replaces_bare_bool_and_locks_wire() {
+        // IMP-1: 裸 bool 删除——TimelinePolicy 词表 + wire 值锁
+        // （snake_case: source_native/program_timeline_mapped）; PipelinePlan
+        // 键集含 timeline_policy 且不含 normalize（字段蔓延防线）。
+        let plan = PipelinePlan::self_test();
+        let json = serde_json::to_value(&plan).expect("序列化");
+        let keys = json.as_object().expect("对象");
+        assert!(keys.contains_key("timeline_policy"));
+        assert!(!keys.contains_key("normalize"), "裸 bool 已删除（IMP-1）");
+        assert_eq!(json["timeline_policy"], "program_timeline_mapped");
+        assert_eq!(
+            serde_json::to_value(TimelinePolicy::SourceNative).expect("序列化"),
+            "source_native"
+        );
+        // 声明面往返（无 serde(default)——字段必显）。
+        let round: PipelinePlan = serde_json::from_value(json).expect("反序列化");
+        assert_eq!(round.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
+    }
+
     #[test]
     fn first_frame_ok_requires_both_valid() {
         let mut h = PipelineHealth {
@@ -1562,7 +1676,11 @@ mod tests {
         let plan = PipelinePlan::self_test();
         assert_eq!(plan.source.device_id, "self-test");
         assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
-        assert!(plan.normalize);
+        assert_eq!(
+            plan.timeline_policy,
+            TimelinePolicy::ProgramTimelineMapped,
+            "原 normalize:true 声明意图迁移（IMP-1）"
+        );
         assert_eq!(plan.switch_mode, crate::program::SwitchPolicy::FrameSwitch);
         // 自测哨兵: 无真实设备, `device_number: 0` 是占位, 不违反
         // "device-number 绝不默认 0" (该约束针对真实选卡不得静默落到 DeckLink 0 号).
@@ -1594,7 +1712,7 @@ mod tests {
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
         assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
-        assert!(plan.normalize);
+        assert_eq!(plan.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
     }
 
     #[cfg(feature = "gstreamer-backend")]
@@ -1613,6 +1731,6 @@ mod tests {
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
         assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
-        assert!(plan.normalize);
+        assert_eq!(plan.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
     }
 }
