@@ -462,7 +462,19 @@
   PASS+L5 首次真机注入**; ffmpeg decklink 打不开=观察事实非 gate 依赖;
   interlace 断言/pad_unlink 工件同历跑（隔离队列）; 02-I 仍
   FAIL-PENDING-CORRECTION（8/10）——性质迁移=架构缺口→验收判据单点
-  转写**
+  转写**; **第三十三轮终裁（设计探针 §19+主账 §42, 断言实物核验后落账）:
+  Batch 2 ✅ APPROVED[14 项关闭——三职权分立/①-⑩/SIM-01 一致/声明→冻结
+  →buffer 三段闭合/F6/真机 Preserve=核心问题实际解决/双面分工/消费面/
+  Teardown-Recover 零污染]; L4 `>`→`>=` 正式批准[B 类 Gate-only 单字符·
+  禁趁机重写其余八项·冻结语义非回退=≥·零隙拼接 equal≠backward]; **NewEpoch
+  rebase 缺陷登记 P1[program_timeline.rs:682-688 rebase 沿用旧 plan
+  offset 未按新 boundary 重算——不变量 new_segment.offset==
+  program_start_pts−source_start_pts·回归四条=Preserve/NewEpoch/A→B→A
+  history/append-only·不阻断本轮·C-TIMELINE-01 Final Close 前必修·不混入
+  本次小修]+on_mapped_buffer 先行 DiscontinuityDeclared[616 先于连续性
+  判定]=NewEpoch 修复时锁回归**; 令=修正后立即真机复跑·H1 开 L5 完整
+  真实证据必拿[A fail→B alive/recover A→bridge real flow/B fail→A alive/
+  failure-domain classification]; L5 全绿→02-I 具备正式收口评审条件**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

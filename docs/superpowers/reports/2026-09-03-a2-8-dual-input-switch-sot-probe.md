@@ -2242,3 +2242,25 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
 - 02-I 仍 FAIL-PENDING-CORRECTION（8/10）——性质迁移=架构缺口→验收判据
   单点转写; 正式 PASS 待 B 类修正（`>`→`>=`）+复跑（L5 首次真机注入）。
 - 主账状态机：02-I FAIL-PENDING-CORRECTION（8/10 verdicts）暂记。
+
+## 42. 第三十三轮终裁：Batch 2 APPROVED + L4 B 类单字符批准 + NewEpoch rebase P1（跨账引用，第三十三轮，2026-09-05）
+
+- **Batch 2 ✅ APPROVED**（复核 14 项关闭——三职权分立无越权/①-⑩ 顺序/
+  SIM-01 一致/Authority 声明→Adapter 冻结→实际 buffer 三段闭合/F6 生效
+  边界/真机 Preserve=核心问题实际解决/双面分工/消费面/Teardown-Recover
+  零污染——设计探针 §19.1）。
+- **L4 `>`→`>=` 正式批准**（B 类 Gate-only 单字符; 禁趁机重写其余八项）
+  ——冻结语义非回退=≥, 真机零隙拼接 equal≠backward。
+- **NewEpoch SourceSegment rebase 缺陷 = P1 登记**:
+  `program_timeline.rs:682-688` rebase 沿用旧 plan offset 未按新
+  boundary 重算——不变量
+  `new_segment.offset == new_segment.program_start_pts −
+  new_segment.source_start_pts`; 回归四条（Preserve/NewEpoch/
+  A→B→A history/append-only）——不阻断本轮, **C-TIMELINE-01 Final
+  Close 前必修**; 不混入本次小修。
+- **on_mapped_buffer 先行 DiscontinuityDeclared**（616 先于连续性判定）
+  = NewEpoch 修复时锁回归（"新世代合法边界"≠"backward 洗白"）; 现阶段
+  不判结构性错误。
+- **令**: 修正后立即真机复跑——H1 开 L5, 完整 L5 真实证据必拿（A fail→
+  B alive / recover A→bridge real flow / B fail→A alive / failure-domain
+  classification）; L5 全绿 → 02-I 具备正式收口评审条件。

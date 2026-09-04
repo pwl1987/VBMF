@@ -943,3 +943,65 @@ ValidMonotonic/pts 在场）∧ **timeline_ok=false——但 outcome=Preserved**
 Execution + Program Timeline Continuity 基础能力在真实双输入硬件上
 **执行级达成**（Preserve 证据链完整）；正式 PASS 待 B 类修正+复跑
 （含 L5 首次真机注入序列）。
+
+## 19. 第三十三轮终裁：Batch 2 APPROVED + L4 B 类单字符批准 + NewEpoch rebase 登记 P1（2026-09-05）
+
+### 19.1 终裁表（照录）
+
+- **Batch 2 主实现 ✅ APPROVED**（复核 14 项全关闭）: 架构闭合
+  [Inner 真拥有 TimelineAuthority; ExecutionGroup=switch_epoch/
+  TimelineAuthority=program_epoch/SwitchGraph=执行态与执行证据三职权
+  分立, 无越权]/①-⑩ 顺序与冻结一致[declare 先于 install; begin+adapter
+  switch 后 on_switch_executed; 证据=observe+facts 轮询]/GStreamer 执行点
+  与 SIM-01 一致[BUFFER probe 读冻结 segment.map_pts 不自创 offset——
+  Authority 声明→Adapter 冻结→实际 buffer 三段闭合]/F6 生效边界落实
+  [Segment event→下一 BUFFER 才 first_mapped; active-pad readback 未入
+  生产判据]/真机证据=核心问题实际解决[Preserved·offset 118799ns 相位级·
+  post ValidMonotonic=确定性 NonMonotonic 签名消失——非"Gate 条件绕
+  过"]/mapped==pre_v=合法零隙拼接非错误[两段同一 Program PTS 边界闭合;
+  非回退=≥]/**修字禁扩面**[只改单字符, 不趁机重写 L4 其余项]/
+  on_mapped_buffer 回退处理现阶段合理[Unproven→NewEpoch 与 IMP-6 相容]/
+  双面分工正确[Authority snapshot=裁决 SoT; adapter 行滞后=execution
+  evidence lag/inconsistency 处理面, 不偷偷覆盖]/消费面收口[旧 Program
+  Observation 链+Timeline 证据链并列]/Teardown/Recover 零污染。
+- **L4 `>`→`>=` 正式批准**: B 类 Gate 判据转写错误修复——Gate-only、
+  无架构变化、无 Timeline 语义变化、无 SwitchGraph 变化；仓库自身语义
+  （PtsMonotonicity 非回退=≥/Authority 连续性 ≥）与 Gate 严格 `>` 不
+  一致, 真机零隙拼接（equal≠backward）证实。
+- **修改后必须立即真机复跑**: H1（L4 FAIL→L5 不执行）打开后必须拿到
+  完整 L5 真实证据（A fail→B alive / recover A→bridge real flow /
+  B fail→A alive / failure-domain classification）。
+- **NewEpoch rebase 缺陷 = P1 登记（不阻断本轮 L4/L5; C-TIMELINE-01
+  Final Close 前必修）**: 正确不变量锁定
+  `new_segment.offset == new_segment.program_start_pts −
+  new_segment.source_start_pts`；回归测试至少四条——Preserve path /
+  NewEpoch path / A→B→A history / NewEpoch segment history append-only；
+  **不混入本次 `>`→`>=` 小修**。
+- **on_mapped_buffer 无条件 DiscontinuityDeclared**: 现阶段不判结构性
+  错误；NewEpoch 修复时必须加回归测试，确保该状态代表"新世代合法边界"
+  而非"backward 错误洗白"。
+- **02-I 状态精确表述（照录）**: L0/L1a-d/L2a/L2b/L3/Teardown PASS;
+  L4-SWITCH PASS; L4-TIMELINE core/GStreamer execution/V-A continuity/
+  Segment evidence/epoch semantics 全 PASS, 唯 Gate numeric predicate
+  FAIL（`>` 转写）→ L4 overall FAIL-BY-GATE-PREDICATE; L5 NOT YET
+  EXECUTED BY H1。"当前不是 Timeline 实现失败, 而是 Timeline 实现已
+  通过真实硬件证据、Gate 最后一条数字谓词写错一个字符。"
+- **结论**: 不需要重新设计、不需要第二轮 SIM、不动 switch_graph 架构;
+  下一动作=Gate 单字符修正→盒矩阵→真实双输入 L4/L5 复跑; L5 全绿后
+  02-I 才具备从 FAIL-PENDING-CORRECTION 转入正式收口评审的条件。
+
+### 19.2 裁决代码断言实物核验（落账前核验纪律）
+
+| 断言 | 实锚 | 结论 |
+| --- | --- | --- |
+| NewEpoch rebase 携带旧 offset | `program_timeline.rs:682-688` `rebased` 闭包 `offset: seg.offset` 沿用 plan 声明旧值, 而 `source_start_pts/program_start_pts` 换成新 boundary 观测值; 678-679 注释称"offset=已观测映射值"与代码不符 | **证实**——不变量 `offset==program_start−source_start` 破坏; P1 |
+| on_mapped_buffer 先无条件 DiscontinuityDeclared | `program_timeline.rs:616` 在 619-622 连续性判定之前; backward 路径同样被标, NewEpoch 分支 699 再置 | **证实**——NewEpoch 修复时锁回归 |
+| L4 修字点 | `gates/dual_input.rs:664` `ev.mapped_program_pts > pre_v`（649-651 注释未言严格） | 确认——单字符 |
+
+### 19.3 执行序（本轮）
+
+1. 终裁落账（本节 + 主账 §42 + tasks 第三十三轮）——零代码 commit；
+2. `>`→`>=` 单字符（仅 `dual_input.rs:664`）；
+3. 盒矩阵（fmt / default / mock / bmd+gst / clippy×2）；
+4. `cargo build --bin media-agent-gates` + §29.2 复跑序 → 真机 L4/L5；
+5. 证据归档 + §20 复跑账 + commit/push + 记忆同步。
