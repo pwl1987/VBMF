@@ -2702,3 +2702,48 @@ handle=2 21:42:15.116）。
   （1/5 真机频次）为并列未决项**——直至 (a)(b)(c) 裁决落地, L4 存在
   相位条件性 FAIL。02-I 整体维持 FAIL-PENDING-CORRECTION（8/10+9/10
   双证）; 零后续改码; 隔离队列与 NewEpoch P1 排期不变。
+
+## 50. 第三十七轮后即时诊断（用户拍板"截图比对"）— intervideosrc 断粮自造帧实锤: L5.4 前提失败的插件级根因（2026-09-05 06:1x CST; 零仓库代码）
+
+### 50.1 背景与执行方式
+
+- 用户指示以"截图比对"定余流源。执行=盒独立诊断管线 `~/vbmfp-r36`
+  （gst-launch + python-gst `probe.py`·不入库·零仓库 diff·未触碰 ball
+  源 PID 992634·采集卡 dn0/dn1 用后即释）。
+- 方法=内容取证（截图 md5/尺寸/节奏）+ Gate 同款 `set_state(Paused)`
+  注入复刻。
+
+### 50.2 实验链与结果
+
+| # | 实验 | 结果 |
+| --- | --- | --- |
+| E1 | 跨进程 writer/reader（decklink dn0/dn1→inter 通道; 读者 2fps 存图） | 读者只得 320×240 同 md5 占位帧（`ad15e287`·1827B·12s+ 不间断）→ **暴露合成行为** + inter=进程内通道实证（/dev/shm 无实体·跨进程不通） |
+| E2 | 无写入器 + 强制 1080p25 caps | 12s × 24 帧全同 md5（`8fdeed7b`·1920×1080·33267B）→ **在协商 caps 上合成** |
+| E3 | 进程内双链: 球源 6s 真流（num-buffers=150）后断 | 真帧 md5 逐帧变化（57745/57808B）→ 断流后 23+s 恒 md5 `84546bfe`·57327B 连续 2fps **不停** |
+| E4 | **Gate 同款 set_state(Paused)**（python-gst·is-live ball 1080p25·t13 注入·t38 恢复） | 真帧→**25s pause 全程每帧 md5=`84546bfe`（与 E3 断流帧同一帧）**→恢复即回真帧（`ec1e12cf`）·recover 复流 ✓ |
+
+### 50.3 结论（插件级 CONFIRMED）
+
+- **intervideosrc 通道断粮时以墙上时钟在协商 caps 上无限自造恒定帧**
+  ——下游帧计数无法区分真假活性。
+- **L5.4 前提"活跃输入死 ⇒ program 停滞"在 inter 拓扑上结构性不可
+  满足**: B 注入 Paused 后 program 图的 intervideosrc(B) 转入合成, 帧
+  计数恒增（run2: 15/15 窗全速 v+1350）。
+- 旁证: gate program 30fps ≠ 两真实源 25fps = 合成默认节奏候选（未
+  单独定率）; **R34 ">11s"/R35 ">18s" runway 解释最终修正为合成非
+  排空**; §49.3 领先假设"A 喂出口"被证伪（未据此改码）。
+- 诚实信号确认: 输入侧 bridge liveness 在 B 死时正确翻 false（run2
+  L5.3）——**死活信号在输入侧; program 侧帧计数在 inter 拓扑下结构性
+  失真**。
+- 截图: 盒 `~/vbmfp-r36/`（pa-018 真球·pa-050 合成帧·pa-078 恢复）;
+  本地 `D:\SYSTEM~1\Temp\vbmfp\`（1-real-ball / 2-fabricated-paused /
+  3-recovered.jpg）。
+
+### 50.4 待裁（重塑后的三选 + 并列项）
+
+- ①program 源机制去 inter 化（架构级——02 候选机制重开）; ②program
+  活性信号换面（bridge liveness 已证诚实; 与旧裁"Bridge liveness 与
+  Program 推进两证据模型不合并"构成再裁关系——"program 信号被插件
+  污染"新事实下是否解禁合并=用户裁决）; ③L5.4 语义重定义。
+- L4 NewEpoch 1ns 竞态间歇（run1）独立并列待裁; 合成帧的 PTS 行为
+  未测（时间戳归因探针仍可选）。

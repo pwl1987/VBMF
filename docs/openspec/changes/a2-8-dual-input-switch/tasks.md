@@ -607,7 +607,16 @@
   前提待裁·R34>11s/R35>18s runway 解释追溯否定·回裁四选（推荐①观测
   归因探针:L5.4 期间 program PTS 与 A/B 源 PTS 对齐）]; 14/14 未达·
   02-I 维持 FAIL-PENDING-CORRECTION[run2 13/14 唯 L5.4+L4 NewEpoch
-  间歇 1/5 并列未决]·零后续改码·双证归档**]**
+  间歇 1/5 并列未决]·零后续改码·双证归档**]**; **第三十七轮后即时诊断
+  （用户拍板"截图比对", 主账 §50+设计探针 §27, 零仓库代码）:
+  intervideosrc 断粮自造帧=插件级实锤**[E1 跨进程占位帧 320×240 暴露
+  合成+inter=进程内通道实证/E2 无写入器 1080p 24 帧全同 md5/E3 真流
+  6s→断流 23+s 恒 md5 连续不停/E4 Gate 同款 Paused 25s 全程每帧全同
+  →恢复即真帧]; **L5.4 前提"活跃输入死⇒program 停"在 inter 拓扑
+  结构性不可满足=待裁三选[①去 inter 化②活性信号换面（bridge
+  liveness 已证诚实·与"不合并"旧裁构成再裁）③语义重定义]+L4
+  NewEpoch 1ns 竞态并列**; R34/R35 runway 解释终修为合成非排空·
+  §49.3"A 喂出口"假设证伪; 证据=盒 ~/vbmfp-r36+本地三截图]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

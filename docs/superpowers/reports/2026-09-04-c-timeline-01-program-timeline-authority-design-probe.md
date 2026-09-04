@@ -1190,3 +1190,14 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   待裁（主账 §49.3 回裁四选）。
 - **C-TIMELINE 域零触碰维持**: 本轮代码 diff=gates/dual_input.rs
   单文件; Timeline 代码零 diff。
+
+## 27. 第三十七轮后即时诊断跨账: intervideosrc 断粮自造帧——inter 机制限制成 C-TIMELINE 证据面新事实（2026-09-05）
+
+- 主账 §50: E1-E4 实验链（含 Gate 同款 Paused 注入复刻）证实
+  intervideosrc 断粮以墙上时钟在协商 caps 上无限合成恒定帧。
+- **C-TIMELINE 相关**: ①Timeline Observation 的 program 侧帧证据在
+  inter 拓扑下可能为合成帧——合成帧的 PTS 行为未测（时间戳归因探针
+  仍待授权）; ②A2-8-01 ③"inter 注入面"裁定的限制面新增实证: 故障
+  隔离维度 inter 无法传递"死"（program 侧帧计数结构性失真, 输入侧
+  bridge liveness 诚实）。
+- 零仓库代码; 诊断证据盒 `~/vbmfp-r36`（jpg/log/probe.py 归档）。
