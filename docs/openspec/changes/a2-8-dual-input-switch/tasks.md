@@ -175,7 +175,19 @@
   [PID 992634 原命令行]; 映射 PROVEN=dn↔内容↔ffmpeg 名, CORRELATION
   ONLY=handle↔(1)/(2) iterator 序[待用户裁决/照片/官方侧证];
   "人工/物理/官方工具交叉确认"=Provisioning/Evidence 层非 Runtime
-  前提; 候选 v4[SDI-IN-1→gst0·SDI-IN-2→gst1]待裁决不写死**`
+  前提; 候选 v4[SDI-IN-1→gst0·SDI-IN-2→gst1]待裁决不写死**;
+  **第二十五轮执行（probe §32, 零代码）: canonical closure 零代码
+  闭合[碰撞告警 port_id↔display_name × H4 handle↔port_id（VBMF
+  确定性联结）×内核 PCI canonical[dv0=44:00.0/dv1=45:00.0·Mini
+  芯片序列交叉验证]×内容指纹 ⇒ 4fa33dcb=SDI(1)=dn0=BNC#2=电视·
+  6ede00d0=SDI(2)=dn1=BNC#4=ball; 实证 SDK 序≠dv 序≠PCI 序——旧
+  v4=错绑作废正确]; v5 据实生成+02-I 第二次验收: L0/L1a[2/2
+  production_grade 首次]/L1b/L1d PASS+L1c FAIL 双卡 signal=false→
+  H1 fail-stop 零会话; **L1c 根因=Gate probe 采样窗口[resolver.rs:
+  230-232 set_state 后仅 300ms 即读 signal·检测器锁定需 1-3s=
+  结构性假阴性; ffmpeg 同分钟双输入出帧+gst 12s 手动双卡 false→
+  true 翻转——A 类证据自动化候选, 冻结未修, probe 不修 L1c 确定性
+  false=02-I 唯一代码级阻塞待裁决]**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

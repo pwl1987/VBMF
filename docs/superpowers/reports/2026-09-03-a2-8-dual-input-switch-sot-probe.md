@@ -1627,3 +1627,73 @@ proof——§30.3-1 红线）。残余: ①BNC#4 独立 ball 源的物理对端�
 分钟级抖动=L1c 时序风险（撞窗即 B 类, 重跑不改码）。照片请求: 本
 侧仅 SSH 无物理在场, 需用户侧提供; 已以四帧内容 JPEG（dn0/dn1/
 双输入 postkill）作为内容侧物理证据归档。
+
+## 32. 第二十五轮执行（基线 `56f8b8e`）: Provisioning Identity Closure 零代码达成 + 02-I 第二次验收（v5）——L1c 采样窗口发现
+
+### 32.1 裁决记录
+
+> 维持 APPROVED / FROZEN / GO。**否决候选 v4 直接生成**——iterator 序
+> correlation 只作证据、不作 canonical identity（index 0==index 0 在
+> SDK 序/驱动序/占用/过滤变化下可失效）。GO = Provisioning Identity
+> Closure。Priority 1=零代码取得 handle→GetDisplayName; 无出口才建
+> 窄 Provisioning Identity Probe（Evidence 工具非 Runtime 依赖）。
+> BNC#4 重定义为"独立 1080p25 ball 源, 对端待现场确认"; PID 992634
+> 只记为独立 SDI 输出测试进程。一旦身份链闭合即批准据实生成新
+> v4→frozen build→HEAD 复核→L0→L1→…→L5→Teardown。
+
+### 32.2 Priority 1 达成——canonical closure 零代码闭合（零 iterator 假设）
+
+三链拼合（全部既有/当日证据）:
+
+1. **VBMF 确定性联结**（run2 既有日志, 代码派生非顺序相关）: 碰撞
+   告警（port.rs:871, 含 @display_name）: port_id `e43d8f5a`↔
+   **"DeckLink SDI (1)"**、`f0f53b80`↔**"DeckLink SDI (2)"**;
+   H4 行: `4fa33dcb`↔e43d8f5a、`6ede00d0`↔f0f53b80
+   ⇒ **handle↔SDK 显示名**;
+2. **内核驱动 canonical**（当日 dmesg/lspci）: `dv0[pci@0000:44:00.0]`、
+   `dv1[pci@0000:45:00.0]`; 两 SDI handle 差异字节 44/45↔PCI bus;
+   Mini 芯片序列 `1a66443b` 与 handle `83:1a66443b:00000000` 中段交叉
+   命中（验证 handle 承载驱动身份）⇒ 4fa33dcb=45:00.0=dv1·
+   6ede00d0=44:00.0=dv0——**SDK 显示名 (1)=PCI45=dv1: SDK 序≠dv 序
+   ≠PCI 序, 实证"iterator 序非 ABI 契约"**;
+3. **内容指纹**（§31）: SDI(1)=1080i25 电视=BNC#2=dn0·
+   SDI(2)=1080p25 ball=BNC#4=dn1。
+
+⇒ **`4fa33dcb/46:…2e4500 = SDI(1) = dn0 = BNC#2 = 电视`;
+   `6ede00d0/46:…2e4400 = SDI(2) = dn1 = BNC#4 = ball`**。
+   附实锤: 旧 v4 声称 4fa33dcb→gst 1 = **错绑**（run2 H4
+   prod_binding=true 恰把 SDI-IN-1 身份绑上 SDI(2) 硬件）——作废
+   裁决完全正确。
+
+### 32.3 v5 据实生成 + 02-I 第二次验收
+
+v5 = SDI-IN-1(2e4500)→gst 0·SDI-IN-2(2e4400)→gst 1（盒
+`~/a2-8-02i-v5.manifest.json`, JSON 校验过）; §29.2 纪律全程
+（证据头五件套 15:38 CST·cargo build OK·bin 源=sha 验证冻结基线）。
+结果: **L0 PASS（进入 L1 链）·L1a PASS bindings=2/2
+production_grade（首次双卡 ManifestVerified+HIGH）·L1b PASS·L1d
+PASS 双卡（H2 闭环再证）**——**L1c FAIL 双卡 signal=Some(false)**
+→ H1 fail-stop, exit 2, 零会话创建（fail-stop 行为正确）。
+日志=`~/a2-8-02i-evidence/2026-09-04-02i-second-acceptance-v5.log`。
+
+### 32.4 L1c FAIL 根因定位: Gate probe signal 采样窗口（A 类证据自动化发现, 冻结未修）
+
+跑后同分钟复核: **ffmpeg 双输入均出帧（信号物理在场）**; gst 手动
+12s 全窗: 双卡均 `signal=false→true` 翻转+caps 锁定（dn0=1080i25
+电视·dn1=1080p25 ball——v5 映射内容级再验证正确）。
+**代码锚点: resolver.rs:230-232 `set_state(Playing)` 后仅
+`sleep(300ms)` 即读 signal（:257-259）**——decklink 输入信号检测器
+锁定需 ~1-3s（实测消息序 #21 false→#38 true）, 300ms 窗口
+**结构性假阴性**; dual_input L1c/H4 复用该 probe。**生产链不受
+影响**（长生命周期管线·L3 用 SAMPLE_GAP 采样增量）; 属 Gate 证据
+自动化缺陷 ⇒ **§11 A 类候选（新 change 范畴, 本轮零代码未动）**。
+**probe 修复前 L1c 确定性 false——02-I 无法通过 L1c, 待用户裁决
+最小修授权（如采样窗延长/重试窗口）**。历史一致性: 09-04 run2
+L1c signal=Some(false) 同受此窗口影响（当时信号在场性另议）。
+
+### 32.5 残余清单
+
+① **L1c probe 采样窗口=02-I 唯一剩余代码级阻塞**（A 类候选待裁）;
+② BNC#4 独立 ball 源物理对端 + dn2→Mini 输出线缆去向=现场项
+（照片/线缆追踪, 用户侧）; ③ 电视分钟级抖动=L2-L5 潜在 B 类时序
+（撞窗重跑不改码）; ④ 其余 C 类债务账本不变。
