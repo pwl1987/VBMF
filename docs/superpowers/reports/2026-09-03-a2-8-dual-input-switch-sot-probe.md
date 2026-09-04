@@ -1105,3 +1105,75 @@ PORT-IDENTITY-AND-RESOURCE-ADDRESSING 等独立 change, 不混入 02-I。
 
 盒上: mock **356**·bmd+gstreamer **226**·clippy 双组合 -D warnings
 clean·fmt clean·A2-8 gate 入口 smoke 落盘。
+
+## 24. 第十九轮终裁（基线 `cb78adc`）: A2-8 Gate Hardening（H1-H4 + P1）
+
+### 24.1 裁决账本（全实码核验通过）
+
+| # | 终裁 | 核验 |
+|---|------|------|
+| 一 | cb78adc 单笔提交 = Gate 正式入仓; bootstrap::build 唯一构造源正确 | ✅ 实锚 |
+| 二 | L0 形态 Gate PASS（恰 2 Input port/2 设备; 一卡双输入拒） | ✅ 维持 |
+| 三 | **P0: L1 失败仍继续 L2**（L1a/b/c 仅 record 无 fail-stop → Session 照建） | ✅ 实锚 dual_input.rs:168-216→218 |
+| 四 | **P0: Gate 验 Manifest Port 但 Runtime Intent port_id=None**（Session 实际用"每设备首 Input Resource"） | ✅ 实锚 dual_input.rs:265 |
+| 五 | 禁为 Gate 临时改 `derive_claims()`（会重耦合 PORT-IDENTITY-AND-RESOURCE-ADDRESSING）——Gate 侧闭合证据链 | ✅ 遵守（本轮零改 session.rs） |
+| 六 | P1: L1 对应关系未锁一一映射（"Device A signal=true"散点非端口行） | ✅ H4 补强 |
+| 七~十二 | L2 架构/L3 输出定义（Program Graph 媒体推进证据≠HLS/RTMP）/L4（PTS observation+switch continuity ≠ "证明两输入 PTS 已同步"）/L5（隔离非自动切源）/FailureDomain/Teardown 全 PASS 维持 | ✅ 零改动 |
+| 十三 | P1: Gate verdict ≠ Production health state（部分路径直写 Degraded/Capturing） | ✅ 实锚 6 处直写; session_lifecycle 惯例=只读派生断言 |
+| 十四 | 依赖图无新冲突 | ✅ 维持 |
+| 十六 | **下一刀 = 仅 A2-8 Gate Hardening H1-H4, 不再扩大范围**; 完成后批准直接进真机 02-I | ✅ 本轮执行 |
+| 最终 | cb78adc 不回滚、Gate 架构不推倒; "唯一阻塞=双 SDI 窗口"表述被纠正为"尚有一次必要 hardening" | ✅ 采纳 |
+
+**关键实码发现（H3 前置问题答案, 强于"无副作用承载"预期）**:
+`SourceIntent.port_id` **不是无副作用字段——已被 materialize 精确消费**
+（pipeline.rs:630-666: Some→registry 按 `p.identity.port_id == Some(u)` 精确
+匹配出 connector; 无匹配生产 fail-closed"拒绝静默回退 auto 探测",
+Diagnostic 回退 None; None 才回退设备首输入端口; 既有测试
+`materialize_resolves_explicit_port_id_in_registry` /
+`materialize_rejects_explicit_port_id_missing_in_registry_production` 锁定）。
+→ Gate 携带 port_id 直接闭合 **Manifest→Registry→Intent→connector 定位链**。
+
+### 24.2 实现账（H1-H4 + P1, 2 文件 +350/−78）
+
+- **H1 fail-stop（§三链全量）**: `record` 改模块级 fn + `finish(verdicts,
+  stopped_at) -> !` 统一终裁输出; L1a/b/c/**d** 任一 FAIL → `finish("L1
+  fail-stop——L2-L5 不执行")`（此前零已建资源, 无清理）; L2 Session/L2a/
+  Group/Runtime 四处早退统一 finish; **L2b FAIL → 完整 Teardown 后终裁不进
+  L3-L5; L3 FAIL → 同链不进 L4/L5**; L4 FAIL → 跳过 L5（既有）→ final
+  FAIL; L5 FAIL → final FAIL。层间失败仍走完整 Teardown（停止链本身即
+  验收点 + 资源释放）。
+- **H2 L1d Port↔Resource closure**: `device_input_resource_closure(resources,
+  device, manifest_port)` 纯函数——该设备恰一 Input Resource
+  （`capability.ends_with("-input")`）且 ID == manifest port 规范派生;
+  resource.rs 抽出 `input_resource_id_for_port`（`derive_from_discovery`
+  input 臂改为同源调用——单一派生来源, 零行为变化, 防消费侧复制公式成
+  第二 SoT）。多输入卡/跨端口污染/零资源三路 fail-closed + 唯一对应
+  正路, 4 纯函数测试锁语义。**零改 SessionManager/derive_claims**。
+  证据链闭合: Manifest Port → Registry Port → 唯一 Input Resource →
+  （derive_claims 首 "-input" 唯一命中）→ Session; H3 另闭合 connector
+  定位: Registry Port → Intent.port_id → materialize 精确匹配。
+- **H3 intent 携带 port_id**: `SourceIntent.port_id =
+  Some(已验证 manifest port UUID)`（原 None）; L2a verdict detail 注记。
+- **H4 每端口一行一一对应证据**: DeviceHandle(identity_handle)/DeviceId/
+  PortId/connector/ordinal/dir=Input/cap.input/cap.audio(video-推导)/dn/
+  signal/prod_binding 同行打印（"=== A2-8 L1 端口证据（一一对应, H4）==="
+  块）; dn_sig 单次采样共用。
+- **P1 收口（§十三）**: 删除全部 6 处 agent_state 直写（Degraded×4/
+  Capturing×1/终裁×1）; 参数改 `_agent_state`（签名/传位不变）;
+  Gate verdict = 打印 + exit code, **不写 agent_state**（session_lifecycle
+  同惯例: 状态由 reducer 从真实事件流派生）。
+
+### 24.3 盒上验证（matrix 全绿）
+
+fmt clean（文件回拉同步）· mock **356**·bmd+gstreamer **230**（226+4
+新增 `gates::dual_input::tests::*` 全绿: 唯一对应/多输入卡拒绝/跨端口
+污染/零资源）·clippy 双组合 `-D warnings` clean。
+
+### 24.4 状态与下一步
+
+- Gate hardening 完成——02-I 回到"**硬件窗口 = 唯一阻塞**"（用户侧双
+  SDI 信号源 + 两卡占用窗口）; 届时现场备 v4 manifest（双卡各一条
+  Input SDI port 声明）执行 `VBMF_A2_8_DUAL_INPUT` L0→L5+Teardown。
+- 冻结维持: 不碰 derive_claims/PortIdentity v2/PTS normalization/N 输入/
+  Supervisor-as-executor/`MediaBackend::recover()` SPI——皆属
+  PORT-IDENTITY-AND-RESOURCE-ADDRESSING 或 A2-8-03/04/05。

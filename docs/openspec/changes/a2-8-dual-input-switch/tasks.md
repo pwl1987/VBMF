@@ -96,15 +96,27 @@
   入口落地**（gates/dual_input.rs——L0 形态 fail-closed/L1 三列分记/
   L2 双输入 Session+ProgramRuntime+Tap 桥/L3 帧增长非 PLAYING/L4 三列
   PTS 只测量+切换全序/L5 隔离+recover 复流+故障域不越域/Teardown 停止
-  链; 盒上入口 smoke=真实 discovery→形态拒绝实证, probe §23））; 02-I
-  真机 Gate 待用户双 SDI 窗口` | 
-  `Verification: mock 356·bmd+gstreamer 226（含真实跨管线桥接/多切换
+  链; 盒上入口 smoke=真实 discovery→形态拒绝实证, probe §23）; 第十九轮
+  **A2-8 Gate Hardening H1-H4+P1**（probe §24: H1 全链 fail-stop——L1a/
+  b/c/d 任一 FAIL 即终裁不进 L2·L2b/L3 失败走完整 Teardown 后不进下一
+  层·L4 FAIL 跳 L5; H2 L1d Port↔Resource closure——每设备恰一 Input
+  Resource 且 ID==manifest port 规范派生[input_resource_id_for_port
+  单源, derive_from_discovery 同源调用零行为变化], 4 纯函数测试, 零改
+  SessionManager/derive_claims; H3 intent 携带已验证 port_id——实锚
+  materialize 精确消费该字段[Some→registry 精确 connector 定位/无匹配
+  生产 fail-closed], 原 None 回退路径弃用; H4 每端口一行一一对应证据
+  [handle/port_id/conn/ordinal/cap/signal/dn 同行]; P1 删 6 处
+  agent_state 直写——Gate verdict≠生产 health state）; 02-I 真机 Gate
+  待用户双 SDI 窗口` | 
+  `Verification: mock 356·bmd+gstreamer 230（含真实跨管线桥接/多切换
   一致性/G/H 三列证据/liveness 降级锁死/persistent-id=0 拒绝/碰撞防线
-  测试）·clippy 双组合 -D warnings clean·fmt clean; resolver gate 真机
+  测试/十九轮 L1d closure 四测试）·clippy 双组合 -D warnings clean·fmt
+  clean; resolver gate 真机
   复跑双工卡碰撞告警×2 落盘; 真机五层矩阵=02-I 执行（VBMF_A2_8_DUAL_
   INPUT+现场 v4 双 Input port 声明 manifest）` | `Gate: 02-A..02-H
   全 CLOSED（probe §19-20）·02-I OPEN[代码前置（十六轮三刀+十七轮两刀）
-  +acceptance automation（十八轮正式 Gate 入口）全在仓, probe §21-23;
+  +acceptance automation（十八轮正式 Gate 入口+十九轮 hardening
+  H1-H4/P1）全在仓, probe §21-24;
   硬件形态边界=两块独立单输入卡（collision closure/derive_claims/
   serial binding/audio 独立性=独立 change 不混入, 十八轮 §十二/§十三）]
   ——**唯一阻塞=用户侧双 SDI 信号源+两卡可占用窗口**`
