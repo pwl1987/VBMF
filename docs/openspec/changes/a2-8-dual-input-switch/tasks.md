@@ -616,7 +616,29 @@
   结构性不可满足=待裁三选[①去 inter 化②活性信号换面（bridge
   liveness 已证诚实·与"不合并"旧裁构成再裁）③语义重定义]+L4
   NewEpoch 1ns 竞态并列**; R34/R35 runway 解释终修为合成非排空·
-  §49.3"A 喂出口"假设证伪; 证据=盒 ~/vbmfp-r36+本地三截图]**]**
+  §49.3"A 喂出口"假设证伪; 证据=盒 ~/vbmfp-r36+本地三截图]**]**; **第三
+  十七轮（主账 §51+设计探针 §28, 双段裁决）: L5.4 正式重定义「故障域
+  归因完整性」+R36 观测器撤销**[第一段@6759443: ①归因探针最高优先/
+  deadline 非严格有界发现[sleep 越界+stall 先于 deadline·随撤销 moot]/
+  L4 Preserve-only 冻结❌Preserve∨NewEpoch/P1-A 根因确认=连续性基准用
+  动态 last_program_pts"用未来观测值判当前边界"/P1-B 代码直证/依赖图
+  无 ownership 冲突; 第二段@6400639 终裁: **选③重定义**——①去 inter
+  现在不批准[inter=带 starvation fallback 语义的桥≠错误架构·未来开
+  PROGRAM-BRIDGE-TRANSPORT-SEMANTICS]②bridge_liveness 与 program_
+  progress 合并维持 ❌[三事实分层不变]③L5.4=B input 不推进∧B bridge
+  死∧A input 推进∧A bridge 活∧Program 输出非权威证据⇒A 行=None∧
+  B 行=Input⇒PASS; 真 Program 域故障归 A2-8-03[注入在 03 设计禁塞
+  DiagnosticFaultInjection]; **删除 grace/deadline/eventual-stall
+  全套**; d7d4fc6=R36 实验实现保留历史·R37=semantic correction];
+  裁决五项代码主张全实锚[Phase C 循环序/ProgramObservation :57-73/
+  on_program_pts :768 动态基准/L4 match 单臂 :685-686/intervideosrc
+  官方 timeout 1s 黑帧]; 执行=只改 gates/dual_input.rs[撤销观测器+
+  5.4 归因完整性重写+5.3 陈旧注释修正]·classify/四词表/L4 判据/
+  5.1-5.3/Diagnostic 契约全冻结; 后续序=修改→fmt→矩阵→bin→真机→
+  14/14[10/10 亦不触发 Final Close——两 P1 未闭·A2-8-05 暂缓];
+  **P1-A[冻结 transition boundary 替代动态 last_program_pts]+P1-B
+  [rebase offset 不变量]=下一独立刀 program_timeline.rs 不混 commit·
+  修后 L4 真机目标稳定 Preserve]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

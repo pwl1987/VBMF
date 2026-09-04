@@ -1201,3 +1201,19 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   隔离维度 inter 无法传递"死"（program 侧帧计数结构性失真, 输入侧
   bridge liveness 诚实）。
 - 零仓库代码; 诊断证据盒 `~/vbmfp-r36`（jpg/log/probe.py 归档）。
+
+## 28. 第三十八轮跨账引用: L5.4 重定义「归因完整性」+ Timeline 两 P1 批准待独立修（2026-09-05）
+
+- 主账 §51: L5.4=Source-fault attribution integrity（Program 输出=
+  非权威证据·intervideosrc 官方 timeout 1s 黑帧语义实锚与 §50 E1-E4
+  互证·撤销 R36 eventual-stall 观测器）; L4 Preserve-only 冻结不放宽。
+- **Timeline 域两 P1 正式批准修复方向（下一独立刀·不与本轮混 commit）**:
+  **P1-A**=on_mapped_buffer :619-622 连续性基准从动态 last_program_pts
+  （on_program_pts :768 持续推进）改为**冻结 transition boundary**
+  （declare 的 program_start_pts）——第一枚映射缓冲问"是否低于声明的
+  Program 边界", 之后才进运行期单调观测; **P1-B**=rebased :682-688
+  恢复 offset==program_start_pts−source_start_pts 不变量。修后 L4
+  真机目标=稳定 Preserve（相位条件性 NewEpoch 1ns 竞态根除自生产侧）。
+- A2-8-03 登记: 真 Program 域故障专项（Input 活∧Bridge 活∧Program
+  死⇒Program 的注入在 03 设计, 禁塞现有 DiagnosticFaultInjection）。
+- C-TIMELINE-01 Final Close 暂缓维持（两 P1 未闭合）。

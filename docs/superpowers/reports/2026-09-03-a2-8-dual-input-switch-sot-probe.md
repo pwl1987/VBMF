@@ -2747,3 +2747,69 @@ handle=2 21:42:15.116）。
   污染"新事实下是否解禁合并=用户裁决）; ③L5.4 语义重定义。
 - L4 NewEpoch 1ns 竞态间歇（run1）独立并列待裁; 合成帧的 PTS 行为
   未测（时间戳归因探针仍可选）。
+
+## 51. 第三十八轮（repo 账第三十七轮）— 双段裁决: L5.4 重定义「故障域归因完整性」+ R36 观测器撤销（2026-09-05; 裁决轮·零代码）
+
+### 51.1 裁决主文
+
+- **第一段（基于 6759443 复核·后被第二段部分取代）**: L5.4 批准①归因
+  探针为最高优先; **deadline 非严格有界发现**（sleep 可越 deadline 上至
+  SAMPLE_GAP + stall 确认先于 deadline 检查 ⇒ 理论上 t0+61s 样本仍可
+  StalledConfirmed——Final Close 前必修; 随第二段撤销观测器而 moot·
+  记录在案）; L4 **Preserve-only 冻结不放宽**（❌ Preserve∨NewEpoch=
+  "NewEpoch 合法"≠"L4 Timing Gate 应 PASS"两语义不混）; **P1-A 根因
+  确认=连续性基准使用动态 last_program_pts**（"用比被检 buffer 更晚
+  观测的 Program PTS 证明该 buffer 回退"=用未来观测值判当前边界）;
+  P1-B rebase offset 不变量破坏=代码结构直证; §十一依赖图全链复核
+  无 ownership 冲突（Session/Backend/SwitchAdapter/TimelineAuthority/
+  Gate/Diagnostic 六面职责不动）。
+- **第二段（基于 6400639 诊断·终裁）**: L5.4 四选**正式选③=重定义**。
+  ①去 inter **现在不批准**（inter=带 starvation fallback 语义的媒体桥
+  ≠错误架构; 未来产品要求"输入死⇒真 EOS/冻结"再开独立
+  PROGRAM-BRIDGE-TRANSPORT-SEMANTICS 评审）; ②bridge_liveness 与
+  program_progress 合并 **❌ 维持**（三事实分层正确——变化的只是本
+  Gate 证据适用范围, 非 Observation 模型合并; 禁 bridge_dead⇒
+  program_dead 与组合式伪健康值）; **③L5.4=Source-fault attribution
+  integrity**: B 故障场景证明 B input 不推进 ∧ B bridge 死 ∧ A input
+  推进 ∧ A bridge 活 ∧ Program 输出=**非权威证据**（不作源存活证明）
+  ⇒ A 行=None ∧ B 行=Input ⇒ PASS——"真实 Input 故障不得因 Program
+  graph 继续产生合成帧而被错误提升为 Program 故障"（与故障域不越域
+  理念更一致）。**真 Program 域故障测试归 A2-8-03**（Input 活∧Bridge
+  活∧Program 死⇒Program 的专项注入在那里设计, 禁塞进现有
+  DiagnosticFaultInjection 契约面）。**删除整个 grace/deadline/
+  eventual-stall 循环**（已知不适用信号不断尝试自证=技术债）。
+  d7d4fc6=R36 experimental implementation 保留历史; **R37=semantic
+  correction** 撤销观测器——账面链: R36 实现→真机失败→独立插件诊断
+  →前提证伪→R37 语义修正, 比叠改成"看起来 PASS"干净。
+
+### 51.2 裁决代码主张核验（五项·全实锚）
+
+| # | 主张 | 实锚 | 结果 |
+| --- | --- | --- | --- |
+| 1 | Phase C deadline 非严格有界（sleep 越界+stall 先于 deadline 检查） | dual_input.rs Phase C 循环序（sleep→sample→backward→stall→deadline） | ✓（随观测器撤销 moot·记录在案） |
+| 2 | ProgramObservation 已有 observed_active/input_pts/program PTS/frame counters——归因探针无需扩 SPI | contracts/switch.rs:57-73（observed_active :59·input_pts :67·program_video/audio_pts :68-69·frames :72-73） | ✓ |
+| 3 | on_program_pts 持续更新 last_program_pts（=P1-A 动态基准根源） | program_timeline.rs:745-769（:768 每观测必更） | ✓ |
+| 4 | L4 判据 Preserve-only（match 单臂） | dual_input.rs:685-686 `match &report.outcome { TransitionOutcome::Preserved {..} => .., }` | ✓ |
+| 5 | intervideosrc 官方语义=timeout 后输出黑帧（默认 1s） | 盒 gst-inspect: `timeout: Timeout after which to start outputting black frames, Default: 1000000000` | ✓（与 §50 E1-E4 实证互证） |
+
+### 51.3 执行令与边界
+
+- **只改 `gates/dual_input.rs`**: ①撤销 R36 观测器（三常量
+  GRACE/ROUNDS/DEADLINE + L5ProgramStallOutcome enum + 5.3 t0 锚 +
+  Phase C 循环全删）; ②5.4 重写为归因完整性（B input b1/b2 采样·
+  双桥活性重采样·Program 输出单窗非权威观测·classify 后判
+  row_a==None ∧ row_b==Input）; ③5.3 头注释陈旧表述"program 诚实
+  停滞"修正（语义已被证伪）。
+- classify_failure_domain/FailureDomain 四词表**冻结零触碰**;
+  5.1/5.2/5.3 语义不动; DiagnosticFaultInjection 契约不动; L4 判据
+  不动。
+- 后续序: 修改→fmt→矩阵（default/mock/bmd+gst/clippy×2）→gates bin
+  rebuild→真机 02-I→14/14 核对。**10/10 亦不触发 Final Close**:
+  C-TIMELINE-01 Final Close 暂缓（两 P1 未闭合）·A2-8-05 archive
+  暂缓。
+- **P1-A/P1-B=下一独立刀**（program_timeline.rs·不与本轮混 commit）:
+  P1-A=第一枚映射缓冲连续性基准改**冻结 transition boundary**
+  （declare 的 program_start_pts）, 之后才进运行期 last_program_pts
+  单调观测——"禁用未来观测值判当前切换边界"; P1-B=rebased 恢复
+  offset==program_start_pts−source_start_pts 不变量。修后第五刀=
+  L4 真机复跑目标稳定 Preserve（4P+1NE→Preserve·非放宽判据放过）。
