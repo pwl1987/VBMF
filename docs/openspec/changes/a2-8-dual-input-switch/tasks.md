@@ -361,6 +361,33 @@
   pad→生效边界=下一缓冲→Observed 走帧/事件序列]→冻结最小变更面→正式
   实现批次; 实验禁改清单全守[normalize/PipelineHealth/L4/SwitchGraph
   正式逻辑/Production graph 零触碰]**
+  ; **第三十一轮=IMP-3/IMP-5 终裁+IMP-2 实现层纠偏+最小实现批次开工（设计
+  探针 §14+主账 §39, 终裁落账零代码 commit 先行）: IMP 最终表=IMP-1 ADOPT
+  [normalize 删·TimelinePolicy 取代]/IMP-2 ADOPT WITH CORRECTION[
+  PipelinePlan=ingest 只承载声明·Program Timeline 走 ProgramExecution
+  Runtime→TimelineAuthority→ProgramTimelinePlan→Adapter·实锚
+  build_program_pipeline 不消费 PipelinePlan]/IMP-3 ADOPT[selector 后
+  per-plane EVENT+BUFFER probe·selector 前不能证 Program 侧事实·identity
+  =吞段假阳性禁 proof·F4 精确表述=控制线程外部注入 sent=false 非主注入
+  机制]/IMP-4 ADOPT[ProgramExecutionObservation{program,timeline}=observe
+  () 单一 observation surface 最小演进]/IMP-5 ADOPT[①-⑩ 微观序冻结·
+  生效边界='事件确认+下一 Buffer'·active-pad readback 只能辅助·
+  SwitchExecuted≠TimelineTransition complete]/IMP-6 ADOPT[Preserve=epoch
+  N 保持·NewEpoch=N→N+1·FailClosed=failed 不得当 Stable]/IMP-7 ADOPT[
+  L4=九项合取 TimelineTransition proof 非 PTS monotonicity test];
+  PtsMonotonicity 升级四态+DiscontinuityDeclared[禁洗状态]; recover 本
+  change 不碰[A2-8-03]; SwitchGraph 侧=adapter TimelineExecutionState 每
+  plane 独立+共享 program_epoch[非 Authority]; source identity=声明+
+  Event+Buffer 三件闭合禁瞬时 readback; V/A 双 mapping 独立共享 epoch;
+  排除清单照录[SessionManager/Resolver/PortRegistry/ResourceRegistry/
+  Supervisor/MediaBackend::recover/MediaTap/C1/switch correctness/
+  1080i-1080p]; **SIM-01 足够无需二轮实验·Batch 1 Domain+contract+Mock
+  开工→Batch 2 GStreamer Adapter+L4→真机复跑**; 实现纪律=Authority 声明
+  +downstream Event/Buffer 证据+Runtime 闭合 TimelineMapped; 披露三项[
+  observe() 契约演进机械波及 watchdog/registry/dual_input .program 路径
+  ·epoch 口径按 §十一 实现[Preserve 保持·与 Freeze §3 字面差异已披露]
+  ·install 路径=既有 trait 最小方法默认 fail-closed[GStreamer 实装=
+  Batch 2]]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

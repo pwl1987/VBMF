@@ -460,3 +460,192 @@ Timeline（X4）与 Playout 时间线——**无 Program 媒体时间线 Authori
 - 裁后即冻结最小变更面（Impact Map §4 九行候选）→ 正式最小实现批次。
 - 顺带发现（登记不阻塞）：gstreamer-rs 0.23 无公开 parse_launch
   （auto/functions crate-private）——生产同构程序化构链不受影响。
+
+## 14. IMP-3/IMP-5 终裁 + IMP-2 实现层纠偏 + 最小实现批次开工令（第三十一轮，2026-09-04）
+
+用户完成以 a5c20b5 为基线的实际仓库闭环复核后给出终裁。结论：**IMP-3/5
+可以终裁；IMP-2 需按真实代码拓扑做一次"实现层纠偏"（非架构重开）**。
+
+### 14.1 账前代码断言复核（本助手对真实仓库逐项核锚，全部成立）
+
+| 终裁引用的代码事实 | 实锚 | 复核 |
+| --- | --- | --- |
+| ProgramExecutionRuntime 持 group+switcher+graph+taps；创建序 Tap→graph→Start，停止序 Program Stop→Tap Detach | program_execution.rs:198-206/:241-291/:317-339 | ✅ |
+| ExecutionGroup 只有 {session_id, inputs, desired, switch_epoch}，无 Timeline 状态 | switch_execution.rs:92-101 | ✅ |
+| 生产链 SessionManager→SessionInput→ExecutionGroup→ProgramExecutionRuntime→SwitchExecutionAdapter→GStreamerSwitchAdapter→build_program_pipeline→inter→selector→queue→appsink | switch_graph.rs:399-435/:245-359 | ✅ |
+| `build_program_pipeline()` 依 ExecutionGroup 双 SessionInput 构图，**不消费 PipelinePlan**；PipelinePlan=上游 ingest 采集计划 | switch_graph.rs:400-415（签名只收 handle/mode/devices/initial_active）+ pipeline.rs:133-147 | ✅（IMP-2 纠偏的事实基础成立） |
+| switch() 真实时序=video active-pad→audio active-pad→g.active/g.av_epoch→SwitchExecuted；complete_switch 等 observe 见 target 才推进 Desired | switch_graph.rs:459-524 + switch_execution.rs:184-192 | ✅ |
+| ProgramObservation 无 TimelineEvidence；SwitchGraph 无 timeline 字段 | contracts/switch.rs:55-73 + switch_graph.rs:38-60 | ✅ |
+| PtsMonotonicity 三态 backward=sticky | pipeline.rs:239-247/:294-318 | ✅ |
+| 现行 L4 判据=completed∧observed==B∧epoch==1∧双 plane state≠NonMonotonic∧pts.is_some | gates/dual_input.rs:644-648 | ✅ |
+| recover()=保存 taps→remove→stop→rebuild→Playing→replay taps（本 change 不碰） | controller.rs recover 链（02-C 已核锚） | ✅ |
+
+### 14.2 终裁照录（IMP 最终裁决表）
+
+| 项目 | 最终裁决 |
+| --- | --- |
+| IMP-1 | ✅ ADOPT：`normalize` 删除，`TimelinePolicy` 取代裸 bool |
+| IMP-2 | ✅ **ADOPT WITH CORRECTION**：PipelinePlan 只承载声明；ProgramTimeline 必须走 ProgramExecution→ProgramTimelinePlan→Adapter |
+| IMP-3 | ✅ ADOPT：selector 后 per-plane EVENT+BUFFER probe |
+| IMP-4 | ✅ ADOPT：TimelineEvidence 独立；observation wrapper，不污染 ProgramObservation |
+| IMP-5 | ✅ ADOPT：anchor→declaration/install→active-pad→Segment event→next buffer→mapping→evidence→settle |
+| IMP-6 | ✅ ADOPT：Preserve/NewEpoch/FailClosed |
+| IMP-7 | ✅ ADOPT：L4=TimelineTransition Evidence proof |
+
+IMP-3 细则（照录）：
+
+- 执行点=**selector 后、每个 media plane 独立的 BUFFER execution probe**；
+  配套 selector src pad 的 EVENT_DOWNSTREAM probe 捕获自然 stream-start/
+  caps/segment 边界（F2）。与真实 Bridged graph（inter→selector→queue→
+  appsink，无其它时间线层）完全对齐。
+- 为什么不是 selector 前：不能证明"最终进入 Program 的 buffer 已按
+  Program Timeline 映射"——C-TIMELINE 要证 **Program 侧事实**。
+- 为什么不是 identity：F3 已证"segment 表面连续 ≠ program timeline 已
+  建立"（吞段假阳性）——identity 只能是 GStreamer 行为工具，不能承担
+  Authority/proof。
+- F4 精确表述（照录）："不是说 GStreamer 永远不能发送 Segment"，而是
+  **当前实验中控制线程直接向该 Program pad 外部注入 Segment 的路径实际
+  sent=false，不能作为本实现的主注入机制**——不过度扩大解释为
+  "GStreamer Segment API 不可用"。
+
+IMP-5 微观序冻结（照录 ①-⑩）：
+
+```text
+① 取得旧 Program Timeline anchor
+② TimelineAuthority 声明新的 SourceSegment / Mapping
+③ 将 timeline transition state 安装到 Program execution graph
+④ 执行 active-pad 翻转
+⑤ selector downstream 自然产生 B 的 Segment/Event
+⑥ 第一枚属于 B 的实际 BUFFER 到达 selector-output probe
+⑦ 对该 BUFFER 执行 Source→Program mapping
+⑧ 产生 TimelineMapped / TimelineEvidence
+⑨ settle：等待稳定证据
+⑩ Stable(B)
+```
+
+- ⑤⑥ 为两个关键状态界；**SwitchExecuted ≠ TimelineTransition complete**
+  （active-pad set_property ≠ 时间线已切完）。
+- **active-pad readback 只能做辅助 execution observation，不能作为
+  Timeline 生效边界**（F6：set_property 后立即 readback 仍可能旧值而
+  数据流已切）。
+- F6 正式实现约束（照录冻结）：必须"**事件确认 + 下一 Buffer**"——
+  `TimelineTransition(B)` 生效点=Segment(B) 被 downstream event 流证实
+  **且**下一枚属于 B 的实际 media buffer 在 selector 输出侧被捕获；
+  禁 set active-pad→立即 read→认为 B 已开始。
+
+IMP-2 纠偏（照录）："Timeline 数据进入现有 PipelinePlan/materialization
+链"按字面实施会落错地方——PipelinePlan 属 **ingest**（DeviceInfo→
+Resolver→device-number→port→SourcePlan→ingest 管线）；Program Timeline
+真实路径=ExecutionGroup→ProgramExecutionRuntime→SwitchExecutionAdapter→
+SwitchGraph，**没有 PipelinePlan**。最终：`PipelinePlan.normalize→
+TimelinePolicy` 只解决历史声明问题（契约清理）；真正的 Program Timeline
+=ProgramExecutionRuntime→TimelineAuthority→ProgramTimelinePlan/
+TimelineTransition→Program graph execution adapter——**不把 Program
+Timeline 语义硬塞进 ingest PipelinePlan**（与冻结 §1 分层链一致）。
+
+normalize 删除与 Timeline 实现=**两件事**（照录）：A. PipelinePlan 契约
+清理（Intent≠Execution Fact+裸 bool 词表）；B. Program Timeline 映射实现
+（ProgramExecutionRuntime+GStreamerSwitchAdapter/SwitchGraph）=L4 真正
+修复面。**禁宣称"改了 PipelinePlan 就完成 Program Timeline"**。
+
+IMP-4 契约演进（照录）：`ProgramExecutionObservation{program:
+ProgramObservation, timeline: TimelineObservation/Evidence}`——observe()
+返回该组合：不污染 ProgramObservation 语义/不新增第二个 Timeline SPI/
+仍只有一个 Program observation surface/L4 直接消费 timeline evidence/
+Mock 与 GStreamer 实现同一返回结构=**现有观察契约的最小演进**（用户
+明示"这是目前仓库里我认为必须补上的一个遗漏"）。
+
+SwitchGraph 侧（照录 §七）：增加 adapter-side `TimelineExecutionState`，
+Video/Audio 每 plane 独立 {current_source, current_segment, mapping,
+transition_state, last_source_pts, last_program_pts, continuity}+共享
+program_epoch——**不是把 TimelineAuthority 塞进 SwitchGraph**；Authority
+在 ProgramExecutionRuntime，SwitchGraph 只保存"当前执行中的映射状态"。
+
+Source identity 闭合（照录 §八）：**必须由"声明+Event+Buffer"三件事实
+共同闭合，禁瞬时 property readback**（F6 滞后）——与 TimelineMapped≠
+TimelineHealthy 冻结一致。
+
+V/A 双平面（照录 §九）：ProgramEpoch 共享，VideoSegment+VideoMapping 与
+AudioSegment+AudioMapping **各自独立**（SIM-01 121/121+162/162 证明
+可实现）；禁一个 offset 同时改 video/audio。
+
+PtsMonotonicity 升级（照录 §十）：加 `DiscontinuityDeclared` 成四态；
+纪律=**Segment transition declared + expected transition observed →
+DiscontinuityDeclared/合法 transition**，**禁发现 backward 就把状态改回
+ValidMonotonic**（不洗状态，Freeze §6）。
+
+IMP-6 状态机映射（照录 §十一）：**Preserve**=epoch=N+mapping valid+
+continuity valid+segment transition valid→继续 epoch=N；**NewEpoch**=执行
+成功但 continuity 不可证→epoch N→N+1（不是去改旧 PTS）；**FailClosed**
+=mapping missing/segment mismatch/wrong epoch/undeclared backward jump/
+evidence insufficient→TimelineTransition failed，**不能继续把 Program
+当成正常 Stable**。
+
+recover()（照录 §十二）：本 change **不实现 recover timeline**（留
+A2-8-03）——只让 Timeline 状态**能够表示** recover 后重建；改 recover
+会同时越界 Timeline+MediaBackend recover+Supervisor。
+
+L4 最终替换（照录 §十三）：
+
+```text
+switch execution correct
+ AND timeline transition declared
+ AND observed Segment(B)
+ AND B first mapped buffer observed
+ AND mapped PTS continuity
+ AND video continuity AND audio continuity
+ AND ProgramEpoch consistent
+ AND no undeclared backward jump
+```
+
+**L4-TIMELINE 不再是 PTS monotonicity test，而是 TimelineTransition
+proof**（与冻结 §14 一致）。
+
+### 14.3 最终最小代码面（照录 §十四）+ 排除清单
+
+```text
+1. pipeline.rs        PipelinePlan.normalize → TimelinePolicy（声明清理）
+2. program_execution.rs  新增 TimelineAuthority/ProgramTimeline/ProgramEpoch/
+                         SourceSegment/TimelineTransition/TimelineMapped/
+                         TimelineEvidence; transition orchestration
+3. contracts/switch.rs   ProgramExecutionObservation{program, timeline}
+4. switch_execution.rs   不动（ExecutionGroup/switch_epoch/Desired 不动,
+                         不放 TimelineAuthority）
+5. switch_graph.rs       video/audio selector src 各 EVENT+BUFFER probe;
+                         adapter-side TimelineExecutionState; 无 Authority
+6. dual_input.rs         仅升级 L4-TIMELINE proof; 其余不动
+```
+
+排除（照录）：SessionManager/Resolver/PortRegistry/ResourceRegistry/
+Supervisor/MediaBackend::recover/MediaTap/C1 Signal Probe/switch
+correctness/1080i-1080p format 全 NO。
+
+### 14.4 批次授权与实现纪律（照录 §十六）
+
+- **SIM-01 已足够支撑 IMP-3/5 终裁，不需要第二轮实验。**
+- 正式进入 A2-8-C-TIMELINE-01 Implementation：**第一批=Domain+contract+
+  Mock**（一次完成）→ **第二批=GStreamer Adapter+L4**（一次完成）→
+  最后真机复跑。
+- 固定实现纪律（照录）："**TimelineAuthority 产生'应该怎样映射'的声明；
+  selector downstream Event/Buffer 产生'实际上发生了什么'的证据；两者
+  在 Runtime 中闭合成 TimelineMapped。**"
+
+### 14.5 本助手披露项（实现期裁定边界，disclosed）
+
+1. **observe() 契约演进的机械波及**：终裁 §六 observe()→
+   ProgramExecutionObservation 使既有消费面需机械适配——watchdog.rs:491
+   （fold 输入取 `.program`）、registry.rs:393/:404、dual_input.rs L2b/L3/
+   L4/L5 观测行（`.program.` 路径前缀；**L4 判据表达式零变化**）。
+   watchdog/registry 不在 §十四 六文件清单内=契约演变的不可避免机械
+   连带，零语义变化，逐处可审。
+2. **epoch 计数口径衔接**：Freeze §3"一次成功 program switch →
+   program_epoch 推进（SwitchEpoch 1→TimelineEpoch 1）"与终裁 §十一
+   "Preserve=epoch N 不变/NewEpoch=N→N+1"并存——按**第三十一轮 §十一
+   （更晚、更具体）实现**：初始 epoch=0；Preserve 保持；NewEpoch +1；
+   recover 重建 +1（§13 冻结语义）。差异已披露，如需 §3 字面口径由
+   用户下轮纠正（单方法计数策略，零结构性返工）。
+3. **install 路径 trait 化**：ProgramTimelinePlan 进入 Adapter 的签名
+   （Freeze §11 明示"不预裁，implementation change 首刀"）按 IMP-2
+   纠偏链落为 SwitchExecutionAdapter 既有 trait 上的最小方法
+   （默认=未实装 fail-closed 错误；GStreamer 实装=第二批）——非第二
+   SPI、非新 trait。

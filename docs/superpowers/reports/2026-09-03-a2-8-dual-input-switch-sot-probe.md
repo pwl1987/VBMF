@@ -2179,3 +2179,28 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
 - 实验零架构漂移：normalize/PipelineHealth/L4/SwitchGraph 正式逻辑/
   Production graph 全未触碰；实验工程不入库。
 - 主账状态机不变。
+
+## 39. IMP-3/IMP-5 终裁 + IMP-2 实现层纠偏 + Batch 1 开工（跨账引用，第三十一轮，2026-09-04）
+
+- 用户终裁（全文=设计探针 §14）：**IMP-3 ADOPT**（selector 后 per-plane
+  EVENT+BUFFER probe；identity=吞段假阳性禁承担 proof；F4 精确表述=控制
+  线程外部注入 sent=false 非主注入机制，不过度扩大）·**IMP-5 ADOPT**
+  （①-⑩ 微观序冻结：anchor→声明→install→active-pad→Segment(B) event→
+  下一枚 B 实际 buffer→mapping→TimelineMapped→settle→Stable；**生效边界
+  ="事件确认+下一 Buffer"，active-pad readback 只能辅助**）·**IMP-2
+  ADOPT WITH CORRECTION**（PipelinePlan=ingest 只承载 TimelinePolicy 声明
+  清理；Program Timeline 走 ProgramExecutionRuntime→TimelineAuthority→
+  ProgramTimelinePlan→Adapter——build_program_pipeline 实锚不消费
+  PipelinePlan）·IMP-4 契约演进=**ProgramExecutionObservation{program,
+  timeline}**（observe() 单一 observation surface，Mock/GStreamer 同构）
+  ·IMP-6 三结局映射=Preserve(epoch N 保持)/NewEpoch(N→N+1)/FailClosed·
+  PtsMonotonicity 升级四态(+DiscontinuityDeclared·禁洗状态)·L4 最终=
+  九项合取 TimelineTransition proof·recover 本 change 不碰（A2-8-03）。
+- **SIM-01 足够，无需第二轮实验；正式开 A2-8-C-TIMELINE-01 最小实现
+  批次**：第一批 Domain+contract+Mock→第二批 GStreamer Adapter+L4→
+  真机复跑。实现纪律："TimelineAuthority 产生'应该怎样映射'的声明；
+  selector downstream Event/Buffer 产生'实际上发生了什么'的证据；两者
+  在 Runtime 中闭合成 TimelineMapped。"
+- 本轮 Batch 1（Domain+contract+Mock）实现落账=设计探针 §15。
+- 主账状态机不变（02-I 仍 FAIL-PENDING-CORRECTION，L4-TIMELINE 复跑前
+  不因实现存在而改判）。
