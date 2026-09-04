@@ -2915,6 +2915,7 @@ handle=2 21:42:15.116）。
   pts_state==DiscontinuityDeclared（不洗白·NewEpoch 路径补位）。
 - 既有覆盖维持不重复: history append-only（:1244）/Discontinuity
   Declared Preserve 路径（:952/:966）。
-- 盒矩阵: fmt 绿·default 217→218·mock 381→382·bmd+gst 240→241·
-  clippy×2 绿。
+- 盒矩阵: fmt 绿·default 217 不变·mock 381→382（timeline 测试=
+  `#[cfg(all(test, feature="mock"))]` 车道）·bmd+gst 240 不变·clippy×3
+  绿（default/mock/bmd+gst）。
 - 真机: 本轮无生产代码变更不复跑（P1-A 裁决后一并）。

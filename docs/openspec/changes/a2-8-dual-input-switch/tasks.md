@@ -665,7 +665,8 @@
   ·需扩授权·推荐·mapped==boundary 精确相等世界]/β=Domain 冻结基准+
   slack 魔数——待裁**; 交付=timeline_rt_01_new_epoch_rebase_offset_
   invariant[双平面 offset==program_start−source_start+NewEpoch 平面
-  DiscontinuityDeclared 不洗]; 矩阵 218/382/241/clippy×2; 真机无
+  DiscontinuityDeclared 不洗·offset=i64 跨域可负·mock 车道 cfg]; 矩阵
+  default 217 不变/mock 382/bmd+gst 240 不变/clippy×3; 真机无
   生产变更不复跑]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
