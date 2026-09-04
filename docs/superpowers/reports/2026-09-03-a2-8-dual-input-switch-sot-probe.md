@@ -2418,3 +2418,61 @@ MainContext already-acquired WARN 复现于 recover(B) 新管线建立前
 （Diagnostic Runtime Fault Injection）核心目标全部真机达成: 注入=
 真实运行故障·handle 全程在册·recover=生产行为·隔离/复流/Teardown
 全链成立。
+
+## 46. 第三十六轮（repo 账第三十五轮）— L5.4 终裁: 方案②「相对故障注入时刻锚定」批准（2026-09-05; 裁决轮·零代码）
+
+**裁决输入**: 用户 2026-09-05 全盘重审（基于 GitHub 真实 HEAD 1d0d314）,
+对 §45.3 三候选的终裁。
+
+### 46.1 裁决
+
+1. **L5.4 定性升级**: B 类确认——不是 Domain/Runtime/Adapter/GStreamer
+   recover/Session/Supervisor/Timeline/Diagnostic Injection 架构 bug,
+   是 Gate 对「故障发生后何时开始判断 Program 停滞」的观测时序**无显式
+   建模**。5.4 问的不是「B 故障后 Program 最终有没有停」而是「恰好选中
+   的一个 3s 采样窗里有没有继续收帧」——两个问题不是同一个问题。
+2. **方案①（机械加长等待 12-15s）**: 🟡 可行但不采纳为正式方案——把某
+   一次硬件/帧率/queue 配置的实验结果硬编码成固定 sleep, 无稳定语义;
+   现有 L5_WAIT 的语义是 fault observation settling time, 不是 pipeline
+   topology drain time。
+3. **方案②（相对故障注入时刻锚定）**: ✅ **正式批准**。时序语义冻结:
+   `Fault t0（B inject_stall 成功时刻）→ Drain Grace → q1 → 固定 GAP →
+   q2 → program_progress_since → classify_failure_domain`。grace 成为
+   Gate 显式观测窗口参数（`L5_PROGRAM_DRAIN_GRACE`）——实现须
+   `wait_until(fault_started_at + grace)` 而非叠加 sleep, 使前置
+   L5_WAIT/桥检查/a1a2 采样变化不造成采样时刻漂移; 未来换帧率/queue/
+   inter/format 最多调此单一 knob, FailureDomain/ProgramObservation/
+   PipelineHealth/BridgeObservation 全不动。
+4. **方案③（读取 queue 水位）**: ❌ 不批准——把 L5 Gate 引入 GStreamer
+   topology/property 依赖, 且会把 FailureDomain 从封闭四词表
+   {None,Input,Bridge,Program} 悄悄扩成 {…,Queue,…}。
+5. **classify_failure_domain 冻结**: (true,true,true)→None=all-healthy
+   语义正确, 禁为 Gate 通过把 None 改成 Program。Bridge liveness
+   （last_observed 观察时钟窗口）与 Program 推进（帧计数增量）两证据
+   模型不得合并成"统一 health"。
+
+### 46.2 裁决代码主张核验（vs 真实代码 1d0d314; 本轮先行义务）
+
+| # | 裁决主张 | 实锚 | 结论 |
+| --- | --- | --- | --- |
+| 1 | classify 优先序 Input>Bridge>Program, (true,true,true)→None | program_execution.rs:186-199 逐字符一致 | ✅ 证实 |
+| 2 | L5.4 现流=B inject→L5_WAIT→桥检查→a1→3s→a2→q1→3s→q2（q2≈t0+11s） | dual_input.rs:785-808（L5_WAIT_SECS=5 :90·SAMPLE_GAP_SECS=3 :87） | ✅ 证实 |
+| 3 | program graph=selector→queue→appsink, 双 queue 无显式容量属性=默认容量语义 | switch_graph.rs:397/441 `make_element("queue",…)` 后零容量 set_property | ✅ 证实 |
+| 4 | appsink sync=false+async=false（下游消费不依赖实时播放时钟） | switch_graph.rs:399-400 / 443-444 | ✅ 证实 |
+| 5 | SessionManager: Program teardown（hook）先于 Input Stop; hook 失败不截断资源释放 | session.rs:782-798（Err 仅 warn「仍继续输入停止与资源释放」）·:804 Backend.stop 在后 | ✅ 证实 |
+
+### 46.3 执行令（边界照录）
+
+- **只改** `gates/dual_input.rs` L5.4 观测安排（fault_started_at 锚点 +
+  drain-grace 等待; q1/GAP/q2 与 classify 判据零变化）。
+- **禁改**: program_execution.rs / contracts/diagnostic.rs /
+  controller.rs / switch_graph.rs / session.rs / backend.rs /
+  program_timeline.rs / Supervisor / MediaBackend SPI。
+- 后续序: 修改→fmt→default/mock/bmd+gst/clippy→gates bin rebuild→真机
+  02-I→核对 14/14→NewEpoch P1 关闭（独立刀·四回归+DiscontinuityDeclared
+  两概念锁）→C-TIMELINE-01 Final Close→A2-8-05 archive。
+- 隔离队列维持: pad_unlink CRITICAL ×4·Bus watch MainContext
+  already-acquired WARN 不因 L5.4 收口顺手修。
+- grace 初值=15s 依据: 真机 2026-09-05 00:19 实测 t0+8..11s program 仍
+  推进（runway 下界 >11s）→15s=下界+~4s 余量; 若复跑仍见推进=新下界
+  证据回裁, 禁无裁决自行调参。

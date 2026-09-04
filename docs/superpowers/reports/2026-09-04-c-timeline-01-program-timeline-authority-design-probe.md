@@ -1128,3 +1128,14 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   相位级·映射 6970279646+452126==6970731772 逐 ns 闭合·V/A
   Continuous·epoch 0 保持）——Preserve 路径真机稳定性三跑三证。
 - NewEpoch 路径仍零真机/零测试覆盖（P1 债务不变, Final Close 前必修）。
+
+## 23. 第三十六轮跨账引用: L5.4 观测时序方案② 批准（2026-09-05）
+
+- 主账 §46: L5.4 B 类终裁——方案②「相对故障注入时刻锚定」正式批准
+  （Fault t0 → Drain Grace → q1 → 固定 GAP → q2）; 只改
+  gates/dual_input.rs 观测安排; classify/None 语义冻结; 方案③ queue
+  水位不批准（FailureDomain 封闭四词表不扩）。
+- **C-TIMELINE-01 域零触碰**: Timeline/PTS/Authority 代码零 diff——L5.4
+  是 Gate 观测时序问题, 非 Timeline 语义; L4 九项合取判据零变化。
+- NewEpoch rebase P1 + on_mapped_buffer DiscontinuityDeclared P1 维持
+  （Final Close 前必修, 与 L5.4 修复严格分刀·不混修）。

@@ -537,7 +537,21 @@
   ①drain-wait 加长/采样推后 ≥12-15s ②相对注入时刻锚定 ③queue 水位
   读取=不推荐过度工程]**; 02-I 收口清单 14 项中 13 PASS 唯 L5.4 待裁;
   工件: interlace 断言同历跑·pad_unlink ×4 间歇复现·MainContext WARN
-  同 recover 新管线建立（隔离队列）**
+  同 recover 新管线建立（隔离队列）**; **第三十五轮（主账 §46+设计探针
+  §23 跨账）: L5.4 终裁=方案②「相对故障注入时刻锚定」正式批准**
+  [Fault t0→Drain Grace→q1→固定 GAP→q2 时序语义冻结·grace 成 Gate
+  显式观测窗口参数 L5_PROGRAM_DRAIN_GRACE·wait_until 锚定非流水 sleep;
+  方案① 12-15s 机械加长=不采纳为正式方案·方案③ queue 水位=不批准
+  （FailureDomain 封闭四词表不扩）; classify (true,true,true)→None 语义
+  冻结禁改; 裁决五项代码主张全实锚证实[classify 优先序 :186-199/L5.4
+  现流 :785-808/双 queue 默认容量 :397·441/appsink sync·async=false
+  :399-400·443-444/session hook 先于 Input Stop 且失败不截断 :782-798];
+  执行边界=只改 gates/dual_input.rs·禁改九面[program_execution/
+  diagnostic/controller/switch_graph/session/backend/program_timeline/
+  Supervisor/SPI]; 后续序=修改→fmt→矩阵→bin rebuild→真机→核对 14/14→
+  NewEpoch P1 独立刀→Final Close→A2-8-05 archive; grace 初值 15s=实测
+  下界 t0+11s 仍推进+余量·不足则证据回裁; 隔离队列维持[pad_unlink ×4/
+  MainContext WARN 不顺手修]]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
