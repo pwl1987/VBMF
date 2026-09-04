@@ -1035,3 +1035,73 @@ change 裁决。
 盒上: mock **356**[348+3 persistent-id+5 碰撞防线]·bmd+gstreamer **226**
 [218+8 同]·clippy 双组合 -D warnings clean·fmt clean·resolver gate
 真机复跑双工卡 warn×2 落盘。
+
+## 23. 第十八轮终裁: b039e0c 复核 + A2-8 Dual Input Gate 正式入口
+
+### 23.1 裁决账（逐条对实码）
+
+- **PersistentId fail-closed = CLOSED**（materialize 证据门 + src_props
+  belt 两层确认）; **Production Composition = CLOSED**（dependency
+  composition ≠ production session API 口径保持）;
+- **新遗漏实锤: `SessionManager::derive_claims()`**（session.rs:372-375）
+  不消费 port_id——`find(device_id && capability.ends_with("-input"))`
+  取**首个** input resource; 多端口下可能预留错误 Input。裁定=P1 /
+  N×M closure debt, **非当前 02-I blocker**（双卡单输入 first==intended）;
+- **collision closure 纠偏（本轮最重要）**: 不批准"closure 是 02-I 硬阻塞"
+  ——§22.3 的"升格 L1 硬前置"过度扩大阻塞范围; 双工卡 Manifest 只声明
+  Input → registry 投影无别名（Case A 可继续）, Manifest 双侧声明 →
+  registry fail-closed（Case B 正确拒绝）。closure 批准为 **Port Identity
+  架构债务**（N×M/双工/多端口正式扩展前必须闭合）;
+- **PortIdentity v2 = 身份迁移 change**（direction 直塞 UUID 键会永久
+  改变全部现有 PortId——影响 Manifest/Intent.port_id/PipelinePlan/
+  Resource ID/持久化引用; 禁当 A2-8 小修）;
+- **ResourceRegistry 补偿结构实锤**（port_id 命名 + input/output 分叉;
+  Resource 状态机无需返工）; **Session 多输入 PASS**（SessionInput
+  {device_id,handle} 每输入一行, 合法承载）; **gates 列表实锤**（五 env
+  无 A2-8——"代码前置全清"≠"acceptance automation 已存在"）;
+- **登记独立后续 change: `PORT-IDENTITY-AND-RESOURCE-ADDRESSING`**——
+  direction + physical connector identity + ordinal + PortId 稳定性/
+  迁移 + Manifest + PortRegistry.get() + SessionManager.derive_claims()
+  + Resource addressing **一次闭合**; 禁只修 UUID 不修 derive_claims
+  （否则"寻址 ID 正确、实际 Resource 错位"更隐蔽）。
+
+### 23.2 本轮交付: VBMF_A2_8_DUAL_INPUT 正式 Gate（gates/dual_input.rs）
+
+gates 模块族新增第六入口（bin/gates.rs 接线 + mod.rs; 生产 bin 零
+dispatch 不变）。五层验收链（§十一 冻结形态）:
+
+- **L0 形态 fail-closed**: manifest 双 Input port（含 connector/ordinal
+  声明）且分属两台设备——一块多输入卡拒绝（N×M 见独立 change）;
+- **L1a/b/c**: 双设备生产级 binding / Capability=SDK 位掩码证据
+  （**三列分记**: audio=video 推导工程事实不报独立探针）/ 双 Signal
+  Locked;
+- **L2a/b**: 双输入 Session（appsink 纯分析）+ ProgramExecutionRuntime
+  （Bridged switcher + 双 TapWiring + stop hook 接线）+ MediaTap 桥
+  簿记可查;
+- **L3**: Program video/audio 帧计数与 PTS 真实增长（非 PLAYING 态）;
+- **L4**: Input A/B + Bridge A/B + Program 三列 PTS 同采 pre/post +
+  A→B 切换（plan→begin→switch→observe→complete 全序）——**只测量不
+  normalize**;
+- **L5**: A fail→B alive（含 program 不受牵连）· recover A→桥真实复流
+  （assemble_bridge_health 窗口语义）· B fail→A alive · 故障域分类
+  不越域（真实观测行: 存活输入行=Program 域/停滞输入行=Input 域）·
+  Supervisor=recovery decision 非 switch executor 注记; Bridge 故障
+  注入验证属 A2-8-03（不伪造桥故障）;
+- **Teardown**: Session stop→hook→Program Stop→Tap Detach→Input
+  Stop→Release 全链 verdict。
+
+**入口 smoke（盒上真机）**: env 命中→真实 SDK discovery→registry→形态
+拒绝（hw-ident-02 无 port 声明 → ports=0 devices=0 fail-closed）——
+入口真实接线实证; 02-I 执行需 **v4 manifest（双卡各一条 Input port
+声明）**。
+
+### 23.3 02-I 阻塞最终态（十八轮 §十五 收敛）
+
+代码前置（十六轮三刀+十七轮两刀）与 **acceptance automation（本轮
+Gate）全部在仓**; 唯一阻塞 = **用户侧双 SDI 信号源 + 两块采集卡可占用
+窗口**（+现场 v4 manifest 双 Input port 声明）。collision closure /
+derive_claims / serial binding / audio capability 独立性 =
+PORT-IDENTITY-AND-RESOURCE-ADDRESSING 等独立 change, 不混入 02-I。
+
+盒上: mock **356**·bmd+gstreamer **226**·clippy 双组合 -D warnings
+clean·fmt clean·A2-8 gate 入口 smoke 落盘。

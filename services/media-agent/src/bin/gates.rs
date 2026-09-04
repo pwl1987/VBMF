@@ -1,8 +1,8 @@
 //! VBMF Media Agent Gates — Diagnostic / Acceptance Root（A2-0 归位后形态）。
 //!
-//! 五个真机验收 env 的**唯一**入口（生产 media-agent bin 对这些 env 零 dispatch）:
+//! 六个真机验收 env 的**唯一**入口（生产 media-agent bin 对这些 env 零 dispatch）:
 //!   VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE /
-//!   VBMF_REGISTRY_ONLY
+//!   VBMF_A2_8_DUAL_INPUT（A2-8-02-I 五层 Gate, 第十八轮 §十/§十五）/ VBMF_REGISTRY_ONLY
 //! Gate 逻辑在 lib `gates/` 模块族（逐字节迁自 main.rs, 行为零变）。
 //!
 //! **A20-03（用户裁定）: Gate 是 Consumer 不是 Bootstrapper**——本 bin 的全部
@@ -53,6 +53,19 @@ fn main() {
         &_world.internal_log,
     );
 
+    // A2-8-02-I（第十八轮 §十/§十五）: 双输入五层真机 Gate（两块独立单输入卡形态）。
+    #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+    media_agent::gates::dual_input::run(
+        &_world.config,
+        &_world.devices,
+        &_world.discovered,
+        &_world.lease_manager,
+        &_world.supervisor,
+        &_world.agent_state,
+        &_world.event_sink,
+        &_world.internal_log,
+    );
+
     // REGISTRY_ONLY 置底（原 main 中该探针在 supervisor 之后; 未命中任何 gate 时
     // 本 bin 无事可做——显式提示后退出, 绝不进入生产 runtime 循环）。
     #[cfg(feature = "hardware-test")]
@@ -60,7 +73,8 @@ fn main() {
 
     eprintln!(
         "media-agent-gates: 未命中任何 gate env \
-         (VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE / VBMF_REGISTRY_ONLY)"
+         (VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE / \
+         VBMF_A2_8_DUAL_INPUT / VBMF_REGISTRY_ONLY)"
     );
     std::process::exit(2);
 }

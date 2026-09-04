@@ -86,19 +86,28 @@
   （①PersistentId 证据门+src_props Result belt——persistent-id=0 盲开
   路径封死·②PortId 碰撞双层防线=证据面告警+registry 装配层 fail-closed,
   probe §22; **实证: 盒上两张 DeckLink SDI 双工卡 in/out 同 port_id
-  （e43d8f5a/f0f53b80）——collision closure 升格 02-I L1 硬前置候选**;
-  债务登记: audio capability 独立性·serial production binding·A2-8
-  Dual Input Gate 正式入口=02-I 首刀）; 02-I 真机 Gate 待用户双 SDI 窗口` | 
+  （e43d8f5a/f0f53b80）——十八轮终裁: collision closure=P1 架构债务非
+  02-I 阻塞（Manifest 只声明 Input 时 registry 无别名可继续）**; 新遗漏
+  实锤: derive_claims() 不消费 port_id 只取首个 "-input" resource=
+  P1/N×M debt; **登记独立后续 change PORT-IDENTITY-AND-RESOURCE-
+  ADDRESSING**: direction+connector+ordinal+PortId 迁移+Manifest+
+  PortRegistry.get()+derive_claims()+Resource addressing 一次闭合,
+  禁只修 UUID 不修 claims; 第十八轮: **VBMF_A2_8_DUAL_INPUT 正式 Gate
+  入口落地**（gates/dual_input.rs——L0 形态 fail-closed/L1 三列分记/
+  L2 双输入 Session+ProgramRuntime+Tap 桥/L3 帧增长非 PLAYING/L4 三列
+  PTS 只测量+切换全序/L5 隔离+recover 复流+故障域不越域/Teardown 停止
+  链; 盒上入口 smoke=真实 discovery→形态拒绝实证, probe §23））; 02-I
+  真机 Gate 待用户双 SDI 窗口` | 
   `Verification: mock 356·bmd+gstreamer 226（含真实跨管线桥接/多切换
   一致性/G/H 三列证据/liveness 降级锁死/persistent-id=0 拒绝/碰撞防线
   测试）·clippy 双组合 -D warnings clean·fmt clean; resolver gate 真机
-  复跑双工卡碰撞告警×2 落盘; 真机五层矩阵=02-I 执行` | `Gate: 02-A..02-H
-  全 CLOSED（probe §19-20）·02-I OPEN[代码前置全清（十六轮三刀+十七轮
-  两刀, probe §21-22）; L1-L5 定义含 Capability 独立结果+只测量不
-  normalize+L5≠A2-8-03; 硬件形态边界=两块独立单输入卡, 一块多输入卡
-  不支持（N×M 冻结）; **新增待裁决: collision closure（双工卡 in/out
-  同 port_id 实证, direction 入键或等效）——L1 端口寻址前置**]——阻塞=
-  用户侧双 SDI 信号源+采集卡占用窗口+closure 裁决`
+  复跑双工卡碰撞告警×2 落盘; 真机五层矩阵=02-I 执行（VBMF_A2_8_DUAL_
+  INPUT+现场 v4 双 Input port 声明 manifest）` | `Gate: 02-A..02-H
+  全 CLOSED（probe §19-20）·02-I OPEN[代码前置（十六轮三刀+十七轮两刀）
+  +acceptance automation（十八轮正式 Gate 入口）全在仓, probe §21-23;
+  硬件形态边界=两块独立单输入卡（collision closure/derive_claims/
+  serial binding/audio 独立性=独立 change 不混入, 十八轮 §十二/§十三）]
+  ——**唯一阻塞=用户侧双 SDI 信号源+两卡可占用窗口**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
