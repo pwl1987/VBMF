@@ -73,8 +73,19 @@
   生命周期→02-F intervideo A/B 真机桥接→02-G Program Output
   observation→02-H Timing/PTS measurement→02-I 真机双 DeckLink 验证**
   `Contract: 第四轮五层+第五轮 Integration 重定义（probe §9.3+§10）` | 
-  `Implementation: 待（编码已批准, 按修正范围）` | 
-  `Verification: 真机 Gate + 五层矩阵` | `Gate: 02-A..02-I 序`
+  `Implementation: 02-A..02-H 已（十六刀提交链至 19326e8: E-1..E-6
+  SessionStopHook+ProgramExecutionRuntime[creator=destroyer·close-path
+  E-6]→F-01 唯一构造 bundle 三 trait view[backend/media_tap/bridge_
+  observation 同一 Arc controller]→F-02 组合根接线+双输入回滚→F-03/
+  F-04 Bridged inter 真机桥接+十项证据链→F-05 多切换+TargetAlready
+  Active 真纵深修复→G/H BridgeObservation 一等事实+三列 PTS+recover
+  降级+故障域[probe §19]→G/H-1 liveness 观察时钟窗口语义+tap_channel
+  唯一来源收尾[probe §20]）; 02-I 真机 Gate 待用户双 SDI 窗口` | 
+  `Verification: mock 345·bmd+gstreamer 213（含真实跨管线桥接/多切换
+  一致性/G/H 三列证据/liveness 降级锁死测试）·clippy 双组合 -D
+  warnings clean·fmt clean; 真机五层矩阵=02-I 执行` | `Gate: 02-A..02-H
+  全 CLOSED（probe §19-20）·02-I OPEN——唯一阻塞=用户侧双 SDI 信号源
+  +采集卡占用窗口`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

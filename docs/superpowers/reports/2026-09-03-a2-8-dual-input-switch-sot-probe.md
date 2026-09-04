@@ -796,3 +796,87 @@ observed 归零而输入健康仍在推进——Input healthy 与 Program failed
 不混淆]。禁项: PTS/Session/Supervisor/PipelinePlan/N-input 零触碰。
 F-05 后 G/H 合并为观测与时间线证据大刀[三列 Input/Bridge/Program
 PTS]→Timeline Normalization 裁决。
+
+---
+
+## 19. 第十四轮终裁：G/H 四验证面 PASS* + BridgeObservation 一等事实（2026-09-04 落盘）
+
+> 证据基线: 远端 `3378651` 实码交叉核查（不接受自报 213 passed 为证）。
+> F-05 正式 CLOSED[TargetAlreadyActive 修复=真纵深缺口非测试噱头]。
+
+### 19.1 G/H 四验证面裁决（probe §18.2 范围兑现）
+
+- **① Bridge primitive 一等事实: PASS**——`BridgeObservation` ≠
+  `MediaTapAttachment` 分层成立[静态 attachment/recover replay fact vs
+  动态 runtime observation fact]·来源=tap 分支 sink pad
+  `PadProbeType::BUFFER` 真实 buffer probe（tee→tap branch→probe→
+  intervideosink——非复制 Input/Program 统计·非构造期假 frames+=1）;
+- **② 三列 PTS 独立测量: PASS**——TimelineSample 六 PTS 列
+  [Input/Bridge/Program × video/audio]各带 PtsMonotonicity·三源独立
+  join[Input=PipelineHealth·Bridge=BridgeObservation·Program=
+  ProgramObservation]——非"三列两份数据"复制（mock 测试六列互异反证）;
+- **③ recover 降级结构化: PASS**——BridgeHealthReport
+  {pipeline_recovered·expected_channels·observed_alive_channels·
+  bridge_degraded}观测查询组装·recover=Ok+expected tap 在+桥无流量
+  =degraded——**MediaBackend::recover() 返回类型零改动**（§18.1
+  RECOVER_PARTIAL_DEGRADED 债务在观测面兑现）;
+- **④ failure-domain 区分: PASS**——classify_failure_domain{None/
+  Input/Bridge/Program}单故障假设·优先序 Input>Bridge>Program·
+  多故障如实报首因——**禁扩张为 multi-fault root-cause engine**。
+
+### 19.2 结构终裁（无新冲突）
+
+ownership 四面清白: ProgramExecutionRuntime creator=destroyer 不变·
+Session 仅经 SessionStopHook 触发 teardown·bundle 三 trait view 同一
+`Arc<GStreamerPipelineController>` 单次构造（instances/bridge_stats/
+media_taps 不分裂）·V0.2 无偷渡（Bridge=Execution-layer observation
+非 13th Engine·不碰 Master Join/ProgramMaster）。N×M 边界+tap_channel
+搬迁债务维持冻结。
+
+盒上: mock 345[342+3]·bmd+gstreamer 213[212+1: gh_three_column_
+observation_evidence——三列同采六 PTS 全在场+桥 probe 帧递增+recover
+后双 channel 实测流通不降级+三域分类]·clippy 双组合 clean·fmt clean。
+
+---
+
+## 20. 第十五轮终裁：G/H-1 两项微修 → G/H 星号解除（2026-09-04 落盘）
+
+> 证据基线: 远端 `3378651` 实码。G/H 方向 PASS 不返工·不为 F-01..05
+> 重开 review·PTS normalization 继续冻结。
+
+### 20.1 必修① tap_channel 唯一来源收尾
+
+registry.rs 真实 runtime tap 生命周期测试残留 `format!("tap-{a}"/
+"tap-{b}")` ×2 → `tap_channel(a)/(b)`——**全仓库唯一约定来源彻底
+成立**[残存 `tap-` 字面量仅两处: tap_channel 本体（program_execution
+.rs:34）+ controller `tap_element_name` 元素名（detach 定位锚·非桥
+地址约定）]。
+
+### 20.2 必修② Bridge liveness「当前推进」语义（§5-8）
+
+- 缺陷: 帧基 alive=`ever_observed_alive` 非 `currently_alive`
+  [frames=10_000 断流后仍 alive=I 真机误判源·Input healthy+Bridge
+  falsely healthy+Program stalled 三态错判];
+- **BridgeObservation 本体不加 wall-clock**（PTS=媒体时序·wall clock=
+  观察时序**严格分离**·禁塞 sampled_at 进 last_pts·禁 PTS 差值当
+  liveness——保护 Timeline Normalization 证据纯净）→ 窗口判定在
+  port 层: **BridgeChannelLiveness{frames=历史证据·last_observed_
+  at_ms=活性证据·alive_in_window}+bridge_liveness(handle, window_ms)**;
+- 落地: controller BridgeStat.last_observed_ms+bridge_clock_origin
+  [probe 闭包记录观察时刻]·assemble_bridge_health 第三参改
+  `&[BridgeChannelLiveness]` 以 alive_in_window 判活·mock bridge_stall
+  钩子+测试锁死「b frames=10_000 但窗口外→degraded」（帧基漏报根因
+  场景）+从未观测→降级+recover 失败不虚报;
+- §11 program_alive 弱语义: **不改 ProgramObservation**——evidence 层
+  program_progress_since/input_progress_since 采样增量分离[曾经活过≠
+  当前推进];
+- **MediaTapPort 契约零改动·recover 返回类型零改动·PTS 行为零触碰**。
+
+### 20.3 状态
+
+G/H 星号（current liveness window 未建立）**解除**。盒上: mock 345·
+bmd+gstreamer 213·clippy 双组合 -D warnings clean·fmt clean（提交
+`19326e8`）。**下一步 = 02-I 真机双 DeckLink 五层 Gate**——链
+discovery→Device/Port→Pipeline→MediaTap→Bridge→Program→A/B switch→
+failure isolation→recover 代码全就绪零阻塞; 唯一前置=用户侧双 SDI
+信号源+采集卡占用窗口。
