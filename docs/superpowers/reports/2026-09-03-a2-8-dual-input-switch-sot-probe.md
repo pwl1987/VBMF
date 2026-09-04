@@ -1336,18 +1336,98 @@ Fail 兜住——纵深防御实证）。重新 build fe71b7c 后 run2:
 
 run1↔run2 同硬件同条件正反对照 = H1 hardening 的最强真机验证。
 
-### 27.4 §11 分类裁决: **B 类（硬件/输入条件）——零代码改动**
+### 27.4 §11 分类裁决: **B 类 Real Hardware / Runtime Environment Preconditions——零代码改动**
+
+> **二十一轮精度修正（probe §28.2）**: 分类正式定名 **B 类 Real
+> Hardware / Runtime Environment Preconditions**——当前证据仅证明
+> "该环境不满足 02-I 验收前置", **不证明、也不得写成"已定位某一具体
+> 硬件故障根因"**。
 
 1. SDI-IN-1: gst 可开（dn=1）但**无 SDI 信号接入**（08-27 rt01 时代
-   signal=true, 今日 false——信号源未接/已断）;
+   signal=true, 今日 false——信号源未接/已断）——可直接归入硬件/输入
+   条件;
 2. SDI-IN-2: **gst 输入不可开（稳态, 复跑持续）**——仅 device 0/1 可开
    （0=Mini Monitor, 1=SDI-IN-1）; 08-27 时代 device 2=SDI-IN-2 可开,
-   今日 2-7 全 StateFailed。候选根因（用户侧可查）: BMD duplex 端口
-   方向配置（Desktop Video Setup 端口设为输出）/驱动状态/卡占用,
-   或需重启盒。
-   
+   今日 2-7 全 StateFailed。**证据边界: 只证明"当前 Runtime Environment
+   无法获得 SDI-IN-2 的可用 GStreamer binding", 不证明唯一根因**——
+   候选（未定, 用户侧排查）: B1 duplex 端口方向配置 / B2 Desktop Video
+   状态 / B3 驱动状态 / B4 卡被其他进程占用 / B5 设备注册状态 / B6 需
+   重启盒 / B7 硬件本身异常 / B8 Runtime probe/OS 设备枚举环境异常。
+
 Gate/Preflight 行为全部正确（fail-closed 精确）; 无 A 类（代码缺陷）
 无 C 类触发。**02-I 硬件前置细化为: ① 双 SDI 信号源接入两卡输入
-②SDI-IN-2 gst 输入可开性恢复**。恢复后无需再改 manifest（v4 已就位,
-届时以当日 Discovery 复核 gst 号即可）, 直接复跑
-`VBMF_A2_8_DUAL_INPUT=1`。
+②SDI-IN-2 gst 输入可开性恢复**。恢复后**无需修改代码; 但必须重新以
+当日 Discovery 核验 manifest 的 runtime binding（device-number=Runtime
+instance address 非 Device Identity, 重枚举后编号可能变化）, 若
+device_number 发生变化则据实更新 v4**, 再复跑 `VBMF_A2_8_DUAL_INPUT=1`
+（完整执行序①-⑧=probe §28.3）。
+
+## 28. 第二十一轮裁决（基线 `d0ffff9`）: APPROVED / FROZEN / GO 维持——02-I=B 类前置条件未满足（根因未证明）+ 账本三处精度修正
+
+### 28.1 终裁
+
+> **维持 APPROVED / FROZEN / GO。02-I 当前不是"代码失败", 而是"真机
+> 前置条件未满足"。`fe71b7c` 仍为 A2-8 Implementation Freeze;
+> `d0ffff9` = Real Hardware Evidence / B-class FAIL 账本提交（非代码
+> 修复提交）; 02-I = OPEN; 代码 = 禁止修改——本轮禁改一行 A2-8 代码。**
+
+用户侧独立核验（GitHub 实物）与本侧复核实一致: fe71b7c→d0ffff9
+ahead 3 / behind 0, 仅 tasks.md+probe 两文件, `services/media-agent/
+src/**` 零变化——实现未被真机测试偷改, §1 正式 CLOSED。H1/H2/H3 经
+真实代码+本次真机行为一致验证 **CLOSED**（H1=L1 fail-stop/exit 2/
+零 Session——Gate 正确拒绝了不满足验收前置的硬件系统, 非"跑失败";
+H2=`input_resource_id_for_port` 单一派生源+L1d 反向闭环, 真机 PASS
+强证据; H3=Manifest→PortRegistry→validated PortId→SourceIntent.
+port_id=Some→materialize 精确匹配, 全链非假闭环）。Session 层/
+Resource 状态机未被 A2-8 污染（SessionManager 仍为唯一创建/销毁者;
+L1 fail 发生在 Session.create 与 Resource.allocate 之前=零 runtime
+污染的理想失败位; Available→Reserved→Allocated→Releasing→Available
+链未被越权改写）。L1a FAIL/L1b PASS/L1c FAIL/L1d PASS 组合=系统正确
+分离 **Capability ≠ Runtime Binding ≠ Signal ≠ Resource** 四层
+（audio=video-推导的工程事实已在证据表标注=证据纪律守住）。
+
+### 28.2 账本三处精度修正（本轮落实, §27.4 已按此改写）
+
+1. **B 类表述降级**: SDI-IN-2 gst 不可开暂归 **B 类 Real Hardware /
+   Runtime Environment Preconditions**, 非已证明的单一硬件故障根因
+   ——证据只支持"Runtime Environment 无法获得可用 GStreamer
+   binding", 候选 B1..B8（含新增 B8=Runtime probe/OS 设备枚举环境
+   异常）, 禁断言唯一根因;
+2. **v4 manifest 复核义务**: "恢复后无需再改 manifest"→**"恢复后
+   无需修改代码; 必须重新以当日 Discovery 核验 manifest 的 runtime
+   binding, 若 device_number 发生变化则据实更新 v4"**（架构自身
+   规定 device-number=Runtime instance address 非 Device Identity,
+   重枚举后编号可能变为 2/3/其他）;
+3. **时间戳审计**: d0ffff9 提交消息/文档记 2026-09-04 而仓库系统
+   日期 2026-09-03 = **evidence host clock / timezone mismatch**
+   （盒钟先跨日; 不影响技术裁决, 影响 Evidence Package 时间线审计）
+   ——后续真机复跑证据必须同录 `date -u` / `date` / `timedatectl` /
+   `git rev-parse HEAD` 四件套。
+
+### 28.3 02-I 复跑执行序（①-⑧, 冻结）
+
+```text
+① 两路真实 SDI source 接入
+② 排查 SDI-IN-2 为什么无法被 GStreamer open（B1..B8 逐一排查）
+③ 修复后重新 Discovery
+④ 核验当日 gst_device_number
+⑤ 必要时据实刷新 v4 manifest
+⑥ cargo build --features bmd,gstreamer --bin media-agent-gates
+   （普通可执行档必须显式刷新——cargo test/clippy 不刷新;
+   run1/run2 陈旧 bin 正反对照已实证其必要性）
+⑦ L0 → L5 → Teardown
+⑧ 全量 Evidence Package（含 28.2-3 时间戳四件套）
+```
+
+结果 PASS=A2-8 收口路径; FAIL=按 A/B/C 分类（A=新 change / B=修环境
+不改码 / C=禁临时改架构）, 禁为跑绿改代码。
+
+### 28.4 债务账本（C 类, 全 OPEN 不为 02-I 临时修）
+
+derive_claims 首输入寻址 / PortIdentity direction 入键 / Analog
+connector folding / audio capability 独立 SDK 证据 / Serial identity
+binding / canonical UUID namespace 统一 / tap_channel 层级归属 /
+Production API 503 / PTS normalization execution gap / N-input
+general switch——其中 PortIdentity direction 修复若启动必须一次性
+联动 PortIdentity→PortId→Manifest→PortRegistry→ResourceRegistry→
+derive_claims→Session, 禁只改 UUID 公式。

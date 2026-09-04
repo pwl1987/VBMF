@@ -130,13 +130,23 @@
   **02-I 真机首跑已执行（2026-09-04, probe §27 零代码）: v4 manifest
   已据实生成; fe71b7c bin 下 L0/H4/L1b/L1d PASS（H2 闭环真机成立）
   + L1a/L1c FAIL → H1 fail-stop 精确触发零会话创建; §11 裁决=B 类
-  硬件（SDI-IN-1 无信号·SDI-IN-2 gst 输入稳态不可开[仅 device 0/1
-  可开, 08-27 时代 device 2 可开]）; run1 陈旧 cb78adc bin 对照=十九轮
+  Real Hardware / Runtime Environment Preconditions（SDI-IN-1 无信号·
+  SDI-IN-2 gst 输入稳态不可开[仅 device 0/1 可开, 08-27 时代 device 2
+  可开]; 二十一轮精度修正: 根因未证明, 候选 B1..B8）; run1 陈旧
+  cb78adc bin 对照=十九轮
   §3 P0 真机活体演示（教训: gates 真机复跑前必须 cargo build bin）;
   证据归档盒 ~/a2-8-02i-evidence/**
   ]——**硬件前置细化: ①双 SDI 信号源接入两卡输入 ②SDI-IN-2 gst 输入
-  可开性恢复（查 Desktop Video duplex 方向/驱动/重启）; 恢复后直接
-  复跑 VBMF_A2_8_DUAL_INPUT（v4 已就位, 届时复核当日 gst 号）**`
+  可开性恢复（候选 B1..B8 未定, 用户侧排查）; 恢复后无需修改代码,
+  但必须以当日 Discovery 核验 runtime binding, device_number 变化
+  则据实更新 v4（device-number=Runtime instance address 非 Device
+  Identity）再复跑**; **第二十一轮 APPROVED/FROZEN/GO 维持
+  （probe §28, 零代码）: 02-I≠"代码失败"而是 B 类前置条件未满足
+  ——A 类 NONE FOUND, C 类十项 OPEN 禁为 02-I 临时修; d0ffff9 记
+  2026-09-04/仓库 2026-09-03=evidence host clock/timezone mismatch
+  （不影响技术裁决, 影响时间线审计）——复跑证据须同录 date -u/date/
+  timedatectl/git rev-parse HEAD; 复跑执行序①-⑧=probe §28.3（⑥显式
+  cargo build --bin media-agent-gates 必须）**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
