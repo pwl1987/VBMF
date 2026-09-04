@@ -58,9 +58,11 @@ impl std::fmt::Display for MediaPlane {
 /// （Freeze §4 照录——保存 Segment 结构, 非 last_program_pts 单值）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnchorPair {
-    /// Program 时间线连续性锚（B 首帧应落位的 Program 位置——Adapter 观测）。
+    /// Program 时间线连续性锚（transition boundary 的已观测 Program 帧
+    /// ——Adapter 观测原值; 第四十轮 α: 不做节拍外推）。
     pub program_anchor: u64,
-    /// Source B 连续性锚（B 侧对应帧的源 PTS——Adapter 观测）。
+    /// Source B 连续性锚（transition boundary 对应的已观测 target
+    /// Source 帧——Adapter 观测原值）。
     pub source_anchor: u64,
 }
 

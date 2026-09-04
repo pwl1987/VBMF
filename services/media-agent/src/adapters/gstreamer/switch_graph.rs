@@ -94,10 +94,14 @@ impl TimelineExecutionState {
 }
 
 /// C-TIMELINE-01 ①: per-plane per-branch PTS 观察（selector sink pad 探针
-/// 写入; 锚采样读——纯观测无声明; last PTS + 步长/节拍估计）。
+/// 写入——纯观察证据）。第四十轮 α 边界帧锚修正: 锚采样只消费 last_pts;
+/// last_delta 不再参与声明锚（观察事实与 timeline 声明输入解耦）。
 #[derive(Default, Clone, Copy)]
 struct BranchObs {
     last_pts: Option<u64>,
+    /// 分支节拍观察事实（探针持续记录; 四十轮裁决: 保留供稳定性/格式/
+    /// 帧周期证据与后续诊断——**不参与声明锚**, 故 allow(dead_code))。
+    #[allow(dead_code)]
     last_delta: Option<u64>,
 }
 
@@ -801,9 +805,11 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         target: Uuid,
     ) -> Result<SwitchAnchors, SwitchError> {
         // C-TIMELINE-01 ①: 锚=纯观测（**不产 offset**——offset 归
-        // TimelineAuthority 声明[第三十二轮 §七硬条件]）。program 连续性锚=
-        // 出口实测 last PTS + active 分支节拍; target 源连续性锚=target 分支
-        // last PTS + target 节拍。缺席=无证据 fail-closed（absence≠evidence）。
+        // TimelineAuthority 声明[第三十二轮 §七硬条件]）。第四十轮 α
+        // 边界帧锚修正: 锚=已观测边界帧原值——Program 连续性锚=出口实测
+        // last PTS, target 源连续性锚=target 分支实测 last PTS; 分支节拍
+        // (last_delta)不再外推锚（原 +节拍使声明边界恒领先首枚映射帧
+        // 一帧）。缺席=无证据 fail-closed（absence≠evidence）。
         let graphs = self.graphs.lock().unwrap();
         let g = graphs
             .get(graph)
@@ -821,13 +827,11 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             .pad_index
             .get(&target)
             .ok_or_else(|| SwitchError::Backend("selector pad 索引缺失".into()))?;
-        let active_dev = g
-            .active
-            .ok_or_else(|| SwitchError::Backend("无 active——锚采样无基准".into()))?;
-        let active_idx = *g
-            .pad_index
-            .get(&active_dev)
-            .ok_or_else(|| SwitchError::Backend("active pad 索引缺失".into()))?;
+        // active 存在性门（出口有当前源在流——pv 语义前提; 第四十轮 α:
+        // 节拍消费移除后 active 分支不再参与锚）。
+        if g.active.is_none() {
+            return Err(SwitchError::Backend("无 active——锚采样无基准".into()));
+        }
         // 翻转前采样: program 出口实测位置（pre-mapping——此时出口=旧源流）。
         let ph = crate::pipeline_events::read_health(graph);
         let (Some(pv), Some(pa)) = (
@@ -839,30 +843,21 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             ));
         };
         let obs = g.branch_obs.lock().unwrap();
-        let need = |o: &BranchObs, what: &str| -> Result<u64, SwitchError> {
-            o.last_delta.ok_or_else(|| {
-                SwitchError::Backend(format!("{what} 分支节拍证据不足——锚缺席 fail-closed"))
-            })
-        };
         let need_pts = |o: &BranchObs, what: &str| -> Result<u64, SwitchError> {
             o.last_pts.ok_or_else(|| {
                 SwitchError::Backend(format!("{what} 分支 PTS 证据不足——锚缺席 fail-closed"))
             })
         };
-        let video_anchor_delta = need(obs.branch(MediaPlane::Video, active_idx), "active-video")?;
-        let audio_anchor_delta = need(obs.branch(MediaPlane::Audio, active_idx), "active-audio")?;
         let target_v = need_pts(obs.branch(MediaPlane::Video, target_idx), "target-video")?;
-        let target_v_delta = need(obs.branch(MediaPlane::Video, target_idx), "target-video")?;
         let target_a = need_pts(obs.branch(MediaPlane::Audio, target_idx), "target-audio")?;
-        let target_a_delta = need(obs.branch(MediaPlane::Audio, target_idx), "target-audio")?;
         Ok(SwitchAnchors {
             video: AnchorPair {
-                program_anchor: pv.saturating_add(video_anchor_delta),
-                source_anchor: target_v.saturating_add(target_v_delta),
+                program_anchor: pv,
+                source_anchor: target_v,
             },
             audio: AnchorPair {
-                program_anchor: pa.saturating_add(audio_anchor_delta),
-                source_anchor: target_a.saturating_add(target_a_delta),
+                program_anchor: pa,
+                source_anchor: target_a,
             },
         })
     }
@@ -1166,6 +1161,90 @@ mod tests {
             ));
         }
         runtime.teardown();
+    }
+
+    #[test]
+    fn switch_graph_rt_03_anchor_declaration_excludes_branch_cadence() {
+        // 第四十轮 α（P1-A=「边界帧锚修正」）回归锁: 声明锚=已观测边界帧
+        // 原值——分支节拍(last_delta)不得参与锚; 未来把 delta 加回外推,
+        // 本测即翻。裁决例值: active/target 节拍各异(33,333,333/33,333,334)
+        // ⇒ program_anchor==pv、source_anchor==target_v（非 pv+delta/
+        // target_v+delta）。纯状态构造（无 PLAYING/无流线程——受控节拍
+        // 不被真实缓冲覆写, 断言确定性）。
+        gstreamer::init().expect("gst init");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let graph = PipelineHandle(977_003);
+        let branch_obs = Arc::new(Mutex::new(BranchObservations::default()));
+        {
+            let mut obs = branch_obs.lock().unwrap();
+            *obs.branch_mut(MediaPlane::Video, 0) = BranchObs {
+                last_pts: Some(966_666_667),
+                last_delta: Some(33_333_333),
+            };
+            *obs.branch_mut(MediaPlane::Video, 1) = BranchObs {
+                last_pts: Some(900_000_000),
+                last_delta: Some(33_333_334),
+            };
+            *obs.branch_mut(MediaPlane::Audio, 0) = BranchObs {
+                last_pts: Some(994_000_000),
+                last_delta: Some(1_000_000),
+            };
+            *obs.branch_mut(MediaPlane::Audio, 1) = BranchObs {
+                last_pts: Some(895_000_000),
+                last_delta: Some(1_000_001),
+            };
+        }
+        // 出口健康弧播种: pv=1,000,000,000 / pa=995,000,000。
+        crate::pipeline_events::HEALTH_ARCS.lock().unwrap().insert(
+            graph,
+            Arc::new(Mutex::new(crate::pipeline::PipelineHealth {
+                video_last_pts: Some(1_000_000_000),
+                audio_last_pts: Some(995_000_000),
+                ..Default::default()
+            })),
+        );
+        let adapter = GStreamerSwitchAdapter::default();
+        adapter.graphs.lock().unwrap().insert(
+            graph,
+            SwitchGraph {
+                devices: [a, b],
+                input_handles: [(a, PipelineHandle(977_011)), (b, PipelineHandle(977_012))],
+                started: true,
+                initial_active: a,
+                active: Some(a),
+                av_epoch: 0,
+                degraded: false,
+                pipeline: gstreamer::Pipeline::builder().name("anchor-rt03").build(),
+                video_selector: make_element("input-selector", "anchor-rt03-video-sel")
+                    .expect("video selector 构造"),
+                audio_selector: make_element("input-selector", "anchor-rt03-audio-sel")
+                    .expect("audio selector 构造"),
+                pad_index: HashMap::from([(a, 0), (b, 1)]),
+                timeline: Arc::default(),
+                branch_obs,
+            },
+        );
+
+        let anchors = adapter.sample_switch_anchors(&graph, b).expect("锚采样");
+        // 反证: 若节拍参与锚, video.program_anchor=1,033,333,333、
+        // video.source_anchor=933,333,334——以下断言即翻。
+        assert_eq!(
+            anchors.video.program_anchor, 1_000_000_000,
+            "program_anchor=出口实测 pv 原值（节拍 33,333,333 不得外推）"
+        );
+        assert_eq!(
+            anchors.video.source_anchor, 900_000_000,
+            "source_anchor=target 分支实测 last PTS（节拍 33,333,334 不得外推）"
+        );
+        assert_eq!(
+            anchors.audio.program_anchor, 995_000_000,
+            "audio program_anchor=pa 原值（节拍不外推）"
+        );
+        assert_eq!(
+            anchors.audio.source_anchor, 895_000_000,
+            "audio source_anchor=target 分支实测原值（节拍不外推）"
+        );
     }
 
     #[test]
