@@ -551,7 +551,25 @@
   Supervisor/SPI]; 后续序=修改→fmt→矩阵→bin rebuild→真机→核对 14/14→
   NewEpoch P1 独立刀→Final Close→A2-8-05 archive; grace 初值 15s=实测
   下界 t0+11s 仍推进+余量·不足则证据回裁; 隔离队列维持[pad_unlink ×4/
-  MainContext WARN 不顺手修]]**
+  MainContext WARN 不顺手修]]**; **执行（主账 §47+设计探针 §24）:
+  3c0b2af 单文件 +18 行**[L5_PROGRAM_DRAIN_GRACE 15s 常量+5.3 t0 锚点+
+  5.4 q1 前 wait_until 剩余等待·q1/GAP/q2/classify 判据零变化·禁改九面
+  零触碰]; 盒矩阵 fmt 绿/default 217/mock 381/bmd+gst 240/clippy×2 绿·
+  bin baf5f895·sha 80/81 唯 DIFF=Cargo.lock[盒 cargo v4 重写·Cargo.toml==
+  HEAD·历史清单不含 lock·非本轮引入·披露]; **真机复跑（09-05 00:47 CST,
+  证据盒 2026-09-05-0047-r35-l54-anchor, run.log sha 23a5f860）: 9/10
+  复现——L4 PASS 连续第四次[Preserve·epoch 0·offset 130924ns 逐 ns
+  6969781703+130924==6969912627·V/A Continuous·无未声明回退]; L5.1/5.2/
+  5.3 PASS[recover(A) handle=1 tap 重放成功]; Teardown PASS; **唯 L5.4
+  FAIL: runway 新下界 >18s**[t0+15..18 仍推进·时间线闭合 q1=t0+15.0/
+  q2=t0+18.0/recover(B) handle=2 重放成功 00:48:01.147/Teardown 00:48:
+  04.149——锚定机制精确执行; 机制实锚=inter sink 在输入管线内 tee 挂接
+  controller.rs:645-666·B Paused 冻结属实·余流=inter shm 积压·容量由
+  inter 插件内部语义决定仓库代码不可见; 与固定大积压或"积压≈冻结前
+  B 生产窗（本跑 ~25.5s）"两假设均相容; 候选待裁 ①grace 15→30s
+  ②①+q1/q2 帧计数 print（观测性一行·推荐）③eventually-stalled-deadline
+  语义升级]**; 14 项中 13 PASS 维持; 工件 converter×6 间歇/pad_unlink×4/
+  MainContext×2 隔离队列]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

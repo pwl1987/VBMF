@@ -1139,3 +1139,14 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   是 Gate 观测时序问题, 非 Timeline 语义; L4 九项合取判据零变化。
 - NewEpoch rebase P1 + on_mapped_buffer DiscontinuityDeclared P1 维持
   （Final Close 前必修, 与 L5.4 修复严格分刀·不混修）。
+
+## 24. 第三十六轮执行跨账: 方案②落地 + 真机 9/10 复现; L4 连续第四次 PASS（2026-09-05）
+
+- 主账 §47: fault-t0 锚定 + 15s drain grace 落地（3c0b2af 单文件 +18 行）;
+  真机 9/10——L5.4 runway 新下界 >18s（B 类维持·三候选回裁·推荐
+  ②grace 30s+q1/q2 帧计数 print）。锚定机制时间线闭合: q1=t0+15.0·
+  q2=t0+18.0（tracing 时间戳重建）。
+- **C-TIMELINE-01 域零触碰确认**: Timeline 代码零 diff; **L4 九项合取
+  连续第四次真机 PASS**（Preserve·epoch 0·offset 130924ns 逐 ns 闭合·
+  V/A Continuous·undeclared_backward_jump=None）——Preserve 路径四跑四证。
+- NewEpoch rebase P1 / DiscontinuityDeclared P1 不变（Final Close 前必修）。

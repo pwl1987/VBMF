@@ -2476,3 +2476,61 @@ MainContext already-acquired WARN 复现于 recover(B) 新管线建立前
 - grace 初值=15s 依据: 真机 2026-09-05 00:19 实测 t0+8..11s program 仍
   推进（runway 下界 >11s）→15s=下界+~4s 余量; 若复跑仍见推进=新下界
   证据回裁, 禁无裁决自行调参。
+
+## 47. 第三十六轮执行 — 方案②落地 + 真机复跑: 9/10 复现, L5.4 runway 新下界 >18s（留证·零后续改码）
+
+### 47.1 交付（commit 3c0b2af, 单文件 +18 行）
+
+- `L5_PROGRAM_DRAIN_GRACE = 15s` 常量（含依据注释: R34 实测下界 t0+11s+余量）。
+- 5.3 `inject_stall(&h_b)` 后 `fault_started_at = Instant::now()` 锚点。
+- 5.4 q1 前 `wait_until(fault_started_at + grace)`（`saturating_duration_since`
+  剩余等待——前置 L5_WAIT/桥检查/a1a2 已耗时间自动折算, 不随流水 sleep 漂移）。
+- q1/GAP/q2/classify 判据零变化; §46.3 禁改九面零触碰（diff 仅 dual_input.rs）。
+- 盒矩阵: fmt --check 绿 · default 217 · mock 381 · bmd+gst 240 · clippy×2 绿;
+  gates bin 重建 `baf5f895`。
+- sha 清单（81 文件全列·较历史 70 文件清单扩大）: **80/81 符**, 唯一
+  DIFF=Cargo.lock（盒 cargo 较新 lockfile v4 消歧格式重写+少量传递依赖
+  显式化; Cargo.toml==HEAD; 历史 70 文件清单从不含 lock——**非本轮引入**,
+  零语义影响, 披露不阻断）。
+
+### 47.2 真机复跑（2026-09-05 00:47 CST; 证据盒 `~/a2-8-02i-evidence/2026-09-05-0047-r35-l54-anchor`; header 五件套+bin/manifest sha; run.log sha `23a5f860`）
+
+EXIT=2 **9/10**（失败集仍 {L5.4} 单项）:
+
+| Verdict | 结果 |
+| --- | --- |
+| L1a-d / L2a / L2b / L3 | PASS（dn0/dn1 signal=true·tap 82/81·L3 120→210 ValidMonotonic） |
+| **L4 switch+timeline** | **PASS（连续第四次）**——Preserve·epoch 0·offset 130924ns·src 6969781703+130924==6969912627 逐 ns·V/A Continuous·undeclared_backward_jump=None |
+| L5.1 / L5.2 / L5.3 | PASS（recover(A) tap 重放成功 handle=1, 00:47:35.386） |
+| L5.4 故障域不越域 | **FAIL**——A行=None（期望 Program）; B行=Input ✓ |
+| Teardown | PASS（session_stop=true·inactive=true·released=true） |
+
+### 47.3 锚定机制执行精确性（时间线闭合证明）
+
+tracing 时间戳重建: t0(B inject)≈00:47:42.5 → q1=t0+15.0 → q2=t0+18.0 →
+recover(B) tap 重放成功 handle=2（00:48:01.147）→ Teardown（00:48:04.149,
+pad_unlink ×4 同刻）。**wait_until 语义按设计精确执行**（前置消耗 ~8s
+自动折算为 ~7s 剩余等待）。
+
+### 47.4 L5.4 新证据与定性（维持 B 类·零后续改码）
+
+- prog_adv2=true 于 [t0+15, t0+18] ⇒ **排空 runway >18s**（R34 下界 >11s
+  再推高）。两跑数据与"固定大积压（任意 >18s）"一致, 亦与"积压≈冻结前
+  B 生产窗"的累积假设一致——本跑 B 生产窗 ≈00:47:17→t0 ≈25.5s。
+- 机制实锚: inter sink（tap）在**输入管线内** tee 挂接（controller.rs:645-666
+  `attach_tap_to_instance`·sync_state_with_parent）——B Paused 冻结其
+  inter sink 属实（bridgeB_alive=false 旁证）; program 侧唯一余流=inter
+  shm 积压（intervideosrc(B)→selector→queue→appsink·sync=false）。积压
+  容量/排空速率由 inter 插件内部语义决定, 仓库代码不可见。
+- **候选待裁（本轮零后续改动）**: ①grace 15s→30s（覆盖累积假设 ~26s
+  生产窗+裕量; 仍是方案②框架内单 knob 调参）②①+5.4 证据行打印 q1/q2
+  program 帧计数（Gate 观测性一行·不改判据; 无论 PASS/FAIL 下次精确钉
+  runway）③语义升级 eventually-stalled-with-deadline（grace 后循环采样
+  至观测停滞或超 deadline; 最强语义·需新裁决）。**推荐②**。
+- 02-I 收口清单: 14 项中 13 PASS 维持, 唯 L5.4。
+
+### 47.5 工件（隔离队列维持）
+
+converter interlace 断言 ×6（历跑 9·间歇性）; pad_unlink CRITICAL ×4
+（teardown 时刻复现）; MainContext already-acquired WARN ×2（两次 recover
+各一·无功能影响·recover tap 重放成功 ×2 同批）。
