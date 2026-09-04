@@ -1177,3 +1177,68 @@ fmt clean（文件回拉同步）· mock **356**·bmd+gstreamer **230**（226+4
 - 冻结维持: 不碰 derive_claims/PortIdentity v2/PTS normalization/N 输入/
   Supervisor-as-executor/`MediaBackend::recover()` SPI——皆属
   PORT-IDENTITY-AND-RESOURCE-ADDRESSING 或 A2-8-03/04/05。
+
+## 25. 第十九轮最终裁决（基线 `fe71b7c`）: APPROVED——Gate Hardening CLOSED, 进入 02-I 真机
+
+### 25.1 终裁要点
+
+> **APPROVED — A2-8 Gate Hardening CLOSED。`fe71b7c` 保留并冻结为 A2-8
+> 当前验收候选基线。A2-8 代码前置 CLOSED ≠ 02-I 真机验收 CLOSED——
+> 仅剩实际硬件 L0→L5+Teardown 证据。下一动作不是继续重构, 而是直接
+> 执行 02-I 真机双 DeckLink/双 SDI 验收**（"继续找代码问题"与"开始
+> 硬件验收"正式分开; A2-8 再动代码收益低且易把 Port Identity/N×M
+> 问题重新污染进当前 Gate）。
+
+本轮独立复核（零代码）: `cb78adc→fe71b7c` 单提交恰 4 文件
+（dual_input.rs/resource.rs/tasks.md/probe §24）——生产核心
+session/pipeline/switch_graph/program_execution/resolver/port/bootstrap/
+supervisor/MediaBackend **全部不在 diff**; 控制流实锚: L1 fail-stop
+（dual_input.rs:363）·L2b teardown+finish（:550-551）·L3 teardown+finish
+（:579-580）·H3 port_id=Some manifest port（:419）·agent_state 直写零
+命中（P1 闭合）; derive_claims/session.rs 零触碰。
+
+### 25.2 裁决表（H1-H4+P1 全 CLOSED, 冻结面全确认未动）
+
+H1 L1 fail-stop CLOSED（实际控制流已变, 非测试层面"看起来正确"）·
+H2 Port→Resource CLOSED（`input_resource_id_for_port` 单一派生源,
+derive 与 Gate validation 同源）·H3 Intent→Port CLOSED（materialize
+真实消费链: Manifest→Port→Intent→Materialize→Connector 闭环）·
+H4 一一对应证据 CLOSED（cap.audio=video-推导 明确标注=证据纪律）·
+Gate verdict≠health state CLOSED（观察者污染消除）·
+SessionManager/derive_claims/PortIdentity v2/PTS normalization/N-input/
+Supervisor executor 化/recover SPI **均未修改=正确**。
+
+L4 语义确认: PTS observation+switch continuity evidence——**非**
+"证明 A/B 两路 PTS 完全同步"（无过度声明）; L5 确认: 隔离非自动切源,
+Supervisor 仍非 Switch Executor。资源状态机
+Available→Reserved→Allocated→Releasing→Available 未被 Gate 越权改写
+（Gate 走 validate→create→start→observe→stop）。
+
+### 25.3 债务重新定级账本（十九轮 §11——全部不阻塞 02-I）
+
+| 级 | 债务 | 归属 |
+|---|------|------|
+| P1 | derive_claims() 只取首 Input Resource | PORT-IDENTITY-AND-RESOURCE-ADDRESSING |
+| P1 | PortIdentity 未含 direction（Resource 层 input/output namespace 已隔离不直接碰撞; 结构性问题仍在 PortIdentity） | PORT-IDENTITY-AND-RESOURCE-ADDRESSING |
+| P1 | Component/Composite/SVideo connector folding→Analog | Port Identity/connector taxonomy change |
+| P1 | audio capability=video 推导非独立 SDK 探针（Gate 已标注） | 独立（02-I 禁偷报已守） |
+| P1 | Serial-only binding 无法成生产 canonical key（identity_handle=device_handle） | 独立 identity change |
+| **P1** | **canonical UUID namespace 未统一（BMD/filesystem/simulation 差异）——本轮新增登记** | **独立 identity closure** |
+| P2 | tap_channel() 层次归属（宜为 execution/bridge addressing primitive） | 独立（G/H-1 已注） |
+| P2 | Production API 保持 503/未启用（A2-8 ≠ "已打开 Production Session API"——正确状态） | A4/后续 |
+
+### 25.4 02-I 执行序（§16 冻结: 现场零代码改动）
+
+```bash
+VBMF_A2_8_DUAL_INPUT=1 \
+MEDIA_AGENT_DEVICE_BINDING=<v4-dual-input-manifest> \
+<media-agent-gates binary>   # 运维纪律: gate env 须用 media-agent-gates bin
+```
+
+v4 manifest 要求: Card A `Input/SDI/port_id A` + Card B
+`Input/SDI/port_id B` 双声明（旧 hw-ident-02 触发 L0 fail-closed
+=**正确行为非 Gate bug**, 十八轮 smoke 已证）。状态树（§15）:
+A2-0..A2-7 全 CLOSED; A2-8: 02-A..02-H CLOSED; 02-I 子项 code
+precondition/Gate automation/H1/H2/H3/H4/health-state isolation 全
+CLOSED——**Real hardware OPEN**（DeckLink A/B + SDI source A/B +
+L0→L5+Teardown）。

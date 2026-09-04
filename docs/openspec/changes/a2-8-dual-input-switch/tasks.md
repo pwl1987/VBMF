@@ -114,12 +114,16 @@
   clean; resolver gate 真机
   复跑双工卡碰撞告警×2 落盘; 真机五层矩阵=02-I 执行（VBMF_A2_8_DUAL_
   INPUT+现场 v4 双 Input port 声明 manifest）` | `Gate: 02-A..02-H
-  全 CLOSED（probe §19-20）·02-I OPEN[代码前置（十六轮三刀+十七轮两刀）
-  +acceptance automation（十八轮正式 Gate 入口+十九轮 hardening
-  H1-H4/P1）全在仓, probe §21-24;
-  硬件形态边界=两块独立单输入卡（collision closure/derive_claims/
-  serial binding/audio 独立性=独立 change 不混入, 十八轮 §十二/§十三）]
-  ——**唯一阻塞=用户侧双 SDI 信号源+两卡可占用窗口**`
+  全 CLOSED（probe §19-20）·02-I OPEN[**代码前置 CLOSED——第十九轮
+  终裁 APPROVED（probe §25）: fe71b7c 冻结为 A2-8 验收候选基线;
+  子项 Gate automation/H1 fail-stop/H2 Port↔Resource/H3 Intent↔Port/
+  H4 evidence/Health-state isolation 全 CLOSED; SessionManager/
+  derive_claims/PortIdentity/PTS normalization/N-input/Supervisor/
+  recover SPI 零越界**; 仅剩 Real hardware=双 DeckLink+双 SDI
+  L0→L5+Teardown; 硬件形态边界=两块独立单输入卡（collision closure/
+  derive_claims/serial binding/audio 独立性/UUID namespace 统一=
+  独立 change 不混入, 十八轮 §十二/§十三+十九轮 §11 定级）]
+  ——**唯一阻塞=用户侧双 SDI 信号源+两卡可占用窗口+现场 v4 manifest**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
