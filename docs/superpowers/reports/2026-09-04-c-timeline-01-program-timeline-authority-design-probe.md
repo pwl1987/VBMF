@@ -1117,3 +1117,14 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   P1 维持（Final Close 时 "Declared boundary" 与 "Observed backward
   jump" 锁成两个独立概念）。
 - 02-I 收口条件=13 项全 PASS（含 L5.1-5.4）→ Final Close Review。
+
+## 22. 第三十四轮跨账引用：注入面落地后真机 9/10；L4 连续第三次 PASS（2026-09-05）
+
+- 主账 §45: Diagnostic Runtime Fault Injection 落地（bb1360c）后真机
+  9/10——L5.2 recover 真机成立·Teardown PASS·唯 L5.4=B 类观测窗口
+  候选留证（下游排空 runway ≈8s@25fps vs 采样窗 8-11s）。
+- **C-TIMELINE 域零触碰确认**: 本轮 Timeline 代码零 diff（红线七条
+  之一执行）; L4 九项合取**连续第三次真机 PASS**（offset 452126ns
+  相位级·映射 6970279646+452126==6970731772 逐 ns 闭合·V/A
+  Continuous·epoch 0 保持）——Preserve 路径真机稳定性三跑三证。
+- NewEpoch 路径仍零真机/零测试覆盖（P1 债务不变, Final Close 前必修）。

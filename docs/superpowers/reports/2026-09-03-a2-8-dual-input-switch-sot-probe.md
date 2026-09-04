@@ -2353,3 +2353,68 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
    registry rt 测试（注入保持 handle 可 recover 契约）;
 3. 盒矩阵 + bin 重建 + 69/69 sha + 真机复跑（目标 13 项全 PASS）;
 4. 证据归档 + §45 复跑账 + commit/push + 记忆同步。
+
+## 45. 第三十四轮执行：Diagnostic Fault Injection 真机——9/10；L5.2 recover 真机成立；L5.4=B 类观测窗口候选留证（2026-09-05 00:19 CST）
+
+### 45.1 执行纪律（§29.2 全项）
+
+- HEAD=bb1360c（374f5c0 终裁账 + bb1360c 实现）; local git status
+  clean; **70/70 源 sha==HEAD**（含新 contracts/diagnostic.rs）。
+- 矩阵全绿: fmt OK / default **217** / mock **381** / bmd+gst
+  **240（+3 diagnostic_rt×3 全过: 结构面[注入后 instances 保持+recover
+  Ok]/行为面[self_test 真元素帧冻结→recover 复流]/fail-closed[stop 后
+  注入拒收]** / clippy×2 `-D` PASS。
+- bin 重建 sha `7e665e3b`; 盒时钟 **2026-09-05 00:19 CST**（跨午夜,
+  header 照实记录; 当日 Discovery=跑内 L1a 2/2 production_grade）;
+  ball PID 992634 存活 9h22m; gst dn0/dn1 可开有信号。
+- 证据=盒 `~/a2-8-02i-evidence/2026-09-05-0020-r34-diag-inject/`
+  （header.txt + run.log, sha256 `83017553`）。
+
+### 45.2 结果（EXIT=2, **9/10——历史最高**; 失败集 {L5.4} 单项）
+
+| Verdict | 结果 |
+| --- | --- |
+| L1a-d / L2a / L2b / L3 | PASS |
+| **L4 switch+timeline** | **PASS（连续第三次）**——Preserved·epoch 0·映射闭合 6970279646+452126==6970731772 逐 ns·V/A Continuous·offset 452126ns 相位级 |
+| **L5.1 A-fail→B-alive** | **PASS**（inputA_advancing=false·bridgeB_alive=true·program_advancing=true）——注入=真实运行故障实证 |
+| **L5.2 recover-A→桥复流** | **PASS（首次真机）**——recovered=true·bridgeA_alive=true·degraded=false; recover tap 簿记重放成功（run.log 00:19:51.853 handle=1）。**33 轮 C 类缺口（stop→recover 结构性必败）经方案 1 修复真机闭环** |
+| **L5.3 B-fail→A-alive** | **PASS**（bridgeB_alive=false·bridgeA_alive=true） |
+| L5.4 故障域不越域 | **FAIL**——A行=None（期望 Program）; B行=Input ✓ |
+| **Teardown** | **PASS**——session_stop=true·program_runtime_inactive=true·phase_released=true（33 轮级联彻底消失: handle 全程在册） |
+
+### 45.3 L5.4 单点失败根因（首跑留证——**未改任何代码**）
+
+- `classify_failure_domain(a_input_adv=true, a_bridge_alive=true,
+  prog_adv2=true)` → **None**（program_execution.rs:186-199 全健康臂;
+  None≠分类器缺陷——帧真的在到达, 不能声称停滞）。
+- `program_progress_since`=帧计数增长（:160-166, video OR audio 任一）。
+  5.4 采样窗 [B 注入后 ~8s, ~11s]（L5_WAIT 5s + 5.3 检查 + a1/GAP3/a2
+  + q1/GAP3/q2）内 program 出口帧计数**仍在增长**。
+- **机制=下游集料排空（drain runway）**: B 输入管线 Paused 后,
+  intersink(B)→inter→intervideosrc(B)→selector→queue→appsink 链上
+  已缓冲数据继续以消费速率流动——GStreamer 默认 queue ≈200 buffers
+  ≈**8s@25fps** + inter 内部缓冲, 与 8-11s 采样窗**恰好重叠**。
+  5.3 的 bridgeB_alive=false（tap 面 3s 窗口）证明源侧确已冻结;
+  排空=正常 GStreamer 行为, 非实现缺陷。
+- **分类=B 类候选（Gate L5.4 观测窗口与真实管线排空时间物理不匹配）**。
+  非 A（硬件/信号/双卡全好）; 非 C 实现缺陷（排空=正常; 分类器语义
+  正确）。候选修复待裁（本轮零改动）: ①5.4 前加长排空等待
+  （drain-wait 常量或采样推后至预期 runway 后, e.g. ≥12-15s）
+  ②program 停滞判定改为相对注入时刻锚定 ③（不推荐）显式读取 queue
+  水位=过度工程。
+- 02-I 收口清单现状: **14 项中 13 PASS, 唯 L5.4 待裁**。
+
+### 45.4 工件（隔离队列不变）
+
+converter interlace 断言同历跑; **pad_unlink CRITICAL ×4 本跑复现**
+（teardown 时刻, 33 轮跑未现/32 轮曾现——间歇性）; Bus watch
+MainContext already-acquired WARN 复现于 recover(B) 新管线建立前
+（00:20:10.580, 与 handle=2 tap 重放成功同秒——无功能影响）。
+
+### 45.5 02-I 状态
+
+仍 FAIL-PENDING-CORRECTION（9/10）——但性质再迁移: 由"注入方式结构性
+错误"变为"**L5.4 单项观测窗口物理不匹配（B 类候选）**"。方案 1
+（Diagnostic Runtime Fault Injection）核心目标全部真机达成: 注入=
+真实运行故障·handle 全程在册·recover=生产行为·隔离/复流/Teardown
+全链成立。

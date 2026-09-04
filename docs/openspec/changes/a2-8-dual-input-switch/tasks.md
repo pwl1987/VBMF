@@ -511,7 +511,33 @@
   handle·Supervisor 不注入·SPI 不加·recover 不推 03·Timeline 不混修];
   第一版禁 Bus Error 合成事件[Observation Fact≠Synthetic Event]须作用
   实际执行面; Mock 禁假装真实 registry[bundle mock 分支 diagnostic=None];
-  02-I 收口条件=13 项全 PASS→Final Close Review**
+  02-I 收口条件=13 项全 PASS→Final Close Review**; **第三十四轮执行
+  （主账 §45+设计探针 §22 跨账, commits 374f5c0 账+bb1360c 实现）:
+  交付=contracts/diagnostic.rs 新契约面[DiagnosticFaultInjection 单方法
+  inject_runtime_stall·仅诊断·禁入冻结 SPI]+controller 第四 view
+  [gstreamer-backend cfg·set_state(Paused) 真实执行面停流·instances/
+  HEALTH_ARCS 登记保持·不合成 Bus Error]+MediaAdapterBundle 第四字段
+  [同源第四 clone·mock 分支=None 诚实缺席]+gate L5 5.1/5.3 stop→
+  inject_stall[观察仍唯一裁判·注入失败只打证据行]; diagnostic_rt×3
+  [结构: 注入后 instances 保持+recover Ok/行为: self_test 真元素帧冻结
+  →recover 复流/fail-closed: stop 后注入拒收]; 矩阵 fmt/default 217/
+  mock 381/bmd+gst 240[+3]/clippy×2 全绿·70/70 sha==HEAD·bin 7e665e3b;
+  **真机复跑（09-05 00:19 CST, 证据盒 ~/a2-8-02i-evidence/2026-09-05-
+  0020-r34-diag-inject, run.log sha 83017553）: 9/10 历史最高——
+  L4 PASS 连续第三次[Preserve·映射逐 ns 闭合·offset 452126ns·V/A
+  Continuous·epoch 0]; **L5.1 PASS[注入=真实运行故障: inputA 停·
+  bridgeB 活·program 走]+L5.2 PASS 首次真机[recovered=true·bridgeA
+  复活·degraded=false·recover tap 簿记重放成功 handle=1——33 轮 C 类
+  stop→recover 结构性缺口经方案 1 真机闭环】+L5.3 PASS[bridgeB 死·
+  bridgeA 活]+Teardown PASS[session_stop=true·handle 全程在册=级联
+  彻底消失】; 唯 L5.4 FAIL=B 类候选留证未改码[A行=None 期望 Program·
+  B行=Input✓——根因=下游集料排空 runway（默认 queue≈200 buffers≈8s@
+  25fps+inter 缓冲）与采样窗[B 注入后 8-11s]物理重叠·program 帧计数
+  仍在增长→classify(true,true,true)=None 全健康臂=语义正确; 候选待裁:
+  ①drain-wait 加长/采样推后 ≥12-15s ②相对注入时刻锚定 ③queue 水位
+  读取=不推荐过度工程]**; 02-I 收口清单 14 项中 13 PASS 唯 L5.4 待裁;
+  工件: interlace 断言同历跑·pad_unlink ×4 间歇复现·MainContext WARN
+  同 recover 新管线建立（隔离队列）**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
