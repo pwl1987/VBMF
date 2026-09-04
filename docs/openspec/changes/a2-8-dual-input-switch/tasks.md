@@ -638,7 +638,21 @@
   14/14[10/10 亦不触发 Final Close——两 P1 未闭·A2-8-05 暂缓];
   **P1-A[冻结 transition boundary 替代动态 last_program_pts]+P1-B
   [rebase offset 不变量]=下一独立刀 program_timeline.rs 不混 commit·
-  修后 L4 真机目标稳定 Preserve]**]**
+  修后 L4 真机目标稳定 Preserve]**]**; **执行（主账 §52+设计探针 §29）:
+  0d59ddb 单文件 +37/−82**[观测器撤销 grep 零残留+5.4 归因完整性重写+
+  5.3 注释修正·classify/四词表/L4 判据/5.1-5.3/Diagnostic 契约零触碰];
+  盒矩阵 fmt/217/381/240/clippy×2 绿·bin release 6e02ba57·sha 80/81
+  唯 Cargo.lock 既有; **真机 09-05 06:38（证据盒 0638-r37-l54-
+  attribution, run.log sha c1c296a6, EXIT=0, ~46s）: 10/10 ALL PASS
+  02-I 历史首次**——L4 Preserve 连续第六次[epoch 0·offset 174161ns·
+  6970673376+174161==6970847537 逐 ns·V/A Continuous]; **L5.4 新语义
+  首跑 PASS**[A行=None B行=Input·Program 输出 advancing=true[合成帧]
+  如实记录为非权威证据 v 1053->1143 a 1405->1525]; Teardown PASS;
+  **14/14 达成但 Final Close 不触发**[两 P1 未闭·C-TIMELINE Final
+  Close 暂缓·A2-8-05 暂缓]; 下一刀=P1-A[冻结 transition boundary 替代
+  动态 last_program_pts]+P1-B[rebase offset 不变量]独立修→L4 复跑
+  目标稳定 Preserve[当前 6 跑 5P+1NE]; 工件 interlace×6/pad_unlink×4/
+  MainContext×2 隔离队列]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

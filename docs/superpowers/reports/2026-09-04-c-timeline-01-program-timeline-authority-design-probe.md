@@ -1217,3 +1217,14 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
 - A2-8-03 登记: 真 Program 域故障专项（Input 活∧Bridge 活∧Program
   死⇒Program 的注入在 03 设计, 禁塞现有 DiagnosticFaultInjection）。
 - C-TIMELINE-01 Final Close 暂缓维持（两 P1 未闭合）。
+
+## 29. 第三十七轮执行跨账: L5.4 新语义真机首跑 10/10 ALL PASS——Timeline 两 P1 成为 02-I 后唯一阻塞（2026-09-05）
+
+- 主账 §52: 归因完整性语义真机 PASS（A行=None/B行=Input·Program
+  advancing=true[合成帧]如实记录为非权威证据）; 全链 **10/10 EXIT=0
+  历史首次**; 14/14 达成但 Final Close 按裁决不触发。
+- L4 Preserve 连续第六次（5P+1NE——NE=run1 的 1ns 竞态, P1-A 修复
+  即其生产侧根除目标）。
+- **Timeline 域零触碰维持**: R37 diff=gates/dual_input.rs 单文件;
+  P1-A/P1-B 未动=下一独立刀（program_timeline.rs·方向已批·不混
+  commit）; C-TIMELINE-01 Final Close 暂缓维持。

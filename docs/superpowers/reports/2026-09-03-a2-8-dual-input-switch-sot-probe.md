@@ -2813,3 +2813,43 @@ handle=2 21:42:15.116）。
   单调观测——"禁用未来观测值判当前切换边界"; P1-B=rebased 恢复
   offset==program_start_pts−source_start_pts 不变量。修后第五刀=
   L4 真机复跑目标稳定 Preserve（4P+1NE→Preserve·非放宽判据放过）。
+
+## 52. 第三十七轮执行 — R37 语义修正落地 + 真机首跑 10/10 ALL PASS（02-I 全链历史首次通过）
+
+### 52.1 交付（commit 0d59ddb, 单文件 +37/−82）
+
+- **撤销 R36 观测器**: 三常量（GRACE/ROUNDS/DEADLINE）+
+  `L5ProgramStallOutcome` enum + 5.3 t0 锚 + Phase C 循环全删（grep
+  零残留）; 5.3 陈旧注释"program 诚实停滞"修正。
+- **5.4 重写为归因完整性**: B input b1/b2 采样（B 故障持续确认）+
+  双桥活性重采样 + Program 输出单窗非权威观测 + classify 后
+  `l5d = row_a==None ∧ row_b==Input`; 证据行如实记录 Program
+  advancing 与帧计数并标注非权威。
+- classify_failure_domain/FailureDomain 四词表/L4 判据/5.1-5.3/
+  DiagnosticFaultInjection 契约零触碰; 盒矩阵 fmt 绿·default 217·
+  mock 381·bmd+gst 240·clippy×2 绿; bin release `6e02ba57`; sha
+  80/81 唯 DIFF=Cargo.lock（既有分歧维持）。
+
+### 52.2 真机（09-05 06:38 CST; 证据盒 `2026-09-05-0638-r37-l54-attribution`; run.log sha `c1c296a6`; 全程 ~46s）
+
+**EXIT=0 · ALL PASS（10/10）——02-I 历史上首次全链通过**:
+
+| 层 | 结果 |
+| --- | --- |
+| L0/L1a-d/L2a-b/L3 | PASS（双卡 signal=true·tap 81/80·L3 120→210 ValidMonotonic） |
+| L4 | PASS（**Preserve 连续第六次**·epoch 0·offset 174161ns·映射 6970673376+174161==6970847537 逐 ns·V/A Continuous） |
+| L5.1/5.2/5.3 | PASS（recover 桥复流·tap 重放） |
+| **L5.4（新语义首跑）** | **PASS**——`故障域归因完整=true (A行=None B行=Input; B故障归Input·A无越域归因·Program输出=非权威证据[inter合成帧语义·advancing=true v 1053->1143 a 1405->1525])`: Program 输出持续增长（合成帧）被如实记录且不再承担源存活证明——重定义语义按裁决精确执行 |
+| Teardown | PASS（session_stop=true·inactive=true·released=true） |
+
+### 52.3 02-I 状态与后续
+
+- **14/14 达成（历史首次）**; 02-I 验收全绿。
+- **Final Close 不触发**（§51.3 冻结）: C-TIMELINE-01 两 P1 未闭合
+  [Final Close 暂缓]·A2-8-05 archive 暂缓。
+- **下一刀=P1-A/P1-B 独立修**（program_timeline.rs·方向已批）:
+  P1-A=第一枚映射缓冲连续性基准改冻结 transition boundary（根除
+  1ns 相位条件性 NewEpoch——当前 6 跑 5P+1NE）; P1-B=rebase offset
+  不变量恢复。修后 L4 真机复跑目标=稳定 Preserve（非放宽判据）。
+- 工件（隔离队列维持）: interlace ×6·pad_unlink ×4·MainContext ×2
+  （两次 recover 各一）。
