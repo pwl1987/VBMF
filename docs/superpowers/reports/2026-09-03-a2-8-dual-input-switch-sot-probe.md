@@ -1559,3 +1559,71 @@ Environment / C=已知架构债务 三分类裁决, 禁为通过 Gate 改代码�
 进 v4**——须先完成 DeviceHandle↔物理输入↔runtime address 权威确认,
 v4 才具有 Provisioning 意义。身份闭环完成后进入 L0-L5; 届时仍 FAIL
 仍按 A/B/C 三分类裁决, 禁为跑绿改码。
+
+## 31. 第二十四轮执行（基线 `8fea7ea`）: 02-I Provisioning Identity Closure 现场执行——Step 0/1/2 证据包（零代码）
+
+### 31.1 裁决记录（对 §30.4 的严格修正）
+
+> 维持 APPROVED / FROZEN / GO。**"人工/物理/官方工具交叉确认"=
+> Provisioning/Evidence 层必要证据, 不是 A2-8 Runtime 代码前置条件,
+> 不因此重开代码 change。**11 不清单: 不改 Resolver/Manifest schema/
+> PortIdentity/ResourceRegistry/SessionManager/ProgramExecution/
+> SwitchGraph, 不增 Runtime 自动猜测, 不因 dn 枚举变化改码, 不把
+> PID 577061 当已证明根因, 不把 runtime correlation 冒充 canonical
+> proof。状态梯: BMD physical PASS·SDK enumeration PASS·FFmpeg
+> acquisition PASS·GStreamer runtime map 未闭环·Manifest binding 待
+> 重建（"SDI-IN-2 hardware unavailable" 正式撤销）。唯一工作项 =
+> 02-I Provisioning Identity Closure。
+
+### 31.2 Step 0 环境证据（盒 2026-09-04 14:49 CST, NTP synced）
+
+盒 build 目录非 git checkout → 以 sha256 等价替代 git 两件套:
+**68/68 .rs 文件 盒==本地 HEAD `8fea7ea`（=fe71b7c 实现冻结基线,
+services/ 自冻结零改动）**, sort-normalized diff 为空。双侧清单归档
+盒 `~/a2-8-02i-evidence/2026-09-04-step0-*`。
+
+### 31.3 Step 1 当日 Discovery（`VBMF_RESOLVER=1`, cargo build 后 bin）
+
+SDK 侧: 3 设备+lease 幂等全过（4fa33dcb/46:…2e4500·6ede00d0/
+46:…2e4400·1afe2dcc Mini）。gst 侧: **dn0/dn1=PropertyMissing**
+（设备可开至 Playing 但 hw-serial-number/persistent-id/model 全空
+→无法建立身份）; **dn2-7=StateFailed**; legacy 全 Unresolved +
+"production MUST reject" 注记。形态与 09-03/04 首跑**完全一致**
+→当时 unresolvable 的 runtime 侧根源=本机身份字段常态缺失, 非新故障。
+
+### 31.4 Step 2 内容特征差分（视觉指纹 + 杀源差分 + 复原）
+
+**A. 视觉指纹**（gst 抓 JPEG 帧模型判读, 归档 `~/a2-8-02i-evidence/
+frames/`）: **dn0=真实电视广播**（临沂经济生活频道《真心英雄13》
+警务/演播场景）→BNC#2; **dn1=ball 测试图**（videotestsrc 特征）
+→BNC#4。**B. 杀源差分**（kill PID 577061 ball sink→4s 后）:
+进程死透; dn1 Signal lost ✓; **但 SDI(2) 仍锁定 1080p25 出帧且内容
+仍=ball → BNC#4 的 ball 源独立于 PID 577061/Mini Monitor 输出——
+"BNC#4←4K 卡"假设被证伪**; dn0 同窗 Signal lost（电视分钟级抖动
+第三次实证）。**C. 复原**: 原命令行 nohup 重启（新 PID 992634,
+14:56:19 CST）。
+
+### 31.5 Provisioning 映射表（证据分级）
+
+| 链 | 证据 | 等级 |
+|---|---|---|
+| dn0 ↔ 电视(BNC#2) ↔ SDI(1) ↔ 1080i25 | 视觉+模式+ffmpeg 按名 | **PROVEN** |
+| dn1 ↔ ball(BNC#4) ↔ SDI(2) ↔ 1080p25 | 视觉+模式+杀源差分 | **PROVEN** |
+| dn2 = Mini Monitor output-only（输入面恒败） | 矩阵+ffmpeg 输入清单 | **PROVEN** |
+| BNC#4 ball 源 ≠ PID 577061（Mini）输出 | 杀后信号不灭 | **PROVEN**（BNC#4 线缆实际对端=现场待核） |
+| 4fa33dcb→SDI(1)·6ede00d0→SDI(2) | 双侧同 IDeckLinkIterator 序（VBMF lease 序 vs ffmpeg 列表序） | **CORRELATION ONLY**——待用户裁决/照片/官方工具侧证 |
+
+事实记录（非改码提案）: DeviceInfo.display_name（SDK GetDisplayName,
+含 "(1)/(2)" 后缀）已被适配器捕获但无任何 gate 输出面打印——身份
+closure change（冻结）可为未来读出点。
+
+### 31.6 候选 v4（待裁决, 不写死）与残余风险
+
+据上证据链候选: SDI-IN-1(4fa33dcb/46:…2e4500)→gst 0·SDI-IN-2
+(6ede00d0/46:…2e4400)→gst 1。**最终成立条件=用户裁决 iterator 序
+correlation 或提供照片/官方侧证**（correlation 单独不作 canonical
+proof——§30.3-1 红线）。残余: ①BNC#4 独立 ball 源的物理对端设备
+待现场核实（照片/线缆追踪）; ②dn2→Mini 输出线缆去向未知; ③电视
+分钟级抖动=L1c 时序风险（撞窗即 B 类, 重跑不改码）。照片请求: 本
+侧仅 SSH 无物理在场, 需用户侧提供; 已以四帧内容 JPEG（dn0/dn1/
+双输入 postkill）作为内容侧物理证据归档。

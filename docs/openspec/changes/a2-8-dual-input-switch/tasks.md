@@ -164,7 +164,18 @@
   旧 v4 正式作废; 两路输入=A 类已证[ffmpeg 1080i25/1080p25 双拉流];
   下一步=身份闭环核验[Discovery→Handle↔物理 BNC↔SDI(1)/(2)↔runtime
   probe→人工/物理/官方工具交叉确认→新 v4[Provisioning 意义]→frozen
-  build→L0→L5], 禁猜 dn 写 v4**`
+  build→L0→L5], 禁猜 dn 写 v4**; **第二十四轮执行（probe §31, 零代码,
+  02-I Provisioning Identity Closure Step 0/1/2 已跑）: Step 0 环境
+  证据+sha256 68/68 盒==本地 8fea7ea(=fe71b7c 冻结)·Step 1 当日
+  Discovery[dn0/dn1 PropertyMissing 可开无身份·dn2-7 StateFailed·
+  legacy 全 Unresolved fail-closed——与首跑形态一致=常态非新故障]·
+  Step 2 视觉指纹[dn0=电视临沂频道 1080i25→BNC#2·dn1=ball 1080p25→
+  BNC#4]+杀源差分[**BNC#4 ball 源独立于 PID 577061/Mini 输出——
+  'BNC#4←4K 卡'证伪, 对端设备现场待核**; 电视分钟级抖动三证]+复原
+  [PID 992634 原命令行]; 映射 PROVEN=dn↔内容↔ffmpeg 名, CORRELATION
+  ONLY=handle↔(1)/(2) iterator 序[待用户裁决/照片/官方侧证];
+  "人工/物理/官方工具交叉确认"=Provisioning/Evidence 层非 Runtime
+  前提; 候选 v4[SDI-IN-1→gst0·SDI-IN-2→gst1]待裁决不写死**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
