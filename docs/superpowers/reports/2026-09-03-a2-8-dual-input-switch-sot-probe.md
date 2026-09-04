@@ -3047,3 +3047,70 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - C-TIMELINE-01 Final Close 与 A2-8-05 archive: 依三十八/三十九轮
   纪律待用户裁（P1-A 已闭合为 Final Close 的前置条件之一）。
 - 披露维持: switch_mock.rs +STEP 外推分叉待独立裁（不阻塞）。
+
+## §56 第四十一轮终裁: R40 复核 PASS·C-TIMELINE-01 Final Close 批准·Mock 锚语义分叉正式立项（2026-09-05, 落账零代码）
+
+### 56.1 核验（裁决前实锚复核——主张全部属实）
+
+- `sample_switch_anchors`（switch_graph.rs:802-863）: 四锚=已观测边界帧
+  原值（program_anchor=pv :855·source_anchor=target_v :856·audio 同构
+  :859-860）; 函数内零 `saturating_add`; fail-closed 门全保留——
+  GraphNotRunning(:814-818)/!started(:817-819)/TargetNotInGroup(:820-822)/
+  TargetAlreadyActive(:823-825)/pad_index(:826-829)/active 存在性门
+  (:832-834, 错误消息原文不变)/program V·A PTS 缺席(:837-844)/target
+  V·A PTS 缺席(:846-852)。**α=锚语义修正, 非放宽 fail-closed**。
+- `last_delta` 解耦属实: 字段保留(:105, `#[allow(dead_code)]` :104)+
+  探针写点(:507)——生产零读取（仅注释与 rt_03 播种）。
+- AnchorPair 注释统一属实(program_timeline.rs:61-66); `git diff f51d039
+  5d61b97 -- program_timeline.rs` = 恰两段 doc 注释、零生产逻辑变更。
+- P1-B 维持撤销属实: program_timeline.rs 生产逻辑零改;
+  `timeline_rt_01_new_epoch_rebase_offset_invariant` 在册(:1121)。
+- rt_03 回归锁属实(switch_graph.rs:1167-1248): 纯状态构造（无
+  PLAYING/无线程）·裁决例值 active_delta=33,333,333/target_delta=
+  33,333,334/pv=1,000,000,000/target_v=900,000,000 ⇒ 四锚断言=原值;
+  反证注释(:1230-1231)=1,033,333,333（正确）。
+- Mock 分叉属实: switch_mock.rs:299-304 仍 `+VIDEO_PTS_STEP/
+  +AUDIO_PTS_STEP` 外推——真实 adapter 已切换「已观测边界帧原值」语义。
+- tasks.md:6 「A2-8 NOT CLOSED until 05」在册; 项 5/6/7 全 `[ ]` 待。
+- 提交链健康: f51d039(账面 3 文件)→5d61b97(恰 switch_graph.rs+
+  program_timeline.rs, +107/−26)→b823e22(账面 3 文件); HEAD=b823e22=
+  origin/comet/a2-8-dual-input-switch; 工作树 clean。
+- **账面勘误登记**: §55.1 反证值误写 1,033,333,33**4**——正确为
+  1,033,333,333（代码注释 :1231 为准; 933,333,334 方为 source_anchor
+  外推值）。纯账面笔误, 零代码, 不影响任何断言/测试。
+
+### 56.2 终裁落账
+
+- **R40 本轮裁决 = PASS**（α 实现与裁决一致·未借删 delta 放宽任何门）。
+- **C-TIMELINE-01 / P1-A Final Close = APPROVED / CLOSED**——措辞限定:
+  此为 C-TIMELINE-01 专项 Close, **≠ A2-8 CLOSED**。状态板: P1-A=
+  CLOSED（边界帧锚修正 α·5d61b97·rt_03 回归锁·真机双证）/ P1-B=
+  REVOKED·CLOSED-AS-NON-ISSUE（不变量测试保留）/ Evidence=PASS /
+  Hardware=PASS×2 / Final Close=APPROVED。Close SoT=设计探针 §33。
+- **A2-8 总体 = OPEN**: 顺序维持 C-TIMELINE-01 Close → **A2-8-03** →
+  A2-8-04 → A2-8-05。A2-8-05 可进入准备阶段但不得收口（03/04 未完;
+  01-04 任一完成不宣布 CLOSED——tasks.md 项 7 冻结语义）。
+- C-TIMELINE-01 Close ≠ A2-8-04 完成: 六路 PTS/AV continuity 验证仍待
+  （02-I 验收面 ≠ 04 专项验证面）。
+
+### 56.3 Mock 锚语义分叉正式立项（独立裁决项·非 R40 FAIL）
+
+- **MOCK-ANCHOR-SEMANTIC-ALIGNMENT**: switch_mock.rs:299-306
+  `sample_switch_anchors` 仍 +STEP 外推（「预测下一帧」语义）vs
+  GStreamer 真实 adapter「已观测边界帧原值」——AnchorPair 语义分叉,
+  影响 Mock 同构基线资格。
+- 三不: 不回溯 R40（修改面冻结合法）·不阻塞 C-TIMELINE-01 Final
+  Close·不再挂 R40 disclosure（自本轮起独立项）。
+- 待裁问题: Mock 保留独立时序语义（合成流整步进, +STEP 或为合法构造）
+  还是同步为观测原值语义; 若同步, F5 同构映射流与 legacy 逐字节保持面
+  是否受影响须回归。
+- 修复未授权——待用户独立裁决后单刀处理。
+
+### 56.4 状态与下一刀
+
+- 本轮零代码: 无矩阵/真机复跑（无生产变更, 沿零代码轮惯例）。
+- C-TIMELINE-01=CLOSED（设计探针 §33）。02-I 现状不变: 10/10 EXIT=0
+  （锚修正后双证, R37 后第二次）。
+- **下一刀 = A2-8-03 failure/supervision 验证**（watchdog 四视角观测穿
+  RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界 recovery-only）——
+  按探针先行纪律, 开工前须其 SoT Probe/裁决授权, 本轮未启动。

@@ -1281,3 +1281,26 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
 - P1-A CLOSED; P1-B 维持撤销。Freeze 八红线/R1-R8 全程未触碰。
 - C-TIMELINE-01 **Final Close 待裁**（前置 P1-A 已闭合）; A2-8-05
   archive 排其后。Mock +STEP 分叉披露维持。
+
+## 33. C-TIMELINE-01 Final Close 正式落账（第四十一轮终裁, 2026-09-05, 零代码）
+
+- **Final Close = APPROVED / CLOSED**（主账 §56.2 跨账）:
+  - P1-A = CLOSED——「边界帧锚修正」α（5d61b97）: 锚=已观测边界帧原值;
+    rt_03 回归锁; 真机双跑 10/10 EXIT=0, `mapped_program_pts==
+    program_start_pts` 首次精确相等 ×2, ±1ns 条件性 NewEpoch 结构性根除
+    （修正前 5P+1NE → 修正后双 P）, V/A Continuous, L5.4 归因+Teardown
+    PASS。
+  - P1-B = REVOKED / CLOSED-AS-NON-ISSUE——不变量测试
+    `timeline_rt_01_new_epoch_rebase_offset_invariant` 保留为重构保护。
+  - Evidence = PASS ×2; Hardware = PASS ×2（七项验收全过·主账 §55.3）。
+- **实现期偏离回裁链完整闭合**: +节拍外推=Batch 2 实现层选择（Freeze
+  无此条文）→ §31 回裁 → §32 真机双证 → 本轮 Close。Freeze 文本不改;
+  R1-R8 八红线全程未触碰。
+- **措辞限定（终裁原文）**: 本 Close=C-TIMELINE-01/P1-A 专项关闭, **不得
+  写成 A2-8 CLOSED**——A2-8 总体 OPEN, 顺序 A2-8-03→04→05 维持,
+  A2-8-05 仅可准备不可收口。
+- **C-TIMELINE-01 Close ≠ A2-8-04 完成**: 六路 PTS/AV continuity 验证
+  仍待（独立验收面, 02-I Gate 面 ≠ 04 专项面）。
+- Mock +STEP 分叉自本轮转正为独立裁决项 **MOCK-ANCHOR-SEMANTIC-
+  ALIGNMENT**（主账 §56.3）——不再挂本 change disclosure; 不阻塞本 Close;
+  修复待独立裁决。

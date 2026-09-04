@@ -690,7 +690,16 @@
   V/A Continuous·±1ns 条件性 NewEpoch 根除实证（5P+1NE→双 P）·L5.4
   归因 PASS·Teardown PASS; 证据 ~/a2-8-02i-evidence/2026-09-05-r40-
   anchor-fix/{run.log a67ef58a·run2.log be80906f}; **P1-A CLOSED**;
-  02-I=10/10 第二次; Final Close/A2-8-05 待裁]**]**
+  02-I=10/10 第二次; Final Close/A2-8-05 待裁]**]**; **第四十一轮
+  （主账 §56+设计探针 §33, 终裁落账零代码）: R40 复核 PASS·
+  **C-TIMELINE-01/P1-A Final Close=APPROVED/CLOSED**[措辞限定: 专项
+  Close≠A2-8 CLOSED——P1-B=REVOKED/CLOSED-AS-NON-ISSUE 不变量保留·
+  Evidence/Hardware=PASS×2·R1-R8 未触碰·偏离回裁链闭合]; A2-8 总体
+  OPEN·顺序 03→04→05 维持·A2-8-05 仅准备不可收口; **Mock +STEP 分叉
+  正式立项 MOCK-ANCHOR-SEMANTIC-ALIGNMENT**[switch_mock.rs:299-306 vs
+  观测原值 adapter·不回溯不阻塞·修复待独立裁决]; 下一刀=A2-8-03
+  failure/supervision[探针先行·开工前须 SoT Probe/裁决授权·本轮
+  未启动]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
