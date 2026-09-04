@@ -170,19 +170,26 @@ impl AdapterRegistry {
                 backend: Arc::new(crate::adapters::mock::MockBackend),
                 media_tap: Some(tap.clone()),
                 bridge_observation: Some(tap),
+                // 第三十四轮终裁: Mock 不假装拥有真实 controller registry
+                // （Mock stop/recover 为 no-op——无注入面语义, 诚实缺席）。
+                diagnostic: None,
             })
         }
         #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
         {
-            // 单次构造 concrete controller → 三次 clone 各自 coerce——
-            // 三个 trait object 同源同一对象（结构保证 + 行为证明见
+            // 单次构造 concrete controller → 各 view clone 各自 coerce——
+            // 全部 trait object 同源同一对象（结构保证 + 行为证明见
             // registry_rt_01_bundle_dual_view_same_controller）。
             let controller =
                 Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
             Ok(MediaAdapterBundle {
                 backend: controller.clone(),
                 media_tap: Some(controller.clone()),
-                bridge_observation: Some(controller),
+                bridge_observation: Some(controller.clone()),
+                // A2-8-02-I 第三十四轮: 第四 view——Diagnostic Runtime Fault
+                // Injection（仅诊断消费; 同源同一 controller, 不构成第二
+                // ownership 面）。生产路径零消费。
+                diagnostic: Some(controller),
             })
         }
     }
@@ -196,6 +203,10 @@ pub struct MediaAdapterBundle {
     /// A2-8-02-G/H: 桥观测 view（第三 trait view——同源同一 concrete
     /// controller; pad probe 实测, 与 tap 簿记分层）。
     pub bridge_observation: Option<Arc<dyn crate::contracts::media_tap::BridgeObservationPort>>,
+    /// A2-8-02-I 第三十四轮: 诊断故障注入 view（第四 trait view——同源
+    /// 同一 concrete controller; **仅诊断消费**（Gate L5）, 生产路径零
+    /// 消费, 禁入 MediaBackend 冻结 SPI。Mock 分支=None 诚实缺席）。
+    pub diagnostic: Option<Arc<dyn crate::contracts::diagnostic::DiagnosticFaultInjection>>,
 }
 
 #[cfg(test)]

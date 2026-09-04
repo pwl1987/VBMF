@@ -375,6 +375,9 @@ pub fn run(
     let ctrl: Arc<dyn MediaBackend> = bundle.backend.clone();
     let media_tap_port: Option<Arc<dyn MediaTapPort>> = bundle.media_tap.clone();
     let bridge_port = bundle.bridge_observation.clone();
+    // 第三十四轮方案 1: 诊断故障注入 view（仅 L5 消费——运行故障注入,
+    // 非 backend.stop 终态注销）。
+    let diag = bundle.diagnostic.clone();
     let mgr = Arc::new(crate::session::SessionManager::new(
         resources.clone(),
         lm.clone(),
@@ -709,10 +712,23 @@ pub fn run(
     let mut l5_all = true;
     let mut l5_notes: Vec<String> = Vec::new();
 
+    // 第三十四轮方案 1: 诊断故障注入辅助——注入"运行故障"（真实执行面
+    // 停流·handle 保持登记）, 非 backend.stop 终态注销（stop→recover 为
+    // 非法组合, 33 轮首跑已证结构性必败）。观察仍为唯一裁判: 注入失败
+    // 只打证据行, 不改判据——由后续观测自然 FAIL。
+    let inject_stall = |h: &crate::pipeline::PipelineHandle| match diag.as_ref() {
+        Some(d) => {
+            if let Err(e) = d.inject_runtime_stall(h) {
+                println!("=== A2-8 L5 diagnostic inject 失败: {e} ===");
+            }
+        }
+        None => println!("=== A2-8 L5 diagnostic view 缺失（注入未执行）==="),
+    };
+
     if l4 {
         // 5.1 A fail → B alive（active=B: program 不受牵连）。
         let a_health_pre = crate::pipeline_events::read_health(&h_a);
-        let _ = ctrl.stop(&h_a);
+        inject_stall(&h_a);
         sleep(L5_WAIT_SECS);
         let a_health_post = crate::pipeline_events::read_health(&h_a);
         let a_advancing = match (&a_health_pre, &a_health_post) {
@@ -766,7 +782,7 @@ pub fn run(
         ));
 
         // 5.3 B fail → A alive（active=B: program 诚实停滞——隔离证据=A 不受牵连）。
-        let _ = ctrl.stop(&h_b);
+        inject_stall(&h_b);
         sleep(L5_WAIT_SECS);
         let b_bridge_alive = bridge_rows_of(&started_inputs[1]).is_some_and(|l| l.alive_in_window);
         let a_bridge_alive = bridge_rows_of(&started_inputs[0]).is_some_and(|l| l.alive_in_window);

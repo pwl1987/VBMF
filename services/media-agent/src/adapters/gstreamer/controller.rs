@@ -337,6 +337,28 @@ impl MediaBackend for GStreamerPipelineController {
     }
 }
 
+// A2-8-02-I 第三十四轮终裁: Diagnostic Runtime Fault Injection——同一
+// concrete controller 的第四 trait view（仅诊断消费, 禁入 MediaBackend
+// 冻结 SPI）。注入"运行故障"非"生命周期终止": 真实执行面停流
+// （set_state(Paused)——源/分支停止产出 buffer, frames/PTS 冻结,
+// liveness 窗口自然过期）而 instances/HEALTH_ARCS 登记**保持**; 随后
+// `MediaBackend::recover(handle)` 即为生产行为（同 handle 原 plan 重建）。
+// 红线: 不注销 handle（那是 stop 的 P0-2 终态语义）; 不合成 Bus Error
+// 事件（Observation Fact ≠ Synthetic Event——只作用于实际执行面）。
+#[cfg(feature = "gstreamer-backend")]
+impl crate::contracts::diagnostic::DiagnosticFaultInjection for GStreamerPipelineController {
+    fn inject_runtime_stall(&self, handle: &PipelineHandle) -> Result<(), String> {
+        let guard = self.instances.lock().unwrap();
+        let inst = guard
+            .get(handle)
+            .ok_or_else(|| format!("未知 pipeline handle (inject stall): {handle:?}"))?;
+        inst.pipeline
+            .set_state(gstreamer::State::Paused)
+            .map(|_| ())
+            .map_err(|e| format!("diagnostic stall set_state(Paused) 失败: {e}"))
+    }
+}
+
 impl GStreamerPipelineController {
     /// 构造 decklinkvideosrc/audiosrc → video/x-raw → appsink 的采集 pipeline (P0-2 修复核心).
     /// 仅构建 + 注册 appsink 回调, **不**立即 Playing; Playing 由 `PipelineController::start` 负责
@@ -1026,5 +1048,80 @@ mod media_tap_tests {
         );
         assert!(!element_present(&ctrl, &h, "tap-a-tap-pf"));
         let _ = ctrl.stop(&h);
+    }
+}
+
+// —— A2-8-02-I 第三十四轮: Diagnostic Runtime Fault Injection 真实验证 ——
+#[cfg(all(test, feature = "gstreamer-backend"))]
+mod diagnostic_tests {
+    use super::*;
+    use crate::contracts::backend::MediaBackend;
+    use crate::contracts::diagnostic::DiagnosticFaultInjection;
+    use crate::pipeline::PipelinePlan;
+
+    fn started() -> (GStreamerPipelineController, PipelineHandle) {
+        let ctrl = GStreamerPipelineController::new();
+        let h =
+            MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("纯分析管线物化");
+        MediaBackend::start(&ctrl, &h).expect("启动");
+        (ctrl, h)
+    }
+
+    fn frames(h: &PipelineHandle) -> Option<u64> {
+        crate::pipeline_events::read_health(h).map(|x| x.video_frame_count)
+    }
+
+    // 契约证明（结构面）: 注入"运行故障"≠注销——instance 登记保持;
+    // 随后 recover=生产行为（同 handle 原 plan 重建）。33 轮 stop→recover
+    // 非法组合的反面: 注入后 recover 必须成功。
+    #[test]
+    fn diagnostic_rt_01_stall_keeps_registration_and_recovers() {
+        let (ctrl, h) = started();
+        ctrl.inject_runtime_stall(&h)
+            .expect("注入成功（handle 在册）");
+        assert!(
+            ctrl.instances.lock().unwrap().get(&h).is_some(),
+            "注入≠注销: instance 登记保持（终态注销是 stop 的 P0-2 语义）"
+        );
+        MediaBackend::recover(&ctrl, &h).expect("注入后 recover=生产行为（原 plan 重建）");
+        assert!(
+            ctrl.instances.lock().unwrap().get(&h).is_some(),
+            "recover 后同 handle 在册"
+        );
+        let _ = MediaBackend::stop(&ctrl, &h);
+    }
+
+    // 契约证明（行为面）: 注入=真实执行面停流（帧冻结）→ recover 后复流。
+    #[test]
+    fn diagnostic_rt_02_stall_freezes_media_and_resumes_after_recover() {
+        let (ctrl, h) = started();
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        ctrl.inject_runtime_stall(&h).expect("注入");
+        // 深入 Paused 稳态后采样（避开翻转在途帧的单帧噪声）。
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let f1 = frames(&h);
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let f2 = frames(&h);
+        assert_eq!(f2, f1, "停流: 注入期间帧冻结（观测面仍在——absence≠注销）");
+        MediaBackend::recover(&ctrl, &h).expect("recover");
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        let f3 = frames(&h);
+        assert!(
+            f1.is_some_and(|a| f3.is_some_and(|b| b > a)),
+            "复流: recover 后帧重新推进 (stalled={f1:?} recovered={f3:?})"
+        );
+        let _ = MediaBackend::stop(&ctrl, &h);
+    }
+
+    // 同一注册事实源: stop 终态注销后注入面诚实 fail-closed（与 recover
+    // 报 UnknownPipeline 同源——非法组合的错误在入口即暴露）。
+    #[test]
+    fn diagnostic_rt_03_unknown_handle_fail_closed() {
+        let (ctrl, h) = started();
+        let _ = MediaBackend::stop(&ctrl, &h);
+        assert!(
+            ctrl.inject_runtime_stall(&h).is_err(),
+            "已注销 handle 拒收（无第二注册表）"
+        );
     }
 }
