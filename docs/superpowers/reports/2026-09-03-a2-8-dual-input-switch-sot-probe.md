@@ -2264,3 +2264,29 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
 - **令**: 修正后立即真机复跑——H1 开 L5, 完整 L5 真实证据必拿（A fail→
   B alive / recover A→bridge real flow / B fail→A alive / failure-domain
   classification）; L5 全绿 → 02-I 具备正式收口评审条件。
+
+## 43. 第三十三轮执行：L4 真机正式 PASS；L5 首跑留证=C 类 recover 契约缺口（跨账引用，2026-09-04 22:35 CST）
+
+- 执行链: c5c7753 终裁账 / b856a04 `>`→`>=` 单字符 / d5059e2 盒 fmt 残留;
+  69/69 源 sha==HEAD; 矩阵 fmt/default 217/mock 381/bmd+gst 237/clippy×2
+  全绿; bin 重建 c0efdfad; v5 当日复核; 证据=盒
+  ~/a2-8-02i-evidence/2026-09-04-2340-l4fix-l5run（run.log sha 4616d680）。
+- **L4 Timing/switch+timeline(A→B) 首次真机 PASS**——九项合取全绿:
+  Preserved（epoch 保持 0）·映射闭合 6937849283+33301642==6971150925
+  逐 ns·V/A Continuous·declared==observed==SegmentId(1)·无未声明回退·
+  **mapped==pre_v 再次精确相等（零隙拼接复现→`>=` 修正被证实必要且
+  充分）**·post prog ≥ mapped·Authority 行 mapped=Some。
+- **L5 FAIL（首次真机执行; 历史两跑均被 H1 跳过）**: L5.1 A-fail→B-alive
+  **true**（隔离半边真机成立）; L5.2 根因=**stop/recover 契约结构性冲突**
+  [MediaBackend::stop=终态注销（P0-2 防句柄泄漏）vs recover 第一步
+  instances.get 取 plan——controller.rs:314-331 vs 220-227; stop→recover
+  序列生产上必败]; Mock stop/recover 均 no-op Ok（mock.rs:129-134）+
+  L5 序列仅真机 gate 执行——Mock≠GStreamer 预警在 recover 契约面成真;
+  L5.3/L5.4/Teardown session_stop=false 全为级联（Teardown 本体无独立
+  缺陷: program_runtime_inactive=true·phase_released=true）。
+- **分类=C 类候选（gate 序列×生产契约不匹配）待裁**, 候选方向三选一
+  （L5 注入面改造 / Session 层 recover-from-plan / recover 语义归属
+  A2-8-03 supervision 面）; 红线: MediaBackend::recover 不改 + stop 注销
+  语义=P0-2 专裁不可反转。**未改码**。
+- 02-I 仍 FAIL-PENDING-CORRECTION（8/10; 失败集迁移 {L4,L5-skip}→
+  {L5, Teardown-级联}）。全文=设计探针 §20。

@@ -474,7 +474,28 @@
   本次小修]+on_mapped_buffer 先行 DiscontinuityDeclared[616 先于连续性
   判定]=NewEpoch 修复时锁回归**; 令=修正后立即真机复跑·H1 开 L5 完整
   真实证据必拿[A fail→B alive/recover A→bridge real flow/B fail→A alive/
-  failure-domain classification]; L5 全绿→02-I 具备正式收口评审条件**
+  failure-domain classification]; L5 全绿→02-I 具备正式收口评审条件**;
+  **第三十三轮执行（设计探针 §20+主账 §43, commits b856a04+ d5059e2 fmt
+  残留）: 盒矩阵 fmt/default 217/mock 381/bmd+gst 237/clippy×2 全绿·
+  69/69 源 sha==HEAD·bin c0efdfad·v5 当日复核·证据=盒
+  ~/a2-8-02i-evidence/2026-09-04-2340-l4fix-l5run（run.log sha 4616d680）;
+  **L4 Timing/switch+timeline(A→B) 首次真机正式 PASS[九项合取全绿:
+  Preserved epoch 0·映射闭合 6937849283+33301642==6971150925 逐 ns·V/A
+  Continuous·declared==observed==SegmentId(1)·无未声明回退·mapped==pre_v
+  再次精确相等（零隙拼接复现→>= 修正被真机证实必要且充分）·post prog≥
+  mapped]**; **L5 首次真机执行（历史两跑均被 H1 跳过）FAIL=C 类候选留证
+  未改码: L5.1 A-fail→B-alive=true 真机成立; L5.2 单一根因=stop/recover
+  契约结构性冲突[MediaBackend::stop=终态注销（P0-2 防句柄泄漏·
+  controller.rs:314-331）vs recover 第一步 instances.get 取 plan
+  （controller.rs:220-227）——stop→recover 生产必败]; Mock stop/recover 均
+  no-op Ok+L5 序列仅真机 gate 执行=Mock≠GStreamer 预警在 recover 契约面
+  成真; L5.3/L5.4/Teardown session_stop=false 全为级联（Teardown 本体无
+  独立缺陷）; 候选方向三选一待裁[L5 注入面改造/Session 层
+  recover-from-plan/recover 语义归属 A2-8-03 supervision 面]; 红线=
+  MediaBackend::recover 不改+stop 注销语义不可反转; 新工件=Bus watch
+  MainContext already-acquired WARN（隔离队列）; 02-I 仍
+  FAIL-PENDING-CORRECTION（8/10; 失败集迁移 {L4,L5-skip}→{L5,
+  Teardown-级联}）**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

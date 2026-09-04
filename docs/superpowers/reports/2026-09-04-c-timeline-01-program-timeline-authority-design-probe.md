@@ -1005,3 +1005,102 @@ Execution + Program Timeline Continuity 基础能力在真实双输入硬件上
 3. 盒矩阵（fmt / default / mock / bmd+gst / clippy×2）；
 4. `cargo build --bin media-agent-gates` + §29.2 复跑序 → 真机 L4/L5；
 5. 证据归档 + §20 复跑账 + commit/push + 记忆同步。
+
+## 20. 第三十三轮执行：L4 修正后真机复跑——L4 正式 PASS；L5 首跑 FAIL=C 类候选留证（2026-09-04 22:35 CST）
+
+### 20.1 执行纪律（§29.2/§28.3 全项）
+
+- **代码链**: HEAD=d5059e2（=3ff66ad Batch 2 + b856a04 `>`→`>=` 单字符
+  + d5059e2 program_execution.rs 盒 fmt 格式化残留[d5059e2 为 fmt commit，
+  b856a04 为修正 commit——链为 3ff66ad→c5c7753 账→b856a04→d5059e2]）;
+  local git status clean; **69/69 源 sha==HEAD**（逐文件 sha256 对照）。
+- **盒矩阵（d5059e2 全绿）**: fmt OK / default **217**/0 / mock **381**/0 /
+  bmd+gst **237**/0 / clippy default `-D` PASS / clippy bmd+gst `-D` PASS。
+- **bin**: `cargo build --bin media-agent-gates --features bmd,gstreamer`
+  重建（sha256 `c0efdfad`——教训执行）。
+- **前置**: 盒时钟 2026-09-04 22:35 CST（与仓库同日）; ball 源 PID 992634
+  存活 7h38m; gst dn0/dn1 各捕获 2 buffer 干净退出（信号在）; v5 manifest
+  当日 L1 复核 2/2 production_grade（跑内 L1a）。
+- **证据**: 盒 `~/a2-8-02i-evidence/2026-09-04-2340-l4fix-l5run/`
+  （header.txt + run.log 10493B, sha256 `4616d680`）。
+
+### 20.2 结果（EXIT=2, 8/10 verdicts; 失败集迁移 {L4, L5-skip}→{L5, Teardown}）
+
+| Verdict | 结果 |
+| --- | --- |
+| L0/L1a/L1b/L1c/L1d | PASS（2/2 production_grade·SDK mask·双卡 signal=true·closure） |
+| L2a/L2b | PASS（双输入 session·双 tap 83 帧） |
+| L3 | PASS（video 120→210·ValidMonotonic） |
+| **L4 Timing/switch+timeline(A→B)** | **PASS**（九项合取全绿——首次） |
+| L5 Failure isolation/recover | **FAIL**（首跑留证, §20.4） |
+| Teardown 停止链 | **FAIL**（session_stop=false——L5 级联, §20.5） |
+
+### 20.3 L4 PASS 决定性事实
+
+- **`>=` 修正被真机证实为必要且充分**: 本跑 `mapped_program_pts=
+  6971150925` 与 pre_v `prog_v=6971150925` **再次精确相等**（零隙拼接
+  复现——若未修此跑 L4 将与上跑同因 FAIL）。
+- 映射闭合: `source_pts 6937849283 + offset 33301642 == 6971150925`
+  （逐 ns 精确）; declared_segment==observed_segment==SegmentId(1);
+  V/A 双平面 Continuous; `undeclared_backward_jump=None`;
+  `discontinuity_state=DiscontinuityDeclared`（声明边界事实保留）;
+  epoch **保持 0**（Preserve·同世代）; post prog_v=11171150925 ≥ mapped;
+  Authority snapshot 行 mapped=Some。本跑 offset=33301642（≈33.3ms）
+  与上跑 118799ns 不同——锚样例位置依赖（出口/目标分支取样时刻不同）,
+  映射闭合性与连续性判定不受影响（invariant=映射后非回退, 非 offset
+  大小）。
+- outcome=Preserved + switch_ok=true（epoch=1·observed=B·completed=
+  Observed 驱动）。
+
+### 20.4 L5 首跑 FAIL 根因（首跑留证纪律——**未改任何代码**）
+
+- **L5.1 A-fail→B-alive=true 真机成立**（inputA_advancing=false·
+  bridgeB_alive=true·program_advancing=true——隔离半边首次真机实证）。
+- **L5.2 recover-A→桥复流=false 的单一根因=stop/recover 契约结构性冲突**:
+  - `MediaBackend::stop`（controller.rs:314-331, P0-2 防句柄泄漏专裁）
+    = **终态注销**: instances 表 + HEALTH_ARCS 双移除;
+  - `PipelineController::recover`（controller.rs:220-227）第一步
+    `instances.get(handle)` 取 plan——**stop 之后 handle 必然不存在**,
+    必返 `Err("未知 pipeline handle (recover)")`（`recovered=false`）;
+  - Gate L5 序列 `ctrl.stop(&h_a)` → `ctrl.recover(&h_a)`
+    （dual_input.rs:715→736）在生产控制器上结构性不可能成功。
+- **Mock 车道无法暴露**: MockBackend stop/recover 均为 no-op `Ok(())`
+    （mock.rs:129-134, 无任何 registry 语义）; 且 L5 注入序列仅存在于
+    真机 gate（无测试车道覆盖）——第三十二轮 "Mock≠GStreamer（Batch 2
+    风险高峰）" 预警在 **recover 契约面**成真。
+- **级联（非独立失败）**: L5.3 bridgeA_alive=false（A 未复流）→false;
+  L5.4 A 行 input 停滞→分类 Input（期望 Program）→false; Teardown
+  session_stop=false（§20.5）。四项失败全部回溯到 L5.2 单点。
+
+### 20.5 Teardown FAIL=L5 级联
+
+`session_stop=false program_runtime_inactive=true phase_released=true`:
+session.backend.stop(h1/h2) 报"未知 pipeline handle (stop)"（L5 已注销
+两输入管线）→ session stop Err（P0-2 继续 WARN 释放——链其余两段正常:
+Program Stop→Tap Detach 完成[detach 对已注销 handle 诚实 WARN]、
+phase_released=true）。**Teardown 本体无独立缺陷**。
+
+### 20.6 分类与候选修复方向（待裁; 按禁做清单本轮零改码）
+
+- **分类=C 类候选（gate 序列 × 生产契约不匹配——L5 首次真机执行暴露的
+  recover 契约缺口）**。非 A（硬件无恙: 注入前双输入全绿·B 管线 stop
+  正常·L4 全链 PASS）; 非 B（gate 判据忠实转写——观察 recovered=false/
+  bridgeA 死亡均为真）。
+- 候选方向（互斥待裁）: ①L5 注入面改造（不经 backend.stop 的故障注入
+  ——当前唯一 kill 面=stop）; ②Session 层 recover-from-plan（SessionInput
+  携带 plan→重 instantiate→handle 更新——改动面在 Session/契约）;
+  ③recover 语义归属 supervision 面（A2-8-03 watchdog/Supervisor 验证范围,
+  L5 recover 子项延后）。**红线提醒**: 第三十一/三十二轮禁做清单
+  "MediaBackend::recover 不改" 仍然有效——任何方向不得顺手改 recover
+  本体; stop 的注销语义=P0-2 专裁不可为 L5 反转。
+- 工件: converter interlace 断言同历跑（隔离队列不变）; 本跑未见
+  pad_unlink CRITICAL; 新观察 "Bus watch MainContext 推送失败 already
+  acquired by another thread"（L2 era·双桥 83 帧正常·无功能影响——
+  隔离队列登记）。
+
+### 20.7 02-I 状态
+
+**仍 FAIL-PENDING-CORRECTION（8/10; 失败集 {L5, Teardown-级联}）**。
+**L4（switch+timeline 九项合取）首次真机正式 PASS**——B 类单字符修正
+闭环验证完成。L5=首次真机执行（历史两跑均被 H1 跳过）: 隔离半边
+（A-fail→B-alive）真机成立; recover 半边=C 类契约缺口留证待裁。
