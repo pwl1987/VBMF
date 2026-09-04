@@ -667,7 +667,21 @@
   invariant[双平面 offset==program_start−source_start+NewEpoch 平面
   DiscontinuityDeclared 不洗·offset=i64 跨域可负·mock 车道 cfg]; 矩阵
   default 217 不变/mock 382/bmd+gst 240 不变/clippy×3; 真机无
-  生产变更不复跑]**]**
+  生产变更不复跑]**]**; **第三十九轮（主账 §54+设计探针 §31, 裁决
+  落账零代码）: P1-A=方案 α「边界帧锚修正」批准·β 否决**[α:
+  sample_switch_anchors 双锚去 saturating_add(节拍)——program_anchor=
+  pv·source_anchor=target_v 原值（audio 同构）; 修改面=switch_graph.rs
+  单函数+回归测试+注释+program_timeline.rs AnchorPair 注释语义统一
+  （注释级）; 健康切换 mapped==program_start 精确相等+±1ns 竞态结构性
+  根除; β=slack 魔数吸收非消除+吞真实 discontinuity 否决; P1-A 重定义
+  =「已观测边界帧做未来一节拍外推致 program_start 与首枚 target buffer
+  不在同一离散帧边界」; P1-B 维持撤销+不变量测试保留; last_delta 解耦=
+  observation fact（allow(dead_code) 保留禁删）≠ declaration input;
+  R39 回归项 1-4 被 α 取代（Domain 零改）/项 5 已交付/项 6-7 既有
+  覆盖; 新回归锁=last_delta 不得改变声明 anchor（裁决例值）; 披露=
+  switch_mock.rs:297-306 同 +STEP 外推——Mock 同构面同步与否独立待裁
+  不阻塞; on_mapped_buffer/close_transition/declare/Runtime 编排链
+  零改; 真机七项验收重点见主账 §54.2]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

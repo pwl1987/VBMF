@@ -1244,3 +1244,23 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   （双平面 offset==program_start−source_start + NewEpoch 平面
   DiscontinuityDeclared 不洗）。
 - C-TIMELINE-01 Final Close 继续 Pending P1-A 裁决。
+
+## 31. 第四十轮裁决跨账引用: P1-A=方案 α 边界帧锚修正批准（2026-09-05）
+
+- 主账 §54: **α 通过/β 否决**（slack=吸收非消除+吞真实 discontinuity）;
+  **P1-A 重定义**=「sample_switch_anchors 将已观测边界帧做未来一节拍
+  外推 ⇒ program_start_pts 与首枚 target buffer 不在同一离散帧边界」
+  （非 last_program_pts 污染）; **P1-B 维持撤销**（R39 不变量测试保留）。
+- 修改面=switch_graph.rs `sample_switch_anchors` 锚语义+回归测试+注释;
+  program_timeline.rs 仅 AnchorPair 注释语义统一（注释级零 production
+  逻辑）。**Freeze 语义面零触碰**: on_mapped_buffer/close_transition/
+  SourceSegment::declare/TimelineAuthority/Runtime 编排链（①-⑩）/
+  R1-R8 红线全部保持。
+- **last_delta 解耦**: `last_delta=observation fact`（探针持续记录,
+  allow(dead_code) 保留）≠ `program_anchor/source_anchor=timeline
+  declaration input`（=已观测边界帧原值）。
+- Design Freeze 文本无 +节拍条文（该外推为 Batch 2 实现层选择）——
+  本轮即"实现期偏离必回裁"的回裁本体, Freeze 文件不改。
+- 披露: switch_mock.rs:297-306 Mock 锚同 +STEP 外推——Mock 同构面
+  是否同步去 STEP 待裁（独立项, 不阻塞）。
+- Final Close: Pending P1-A 落地+真机七项验收（主账 §54.2）。

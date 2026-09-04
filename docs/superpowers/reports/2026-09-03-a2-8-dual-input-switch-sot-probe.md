@@ -2919,3 +2919,73 @@ handle=2 21:42:15.116）。
   `#[cfg(all(test, feature="mock"))]` 车道）·bmd+gst 240 不变·clippy×3
   绿（default/mock/bmd+gst）。
 - 真机: 本轮无生产代码变更不复跑（P1-A 裁决后一并）。
+
+## §54 第四十轮裁决: P1-A=方案 α「边界帧锚修正」批准——β 否决·P1-B 维持撤销（2026-09-05, 落账零代码）
+
+### 54.1 裁决前核验（依例: 裁决内代码主张先证后录）
+
+- ✅ `sample_switch_anchors` switch_graph.rs:852-867: 双锚各 `saturating_add`
+  独立测量节拍（`program_anchor: pv+video_anchor_delta`·
+  `source_anchor: target_v+target_v_delta`; audio 同构）——裁决引用的
+  "未来一节拍外推"实锚无误。
+- ✅ `last_delta` 全仓消费点唯一=:843 `need` 闭包（本函数）: 结构定义
+  :101 + 探针写点 :503（`ns−last` 步长）——锚去节拍后该字段转为
+  write-only 观察事实, 需按项目惯例（pipeline_events.rs:22 先例）
+  加 `#[allow(dead_code)]`+说明, **不删字段**（裁决 §三: 留作稳定性/
+  格式/帧周期证据·A2-8-03 诊断备查）。
+- ✅ AnchorPair 注释原文 program_timeline.rs:61-64（"B 首帧应落位的
+  Program 位置"）与实现（+节拍=下一帧预测）语义错位——裁决 §九
+  注释一致性修正点名成立。
+- ✅ 四跑 `program_start−mapped ≡ 33,333,333ns`（R39 盒日志已证）+
+  ±1ns 竞态=双节拍测量差（R39 代数）——α 后 mapped=pv+(S_b−target_v)
+  ∈{pv, pv+1帧} ≥ pv=program_start, **竞态结构性根除**。
+
+### 54.2 裁决正文（用户原意照录要点）
+
+- **方案 α 批准, 表述=「边界帧锚修正」**: `program_anchor=pv`·
+  `source_anchor=target_v`（audio: pa/target_a）原值, 去两处
+  `saturating_add(节拍)`; 修改面=switch_graph.rs 单函数+回归测试+
+  必要注释（含 program_timeline.rs AnchorPair 注释语义统一——注释级
+  非 production 逻辑）。健康无缝切换下 `mapped==program_start_pts`
+  精确相等; `mapped<program_start` 才是真正 NewEpoch（"首枚 target
+  buffer 比声明边界还早"语义变干净）。
+- **方案 β 否决**: slack 魔数=在错误外推锚上人工容差——吸收非消除
+  竞态, 且会吞真实 discontinuity; 违反"解决映射关系, 不是调大数字"。
+- **P1-A 定义正式修订**: `sample_switch_anchors() 将已观测边界帧做
+  未来一个节拍的外推, 导致 SourceSegment.program_start_pts 与实际首枚
+  target buffer 不在同一个离散帧边界上`（非"last_program_pts 污染"）。
+  R37 run1 的 1ns NewEpoch=错位模型上双 delta 恰好不等的表象。
+- **P1-B 维持撤销**; R39 交付的 NewEpoch 不变量测试保留（加强证明
+  非修 bug）。
+- **不修清单**: on_mapped_buffer（`expected=seg.map_pts(source_pts)`
+  +:618-622 连续性判定照旧）/ close_transition / SourceSegment::
+  declare / ProgramExecutionRuntime 编排链 / ExecutionGroup /
+  SessionManager/Supervisor/MediaBackend——**零改**。
+- **last_delta 解耦红线**: `last_delta=observation fact`;
+  `program_anchor/source_anchor=timeline declaration input`——重新
+  解耦, 禁删字段禁删探针写点。
+- **新回归锁**（裁决 §七例值）: active_delta=33,333,333·
+  target_delta=33,333,334·pv=1,000,000,000·target_v=900,000,000 ⇒
+  断言 `program_anchor==pv ∧ source_anchor==target_v`（非
+  pv+delta/target_v+delta）——未来把 delta 加回锚即翻。
+- **R39 七项回归处置**: 项 1-4（on_mapped_buffer 谓词改法）**被本轮
+  α 取代**——α 后 `mapped∈{pv,pv+1帧}≥last_program_pts` 天然成立,
+  Domain 零改即达"边界==映射帧"世界; 项 5 已交付（R39）; 项 6-7 既有
+  覆盖维持（:1244-1290 append-only·:952/:966/:1315 Discontinuity
+  不洗）。
+- **真机七项验收重点**: ①L4 连续 Preserve ②program_start_pts==
+  first mapped PTS（首证精确相等）③V/A Continuous ④无 1ns 条件性
+  NewEpoch ⑤NewEpoch 测试仍过（矩阵）⑥L5.4 R37 归因语义 PASS
+  ⑦Teardown PASS。
+
+### 54.3 披露（不扩面待裁）
+
+- **Mock 分叉**: switch_mock.rs:297-306 `sample_switch_anchors` 同为
+  `+VIDEO_PTS_STEP/+AUDIO_PTS_STEP` 外推语义——本轮裁决修改面未含
+  Mock, 不动; Mock 同构面（含其注释 :271-273 与 F5/F6 同构测试的
+  锚语义）是否同步去 STEP=独立待裁项, 不阻塞本轮。
+- Design Freeze 文本无需修改（grep 证实 Freeze 内"锚"仅现状锚用法,
+  +节拍外推非 Freeze 条文而是 Batch 2 实现层选择; 本轮=对该实现
+  偏离的正式回裁, 记于本账）。
+- C-TIMELINE-01 Final Close 与 A2-8-05 维持暂缓（P1-A 落地+真机后
+  再裁）。
