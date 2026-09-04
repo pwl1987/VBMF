@@ -3,7 +3,11 @@
 - 日期：2026-09-04；分支 `comet/a2-8-dual-input-switch`；基线 1db28e2 之上（零代码）。
 - 权威来源：用户十问终裁（2026-09-04），全文落账于设计探针 §11
   （`2026-09-04-c-timeline-01-program-timeline-authority-design-probe.md`）。
-  **本文件为整理稿；与 §11 终裁原文如有出入，以终裁原文为准。**
+  **本文件为整理稿；与 §11 终裁原文如有出入以终裁原文为准。**
+- **修订记录**：2026-09-04 第三十二轮终裁（设计探针 §16.2.1）——§3
+  program_epoch 语义统一为 **Preserve=同世代不变 / NewEpoch（及 Hard
+  Recover 重建）=+1**，消除与 Batch 1 实现（f82e625）的双 SoT；修订仅
+  涉及 §3 与其衔接表述，其余 14 项零变化。
 - 冻结效力：本文 15 项 + 八红线 R1-R8 + OQ-1..12 裁定即 C-TIMELINE-01
   冻结设计面。implementation change 以本文件为设计 SoT 开工；实现期
   任何与本文冲突的选择**必须停下回裁，不得由开发助手自行裁定**。
@@ -105,9 +109,25 @@ input-selector → queue → appsink（switch_graph.rs:217-241/:275-306），
 ## 3. ProgramEpoch（冻结项③）
 
 - 语义：**媒体语义时间线世代**（区别于执行事件计数）。
-- 与 `switch_epoch` 的关系：**不复用、不同物**（switch_epoch=
-  执行事件；program_epoch=媒体语义）；一次成功 program switch →
-  program_epoch 推进（起始对应 SwitchEpoch 1 → TimelineEpoch 1）。
+- 三计数器职权分离（第三十二轮终裁修正, 2026-09-04；原文"一次成功
+  program switch → program_epoch 推进（起始对应 SwitchEpoch 1 →
+  TimelineEpoch 1）"废止——该口径使 ProgramEpoch 退化成另一种 switch
+  counter，破坏 ProgramEpoch≠switch_epoch 的初衷）：
+
+```text
+switch_epoch  = execution event count（执行事件计数, ExecutionGroup 所有）
+segment_id    = source segment generation（每次切换段世代 +1）
+program_epoch = discontinuous program timeline generation
+                Preserve（连续性成立）   → 同世代不变
+                NewEpoch（连续性不可证） → program_epoch + 1
+                Hard Recover（重建）     → program_epoch + 1（§13）
+```
+
+- A→B 切换且 Program Timeline 连续成立（Preserve）时：`ProgramEpoch=N
+  保持, SegmentId=N+1` 完全合理——段世代推进表达"发生了段切换"，epoch
+  不变表达"时间线世代未断"。
+- 与 `switch_epoch` 的关系：**不复用、不同物**；两状态机经
+  `SwitchExecutionPlan`/`SwitchExecuted` 做关联但各自拥有自己的状态。
 - recover 可以只变 program_epoch 不发生业务 source switch（见 §13）。
 - Video/Audio **共享同一 Program Epoch**（同一次切换同一 epoch），
   但不共享 PTS 数值序列（见 §9）。
