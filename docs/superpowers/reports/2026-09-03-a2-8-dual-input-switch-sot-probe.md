@@ -1431,3 +1431,69 @@ Production API 503 / PTS normalization execution gap / N-input
 general switch——其中 PortIdentity direction 修复若启动必须一次性
 联动 PortIdentity→PortId→Manifest→PortRegistry→ResourceRegistry→
 derive_claims→Session, 禁只改 UUID 公式。
+
+## 29. 第二十二轮裁决（基线 `9d5c0d8`）: APPROVED / FROZEN / GO 维持——主线切换"02-I 真机条件恢复与证据验收"+ 环境证据包纪律
+
+### 29.1 终裁
+
+> **APPROVED / FROZEN / GO 维持。`9d5c0d0` 系列不需要重新打开 A2-8
+> 实现; 主线自"代码审查"彻底切换到"02-I 真机条件恢复与证据验收"。
+> 本轮无新代码裁决、无新架构决策需要批准。下一次有效动作 = 硬件条件
+> 恢复后的 02-I 第二次真机验收。**
+
+基线状态无冲突（本轮独立核验: 9d5c0d8 恰两份 docs, 下列文件零
+触碰——services/media-agent/**·port.rs·resource.rs·session.rs·
+pipeline.rs·switch_graph.rs·program_execution.rs）:
+
+```text
+fe71b7c = Implementation Freeze
+d0ffff9 = 02-I 首轮真机证据
+9d5c0d8 = 第二十一轮裁决修正
+02-I    = OPEN
+```
+
+确认项: ①B 类定义正确（Real Hardware / Runtime Environment
+Preconditions, 具体根因未证明——当前证据只到"GStreamer probe 无法
+获得可用 binding 且复跑持续", 未证明 duplex/Desktop Video/驱动/占用/
+OS enumeration/probe 环境/硬件本身任一; **禁根据猜测改代码**）;
+②v4 manifest 当日复核=硬性 Gate（gst_device_number=Runtime address
+非 Canonical Device Identity——避免"硬件已恢复但枚举顺序变化, Gate
+错绑另一设备"; fail-closed 设计本应阻止此事）; ③run1/run2 新旧行为
+对照=H1 CLOSED 强证据（同一真实硬件/同一失败条件: 旧 cb78adc=L1 FAIL
+错误继续 L2 被 Preflight 二次闸门兜住, 新 fe71b7c=第一闸门正确
+fail-stop·Session 不创建——非单测层面证明）; ④C 类十项债务确认全
+不属于 02-I 阻塞, 尤其禁因"恰好两张 Duplex DeckLink"顺手修
+PortIdentity 把 PortId→Resource→Manifest→Session 身份链重新打开。
+
+### 29.2 环境证据包纪律（02-I 第二次真机验收起生效——零代码, 非新 Gate）
+
+**证据头五件套**（复跑证据开头固定同录, 在 §28.2-3 四件套上增
+`git status --short`）:
+
+```text
+date
+date -u
+timedatectl
+git rev-parse HEAD
+git status --short
+```
+
+**完整执行序**（§28.3 ①-⑧ 细化——增 build 后 HEAD 复核）:
+
+```text
+证据头五件套
+→ Discovery（两卡 DeviceHandle/DeviceId/PortId/Signal 实测落盘）
+→ GStreamer probe（当日 gst_device_number）
+→ v4 manifest（据实生成/核验, device_number 变则更新）
+→ cargo build --features bmd,gstreamer --bin media-agent-gates
+→ git rev-parse HEAD（build 后复核=实际执行确为冻结版源）
+→ L0 → L5 → Teardown（VBMF_A2_8_DUAL_INPUT=1）
+→ 全量 Evidence Package 归档
+```
+
+最终 Evidence Package 须能回答六问: ①什么时候测的 ②哪个时区
+③盒子当前跑什么 Git commit ④实际执行的是不是冻结版 gate binary
+⑤当时两张卡到底是什么 Discovery 状态 ⑥最终失败/成功属于代码·环境·
+硬件哪类（届时仍 FAIL 则严格按 A=代码 / B=Hardware/Runtime
+Environment / C=已知架构债务 三分类裁决, 禁为通过 Gate 改代码）。
+此纪律比继续增加 Gate 断言更有价值——证据可审计性优先。

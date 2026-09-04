@@ -146,7 +146,13 @@
   2026-09-04/仓库 2026-09-03=evidence host clock/timezone mismatch
   （不影响技术裁决, 影响时间线审计）——复跑证据须同录 date -u/date/
   timedatectl/git rev-parse HEAD; 复跑执行序①-⑧=probe §28.3（⑥显式
-  cargo build --bin media-agent-gates 必须）**`
+  cargo build --bin media-agent-gates 必须）; **第二十二轮 APPROVED/
+  FROZEN/GO 维持（probe §29, 零代码）: 主线切换"02-I 真机条件恢复
+  与证据验收"——无新代码裁决无新架构决策; 环境证据包纪律（§29.2）:
+  证据头五件套[date/date -u/timedatectl/git rev-parse HEAD/
+  git status --short]·build 后 HEAD 复核=实际执行确为冻结版源·
+  六问 Evidence Package[何时/时区/commit/是否冻结 bin/两卡 Discovery
+  状态/A-B-C 归类]——比增加 Gate 断言更有价值**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
