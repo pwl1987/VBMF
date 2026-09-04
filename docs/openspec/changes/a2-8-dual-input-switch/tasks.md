@@ -152,7 +152,19 @@
   证据头五件套[date/date -u/timedatectl/git rev-parse HEAD/
   git status --short]·build 后 HEAD 复核=实际执行确为冻结版源·
   六问 Evidence Package[何时/时区/commit/是否冻结 bin/两卡 Discovery
-  状态/A-B-C 归类]——比增加 Gate 断言更有价值**`
+  状态/A-B-C 归类]——比增加 Gate 断言更有价值**; **第二十三轮
+  APPROVED/FROZEN/GO 维持（probe §30, 零代码）: 02-I 阻塞点重定义=
+  Runtime Address/Provisioning Identity 闭环——现场推断 gst 序
+  [dn0≈SDI(1),dn1≈SDI(2),dn2≈Mini]=correlation evidence 非 canonical
+  proof[resolver.rs:903/:939-985/:528-535/:1022 独立复核:
+  ManifestVerified=dn 可开+可选 serial/model 校验, hw-serial NULL+同
+  model 下不证 Handle↔dn 同一硬件——语义边界登记不修, identity closure
+  冻结]; Gate 无写死 dn[dual_input.rs:198/:232-249]; B4 占用降级为
+  观察事实[dn2=Mini output-only 被 ball sink 用→自然开不了 input];
+  旧 v4 正式作废; 两路输入=A 类已证[ffmpeg 1080i25/1080p25 双拉流];
+  下一步=身份闭环核验[Discovery→Handle↔物理 BNC↔SDI(1)/(2)↔runtime
+  probe→人工/物理/官方工具交叉确认→新 v4[Provisioning 意义]→frozen
+  build→L0→L5], 禁猜 dn 写 v4**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

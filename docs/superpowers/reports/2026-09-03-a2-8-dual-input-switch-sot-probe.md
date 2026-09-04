@@ -1497,3 +1497,65 @@ git status --short
 硬件哪类（届时仍 FAIL 则严格按 A=代码 / B=Hardware/Runtime
 Environment / C=已知架构债务 三分类裁决, 禁为通过 Gate 改代码）。
 此纪律比继续增加 Gate 断言更有价值——证据可审计性优先。
+
+## 30. 第二十三轮裁决（基线 `b20ff70`）: APPROVED / FROZEN / GO 维持——02-I 阻塞点重定义: Runtime Address / Provisioning Identity 闭环
+
+### 30.1 终裁
+
+> **A2-8 继续 APPROVED / FROZEN / GO。02-I 继续 OPEN——阻塞点从"第二张卡疑似不可用"
+> 改为"必须重建当日的 物理身份 ↔ GStreamer runtime address 权威绑定"。
+> 零代码、零 PortIdentity、零 Session/Resource 修改。
+> 不批准按现场推断直接生成新 v4 manifest 后跑 L0→L5。**
+
+### 30.2 代码级核验（本轮独立复核, 与裁决一致）
+
+- **resolver.rs**: `resolve_with_manifest()`（:903）验证链 = Manifest 宣称
+  dn → probe 可开 → 可选 `expected_hw_serial_number`/`expected_model`
+  交叉校验（:939-985, 不符 fail-closed）; `is_production_grade()`（:528）
+  要求 HIGH confidence 且接受 PersistentId/Serial/DeviceHandle exact/
+  ManifestVerified（:535, :1022）。**语义边界（:615 注释已自知"当前硬件
+  serial 恒空"）**: hw-serial=NULL + 两卡同 model=DeckLink SDI 时,
+  "dn 可开 + model 相符" ≠ "dn ↔ 指定 Handle 同一硬件"——
+  `ManifestVerified` = Manifest 指定 dn + probe 成功 + 可选校验通过,
+  **非 Handle↔runtime 硬件同一性证明**。登记不修（canonical identity
+  closure 独立 change 冻结; 禁为 02-I 塞 device-number/拓扑猜测进
+  resolver）。
+- **dual_input.rs**: Gate 经 `collect_bindings_from_manifest()`（:198）
+  消费 Manifest 解析绑定; L1/H4 按绑定采样 dn/signal（:232-249）,
+  **无写死 device-number**——首跑 "SDI-IN-2 unresolved" = Manifest→probe
+  验证失败, 非 Gate 硬编码"第二张卡必须是 dn2"。Gate 不改。
+- H2/Resource/Session/ProgramExecutionRuntime/SwitchGraph 链未被击穿
+  （device-number 从未被当 Port identity）; 出问题的仅
+  Canonical DeviceHandle→Runtime binding→gst dn 这一 runtime mapping 层。
+
+### 30.3 定性修正（对 §29 现场报告）
+
+1. 现场三重互证推断 gst 序今日=[SDI(1), SDI(2), Mini] = **runtime /
+   physical correlation evidence, 非 canonical identity proof**——两层次
+   严格分开, 禁用 runtime enumeration order 反推 DeviceHandle
+   （resolver 自身冻结原则）;
+2. PID 577061 ball sink（dn2, 09-02 07:38 起）= **保留为现场事实, 不判定
+   为最终根因**——更合理解释: dn2 = Mini Monitor output-only slot 被
+   sink 使用 → 自然无法作 video input 打开（B4"占用"降级, 与 ffmpeg
+   双输入成功证据一致）;
+3. 旧 v4 manifest **正式作废, 不直接复用**（裁决批准）;
+4. 已证明事实: 两路 BNC 接线正确（#2/#4 均输入）; SDI-IN-1 = A 类
+  （真实输入有信号 1080i25）; SDI-IN-2 = A 类（真实输入有信号 1080p25）;
+  两路 BMD SDK 输入能力活着（ffmpeg 75 帧/3s × 2）——02-I 已具备进入
+  最终验收的硬件基础。
+
+### 30.4 下一步 = 身份闭环核验（Provisioning）, 非简单"刷新 manifest 重跑"
+
+```text
+当前真实 Discovery → DeviceHandle A/B
+  ↔ 物理 BNC（#2 电视 / #4 4K 输出卡）↔ SDI(1)/SDI(2) 输入
+  ↔ GStreamer runtime probe（dn0/dn1/…）
+  → 人工 / 物理 / 官方工具交叉确认
+  → 新 v4 Manifest（真正 Provisioning 意义）
+  → frozen binary build → L0 → L5 → Teardown
+```
+
+禁: 猜 dn0/dn1/dn2 → 写 v4。**"dn0=SDI(1)、dn1=SDI(2)" 现在不写死
+进 v4**——须先完成 DeviceHandle↔物理输入↔runtime address 权威确认,
+v4 才具有 Provisioning 意义。身份闭环完成后进入 L0-L5; 届时仍 FAIL
+仍按 A/B/C 三分类裁决, 禁为跑绿改码。
