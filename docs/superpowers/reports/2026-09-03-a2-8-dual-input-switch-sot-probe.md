@@ -1949,3 +1949,144 @@ CORRECTION）· L5=SKIPPED BY H1（不计独立失败）· Teardown PASS ·
   （每跑恰 9 条）待裁；③ 现场项（BNC#4 对端/dn2→Mini 线缆/照片）
   用户侧不阻塞；④ 冻结债务不变（PORT-IDENTITY-AND-RESOURCE-
   ADDRESSING · canonical UUID namespace · A2-8-03/04/05）。
+
+## 35. 第二十六轮终裁补正：维持 + 两处账面表述修正 + C1-P1 登记 + C-TIMELINE-01 CONFIRMED（零代码）
+
+> 落账：2026-09-04（d123b45 之上，本轮零源码改动；本节为追加，
+> §34 及第二十六轮全部账面保持原样）。裁决来源=用户第二十六轮终裁
+> 补正全文。**用户独立核验范围升级**（原话"这次不是只看你贴出来的
+> 报告"）：直接核验 470f1a0 / 1c3032b / d123b45 三 commit + 八个源
+> 文件 + 两次真实 compare（fe71b7c→1c3032b、470f1a0→d123b45）。
+> **§34.7 边界披露就此解除**：①470f1a0→d123b45 仅两账面文件零夹带
+> 源码；②fe71b7c→1c3032b 运行时代码变更仅 resolver.rs（其余=0b3c73a
+> 二十五轮账面）——本轮"零代码"成立。
+
+### 35.1 裁决骨架：全部工程裁决维持 + 两处账面表述补正
+
+维持：C1=PASS/CLOSED · L0-L3 PASS · L4-SWITCH PASS ·
+L4-TIMELINE=FAIL-PENDING-CORRECTION · L4 Overall 同 · L5=H1
+SKIPPED · 02-I=FAIL-PENDING-CORRECTION · 暂不实现 Timestamp
+Normalization · 不放宽 H1 · 不改 SwitchExecution/ExecutionGroup/
+Supervisor/SessionManager · 下一刀=独立 Program Timeline / PTS
+Normalization 设计裁决。
+
+- **补正一（C1 变更范围表述限定）**：C1"只改 resolver.rs"须限定为
+  **运行时代码变更**——fe71b7c→1c3032b compare 同时含 tasks.md +
+  probe report 账面修改（即 0b3c73a 二十五轮落账）。准确表述=
+  **运行时代码变更只有 resolver.rs，架构/账面文档同步另计**。后续
+  账面引用 C1 一律采用限定表述。
+- **补正二（C1-P1 债务登记）**：见 §35.3。
+
+### 35.2 用户代码级确认清单（要点照录 + 本地锚点复核全部吻合）
+
+| 用户确认 | 本地实锚 |
+| --- | --- |
+| C1 语义=PLAYING 起 deadline + 300ms 错误宽限 + 轮询早退（非 sleep 3s 读一次；锁定即返不人为烧满窗口） | resolver.rs:239-243 / :240 / :268-272 / :373-387 |
+| ProgramObservation SPI 本即多维证据面（active/video/audio/epoch/input_pts/program pts+state+frames），非为 L4 事后拼凑 | contracts/switch.rs:56-77 |
+| ExecutionGroup 恰 {session_id, inputs, desired, switch_epoch} 零时间戳——不是 Timeline Authority；complete_switch 须真实 Observed B 才推进 | switch_execution.rs:93-100 |
+| Program graph 无 timeline 层（identity/videorate/timestamp rewriting/segment offset/PTS offset/timeline mapper 全零） | adapters/gstreamer/switch_graph.rs 全文件零命中 |
+| Bridged 无 capsfilter（Simulation→capsfilter · Bridged→None 透传输入管线实际媒体时间属性） | switch_graph.rs:219-231（:231 `Bridged => None`）/ :253-258 / :297-300 |
+| PtsMonotonicity 判定器正确（pts<last→NonMonotonic 且 sticky）；Program PTS=真实 appsink buffer PTS 非簿记推导 | pipeline.rs:236-246 / :291-311 + switch_graph.rs:147/:241 |
+| L4 账法=三维分记维持；H1 维持（L5 以整个 L4 为前置）；L5 SKIPPED=正确状态非遗漏 | dual_input.rs:644-648 / :774 |
+| normalize=声明存在、执行不存在（normalize=true 非 Execution Fact） | pipeline.rs:136-141 |
+| A/B 异构 1080i25↔1080p25：video format continuity 亦未定义，须进设计裁决、禁提前实现 | §33 真机证据 + 本轮新开设计探针（另文件） |
+
+### 35.3 C1-P1 登记（独立小债务；不重开 C1 · 不阻塞 C-TIMELINE-01）
+
+- **定义**：signal polling window 内异步 Bus Error 未二次 drain——
+  probe_one_device_number() 在 300ms 错误宽限检查处恰调用一次
+  `drain_bus_error`（resolver.rs:243-245；fn 定义 :149），随后进入
+  ≤3s signal 轮询，轮询闭包仅采样 `el.property::<bool>("signal")`
+  （:268-272）**零 bus 交互**。若设备异步 Error 在 t≈300ms 后到达
+  bus，Resolver 将把真实运行时错误表现成 `signal=Some(false)` 而非
+  `ProbeError::StateFailed(...)` 分类——与 ProbeError 分类契约（区分
+  "卡存在打不开" vs "卡没信号"）轻微不完整。
+- **定性（终裁十节）**：非当前 02-I L1c blocker（真机 PASS ×2）·
+  非 C1 FAIL · 不影响 v5 身份闭环 · 与 L4 PTS 问题无关——仅登记。
+- **修复面（未来授权时）**：极小=poll iteration 内可选 bus error
+  check（sample → 可选 drain → sleep），**禁重新设计 Resolver**。
+- **执行令**：不重开 C1；不阻塞 C-TIMELINE-01。
+
+### 35.4 C-TIMELINE-01 = CONFIRMED（自 §34.4 "正式登记"升级）
+
+代码级三证据（用户 compare + 本地复核）：
+
+1. Program graph 拓构=双源 → input-selector(video) + input-selector
+   (audio) → appsink（switch_graph.rs:8-12 / :218 / :276），全文件零
+   identity/videorate/timestamp rewriting/segment offset/PTS offset/
+   timeline mapper——无 `Program PTS = f(Source PTS, Program
+   Timeline)` 组件；且**零 clock/base_time/latency 设置**（grep 全文件
+   零命中——program pipeline 未声明任何时间权威）；
+2. Bridged 模式消费输入管线实际媒体时间属性（capsfilter=None :231）；
+3. L4 FAIL=真实 appsink buffer PTS 回退（PtsMonotonicity sticky，
+   pipeline.rs:291-311），非采样算法缺陷、非簿记推导。
+
+新增维度（终裁十三节）：**A/B 异构视频 1080i25↔1080p25**——PTS
+monotonicity 之外 video format continuity 仍为未定义行为；
+pass-through / Deinterlace / Caps normalize / Format conversion /
+Switch boundary adaptation 五选项须进设计裁决，禁提前实现。
+
+### 35.5 设计十问 v2（A2-8-C-TIMELINE-01 开工前置；照录终裁十六节）
+
+① Program Timeline Authority；② A→B 切换 PTS mapping；③ Video/Audio
+是否共享 epoch；④ **1080i25↔1080p25 异构输入策略（新增）**；⑤ switch
+settle 时间语义；⑥ discontinuity/segment event 语义；⑦ recover 后
+timeline 处理；⑧ normalization 的 Execution Fact；⑨ Observation 如何
+证明"真的 normalize 了"；⑩ 不把 Normalize 塞进 ExecutionGroup /
+Supervisor / MediaBackend。
+
+反假修复红线（终裁十二节）：禁 `max(last_program_pts + duration,
+incoming_pts)` 类"PTS 不回退"假闭合——NonMonotonic→ValidMonotonic
+不代表 AV sync / frame duration / segment semantics / latency /
+switch boundary 正确；第一问不是"选哪个 GStreamer element"
+（videorate / identity sync=true 之类后置）而是 **Authority 结构
+冻结**。
+
+### 35.6 影响矩阵（终裁十四节照录）
+
+| 模块 | 当前状态 | 下一轮是否影响 |
+| --- | --- | --- |
+| Resolver | C1 PASS | ❌ 不动（C1-P1 仅登记） |
+| Device Registry | CLOSED | ❌ |
+| PortRegistry | CLOSED for 02-I | ❌ |
+| Manifest | v5 VALID | ❌ |
+| ResourceRegistry | CLOSED | ❌ |
+| SessionManager | PASS | ❌ |
+| ExecutionGroup | PASS | ❌ |
+| SwitchIntent/Plan | PASS | ❌ |
+| SwitchExecutionAdapter SPI | PASS | ❌ |
+| GStreamer SwitchGraph | **当前 Timeline Gap 所在边界** | ⚠️ 可能 |
+| ProgramObservation | 基本够用 | ⚠️ 可能增加 execution evidence |
+| TimelineSample | 设计正确 | ⚠️ 可能增加 normalization evidence |
+| PipelineHealth | 当前 PTS tracker 可继续复用 | ⚠️ |
+| PipelinePlan.normalize | 已存在但未消费 | **核心入口之一** |
+| Supervisor | 不应承担 Normalize | ❌ |
+| MediaBackend SPI | 不改 | ❌ |
+| H1 | 保持 | ❌ |
+| L5 | 暂不执行 | ⏸ |
+| A2-8-03～05 | 不提前侵入 | ❌ |
+
+### 35.7 最终状态机（终裁十五节照录）与执行令
+
+```text
+A2-8-02-I
+├── L0 PASS          ├── L1a PASS
+├── L1b PASS         ├── L1c PASS ← C1 CLOSED
+├── L1d PASS         ├── L2a PASS
+├── L2b PASS         ├── L3 PASS
+├── L4-SWITCH PASS
+├── L4-TIMELINE      └── FAIL-PENDING-CORRECTION
+├── L4 OVERALL       └── FAIL-PENDING-CORRECTION
+├── L5               └── SKIPPED BY H1
+└── Teardown PASS
+```
+
+- **A2-8-02-I = FAIL-PENDING-CORRECTION** 且 **A2-8 Switch Execution
+  基础能力 = PASS**（实际代码 + 真实硬件证据双证并立）。
+- 执行令：第二十六轮代码与账面不再修改（d123b45 保持）；下一轮
+  直接进入 **A2-8-C-TIMELINE-01: Program Timeline Authority & PTS
+  Continuity Design**（十项冻结前禁写 normalization 实现）；C1-P1 仅
+  登记不修不阻塞。
+- 本轮入口动作：C-TIMELINE-01 设计 SoT 探针已开（零代码新报告
+  `docs/superpowers/reports/2026-09-04-c-timeline-01-program-timeline-
+  authority-design-probe.md`）。

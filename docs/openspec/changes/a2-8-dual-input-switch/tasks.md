@@ -230,6 +230,32 @@
   下一刀=独立 Timeline/PTS Normalization change 设计裁决（十问未裁
   不开工）; 边界披露: 1c3032b 用户侧未独立核验源码[分支已推送·C1
   CLOSED 依真机证据非报告自证]**
+  ; **第二十六轮终裁补正（probe §35, 落账零代码——维持+两处账面修正）:
+  用户独立核验升级[直接核 470f1a0/1c3032b/d123b45+八源文件+两次真实
+  compare: 470f1a0→d123b45 仅两账面文件零夹带·fe71b7c→1c3032b 运行时
+  代码仅 resolver.rs——§34.7 边界披露解除]; 补正一=C1 变更范围表述限定
+  ["运行时代码变更只有 resolver.rs, 架构/账面文档同步另计"]; 补正二=
+  **C1-P1 登记**[signal polling window 内异步 Bus Error 未二次 drain——
+  resolver.rs:243-245 恰一次 drain_bus_error[fn :149]后轮询闭包仅采样
+  signal :268-272 零 bus 交互, 晚到 Error 表现为 Some(false) 而非
+  StateFailed 分类; 非 blocker·不重开 C1·不阻塞 C-TIMELINE-01; 未来修=
+  poll 内可选 bus check 禁重新设计 Resolver]; **C-TIMELINE-01=
+  CONFIRMED**[三代码证据: switch_graph.rs 全文件零 timeline 层+零
+  clock/base_time 设置·Bridged capsfilter None :231·L4=真实 appsink
+  buffer PTS 非簿记]; 新增维度=A/B 异构 1080i25↔1080p25 video format
+  continuity 未定义须进设计; 设计十问 v2[Authority/PTS mapping/epoch
+  共享/异构策略/settle/discontinuity-segment/recover timeline/
+  Execution Fact/Observation 证明/落点禁令]+反假修复红线[禁
+  max(last+dur, incoming) 假闭合·第一问=Authority 结构非 element 选择];
+  影响矩阵 19 行照录[SwitchGraph=Gap 边界⚠️·PipelinePlan.normalize=
+  核心入口之一⚠️·Resolver/ExecutionGroup/Supervisor/MediaBackend/H1
+  全❌]; 最终状态机+**A2-8 Switch Execution 基础能力=PASS 与 02-I=
+  FAIL-PENDING-CORRECTION 并立**; 执行令: d123b45 保持·下一轮直接进入
+  A2-8-C-TIMELINE-01: Program Timeline Authority & PTS Continuity
+  Design（十项冻结前禁写实现）; **设计 SoT 探针已开（2026-09-04-
+  c-timeline-01-program-timeline-authority-design-probe.md, 零代码）:
+  代码/真机/V0.2 spec 三面证据+十问逐问选项空间+四方案 A-D 对照+OQ
+  待裁清单**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
