@@ -22,18 +22,21 @@
 
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use gstreamer::prelude::*;
 use uuid::Uuid;
 
 use crate::contracts::switch::{
-    FrameBoundary, InputPts, ProgramExecutionObservation, ProgramObservation, SwitchExecuted,
-    SwitchExecutionAdapter,
+    FrameBoundary, InputPts, PlaneExecutionFacts, ProgramExecutionObservation, ProgramObservation,
+    SwitchAnchors, SwitchExecuted, SwitchExecutionAdapter, TimelineExecutionFacts,
 };
 use crate::pipeline::{PipelineHandle, PipelineHealth, PtsMonotonicity, NEXT_PIPELINE_ID};
 use crate::program::SwitchPolicy;
-use crate::program_timeline::TimelineObservation;
+use crate::program_timeline::{
+    AnchorPair, MediaPlane, PlaneContinuity, ProgramEpoch, ProgramTimelinePlan, SourceSegment,
+    TimelineObservation,
+};
 use crate::switch_execution::{ExecutionGroup, SwitchDesired, SwitchError, SwitchExecutionPlan};
 
 /// 观察层 wall clock（C-TIMELINE-01: observed_at 只作证据行元数据——
@@ -45,13 +48,156 @@ fn now_observed_ms() -> u64 {
         .unwrap_or(0)
 }
 
+// ── C-TIMELINE-01 Batch 2: Adapter 侧 timeline 执行态（③——终裁 §七）──
+// **非 Authority**: epoch/声明/裁决归 Domain（R3 等价边界）——本层只保存
+// "当前执行中的映射状态"与证据; SwitchGraph 禁拥有 ProgramEpoch 推进
+// （第三十二轮 §十三禁做清单）。
+
+/// 单平面执行态（声明段冻结 + ⑤⑥⑦ 证据）。
+struct PlaneTimelineExec {
+    /// 声明的段（install 时冻结——**offset 只来自 TimelineAuthority 声明,
+    /// probe 禁重算覆盖**[第三十二轮 §七硬条件]）。
+    segment: SourceSegment,
+    /// ⑤ Segment(target) 事件已在该平面 selector 出口观测（声明驱动身份:
+    /// 翻转后该平面首个 Segment 即 target 段——F2; 禁 active-pad readback）。
+    segment_observed: bool,
+    /// ⑥⑦ 首枚 target 缓冲（source 原值, mapped=声明映射施加后）。
+    first_mapped: Option<(u64, u64)>,
+    /// 最近观测（source, mapped）——持续证据。
+    last_observed: Option<(u64, u64)>,
+}
+
+/// Adapter 侧 TimelineExecutionState（SwitchGraph 持有; install 期填充,
+/// build 期创建共享槽供流线程探针写入）。
+struct TimelineExecutionState {
+    plan: ProgramTimelinePlan,
+    /// ④ 对应切换已执行（switch 成功置位; 声明↔执行联动已前置校验）。
+    executed: bool,
+    video: PlaneTimelineExec,
+    audio: PlaneTimelineExec,
+}
+
+impl TimelineExecutionState {
+    fn plane(&self, plane: MediaPlane) -> &PlaneTimelineExec {
+        match plane {
+            MediaPlane::Video => &self.video,
+            MediaPlane::Audio => &self.audio,
+        }
+    }
+
+    fn plane_mut(&mut self, plane: MediaPlane) -> &mut PlaneTimelineExec {
+        match plane {
+            MediaPlane::Video => &mut self.video,
+            MediaPlane::Audio => &mut self.audio,
+        }
+    }
+}
+
+/// C-TIMELINE-01 ①: per-plane per-branch PTS 观察（selector sink pad 探针
+/// 写入; 锚采样读——纯观测无声明; last PTS + 步长/节拍估计）。
+#[derive(Default, Clone, Copy)]
+struct BranchObs {
+    last_pts: Option<u64>,
+    last_delta: Option<u64>,
+}
+
+#[derive(Default)]
+struct BranchObservations {
+    video: [BranchObs; 2],
+    audio: [BranchObs; 2],
+}
+
+impl BranchObservations {
+    fn branch(&self, plane: MediaPlane, idx: usize) -> &BranchObs {
+        match plane {
+            MediaPlane::Video => &self.video[idx],
+            MediaPlane::Audio => &self.audio[idx],
+        }
+    }
+
+    fn branch_mut(&mut self, plane: MediaPlane, idx: usize) -> &mut BranchObs {
+        match plane {
+            MediaPlane::Video => &mut self.video[idx],
+            MediaPlane::Audio => &mut self.audio[idx],
+        }
+    }
+}
+
+/// ④⑤⑥⑦ 探针: selector src pad 双探针——EVENT_DOWNSTREAM 捕获自然
+/// Segment 边界（F2 免费边界标记; 声明驱动身份）; BUFFER 探针施加 Domain
+/// 声明映射（生效边界=下一缓冲——F6; 无声明/未执行/⑤未观测→透传零改写,
+/// legacy 行为逐字节保持）。
+fn attach_plane_probes(
+    selector: &gstreamer::Element,
+    plane: MediaPlane,
+    timeline: &Arc<Mutex<Option<TimelineExecutionState>>>,
+) -> Result<(), SwitchError> {
+    let src = selector
+        .static_pad("src")
+        .ok_or_else(|| SwitchError::Backend("selector src pad 缺失".into()))?;
+    // ⑤ EVENT probe。
+    let slot = Arc::clone(timeline);
+    src.add_probe(
+        gstreamer::PadProbeType::EVENT_DOWNSTREAM,
+        move |_pad, info| {
+            if let Some(ev) = info.event() {
+                if ev.type_() == gstreamer::EventType::Segment {
+                    let mut guard = slot.lock().unwrap();
+                    if let Some(t) = guard.as_mut() {
+                        if t.executed {
+                            t.plane_mut(plane).segment_observed = true;
+                        }
+                    }
+                }
+            }
+            gstreamer::PadProbeReturn::Ok
+        },
+    );
+    // ⑥⑦ BUFFER probe（映射施加——offset=声明段冻结值）。
+    let slot = Arc::clone(timeline);
+    src.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
+        let mut guard = slot.lock().unwrap();
+        let Some(t) = guard.as_mut() else {
+            return gstreamer::PadProbeReturn::Ok;
+        };
+        if !t.executed {
+            return gstreamer::PadProbeReturn::Ok;
+        }
+        let (segment, segment_observed) = {
+            let p = t.plane(plane);
+            (p.segment, p.segment_observed)
+        };
+        if !segment_observed {
+            return gstreamer::PadProbeReturn::Ok;
+        }
+        let Some(pts) = info.buffer().and_then(|b| b.pts()) else {
+            return gstreamer::PadProbeReturn::Ok; // 无 PTS 帧: 不映射（absence）
+        };
+        let src_ns = pts.nseconds();
+        let Some(mapped) = segment.map_pts(src_ns) else {
+            return gstreamer::PadProbeReturn::Ok; // 声明映射越界: 不改写（Authority 侧将失配 fail-closed）
+        };
+        if let Some(buf) = info.buffer_mut() {
+            let bref = buf.make_mut();
+            bref.set_pts(Some(gstreamer::ClockTime::from_nseconds(mapped)));
+        }
+        let p = t.plane_mut(plane);
+        if p.first_mapped.is_none() {
+            p.first_mapped = Some((src_ns, mapped));
+        }
+        p.last_observed = Some((src_ns, mapped));
+        gstreamer::PadProbeReturn::Ok
+    });
+    Ok(())
+}
+
 /// 一张已物化的 Program graph（真实 GStreamer 元素引用 + 观测簿记）。
 struct SwitchGraph {
     devices: [Uuid; 2],
     /// 组输入 (device, handle)——observe 读输入健康弧（无第二 registry）。
     input_handles: [(Uuid, PipelineHandle); 2],
     started: bool,
-    /// 构造期 Desired 提取的初始 active（start_program 时点亮 active 簿记）。
+    /// 构造期 Desired 提取的初始 active（start_program 时点亮 active 簱记）。
     initial_active: Uuid,
     /// Execution 实态簿记: 当前 active 源（start 时=initial; switch 推进）。
     /// F-05 修复: 此前缺失导致 switch() 无"切当前 active"纵深拒收（Mock
@@ -66,6 +212,11 @@ struct SwitchGraph {
     audio_selector: gstreamer::Element,
     /// device → selector sink pad 序（video/audio 平面同命名: sink_0/sink_1）。
     pad_index: HashMap<Uuid, usize>,
+    /// C-TIMELINE-01: timeline 执行态共享槽（build 期创建——流线程探针与
+    /// 控制线程共享; install 期填充）。
+    timeline: Arc<Mutex<Option<TimelineExecutionState>>>,
+    /// C-TIMELINE-01 ①: 分支观察（selector sink pad 探针写入; 锚采样读）。
+    branch_obs: Arc<Mutex<BranchObservations>>,
 }
 
 impl SwitchGraph {
@@ -220,6 +371,8 @@ impl GStreamerSwitchAdapter {
         mode: SwitchMaterialization,
         devices: [Uuid; 2],
         initial_active: Uuid,
+        timeline: &Arc<Mutex<Option<TimelineExecutionState>>>,
+        branch_obs: &Arc<Mutex<BranchObservations>>,
     ) -> Result<(gstreamer::Pipeline, gstreamer::Element, gstreamer::Element), SwitchError> {
         gstreamer::init().map_err(|e| SwitchError::Backend(format!("gst init: {e}")))?;
 
@@ -321,10 +474,12 @@ impl GStreamerSwitchAdapter {
         }
 
         // 链接: 源 → selector request pad（device 序 = pad 序, 请求序恰 sink_0/1）;
-        // selector → queue/caps → appsink。
+        // selector → queue/caps → appsink。sink pad 挂 ① 分支观察探针
+        // （纯观测——last PTS+步长; 无声明时零改写）。
         let link_src = |src: &gstreamer::Element,
                         selector: &gstreamer::Element,
-                        idx: usize|
+                        idx: usize,
+                        plane: MediaPlane|
          -> Result<(), SwitchError> {
             let pad = selector
                 .request_pad_simple("sink_%u")
@@ -338,12 +493,30 @@ impl GStreamerSwitchAdapter {
                 .ok_or_else(|| SwitchError::Backend("src pad 缺失".into()))?
                 .link(&pad)
                 .map_err(|e| SwitchError::Backend(format!("link selector: {e:?}")))?;
+            let obs = Arc::clone(branch_obs);
+            pad.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
+                if let Some(pts) = info.buffer().and_then(|b| b.pts()) {
+                    let ns = pts.nseconds();
+                    let mut all = obs.lock().unwrap();
+                    let b = all.branch_mut(plane, idx);
+                    if let Some(last) = b.last_pts.filter(|l| ns >= *l) {
+                        b.last_delta = Some(ns - last);
+                    }
+                    b.last_pts = Some(ns);
+                }
+                gstreamer::PadProbeReturn::Ok
+            });
             Ok(())
         };
-        link_src(&vsrc_a, &video_selector, 0)?;
-        link_src(&vsrc_b, &video_selector, 1)?;
-        link_src(&asrc_a, &audio_selector, 0)?;
-        link_src(&asrc_b, &audio_selector, 1)?;
+        link_src(&vsrc_a, &video_selector, 0, MediaPlane::Video)?;
+        link_src(&vsrc_b, &video_selector, 1, MediaPlane::Video)?;
+        link_src(&asrc_a, &audio_selector, 0, MediaPlane::Audio)?;
+        link_src(&asrc_b, &audio_selector, 1, MediaPlane::Audio)?;
+
+        // ④⑤⑥⑦: selector src 双探针（EVENT 自然段边界 + BUFFER 声明映射;
+        // V/A 各一套——禁 audio=video 附属[第三十二轮 §八]）。
+        attach_plane_probes(&video_selector, MediaPlane::Video, timeline)?;
+        attach_plane_probes(&audio_selector, MediaPlane::Audio, timeline)?;
 
         video_selector
             .link(&v_queue)
@@ -422,8 +595,18 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         ];
         let handle =
             PipelineHandle(NEXT_PIPELINE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
-        let (pipeline, video_selector, audio_selector) =
-            Self::build_program_pipeline(handle, self.mode, devices, initial_active)?;
+        // C-TIMELINE-01 ③: 执行态共享槽 + 分支观察（build 期创建——探针在
+        // build_program_pipeline 内捕获同一 Arc）。
+        let timeline: Arc<Mutex<Option<TimelineExecutionState>>> = Arc::default();
+        let branch_obs: Arc<Mutex<BranchObservations>> = Arc::default();
+        let (pipeline, video_selector, audio_selector) = Self::build_program_pipeline(
+            handle,
+            self.mode,
+            devices,
+            initial_active,
+            &timeline,
+            &branch_obs,
+        )?;
         let pad_index: HashMap<Uuid, usize> =
             devices.iter().enumerate().map(|(i, d)| (*d, i)).collect();
         self.graphs.lock().unwrap().insert(
@@ -440,6 +623,8 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 video_selector,
                 audio_selector,
                 pad_index,
+                timeline,
+                branch_obs,
             },
         );
         Ok(handle)
@@ -503,6 +688,19 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         if g.active == Some(plan.target) {
             return Err(SwitchError::TargetAlreadyActive(plan.target));
         }
+        // C-TIMELINE-01: 已安装 timeline 声明时, 执行计划必须与声明一致
+        // （target+switch_epoch 双联动——身份闭合"声明"环; 不一致=翻转前拒收）。
+        {
+            let guard = g.timeline.lock().unwrap();
+            if let Some(t) = guard.as_ref() {
+                if t.plan.target != plan.target || t.plan.switch_epoch != plan.epoch {
+                    return Err(SwitchError::Backend(format!(
+                        "timeline 声明与执行计划不一致 (declared target={} epoch={}, plan target={} epoch={})——fail-closed",
+                        t.plan.target, t.plan.switch_epoch, plan.target, plan.epoch
+                    )));
+                }
+            }
+        }
         // 成对切换: video+audio 双 selector 同目标 active-pad（同 epoch——
         // 方案 A; input-selector 于下一缓冲生效 = 帧边界对齐）。
         // 02-I P1-1（第十六轮 §九）: 双平面部分执行补偿——video 成·audio 败
@@ -528,9 +726,166 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         }
         g.active = Some(plan.target);
         g.av_epoch = plan.epoch;
+        // C-TIMELINE-01 ④: 标记执行（TimelineExecutionState 只记执行事实——
+        // **不产生 ProgramEpoch**[第三十二轮 §十三禁做; epoch 归 Domain]）。
+        if let Some(t) = g.timeline.lock().unwrap().as_mut() {
+            t.executed = true;
+        }
         Ok(SwitchExecuted {
             boundary: FrameBoundary::FrameAligned,
             av_epoch: g.av_epoch,
+        })
+    }
+
+    fn install_timeline_transition(
+        &self,
+        graph: &PipelineHandle,
+        plan: &ProgramTimelinePlan,
+    ) -> Result<(), SwitchError> {
+        // C-TIMELINE-01 ③（IMP-5 ③ + 第三十二轮 §六硬条件）: **只做安装**——
+        // Domain Plan → Adapter 侧 TimelineExecutionState; 真正执行由
+        // EVENT/BUFFER probe 完成, 禁"install 完=TimelineMapped"。
+        let graphs = self.graphs.lock().unwrap();
+        let g = graphs
+            .get(graph)
+            .ok_or(SwitchError::GraphNotRunning(*graph))?;
+        if !g.started {
+            return Err(SwitchError::GraphNotRunning(*graph));
+        }
+        if !g.devices.contains(&plan.target) {
+            return Err(SwitchError::TargetNotInGroup(plan.target));
+        }
+        if g.active == Some(plan.target) {
+            return Err(SwitchError::TargetAlreadyActive(plan.target));
+        }
+        if plan.switch_epoch != g.av_epoch + 1 {
+            return Err(SwitchError::StalePlanEpoch {
+                got: plan.switch_epoch,
+                expected: g.av_epoch + 1,
+            });
+        }
+        // V/A 声明一致性（共享 epoch/段世代/target——Freeze §9 双平面模型）。
+        if plan.video.program_epoch != plan.audio.program_epoch
+            || plan.video.segment_id != plan.audio.segment_id
+            || plan.video.source_id != plan.target
+            || plan.audio.source_id != plan.target
+        {
+            return Err(SwitchError::Backend(
+                "timeline plan V/A 声明不一致（epoch/segment/target）——fail-closed".into(),
+            ));
+        }
+        let slot = Arc::clone(&g.timeline);
+        drop(graphs);
+        *slot.lock().unwrap() = Some(TimelineExecutionState {
+            plan: *plan,
+            executed: false,
+            video: PlaneTimelineExec {
+                segment: plan.video,
+                segment_observed: false,
+                first_mapped: None,
+                last_observed: None,
+            },
+            audio: PlaneTimelineExec {
+                segment: plan.audio,
+                segment_observed: false,
+                first_mapped: None,
+                last_observed: None,
+            },
+        });
+        Ok(())
+    }
+
+    fn sample_switch_anchors(
+        &self,
+        graph: &PipelineHandle,
+        target: Uuid,
+    ) -> Result<SwitchAnchors, SwitchError> {
+        // C-TIMELINE-01 ①: 锚=纯观测（**不产 offset**——offset 归
+        // TimelineAuthority 声明[第三十二轮 §七硬条件]）。program 连续性锚=
+        // 出口实测 last PTS + active 分支节拍; target 源连续性锚=target 分支
+        // last PTS + target 节拍。缺席=无证据 fail-closed（absence≠evidence）。
+        let graphs = self.graphs.lock().unwrap();
+        let g = graphs
+            .get(graph)
+            .ok_or(SwitchError::GraphNotRunning(*graph))?;
+        if !g.started {
+            return Err(SwitchError::GraphNotRunning(*graph));
+        }
+        if !g.devices.contains(&target) {
+            return Err(SwitchError::TargetNotInGroup(target));
+        }
+        if g.active == Some(target) {
+            return Err(SwitchError::TargetAlreadyActive(target));
+        }
+        let target_idx = *g
+            .pad_index
+            .get(&target)
+            .ok_or_else(|| SwitchError::Backend("selector pad 索引缺失".into()))?;
+        let active_dev = g
+            .active
+            .ok_or_else(|| SwitchError::Backend("无 active——锚采样无基准".into()))?;
+        let active_idx = *g
+            .pad_index
+            .get(&active_dev)
+            .ok_or_else(|| SwitchError::Backend("active pad 索引缺失".into()))?;
+        // 翻转前采样: program 出口实测位置（pre-mapping——此时出口=旧源流）。
+        let ph = crate::pipeline_events::read_health(graph);
+        let (Some(pv), Some(pa)) = (
+            ph.as_ref().and_then(|h| h.video_last_pts),
+            ph.as_ref().and_then(|h| h.audio_last_pts),
+        ) else {
+            return Err(SwitchError::Backend(
+                "program 出口 PTS 缺席——锚证据不足（absence≠evidence）fail-closed".into(),
+            ));
+        };
+        let obs = g.branch_obs.lock().unwrap();
+        let need = |o: &BranchObs, what: &str| -> Result<u64, SwitchError> {
+            o.last_delta.ok_or_else(|| {
+                SwitchError::Backend(format!("{what} 分支节拍证据不足——锚缺席 fail-closed"))
+            })
+        };
+        let need_pts = |o: &BranchObs, what: &str| -> Result<u64, SwitchError> {
+            o.last_pts.ok_or_else(|| {
+                SwitchError::Backend(format!("{what} 分支 PTS 证据不足——锚缺席 fail-closed"))
+            })
+        };
+        let video_anchor_delta = need(obs.branch(MediaPlane::Video, active_idx), "active-video")?;
+        let audio_anchor_delta = need(obs.branch(MediaPlane::Audio, active_idx), "active-audio")?;
+        let target_v = need_pts(obs.branch(MediaPlane::Video, target_idx), "target-video")?;
+        let target_v_delta = need(obs.branch(MediaPlane::Video, target_idx), "target-video")?;
+        let target_a = need_pts(obs.branch(MediaPlane::Audio, target_idx), "target-audio")?;
+        let target_a_delta = need(obs.branch(MediaPlane::Audio, target_idx), "target-audio")?;
+        Ok(SwitchAnchors {
+            video: AnchorPair {
+                program_anchor: pv.saturating_add(video_anchor_delta),
+                source_anchor: target_v.saturating_add(target_v_delta),
+            },
+            audio: AnchorPair {
+                program_anchor: pa.saturating_add(audio_anchor_delta),
+                source_anchor: target_a.saturating_add(target_a_delta),
+            },
+        })
+    }
+
+    fn timeline_execution_facts(&self, graph: &PipelineHandle) -> Option<TimelineExecutionFacts> {
+        // C-TIMELINE-01 ⑤⑥⑦: 证据输入（per-plane Segment 事件观测 + 首枚
+        // 映射缓冲——Runtime 据此驱动 Authority; 未执行=None 诚实缺席）。
+        let graphs = self.graphs.lock().unwrap();
+        let g = graphs.get(graph)?;
+        let guard = g.timeline.lock().unwrap();
+        let t = guard.as_ref()?;
+        if !t.executed {
+            return None;
+        }
+        let to_facts = |p: &PlaneTimelineExec| PlaneExecutionFacts {
+            segment_observed: p.segment_observed,
+            first_mapped: p.first_mapped,
+            last_observed: p.last_observed,
+        };
+        Some(TimelineExecutionFacts {
+            program_epoch: t.plan.video.program_epoch,
+            video: to_facts(&t.video),
+            audio: to_facts(&t.audio),
         })
     }
 
@@ -551,7 +906,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                     program_video_frames: 0,
                     program_audio_frames: 0,
                 },
-                timeline: TimelineObservation::no_evidence(now_observed_ms()),
+                timeline: TimelineObservation::no_evidence(ProgramEpoch(0), now_observed_ms()),
             };
         };
         let video_plane = SwitchGraph::observed_plane(&g.video_selector);
@@ -608,13 +963,37 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             program_video_frames: ph.as_ref().map(|x| x.video_frame_count).unwrap_or(0),
             program_audio_frames: ph.as_ref().map(|x| x.audio_frame_count).unwrap_or(0),
         };
-        // C-TIMELINE-01 Batch 1 诚实边界: GStreamer 侧 timeline 执行层
-        // （selector 后 per-plane EVENT+BUFFER probe——IMP-3 终裁）=第二批
-        // 实装; 此前行=no_evidence 诚实缺席（absence≠evidence, 不伪造）。
-        ProgramExecutionObservation {
-            program,
-            timeline: TimelineObservation::no_evidence(now_observed_ms()),
-        }
+        // C-TIMELINE-01 ⑪: adapter 侧证据行（从 TimelineExecutionState 装配;
+        // epoch=声明 epoch=Adapter 当前已知 epoch[第三十二轮前置②]）。
+        // **裁决级 TimelineObservation=Runtime 侧 Authority snapshot**（消费
+        // 经 ProgramExecutionRuntime::observe_execution——adapter 行=执行侧
+        // 原始证据; 无声明=no_evidence(已知 epoch) 诚实缺席）。
+        let timeline = {
+            let guard = g.timeline.lock().unwrap();
+            match guard.as_ref() {
+                Some(t) if t.video.first_mapped.is_some() => TimelineObservation {
+                    program_epoch: t.plan.video.program_epoch,
+                    source_id: g.active,
+                    segment_id: Some(t.plan.video.segment_id),
+                    input_pts: t.video.last_observed.map(|(s, _)| s),
+                    mapped_program_pts: t.video.last_observed.map(|(_, m)| m),
+                    mapping_offset: Some(t.plan.video.offset),
+                    discontinuity_state: PtsMonotonicity::DiscontinuityDeclared,
+                    video_continuity: PlaneContinuity::Continuous,
+                    audio_continuity: if t.audio.first_mapped.is_some() {
+                        PlaneContinuity::Continuous
+                    } else {
+                        PlaneContinuity::Unproven
+                    },
+                    observed_at_ms: now_observed_ms(),
+                },
+                Some(t) => {
+                    TimelineObservation::no_evidence(t.plan.video.program_epoch, now_observed_ms())
+                }
+                None => TimelineObservation::no_evidence(ProgramEpoch(0), now_observed_ms()),
+            }
+        };
+        ProgramExecutionObservation { program, timeline }
     }
 
     fn stop_program(&self, graph: &PipelineHandle) -> Result<(), SwitchError> {
@@ -713,6 +1092,80 @@ mod tests {
         assert_eq!(g.desired, SwitchDesired::ActiveInput(b));
 
         adapter.stop_program(&graph).expect("停止");
+    }
+
+    #[test]
+    fn switch_graph_rt_02_timeline_full_chain_real_gstreamer() {
+        // C-TIMELINE-01 Batch 2 GStreamer 侧双轨回归（Simulation 形态——
+        // 真实元素/真实流线程/真实 input-selector/真实探针; 区别于 Mock 层
+        // 闭环=SIM-01 行为在生产 switch_graph 上的实证）: Runtime ①-⑩ 全链
+        // → Preserve——出口=声明映射后源流, 跨切换连续（F5/F6 生产化）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let adapter: std::sync::Arc<GStreamerSwitchAdapter> =
+            std::sync::Arc::new(GStreamerSwitchAdapter::default());
+        let group = ExecutionGroup::new(sid, vec![input(a, 900_011), input(b, 900_012)], a)
+            .expect("合法双输入组");
+        let runtime = crate::program_execution::ProgramExecutionRuntime::create(
+            sid,
+            group,
+            adapter.clone(),
+            None,
+            Vec::new(),
+        )
+        .expect("runtime 创建（真实 graph 物化+启动）");
+        // 预热: target 分支观察 ≥2 缓冲（节拍证据）+ 出口 PTS 就位。
+        let graph = runtime.graph_handle().expect("graph");
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let pre = adapter.observe(&graph).program;
+        assert!(pre.program_video_pts.is_some(), "出口 PTS 在（预热后）");
+
+        // ①-⑩ 全链（Runtime orchestration——真实锚采样/pre-flip 安装/翻转/
+        // Segment 自然事件探针/首枚映射缓冲探针/Authority 闭合/settle）。
+        let report = runtime
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("全链切换");
+        assert_eq!(report.executed.av_epoch, 1);
+        let crate::program_timeline::TransitionOutcome::Preserved { mapped, .. } = &report.outcome
+        else {
+            panic!("真实 GStreamer 连续性应 Preserve, 得 {:?}", report.outcome);
+        };
+        // 出口连续: 边界帧 mapped ≥ pre 实测位置; V/A 双平面连续证据; 无未声明回退。
+        let pre_v = pre.program_video_pts.expect("pre v");
+        assert!(
+            mapped.evidence.mapped_program_pts >= pre_v,
+            "边界帧 mapped={:?} ≥ pre={pre_v}",
+            mapped.evidence.mapped_program_pts
+        );
+        assert_eq!(
+            mapped.evidence.video_continuity,
+            crate::program_timeline::PlaneContinuity::Continuous
+        );
+        assert_eq!(
+            mapped.evidence.audio_continuity,
+            crate::program_timeline::PlaneContinuity::Continuous
+        );
+        assert_eq!(mapped.evidence.undeclared_backward_jump, None);
+        // 出口沿映射轴持续推进（settle 后观测）。
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let post = adapter.observe(&graph).program;
+        assert!(
+            post.program_video_pts.unwrap() >= mapped.evidence.mapped_program_pts,
+            "出口沿映射轴推进"
+        );
+        // Desired=Observed 落定（非命令回显）。
+        {
+            let g_arc = runtime.group_arc().expect("group");
+            assert!(matches!(
+                g_arc.lock().unwrap().desired,
+                SwitchDesired::ActiveInput(id) if id == b
+            ));
+        }
+        runtime.teardown();
     }
 
     #[test]

@@ -616,52 +616,91 @@ pub fn run(
     print_row("pre A", &pre_a);
     print_row("pre B", &pre_b);
 
-    // A→B 切换（诊断消费方直驱 SwitchExecutionAdapter; Supervisor 不介入）。
+    // A→B 切换（诊断消费方经 Runtime 全链直驱——timeline orchestration ①-⑩;
+    // Supervisor 不介入。C-TIMELINE-01 ⑫: L4=switch 正确 ∧ Timeline 九项合取）。
     let target_b = started_inputs[1].device_id;
-    let switch_res = {
-        let mut g = group_arc.lock().unwrap();
-        g.plan_switch(&crate::switch_execution::SwitchIntent {
-            target: target_b,
-            policy: crate::program::SwitchPolicy::FrameSwitch,
-        })
-        .and_then(|plan| g.begin_switch(&plan).map(|_| plan))
-    }
-    .and_then(|plan| switcher.switch(&graph, &plan).map(|ex| (plan, ex)));
+    let switch_res = rt.switch_program(&crate::switch_execution::SwitchIntent {
+        target: target_b,
+        policy: crate::program::SwitchPolicy::FrameSwitch,
+    });
     let mut l4 = false;
     let l4_detail: String;
     match switch_res {
-        Ok((plan, executed)) => {
+        Ok(report) => {
             sleep(SETTLE_SECS);
             let post = switcher.observe(&graph).program;
-            let completed = post
-                .observed_active
-                .is_some_and(|a| group_arc.lock().unwrap().complete_switch(a));
+            // L4-SWITCH 语义保持（既有判据——Desired=Observed 落定）。
+            let completed = post.observed_active.is_some_and(|a| {
+                matches!(
+                    group_arc.lock().unwrap().desired,
+                    crate::switch_execution::SwitchDesired::ActiveInput(id) if id == a
+                )
+            });
             let post_a = sample_row(&started_inputs[0], &post);
             let post_b = sample_row(&started_inputs[1], &post);
             println!("=== A2-8 L4 三列 PTS 证据（post-switch; 只测量）===");
             print_row("post A", &post_a);
             print_row("post B", &post_b);
-            l4 = completed
+            let l4_switch = completed
                 && post.observed_active == Some(target_b)
-                && executed.av_epoch == 1
+                && report.executed.av_epoch == 1
                 && post.program_video_pts_state != PtsMonotonicity::NonMonotonic
                 && post.program_video_pts.is_some();
+            // L4-TIMELINE 九项合取（IMP-7/第三十一轮 §十三——Preserve 证据
+            // 链=transition declared∧Segment(B) observed∧首枚映射缓冲观测∧
+            // mapped 连续∧V 连续∧A 连续∧epoch 一致∧无未声明回退）。
+            let l4_timeline = match &report.outcome {
+                crate::program_timeline::TransitionOutcome::Preserved { mapped, .. } => {
+                    let ev = &mapped.evidence;
+                    let pre_v = obs2.program_video_pts.unwrap_or(0);
+                    ev.observed_segment == ev.declared_segment
+                        && ev.video_continuity
+                            == crate::program_timeline::PlaneContinuity::Continuous
+                        && ev.audio_continuity
+                            == crate::program_timeline::PlaneContinuity::Continuous
+                        && ev.undeclared_backward_jump.is_none()
+                        && ev.discontinuity_state != PtsMonotonicity::NonMonotonic
+                        && ev.program_epoch == report.observation.program_epoch
+                        && ev.mapped_program_pts > pre_v
+                        && post
+                            .program_video_pts
+                            .is_some_and(|p| p >= ev.mapped_program_pts)
+                        && report.observation.mapped_program_pts.is_some()
+                }
+                other => {
+                    println!("=== A2-8 L4 Timeline 结局非 Preserve: {other:?} ===");
+                    false
+                }
+            };
+            l4 = l4_switch && l4_timeline;
             l4_detail = format!(
-                "switch {}→{} epoch={} observed={:?} completed={} prog_v={:?} state={:?}",
-                plan.from,
-                plan.target,
-                executed.av_epoch,
+                "switch epoch={} observed={:?} completed={} prog_v={:?} state={:?} switch_ok={l4_switch} | timeline_ok={l4_timeline} outcome={:?} epoch={:?} seg={:?} src_pts={:?} mapped={:?} offset={:?} v/a={:?}/{:?} disc={:?}",
+                report.executed.av_epoch,
                 post.observed_active,
                 completed,
                 post.program_video_pts,
-                post.program_video_pts_state
+                post.program_video_pts_state,
+                report.outcome,
+                report.observation.program_epoch,
+                report.observation.segment_id,
+                report.observation.input_pts,
+                report.observation.mapped_program_pts,
+                report.observation.mapping_offset,
+                report.observation.video_continuity,
+                report.observation.audio_continuity,
+                report.observation.discontinuity_state,
             );
         }
         Err(e) => {
             l4_detail = format!("切换失败: {e:?}");
         }
     }
-    record(&mut verdicts, "L4 Timing/switch(A→B)", l4, l4_detail);
+    record(
+        &mut verdicts,
+        "L4 Timing/switch+timeline(A→B)",
+        l4,
+        l4_detail,
+    );
 
     // ── L5: Failure isolation + recover + teardown ──
     let (h_a, h_b) = (started_inputs[0].handle, started_inputs[1].handle);

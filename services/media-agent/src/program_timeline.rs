@@ -225,10 +225,12 @@ pub struct TimelineObservation {
 }
 
 impl TimelineObservation {
-    /// 无证据行（absence ≠ evidence——不伪造任何事实）。
-    pub fn no_evidence(observed_at_ms: u64) -> Self {
+    /// 无证据行（absence ≠ evidence——不伪造任何事实）。**program_epoch
+    /// 携带当前已知 epoch**（第三十二轮前置②: 固定 0 会使"0"变成看起来
+    /// 真实的值——缺席行=epoch 如实 + 其余字段缺席; 十键形状不改 Option）。
+    pub fn no_evidence(program_epoch: ProgramEpoch, observed_at_ms: u64) -> Self {
         Self {
-            program_epoch: ProgramEpoch(0),
+            program_epoch,
             source_id: None,
             segment_id: None,
             input_pts: None,
@@ -374,6 +376,11 @@ pub struct TimelineAuthority {
     phase: TimelinePhase,
     plan: Option<ProgramTimelinePlan>,
     last_outcome: Option<TransitionOutcome>,
+    /// 段历史（**只增不改**——Segment=immutable 历史事实; 当前运行映射=
+    /// PlaneTimeline.current_segment。第三十二轮 §14.3 风险 3 锁: 禁把
+    /// TimelineMapped.mapping 当 immutable history 唯一仓库）。
+    video_history: Vec<SourceSegment>,
+    audio_history: Vec<SourceSegment>,
 }
 
 impl TimelineAuthority {
@@ -381,9 +388,10 @@ impl TimelineAuthority {
     pub fn new(initial_source: Uuid) -> Self {
         let epoch = ProgramEpoch(0);
         let seg = SegmentId(0);
+        let identity = SourceSegment::identity(initial_source, epoch, seg);
         let plane = |src: Uuid| PlaneTimeline {
             current_source: src,
-            current_segment: SourceSegment::identity(src, epoch, seg),
+            current_segment: identity,
             transition: None,
             last_source_pts: None,
             last_program_pts: None,
@@ -401,6 +409,16 @@ impl TimelineAuthority {
             },
             plan: None,
             last_outcome: None,
+            video_history: vec![identity],
+            audio_history: vec![identity],
+        }
+    }
+
+    /// 段历史（只增不改——per plane; 索引序=提交序）。
+    pub fn segment_history(&self, plane: MediaPlane) -> &[SourceSegment] {
+        match plane {
+            MediaPlane::Video => &self.video_history,
+            MediaPlane::Audio => &self.audio_history,
         }
     }
 
@@ -697,6 +715,10 @@ impl TimelineAuthority {
             p.transition = None;
             p.boundary = None;
         }
+        // 段历史只增不改（第三十二轮风险 3）: 提交段（Preserve=声明段 /
+        // NewEpoch=rebase 段）append, 既有条目永不变异。
+        self.video_history.push(self.video.current_segment);
+        self.audio_history.push(self.audio.current_segment);
         self.last_outcome = Some(outcome.clone());
         self.phase = TimelinePhase::TimelineTransition {
             to: target,
@@ -1172,7 +1194,8 @@ mod tests {
     #[test]
     fn timeline_rt_01_observation_keyset_locked_to_freeze_shape() {
         // 键集恰十键 wire 锁（Freeze §8 结构照录——字段蔓延防线）。
-        let json = serde_json::to_value(TimelineObservation::no_evidence(123)).expect("序列化");
+        let json = serde_json::to_value(TimelineObservation::no_evidence(ProgramEpoch(0), 123))
+            .expect("序列化");
         let mut keys: Vec<&str> = json
             .as_object()
             .expect("对象")
@@ -1201,6 +1224,70 @@ mod tests {
         assert_eq!(json["source_id"], serde_json::Value::Null);
         assert_eq!(json["discontinuity_state"], "Unknown");
         assert_eq!(json["video_continuity"], "unproven");
+    }
+
+    #[test]
+    fn timeline_rt_01_no_evidence_carries_current_epoch_not_fake_zero() {
+        // 第三十二轮前置②: 实际 epoch=7 时缺席行禁报 0——"0"会变成看起来
+        // 真实的值（absence≠evidence）; epoch 如实携带 + 其余字段缺席。
+        let row = TimelineObservation::no_evidence(ProgramEpoch(7), 42);
+        assert_eq!(row.program_epoch, ProgramEpoch(7));
+        assert_eq!(row.source_id, None);
+        assert_eq!(row.segment_id, None);
+        assert_eq!(row.mapped_program_pts, None);
+        assert_eq!(row.discontinuity_state, PtsMonotonicity::Unknown);
+        assert_eq!(row.video_continuity, PlaneContinuity::Unproven);
+        assert_eq!(row.observed_at_ms, 42);
+    }
+
+    #[test]
+    fn timeline_rt_01_segment_history_accumulates_never_overwrites() {
+        // 第三十二轮风险 3 锁: Segment=immutable 历史事实（只增不改）;
+        // TimelineExecutionState/PlaneTimeline.current_segment 才是当前
+        // 运行映射。A→B→A 双 Preserve: 历史三段（恒等+两切换段）, 既有
+        // 条目跨后续切换零变异。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut authority = TimelineAuthority::new(a);
+        authority
+            .on_program_pts(MediaPlane::Video, 4_000)
+            .expect("基准 v");
+        authority
+            .on_program_pts(MediaPlane::Audio, 8_000)
+            .expect("基准 a");
+        run_canonical(
+            &mut authority,
+            b,
+            1,
+            anchors(4_040, 3_000),
+            anchors(8_040, 6_000),
+        );
+        authority.confirm_settled().expect("settle 1");
+        let history_after_first = authority.segment_history(MediaPlane::Video).to_vec();
+        assert_eq!(history_after_first.len(), 2, "恒等段+首切换段");
+        // A→B→A 回切（锚沿 B 世代连续推进——Preserve 同世代）。
+        let v_now = authority.plane(MediaPlane::Video).last_program_pts.unwrap();
+        let a_now = authority.plane(MediaPlane::Audio).last_program_pts.unwrap();
+        run_canonical(
+            &mut authority,
+            a,
+            2,
+            anchors(v_now + 40, 3_080),
+            anchors(a_now + 20, 6_020),
+        );
+        authority.confirm_settled().expect("settle 2");
+        let history = authority.segment_history(MediaPlane::Video);
+        assert_eq!(history.len(), 3, "段历史累积不覆盖");
+        assert_eq!(history[0].segment_id, SegmentId(0));
+        assert_eq!(history[1], history_after_first[1], "既有段条目零变异");
+        assert_eq!(history[2].segment_id, SegmentId(2));
+        // 声明中段未提交不入历史（abort 无痕）。
+        let mut authority2 = TimelineAuthority::new(a);
+        authority2
+            .declare_transition(b, 1, anchors(10_000, 3_000), anchors(20_000, 6_000))
+            .expect("声明");
+        authority2.abort_transition().expect("中止");
+        assert_eq!(authority2.segment_history(MediaPlane::Video).len(), 1);
     }
 
     #[test]

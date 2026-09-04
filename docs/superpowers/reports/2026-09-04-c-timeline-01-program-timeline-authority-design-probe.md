@@ -818,3 +818,60 @@ Timeline 生效·identity.single-segment 不用·外部控制线程 send_event �
 
 A2-8-02-I 保持 FAIL-PENDING-CORRECTION 直至真机 Timeline Evidence PASS；
 Batch 1 不改变门禁状态。
+
+## 17. Batch 2 实现账（十四步执行，2026-09-04 落地）
+
+按 §16.4 顺序执行；步骤 1-2 直接处理，3-12 主实现，13 双轨回归全绿，
+14 真机复跑见 §18。
+
+### 17.1 交付面（按十四步）
+
+| 步 | 交付 | 落点 |
+| --- | --- | --- |
+| 1 | Freeze §3 epoch 文本统一（docs-only commit 59aec43: 修订记录头 + 三计数器职权分离表；§10/§13/§15 核对无需改——§13 Hard Recover=+1 本自洽） | design-freeze.md |
+| 2 | `no_evidence(program_epoch, observed_at)` 携带当前已知 epoch（十键形状不改 Option）+ `no_evidence_carries_current_epoch` 测试；段历史**只增不改**（`video/audio_history` + `segment_history(plane)` + `segment_history_accumulates_never_overwrites` 测试——风险 3 锁；abort 声明不入历史） | program_timeline.rs |
+| 3⑧ | `TimelineExecutionState{plan, executed, video, audio}`（每 plane `{segment(冻结), segment_observed, first_mapped, last_observed}`）+ `install_timeline_transition` 实装（pre-flip epoch 联动 + **V/A 声明一致性** fail-closed；**只安装**——§六硬条件文档钉死）；switch() 增声明↔执行计划联动（翻转前拒收）+ 成功仅置 `executed`（**不产生 ProgramEpoch**） | switch_graph.rs |
+| 4-7 | `attach_plane_probes`：每 selector src pad 双探针——EVENT_DOWNSTREAM（Segment 事件=声明驱动身份：翻转后该平面首个 Segment 即 target 段——F2；禁 readback）+ BUFFER（**施加声明段冻结 offset**——禁 probe 重算[§七硬条件]；`make_mut().set_pts`；无声明/未执行/⑤未观测→透传零改写=legacy 逐字节保持）+ selector sink pad 分支观察探针（①锚证据: per-plane per-branch last PTS+节拍） | switch_graph.rs |
+| ① 契约 | `sample_switch_anchors(graph, target)`（纯观测: program 连续性锚=出口实测 PTS+active 分支节拍; target 源连续性锚=target 分支 PTS+节拍; 缺席=fail-closed）+ `timeline_execution_facts(graph)`（⑤⑥⑦ per-plane 证据输入）——同一 trait 两个证据方法（非第二 SPI），默认 fail-closed/None | contracts/switch.rs |
+| ⑨⑩ | `Inner.timeline: TimelineAuthority`（create 以 initial_active 锚定 epoch 0）+ `switch_program(intent)`：①基准 on_program_pts+锚采样→②declare（唯一 offset 生产点）→③install→④begin/switch（失败→abort+传播）→⑤-⑧轮询 observe+facts→Authority 校验闭合（超时=EvidenceInsufficient FailClosed）→⑨settle 稳定窗 3 轮（回退→FailClosed; 停滞超时不 FailClosed——归故障面）→⑩confirm_settled+complete_switch（Observed 驱动）；**不是第二个 switch state machine**（两状态机经 plan/executed 关联各自拥有） | program_execution.rs |
+| ⑪ | `observe_execution()`：program=adapter 既有平面 + timeline=**Authority snapshot**（Domain SoT——epoch/段/连续性恒当前）；adapter 行=执行侧原始证据（epoch=声明 epoch）双行分工文档钉死 | program_execution.rs + switch_graph.rs observe |
+| ⑫ | L4 改 `rt.switch_program` + 九项合取：L4-SWITCH 语义保持（completed∧observed==B∧epoch==1∧pts 在场∧≠NonMonotonic）∧ L4-TIMELINE（Preserved∧declared==observed segment∧V/A Continuous∧无未声明回退∧disc≠NonMonotonic∧epoch 一致∧mapped>pre∧出口≥边界帧）+ timeline 证据全打印 | gates/dual_input.rs |
+
+### 17.2 实现期裁定（disclosed）
+
+1. **三 trait 证据方法**（install/sample/facts）均为既有 SwitchExecutionAdapter
+   上的最小证据/执行面（Freeze §11 "签名=implementation 首刀"落地）——
+   非新 trait/第二 SPI。
+2. **双 timeline 行分工**：裁决级=Runtime Authority snapshot（observe_
+   execution）；adapter 行=执行侧原始证据（epoch=声明 epoch）。理由：
+   NewEpoch 后 adapter 行 epoch 会滞后于 Domain 真值——裁决面恒以 Domain
+   为准（单一 SoT）。
+3. **锚公式**（SIM-01 F5 同构）: `program_anchor=出口实测PTS+active分支
+   节拍`, `source_anchor=target分支PTS+target节拍`——offset 仍只在
+   Authority declare 单点产生。
+4. settle 停滞超时**不** FailClosed（停滞=Observation 事实归 watchdog/
+   Gate 故障面；时间线证据已闭合）——与 ⑤-⑧ 证据超时 FailClosed 区分。
+
+### 17.3 验证（盒 10.30.15.10，2026-09-04；⑬ 双轨回归）
+
+- fmt --check OK；default **217** / mock **381**（+4: no_evidence epoch、
+  段历史锁、runtime 全链 ×2）/ bmd+gst **237**（+1）全过 0 fail；
+  clippy ×2 `-D warnings` PASS。
+- **Mock 轨**：`timeline_rt_02_runtime_switch_program_full_chain_preserved`
+  （Runtime ①-⑩→Preserve(epoch 不变)+Desired 落定+双行一致）+
+  `timeline_rt_02_runtime_switch_aborts_timeline_on_backend_failure`
+  （switch 失败→abort 回 Stable+恒等段诚实投影）。
+- **GStreamer 轨**：`switch_graph_rt_02_timeline_full_chain_real_gstreamer`
+  ——**真实元素/真实流线程/真实 input-selector/真实探针**（Simulation
+  形态）Runtime 全链 2.18s **Preserve**：V/A 双平面 Continuous、无未声明
+  回退、出口沿映射轴推进、Desired=Observed——**SIM-01 结论（F2/F5/F6）
+  在生产 switch_graph 实证成立**（mock≠GStreamer 风险收口）。
+- gstreamer-rs 0.23 实锚：`Buffer::make_mut()` 返回 `&mut BufferRef`
+  （非 Result——SIM-01 时代记忆修正）；EVENT probe `info.event()`/
+  `ev.type_()==EventType::Segment` 可用。
+
+### 17.4 未做/边界
+
+真机复跑（步骤 14）见 §18；`recover`/Supervisor/SessionManager/Resolver/
+PortRegistry/ResourceRegistry/MediaTap/C1/switch_execution.rs 全零触碰；
+identity/send_event/readback/`install=TimelineMapped` 全禁做清单遵守。

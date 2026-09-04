@@ -21,10 +21,14 @@
 use std::sync::{Arc, Mutex};
 
 use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
-use crate::contracts::switch::SwitchExecutionAdapter;
+use crate::contracts::switch::{ProgramExecutionObservation, SwitchExecutionAdapter};
 use crate::pipeline::PipelineHandle;
+use crate::program_timeline::{
+    MediaPlane, TimelineAuthority, TimelineObservation, TimelinePhase, TransitionFailure,
+    TransitionOutcome,
+};
 use crate::session::{SessionId, SessionStopHook};
-use crate::switch_execution::{ExecutionGroup, SwitchError};
+use crate::switch_execution::{ExecutionGroup, SwitchError, SwitchIntent};
 
 /// tap channel 派生约定（**唯一来源**, F-02/F-03）：DeviceId → execution
 /// bridge address。**非新 identity**——仅 inter 桥接寻址（`intervideosink
@@ -203,6 +207,11 @@ struct Inner {
     taps: Vec<(PipelineHandle, String)>,
     tap_port: Option<Arc<dyn MediaTapPort>>,
     watchdog_stop: Option<Arc<std::sync::atomic::AtomicBool>>,
+    /// C-TIMELINE-01 ⑨（Freeze §1 四组件并列）: Program Timeline Authority
+    /// ——Domain 状态机; **不是第二个 switch state machine**（switch_epoch
+    /// 归 ExecutionGroup, program_epoch/segment 归本 Authority——经
+    /// SwitchExecutionPlan/SwitchExecuted 关联, 各自拥有自己的状态）。
+    timeline: TimelineAuthority,
 }
 
 /// Program Execution Runtime（组合根装配后为 program 资源唯一 owner）。
@@ -260,6 +269,14 @@ impl ProgramExecutionRuntime {
             }
         }
         // 步 2+3: graph 物化 + 启动（失败 → tap 清理 + 已建 graph 停止）。
+        // C-TIMELINE-01 ⑨: Authority 以初始 active 源锚定（epoch 0 恒等段）。
+        let initial_active = match group.desired {
+            crate::switch_execution::SwitchDesired::ActiveInput(a) => a,
+            switching @ crate::switch_execution::SwitchDesired::Switching { .. } => {
+                return Err(SwitchError::NotActiveSource(switching))
+            }
+        };
+        let timeline = TimelineAuthority::new(initial_active);
         let group = Arc::new(Mutex::new(group));
         let graph = {
             let g = group.lock().unwrap();
@@ -276,6 +293,7 @@ impl ProgramExecutionRuntime {
                         taps: attached,
                         tap_port,
                         watchdog_stop: None,
+                        timeline,
                     })),
                 }),
                 Err(e) => {
@@ -370,6 +388,228 @@ impl ProgramExecutionRuntime {
             inner.watchdog_stop = Some(flag);
         }
     }
+
+    // ── C-TIMELINE-01 ⑩⑪: timeline orchestration（①-⑩ 全链 owner）────
+
+    /// ①-⑩ 全链切换（timeline orchestration）。实现纪律（第三十一轮 §十六
+    /// 照录）: **TimelineAuthority 产生"应该怎样映射"的声明; selector
+    /// downstream Event/Buffer 产生"实际上发生了什么"的证据; 两者在本
+    /// Runtime 中闭合成 TimelineMapped**。
+    ///
+    /// - ① 基准+锚采样（Adapter 观测——offset 归 Authority 声明）;
+    /// - ② Authority 声明（fail-closed）; ③ pre-flip install（只安装）;
+    /// - ④ group begin→adapter switch（失败→timeline abort+传播）;
+    /// - ⑤⑥⑦⑧ 证据收集（adapter facts→Authority 校验闭合; 超时/矛盾=
+    ///   FailClosed——"evidence 不足"不猜测成功）;
+    /// - ⑨ settle 稳定窗（映射后连续观测; 停滞超时不 FailClosed——停滞=
+    ///   Observation 事实归 watchdog/Gate 故障面, 时间线证据已闭合）;
+    /// - ⑩ confirm_settled + Desired 推进（Observed 驱动——非命令回显）。
+    pub fn switch_program(&self, intent: &SwitchIntent) -> Result<ProgramSwitchReport, SwitchError> {
+        let mut inner_guard = self.inner.lock().unwrap();
+        let Some(inner) = inner_guard.as_mut() else {
+            return Err(SwitchError::Backend(
+                "runtime 未激活（已 teardown）——切换拒收".into(),
+            ));
+        };
+        // ①a 连续性基准（pre-flip program 实测位置——Authority 连续性校验基准）。
+        let pre = inner.switcher.observe(&inner.graph).program;
+        if let Some(v) = pre.program_video_pts {
+            inner
+                .timeline
+                .on_program_pts(MediaPlane::Video, v)
+                .map_err(timeline_fail_closed)?;
+        }
+        if let Some(a) = pre.program_audio_pts {
+            inner
+                .timeline
+                .on_program_pts(MediaPlane::Audio, a)
+                .map_err(timeline_fail_closed)?;
+        }
+        // ①b 执行计划（零状态变化——与既有显式链同语义）+ 锚采样。
+        let execution_plan = inner.group.lock().unwrap().plan_switch(intent)?;
+        let anchors = inner
+            .switcher
+            .sample_switch_anchors(&inner.graph, intent.target)?;
+        // ② Authority 声明（唯一 offset 生产点）。
+        let plan = inner
+            .timeline
+            .declare_transition(intent.target, execution_plan.epoch, anchors.video, anchors.audio)
+            .map_err(|e| SwitchError::Backend(format!("timeline ② 声明 fail-closed: {e}")))?;
+        // ③ pre-flip install（Adapter 执行态——非 TimelineMapped）。
+        inner
+            .switcher
+            .install_timeline_transition(&inner.graph, &plan)?;
+        // ④ 执行（既有显式链不动: begin→switch; 失败→abort+传播）。
+        inner
+            .group
+            .lock()
+            .unwrap()
+            .begin_switch(&execution_plan)?;
+        let executed = match inner.switcher.switch(&inner.graph, &execution_plan) {
+            Ok(ex) => ex,
+            Err(e) => {
+                let _ = inner.timeline.abort_transition();
+                return Err(e);
+            }
+        };
+        inner
+            .timeline
+            .on_switch_executed(executed.av_epoch)
+            .map_err(|e| SwitchError::Backend(format!("timeline ④ 联动 fail-closed: {e}")))?;
+        // ⑤⑥⑦⑧ 证据收集（poll adapter observe[驱动 Mock tick]+facts→Authority）。
+        let evidence_deadline =
+            std::time::Instant::now() + TIMELINE_EVIDENCE_TIMEOUT;
+        loop {
+            let _ = inner.switcher.observe(&inner.graph);
+            let facts = inner.switcher.timeline_execution_facts(&inner.graph);
+            if let Some(facts) = facts {
+                feed_authority(inner, &facts, intent.target);
+            }
+            match inner.timeline.phase() {
+                TimelinePhase::TimelineTransition { .. } => break,
+                TimelinePhase::TransitionFailed { reason } => {
+                    return Err(SwitchError::Backend(format!(
+                        "timeline FailClosed（证据/矛盾）: {reason}"
+                    )));
+                }
+                _ => {}
+            }
+            if std::time::Instant::now() >= evidence_deadline {
+                let reason = TransitionFailure::EvidenceInsufficient {
+                    pending: pending_planes(inner),
+                };
+                let _ = inner.timeline.fail_closed(reason.clone());
+                return Err(SwitchError::Backend(format!(
+                    "timeline 证据超时 FailClosed: {reason}"
+                )));
+            }
+            std::thread::sleep(TIMELINE_POLL_INTERVAL);
+        }
+        // ⑨ settle: 映射后连续观测稳定窗（回退→Authority FailClosed）。
+        let settle_deadline = std::time::Instant::now() + TIMELINE_SETTLE_TIMEOUT;
+        let mut stable_rounds = 0u32;
+        let mut last: Option<(Option<u64>, Option<u64>)> = None;
+        loop {
+            let obs = inner.switcher.observe(&inner.graph).program;
+            if let Some(v) = obs.program_video_pts {
+                inner
+                    .timeline
+                    .on_program_pts(MediaPlane::Video, v)
+                    .map_err(timeline_fail_closed)?;
+            }
+            if let Some(a) = obs.program_audio_pts {
+                inner
+                    .timeline
+                    .on_program_pts(MediaPlane::Audio, a)
+                    .map_err(timeline_fail_closed)?;
+            }
+            let cur = (obs.program_video_pts, obs.program_audio_pts);
+            let advancing = match (last, cur) {
+                (Some((lp, la)), (cp, ca)) => {
+                    cp.is_some_and(|v| lp.is_some_and(|l| v > l))
+                        || ca.is_some_and(|a| la.is_some_and(|l| a > l))
+                }
+                _ => true, // 首观测轮计稳定（无前值——absence≠停滞）
+            };
+            if advancing {
+                stable_rounds += 1;
+            }
+            last = Some(cur);
+            if stable_rounds >= TIMELINE_SETTLE_ROUNDS
+                || std::time::Instant::now() >= settle_deadline
+            {
+                break; // 停滞超时不 FailClosed（停滞归故障面; 时间线证据已闭合）
+            }
+            std::thread::sleep(TIMELINE_POLL_INTERVAL);
+        }
+        // ⑩ settle 落定 + Desired 推进（Observed 驱动）。
+        let outcome = inner
+            .timeline
+            .confirm_settled()
+            .map_err(|e| SwitchError::Backend(format!("timeline ⑩ settle fail-closed: {e}")))?;
+        {
+            let mut g = inner.group.lock().unwrap();
+            if let Some(o) = inner.switcher.observe(&inner.graph).program.observed_active {
+                g.complete_switch(o);
+            }
+        }
+        let observation = inner.timeline.snapshot(now_observed_ms());
+        Ok(ProgramSwitchReport {
+            executed,
+            outcome,
+            observation,
+        })
+    }
+
+    /// ⑪ 裁决级 observation 组合面: program=adapter 既有平面; timeline=
+    /// **Authority snapshot**（Domain SoT——epoch/段/连续性恒当前; adapter
+    /// 行=执行侧原始证据）。
+    pub fn observe_execution(&self) -> Option<ProgramExecutionObservation> {
+        let inner = self.inner.lock().unwrap();
+        let inner = inner.as_ref()?;
+        Some(ProgramExecutionObservation {
+            program: inner.switcher.observe(&inner.graph).program,
+            timeline: inner.timeline.snapshot(now_observed_ms()),
+        })
+    }
+}
+
+/// C-TIMELINE-01 轮询参数（观察层节流——非时间线语义; 常量不 IO 等待媒体）。
+const TIMELINE_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+const TIMELINE_EVIDENCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const TIMELINE_SETTLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const TIMELINE_SETTLE_ROUNDS: u32 = 3;
+
+fn now_observed_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn timeline_fail_closed(e: TransitionFailure) -> SwitchError {
+    SwitchError::Backend(format!("timeline FailClosed（观测/状态机）: {e}"))
+}
+
+/// ⑤⑥⑦ 证据喂入（幂等——每轮只推进尚在途的平面; FailClosed 由相位检查上抛）。
+fn feed_authority(
+    inner: &mut Inner,
+    facts: &crate::contracts::switch::TimelineExecutionFacts,
+    target: uuid::Uuid,
+) {
+    let feed_plane =
+        |inner: &mut Inner, plane: MediaPlane, f: &crate::contracts::switch::PlaneExecutionFacts| {
+            if f.segment_observed
+                && matches!(
+                    inner.timeline.plane(plane).transition,
+                    Some(crate::program_timeline::PlaneTransitionState::AwaitSegmentEvent)
+                )
+            {
+                let _ = inner.timeline.on_segment_event(plane, target);
+            }
+            if let Some((src, mapped)) = f.first_mapped {
+                if matches!(
+                    inner.timeline.plane(plane).transition,
+                    Some(crate::program_timeline::PlaneTransitionState::AwaitFirstMappedBuffer)
+                ) {
+                    let _ = inner.timeline.on_mapped_buffer(plane, target, src, mapped);
+                }
+            }
+        };
+    feed_plane(inner, MediaPlane::Video, &facts.video);
+    feed_plane(inner, MediaPlane::Audio, &facts.audio);
+}
+
+fn pending_planes(inner: &Inner) -> Vec<MediaPlane> {
+    [MediaPlane::Video, MediaPlane::Audio]
+        .into_iter()
+        .filter(|p| {
+            !matches!(
+                inner.timeline.plane(*p).transition,
+                Some(crate::program_timeline::PlaneTransitionState::Mapped)
+            )
+        })
+        .collect()
 }
 
 impl SessionStopHook for ProgramExecutionRuntime {
@@ -379,6 +619,15 @@ impl SessionStopHook for ProgramExecutionRuntime {
         }
         Ok(())
     }
+}
+
+/// C-TIMELINE-01 ⑩: 全链切换报告（switch 执行证据 + timeline 结局 +
+/// Authority 快照行——L4-TIMELINE 九项合取的输入）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProgramSwitchReport {
+    pub executed: crate::contracts::switch::SwitchExecuted,
+    pub outcome: TransitionOutcome,
+    pub observation: TimelineObservation,
 }
 
 #[cfg(all(test, feature = "mock"))]
@@ -703,5 +952,155 @@ mod tests {
         assert_eq!(classify_failure_domain(true, false, true), Bridge);
         assert_eq!(classify_failure_domain(true, false, false), Bridge);
         assert_eq!(classify_failure_domain(true, true, false), Program);
+    }
+
+    // ── C-TIMELINE-01 Batch 2: Runtime orchestration ①-⑩（Mock 闭环）────
+
+    /// Mock runtime 构造 helper（双输入 + Mock switcher）。
+    fn runtime_with_mock()
+    -> (
+        Uuid,
+        Uuid,
+        SessionId,
+        ProgramExecutionRuntime,
+        std::sync::Arc<MockSwitchExecutionAdapter>,
+    ) {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let adapter = std::sync::Arc::new(MockSwitchExecutionAdapter::new());
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            dual_group(sid, a, b),
+            adapter.clone(),
+            None,
+            Vec::new(),
+        )
+        .expect("runtime 创建");
+        (a, b, sid, runtime, adapter)
+    }
+
+    #[test]
+    fn timeline_rt_02_runtime_switch_program_full_chain_preserved() {
+        // Runtime 全链（⑨ 挂 Authority + ⑩ orchestration）: ①基准+锚→②声明
+        // →③install→④switch→⑤-⑧证据闭合→⑨settle→⑩Stable——Preserve
+        // （epoch 不变）+ Desired Observed 落定 + observe_execution 权威行。
+        let (a, b, _sid, runtime, adapter) = runtime_with_mock();
+        let report = runtime
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect("全链切换");
+        assert_eq!(report.executed.av_epoch, 1);
+        let TransitionOutcome::Preserved { epoch, mapped } = &report.outcome else {
+            panic!("连续性成立应 Preserve, 得 {:?}", report.outcome);
+        };
+        assert_eq!(*epoch, crate::program_timeline::ProgramEpoch(0), "Preserve=同世代");
+        assert_eq!(mapped.source_id, b);
+        assert!(mapped.evidence.mapped_program_pts > 0);
+        assert_eq!(
+            mapped.evidence.video_continuity,
+            crate::program_timeline::PlaneContinuity::Continuous
+        );
+        // Desired=Observed 落定（非命令回显）。
+        {
+            let group_arc = runtime.group_arc().expect("group");
+            let g = group_arc.lock().unwrap();
+            assert_eq!(g.desired, SwitchDesired::ActiveInput(b));
+        }
+        // ⑪ observe_execution: program 平面 + Authority snapshot（Domain SoT）。
+        let obs = runtime.observe_execution().expect("obs");
+        assert_eq!(obs.program.observed_active, Some(b));
+        assert_eq!(obs.timeline.source_id, Some(b));
+        assert!(obs.timeline.mapped_program_pts.is_some());
+        assert_eq!(
+            obs.timeline.discontinuity_state,
+            crate::pipeline::PtsMonotonicity::DiscontinuityDeclared
+        );
+        // adapter 行（执行侧原始证据）与权威行同一声明映射（offset 恒等;
+        // pts 因 mock 观测即推进允许权威行落后若干 tick——单调 ≥）。
+        let graph = runtime.graph_handle().expect("graph");
+        let adapter_row = adapter.observe(&graph).timeline;
+        assert_eq!(adapter_row.mapping_offset, obs.timeline.mapping_offset);
+        assert!(
+            adapter_row.mapped_program_pts >= obs.timeline.mapped_program_pts,
+            "adapter={:?} authority={:?}",
+            adapter_row.mapped_program_pts,
+            obs.timeline.mapped_program_pts
+        );
+        runtime.teardown();
+        let _ = a;
+    }
+
+    #[test]
+    fn timeline_rt_02_runtime_switch_aborts_timeline_on_backend_failure() {
+        // ④ 失败路径: adapter.switch 失败 → timeline abort（回 Stable 旧源,
+        // 零时间线变化）+ 错误传播; 组停留 Switching（与既有显式链一致——
+        // Observed 未确认即不落定）。
+        struct FailingSwitchOnly(MockSwitchExecutionAdapter);
+        impl crate::contracts::switch::SwitchExecutionAdapter for FailingSwitchOnly {
+            fn build_program_graph(&self, g: &ExecutionGroup) -> Result<PipelineHandle, SwitchError> {
+                self.0.build_program_graph(g)
+            }
+            fn start_program(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
+                self.0.start_program(g)
+            }
+            fn install_timeline_transition(
+                &self,
+                g: &PipelineHandle,
+                plan: &crate::program_timeline::ProgramTimelinePlan,
+            ) -> Result<(), SwitchError> {
+                self.0.install_timeline_transition(g, plan)
+            }
+            fn sample_switch_anchors(
+                &self,
+                g: &PipelineHandle,
+                target: uuid::Uuid,
+            ) -> Result<crate::contracts::switch::SwitchAnchors, SwitchError> {
+                self.0.sample_switch_anchors(g, target)
+            }
+            fn timeline_execution_facts(
+                &self,
+                g: &PipelineHandle,
+            ) -> Option<crate::contracts::switch::TimelineExecutionFacts> {
+                self.0.timeline_execution_facts(g)
+            }
+            fn switch(
+                &self,
+                _g: &PipelineHandle,
+                _p: &crate::switch_execution::SwitchExecutionPlan,
+            ) -> Result<crate::contracts::switch::SwitchExecuted, SwitchError> {
+                Err(SwitchError::Backend("注入: switch 执行失败".into()))
+            }
+            fn observe(
+                &self,
+                g: &PipelineHandle,
+            ) -> crate::contracts::switch::ProgramExecutionObservation {
+                self.0.observe(g)
+            }
+            fn stop_program(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
+                self.0.stop_program(g)
+            }
+        }
+        let (a, b, sid, _runtime, _adapter) = runtime_with_mock();
+        _runtime.teardown();
+        let failing = std::sync::Arc::new(FailingSwitchOnly(MockSwitchExecutionAdapter::new()));
+        let rt = ProgramExecutionRuntime::create(sid, dual_group(sid, a, b), failing, None, Vec::new())
+            .expect("创建");
+        let err = rt
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect_err("注入失败必须传播");
+        assert!(err.to_string().contains("switch 执行失败"), "err={err}");
+        // timeline abort 回 Stable 旧源——⑪ 行诚实（恒等段: source=A,
+        // offset=0, 位置=已观测 program 实测——映射事实缺席非伪 None）。
+        let obs = rt.observe_execution().expect("obs");
+        assert_eq!(obs.timeline.source_id, Some(a), "abort 回 Stable 旧源");
+        assert_eq!(obs.timeline.mapping_offset, Some(0), "恒等段 offset 0");
+        assert!(obs.timeline.mapped_program_pts.is_some(), "位置=实测 program pts（恒等映射下 mapped==observed）");
+        rt.teardown();
     }
 }

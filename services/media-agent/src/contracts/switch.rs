@@ -15,7 +15,7 @@
 //! （`ExecutionGroup::complete_switch`）。
 
 use crate::pipeline::{PipelineHandle, PtsMonotonicity};
-use crate::program_timeline::{ProgramTimelinePlan, TimelineObservation};
+use crate::program_timeline::{AnchorPair, ProgramEpoch, ProgramTimelinePlan, TimelineObservation};
 use crate::switch_execution::{ExecutionGroup, SwitchError, SwitchExecutionPlan};
 use uuid::Uuid;
 
@@ -87,6 +87,38 @@ pub struct ProgramExecutionObservation {
     pub timeline: TimelineObservation,
 }
 
+/// C-TIMELINE-01 ①（第三十二轮 §七硬条件）: 切换锚观测——Adapter **只观测
+/// 不声明**: program 连续性锚（当前出口位置+步长）与 target 源连续性锚
+/// （target 分支位置+步长）。**offset 归 `TimelineAuthority` 声明**——
+/// GStreamer probe 禁重算 offset 覆盖 Domain 声明。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwitchAnchors {
+    pub video: AnchorPair,
+    pub audio: AnchorPair,
+}
+
+/// C-TIMELINE-01 ⑤⑥⑦: 单平面 adapter 执行事实（Runtime 据此驱动 Authority
+/// ——证据输入, 非 wire 行; 身份=声明+Event+Buffer 三件闭合, 无 readback）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlaneExecutionFacts {
+    /// ⑤ Segment(target) 事件已在该平面 selector 出口观测（声明驱动身份:
+    /// 翻转后该平面首个 Segment 即 target 段——F2）。
+    pub segment_observed: bool,
+    /// ⑥⑦ 首枚 target 缓冲（source_pts 原值, mapped=声明映射施加后）。
+    pub first_mapped: Option<(u64, u64)>,
+    /// 最近观测（source, mapped）——持续证据。
+    pub last_observed: Option<(u64, u64)>,
+}
+
+/// C-TIMELINE-01: adapter 侧 timeline 执行事实（含声明的 program_epoch——
+/// Adapter 当前已知 epoch, 供证据行 no_evidence 携带[第三十二轮前置②]）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimelineExecutionFacts {
+    pub program_epoch: ProgramEpoch,
+    pub video: PlaneExecutionFacts,
+    pub audio: PlaneExecutionFacts,
+}
+
 /// Switch Execution Adapter——Program graph 的物化/切换/观测 owner。
 ///
 /// SPI 方法在无调用点的 feature 组合下可能未消费; 与 `MediaBackend`
@@ -113,7 +145,9 @@ pub trait SwitchExecutionAdapter: Send + Sync {
     /// 安装 timeline transition 声明（`TimelineAuthority` 产出 → adapter 侧
     /// 执行态: expected target + per-plane segments/mapping——终裁 §七
     /// `TimelineExecutionState` 的安装入口）。**必须在 `switch` 之前安装**
-    /// （pre-flip canonical 序; F6 实证无竞态）。
+    /// （pre-flip canonical 序; F6 实证无竞态）。**install 只做安装——
+    /// 真正执行由 EVENT/BUFFER probe 完成, 禁"install 完=TimelineMapped"
+    /// 的 Intent/Fact 混淆**（第三十二轮 §六硬条件）。
     ///
     /// 默认=**未实装 fail-closed**（诚实错误非静默）: GStreamer 实装=
     /// C-TIMELINE-01 第二批（selector 后 per-plane EVENT+BUFFER probe）;
@@ -127,6 +161,27 @@ pub trait SwitchExecutionAdapter: Send + Sync {
         Err(SwitchError::Backend(
             "timeline execution layer not installed (C-TIMELINE-01 batch 2)".into(),
         ))
+    }
+
+    /// C-TIMELINE-01 ①: 采样下一次切换的 V/A 锚对（纯观测; 零证据=fail-closed
+    /// Err——absence≠evidence）。默认=未实装 fail-closed。
+    fn sample_switch_anchors(
+        &self,
+        graph: &PipelineHandle,
+        target: Uuid,
+    ) -> Result<SwitchAnchors, SwitchError> {
+        let _ = (graph, target);
+        Err(SwitchError::Backend(
+            "timeline anchor sampling not installed (C-TIMELINE-01 batch 2)".into(),
+        ))
+    }
+
+    /// C-TIMELINE-01 ⑤⑥⑦: adapter 侧 per-plane 执行事实（声明段下 Segment
+    /// 事件观测 + 首枚映射缓冲——Runtime 的 Authority 证据输入）。默认=None
+    /// （未实装——诚实缺席）。
+    fn timeline_execution_facts(&self, graph: &PipelineHandle) -> Option<TimelineExecutionFacts> {
+        let _ = graph;
+        None
     }
 
     /// Observed 平面读数（实际 active + 六路 PTS + 帧计数 + timeline 证据

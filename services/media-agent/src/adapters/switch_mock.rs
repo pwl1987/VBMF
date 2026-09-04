@@ -16,12 +16,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use crate::contracts::switch::{
-    FrameBoundary, InputPts, ProgramExecutionObservation, ProgramObservation, SwitchExecuted,
-    SwitchExecutionAdapter,
+    FrameBoundary, InputPts, PlaneExecutionFacts, ProgramExecutionObservation, ProgramObservation,
+    SwitchAnchors, SwitchExecuted, SwitchExecutionAdapter, TimelineExecutionFacts,
 };
 use crate::pipeline::{PipelineHandle, PtsMonotonicity, NEXT_PIPELINE_ID};
 use crate::program::SwitchPolicy;
-use crate::program_timeline::{PlaneContinuity, ProgramTimelinePlan, TimelineObservation};
+use crate::program_timeline::{
+    AnchorPair, PlaneContinuity, ProgramEpoch, ProgramTimelinePlan, TimelineObservation,
+};
 use crate::switch_execution::{ExecutionGroup, SwitchDesired, SwitchError, SwitchExecutionPlan};
 use uuid::Uuid;
 
@@ -39,6 +41,10 @@ struct MockTimelineState {
     segment_seen: bool,
     /// ⑥⑦ 再下一个 observe tick: 首枚 B 缓冲已按声明映射施加。
     first_mapped: bool,
+    /// ⑥⑦ 首枚映射缓冲事实（[video, audio]: source→mapped）。
+    first: [(u64, u64); 2],
+    /// 最近观测（[video, audio]: source→mapped）——持续证据。
+    last: [(u64, u64); 2],
 }
 
 struct MockGraph {
@@ -124,7 +130,7 @@ impl MockSwitchExecutionAdapter {
             .as_ref()
             .is_some_and(|t| graph.av_epoch >= t.plan.switch_epoch);
         if timeline_active {
-            {
+            let is_first_mapped_tick = {
                 let t = graph.timeline.as_mut().expect("timeline_active");
                 if !t.segment_seen {
                     // ⑤ 边界 tick: Segment(B) 事件先于首枚 B 缓冲——本 tick
@@ -132,15 +138,17 @@ impl MockSwitchExecutionAdapter {
                     t.segment_seen = true;
                     return;
                 }
+                let first = !t.first_mapped;
                 t.first_mapped = true;
-            }
+                first
+            };
             let active = graph.active.expect("alive ⇒ active");
             let (v, a) = graph.pts[&active];
             let (video_seg, audio_seg) = {
                 let t = graph.timeline.as_ref().expect("timeline_active");
                 (t.plan.video, t.plan.audio)
             };
-            graph.program_pts = (
+            let mapped = (
                 video_seg
                     .map_pts(v)
                     .expect("mock 映射偏移在可表示范围（测试锚构造级）"),
@@ -148,6 +156,15 @@ impl MockSwitchExecutionAdapter {
                     .map_pts(a)
                     .expect("mock 映射偏移在可表示范围（测试锚构造级）"),
             );
+            {
+                let t = graph.timeline.as_mut().expect("timeline_active");
+                let facts = [(v, mapped.0), (a, mapped.1)];
+                if is_first_mapped_tick {
+                    t.first = facts;
+                }
+                t.last = facts;
+            }
+            graph.program_pts = mapped;
             graph.program_frames = (graph.program_frames.0 + 1, graph.program_frames.1 + 1);
             return;
         }
@@ -240,8 +257,72 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             plan: *plan,
             segment_seen: false,
             first_mapped: false,
+            first: [(0, 0); 2],
+            last: [(0, 0); 2],
         });
         Ok(())
+    }
+
+    fn sample_switch_anchors(
+        &self,
+        graph: &PipelineHandle,
+        target: Uuid,
+    ) -> Result<SwitchAnchors, SwitchError> {
+        // C-TIMELINE-01 ①: 锚=纯观测（offset 归 Authority 声明——本方法不产
+        // offset）。program 连续性锚=当前出口+步长; target 源连续性锚=target
+        // 分支+步长。停滞/缺席=无证据 fail-closed。
+        let graphs = self.graphs.lock().unwrap();
+        let g = graphs
+            .get(graph)
+            .ok_or(SwitchError::GraphNotRunning(*graph))?;
+        if !g.started {
+            return Err(SwitchError::GraphNotRunning(*graph));
+        }
+        if !g.devices.contains(&target) {
+            return Err(SwitchError::TargetNotInGroup(target));
+        }
+        if g.active == Some(target) {
+            return Err(SwitchError::TargetAlreadyActive(target));
+        }
+        if g.stalled.contains(&target) {
+            return Err(SwitchError::Backend(
+                "target 停滞——锚证据不足（absence≠evidence）fail-closed".into(),
+            ));
+        }
+        let (pv, pa) = g.program_pts;
+        let (bv, ba) = *g
+            .pts
+            .get(&target)
+            .ok_or_else(|| SwitchError::Backend("target 分支 PTS 缺席——锚证据不足".into()))?;
+        Ok(SwitchAnchors {
+            video: AnchorPair {
+                program_anchor: pv + VIDEO_PTS_STEP,
+                source_anchor: bv + VIDEO_PTS_STEP,
+            },
+            audio: AnchorPair {
+                program_anchor: pa + AUDIO_PTS_STEP,
+                source_anchor: ba + AUDIO_PTS_STEP,
+            },
+        })
+    }
+
+    fn timeline_execution_facts(&self, graph: &PipelineHandle) -> Option<TimelineExecutionFacts> {
+        let graphs = self.graphs.lock().unwrap();
+        let g = graphs.get(graph)?;
+        let t = g.timeline.as_ref()?;
+        if g.av_epoch < t.plan.switch_epoch {
+            return None; // 声明在途未执行——尚无执行事实（诚实缺席）。
+        }
+        let plane_facts = |i: usize, segment_observed: bool, mapped: bool| PlaneExecutionFacts {
+            segment_observed,
+            first_mapped: mapped.then_some(t.first[i]),
+            last_observed: mapped.then_some(t.last[i]),
+        };
+        Some(TimelineExecutionFacts {
+            program_epoch: t.plan.video.program_epoch,
+            video: plane_facts(0, t.segment_seen, t.first_mapped),
+            audio: plane_facts(1, t.segment_seen, t.first_mapped),
+        })
     }
 
     fn switch(
@@ -309,7 +390,7 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
                     program_video_frames: 0,
                     program_audio_frames: 0,
                 },
-                timeline: TimelineObservation::no_evidence(MockGraph::now_ms()),
+                timeline: TimelineObservation::no_evidence(ProgramEpoch(0), MockGraph::now_ms()),
             };
         };
         Self::tick_once(g);
@@ -356,7 +437,9 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
                 observed_at_ms: MockGraph::now_ms(),
             }
         } else {
-            TimelineObservation::no_evidence(MockGraph::now_ms())
+            // 缺席行携带 Adapter 当前已知 epoch（第三十二轮前置②——无声明
+            // 状态下已知 epoch=0, 与初始 ProgramEpoch 一致）。
+            TimelineObservation::no_evidence(ProgramEpoch(0), MockGraph::now_ms())
         };
         ProgramExecutionObservation { program, timeline }
     }

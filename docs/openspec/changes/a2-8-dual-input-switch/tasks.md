@@ -425,7 +425,29 @@
   合取/13 双轨回归/14 真机复跑仅矩阵绿后]; 禁做照录[Authority 不入
   SwitchGraph/set_active 不产 epoch/readback 不判生效/identity 不用/
   send_event 主路径不用/recover·Supervisor 不碰]; 02-I 保持
-  FAIL-PENDING-CORRECTION**
+  FAIL-PENDING-CORRECTION**; **第三十二轮 Batch 2 已落地（设计探针 §17,
+  十四步全执行）: ①Freeze §3 统一 59aec43[docs-only·三计数器职权分离]
+  ②no_evidence(epoch) 修正+段历史只增不改锁测试 ③⑧switch_graph
+  TimelineExecutionState+install 实装[pre-flip 联动+V/A 一致性·只安装]
+  +switch 联动拒收/成功仅置 executed 不产 epoch ④-⑦attach_plane_probes
+  [EVENT_DOWNSTREAM Segment 声明驱动身份+BUFFER 施加声明冻结 offset
+  make_mut set_pts·无声明透传零改写 legacy 保持]+sink pad 分支观察探针
+  [锚证据] ①契约 sample_switch_anchors[纯观测 fail-closed]+timeline_
+  execution_facts[同一 trait 两证据方法默认 fail-closed/None] ⑨⑩Inner.
+  timeline TimelineAuthority+switch_program ①-⑩[基准+锚→declare 唯一
+  offset 点→install→begin/switch 失败 abort→轮询 facts→Authority 校验
+  闭合·超时 EvidenceInsufficient FailClosed→settle 3 轮·停滞超时归故障
+  面→confirm+complete_switch Observed 驱动·非第二 switch state machine]
+  ⑪observe_execution[program=adapter 平面+timeline=Authority snapshot
+  Domain SoT·adapter 行=执行侧原始证据双行分工] ⑫L4=rt.switch_program+
+  九项合取[L4-SWITCH 语义保持∧Preserve∧declared==observed∧V/A
+  Continuous∧无未声明回退∧epoch 一致∧mapped>pre∧出口≥边界帧]; 盒矩阵
+  fmt/default 217/mock 381[+4]/bmd+gst **237[+1 含真实 GStreamer 全链
+  timeline 测试=Simulation 形态真实探针 Runtime ①-⑩ 2.18s Preserve——
+  SIM-01 F2/F5/F6 在生产 switch_graph 实证]**/clippy×2 全绿; gstreamer-rs
+  实锚 make_mut 返回 &mut BufferRef 非 Result; 披露[三 trait 证据方法·
+  双 timeline 行分工（NewEpoch 后 adapter 行滞后 Domain 真值→裁决面恒
+  Domain]·锚公式 F5 同构·settle 停滞不 FailClosed]; ⑭真机复跑=§18**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
