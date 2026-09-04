@@ -2989,3 +2989,61 @@ handle=2 21:42:15.116）。
   偏离的正式回裁, 记于本账）。
 - C-TIMELINE-01 Final Close 与 A2-8-05 维持暂缓（P1-A 落地+真机后
   再裁）。
+
+## §55 第四十轮实现+真机复跑: α 落地——`program_start==first mapped` 精确相等首次真机成立·双跑 10/10（2026-09-05）
+
+### 55.1 实现（5d61b97, switch_graph.rs + program_timeline.rs 注释）
+
+- `sample_switch_anchors`: 双锚 `saturating_add(节拍)` 移除——
+  `program_anchor=pv`·`source_anchor=target_v`（audio: pa/target_a）已观测
+  边界帧原值。五道 fail-closed 门全保留; active 门降为存在性检查
+  （披露: 原 pad_index 反查仅服务节拍消费, 移除后 active 分支不再参与
+  锚——错误消息原文不变）。
+- `last_delta`: 字段+探针写点保留, `#[allow(dead_code)]`+裁决注释
+  （观察事实≠声明输入——pipeline_events.rs:22 先例）。
+- `switch_graph_rt_03_anchor_declaration_excludes_branch_cadence`
+  回归锁: 纯状态构造（无 PLAYING/无线程——受控节拍不被真实缓冲覆写,
+  断言确定性）; 裁决例值 active_delta=33,333,333/target_delta=
+  33,333,334/pv=1,000,000,000/target_v=900,000,000 ⇒ 断言四锚=原值;
+  反证: delta 若回锚 video.program_anchor=1,033,333,334 即翻。
+- AnchorPair 注释统一为"已观测边界帧"语义（注释级·program_timeline.rs
+  生产逻辑零改）。
+
+### 55.2 盒矩阵 + sha
+
+fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_03
+通过）** · clippy×3（default/mock/bmd+gst `-D warnings`）全绿 · **sha
+80/80 盒源==本地 HEAD（5d61b97）** · gates release bin `83b9b695`。
+
+### 55.3 真机复跑 ×2（02-I v5, EXIT=0 ×2）
+
+- **run1**（07:18:00 CST / 23:18 UTC）: **10/10 ALL PASS**。L4
+  `outcome=Preserved` epoch 0·`source_pts==source_start_pts==
+  6,973,066,813`·**`mapped_program_pts==program_start_pts==
+  6,973,081,228`（首次精确相等——历跑 `program_start−mapped ≡
+  33,333,333ns` 消失）**·offset=14,415ns·V/A Continuous·
+  undeclared_backward_jump=None·pre A prog_v==mapped（零隙拼接于 pv）。
+- **run2**（07:19:13, 稳定性确认跑）: **10/10 ALL PASS again**。
+  `mapped==program_start==6,969,530,558`·source==6,969,476,589·
+  offset=53,969ns（帧级相位随跑变化, 等式恒立）——**连续两跑 Preserve+
+  精确相等 = ±1ns 条件性 NewEpoch 结构性根除的真机实证**（修正前六跑
+  5P+1NE）。
+- 七项验收对照（§54.2）: ①L4 连续 Preserve ✅（双跑）②program_start==
+  first mapped PTS ✅（首次·双跑精确）③V/A Continuous ✅ ④无 1ns 条件性
+  NewEpoch ✅（epoch 0×2）⑤NewEpoch 测试仍过 ✅（mock 382/bmd+gst 241
+  含 NewEpoch 路径+不变量锁）⑥L5.4 R37 归因语义 PASS ✅（A行=None
+  B行=Input×2）⑦Teardown PASS ✅（session_stop=true×2）。
+- 隔离队列照旧未触碰: PortId 碰撞 WARN×2·MainContext WARN×2·interlace
+  converter CRITICAL（电视 1080i25 活动期）·teardown pad_unlink ×4。
+- 证据: `~/a2-8-02i-evidence/2026-09-05-r40-anchor-fix/`（run.log
+  `a67ef58a`·run2.log `be80906f`·bin `83b9b695`·v5 manifest
+  `7a52b498`·时钟头=盒 09-05 07:18 CST 与仓库日期一致无 clock mismatch;
+  盒非 git checkout, repo HEAD 5d61b97 以 80/80 sha 清单锚定）。
+
+### 55.4 状态
+
+- **P1-A CLOSED**（α 实现+回归锁+真机双证）; P1-B 维持撤销（不变量
+  测试在册）。02-I=10/10 EXIT=0 第二次（R37 首次·本次为锚修正后）。
+- C-TIMELINE-01 Final Close 与 A2-8-05 archive: 依三十八/三十九轮
+  纪律待用户裁（P1-A 已闭合为 Final Close 的前置条件之一）。
+- 披露维持: switch_mock.rs +STEP 外推分叉待独立裁（不阻塞）。

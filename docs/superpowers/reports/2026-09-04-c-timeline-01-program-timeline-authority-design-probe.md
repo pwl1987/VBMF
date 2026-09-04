@@ -1264,3 +1264,20 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
 - 披露: switch_mock.rs:297-306 Mock 锚同 +STEP 外推——Mock 同构面
   是否同步去 STEP 待裁（独立项, 不阻塞）。
 - Final Close: Pending P1-A 落地+真机七项验收（主账 §54.2）。
+
+## 32. 第四十轮实现+真机复跑跨账引用: α 落地·Preserve 精确相等双证（2026-09-05）
+
+- 主账 §55: 5d61b97 落地——锚=已观测边界帧原值（双 `saturating_add`
+  节拍移除·五 fail-closed 门保留）; rt_03 回归锁（裁决例值·纯状态
+  确定性）; 矩阵 default 217/mock 382/bmd+gst 241(+1)/clippy×3/sha
+  80/80。
+- **真机 ×2 EXIT=0 10/10**: L4 `Preserved` epoch 0; **`mapped_program_pts
+  == program_start_pts` 首次精确相等**（run1 6,973,081,228·run2
+  6,969,530,558; 历跑恒差一帧 33,333,333ns 消失）; offset 随跑=帧级
+  相位差（14,415/53,969ns）·V/A Continuous·零未声明回退——
+  `Source Segment Mapping` 声明=执行=观测三点闭合于同一离散帧边界。
+- **±1ns 条件性 NewEpoch 结构性根除实证**: 修正前六跑 5P+1NE →
+  修正后双跑 Preserve。
+- P1-A CLOSED; P1-B 维持撤销。Freeze 八红线/R1-R8 全程未触碰。
+- C-TIMELINE-01 **Final Close 待裁**（前置 P1-A 已闭合）; A2-8-05
+  archive 排其后。Mock +STEP 分叉披露维持。

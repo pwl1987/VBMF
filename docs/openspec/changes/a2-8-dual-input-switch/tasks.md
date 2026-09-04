@@ -681,7 +681,16 @@
   覆盖; 新回归锁=last_delta 不得改变声明 anchor（裁决例值）; 披露=
   switch_mock.rs:297-306 同 +STEP 外推——Mock 同构面同步与否独立待裁
   不阻塞; on_mapped_buffer/close_transition/declare/Runtime 编排链
-  零改; 真机七项验收重点见主账 §54.2]**]**
+  零改; 真机七项验收重点见主账 §54.2]**]**; **同轮实现+真机（5d61b97,
+  主账 §55+设计探针 §32）: α 落地——锚=原值+rt_03 回归锁+AnchorPair
+  注释统一; 矩阵 default 217/mock 382/bmd+gst 241(+1)/clippy×3/sha
+  80/80/bin 83b9b695; 真机 ×2 EXIT=0 10/10——L4 Preserve epoch 0·
+  **mapped==program_start 首次精确相等**（run1 6,973,081,228/offset
+  14,415ns·run2 6,969,530,558/offset 53,969ns·历跑恒差一帧消失）·
+  V/A Continuous·±1ns 条件性 NewEpoch 根除实证（5P+1NE→双 P）·L5.4
+  归因 PASS·Teardown PASS; 证据 ~/a2-8-02i-evidence/2026-09-05-r40-
+  anchor-fix/{run.log a67ef58a·run2.log be80906f}; **P1-A CLOSED**;
+  02-I=10/10 第二次; Final Close/A2-8-05 待裁]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
