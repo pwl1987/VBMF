@@ -1150,9 +1150,10 @@ mod tests {
         };
         assert_eq!(epoch, ProgramEpoch(1), "世代推进");
         for (name, seg) in [("video", video), ("audio", audio)] {
+            let delta =
+                i64::try_from(seg.program_start_pts - seg.source_start_pts).expect("差值超 i64");
             assert_eq!(
-                seg.offset,
-                seg.program_start_pts - seg.source_start_pts,
+                seg.offset, delta,
                 "{name} 平面 NewEpoch rebase 不变量 offset==program_start−source_start"
             );
         }
