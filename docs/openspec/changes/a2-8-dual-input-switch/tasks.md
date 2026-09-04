@@ -591,7 +591,23 @@
   switch_graph/session/backend/program_timeline/Supervisor/SPI];
   后续序=修改→fmt→矩阵→bin rebuild→真机→核对 14/14→NewEpoch P1
   独立刀→Final Close→A2-8-05 archive; 隔离队列维持[pad_unlink×4/
-  MainContext WARN/interlace 断言]]**
+  MainContext WARN/interlace 断言]]**; **执行（主账 §49+设计探针 §26）:
+  d7d4fc6 单文件 +68/−16**[三常量 GRACE 15s 维持/ROUNDS=3/DEADLINE=60s+
+  三词表 outcome enum+Phase C 循环+evidence·判据表达式零变化·禁改九面
+  零触碰]; 盒矩阵 fmt/default 217/mock 381/bmd+gst 240/clippy×2 绿·bin
+  release 596a8bcc·sha 80/81 唯 Cargo.lock 既有; **真机两跑: run1
+  （05:38, 1f0ea619）8/10=L4 首次 NewEpoch FAIL**[视频 mapped 6970509011<
+  last 6970509012 1ns 级连续性竞态 :618-622/:658-679 触发→epoch 1·
+  DeclaredDiscontinuity·无 undeclared jump·L5 H1 级联·C 类回裁三问
+  (Preserve 声明保证 mapped≥last?/L4 接受良构 NewEpoch?/P1 排期)];
+  **run2（05:40, ba2f1783）9/10=L5.4 观测器首执行 StillAdvancingAt
+  Deadline @t0+60.0**[L4 Preserve 第五次·15/15 窗全速 30fps·停滞从未
+  发生·**排空假设被定量否定**（B 预冻结生产窗 ~27s≪60s·shm 积压秒级
+  撑不住）→领先假设=活跃输入死后程序仍被另一活输入全速 feeding=隔离
+  前提待裁·R34>11s/R35>18s runway 解释追溯否定·回裁四选（推荐①观测
+  归因探针:L5.4 期间 program PTS 与 A/B 源 PTS 对齐）]; 14/14 未达·
+  02-I 维持 FAIL-PENDING-CORRECTION[run2 13/14 唯 L5.4+L4 NewEpoch
+  间歇 1/5 并列未决]·零后续改码·双证归档**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

@@ -2616,3 +2616,89 @@ converter interlace 断言 ×6（历跑 9·间歇性）; pad_unlink CRITICAL ×4
 L0/L1a-d/L2a-b/L3 PASS·L4 PASS×4·L5.1-5.3 PASS·Teardown PASS——
 **"Runtime 功能未做完"已排除, 唯一剩余=L5.4 Gate 观测语义**（本裁决即
 其收口刀）。14 项中 13 PASS 维持。
+
+## 49. 第三十七轮执行 — 方案③落地 + 真机两跑: L5.4 观测器按设计给出分类结局; L4 首次真机 NewEpoch（双 C 类回裁·零后续改码）
+
+### 49.1 交付（commit d7d4fc6, 单文件 +68/−16）
+
+- `L5_PROGRAM_DRAIN_GRACE` 15s（语义=Phase B 最小排空·值不动）+
+  `L5_PROGRAM_STALL_CONFIRM_ROUNDS`=3 + `L5_PROGRAM_STALL_DEADLINE`=60s
+  + `L5ProgramStallOutcome` 三词表 enum + Phase C 循环 + evidence
+  （outcome/samples/stall_rounds/首末帧计数/@t0+x.xs）。
+- 判据表达式与 classify 调用面零变化; 非确认结局保守按"未证停滞"进
+  分类（A 行=None ⇒ 自然 FAIL）; §48.4 禁改九面零触碰。
+- 盒矩阵: fmt --check 绿·default 217·mock 381·bmd+gst 240·clippy×2 绿;
+  bin release 重建 `596a8bcc`（与 R35 同 target/release 路径）; sha 80/81
+  唯 DIFF=Cargo.lock（既有分歧维持·Cargo.toml 在 80 内==HEAD）。
+
+### 49.2 真机 run 1（09-05 05:38 CST; 证据盒 `2026-09-05-0538-r36-l54-eventual-stall`; run.log sha `1f0ea619`）: 8/10 — L4 首次 NewEpoch FAIL
+
+- L1a-d/L2a-b/L3 PASS; Teardown PASS; **L4 FAIL**: outcome=NewEpoch
+  {epoch 1·video program_start 6970509011/offset 33221397·audio offset
+  104795}, switch_ok=false（prog_v 11170509011 NonMonotonic）,
+  v/a=DeclaredDiscontinuity/Continuous, disc=DiscontinuityDeclared,
+  undeclared_backward_jump=None; L5 被 H1 跳过（级联非独立失败）。
+- **触发机制实锚（代码+数值联合裁定）**: `on_mapped_buffer`
+  :618-622 连续性判据=mapped ≥ last_program_pts 否则 Unproven;
+  `close_transition` :658-679 双平面 Continuous 才 Preserve, 否则
+  NewEpoch（epoch+1·按观测边界 rebase·:700-704 非 Continuous 平面重标
+  DeclaredDiscontinuity=合法世代边界）。本跑**视频 mapped 6970509011 <
+  已观测 prog 6970509012——1ns 级差距**触发 Unproven→NewEpoch; run 2
+  对照 mapped 6970555975 > 6970555974（1ns 高）→ Preserve。**声明锚与
+  边界前在途末帧的 ns 级竞态决定结局**（历五跑 4 Preserve+1 NewEpoch=
+  间歇性, 复跑不逐项复现=非确定性签名, 与 R26 电视抖动排除法相区分）。
+- NewEpoch 记账面按设计运行（DiscontinuityDeclared·无 undeclared jump·
+  段历史 append）; **P1 rebase 不变量本跑数值成立**（接受边界经
+  :599-605 映射校验 ⇒ offset==program_start−source_start 自动满足,
+  33221397 与 104795 双平面核验）——P1 登记 维持（回归锁缺失·Final
+  Close 前必修不变）。L4 九项合取（冻结）要求 Preserve+Continuous ⇒
+  FAIL 为判据忠实执行。
+- **分类=C 类候选**（生产 Timeline Preserve/NewEpoch 判定语义 × Gate
+  冻结判据首次在真机 NewEpoch 路径相遇）。回裁三问: (a) Preserve 声明
+  是否应保证 mapped ≥ last（声明锚取整/上取 last+ε 等生产语义修正）
+  (b) L4 是否接受"良构 NewEpoch"（DeclaredDiscontinuity·双平面一致·
+  无 undeclared jump）——Gate 判据属验收记账模型, R26 红线禁自行降
+  (c) NewEpoch P1 修复刀排期。**本轮零改码**。
+
+### 49.3 真机 run 2（09-05 05:40 CST; 证据盒 `2026-09-05-0540-r36-l54-eventual-stall-rerun2`; run.log sha `ba2f1783`）: 9/10 — L5.4 观测器首次真机执行, StillAdvancingAtDeadline
+
+- L1a-d/L2a-b/L3/L4 全 PASS（**L4 Preserve 连续第五次**·epoch 0·offset
+  210016ns·V/A Continuous）; L5.1/5.2/5.3 PASS（recover(A) handle=1
+  21:41:07.341 tap 重放成功）; Teardown PASS。
+- **L5.4 FAIL=诚实分类结局**: `L5.4=StillAdvancingAtDeadline samples=15
+  stall_rounds=0 prog_frames v 1261->2611 a 1681->3481 @t0+60.0s`——
+  15/15 窗口全速增长（v +1350=恒 30fps·a +1800）, 停滞从未发生;
+  deadline 锚定精确（@t0+60.0）。观测器语义达成: 无假阳性·无盲等·
+  分类结局+全程证据, "15→30→60 盲调"被终结——**不是 grace 不够, 是
+  停滞在 60s 验证期限内根本不发生**。
+- **排空假设被本跑算术否定（重大）**: 时间线重建=B 输入 21:40:47 起·
+  t0(B inject)≈21:41:14（recover(A)+7s settle+5.3 流程锚定）⇒ **B 预
+  冻结生产窗 ≈27s**; 程序自切换(~21:40:52)起已在消费 B（选择器非活动
+  pad 丢弃=reader 与 writer 同步走）⇒ shm 积压上限≈秒级; 而 t0 后
+  **60s 全速推进 ⇒ 余流不可能是 B 积压排空**。唯一活源=A（a_input_adv
+  =true·bridgeA=true 全程）⇒ 领先假设=**程序出口在活跃输入死亡后仍被
+  另一活输入全速 feeding（L5.4 隔离前提在现拓扑真机上不成立）**; 次假
+  设=inter 内部超大缓冲（与恒速 30fps wall-clock 节律不符·弱）。R34
+  （>11s）/R35（>18s）的"drain runway"解释被同一定量框架追溯否定。
+- **回裁四选（均需授权, 本轮零改码）**: ①观测归因探针——L5.4 期间打印
+  program PTS 与 A/B 源 PTS 对齐（Gate 观测性增强·不改判据）直接定
+  位余流源 ②现场 gst 检查 inter/selector 行为（独立诊断管线·需授权）
+  ③deadline 加大到 >B 生产窗+裕量的判别实验（区分"晚停"vs"不停"·
+  单次诊断跑）④接受"L5.4 前提在现拓扑不成立"的语义重裁（改前提或改
+  判据=架构级新裁决）。**推荐①**（一次跑同时钉死归因与后续方向）。
+- 分类: L5.4 观测器本身=B 类无虞（按批准语义精确执行·证据完备）; 其
+  暴露的隔离前提问题=**C 类候选**（Gate 前提 × 生产拓扑行为）。
+
+### 49.4 两跑工件（隔离队列维持）
+
+run1: interlace ×3·pad_unlink ×4·MainContext ×0（L5 未执行）; run2:
+interlace ×6·pad_unlink ×4·MainContext ×2（两次 recover 各一,
+21:42:15.098 WARN "already acquired by another thread" + recover(B)
+handle=2 21:42:15.116）。
+
+### 49.5 02-I 状态（双证归档·全部回裁）
+
+- 14 项清单: 以 run2 为准 13 PASS 唯 L5.4; 但 **L4 NewEpoch 间歇性
+  （1/5 真机频次）为并列未决项**——直至 (a)(b)(c) 裁决落地, L4 存在
+  相位条件性 FAIL。02-I 整体维持 FAIL-PENDING-CORRECTION（8/10+9/10
+  双证）; 零后续改码; 隔离队列与 NewEpoch P1 排期不变。

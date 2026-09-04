@@ -1166,3 +1166,27 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
   new.offset==program_start−source_start·四条回归）与
   DiscontinuityDeclared 概念锁（Declared boundary vs Observed
   backward jump 两概念独立）维持 Final Close 前必修。
+
+## 26. 第三十七轮执行跨账: 方案③落地; L4 首次真机 NewEpoch——NewEpoch 路径真机首证（2026-09-05）
+
+- 主账 §49: 真机两跑 8/10+9/10。**run1 NewEpoch 触发机制实锚**:
+  on_mapped_buffer :618-622（连续性=mapped ≥ last_program_pts 否则
+  Unproven）+ close_transition :658-679（双 Continuous→Preserve 否则
+  NewEpoch·:700-704 重标 DeclaredDiscontinuity=合法世代边界）。本跑
+  视频 mapped 6970509011 < last 6970509012——**1ns 级竞态**触发;
+  run2 对照 1ns 高→Preserve（连续第五次）。五跑 4P+1NE=相位条件性
+  间歇, 非确定复现。
+- **NewEpoch 真机首证直接激活两条已登记债务**: ①rebase offset 沿用
+  P1（:682-688——本跑数值不违不变量: 接受边界经 :599-605 映射校验 ⇒
+  offset==program_start−source_start 自动成立·双平面核验 33221397/
+  104795; P1=回归锁缺失·Final Close 前必修不变）②Discontinuity
+  Declared 概念锁（authority 记账正确: DeclaredDiscontinuity·无
+  undeclared jump·段历史 append）。
+- **回裁问题入 C-TIMELINE 域**: Preserve 声明锚是否应保证 mapped ≥
+  last（ns 级竞态的生产语义修正）与 L4 是否接受"良构 NewEpoch"——
+  两者均触碰 Timeline 域语义/Gate 记账模型, 未裁不动。
+- run2: L5.4 观测器首执行 StillAdvancingAtDeadline @t0+60.0（15/15
+  窗全速）——排空假设被定量否定（B 生产窗 ~27s≪60s）, 隔离前提
+  待裁（主账 §49.3 回裁四选）。
+- **C-TIMELINE 域零触碰维持**: 本轮代码 diff=gates/dual_input.rs
+  单文件; Timeline 代码零 diff。
