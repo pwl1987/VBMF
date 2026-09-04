@@ -122,8 +122,12 @@
   recover SPI 零越界**; 仅剩 Real hardware=双 DeckLink+双 SDI
   L0→L5+Teardown; 硬件形态边界=两块独立单输入卡（collision closure/
   derive_claims/serial binding/audio 独立性/UUID namespace 统一=
-  独立 change 不混入, 十八轮 §十二/§十三+十九轮 §11 定级）]
-  ——**唯一阻塞=用户侧双 SDI 信号源+两卡可占用窗口+现场 v4 manifest**`
+  独立 change 不混入, 十八轮 §十二/§十三+十九轮 §11 定级）;
+  **第二十轮 APPROVED/FROZEN/GO（probe §26）: fe71b7c=实现冻结基线·
+  019f89e=裁决账本基线·禁再动 A2-8 代码·§9 验收矩阵已逐项映射
+  Gate 实锚·首跑 FAIL 先留证按 A/B/C 分类（硬件/证据/代码）禁为
+  跑绿改码·v4 manifest 由真实 Discovery 据实生成不手工美化**
+  ]——**唯一阻塞=用户侧双 SDI 信号源+两卡可占用窗口+现场 v4 manifest**`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

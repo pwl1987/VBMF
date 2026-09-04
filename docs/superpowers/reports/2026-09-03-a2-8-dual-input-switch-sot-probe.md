@@ -1242,3 +1242,55 @@ A2-0..A2-7 全 CLOSED; A2-8: 02-A..02-H CLOSED; 02-I 子项 code
 precondition/Gate automation/H1/H2/H3/H4/health-state isolation 全
 CLOSED——**Real hardware OPEN**（DeckLink A/B + SDI source A/B +
 L0→L5+Teardown）。
+
+## 26. 第二十轮裁决（基线 `019f89e`）: APPROVED / FROZEN / GO——02-I 真机执行纪律冻结
+
+### 26.1 终裁与禁令
+
+> **APPROVED / FROZEN / GO。双基线: `fe71b7c` = A2-8 实现冻结基线;
+> `019f89e` = 文档/裁决账本基线。A2-8 代码前置 CLOSED, 02-I Real
+> Hardware OPEN。下一动作 = 直接执行真实双 DeckLink/双 SDI
+> L0→L5+Teardown, 禁止再修改 A2-8 代码。**
+
+禁改清单（冻结）: `derive_claims()` / PortIdentity（含 direction 入键）/
+PTS normalization / N-input switch / Supervisor executor 化 /
+`MediaBackend::recover()` SPI / Production API——全部 OPEN 债务, 禁
+"顺手优化"。**首跑 FAIL 纪律（§11）: 先保留完整证据再按 A/B/C 分类——
+A=真代码缺陷（如 Resource allocation failed / Manifest Port≠
+Materialized connector）→ 新 change; B=硬件/输入条件（无 SDI 信号/错源/
+卡被占）→ 修环境不改码; C=已登记架构债务（如 PortIdentity direction
+collision）→ 禁为过 02-I 临时改架构。禁止为"跑绿"直接改代码。**
+
+阶段模型（§12）: Code Closed → Real Hardware → PASS=A2-8 acceptance
+close / FAIL=classify（hardware→fix env · evidence→Gate correction ·
+code→new change review）。
+
+### 26.2 §9 验收矩阵 ↔ Gate 实现逐项映射（真机证据点核对表）
+
+| 矩阵行 | Gate 实际检查（实锚） |
+|---|---|
+| L0: 恰 2 Input port + 2 设备 + connector/ordinal present | 过滤 `Input && port_id.is_some()` + len==2 + 去重设备==2, 否则 exit(2) 不进 L1; **port_id Some ⟺ ordinal Known**（port.rs:248-260 "Unknown 不伪造 ID"——connector/ordinal present 由构造保证） |
+| L1: Manifest Port→PortRegistry→Resource→DeviceBinding→device_number→Signal Locked 全链两卡 PASS | L1a 双卡 production_grade binding·L1b SDK 位掩码 Supported(true)·L1c 双卡 signal==Some(true)·L1d 每卡恰一 Input Resource 且 ID==port 规范派生·**H4 证据行同行印全链**（handle/port_id/conn/ordinal/dir/cap/dn/signal/prod_binding）; 任一 FAIL → finish 不进 L2（:363） |
+| L2: Session create→资源分配→instantiate→双输入 start→Program runtime→Tap A/B→Bridged graph（非 PLAYING） | mgr.create（Preflight→Reserve→Lease→Binding verify）+mgr.start→l2a started_inputs==2→ExecutionGroup→ProgramExecutionRuntime::create（bridged build+start+双 tap attach）→L2b 双桥观测行 frames=Some |
+| L3: video/audio 帧计数>0 + PTS progression（非 GST_STATE_PLAYING） | program_progress_since(obs1,obs2)+双 pts Some+!=NonMonotonic |
+| L4: A/B pre+post × Input/Bridge/Program 三列 PTS + 切换证据保留 | sample_row 四行（pre A/pre B/post A/post B）+print_row 三列落盘; plan→begin→switch→observe→complete 全序; l4=completed∧observed==B∧av_epoch==1∧!=NonMonotonic∧pts Some; FAIL→跳 L5 |
+| L5: A fail→B alive→A recover 桥复流→B fail→A alive→FailureDomain 隔离; **不得写"自动故障切换"** | 5.1/5.2/5.3/5.4 四 verdict + classify_failure_domain 真实行; Supervisor=recovery decision 注记打印（无自动 switch 声明） |
+| Teardown: 正式验收项非附属 | 见 §26.3 |
+
+### 26.3 §10 Teardown 确认清单映射（诚实分账）
+
+**直接断言**: session_stop=is_ok（触发 hook 全链）/ program_runtime_inactive
+（rt.is_active()==false——runtime teardown 序=watchdog 旗→Program Stop→
+Tap Detach）/ phase==Released。
+**传递保证（由 SessionManager::stop 链执行, 单测锁定, Gate 不单独打印）**:
+Resource→Available（Release 步）/ Lease release。真机 Evidence Package
+以全量 stdout/stderr 捕获（含 stop 链 tracing 行）佐证——**零代码改动**
+（冻结纪律优先; 若二十+轮裁决要求 Gate 显式断言 Resource/Lease 终态,
+属新裁决新刀, 不在本轮）。
+
+### 26.4 v4 Manifest 生成纪律（§8）
+
+不手工美化: 现场先跑真实盒子 Discovery（两卡 DeviceHandle/DeviceId/
+PortId/connector=SDI/ordinal/direction=Input/binding/device_number 实测
+落盘）→ 据实填 v4 双 Input port 声明 → `VBMF_A2_8_DUAL_INPUT=1
+MEDIA_AGENT_DEVICE_BINDING=<v4> media-agent-gates` 执行, 全程零代码。
