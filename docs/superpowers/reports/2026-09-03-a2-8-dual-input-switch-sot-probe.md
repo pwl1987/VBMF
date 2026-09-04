@@ -2853,3 +2853,68 @@ handle=2 21:42:15.116）。
   不变量恢复。修后 L4 真机复跑目标=稳定 Preserve（非放宽判据）。
 - 工件（隔离队列维持）: interlace ×6·pad_unlink ×4·MainContext ×2
   （两次 recover 各一）。
+
+## 53. 第三十九轮（repo 账第三十八轮）— P1-B 撤销确认 + P1-A 批准·实现期偏离回裁（2026-09-05; 核验+测试增强轮·生产代码零改动）
+
+### 53.1 裁决主文
+
+- **P1-B 正式撤销（非 bug）**: 沿调用链数学闭合——on_mapped_buffer
+  :597-606 先以 `seg.map_pts(source_pts)` 校验 expected==mapped（不符
+  即 fail_closed MappingMismatch）, 故进入 close_transition 的合法
+  boundary 必然满足 `boundary.1−boundary.0==seg.offset` ⇒ NewEpoch
+  rebased（:682-691）沿用 seg.offset 时 `offset==program_start−
+  source_start` 自动成立。R33 原登记表述修正为"测试不足以证明不变量,
+  非代码缺陷"。
+- **P1-A 批准修复**: on_mapped_buffer 首枚连续性基准从动态
+  last_program_pts 改为声明冻结边界; 回归七项; 只改
+  program_timeline.rs; 修后看 L4 Preserve 稳定性（非放宽判据）。
+- 全盘不动清单照录（Runtime 编排/SessionManager/Supervisor/
+  MediaBackend/SPI/topology/ExecutionGroup/segment history 等十余面
+  ✗ 不改）; A2-8-03=Program 域故障专项; C-TIMELINE-01 Final Close
+  前置; A2-8-05 禁入。
+
+### 53.2 裁决主张核验
+
+| # | 主张 | 实锚 | 结果 |
+| --- | --- | --- | --- |
+| 1 | on_mapped_buffer 先映射校验后置 boundary | :597-606（expected≠Some(mapped)⇒fail_closed）→ :624 | ✓ |
+| 2 | NewEpoch rebased 沿用 seg.offset ⇒ 不变量经 ① 自动成立 | :682-691 | ✓（**撤销成立**） |
+| 3 | 现连续性基准=动态 last_program_pts | :618-622 + on_program_pts :768 持续更新 | ✓ |
+| 4 | segment history append-only | 测试 :1244-1290（三段零变异）——裁决回归项 6 已存在 | ✓ |
+| 5 | DiscontinuityDeclared 不洗（Preserve 路径） | 测试 :952/:966/:1315——NewEpoch 平面 pts_state 断言随 §53.4 补 | ✓ |
+
+### 53.3 P1-A 实现期偏离发现（回裁——本轮生产代码零改动）
+
+**字面谓词与锚设计数学不相容**:
+- `sample_switch_anchors` :852-867: program_anchor=出口实测 last PTS
+  **+active 分支节拍**; source_anchor=target 分支 last PTS **+target
+  分支节拍**——两锚各加一个独立测量的节拍。
+- **四跑实测**（R34/R35/R36r2/R37）: `program_start_pts − mapped_first
+  ≡ 33,333,333ns`（恰一帧@30fps·逐跑精确）⇒ **`mapped ≥
+  plan.program_start_pts` 在一切健康 Preserve 跑为假**——字面实现将把
+  L4 翻成恒 NewEpoch（与"稳定 Preserve"目标相反）。
+- **±1ns 竞态根源修正**: mapped = pv + (d_active − d_target) +
+  (S_b − target_v), 其中 (d_active − d_target)=两独立测量节拍之差
+  （±1ns 观测噪声）——**竞态非来自 last_program_pts 推进**（run1/
+  run2 间 A 均未跨帧）, 而来自锚公式的双节拍噪声。
+- **修复方案权衡（待裁）**: **方案 α（推荐·需扩授权至 switch_graph.rs
+  一处）**=锚去节拍（program_anchor=pv·source_anchor=target_v 原样）
+  ——offset 仅变 ±1ns、拼接点语义不变（仍零隙落 pv）, 且
+  mapped==program_start 精确相等=裁决回归项 1 的世界;
+  (S_b−target_v)∈{0,+1帧}≥0 ⇒ 竞态根除。**方案 β（Domain-only·
+  不越授权）**=declare 冻结 last_program_pts 为 transition 基准（=pv）
+  ·谓词 mapped ≥ 基准−slack——slack 为新魔数, 竞态被吸收非消除, 与
+  回归项 1"boundary==mapped"不符。
+- 依 Design Freeze"实现期偏离必回裁"本轮停手, 仅交付测试增强（§53.4）。
+
+### 53.4 本轮交付（测试增强·program_timeline.rs 单文件·零生产代码）
+
+- 新增 `timeline_rt_01_new_epoch_rebase_offset_invariant`: NewEpoch
+  双平面断言 `offset==program_start_pts−source_start_pts`（P1-B 撤销后
+  的不变量锁·防未来 rebase 改动破坏）+ NewEpoch 双平面
+  pts_state==DiscontinuityDeclared（不洗白·NewEpoch 路径补位）。
+- 既有覆盖维持不重复: history append-only（:1244）/Discontinuity
+  Declared Preserve 路径（:952/:966）。
+- 盒矩阵: fmt 绿·default 217→218·mock 381→382·bmd+gst 240→241·
+  clippy×2 绿。
+- 真机: 本轮无生产代码变更不复跑（P1-A 裁决后一并）。

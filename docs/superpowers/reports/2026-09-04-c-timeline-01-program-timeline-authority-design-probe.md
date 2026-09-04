@@ -1228,3 +1228,19 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
 - **Timeline 域零触碰维持**: R37 diff=gates/dual_input.rs 单文件;
   P1-A/P1-B 未动=下一独立刀（program_timeline.rs·方向已批·不混
   commit）; C-TIMELINE-01 Final Close 暂缓维持。
+
+## 30. 第三十九轮跨账引用: P1-B 撤销确认 + P1-A 实现期偏离回裁（2026-09-05）
+
+- 主账 §53: **P1-B 撤销核验成立**（on_mapped_buffer :597-606 映射
+  校验先证 boundary 差值==offset ⇒ rebase 沿用 seg.offset 不变量
+  自动成立）; **P1-A 字面谓词与 sample_switch_anchors :852-867 双节拍
+  锚设计不相容**——四跑 `program_start−mapped ≡ 33,333,333ns`（恰一
+  帧）⇒ 字面实现恒 NewEpoch; **±1ns 竞态根源=双独立节拍测量差**（非
+  last_program_pts 推进）。
+- 修复方案待裁: **α（推荐）**=锚去节拍（switch_graph.rs 一处·需扩
+  授权）→ mapped==program_start 精确相等世界+竞态根除; **β**=
+  Domain-only 冻结基准+slack 魔数（竞态吸收非消除）。
+- 本轮 Timeline 生产代码零改动; 测试增强=NewEpoch rebase 不变量锁
+  （双平面 offset==program_start−source_start + NewEpoch 平面
+  DiscontinuityDeclared 不洗）。
+- C-TIMELINE-01 Final Close 继续 Pending P1-A 裁决。

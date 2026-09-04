@@ -1116,6 +1116,57 @@ mod tests {
     }
 
     #[test]
+    fn timeline_rt_01_new_epoch_rebase_offset_invariant() {
+        // 第三十九轮: P1-B 撤销后的不变量锁——NewEpoch rebase 虽沿用
+        // plan offset, 但 on_mapped_buffer 的映射校验（:597-606）已先证
+        // mapped−source==offset, 故 boundary 差值必然与之相等。直接断言
+        // 双平面 offset==program_start_pts−source_start_pts, 防未来 rebase
+        // 改动破坏该不变量; 同时锁 NewEpoch 平面 pts_state=
+        // DiscontinuityDeclared（合法世代边界, 不洗回 ValidMonotonic）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut authority = TimelineAuthority::new(a);
+        authority
+            .on_program_pts(MediaPlane::Video, 50_000)
+            .expect("预置");
+        authority
+            .on_program_pts(MediaPlane::Audio, 60_000)
+            .expect("预置");
+        run_canonical(
+            &mut authority,
+            b,
+            1,
+            anchors(40_000, 30_000),
+            anchors(70_000, 65_000),
+        );
+        let outcome = authority.confirm_settled().expect("settle");
+        let TransitionOutcome::NewEpoch {
+            epoch,
+            video,
+            audio,
+        } = outcome
+        else {
+            panic!("连续性不可证应 NewEpoch, 得 {outcome:?}");
+        };
+        assert_eq!(epoch, ProgramEpoch(1), "世代推进");
+        for (name, seg) in [("video", video), ("audio", audio)] {
+            assert_eq!(
+                seg.offset,
+                seg.program_start_pts - seg.source_start_pts,
+                "{name} 平面 NewEpoch rebase 不变量 offset==program_start−source_start"
+            );
+        }
+        assert_eq!(
+            authority.plane(MediaPlane::Video).pts_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+        assert_eq!(
+            authority.plane(MediaPlane::Audio).pts_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+    }
+
+    #[test]
     fn timeline_rt_01_undeclared_backward_jump_sticky_fail_closed() {
         // 稳态回退（无声明覆盖）→ NonMonotonic sticky + FailClosed; 之后即使
         // forward 观测也不洗回（终裁 §十: 禁把 NonMonotonic 改回 ValidMonotonic）。

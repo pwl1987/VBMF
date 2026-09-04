@@ -652,7 +652,21 @@
   Close 暂缓·A2-8-05 暂缓]; 下一刀=P1-A[冻结 transition boundary 替代
   动态 last_program_pts]+P1-B[rebase offset 不变量]独立修→L4 复跑
   目标稳定 Preserve[当前 6 跑 5P+1NE]; 工件 interlace×6/pad_unlink×4/
-  MainContext×2 隔离队列]**]**
+  MainContext×2 隔离队列]**]**; **第三十八轮（主账 §53+设计探针 §30,
+  核验+测试增强·生产代码零改动）: P1-B 正式撤销核验成立+P1-A 批准但
+  实现期偏离回裁**[P1-B: on_mapped_buffer :597-606 映射校验先证
+  boundary.1−boundary.0==seg.offset ⇒ NewEpoch rebase :682-691 沿用
+  offset 不变量自动成立——R33 登记表述修正"测试不足非代码缺陷";
+  P1-A 真问题维持（:618-622 动态基准+on_program_pts :768）; **偏离
+  发现: sample_switch_anchors :852-867 双锚各加独立测量节拍 ⇒ 四跑
+  program_start−mapped≡33,333,333ns 恒一帧 ⇒ 字面谓词 mapped≥
+  program_start 将使一切健康 Preserve 跑翻 NewEpoch; ±1ns 竞态根源=
+  双节拍测量差非 last_program_pts 推进; 方案 α=锚去节拍[switch_graph
+  ·需扩授权·推荐·mapped==boundary 精确相等世界]/β=Domain 冻结基准+
+  slack 魔数——待裁**; 交付=timeline_rt_01_new_epoch_rebase_offset_
+  invariant[双平面 offset==program_start−source_start+NewEpoch 平面
+  DiscontinuityDeclared 不洗]; 矩阵 218/382/241/clippy×2; 真机无
+  生产变更不复跑]**]**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
