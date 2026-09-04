@@ -163,22 +163,26 @@ impl AdapterRegistry {
         ensure_adapter_selection_safe()?;
         #[cfg(feature = "mock")]
         {
-            // Mock 世界无共享 instances 表——独立实例语义等价。
+            // Mock 世界无共享 instances 表——独立实例语义等价; 桥观测与
+            // tap 同实例（MockMediaTapPort 双 trait 实现）。
+            let tap = Arc::new(crate::adapters::mock::MockMediaTapPort::new());
             Ok(MediaAdapterBundle {
                 backend: Arc::new(crate::adapters::mock::MockBackend),
-                media_tap: Some(Arc::new(crate::adapters::mock::MockMediaTapPort::new())),
+                media_tap: Some(tap.clone()),
+                bridge_observation: Some(tap),
             })
         }
         #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
         {
-            // 单次构造 concrete controller → 两次 clone 各自 coerce——
-            // 两个 trait object 同源同一对象（结构保证 + 行为证明见
+            // 单次构造 concrete controller → 三次 clone 各自 coerce——
+            // 三个 trait object 同源同一对象（结构保证 + 行为证明见
             // registry_rt_01_bundle_dual_view_same_controller）。
             let controller =
                 Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
             Ok(MediaAdapterBundle {
                 backend: controller.clone(),
-                media_tap: Some(controller),
+                media_tap: Some(controller.clone()),
+                bridge_observation: Some(controller),
             })
         }
     }
@@ -189,6 +193,9 @@ impl AdapterRegistry {
 pub struct MediaAdapterBundle {
     pub backend: Arc<dyn MediaBackend>,
     pub media_tap: Option<Arc<dyn crate::contracts::media_tap::MediaTapPort>>,
+    /// A2-8-02-G/H: 桥观测 view（第三 trait view——同源同一 concrete
+    /// controller; pad probe 实测, 与 tap 簿记分层）。
+    pub bridge_observation: Option<Arc<dyn crate::contracts::media_tap::BridgeObservationPort>>,
 }
 
 #[cfg(test)]

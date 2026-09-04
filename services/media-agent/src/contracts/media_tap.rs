@@ -77,3 +77,37 @@ pub trait MediaTapPort: Send + Sync {
     /// 簿记查询（恢复重放/观测的唯一事实源——按管线列已挂 tap）。
     fn tap_attachments(&self, handle: &PipelineHandle) -> Vec<MediaTapAttachment>;
 }
+
+/// A2-8-02-G/H（第十四轮终裁）: **Bridge Observation**——tap→inter source
+/// 段实际经过数据的**运行观测事实**（runtime observation fact）。
+///
+/// **与 `MediaTapAttachment` 严格分层**（第十四轮 §5）: attachment=静态
+/// 资源/配置事实（recover 重放唯一依据）; 本结构=动态观测事实——
+/// 二者混装会破坏 Health Tree/Incident/Timeline 所需事实分层。
+///
+/// 实测语义: 值来自分流分支上的真实缓冲（pad probe）, **不是**
+/// InputObservation/ProgramObservation 的复制——三列各自独立测量。
+/// `channel` 为桥接地址（adapter 侧不透明; device 映射归消费方经
+/// `tap_channel` join）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BridgeObservation {
+    pub channel: String,
+    pub video_last_pts: Option<u64>,
+    pub audio_last_pts: Option<u64>,
+    pub video_pts_state: crate::pipeline::PtsMonotonicity,
+    pub audio_pts_state: crate::pipeline::PtsMonotonicity,
+    pub video_frames: u64,
+    pub audio_frames: u64,
+}
+
+/// Bridge 观测查询面——与 `MediaTapPort` 平行（MediaTapPort 契约零改动;
+/// 本 trait 为 G/H 新增观测原语, 仍属执行层内部能力, 不进 Session/Domain）。
+///
+/// SPI 方法在无调用点的 feature 组合下可能未消费; 与既有 SPI 一致在
+/// trait 级允许 dead_code。
+#[allow(dead_code)]
+pub trait BridgeObservationPort: Send + Sync {
+    /// 按管线列桥观测（每 channel 一行; 分支已摘除的 channel 不出现=
+    /// 无证据——absence≠evidence, 非零值非伪造）。
+    fn bridge_observations(&self, handle: &PipelineHandle) -> Vec<BridgeObservation>;
+}

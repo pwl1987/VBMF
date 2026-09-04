@@ -1217,4 +1217,179 @@ mod tests {
             let _ = bundle.backend.stop(&h);
         }
     }
+
+    // ── A2-8-02-G/H: Observation & Timeline Evidence（第十四轮四验证面）——
+    // ①Bridge pad probe 一等事实 ②三列 Input/Bridge/Program PTS 同时采样
+    // ③recover partial degraded 结构化观测 ④failure-domain 区分。
+    // **只观测/只取证/绝不修 timestamp 行为**。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn switch_graph_rt_01_gh_three_column_observation_evidence() {
+        use crate::contracts::media_tap::{MediaTapRequest, TapPlanes};
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::{
+            assemble_bridge_health, assemble_timeline_sample, classify_failure_domain, tap_channel,
+            FailureDomain, TimelineSample,
+        };
+        use crate::session::SessionId;
+
+        let bundle =
+            crate::registry::AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let bridge_port = bundle.bridge_observation.clone().expect("bridge 观测 view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        for (h, d) in [(h1, a), (h2, b)] {
+            tap.attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: tap_channel(d),
+                    planes: TapPlanes::Both,
+                },
+            )
+            .expect("tap attach");
+        }
+        let mut group = ExecutionGroup::new(
+            SessionId(Uuid::new_v4()),
+            vec![
+                SessionInput {
+                    device_id: a,
+                    handle: h1,
+                },
+                SessionInput {
+                    device_id: b,
+                    handle: h2,
+                },
+            ],
+            a,
+        )
+        .expect("组");
+        let adapter = GStreamerSwitchAdapter::bridged();
+        let graph = adapter.build_program_graph(&group).expect("bridged 物化");
+        adapter.start_program(&graph).expect("启动");
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+
+        // 采样器: 输入健康弧 + 桥 probe 行[tap_channel join] + 程序观测。
+        let sample = |dev: Uuid, h: PipelineHandle| -> TimelineSample {
+            let bridge_row = bridge_port
+                .bridge_observations(&h)
+                .into_iter()
+                .find(|o| o.channel == tap_channel(dev));
+            let input = crate::pipeline_events::read_health(&h);
+            let program = adapter.observe(&graph);
+            assemble_timeline_sample(dev, input.as_ref(), bridge_row.as_ref(), &program)
+        };
+
+        // ② 三列同时采样: 切换前采两设备——六 PTS 列全在场（独立测量）。
+        let mut samples: Vec<TimelineSample> = vec![sample(a, h1), sample(b, h2)];
+        let plan = group
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .unwrap();
+        group.begin_switch(&plan).unwrap();
+        adapter.switch(&graph, &plan).expect("切 B");
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        samples.push(sample(a, h1));
+        samples.push(sample(b, h2));
+        for (i, s) in samples.iter().enumerate() {
+            assert!(s.input_video_pts.is_some(), "样{i}: 输入 video PTS 在");
+            assert!(
+                s.bridge_video_pts.is_some(),
+                "样{i}: 桥 video PTS 在（probe 实测）"
+            );
+            assert!(s.program_video_pts.is_some(), "样{i}: program video PTS 在");
+            assert!(s.input_audio_pts.is_some() && s.bridge_audio_pts.is_some());
+        }
+        // 桥列独立推进（probe 帧计数递增——真实数据经过分支, 非复制）。
+        let b0 = bridge_port.bridge_observations(&h1);
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        let b1 = bridge_port.bridge_observations(&h1);
+        assert!(
+            b1[0].video_frames > b0[0].video_frames,
+            "桥 probe 帧计数递增（tap→inter 段真实流通）"
+        );
+        assert!(b1[0].video_last_pts.is_some());
+
+        // ③ recover partial degraded 结构化观测: recover active B → 簿记
+        // 重放 + probe 实测流通 → degraded=false（观测查询组装——不改
+        // recover 返回类型）。
+        bundle.backend.recover(&h2).expect("recover B");
+        std::thread::sleep(std::time::Duration::from_millis(900));
+        let obs_all: Vec<_> = bridge_port
+            .bridge_observations(&h1)
+            .into_iter()
+            .chain(bridge_port.bridge_observations(&h2))
+            .collect();
+        let report = assemble_bridge_health(true, vec![tap_channel(a), tap_channel(b)], &obs_all);
+        assert_eq!(
+            report.observed_alive_channels.len(),
+            2,
+            "双 channel 实测流通"
+        );
+        assert!(!report.bridge_degraded, "健康路径不降级");
+
+        // ④ failure-domain 区分（真桥组合观测分类）。
+        let input_advancing = || {
+            let f = crate::pipeline_events::read_health(&h1)
+                .unwrap()
+                .video_frame_count;
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            crate::pipeline_events::read_health(&h1)
+                .unwrap()
+                .video_frame_count
+                > f
+        };
+        let bridge_alive = |h: &PipelineHandle| {
+            bridge_port
+                .bridge_observations(h)
+                .iter()
+                .any(|o| o.video_frames > 0)
+        };
+        let program_advancing = || {
+            let f = adapter.observe(&graph).program_video_frames;
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            adapter.observe(&graph).program_video_frames > f
+        };
+        assert_eq!(
+            classify_failure_domain(input_advancing(), bridge_alive(&h1), program_advancing()),
+            FailureDomain::None,
+            "健康=无故障域"
+        );
+        adapter.stop_program(&graph).expect("program 停（注入）");
+        assert_eq!(
+            classify_failure_domain(input_advancing(), bridge_alive(&h1), false),
+            FailureDomain::Program,
+            "program 独立故障可分（输入+桥仍流通）"
+        );
+        let ch_a = tap.tap_attachments(&h1)[0].channel.clone();
+        tap.detach_media_tap(&h1, &ch_a).expect("摘 A tap（注入）");
+        assert_eq!(
+            classify_failure_domain(input_advancing(), bridge_alive(&h1), false),
+            FailureDomain::Bridge,
+            "桥独立故障可分（输入仍推进, 桥无实测）"
+        );
+
+        // teardown。
+        let ch_b = tap.tap_attachments(&h2)[0].channel.clone();
+        tap.detach_media_tap(&h2, &ch_b).expect("摘 B");
+        assert!(tap.tap_attachments(&h1).is_empty() && tap.tap_attachments(&h2).is_empty());
+        let _ = bundle.backend.stop(&h1);
+        let _ = bundle.backend.stop(&h2);
+    }
 }

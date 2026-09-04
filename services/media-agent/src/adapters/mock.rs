@@ -147,11 +147,45 @@ pub struct MockMediaTapPort {
             Vec<crate::contracts::media_tap::MediaTapAttachment>,
         >,
     >,
+    /// A2-8-02-G/H: 桥观测仿真 tick（每次查询推进——确定性递增流）。
+    bridge_tick: std::sync::atomic::AtomicU64,
 }
 
 impl MockMediaTapPort {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+/// A2-8-02-G/H: Mock 桥观测——确定性仿真（每次查询 tick+1: 帧计数/
+/// PTS 递增/ValidMonotonic——attached channel 各一行; 摘除即无行）。
+impl crate::contracts::media_tap::BridgeObservationPort for MockMediaTapPort {
+    fn bridge_observations(
+        &self,
+        handle: &PipelineHandle,
+    ) -> Vec<crate::contracts::media_tap::BridgeObservation> {
+        use crate::contracts::media_tap::BridgeObservation;
+        use crate::pipeline::PtsMonotonicity;
+        let tick = self
+            .bridge_tick
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            + 1;
+        let taps = self.taps.lock().unwrap();
+        taps.get(handle)
+            .map(|rows| {
+                rows.iter()
+                    .map(|a| BridgeObservation {
+                        channel: a.channel.clone(),
+                        video_last_pts: Some(1000 + tick * 40),
+                        audio_last_pts: Some(800 + tick * 20),
+                        video_pts_state: PtsMonotonicity::ValidMonotonic,
+                        audio_pts_state: PtsMonotonicity::ValidMonotonic,
+                        video_frames: tick * 25,
+                        audio_frames: tick * 50,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 

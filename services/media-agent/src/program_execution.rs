@@ -50,6 +50,129 @@ impl TapWiring {
     }
 }
 
+// === A2-8-02-G/H: Observation & Timeline Evidence（第十四轮终裁） ===
+// 只观测/只取证/绝不修 timestamp 行为。三列各自独立测量点 join。
+
+/// 三列时间线采样行（Input/Bridge/Program——按 device 一行; program 列
+/// 为整图共享）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TimelineSample {
+    pub sampled_at_ms: u64,
+    pub device: uuid::Uuid,
+    pub input_video_pts: Option<u64>,
+    pub input_audio_pts: Option<u64>,
+    pub bridge_video_pts: Option<u64>,
+    pub bridge_audio_pts: Option<u64>,
+    pub program_video_pts: Option<u64>,
+    pub program_audio_pts: Option<u64>,
+    pub input_video_state: crate::pipeline::PtsMonotonicity,
+    pub input_audio_state: crate::pipeline::PtsMonotonicity,
+    pub bridge_video_state: crate::pipeline::PtsMonotonicity,
+    pub bridge_audio_state: crate::pipeline::PtsMonotonicity,
+    pub program_video_state: crate::pipeline::PtsMonotonicity,
+    pub program_audio_state: crate::pipeline::PtsMonotonicity,
+    pub program_alive: bool,
+}
+
+/// 三列 join（各列独立测量: 输入=输入管线健康弧; 桥=BridgeObservation
+/// 行[调用方按 tap_channel(device) 选行]; 程序=ProgramObservation）。
+pub fn assemble_timeline_sample(
+    device: uuid::Uuid,
+    input_health: Option<&crate::pipeline::PipelineHealth>,
+    bridge: Option<&crate::contracts::media_tap::BridgeObservation>,
+    program: &crate::contracts::switch::ProgramObservation,
+) -> TimelineSample {
+    TimelineSample {
+        sampled_at_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        device,
+        input_video_pts: input_health.and_then(|h| h.video_last_pts),
+        input_audio_pts: input_health.and_then(|h| h.audio_last_pts),
+        bridge_video_pts: bridge.and_then(|b| b.video_last_pts),
+        bridge_audio_pts: bridge.and_then(|b| b.audio_last_pts),
+        program_video_pts: program.program_video_pts,
+        program_audio_pts: program.program_audio_pts,
+        input_video_state: input_health
+            .map(|h| h.video_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        input_audio_state: input_health
+            .map(|h| h.audio_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        bridge_video_state: bridge
+            .map(|b| b.video_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        bridge_audio_state: bridge
+            .map(|b| b.audio_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        program_video_state: program.program_video_pts_state,
+        program_audio_state: program.program_audio_pts_state,
+        program_alive: program.program_video_pts.is_some()
+            && program.program_video_pts_state != crate::pipeline::PtsMonotonicity::NonMonotonic,
+    }
+}
+
+/// recover 后桥健康结构化报告（RECOVER_PARTIAL_DEGRADED 观测化——
+/// **不改 recover 返回类型**, 由观测查询组装: recover Ok + 簿记重放 ≠
+/// 桥真实流通; degraded = 恢复成功但期望 channel 无实测数据流通）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgeHealthReport {
+    pub pipeline_recovered: bool,
+    pub expected_channels: Vec<String>,
+    pub observed_alive_channels: Vec<String>,
+    pub bridge_degraded: bool,
+}
+
+/// alive = 该 channel 桥观测帧计数 > 0（probe 实测有数据经过）。
+pub fn assemble_bridge_health(
+    pipeline_recovered: bool,
+    expected_channels: Vec<String>,
+    observations: &[crate::contracts::media_tap::BridgeObservation],
+) -> BridgeHealthReport {
+    let observed_alive_channels: Vec<String> = observations
+        .iter()
+        .filter(|o| o.video_frames > 0 || o.audio_frames > 0)
+        .map(|o| o.channel.clone())
+        .collect();
+    let bridge_degraded = pipeline_recovered
+        && expected_channels
+            .iter()
+            .any(|c| !observed_alive_channels.contains(c));
+    BridgeHealthReport {
+        pipeline_recovered,
+        expected_channels,
+        observed_alive_channels,
+        bridge_degraded,
+    }
+}
+
+/// 故障域分类（G/H ④: Input/Bridge/Program 组合观测——单故障假设,
+/// 优先序 Input>Bridge>Program; 多重并发故障如实报首因不做多维归因）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureDomain {
+    None,
+    Input,
+    Bridge,
+    Program,
+}
+
+pub fn classify_failure_domain(
+    input_advancing: bool,
+    bridge_alive: bool,
+    program_advancing: bool,
+) -> FailureDomain {
+    if !input_advancing {
+        FailureDomain::Input
+    } else if !bridge_alive {
+        FailureDomain::Bridge
+    } else if !program_advancing {
+        FailureDomain::Program
+    } else {
+        FailureDomain::None
+    }
+}
+
 struct Inner {
     group: Arc<Mutex<ExecutionGroup>>,
     switcher: Arc<dyn SwitchExecutionAdapter>,
@@ -430,5 +553,122 @@ mod tests {
             err.to_string().contains("身份不一致"),
             "错误信息可观测: {err}"
         );
+    }
+
+    // ── A2-8-02-G/H: 三列采样/桥健康报告/故障域分类（第十四轮） ──────
+
+    #[test]
+    fn gh_rt_01_timeline_sample_three_independent_columns() {
+        // 三列各自独立测量点 join: 六 PTS 列互异（非复制——第十四轮 §4
+        // "三列实际两份数据"反证）; 缺席列=Unknown 非伪造。
+        use crate::contracts::media_tap::BridgeObservation;
+        use crate::contracts::switch::ProgramObservation;
+        use crate::pipeline::{PipelineHealth, PtsMonotonicity};
+        let device = Uuid::new_v4();
+        let input = PipelineHealth {
+            video_last_pts: Some(1111),
+            audio_last_pts: Some(2222),
+            video_pts_state: PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            ..Default::default()
+        };
+        let bridge = BridgeObservation {
+            channel: tap_channel(device),
+            video_last_pts: Some(3333),
+            audio_last_pts: Some(4444),
+            video_pts_state: PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            video_frames: 99,
+            audio_frames: 198,
+        };
+        let program = ProgramObservation {
+            observed_active: Some(device),
+            video_active: Some(device),
+            audio_active: Some(device),
+            switch_epoch: 0,
+            input_pts: Vec::new(),
+            program_video_pts: Some(5555),
+            program_audio_pts: Some(6666),
+            program_video_pts_state: PtsMonotonicity::ValidMonotonic,
+            program_audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            program_video_frames: 42,
+            program_audio_frames: 84,
+        };
+        let s = assemble_timeline_sample(device, Some(&input), Some(&bridge), &program);
+        let cols = [
+            s.input_video_pts,
+            s.input_audio_pts,
+            s.bridge_video_pts,
+            s.bridge_audio_pts,
+            s.program_video_pts,
+            s.program_audio_pts,
+        ];
+        assert!(cols.iter().all(|c| c.is_some()), "六列全在场");
+        let vals: Vec<u64> = cols.iter().map(|c| c.unwrap()).collect();
+        let mut sorted = vals.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 6, "六列值互异——独立测量非复制");
+        assert!(s.program_alive);
+        // 桥缺席列 = Unknown（absence≠evidence）。
+        let s2 = assemble_timeline_sample(device, Some(&input), None, &program);
+        assert_eq!(s2.bridge_video_state, PtsMonotonicity::Unknown);
+        assert_eq!(s2.bridge_video_pts, None);
+    }
+
+    #[test]
+    fn gh_rt_01_bridge_health_degraded_detection() {
+        // RECOVER_PARTIAL_DEGRADED 观测化: recover Ok + 期望 channel 无
+        // 实测流通 → degraded=true（"pipeline 成功·bridge degraded"
+        // 结构化可见——不再只靠 warning 日志）。
+        use crate::contracts::media_tap::BridgeObservation;
+        use crate::pipeline::PtsMonotonicity;
+        let alive = |ch: &str, frames: u64| BridgeObservation {
+            channel: ch.into(),
+            video_last_pts: (frames > 0).then_some(1000),
+            audio_last_pts: (frames > 0).then_some(800),
+            video_pts_state: PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            video_frames: frames,
+            audio_frames: frames * 2,
+        };
+        // 健康: 双 channel 流通。
+        let ok = assemble_bridge_health(
+            true,
+            vec!["a".into(), "b".into()],
+            &[alive("a", 10), alive("b", 20)],
+        );
+        assert!(!ok.bridge_degraded);
+        assert_eq!(ok.observed_alive_channels.len(), 2);
+        // 降级: b 分支零帧（重放簿记在但无实测流通）。
+        let degraded = assemble_bridge_health(
+            true,
+            vec!["a".into(), "b".into()],
+            &[alive("a", 10), alive("b", 0)],
+        );
+        assert!(
+            degraded.bridge_degraded,
+            "pipeline Ok + bridge degraded 可见"
+        );
+        assert_eq!(degraded.observed_alive_channels, vec!["a".to_string()]);
+        // recover 本体失败 → 不声称桥降级（管线平面事实优先）。
+        let failed = assemble_bridge_health(false, vec!["a".into()], &[alive("a", 0)]);
+        assert!(!failed.bridge_degraded);
+    }
+
+    #[test]
+    fn gh_rt_01_failure_domain_matrix() {
+        // ④: 组合观测分类——单故障假设, 优先序 Input>Bridge>Program。
+        use FailureDomain::*;
+        assert_eq!(classify_failure_domain(true, true, true), None);
+        assert_eq!(classify_failure_domain(false, true, true), Input);
+        assert_eq!(
+            classify_failure_domain(false, false, false),
+            Input,
+            "输入死为首因"
+        );
+        assert_eq!(classify_failure_domain(true, false, true), Bridge);
+        assert_eq!(classify_failure_domain(true, false, false), Bridge);
+        assert_eq!(classify_failure_domain(true, true, false), Program);
     }
 }

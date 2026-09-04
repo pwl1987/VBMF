@@ -34,6 +34,58 @@ pub struct GStreamerPipelineController {
     /// 旧 `launch()` 内部 Bin 未留存, start/recover 无对象可操作). 非 gstreamer 构建无此字段.
     #[cfg(feature = "gstreamer-backend")]
     instances: Mutex<HashMap<PipelineHandle, GstInstance>>,
+    /// A2-8-02-G/H: Bridge 观测统计——分流分支 pad probe 实测（帧计数/
+    /// 最后 PTS/三态单调, 按 (handle, channel, plane)）。runtime
+    /// observation fact, 与 GstInstance.media_taps 静态簿记严格分层
+    /// （第十四轮 §5）; detach 摘分支即移除条目（absence≠evidence）。
+    #[cfg(feature = "gstreamer-backend")]
+    bridge_stats: BridgeStatsMap,
+}
+
+/// A2-8-02-G/H: 桥观测统计表类型别名（(handle, channel, plane) → 单平面
+/// 统计; probe 写入 / port 查询读取）。
+#[cfg(feature = "gstreamer-backend")]
+type BridgeStatsMap =
+    std::sync::Arc<Mutex<HashMap<(PipelineHandle, String, &'static str), BridgeStat>>>;
+
+/// A2-8-02-G/H: 单平面桥统计（probe 侧维护——三态与 PipelineHealth
+/// observe_*_pts 同语义: Unknown 起步/回退 sticky NonMonotonic）。
+#[cfg(feature = "gstreamer-backend")]
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BridgeStat {
+    pub last_pts: Option<u64>,
+    pub state: crate::pipeline::PtsMonotonicity,
+    pub frames: u64,
+}
+
+#[cfg(feature = "gstreamer-backend")]
+impl Default for BridgeStat {
+    fn default() -> Self {
+        // 无证据起步 = Unknown（absence≠evidence——与三态语义一致）。
+        Self {
+            last_pts: None,
+            state: crate::pipeline::PtsMonotonicity::Unknown,
+            frames: 0,
+        }
+    }
+}
+
+/// 三态推进（与 PipelineHealth::observe_video_pts 同律）。
+#[cfg(feature = "gstreamer-backend")]
+fn bridge_observe_pts(stat: &mut BridgeStat, pts: u64) {
+    stat.frames += 1;
+    match (stat.last_pts, stat.state) {
+        (Some(last), crate::pipeline::PtsMonotonicity::NonMonotonic)
+        | (Some(last), crate::pipeline::PtsMonotonicity::ValidMonotonic) => {
+            if pts < last {
+                stat.state = crate::pipeline::PtsMonotonicity::NonMonotonic; // sticky
+            } else {
+                stat.state = crate::pipeline::PtsMonotonicity::ValidMonotonic;
+            }
+        }
+        _ => stat.state = crate::pipeline::PtsMonotonicity::ValidMonotonic,
+    }
+    stat.last_pts = Some(pts);
 }
 
 /// 运行时 pipeline 实例 (仅 gstreamer 构建存在).
@@ -73,6 +125,8 @@ impl GStreamerPipelineController {
         Self {
             #[cfg(feature = "gstreamer-backend")]
             instances: Mutex::new(HashMap::new()),
+            #[cfg(feature = "gstreamer-backend")]
+            bridge_stats: std::sync::Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -202,7 +256,8 @@ impl PipelineController for GStreamerPipelineController {
                             channel: tap.channel.clone(),
                             planes: tap.planes,
                         };
-                        match Self::attach_tap_to_instance(inst, &req) {
+                        match Self::attach_tap_to_instance(*handle, inst, &req, &self.bridge_stats)
+                        {
                             Ok(()) => tracing::info!(
                                 handle = handle.0,
                                 channel = %tap.channel,
@@ -531,8 +586,10 @@ impl GStreamerPipelineController {
     /// （**非构造期预设**——假实现禁令, probe §11.2）。
     #[cfg(feature = "gstreamer-backend")]
     fn attach_tap_to_instance(
+        handle: PipelineHandle,
         inst: &mut GstInstance,
         req: &crate::contracts::media_tap::MediaTapRequest,
+        bridge_stats: &BridgeStatsMap,
     ) -> Result<(), crate::contracts::media_tap::TapError> {
         use crate::contracts::media_tap::{TapError, TapPlanes};
         use gstreamer::prelude::*;
@@ -577,6 +634,23 @@ impl GStreamerPipelineController {
                 tee_src
                     .link(&el_sink)
                     .map_err(|e| TapError::Backend(format!("tap 链接: {e:?}")))?;
+                // A2-8-02-G/H: 桥观测 probe——分流分支 sink pad 实测缓冲
+                //（tap→inter 段真实经过的数据; 非输入/程序观测复制——
+                // 三列各自独立测量, 第十四轮 §4）。键含 plane（"v"/"a"）。
+                {
+                    let key = (handle, req.channel.clone(), plane);
+                    let stats_for_probe = std::sync::Arc::clone(bridge_stats);
+                    el_sink.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
+                        if let Some(buf) = info.buffer() {
+                            if let Some(pts) = buf.pts().map(|c| c.nseconds()) {
+                                let mut stats = stats_for_probe.lock().unwrap();
+                                let st = stats.entry(key.clone()).or_default();
+                                bridge_observe_pts(st, pts);
+                            }
+                        }
+                        gstreamer::PadProbeReturn::Ok
+                    });
+                }
                 staged.push((tee, tee_src, el));
             }
             Ok(())
@@ -627,7 +701,8 @@ impl crate::contracts::media_tap::MediaTapPort for GStreamerPipelineController {
         if inst.media_taps.iter().any(|a| a.channel == req.channel) {
             return Err(TapError::AlreadyAttached(req.channel.clone()));
         }
-        Self::attach_tap_to_instance(inst, req)
+        let stats = std::sync::Arc::clone(&self.bridge_stats);
+        Self::attach_tap_to_instance(*handle, inst, req, &stats)
     }
 
     fn detach_media_tap(
@@ -670,6 +745,12 @@ impl crate::contracts::media_tap::MediaTapPort for GStreamerPipelineController {
             let _ = inst.pipeline.remove(&el);
         }
         inst.media_taps.retain(|a| a.channel != channel);
+        // A2-8-02-G/H: 分支已摘——桥观测条目随之移除（absence≠evidence,
+        // 非冻结零值伪装）。
+        self.bridge_stats
+            .lock()
+            .unwrap()
+            .retain(|(h, ch, _), _| !(*h == *handle && ch == channel));
         Ok(())
     }
 
@@ -683,6 +764,49 @@ impl crate::contracts::media_tap::MediaTapPort for GStreamerPipelineController {
             .get(handle)
             .map(|i| i.media_taps.clone())
             .unwrap_or_default()
+    }
+}
+
+// === A2-8-02-G/H: Bridge 观测查询面（pad probe 实测, 第十四轮 §4） ===
+#[cfg(feature = "gstreamer-backend")]
+impl crate::contracts::media_tap::BridgeObservationPort for GStreamerPipelineController {
+    fn bridge_observations(
+        &self,
+        handle: &PipelineHandle,
+    ) -> Vec<crate::contracts::media_tap::BridgeObservation> {
+        use crate::contracts::media_tap::BridgeObservation;
+        // 按簿记 channel 分组——attached 才有观测行（摘除=absence≠evidence）。
+        let attachments = {
+            self.instances
+                .lock()
+                .unwrap()
+                .get(handle)
+                .map(|i| i.media_taps.clone())
+                .unwrap_or_default()
+        };
+        let stats = self.bridge_stats.lock().unwrap();
+        attachments
+            .into_iter()
+            .map(|a| {
+                let v = stats
+                    .get(&(*handle, a.channel.clone(), "v"))
+                    .copied()
+                    .unwrap_or_default();
+                let s = stats
+                    .get(&(*handle, a.channel.clone(), "a"))
+                    .copied()
+                    .unwrap_or_default();
+                BridgeObservation {
+                    channel: a.channel,
+                    video_last_pts: v.last_pts,
+                    video_pts_state: v.state,
+                    video_frames: v.frames,
+                    audio_last_pts: s.last_pts,
+                    audio_pts_state: s.state,
+                    audio_frames: s.frames,
+                }
+            })
+            .collect()
     }
 }
 
