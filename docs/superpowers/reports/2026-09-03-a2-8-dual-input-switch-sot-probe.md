@@ -2290,3 +2290,66 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
   语义=P0-2 专裁不可反转。**未改码**。
 - 02-I 仍 FAIL-PENDING-CORRECTION（8/10; 失败集迁移 {L4,L5-skip}→
   {L5, Teardown-级联}）。全文=设计探针 §20。
+
+## 44. 第三十四轮终裁：方案 1 批准——Diagnostic Runtime Fault Injection（2026-09-05）
+
+### 44.1 裁决（照录）
+
+- **方案 1（L5 注入面改造）✅ 正式批准**，冻结名称
+  **A2-8-02-I — Diagnostic Runtime Fault Injection**。定义边界:
+  注入"运行故障"非"生命周期终止"——真实执行面停流·**PipelineHandle
+  与 HEALTH_ARCS 保持登记**·随后 `MediaBackend.recover(handle)`=生产
+  行为（同 handle 原 plan 重建）。**被证伪的是 L5 的故障注入方式, 非
+  生产恢复链。**
+- **落点=GStreamerPipelineController 第四 trait view**
+  （MediaBackend / MediaTapPort / BridgeObservationPort /
+  **DiagnosticFaultInjection**）——保持"一次 concrete controller 多
+  trait view"（F-01 同源原则）; **禁入 MediaBackend 冻结 SPI**（五方法
+  面不动）; SessionManager（生命周期 owner 不知"怎么搞坏 GStreamer"）/
+  Supervisor（observe→decide 不做故障制造器）均不落。
+- **方案 2（Session recover-from-plan）暂不批准**——Session 只存
+  SessionInput{device_id,handle} 无 plan 持久引用, 真做必牵动
+  SessionInput→重 instantiate→handle 替换→Health identity→Tap
+  ownership→ProgramExecutionRuntime→ExecutionGroup→Watchdog 全链
+  ="用 Session 重构修一个 Diagnostic Gate 错误"。
+- **方案 3（recover 推 03）不作替代**——生产 watchdog→Supervisor.
+  report_failure→Restart→lease 重校→backoff→ctrl.recover 接线实存,
+  推迟会把已存在能力伪装成未来功能; 03 验证策略闭环但不能替代 02-I
+  注入修正。
+- **定性**: recover(handle) 本体 P0/P1 无阻断; stop→recover=非法 Gate
+  生命周期组合; **Teardown 本体 PASS / 当前 Gate FAIL=L5 注入级联**
+  （session stop 对已注销 handle 报 UnknownPipeline=级联后果, 不单独
+  开缺陷——与 P0-2"backend.stop 失败仍继续释放"设计吻合）。
+- **红线七条**: ✗改 MediaBackend::recover ✗改 MediaBackend::stop
+  （终态注销=P0-2 防泄漏, 改成 paused-but-registered=架构回退）
+  ✗Session 替换 handle ✗Supervisor 执行注入 ✗fault injection 入
+  冻结 SPI ✗recover 推成"03 才有" ✗Timeline 代码混修 L5。
+- **第一版故障形态**: ✗禁模拟 Bus Error 合成事件（Observation Fact ≠
+  Synthetic Event; Health 体系 frames/PTS/last_observed/liveness/Bus
+  分层不可污染）——✓作用于 A branch 实际执行面使真实媒体流停止产出。
+- **02-I 收口条件=13 项全 PASS**（L0/L1a-d/L2a/L2b/L3/L4/L5.1-5.4/
+  Teardown）→ 届时才进入 Final Close Review。
+- NewEpoch rebase P1 维持; DiscontinuityDeclared 语义 P1 维持
+  （Final Close 时 Declared boundary 与 Observed backward jump 锁成
+  两个独立概念）; Mock 无证明价值确认（**禁扩展 Mock 假装真实
+  controller registry**——bundle mock 分支 diagnostic=None）。
+
+### 44.2 裁决代码断言实物核验（落账前）
+
+| 断言 | 实锚 | 结论 |
+| --- | --- | --- |
+| 生产恢复链 watchdog→Supervisor→recover 实存 | watchdog.rs:212-233: report_failure→Ok(Restart)→lease 重校（:214-216 "recover 中止: lease 失效"）→ctrl.recover（:228）→report_recovered; 头注 :5-11 | **证实** |
+| Session 不存 materialized plan | session.rs:193-197 SessionInput{device_id, handle} 恰两字段 | **证实** |
+| recover=同 handle 原 plan 重建 | controller.rs:217-299（R33 已核）: get(plan)→save taps→remove→old.stop→build(plan, same handle)→Playing→insert→replay | **证实** |
+| Mock stop/recover 无 registry 语义+bridge_stall 测试钩子实存 | mock.rs:129-134 no-op Ok; :153 bridge_stalled HashSet; :228 pub fn bridge_stall | **证实** |
+| bundle 三 view 同源单构造 | registry.rs:193-199 MediaAdapterBundle 三字段; :162-186 单次 Arc::new(controller) 三 clone（F-01"禁二次构造"注释） | **证实** |
+
+### 44.3 执行序（本轮）
+
+1. 终裁落账（本节 + 设计探针 §21 跨账 + tasks 第三十四轮）零代码 commit;
+2. 实现: contracts/diagnostic.rs 新契约面（仅诊断）+ controller 第四
+   view impl（真实执行面停流不注销）+ MediaAdapterBundle 第四 view
+   （同源第四 clone; mock=None）+ gate L5 5.1/5.3 stop→inject +
+   registry rt 测试（注入保持 handle 可 recover 契约）;
+3. 盒矩阵 + bin 重建 + 69/69 sha + 真机复跑（目标 13 项全 PASS）;
+4. 证据归档 + §45 复跑账 + commit/push + 记忆同步。

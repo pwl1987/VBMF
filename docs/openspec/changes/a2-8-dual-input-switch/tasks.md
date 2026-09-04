@@ -495,7 +495,23 @@
   MediaBackend::recover 不改+stop 注销语义不可反转; 新工件=Bus watch
   MainContext already-acquired WARN（隔离队列）; 02-I 仍
   FAIL-PENDING-CORRECTION（8/10; 失败集迁移 {L4,L5-skip}→{L5,
-  Teardown-级联}）**
+  Teardown-级联}）**; **第三十四轮终裁（主账 §44+设计探针 §21 跨账,
+  断言实物核验后落账——五断言全证实[watchdog.rs:212-233 生产恢复链/
+  session.rs:193 SessionInput 恰两字段/controller.rs:217-299 同 handle
+  原 plan 重建/mock.rs:129-134+228 no-op+bridge_stall 钩子/registry.rs
+  :162-199 bundle 三 view 单构造]）: **方案 1 正式批准——A2-8-02-I —
+  Diagnostic Runtime Fault Injection**[注入'运行故障'非'生命周期终止':
+  真实执行面停流·handle+HEALTH_ARCS 保持登记·recover=生产行为同 handle
+  原 plan 重建; 被证伪的是注入方式非生产恢复链]; 落点=GStreamerPipeline
+  Controller **第四 trait view**（F-01 同源原则·禁入冻结 SPI·禁 Session/
+  Supervisor 侧）; 方案 2 暂不批准[Session 无 plan 持久引用, 真做=Session
+  重构修 Gate 错误]; 方案 3 不作替代[生产恢复链实存, 推迟=伪装未来功能];
+  定性: recover 本体无阻断·stop→recover=非法组合·Teardown 本体 PASS=
+  L5 注入级联不单独开缺陷; 红线七条[recover/stop 不改·Session 不换
+  handle·Supervisor 不注入·SPI 不加·recover 不推 03·Timeline 不混修];
+  第一版禁 Bus Error 合成事件[Observation Fact≠Synthetic Event]须作用
+  实际执行面; Mock 禁假装真实 registry[bundle mock 分支 diagnostic=None];
+  02-I 收口条件=13 项全 PASS→Final Close Review**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

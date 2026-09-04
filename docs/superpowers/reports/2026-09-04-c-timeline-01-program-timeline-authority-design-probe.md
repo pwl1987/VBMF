@@ -1104,3 +1104,16 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
 **L4（switch+timeline 九项合取）首次真机正式 PASS**——B 类单字符修正
 闭环验证完成。L5=首次真机执行（历史两跑均被 H1 跳过）: 隔离半边
 （A-fail→B-alive）真机成立; recover 半边=C 类契约缺口留证待裁。
+
+## 21. 第三十四轮跨账引用：L5 注入面裁决与 C-TIMELINE 边界（2026-09-05）
+
+- 主账 §44: 方案 1 批准（A2-8-02-I — Diagnostic Runtime Fault
+  Injection）; 落点 GStreamerPipelineController 第四 trait view;
+  MediaBackend SPI/stop/recover/Session/Supervisor 全不动。
+- **C-TIMELINE-01 边界照录**: ✗修改 Timeline 代码混修 L5（红线七条
+  之一）——本轮 Timeline 域零触碰。
+- NewEpoch rebase 缺陷 P1 维持（program_timeline.rs:682-688, Final
+  Close 前必修·四条回归）; on_mapped_buffer 的 DiscontinuityDeclared
+  P1 维持（Final Close 时 "Declared boundary" 与 "Observed backward
+  jump" 锁成两个独立概念）。
+- 02-I 收口条件=13 项全 PASS（含 L5.1-5.4）→ Final Close Review。
