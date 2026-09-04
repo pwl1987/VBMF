@@ -40,6 +40,10 @@ pub struct GStreamerPipelineController {
     /// （第十四轮 §5）; detach 摘分支即移除条目（absence≠evidence）。
     #[cfg(feature = "gstreamer-backend")]
     bridge_stats: BridgeStatsMap,
+    /// A2-8-02-G/H-1: 桥**观察时钟**原点（liveness 判定的 wall clock——
+    /// 观察时序, 与媒体时序 PTS 严格分离, 第十五轮 §8）。
+    #[cfg(feature = "gstreamer-backend")]
+    bridge_clock_origin: std::time::Instant,
 }
 
 /// A2-8-02-G/H: 桥观测统计表类型别名（(handle, channel, plane) → 单平面
@@ -56,6 +60,9 @@ pub(crate) struct BridgeStat {
     pub last_pts: Option<u64>,
     pub state: crate::pipeline::PtsMonotonicity,
     pub frames: u64,
+    /// A2-8-02-G/H-1: 最后实测时刻（观察时钟 ms——liveness 证据;
+    /// 与历史证据 frames 分层, 第十五轮 §7）。
+    pub last_observed_ms: Option<u64>,
 }
 
 #[cfg(feature = "gstreamer-backend")]
@@ -66,14 +73,16 @@ impl Default for BridgeStat {
             last_pts: None,
             state: crate::pipeline::PtsMonotonicity::Unknown,
             frames: 0,
+            last_observed_ms: None,
         }
     }
 }
 
-/// 三态推进（与 PipelineHealth::observe_video_pts 同律）。
+/// 三态推进（与 PipelineHealth::observe_video_pts 同律）+ 观察时刻。
 #[cfg(feature = "gstreamer-backend")]
-fn bridge_observe_pts(stat: &mut BridgeStat, pts: u64) {
+fn bridge_observe_pts(stat: &mut BridgeStat, pts: u64, observed_at_ms: u64) {
     stat.frames += 1;
+    stat.last_observed_ms = Some(observed_at_ms);
     match (stat.last_pts, stat.state) {
         (Some(last), crate::pipeline::PtsMonotonicity::NonMonotonic)
         | (Some(last), crate::pipeline::PtsMonotonicity::ValidMonotonic) => {
@@ -127,6 +136,8 @@ impl GStreamerPipelineController {
             instances: Mutex::new(HashMap::new()),
             #[cfg(feature = "gstreamer-backend")]
             bridge_stats: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "gstreamer-backend")]
+            bridge_clock_origin: std::time::Instant::now(),
         }
     }
 }
@@ -256,8 +267,13 @@ impl PipelineController for GStreamerPipelineController {
                             channel: tap.channel.clone(),
                             planes: tap.planes,
                         };
-                        match Self::attach_tap_to_instance(*handle, inst, &req, &self.bridge_stats)
-                        {
+                        match Self::attach_tap_to_instance(
+                            *handle,
+                            inst,
+                            &req,
+                            &self.bridge_stats,
+                            self.bridge_clock_origin,
+                        ) {
                             Ok(()) => tracing::info!(
                                 handle = handle.0,
                                 channel = %tap.channel,
@@ -590,6 +606,7 @@ impl GStreamerPipelineController {
         inst: &mut GstInstance,
         req: &crate::contracts::media_tap::MediaTapRequest,
         bridge_stats: &BridgeStatsMap,
+        clock_origin: std::time::Instant,
     ) -> Result<(), crate::contracts::media_tap::TapError> {
         use crate::contracts::media_tap::{TapError, TapPlanes};
         use gstreamer::prelude::*;
@@ -637,15 +654,18 @@ impl GStreamerPipelineController {
                 // A2-8-02-G/H: 桥观测 probe——分流分支 sink pad 实测缓冲
                 //（tap→inter 段真实经过的数据; 非输入/程序观测复制——
                 // 三列各自独立测量, 第十四轮 §4）。键含 plane（"v"/"a"）。
+                // G/H-1: probe 同时记录观察时刻（liveness 证据——观察时钟
+                // 与媒体时序 PTS 分离, 第十五轮 §8）。
                 {
                     let key = (handle, req.channel.clone(), plane);
                     let stats_for_probe = std::sync::Arc::clone(bridge_stats);
                     el_sink.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
                         if let Some(buf) = info.buffer() {
                             if let Some(pts) = buf.pts().map(|c| c.nseconds()) {
+                                let now_ms = clock_origin.elapsed().as_millis() as u64;
                                 let mut stats = stats_for_probe.lock().unwrap();
                                 let st = stats.entry(key.clone()).or_default();
-                                bridge_observe_pts(st, pts);
+                                bridge_observe_pts(st, pts, now_ms);
                             }
                         }
                         gstreamer::PadProbeReturn::Ok
@@ -702,7 +722,7 @@ impl crate::contracts::media_tap::MediaTapPort for GStreamerPipelineController {
             return Err(TapError::AlreadyAttached(req.channel.clone()));
         }
         let stats = std::sync::Arc::clone(&self.bridge_stats);
-        Self::attach_tap_to_instance(*handle, inst, req, &stats)
+        Self::attach_tap_to_instance(*handle, inst, req, &stats, self.bridge_clock_origin)
     }
 
     fn detach_media_tap(
@@ -804,6 +824,50 @@ impl crate::contracts::media_tap::BridgeObservationPort for GStreamerPipelineCon
                     audio_last_pts: s.last_pts,
                     audio_pts_state: s.state,
                     audio_frames: s.frames,
+                }
+            })
+            .collect()
+    }
+
+    /// A2-8-02-G/H-1: 当前推进性——观察时钟窗口判定（now - last_observed
+    /// ≤ window; frames=历史证据, last_observed=活性证据, 严格分层）。
+    fn bridge_liveness(
+        &self,
+        handle: &PipelineHandle,
+        window_ms: u64,
+    ) -> Vec<crate::contracts::media_tap::BridgeChannelLiveness> {
+        use crate::contracts::media_tap::BridgeChannelLiveness;
+        let attachments = {
+            self.instances
+                .lock()
+                .unwrap()
+                .get(handle)
+                .map(|i| i.media_taps.clone())
+                .unwrap_or_default()
+        };
+        let now_ms = self.bridge_clock_origin.elapsed().as_millis() as u64;
+        let stats = self.bridge_stats.lock().unwrap();
+        attachments
+            .into_iter()
+            .map(|a| {
+                let v = stats
+                    .get(&(*handle, a.channel.clone(), "v"))
+                    .copied()
+                    .unwrap_or_default();
+                let s = stats
+                    .get(&(*handle, a.channel.clone(), "a"))
+                    .copied()
+                    .unwrap_or_default();
+                // 活性证据取双平面最近实测时刻。
+                let last_observed = v.last_observed_ms.max(s.last_observed_ms);
+                let alive_in_window = last_observed
+                    .map(|t| now_ms.saturating_sub(t) <= window_ms)
+                    .unwrap_or(false);
+                BridgeChannelLiveness {
+                    channel: a.channel,
+                    frames: v.frames.max(s.frames),
+                    last_observed_at_ms: last_observed,
+                    alive_in_window,
                 }
             })
             .collect()

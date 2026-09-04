@@ -305,11 +305,11 @@ mod tests {
             vec![
                 TapWiring {
                     input: h1,
-                    channel: format!("tap-{a}"),
+                    channel: crate::program_execution::tap_channel(a),
                 },
                 TapWiring {
                     input: h2,
-                    channel: format!("tap-{b}"),
+                    channel: crate::program_execution::tap_channel(b),
                 },
             ],
         )

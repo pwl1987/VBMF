@@ -110,4 +110,27 @@ pub trait BridgeObservationPort: Send + Sync {
     /// 按管线列桥观测（每 channel 一行; 分支已摘除的 channel 不出现=
     /// 无证据——absence≠evidence, 非零值非伪造）。
     fn bridge_observations(&self, handle: &PipelineHandle) -> Vec<BridgeObservation>;
+
+    /// A2-8-02-G/H-1（第十五轮）: **当前推进性**（liveness）——`frames>0`
+    /// 只证"曾经活过"; 本查询以观察时钟（wall clock=观察时序, 与媒体
+    /// 时序 PTS 严格分离——**禁把 sampled_at 塞进 last_pts/拿 PTS 差值
+    /// 当实时 liveness**）判定: now - last_observed ≤ window 才 alive。
+    fn bridge_liveness(
+        &self,
+        handle: &PipelineHandle,
+        window_ms: u64,
+    ) -> Vec<BridgeChannelLiveness>;
+}
+
+/// 桥 channel liveness 行（观察时序事实——历史证据 frames 与活性证据
+/// last_observed 分层, 第十五轮 §7）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BridgeChannelLiveness {
+    pub channel: String,
+    /// 历史证据: 累计实测帧数（曾经活过）。
+    pub frames: u64,
+    /// 活性证据: 最后实测时刻（查询方观察时钟, ms; None=从未观测）。
+    pub last_observed_at_ms: Option<u64>,
+    /// now - last_observed ≤ window（当前仍在流通）。
+    pub alive_in_window: bool,
 }

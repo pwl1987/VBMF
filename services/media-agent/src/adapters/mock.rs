@@ -149,6 +149,8 @@ pub struct MockMediaTapPort {
     >,
     /// A2-8-02-G/H: 桥观测仿真 tick（每次查询推进——确定性递增流）。
     bridge_tick: std::sync::atomic::AtomicU64,
+    /// G/H-1: 桥停滞注入集合（liveness 测试钩子）。
+    bridge_stalled: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 impl MockMediaTapPort {
@@ -186,6 +188,49 @@ impl crate::contracts::media_tap::BridgeObservationPort for MockMediaTapPort {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// G/H-1: Mock liveness——attached 即视为窗口内流通（观察时钟仿真:
+    /// last_observed=now; 独立 stall 注入见 `bridge_stall`）。
+    fn bridge_liveness(
+        &self,
+        handle: &PipelineHandle,
+        _window_ms: u64,
+    ) -> Vec<crate::contracts::media_tap::BridgeChannelLiveness> {
+        use crate::contracts::media_tap::BridgeChannelLiveness;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let taps = self.taps.lock().unwrap();
+        let stalled = self.bridge_stalled.lock().unwrap();
+        taps.get(handle)
+            .map(|rows| {
+                rows.iter()
+                    .map(|a| BridgeChannelLiveness {
+                        channel: a.channel.clone(),
+                        frames: 100,
+                        last_observed_at_ms: Some(if stalled.contains(&a.channel) {
+                            now_ms.saturating_sub(10_000) // 远超任何窗口
+                        } else {
+                            now_ms
+                        }),
+                        alive_in_window: !stalled.contains(&a.channel),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
+impl MockMediaTapPort {
+    /// G/H-1 测试钩子: 注入桥停滞（liveness 窗口外——当前断流仿真）。
+    pub fn bridge_stall(&self, handle: &PipelineHandle, channel: &str) {
+        let _ = handle;
+        self.bridge_stalled
+            .lock()
+            .unwrap()
+            .insert(channel.to_string());
     }
 }
 

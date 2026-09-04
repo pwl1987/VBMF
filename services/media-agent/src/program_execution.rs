@@ -124,16 +124,18 @@ pub struct BridgeHealthReport {
     pub bridge_degraded: bool,
 }
 
-/// alive = 该 channel 桥观测帧计数 > 0（probe 实测有数据经过）。
+/// alive = **当前推进性**（G/H-1, 第十五轮 §5-7: `frames>0` 只证"曾经
+/// 活过"——必须以观察时钟窗口判定: now - last_observed ≤ window。
+/// 历史证据 frames 与活性证据 last_observed 分层, 禁混）。
 pub fn assemble_bridge_health(
     pipeline_recovered: bool,
     expected_channels: Vec<String>,
-    observations: &[crate::contracts::media_tap::BridgeObservation],
+    liveness: &[crate::contracts::media_tap::BridgeChannelLiveness],
 ) -> BridgeHealthReport {
-    let observed_alive_channels: Vec<String> = observations
+    let observed_alive_channels: Vec<String> = liveness
         .iter()
-        .filter(|o| o.video_frames > 0 || o.audio_frames > 0)
-        .map(|o| o.channel.clone())
+        .filter(|l| l.alive_in_window)
+        .map(|l| l.channel.clone())
         .collect();
     let bridge_degraded = pipeline_recovered
         && expected_channels
@@ -145,6 +147,26 @@ pub fn assemble_bridge_health(
         observed_alive_channels,
         bridge_degraded,
     }
+}
+
+// G/H-1（第十五轮 §11）: "曾经活过 ≠ 当前推进"——以采样增量分离历史
+// 存在与当前推进（不改 ProgramObservation/PipelineHealth 契约）。
+
+/// 程序出口当前推进（两次观测间帧计数增长）。
+pub fn program_progress_since(
+    prev: &crate::contracts::switch::ProgramObservation,
+    cur: &crate::contracts::switch::ProgramObservation,
+) -> bool {
+    cur.program_video_frames > prev.program_video_frames
+        || cur.program_audio_frames > prev.program_audio_frames
+}
+
+/// 输入管线当前推进（两次健康弧快照间帧计数增长）。
+pub fn input_progress_since(
+    prev: &crate::pipeline::PipelineHealth,
+    cur: &crate::pipeline::PipelineHealth,
+) -> bool {
+    cur.video_frame_count > prev.video_frame_count || cur.audio_frame_count > prev.audio_frame_count
 }
 
 /// 故障域分类（G/H ④: Input/Bridge/Program 组合观测——单故障假设,
@@ -618,41 +640,49 @@ mod tests {
 
     #[test]
     fn gh_rt_01_bridge_health_degraded_detection() {
-        // RECOVER_PARTIAL_DEGRADED 观测化: recover Ok + 期望 channel 无
-        // 实测流通 → degraded=true（"pipeline 成功·bridge degraded"
-        // 结构化可见——不再只靠 warning 日志）。
-        use crate::contracts::media_tap::BridgeObservation;
-        use crate::pipeline::PtsMonotonicity;
-        let alive = |ch: &str, frames: u64| BridgeObservation {
-            channel: ch.into(),
-            video_last_pts: (frames > 0).then_some(1000),
-            audio_last_pts: (frames > 0).then_some(800),
-            video_pts_state: PtsMonotonicity::ValidMonotonic,
-            audio_pts_state: PtsMonotonicity::ValidMonotonic,
-            video_frames: frames,
-            audio_frames: frames * 2,
-        };
-        // 健康: 双 channel 流通。
+        // RECOVER_PARTIAL_DEGRADED 观测化（G/H-1 升级 liveness 基）:
+        // "曾经活过"（frames>0 但窗口外）≠ 当前流通——b 有历史帧但断流
+        // → degraded=true（帧基判定会漏报, 第十五轮 §5 实证场景）。
+        use crate::contracts::media_tap::BridgeChannelLiveness;
+        let now = 10_000u64;
+        let row =
+            |ch: &str, frames: u64, last: Option<u64>, window_alive: bool| BridgeChannelLiveness {
+                channel: ch.into(),
+                frames,
+                last_observed_at_ms: last,
+                alive_in_window: window_alive,
+            };
+        // 健康: 双 channel 窗口内流通。
         let ok = assemble_bridge_health(
             true,
             vec!["a".into(), "b".into()],
-            &[alive("a", 10), alive("b", 20)],
+            &[
+                row("a", 100, Some(now - 100), true),
+                row("b", 200, Some(now - 200), true),
+            ],
         );
         assert!(!ok.bridge_degraded);
         assert_eq!(ok.observed_alive_channels.len(), 2);
-        // 降级: b 分支零帧（重放簿记在但无实测流通）。
+        // **历史曾经活过≠当前流通**: b frames=10_000（曾在流）但最后实测
+        // 在窗口外（断流）→ degraded（帧基判定此处置 false=漏报根因）。
         let degraded = assemble_bridge_health(
             true,
             vec!["a".into(), "b".into()],
-            &[alive("a", 10), alive("b", 0)],
+            &[
+                row("a", 100, Some(now - 100), true),
+                row("b", 10_000, Some(now - 9_000), false),
+            ],
         );
         assert!(
             degraded.bridge_degraded,
-            "pipeline Ok + bridge degraded 可见"
+            "pipeline Ok + bridge 当前断流（虽有历史帧）degraded 可见"
         );
         assert_eq!(degraded.observed_alive_channels, vec!["a".to_string()]);
+        // 从未观测（重放失败/无数据）→ 亦降级。
+        let never = assemble_bridge_health(true, vec!["a".into()], &[row("a", 0, None, false)]);
+        assert!(never.bridge_degraded);
         // recover 本体失败 → 不声称桥降级（管线平面事实优先）。
-        let failed = assemble_bridge_health(false, vec!["a".into()], &[alive("a", 0)]);
+        let failed = assemble_bridge_health(false, vec!["a".into()], &[row("a", 0, None, false)]);
         assert!(!failed.bridge_degraded);
     }
 

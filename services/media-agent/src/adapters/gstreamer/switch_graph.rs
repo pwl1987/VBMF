@@ -1331,16 +1331,18 @@ mod tests {
         // recover 返回类型）。
         bundle.backend.recover(&h2).expect("recover B");
         std::thread::sleep(std::time::Duration::from_millis(900));
-        let obs_all: Vec<_> = bridge_port
-            .bridge_observations(&h1)
+        // G/H-1: liveness 基（观察时钟窗口判定——非帧基历史存在）。
+        let liveness_all: Vec<_> = bridge_port
+            .bridge_liveness(&h1, 2_000)
             .into_iter()
-            .chain(bridge_port.bridge_observations(&h2))
+            .chain(bridge_port.bridge_liveness(&h2, 2_000))
             .collect();
-        let report = assemble_bridge_health(true, vec![tap_channel(a), tap_channel(b)], &obs_all);
+        let report =
+            assemble_bridge_health(true, vec![tap_channel(a), tap_channel(b)], &liveness_all);
         assert_eq!(
             report.observed_alive_channels.len(),
             2,
-            "双 channel 实测流通"
+            "双 channel 窗口内实测流通（当前推进）"
         );
         assert!(!report.bridge_degraded, "健康路径不降级");
 
@@ -1356,10 +1358,11 @@ mod tests {
                 > f
         };
         let bridge_alive = |h: &PipelineHandle| {
+            // G/H-1: liveness 窗口判定（当前推进——非历史帧存在）。
             bridge_port
-                .bridge_observations(h)
+                .bridge_liveness(h, 2_000)
                 .iter()
-                .any(|o| o.video_frames > 0)
+                .any(|l| l.alive_in_window)
         };
         let program_advancing = || {
             let f = adapter.observe(&graph).program_video_frames;
