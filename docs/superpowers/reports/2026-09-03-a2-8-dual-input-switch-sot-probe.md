@@ -1294,3 +1294,60 @@ Resource→Available（Release 步）/ Lease release。真机 Evidence Package
 PortId/connector=SDI/ordinal/direction=Input/binding/device_number 实测
 落盘）→ 据实填 v4 双 Input port 声明 → `VBMF_A2_8_DUAL_INPUT=1
 MEDIA_AGENT_DEVICE_BINDING=<v4> media-agent-gates` 执行, 全程零代码。
+
+## 27. 02-I 真机首跑 Evidence Package（2026-09-04 盒上执行, 零代码改动）
+
+### 27.1 执行序（严格按二十轮 §8/§11）
+
+真实 Discovery 落盘（VBMF_RESOLVER + sigprobe）→ 据实生成
+`~/a2-8-02i-v4.manifest.json`（两卡 Input/SDI/1 声明; SDI-IN-1 gst=1
+今日实测, SDI-IN-2 gst=2 为 08-27 物理核值今日未开——resolver 诚实
+fail-closed）→ `VBMF_A2_8_DUAL_INPUT=1` 两跑。证据归档
+`~/a2-8-02i-evidence/`（resolver-discovery / run1-stale-bin-cb78adc /
+run2-frozen-fe71b7c）。
+
+### 27.2 今日硬件事实（Discovery, 三卡）
+
+| 卡 | device_id | handle | 今日 gst | signal |
+|---|---|---|---|---|
+| SDI-IN-1 | 4fa33dcb… | 46:…002e4500 | **device 1 open OK** | **false（无信号）** |
+| SDI-IN-2 | 6ede00d0… | 46:…002e4400 | **无（2-7 全 StateFailed, 复跑持续）** | 无证据 |
+| MINI-MON-4K | 1afe2dcc… | 83:…1a66443b | device 0（纯输出卡） | false |
+
+碰撞告警 e43d8f5a/f0f53b80 证据面照常落盘。
+
+### 27.3 Run1（意外对照: 陈旧 cb78adc bin）→ Run2（fe71b7c 冻结行为）
+
+run1 意外用上 cb78adc 时代 target/debug bin（教训: **cargo test/clippy
+不刷新普通可执行档——gates 真机复跑前必须 cargo build --bin
+media-agent-gates**）。其行为 = 十九轮 §3 P0 的真机活体演示: L1a/L1c
+FAIL 后**继续进 L2**（仅被 SessionManager preflight IdentityBinding
+Fail 兜住——纵深防御实证）。重新 build fe71b7c 后 run2:
+
+- **H4 证据行齐全**（双卡 handle/port_id/Sdi/Known(1)/Input/cap/dn/
+  signal/prod_binding 同行）;
+- **L1a FAIL**（bindings=1/2 production_grade——SDI-IN-2 Unresolved）;
+- L1b PASS（双卡 SDK 位掩码 input=Supported(true), audio=video-推导标注）;
+- **L1c FAIL**（SDI-IN-1 signal=Some(false); SDI-IN-2 无 signal 证据）;
+- **L1d PASS**（双卡 唯一InputResource+ID对应=true——H2 闭环真机成立,
+  manifest port_id 与规范派生一致）;
+- **H1 fail-stop 精确触发**: `FAIL (2/4 verdicts; L1 fail-stop——L2-L5
+  不执行（H1）)` exit 2, **零会话创建**。
+
+run1↔run2 同硬件同条件正反对照 = H1 hardening 的最强真机验证。
+
+### 27.4 §11 分类裁决: **B 类（硬件/输入条件）——零代码改动**
+
+1. SDI-IN-1: gst 可开（dn=1）但**无 SDI 信号接入**（08-27 rt01 时代
+   signal=true, 今日 false——信号源未接/已断）;
+2. SDI-IN-2: **gst 输入不可开（稳态, 复跑持续）**——仅 device 0/1 可开
+   （0=Mini Monitor, 1=SDI-IN-1）; 08-27 时代 device 2=SDI-IN-2 可开,
+   今日 2-7 全 StateFailed。候选根因（用户侧可查）: BMD duplex 端口
+   方向配置（Desktop Video Setup 端口设为输出）/驱动状态/卡占用,
+   或需重启盒。
+   
+Gate/Preflight 行为全部正确（fail-closed 精确）; 无 A 类（代码缺陷）
+无 C 类触发。**02-I 硬件前置细化为: ① 双 SDI 信号源接入两卡输入
+②SDI-IN-2 gst 输入可开性恢复**。恢复后无需再改 manifest（v4 已就位,
+届时以当日 Discovery 复核 gst 号即可）, 直接复跑
+`VBMF_A2_8_DUAL_INPUT=1`。
