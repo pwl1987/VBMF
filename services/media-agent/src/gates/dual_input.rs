@@ -88,6 +88,14 @@ const SAMPLE_GAP_SECS: u64 = 3;
 /// 故障注入后等待（确保越过活性窗口 + 帧计数冻结可判）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 const L5_WAIT_SECS: u64 = 5;
+/// L5.4 Program 停滞观测排空 grace（第三十六轮方案②: Fault t0 → Drain
+/// Grace → q1/GAP/q2 观测窗）。故障注入后下游已缓冲数据（inter/queue→
+/// appsink, sync=false 不依赖播放时钟）仍会以消费速率排空——真机
+/// 2026-09-05 00:19 实测 t0+8..11s program 帧计数仍在增长, 采样窗与
+/// runway 重叠即假阴性。grace 相对注入时刻锚定（非流水 sleep 叠加）,
+/// 覆盖 runway 后才允许判定停滞; 未来帧率/queue/格式变化只调此单 knob。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+const L5_PROGRAM_DRAIN_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 fn sleep(sec: u64) {
@@ -783,6 +791,8 @@ pub fn run(
 
         // 5.3 B fail → A alive（active=B: program 诚实停滞——隔离证据=A 不受牵连）。
         inject_stall(&h_b);
+        // 方案②（第三十六轮批准）: 故障注入时刻 t0——L5.4 观测窗锚定点。
+        let fault_started_at = std::time::Instant::now();
         sleep(L5_WAIT_SECS);
         let b_bridge_alive = bridge_rows_of(&started_inputs[1]).is_some_and(|l| l.alive_in_window);
         let a_bridge_alive = bridge_rows_of(&started_inputs[0]).is_some_and(|l| l.alive_in_window);
@@ -803,6 +813,14 @@ pub fn run(
             (Some(p), Some(c)) => crate::program_execution::input_progress_since(p, c),
             _ => false,
         };
+        // 方案②（第三十六轮批准）: 排空 grace 相对 t0 锚定——wait_until 语义,
+        // 前置 L5_WAIT/桥检查/a1a2 采样已耗时间自动折算为剩余等待, 不随
+        // 流水 sleep 漂移。grace 内不采样 Program 增量（drain runway 排空前
+        // 帧仍在到达, 采样即假阴性）。
+        std::thread::sleep(
+            (fault_started_at + L5_PROGRAM_DRAIN_GRACE)
+                .saturating_duration_since(std::time::Instant::now()),
+        );
         let q1 = switcher.observe(&graph).program;
         sleep(SAMPLE_GAP_SECS);
         let q2 = switcher.observe(&graph).program;
