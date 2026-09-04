@@ -2090,3 +2090,44 @@ A2-8-02-I
 - 本轮入口动作：C-TIMELINE-01 设计 SoT 探针已开（零代码新报告
   `docs/superpowers/reports/2026-09-04-c-timeline-01-program-timeline-
   authority-design-probe.md`）。
+
+## 36. C-TIMELINE-01 十问终裁（跨账引用，2026-09-04，零代码）
+
+用户对设计探针 OQ-1..12 **全部裁定**（全文落账=设计探针报告 §11；
+冻结设计=`2026-09-04-c-timeline-01-design-freeze.md`，15 项+八红线
+R1-R8）：
+
+- **架构方向冻结**：Program Timeline Authority + Clock-Segment
+  Timeline + Source Segment Mapping——**B 为主 + A 的执行机制 +
+  C（"出口再生成"正式废止）/ D 不采用**。
+- Authority=Program Execution 层 TimelineAuthority（禁
+  ExecutionGroup/Supervisor/MediaBackend/单 pipeline/出口 muxer；
+  不做大型独立 Engine；Domain 拥有语义、Adapter 拥有执行）。
+- PTS=Source Segment Offset Mapping（SourceSegment 五字段；
+  `max(last+dur, incoming)` 永久禁止；wall-clock 永久禁修 PTS）。
+- V/A 共享 Program Epoch 不共享数值序列；switch_epoch≠program_epoch。
+- Timeline 与格式归一化解耦（当前=Switch Boundary Adaptation +
+  Format Contract 显式声明不保证无缝 format continuity；格式策略=
+  独立 Program Media Format Policy）。
+- settle=状态语义（TimelineTransition 期间 PTS 必须已属新 timeline）。
+- Discontinuity 双层表达 + PtsState 四态（+DiscontinuityDeclared；
+  declared ≠ unexpected backward）。
+- Recover 本轮不实现、语义冻结（Soft/Hard 两类；Supervisor 只决定
+  recover 不拥有 Timeline）。
+- TimelineMapped 结构化 Fact ≠ TimelineHealthy；TimelineObservation
+  专门证据面（observed_at=wall clock 禁入 program_pts；"真的完成"
+  七条定义；pts>prev 永远不足）。
+- 删裸 bool normalize → TimelinePolicy（本轮零代码）。
+- 三时钟职权切开（Timeline Authority / AVSync Manager / Channel
+  Reference Clock 不得互相越权）。
+- **不触碰**：已 PASS 各层 + SwitchExecution/SessionManager/Resolver/
+  PortRegistry/ResourceRegistry/Supervisor——只解决 L4-TIMELINE；
+  **02-I 状态严格保持 FAIL-PENDING-CORRECTION（设计≠Gate PASS）**。
+- 隔离禁顺手修：C1-P1（不重开 C1）/ converter interlace /
+  PORT-IDENTITY / canonical UUID namespace。
+- 执行令：设计 SoT 探针阶段正式结束；**不进入实现**；下一动作=
+  Design Freeze（已形成）→ 冻结后才开 implementation change。
+
+本主线状态机不变：A2-8-02-I = FAIL-PENDING-CORRECTION（L4-SWITCH
+PASS / L4-TIMELINE FAIL-PENDING-CORRECTION / L5 SKIPPED BY H1）；
+A2-8 Switch Execution 基础能力 = PASS 并立。

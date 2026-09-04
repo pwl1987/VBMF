@@ -253,3 +253,95 @@ Timeline（X4）与 Playout 时间线——**无 Program 媒体时间线 Authori
 3. 独立队列不阻塞：C1-P1（poll 内可选 bus check）· converter
    interlace 断言定性 · 现场项（BNC#4 对端/dn2 线缆/照片）·
    PORT-IDENTITY / canonical UUID namespace / A2-8-03~05。
+
+## 11. 十问终裁（用户裁决接收与落账，2026-09-04）
+
+### 11.1 裁决接收与前置复核
+
+- 来源：用户对本报告 §8 OQ-1..12 的完整终裁（"C-TIMELINE-01 十问
+  终裁"）——**不需要再补一轮代码探针**。
+- 用户前置独立复核声明：已复核本探针报告与当前分支实际代码，尤其
+  确认 Bridged 路径 = intervideosrc/interaudiosrc → input-selector →
+  queue → appsink 且 **Bridged 不做 capsfilter**（= 当前 Program Graph
+  无隐藏时间线归一化层）；`PipelinePlan.normalize` 只是声明字段，
+  **未形成 Execution Fact**。
+- 本侧锚点复核（HEAD 1db28e2，树干净；全部吻合）：
+
+| 裁决引用事实 | 仓库锚点 | 复核 |
+| --- | --- | --- |
+| Bridged program graph = inter[video/audio]src → input-selector → queue → appsink | switch_graph.rs:8-12；video 平面 selector:218 + queue:233 + appsink:234；audio 平面 :276/:277/:278；Bridged 源 :256/:258/:298/:300；链结 :313 | 吻合 |
+| Bridged 无 capsfilter（透传输入实际 caps/媒体时间属性） | switch_graph.rs:219-231（:231 `Bridged => None`） | 吻合 |
+| Program graph 零隐藏时间线层（零 clock/base_time/latency 设置） | §2.1 全文件 grep 零命中（本轮无代码变更，证据沿用） | 吻合 |
+| PipelinePlan.normalize = 声明未消费、非 Fact | pipeline.rs:136-141 doc 自认；:227 等多处 `normalize: true` 字面量存在 | 吻合 |
+| ExecutionGroup 恰 {session_id, inputs, desired, switch_epoch} 零时间戳 | switch_execution.rs:93-100 | 吻合 |
+| ProgramExecutionRuntime 已存在（终裁结构图的容器名 = 现有类型名） | program_execution.rs:209（Inner{group, switcher, graph, taps, tap_port, watchdog_stop}） | 吻合——终裁结构 = 在其上增设 TimelineAuthority 组件，非新造引擎 |
+
+### 11.2 总体架构裁定（照录要旨）
+
+> **采用 "Program Timeline Authority + Source Segment Mapping" 组合。**
+> Program Timeline 是 Program Execution 层的独立权威；每个输入 Source
+> 在进入 Program 时被映射到 Program Timeline；切换时通过新的 Source
+> Segment 建立连续映射；Video/Audio 共享 Program Epoch 但保留各自
+> media PTS；GStreamer Segment/Event 是执行层承载机制而非架构权威。
+
+四方案**不是四选一**：**A 部分采用（执行机制）+ B 作为核心方案 +
+明确排除 C/D**——"B 为主 + A 的执行机制 + 排除 C/D"。
+
+### 11.3 OQ-1..12 逐问裁定表
+
+| OQ | 终裁 | 关键语义（关键裁定近逐字保留） |
+| --- | --- | --- |
+| OQ-1 Authority 落点 | **Program Execution 层 TimelineAuthority** | 不放 ExecutionGroup/Supervisor/MediaBackend/单独 Pipeline/纯出口 muxer；**不做大型独立 Engine**（否则制造新架构中心）；目标结构 `ProgramExecutionRuntime{SwitchExecution, TimelineAuthority, ProgramGraph, Observation}`；链路 `TimelineAuthority → ProgramTimelinePlan → GStreamer Execution Adapter → Gst segment/timestamp/pad`；**Domain 层拥有时间线语义，Adapter 层拥有"怎么让 GStreamer 做到"** |
+| OQ-2 PTS mapping | **Program Timeline 连续轴 + Source Segment Offset Mapping** | `max(last_pts+duration, incoming_pts)` **明确永久禁止**；`SourceSegment{source_id, program_epoch, source_start_pts, program_start_pts, offset}`；`mapping_B = Program continuity anchor − Source B continuity anchor`；PTS 连续性是**映射问题非数字大小修复问题**；必须能回答"这个 Program PTS 由哪个 Source、哪个 Segment、经什么 mapping 得来"（否则 recover/discontinuity/A→B→A/clock drift/encoder restart 再次失去语义基础） |
+| OQ-3 epoch | **V/A 共享 Program Epoch、不共享数值序列** | 同一次切换同一 Program Epoch，各自独立 PTS/mapping/media clock，相对关系由 AVSync 验证；**switch_epoch ≠ program_epoch**，关系=一次成功 program switch → TimelineEpoch 推进（SwitchEpoch 1 → TimelineEpoch 1 起始对应，不复用）；理由：Switch 是执行事件，Timeline Epoch 是媒体语义；recover 可能变 timeline epoch 未必发生业务 source switch |
+| OQ-4 异构策略 | **Timeline 层不承担格式归一化——Q4 与 Q2 解耦** | PTS continuity 归 Timeline Authority，格式 continuity 归 Media Format/Program Graph，二者不是同一问题；当前阶段=**Switch Boundary Adaptation**（非偷偷转换）；deinterlace/帧率/像素/分辨率转换由**独立 Program Media Format Policy** 决定，不得因 C-TIMELINE-01 顺手塞入；先允许异构输入进入 Timeline 设计，但 **Program Format Contract 显式声明"当前不保证无缝 format continuity"**；不阻止修 PTS |
+| OQ-5 settle | **状态语义（非等待后修 PTS）** | `Stable(A)→SwitchRequested(B)→SwitchExecuted(B)→TimelineTransition(B)→Stable(B)`；settle 期间 Program PTS **必须已属于新 Program Timeline**（禁假装属 A/等 settle 结束才开始 B/暂停 PTS/用 wall-clock 补时间）；`settle ≠ timeline gap ≠ timestamp freeze`——mapping 已生效、稳定性尚未确认；此定义对 L5 非常重要 |
+| OQ-6 discontinuity | **Domain Discontinuity + GStreamer Segment/Event 双层表达** | `TimelineAuthority → {Program Segment, Discontinuity declaration} → GStreamer Adapter → Gst Segment/Event`；**Gst Segment Event 不是 Authority，只是执行载体**；PtsState 扩展四态 `Unknown/ValidMonotonic/DiscontinuityDeclared/NonMonotonic`；**declared discontinuity + expected PTS transition ≠ unexpected backward PTS**（必须冻结） |
+| OQ-7 recover | **本轮不实现，语义冻结** | Recover 后不得简单继承旧 Timeline 状态：`Recover → 新 execution instance → Timeline reconstruction → 新 source segment → Program timeline continues`；两类：**Soft Recover**（execution 重建、timeline 可连续）/**Hard Recover**（continuity 无法证明→新 ProgramTimeline epoch）；给 A2-8-03 留正确接口；**Supervisor 只决定 recover，不拥有 Timeline** |
+| OQ-8 Execution Fact | **结构化 TimelineMapped** | 必须有 Fact；不得是裸 `normalized=true`；`TimelineMapped{program_epoch, source_id, segment_id, mapping, evidence}`；**TimelineMapped ≠ TimelineHealthy**（关键） |
+| OQ-9 证明面 | **专门 TimelineObservation** | 不修改现有 ProgramObservation 承担一切；`TimelineObservation{program_epoch, source_id, segment_id, input_pts, mapped_program_pts, mapping_offset, discontinuity_state, video_continuity, audio_continuity, observed_at}`；**observed_at=wall clock，绝对不能用于计算 program_pts**；"真的完成"≥7 条：①Program PTS 连续 ②Source→Program mapping 与 declared segment 一致 ③video continuity ④audio continuity ⑤epoch 一致 ⑥segment transition 符合声明 ⑦无未声明 backward jump；**单纯 pts>previous_pts 永远不足** |
+| OQ-10 normalize 字段 | **删除裸 bool** | `normalize: bool` 违反已冻结词表纪律（裸 bool 禁）；未来方向 `PipelinePlan → TimelinePolicy`；**本轮设计冻结前不改代码** |
+| OQ-11 四方案 | **A 部分采用 / B 核心采用 / C 不采用 / D 不采用** | A=采用"切换后重新建立 Source Segment Mapping"机制但非独立 Regenerator；B=Clock-Segment Timeline **主方案**；C=出口 normalization 不采用（**"出口再生成"概念正式废止**）；D=切换新 timebase 不采用（与 Program Timeline Continuity 目标冲突） |
+| OQ-12 三时钟职权 | **彻底切开、不得互相越权** | ①**Program Timeline Authority**（Program PTS 应该是什么——Program Execution）②**AVSync Manager**（V↔A 相对关系——不能决定切换后 Program PTS 应为多少）③**Channel Reference Clock**（观察系统的 latency/AVSync/Recording 时间戳参考——observation calibration，**不能成为 Program PTS generator**） |
+
+### 11.4 八条红线 R1-R8（照录）
+
+1. **R1** 不得用 wall-clock 修 PTS。
+2. **R2** 不得用 `max(last + duration, incoming)` 伪造连续性。
+3. **R3** Timeline Authority 不进入 ExecutionGroup。
+4. **R4** Timeline Authority 不进入 Supervisor。
+5. **R5** Timeline Authority 不进入 MediaBackend。
+6. **R6** GStreamer Segment/Event 是 Execution Adapter 机制，不是 Domain
+   Authority。
+7. **R7** 1080i/1080p 格式转换不由 Timeline Authority 偷做。
+8. **R8** Normalization Fact 与 Timeline Healthy 必须分离。
+
+### 11.5 影响与不触碰清单（照录）
+
+- **不碰**（已 PASS/已冻结面）：L0、L1a、L1b、L1c、L1d、L2、L3、
+  L4-SWITCH、Teardown、SwitchExecution、SessionManager、Resolver、
+  PortRegistry、ResourceRegistry、Supervisor。**只解决 L4-TIMELINE**。
+- 状态严格保持：`A2-8-02-I = FAIL-PENDING-CORRECTION`（L4-SWITCH
+  PASS / L4-TIMELINE FAIL-PENDING-CORRECTION / L5 SKIPPED BY H1）——
+  **不能因为现在有了设计就把 Gate 改成 PASS**。
+- 隔离禁顺手修：C1-P1（保持独立 P1，不重开 C1，不阻塞本设计；探针
+  事实锁定被用户确认准确——300ms 宽限后 bus error 只查一次、后续
+  轮询只采样 signal 属性，晚到异步 Error 确实可能表现为 Some(false)）、
+  converter interlace assertion、PORT-IDENTITY、canonical UUID namespace。
+
+### 11.6 执行令与状态
+
+- "设计 SoT 探针"阶段**正式结束**；**下一阶段不是直接写代码**。
+- 下一动作=**Design Freeze**（15 项清单：TimelineAuthority Domain
+  Contract / ProgramTimeline / ProgramEpoch / SourceSegment /
+  TimelineMapping / Discontinuity / TimelineMapped Execution Fact /
+  TimelineEvidence / Video-Audio 双平面规则 / Switch→Timeline 状态转移 /
+  GStreamer Adapter execution contract / 1080i-1080p 当前边界 / Recover
+  接口语义 / L4 如何重新证明 / 不变量与失败条件）。
+- Design Freeze 已形成：
+  `docs/superpowers/reports/2026-09-04-c-timeline-01-design-freeze.md`
+  （本报告 §11 落账 + 冻结文档；如有出入以本 §11 终裁原文为准）。
+- 冻结之后才能开 `A2-8-C-TIMELINE-01` implementation change。
+- 结论照录："**C-TIMELINE-01 十问可以冻结；架构方向正式确定为
+  'Program Timeline Authority + Clock-Segment Timeline + Source Segment
+  Mapping'，不进入实现，下一动作只做 Design Freeze。**"

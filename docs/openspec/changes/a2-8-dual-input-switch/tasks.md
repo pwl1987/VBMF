@@ -256,6 +256,44 @@
   c-timeline-01-program-timeline-authority-design-probe.md, 零代码）:
   代码/真机/V0.2 spec 三面证据+十问逐问选项空间+四方案 A-D 对照+OQ
   待裁清单**
+  ; **第二十八轮=C-TIMELINE-01 十问终裁（设计探针 §11 落账+主账 §36
+  跨账引用, 零代码）: OQ-1..12 全裁——架构方向冻结=Program Timeline
+  Authority + Clock-Segment Timeline + Source Segment Mapping[B 为主+
+  A 执行机制·C"出口再生成"正式废止·D 不采用]; OQ-1 Authority=
+  Program Execution 层 TimelineAuthority[禁 ExecutionGroup/Supervisor/
+  MediaBackend/单 pipeline/出口 muxer·不做大型独立 Engine·Domain
+  拥有语义/Adapter 拥有执行·ProgramExecutionRuntime 四组件结构];
+  OQ-2 PTS=Source Segment Offset Mapping[SourceSegment{source_id,
+  program_epoch,source_start_pts,program_start_pts,offset}·mapping_B=
+  Program anchor−Source B anchor·max(last+dur,incoming) 永久禁止];
+  OQ-3 V/A 共享 Program Epoch 不共享数值序列·switch_epoch≠
+  program_epoch[一次成功切换→timeline epoch+1·recover 可独立变];
+  OQ-4 Timeline 与格式归一化解耦[当前=Switch Boundary Adaptation+
+  Format Contract 显式声明不保证无缝 format continuity·格式策略=
+  独立 Program Media Format Policy]; OQ-5 settle=状态语义[Stable→
+  SwitchRequested→SwitchExecuted→TimelineTransition→Stable·settle
+  期间 PTS 必须已属新 timeline·≠gap≠freeze]; OQ-6 Discontinuity
+  Domain+Gst Segment/Event 双层+PtsState 四态[+DiscontinuityDeclared
+  ·declared≠unexpected backward]; OQ-7 Recover 本轮不实现语义冻结
+  [Soft/Hard 两类·Supervisor 只决定 recover 不拥有 Timeline·接口留
+  A2-8-03]; OQ-8 TimelineMapped 结构化 Fact[≠TimelineHealthy];
+  OQ-9 TimelineObservation 专门证据面[observed_at=wall clock 禁入
+  program_pts·"真的完成"七条·pts>prev 永远不足]; OQ-10 删裸 bool
+  normalize→TimelinePolicy[本轮零代码]; OQ-12 三时钟职权切开
+  [Timeline Authority/AVSync Manager/Channel Reference Clock 互不
+  越权]; 八红线 R1-R8[wall-clock 禁修 PTS/max 假闭合禁/Authority
+  不进 ExecutionGroup·Supervisor·MediaBackend/Gst Segment=Adapter
+  机制非 Authority/格式转换不偷做/Fact≠Healthy]; 不触碰=已 PASS
+  各层+SwitchExecution/SessionManager/Resolver/PortRegistry/
+  ResourceRegistry/Supervisor·只解 L4-TIMELINE·02-I 状态不变[设计
+  ≠Gate PASS]; **Design Freeze 15 项已形成**[2026-09-04-c-timeline-
+  01-design-freeze.md: TimelineAuthority Contract/ProgramTimeline/
+  ProgramEpoch/SourceSegment/TimelineMapping/Discontinuity/
+  TimelineMapped Fact/TimelineEvidence/V-A 双平面/状态转移/GStreamer
+  Adapter contract/1080i-p 边界/Recover 接口/L4 复证/不变量+失败
+  条件]; 下一动作=开 implementation change（冻结后）; C1-P1/
+  converter interlace/PORT-IDENTITY/canonical UUID namespace 四独立
+  债隔离禁顺手修**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
