@@ -2204,3 +2204,22 @@ A2-8 Switch Execution 基础能力 = PASS 并立。
 - 本轮 Batch 1（Domain+contract+Mock）实现落账=设计探针 §15。
 - 主账状态机不变（02-I 仍 FAIL-PENDING-CORRECTION，L4-TIMELINE 复跑前
   不因实现存在而改判）。
+
+## 40. Batch 1 复核终裁 APPROVED + Batch 2 开工令（跨账引用，第三十二轮，2026-09-04）
+
+- 用户按 f82e625 实际代码全盘复核：**Batch 1 APPROVED**（Domain/GStreamer
+  分层·ExecutionGroup 零污染·observe 机械波及无隐藏语义扩散·GStreamer
+  诚实缺席，四项成立；PipelinePlan 边界**正式关闭不再回头**；SwitchExecution
+  调用链零污染确认——on_switch_executed 禁成第二 switch state machine）。
+- **两项 Batch 2 前置直接处理**：①BLOCKER-DOC=Freeze §3 epoch 文本统一
+  为 Preserve=同世代不变/NewEpoch+1（switch_epoch/segment_id/program_epoch
+  三职权分离）；②BLOCKER-IMPLEMENTATION=no_evidence 消除虚假 epoch=0
+  （携带当前已知 epoch，十键形状不改 Option）。
+- 三非阻塞风险：P2 i64 差值算法·P1 no_evidence（=②）·P1 段历史累积不
+  覆盖（Batch 2 锁测试）。
+- **Batch 2 十四步顺序锁定开工**（1-2 直接处理·3-12 主实现·13 双轨回归·
+  14 真机复跑仅矩阵绿后）；禁做清单照录（Authority 不入 SwitchGraph/
+  set_active 不产 epoch/readback 不判生效/identity 不用/send_event 不用/
+  recover·Supervisor 不碰）。全文=设计探针 §16。
+- 本轮执行落账=设计探针 §17；主账状态机不变（02-I 仍
+  FAIL-PENDING-CORRECTION 直至真机 Timeline Evidence PASS）。

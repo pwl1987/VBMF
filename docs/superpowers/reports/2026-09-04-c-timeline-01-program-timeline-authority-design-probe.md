@@ -705,3 +705,116 @@ TimelineAuthority+transition orchestration（①-⑩ 驱动）·`dual_input.rs`
 L4-TIMELINE 谓词升级（IMP-7 九项合取）·真机复跑（§29.2 纪律）。以上全未
 触碰；`recover`/Supervisor/SessionManager/Resolver/PortRegistry/
 ResourceRegistry/MediaTap/C1 零触碰。
+
+## 16. Batch 1 复核终裁：APPROVED + 两前置 + Batch 2 开工令（第三十二轮，2026-09-04）
+
+用户按 f82e625 实际代码+diff+冻结文档全盘复核。
+
+### 16.1 总体裁决（照录要点）
+
+**Batch 1 = ✅ APPROVED（无需回滚/大范围返工）**。四项成立确认：
+①Domain/GStreamer 真分层（program_timeline.rs 纯 Domain，链=
+TimelineAuthority→ProgramTimelinePlan→证据校验，与冻结分层一致）；
+②ExecutionGroup 零污染（仍恰 {session_id, inputs, desired, switch_epoch}，
+边界必须继续保持）；③observe 契约机械波及处理正确（watchdog/registry/
+dual_input 经 `.program` 用原有语义，**未发现隐藏语义扩散**）；④GStreamer
+侧诚实缺席正确（no_evidence 边界对）。
+
+关闭项（照录）：**PipelinePlan 与 Program Timeline 边界正式关闭不再回头**
+（build_program_pipeline 实吃 devices/initial_active，构图
+inter→selector→queue→appsink；ProgramTimelinePlan 在 program_timeline.rs
+正确归属）。**SwitchExecution 调用链零 Timeline 污染确认**
+（Intent→plan→begin→switch→set_active×2→g.active/av_epoch→SwitchExecuted；
+complete_switch 仍 Observed 驱动；Batch 2 orchestration **不得把
+on_switch_executed 变成第二个 switch state machine**——两状态机经
+SwitchExecutionPlan/SwitchExecuted 关联但各自拥有自己的状态）。
+
+批准+限制（照录）：install_timeline_transition 放置正确，但 Batch 2 硬
+条件=**install 只做 Domain Plan→Adapter TimelineExecutionState 安装**，
+真正执行由 EVENT/BUFFER probe 完成——禁"install 完=TimelineMapped"的
+Intent/Fact 混淆。SourceSegment::declare 正确（offset=anchor−anchor 符合
+F5/R2），但 **offset 只能来源于 TimelineAuthority 声明的 AnchorPair——
+GStreamer probe 禁重算 offset 覆盖 Domain 声明**（否则 Authority 被架空；
+正确方向=Authority 声明 offset→Adapter 应用→Evidence 验证==该 offset）。
+V/A 结构无冲突，**Batch 2 必须两 selector 各挂一套 execution state/probes
+（禁 audio=video 附属）**。PtsMonotonicity（PTS 流观测回退/合法边界）与
+PlaneContinuity（平面相对当前 Segment 连续证明）**二者不能合并**——已分开
+=正确。video 单行规范载体**批准但仅限 wire/evidence serialization**——
+内部 state 必须 Video State/Audio State/Shared ProgramEpoch 三立，禁把
+audio 降格为附属条件。Mock 通过≠GStreamer 被证明（SIM-01 已证
+active-pad/Segment/BUFFER 存在真实异步时序——**Batch 2 才是风险高峰**）。
+
+### 16.2 两项 Batch 2 前置（照录，"不应再进入讨论，直接处理"）
+
+1. **BLOCKER-DOC：Design Freeze epoch 文本统一**。Freeze §3"一次成功
+   program switch → program_epoch 推进"与代码"Preserve 不变"=语义定义
+   冲突（双 SoT 不可接受）。终裁：**采用 Preserve 不增 epoch**——
+   ```text
+   switch_epoch  = execution event count
+   segment_id    = source segment generation（每次切换段世代+1）
+   program_epoch = discontinuous program timeline generation
+                   （Preserve=同世代不变；NewEpoch/Hard Recover=+1）
+   ```
+   否则 ProgramEpoch 退化成另一种 switch counter，破坏"ProgramEpoch≠
+   switch_epoch"初衷。**docs-only consistency patch 先行**（§3+相关
+   §10/§13/§15 文本统一），非代码 blocker、不回滚 Batch 1。
+2. **BLOCKER-IMPLEMENTATION：no_evidence 消除虚假 epoch=0**。实际
+   ProgramEpoch(7) 而行报 0 → "0"变成看起来真实的值，违反 absence≠
+   evidence。修法：`no_evidence(program_epoch, observed_at)` 或 adapter
+   构造时注入当前已知 epoch——**不改 Option<ProgramEpoch>（十键形状已锁）**；
+   正确缺席表达=program_epoch=当前已知 epoch + 其余字段缺席。
+
+### 16.3 三个非阻塞风险（照录）
+
+- **P2**：SourceSegment::declare 用 i64 承载 u64 差值（当前 ns 范围无实际
+  问题；未来宜改显式有符号差值算法，不阻断）。
+- **P1**：no_evidence epoch（=前置②）。
+- **P1**：TimelineMapped.mapping 用完整 SourceSegment 合理，但**不得当
+  immutable history 唯一仓库**——Segment=历史事实、TimelineExecutionState=
+  当前运行映射；未来 A→B→A/recover/new epoch 须允许段历史**累积不覆盖**
+  （与冻结"段只增不改"一致）——Batch 2 顺便锁测试。
+
+### 16.4 Batch 2 冻结结构 + 禁做清单 + 十四步顺序（照录）
+
+结构（照录 §十二）：
+
+```text
+ProgramExecutionRuntime
+│ ├── ExecutionGroup(switch_epoch)
+│ ├── TimelineAuthority(program_epoch)
+│ ├── ProgramGraph
+│ └── Observation{ProgramObservation, TimelineObservation}
+SwitchGraph
+│ ├── video_selector{EVENT_DOWNSTREAM probe, BUFFER probe}
+│ ├── audio_selector{EVENT_DOWNSTREAM probe, BUFFER probe}
+│ └── TimelineExecutionState
+```
+
+生效链：TimelineAuthority→Plan→install→SwitchExecuted→Segment(B)
+observed→first B buffer→mapping→TimelineMapped→both V/A mapped→settle→
+Stable(B)。
+
+禁做（照录 §十三）：TimelineAuthority 不入 SwitchGraph（只持 Adapter
+execution state）·set_active 不产生 ProgramEpoch·active-pad readback 不判
+Timeline 生效·identity.single-segment 不用·外部控制线程 send_event 主路径
+不用·MediaBackend::recover 不改·Supervisor 不碰。
+
+十四步顺序（照录 §十七，1-2 直接处理；3-12 主实现；14 只在矩阵绿后）：
+
+```text
+1 docs-only epoch consistency fix
+2 no_evidence epoch 修正
+3 SwitchGraph TimelineExecutionState
+4/5 Video/Audio EVENT_DOWNSTREAM probe
+6/7 Video/Audio BUFFER mapping probe
+8 GStreamer install_timeline_transition
+9 ProgramExecutionRuntime 挂 TimelineAuthority
+10 Runtime orchestration ①-⑩
+11 ProgramExecutionObservation.timeline 真证据装配
+12 dual_input L4-TIMELINE 九项合取
+13 Mock/GStreamer 双轨回归
+14 真机 A2-8-02-I 复跑
+```
+
+A2-8-02-I 保持 FAIL-PENDING-CORRECTION 直至真机 Timeline Evidence PASS；
+Batch 1 不改变门禁状态。

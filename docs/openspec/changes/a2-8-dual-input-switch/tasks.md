@@ -403,6 +403,29 @@
   **377**[+18 新测]·bmd+gst **236** 全过·clippy ×2 -D warnings PASS;
   Batch 2[switch_graph EVENT+BUFFER probe+TimelineExecutionState+GStreamer
   install+Runtime 挂 Authority+L4 九项合取+真机复跑]未动零越界**
+  ; **第三十二轮=Batch 1 复核终裁 APPROVED+两前置+Batch 2 开工令（设计探针
+  §16+主账 §40, 终裁落账零代码 commit 先行）: 四项成立[Domain/GStreamer
+  分层·ExecutionGroup 零污染·observe 机械波及无隐藏语义扩散·GStreamer
+  诚实缺席]+PipelinePlan 边界正式关闭不回头+SwitchExecution 链零污染
+  [on_switch_executed 禁成第二 switch state machine·两状态机经 plan/
+  executed 关联各自拥有]; install=只做 Plan→TimelineExecutionState 安装
+  禁'install 完=TimelineMapped'; offset 只能源于 Authority 声明 AnchorPair
+  禁 probe 重算覆盖; V/A 双 selector 各挂一套 state/probes 禁 audio=video;
+  PtsMonotonicity≠PlaneContinuity 不合并; video 单行载体仅限 wire/evidence
+  serialization 禁 audio 降格; Mock≠GStreamer 证明[Batch 2=风险高峰];
+  **两前置直接处理: ①BLOCKER-DOC Freeze §3 epoch 文本统一[Preserve=同
+  世代不变·NewEpoch/Hard Recover=+1·switch_epoch=执行事件/segment_id=
+  段世代/program_epoch=不连续时间线世代三职权分离——否则 ProgramEpoch
+  退化成另一 switch counter] ②BLOCKER-IMPL no_evidence 消除虚假 epoch=0
+  [携带当前已知 epoch·十键形状不改 Option]**; 三风险[P2 i64 差值算法·P1
+  no_evidence·P1 段历史累积不覆盖 Batch 2 锁测试]; Batch 2 十四步顺序
+  锁定[1 docs epoch 统一/2 no_evidence/3 TimelineExecutionState/4-5 V+A
+  EVENT probe/6-7 V+A BUFFER mapping probe/8 GStreamer install/9 Runtime
+  挂 Authority/10 orchestration ①-⑩/11 timeline 真证据装配/12 L4 九项
+  合取/13 双轨回归/14 真机复跑仅矩阵绿后]; 禁做照录[Authority 不入
+  SwitchGraph/set_active 不产 epoch/readback 不判生效/identity 不用/
+  send_event 主路径不用/recover·Supervisor 不碰]; 02-I 保持
+  FAIL-PENDING-CORRECTION**
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
