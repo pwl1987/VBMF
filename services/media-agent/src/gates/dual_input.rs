@@ -661,7 +661,7 @@ pub fn run(
                         && ev.undeclared_backward_jump.is_none()
                         && ev.discontinuity_state != PtsMonotonicity::NonMonotonic
                         && ev.program_epoch == report.observation.program_epoch
-                        && ev.mapped_program_pts > pre_v
+                        && ev.mapped_program_pts >= pre_v
                         && post
                             .program_video_pts
                             .is_some_and(|p| p >= ev.mapped_program_pts)
