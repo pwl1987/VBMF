@@ -47,6 +47,9 @@ struct SwitchGraph {
     /// 适配器有而真适配器漏——伪造 plan 可对 active 源重复执行）。
     active: Option<Uuid>,
     av_epoch: u64,
+    /// 02-I P1-1（第十六轮 §九）: 双平面分离且回滚失败 → 显式降级
+    /// （fail-closed: 后续切换拒收; active 置 None——bookkeeping 不声称未切）。
+    degraded: bool,
     pipeline: gstreamer::Pipeline,
     video_selector: gstreamer::Element,
     audio_selector: gstreamer::Element,
@@ -421,6 +424,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 initial_active,
                 active: None,
                 av_epoch: 0,
+                degraded: false,
                 pipeline,
                 video_selector,
                 audio_selector,
@@ -464,6 +468,13 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         if !g.started {
             return Err(SwitchError::GraphNotRunning(*graph));
         }
+        // 02-I P1-1: degraded graph 拒收后续切换（fail-closed——真实平面曾进入
+        // 不可恢复分离态, bookkeeping 已显式记录, 不允许当作正常图继续切）。
+        if g.degraded {
+            return Err(SwitchError::Backend(
+                "graph degraded: 双平面分离未恢复, 拒绝后续切换 (fail-closed)".into(),
+            ));
+        }
         if !g.devices.contains(&plan.target) {
             return Err(SwitchError::TargetNotInGroup(plan.target));
         }
@@ -483,8 +494,27 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         }
         // 成对切换: video+audio 双 selector 同目标 active-pad（同 epoch——
         // 方案 A; input-selector 于下一缓冲生效 = 帧边界对齐）。
+        // 02-I P1-1（第十六轮 §九）: 双平面部分执行补偿——video 成·audio 败
+        // 时真实输出面已半切而 bookkeeping 未动 = 不可恢复中间态; 先回滚 video
+        // 至 prev 恢复双平面一致（返回原错误, 状态如实=未切）; 回滚再败 → 显式
+        // degraded（active=None——分离态不声称任何 active; 后续切换 fail-closed）。
         SwitchGraph::set_active(&g.video_selector, plan.target, g)?;
-        SwitchGraph::set_active(&g.audio_selector, plan.target, g)?;
+        let prev = g.active;
+        if let Err(audio_err) = SwitchGraph::set_active(&g.audio_selector, plan.target, g) {
+            let prev_active = prev.ok_or_else(|| {
+                SwitchError::Backend("补偿缺 prev active（started 后不变量破坏）".into())
+            })?;
+            return match SwitchGraph::set_active(&g.video_selector, prev_active, g) {
+                Ok(()) => Err(audio_err),
+                Err(rollback_err) => {
+                    g.degraded = true;
+                    g.active = None;
+                    Err(SwitchError::Backend(format!(
+                        "双平面切换失败且回滚失败（真实平面分离不可恢复, graph degraded, 后续切换拒收）: switch={audio_err:?} rollback={rollback_err:?}"
+                    )))
+                }
+            };
+        }
         g.active = Some(plan.target);
         g.av_epoch = plan.epoch;
         Ok(SwitchExecuted {
@@ -1394,5 +1424,140 @@ mod tests {
         assert!(tap.tap_attachments(&h1).is_empty() && tap.tap_attachments(&h2).is_empty());
         let _ = bundle.backend.stop(&h1);
         let _ = bundle.backend.stop(&h2);
+    }
+
+    /// 02-I P1-1 测试注入: 裸 input-selector 只带指定 sink pad（缺的 pad 即
+    /// 该平面 set_active 失败注入口）, active-pad 置首个 pad（observe 可读）。
+    /// 注: %u 模板请求 pad 自 0 顺序编号（忽略请求名后缀）——先顺序请求到
+    /// 最大序号, 再释放不需要的 pad。
+    fn bare_selector_with(pads: &[usize]) -> gstreamer::Element {
+        let el = gstreamer::ElementFactory::make("input-selector")
+            .build()
+            .expect("构造 input-selector");
+        let max = pads.iter().copied().max().expect("至少一个 pad");
+        let mut created: Vec<gstreamer::Pad> = Vec::new();
+        for _ in 0..=max {
+            let pad = el
+                .request_pad_simple("sink_%u")
+                .expect("request pad（模板名自编号）");
+            created.push(pad);
+        }
+        for (i, pad) in created.into_iter().enumerate() {
+            if !pads.contains(&i) {
+                el.release_request_pad(&pad);
+            }
+        }
+        if let Some(first) = pads.first() {
+            let pad = el.static_pad(&format!("sink_{first}")).expect("保留 pad");
+            el.set_property("active-pad", &pad);
+        }
+        el
+    }
+
+    #[test]
+    fn switch_graph_rt_01_paired_failure_compensated_rollback() {
+        // 02-I P1-1（第十六轮 §九）: video 成·audio 败 → video 回滚至 prev,
+        // 双平面一致恢复, bookkeeping 如实=未切（active/epoch 不动, 不降级）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let g = group(a, b);
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = adapter
+            .build_program_graph(&g)
+            .expect("真实 program graph 物化");
+        adapter.start_program(&graph).expect("program 启动");
+        // 注入: audio selector 仅 sink_0（缺 target sink_1）→ audio 平面必败;
+        // video 真 selector 完好（可切 B 亦可回滚 A）。
+        let broken_audio = bare_selector_with(&[0]);
+        adapter
+            .graphs
+            .lock()
+            .unwrap()
+            .get_mut(&graph)
+            .unwrap()
+            .audio_selector = broken_audio;
+        let plan = SwitchExecutionPlan {
+            from: a,
+            target: b,
+            policy: SwitchPolicy::FrameSwitch,
+            epoch: 1,
+        };
+        let err = adapter.switch(&graph, &plan).expect_err("audio 平面失败");
+        assert!(
+            !format!("{err:?}").contains("degraded"),
+            "回滚成功不降级: {err:?}"
+        );
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let sg = graphs.get(&graph).unwrap();
+            assert!(!sg.degraded, "未降级");
+            assert_eq!(sg.active, Some(a), "bookkeeping 未切");
+            assert_eq!(sg.av_epoch, 0, "epoch 未推进");
+        }
+        // 观测: video 已回滚至 prev pad（真实 selector active-pad 实读——
+        // 半切无残留）。注: audio 为注入 stand-in, 其 active-pad 在 NULL 态
+        // 不保证可读, 双平面一致恢复由 bookkeeping（active/epoch 未动）+
+        // video 实读联合证明。
+        let video_plane = {
+            let graphs = adapter.graphs.lock().unwrap();
+            let sg = graphs.get(&graph).unwrap();
+            SwitchGraph::observed_plane(&sg.video_selector)
+        };
+        assert_eq!(
+            video_plane.as_deref(),
+            Some("sink_0"),
+            "video 已回滚至 A pad（无半切残留）"
+        );
+        let _ = adapter.stop_program(&graph);
+    }
+
+    #[test]
+    fn switch_graph_rt_01_paired_failure_unrecoverable_marks_degraded() {
+        // §九极端: audio 败 + video 回滚也败 → 显式 degraded + active=None
+        // （真实平面分离有记录, 后续合法 plan 亦 fail-closed 拒收——
+        // 不进入"半切换、bookkeeping 仍认为没切"的无记录中间态）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let g = group(a, b);
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = adapter
+            .build_program_graph(&g)
+            .expect("真实 program graph 物化");
+        adapter.start_program(&graph).expect("program 启动");
+        // 注入: video selector 仅 sink_1（可切 B 但不可回滚 A）;
+        // audio 仅 sink_0（不可切 B）→ audio 败 + 回滚败。
+        {
+            let mut graphs = adapter.graphs.lock().unwrap();
+            let sg = graphs.get_mut(&graph).unwrap();
+            sg.video_selector = bare_selector_with(&[1]);
+            sg.audio_selector = bare_selector_with(&[0]);
+        }
+        let plan = SwitchExecutionPlan {
+            from: a,
+            target: b,
+            policy: SwitchPolicy::FrameSwitch,
+            epoch: 1,
+        };
+        let err = adapter.switch(&graph, &plan).expect_err("双平面失败");
+        assert!(
+            format!("{err:?}").contains("degraded"),
+            "错误显式携带 degraded: {err:?}"
+        );
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let sg = graphs.get(&graph).unwrap();
+            assert!(sg.degraded, "graph 显式降级");
+            assert_eq!(sg.active, None, "active 不可知（分离态不声称）");
+        }
+        // 后续合法 plan 也拒收（fail-closed）。
+        let plan2 = SwitchExecutionPlan {
+            from: b,
+            target: a,
+            policy: SwitchPolicy::FrameSwitch,
+            epoch: 1,
+        };
+        let err2 = adapter.switch(&graph, &plan2).expect_err("degraded 拒收");
+        assert!(format!("{err2:?}").contains("degraded"), "{err2:?}");
+        let _ = adapter.stop_program(&graph);
     }
 }

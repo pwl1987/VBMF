@@ -62,8 +62,12 @@ impl HardwareProvider for DeckLinkDeviceManager {
                 };
                 let identity_strength = if d.persistent_id.is_some() {
                     IdentityStrength::PersistentId
-                } else if !d.device_handle.is_empty() || !d.serial.is_empty() {
+                } else if !d.device_handle.is_empty() {
                     IdentityStrength::DeviceHandle
+                } else if !d.serial.is_empty() {
+                    // 02-I P1-2（第十六轮 §五）: serial 是独立证据档——此前与
+                    // DeviceHandle 合并判定, 身份档位与证据来源不一致。
+                    IdentityStrength::Serial
                 } else {
                     IdentityStrength::Enumeration
                 };

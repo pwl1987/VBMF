@@ -598,7 +598,7 @@ registry 必须提供**同一 concrete GStreamerPipelineController 实例的
 
 ---
 
-## 14. 第九轮终裁：E-6 close-path 边界 + 02-F 执行序 + 本轮修复落盘（2026-09-04）
+## 14. 第九轮终裁：E-6 close-path 边界 + 02-F 执行序 + 本轮修复落盘（2026-09-03）
 
 > 证据基线: 远端 `ed388dc` 实码; 第八轮 P0/P1 复认 PASS。
 
@@ -642,7 +642,7 @@ watchdog 恢复仍只 ctrl.recover(故障输入 handle) 非切换; pipeline.rs
 
 ---
 
-## 15. 第十轮终裁：E-6/F-01 CLOSED + 唯一构造路径 + F-02 执行（2026-09-04）
+## 15. 第十轮终裁：E-6/F-01 CLOSED + 唯一构造路径 + F-02 执行（2026-09-03）
 
 > 证据基线: 远端 `efc1b2a` 实码; E-6 正式 CLOSED[调用链结构补认:
 > hook 仅 Running 后注册→异常终态无 hook, close 防御性 remove=双保险;
@@ -687,7 +687,7 @@ bmd+gstreamer 208·clippy 双组合 clean·fmt clean。
 
 ---
 
-## 16. 第十一轮终裁：F-02 全 CLOSED + F-03/F-04 合并执行（2026-09-04）
+## 16. 第十一轮终裁：F-02 全 CLOSED + F-03/F-04 合并执行（2026-09-03）
 
 > 证据基线: 远端 `0df5b4a` 实码; F-02 五项全 CLOSED（唯一构造路径/
 > 生产 bundle 接线/Runtime 真接/teardown/recover 兼容）+ Session 边界
@@ -733,7 +733,7 @@ identity·Supervisor/PipelinePlan/SwitchPolicy/Session 零触碰。
 
 ---
 
-## 17. 第十二轮终裁：⑥ 序错修正 + 证据补强刀（2026-09-04）
+## 17. 第十二轮终裁：⑥ 序错修正 + 证据补强刀（2026-09-03）
 
 > 证据基线: 远端 `7de6fec` 实码交叉裁决——架构/实现/主链 PASS;
 > **⑥ 测试逻辑错误确认**[for target in [b,a] 循环后 active=A, 直接停
@@ -771,7 +771,7 @@ F-03/F-04 证据链闭合→**F-05 即刻可做**（多切换序列+三态不串
 
 ---
 
-## 18. 第十三轮终裁：F-03/F-04 正式 CLOSED + F-05 开工（2026-09-04）
+## 18. 第十三轮终裁：F-03/F-04 正式 CLOSED + F-05 开工（2026-09-03）
 
 > 证据基线: 远端 `7531e87` 实码交叉核查。评分表十六层 PASS +
 > PTS🟡观察不修复 + ⑧🟡OPEN + N-input🟡MVP未实现 + CI🟡无status。
@@ -799,7 +799,7 @@ PTS]→Timeline Normalization 裁决。
 
 ---
 
-## 19. 第十四轮终裁：G/H 四验证面 PASS* + BridgeObservation 一等事实（2026-09-04 落盘）
+## 19. 第十四轮终裁：G/H 四验证面 PASS* + BridgeObservation 一等事实（2026-09-03 落盘）
 
 > 证据基线: 远端 `3378651` 实码交叉核查（不接受自报 213 passed 为证）。
 > F-05 正式 CLOSED[TargetAlreadyActive 修复=真纵深缺口非测试噱头]。
@@ -839,7 +839,7 @@ observation_evidence——三列同采六 PTS 全在场+桥 probe 帧递增+reco
 
 ---
 
-## 20. 第十五轮终裁：G/H-1 两项微修 → G/H 星号解除（2026-09-04 落盘）
+## 20. 第十五轮终裁：G/H-1 两项微修 → G/H 星号解除（2026-09-03 落盘）
 
 > 证据基线: 远端 `3378651` 实码。G/H 方向 PASS 不返工·不为 F-01..05
 > 重开 review·PTS normalization 继续冻结。
@@ -880,3 +880,82 @@ bmd+gstreamer 213·clippy 双组合 -D warnings clean·fmt clean（提交
 discovery→Device/Port→Pipeline→MediaTap→Bridge→Program→A/B switch→
 failure isolation→recover 代码全就绪零阻塞; 唯一前置=用户侧双 SDI
 信号源+采集卡占用窗口。
+
+---
+
+## 21. 第十六轮终裁：02-I 代码级前置三项 + IdentityStrength/日期修正（2026-09-03 落盘）
+
+> 证据基线: 远端 `8e60497` 实码。总裁决: E/F/G/H/G-H1 保持 CLOSED 不返工;
+> **02-I 修正为「OPEN 且存在代码级前置项」**——"硬件接上跑一次"≠I 完整验收;
+> 不建议停下来等硬件: 先一次性完成代码前置再进真机。
+
+### 21.1 裁决账（§一..§十七 复核定性）
+
+- **§二 五层链未闭合到同一生产调用链——实码精确定性**: 用户引用的
+  `_registry=None` 行实为 `#[cfg(not(gstreamer-backend))]` hardware-test
+  分支（media-agent.rs:260）; 真实缺口=**SessionManager 仅在 diagnostic
+  auto-start 分支构造（media-agent.rs:378）, Production 模式（else 分支
+  仅日志）PortRegistry 零消费者**——registry 在组合根构建但生产无下游。
+  结论成立, 引用锚点修正;
+- **§三 Capability 证据缺口**: `PortRegistry::build()` 硬置
+  `(Unknown, Unknown)`（port.rs:434）——而 `discover_ports()` 已从 SDK
+  位掩码算出 DeviceCapabilities 却未被 build() 消费。I Gate 验收表
+  **Capability 为独立结果**, resolver 成功≠Capability PASS;
+- **§四 多同类物理端口建模不完整**: 位掩码→ordinal 恒 `Known(1)`, Duo 类
+  单卡双 SDI 不可自然表达两条 BindingEntry——**I Gate 硬件形态边界显式
+  声明: 两块独立单输入卡=支持; 一块多输入卡=不支持; 禁把双设备验证偷换成
+  N×M Port 验证**（N×M 冻结维持）;
+- **§五 IdentityStrength serial 语义瑕疵**: serial-only 设备误归
+  DeviceHandle 档（device_manager.rs:65 合并判定）;
+- §六 Session 生命周期/§七 ProgramExecutionRuntime ownership/§八
+  MediaTap recover——结构正确保持不动;
+- **§九 SwitchGraph 双平面部分执行风险**: video 成·audio 败=真实输出面
+  半切而 bookkeeping 未动（observe 诚实但不可恢复）——真机 on-air 前必修;
+- **§十 L5 Supervision（G/H FailureDomain）≠ A2-8-03 监督闭环**
+  （fact→event→custody→supervisor→action→recover）——前者不能替代后者;
+- **§十一 program_alive 红线**: 任何"当前 Program alive"决策只能用 sample
+  delta/progress evidence（progress_since）, 禁直接拿 program_alive 当
+  实时健康信号; ProgramObservation 不重设计;
+- **§十六 文档时间漂移**: 报告 §14-§20 七处 2026-09-04 → 2026-09-03
+  （机器时钟 +0800 过午夜伪影——提交与文档日期悖论修正）。
+
+### 21.2 实现（本轮四刀, 全部落地）
+
+1. **P0-1 生产组合根接入 PortRegistry**（media-agent.rs）: SessionManager
+   构造自 diagnostic auto-start 分支**上移为两种模式共同组合根**
+   （registry→ResourceRegistry→bundle→SessionManager 单次构造）; Production
+   分支 mgr 常驻（tick 线程持有——lease 房务零媒体启动）等待 Control
+   Plane——P1-3「生产绝不自行启动」与 0.7C-8「生产 503 契约」均不变;
+2. **P0-2 Capability 真实证据**（port.rs build()）: SDK 连接位掩码=能力
+   证据——真实硬件（任一掩码≠0）该方向掩码含连接器→`Supported(true)`/
+   不含→`Unsupported`; 仿真（双掩码=0）无证据→Unknown 保持; connector
+   未声明→Unknown; **Capability≠Direction≠Signal 不变（禁方向反推）**;
+   设备级 audio 能力改端口级证据聚合; 测试×3;
+3. **P1-1 SwitchGraph 双平面补偿**（switch_graph.rs switch()）: audio 败
+   →video 回滚至 prev（返回原错, active/epoch 不动, 双平面一致恢复）;
+   回滚再败 → **degraded=true + active=None**（显式记录分离态, 后续切换
+   fail-closed 拒收）——真实平面不进入无记录半切中间态; 注入测试×2
+   （裸 input-selector 缺 pad: 补偿成功回滚/不可恢复降级+后续拒收）;
+4. **P1-2 IdentityStrength::Serial 独立档**（device.rs + device_manager.rs）:
+   serial-only 不再误归 DeviceHandle; pipeline.rs 选卡 match 经 `_` 兜底
+   臂天然覆盖（serial 无 manifest handle 解析路径→生产 IdentityUnresolved/
+   诊断 fallback——保守正确, 无需改 match）。
+
+### 21.3 02-I Gate 定义（十六轮 §十四 收纳）
+
+- **L1 Input**: discovery→canonical DeviceId→manifest→runtime binding→
+  Port→Signal Locked→video/audio PTS（Capability=独立结果）;
+- **L2 Execution**: A/B 真实进入 Program Graph + 双 MediaTap 真实存在;
+- **L3 Output**: Program video/audio 帧真实增长;
+- **L4 Timing**: Input A/B V/A + Bridge A/B V/A + Program V/A 同采 +
+  monotonicity + pre/post-switch——**只测量, 不做 timestamp normalization**;
+- **L5 Supervision**: A fail→B alive·B fail→A alive·Bridge fail≠Input
+  fail·Program fail≠Input fail·recover 后桥真实复流——**≠A2-8-03 完成**。
+
+前置序 P0-1→P0-2→P1-1（本轮全落地）→真机 I（双 SDI 窗口）。
+
+盒上: mock **348**[345+3 capability]·bmd+gstreamer **218**[213+2 双平面补偿
++3 capability]·clippy 双组合 -D warnings clean·fmt clean。测试注入口教训:
+input-selector `%u` 模板请求 pad 自 0 顺序编号（忽略请求名后缀）——先按
+模板名顺序请求再释放多余 pad 才能构造"仅 sink_1"形态; 裸元素 NULL 态
+active-pad 属性不保证可读——stand-in 断言改走真实 selector 实读。

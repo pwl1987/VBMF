@@ -80,12 +80,17 @@
   F-04 Bridged inter 真机桥接+十项证据链→F-05 多切换+TargetAlready
   Active 真纵深修复→G/H BridgeObservation 一等事实+三列 PTS+recover
   降级+故障域[probe §19]→G/H-1 liveness 观察时钟窗口语义+tap_channel
-  唯一来源收尾[probe §20]）; 02-I 真机 Gate 待用户双 SDI 窗口` | 
+  唯一来源收尾[probe §20]）; 第十六轮 02-I 代码前置三刀+serial 档+日期修正
+  （P0-1 生产组合根 PortRegistry/P0-2 Capability SDK 位掩码证据/P1-1 双平面
+  补偿 degraded/P1-2 IdentityStrength::Serial, probe §21）; 02-I 真机 Gate
+  待用户双 SDI 窗口` | 
   `Verification: mock 345·bmd+gstreamer 213（含真实跨管线桥接/多切换
   一致性/G/H 三列证据/liveness 降级锁死测试）·clippy 双组合 -D
   warnings clean·fmt clean; 真机五层矩阵=02-I 执行` | `Gate: 02-A..02-H
-  全 CLOSED（probe §19-20）·02-I OPEN——唯一阻塞=用户侧双 SDI 信号源
-  +采集卡占用窗口`
+  全 CLOSED（probe §19-20）·02-I OPEN[第十六轮: 三项代码前置已落地 probe
+  §21; L1-L5 定义含 Capability 独立结果+只测量不 normalize+L5≠A2-8-03;
+  硬件形态边界=两块独立单输入卡, 一块多输入卡不支持（N×M 冻结）]——唯一
+  阻塞=用户侧双 SDI 信号源+采集卡占用窗口`
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`

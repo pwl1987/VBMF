@@ -429,9 +429,31 @@ impl PortRegistry {
                 _ => (SignalState::Unknown, None),
             };
 
-            // 能力须来自 SDK 硬件发现 (HW-PORT-01A), 不由 Direction 反推 (§二十一 P1#3).
-            // 未发现前标记 Unknown; 输入/输出判定仍以 `direction` 为准 (input_ports/output_ports 已兼容).
-            let (can_input, can_output) = (CapabilityValue::Unknown, CapabilityValue::Unknown);
+            // 02-I P0-2（第十六轮 §三）: 能力=SDK 连接位掩码证据——位掩码是
+            // SDK 自报的硬件能力事实, direction 仅作一致性交叉, 绝不由 Direction
+            // 反推 (§二十一 P1#3 / Capability ≠ Direction ≠ Signal 保持)。
+            // 真实硬件（任一位掩码≠0）: 该方向位掩码含此连接器 → Supported(true);
+            // 掩码到位但不含此连接器 → Unsupported（SDK 枚举的连接器集合为权威）。
+            let (can_input, can_output) = if connector == ConnectorType::Unknown
+                || (device.video_input_connections == 0 && device.video_output_connections == 0)
+            {
+                // connector 未声明 或 仿真/合成（双掩码=0）: 无 SDK 能力证据 →
+                // Unknown（manifest 方向声明是 direction 证据, 不是能力证据）。
+                (CapabilityValue::Unknown, CapabilityValue::Unknown)
+            } else {
+                (
+                    if connector_from_mask(device.video_input_connections).contains(&connector) {
+                        CapabilityValue::Supported(true)
+                    } else {
+                        CapabilityValue::Unsupported
+                    },
+                    if connector_from_mask(device.video_output_connections).contains(&connector) {
+                        CapabilityValue::Supported(true)
+                    } else {
+                        CapabilityValue::Unsupported
+                    },
+                )
+            };
 
             let runtime_binding = match direction {
                 PortDirection::Input => binding
@@ -544,8 +566,24 @@ impl PortRegistry {
             } else {
                 CapabilityValue::Unknown
             },
-            audio_input: CapabilityValue::Unknown,
-            audio_output: CapabilityValue::Unknown,
+            // 02-I P0-2: 设备级 audio 能力由端口级 SDK 证据聚合（任一端口
+            // Supported 即 Supported; 无证据保持 Unknown——不做方向反推）。
+            audio_input: if ports
+                .iter()
+                .any(|p| p.capabilities.audio_input.is_supported())
+            {
+                CapabilityValue::Supported(true)
+            } else {
+                CapabilityValue::Unknown
+            },
+            audio_output: if ports
+                .iter()
+                .any(|p| p.capabilities.audio_output.is_supported())
+            {
+                CapabilityValue::Supported(true)
+            } else {
+                CapabilityValue::Unknown
+            },
         }
     }
 }
@@ -1022,5 +1060,71 @@ mod tests {
         }];
         let manifest = base_manifest(vec![manifest_entry("devh", 1, PortDirection::Output)]);
         assert!(validate_manifest_against_discovery(&discovery, &manifest).is_err());
+    }
+
+    #[test]
+    fn build_real_mask_capabilities_from_sdk_evidence() {
+        // 02-I P0-2: SDK 连接位掩码 = 能力证据。SDI 输入位 → input
+        // Supported(true) + audio 嵌入 Supported(true); 输出掩码=0 →
+        // output Unsupported（SDK 枚举权威, 非方向反推）。
+        let mut d = dev("46:00000000:002e4500");
+        d.device.video_input_connections = 0x1; // SDI in
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4500",
+            1,
+            PortDirection::Input,
+        )]);
+        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new()).expect("build 应成功");
+        let p = &reg.ports[0];
+        assert!(matches!(
+            p.capabilities.input,
+            CapabilityValue::Supported(true)
+        ));
+        assert!(matches!(
+            p.capabilities.audio_input,
+            CapabilityValue::Supported(true)
+        ));
+        assert_eq!(p.capabilities.output, CapabilityValue::Unsupported);
+        // 设备级聚合: 端口证据传播。
+        let dev_caps = reg.device_capabilities(&p.device_id);
+        assert!(matches!(
+            dev_caps.audio_input,
+            CapabilityValue::Supported(true)
+        ));
+    }
+
+    #[test]
+    fn build_synthetic_device_capabilities_stay_unknown() {
+        // 仿真/合成（双掩码=0）: 无 SDK 能力证据 → Unknown（manifest 方向
+        // 声明不是能力证据, 禁反推）。
+        let d = dev("46:00000000:002e4400");
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4400",
+            1,
+            PortDirection::Input,
+        )]);
+        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new()).expect("build 应成功");
+        let p = &reg.ports[0];
+        assert_eq!(p.capabilities.input, CapabilityValue::Unknown);
+        assert_eq!(p.capabilities.audio_input, CapabilityValue::Unknown);
+        let dev_caps = reg.device_capabilities(&p.device_id);
+        assert_eq!(dev_caps.audio_input, CapabilityValue::Unknown);
+    }
+
+    #[test]
+    fn build_unspecified_connector_capabilities_unknown() {
+        // manifest 条目未声明 port（connector=Unknown）: 能力无锚点 → Unknown。
+        let d = dev("46:00000000:002e4300");
+        let entry = BindingEntry {
+            label: None,
+            bmd_device_handle: "46:00000000:002e4300".into(),
+            gst_device_number: 1,
+            expected_hw_serial_number: None,
+            expected_model: None,
+            port: None,
+        };
+        let manifest = base_manifest(vec![entry]);
+        let reg = PortRegistry::build(&[d], &[], &manifest, &HashMap::new()).expect("build 应成功");
+        assert_eq!(reg.ports[0].capabilities.input, CapabilityValue::Unknown);
     }
 }

@@ -259,6 +259,56 @@ fn main() {
             #[cfg(not(feature = "gstreamer-backend"))]
             let _registry: Option<media_agent::port::PortRegistry> = None;
 
+            // 02-I P0-1（第十六轮 §二/§十五第一刀）: 生产组合根——
+            // PortRegistry→ResourceRegistry→bundle→SessionManager 为两种模式
+            // **共同**组合根（构造≠运行媒体: bootstrap 只构造依赖红线保持;
+            // Production 仍不自行启动任何管线——等待 Control Plane 显式
+            // Intent, P1-3 不变）。此前 SessionManager 仅在 diagnostic
+            // auto-start 分支构造, Production 模式 PortRegistry 无消费者。
+            #[cfg(feature = "gstreamer-backend")]
+            let composition = {
+                // P0-7A: 生命周期由 SessionManager 唯一拥有 (RUNTIME_SESSION_MODEL §4.1) —
+                // create = Preflight→Reserve→建档→Lease→Binding verify (失败逆序回滚零孤儿);
+                // start = materialize→instantiate→Allocate→Backend.start→Running。
+                let resources = media_agent::resource::SharedResourceRegistry::new(
+                    registry
+                        .as_ref()
+                        .map(|reg| {
+                            media_agent::resource::ResourceRegistry::derive_from_discovery(reg)
+                        })
+                        .unwrap_or_default(),
+                );
+                // A2-8-02-F-02（第十轮终裁）: 组合根经 **bundle** 取同源双
+                // view（backend→SessionManager; media_tap→Program 装配）——
+                // 全仓库唯一 controller 构造路径, 禁二次构造。
+                let adapter_bundle =
+                    media_agent::registry::AdapterRegistry::build_media_adapter_bundle()
+                        .unwrap_or_else(|e| {
+                            eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                            std::process::exit(2);
+                        });
+                let ctrl: std::sync::Arc<dyn MediaBackend> = adapter_bundle.backend;
+                let media_tap_port: Option<
+                    std::sync::Arc<dyn media_agent::contracts::media_tap::MediaTapPort>,
+                > = adapter_bundle.media_tap;
+                // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
+                // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
+                let mgr: std::sync::Arc<media_agent::session::SessionManager> =
+                    std::sync::Arc::new(media_agent::session::SessionManager::new(
+                        resources,
+                        lm.clone(),
+                        sup.clone(),
+                        ctrl.clone(),
+                        std::sync::Arc::new(devices.clone()),
+                        std::sync::Arc::new(bindings.clone()),
+                        registry.clone(),
+                        mode,
+                        media_agent::session::SessionTuning::default(),
+                        event_sink.clone(),
+                    ));
+                (mgr, ctrl, media_tap_port)
+            };
+
             // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
             // Production **绝不**自行取 first device 制造 GraphRuntimeIntent —— 必须等待 Control Plane
             // 显式 StartPipeline Intent. (rpc.rs 当前 No transport yet, 故 Production 在此 idle:
@@ -348,45 +398,11 @@ fn main() {
 
                 #[cfg(feature = "gstreamer-backend")]
                 {
-                    // P0-7A: 生命周期由 SessionManager 唯一拥有 (RUNTIME_SESSION_MODEL §4.1) —
-                    // create = Preflight→Reserve→建档→Lease→Binding verify (失败逆序回滚零孤儿);
-                    // start = materialize→instantiate→Allocate→Backend.start→Running。
-                    let resources = media_agent::resource::SharedResourceRegistry::new(
-                        registry
-                            .as_ref()
-                            .map(|reg| {
-                                media_agent::resource::ResourceRegistry::derive_from_discovery(reg)
-                            })
-                            .unwrap_or_default(),
-                    );
-                    // A2-8-02-F-02（第十轮终裁）: 组合根经 **bundle** 取同源双
-                    // view（backend→SessionManager; media_tap→Program 装配）——
-                    // 全仓库唯一 controller 构造路径, 禁二次构造。
-                    let adapter_bundle =
-                        media_agent::registry::AdapterRegistry::build_media_adapter_bundle()
-                            .unwrap_or_else(|e| {
-                                eprintln!("adapter feature 冲突 (fail-closed): {e}");
-                                std::process::exit(2);
-                            });
-                    let ctrl: std::sync::Arc<dyn MediaBackend> = adapter_bundle.backend;
-                    let media_tap_port: Option<
-                        std::sync::Arc<dyn media_agent::contracts::media_tap::MediaTapPort>,
-                    > = adapter_bundle.media_tap;
-                    // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
-                    // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
-                    let mgr: std::sync::Arc<media_agent::session::SessionManager> =
-                        std::sync::Arc::new(media_agent::session::SessionManager::new(
-                            resources,
-                            lm.clone(),
-                            sup.clone(),
-                            ctrl.clone(),
-                            std::sync::Arc::new(devices.clone()),
-                            std::sync::Arc::new(bindings.clone()),
-                            registry.clone(),
-                            mode,
-                            media_agent::session::SessionTuning::default(),
-                            event_sink.clone(),
-                        ));
+                    // 02-I P0-1: 共同组合根产物（上移块——生产/诊断同源构造,
+                    // 此处仅 clone 接线, 构造细节见上）。
+                    let mgr = composition.0.clone();
+                    let ctrl = composition.1.clone();
+                    let media_tap_port = composition.2.clone();
                     api_mgr = Some(mgr.clone());
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
                     // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。
@@ -550,15 +566,29 @@ fn main() {
                 }
             } else {
                 // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
-                tracing::info!(
-                    "production runtime ready: manifest 已校验, 等待 Control Plane 显式 StartPipeline Intent (不自动启动 media pipeline; RPC transport 待接, 见 rpc.rs)"
-                );
+                #[cfg(feature = "gstreamer-backend")]
+                {
+                    // 02-I P0-1: 生产组合根就绪——SessionManager 已构造（PortRegistry
+                    // 一等消费: registry→ResourceRegistry→preflight）; mgr 常驻（tick
+                    // 线程持有——lease 房务, 零媒体启动）; 查询/命令面仍不暴露
+                    // （0.7C-8 生产 503 契约保持, 待 Control Plane transport 接线）。
+                    let (mgr, _ctrl, _media_tap_port) = composition;
+                    tracing::info!(
+                        "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 等待 Control Plane 显式 StartPipeline Intent (RPC transport 待接, 见 rpc.rs)"
+                    );
+                    std::thread::spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        mgr.tick();
+                    });
+                }
+                tracing::info!("production runtime ready: manifest 已校验, 不自动启动任何媒体管线");
                 *agent_state.lock().unwrap() = media_agent::health::AgentState::Ready;
             }
         }
     }
 
-    // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径无 mgr → 503 契约诚实;
+    // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径 mgr 仅组合不暴露
+    // 查询面 → 503 契约保持诚实——0.7C-8 语义不变, 02-I P0-1 只补组合根构造);
     // events/agent_state/device_count 全路径可用)。/health 响应体经 transport::route 保持
     // 逐字段不变 (回归锚点)。
     let transport_ctx = media_agent::transport::TransportContext {
