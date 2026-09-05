@@ -126,3 +126,46 @@ discontinuity/divergence/starvation 三行已就地校准并标注【R50 校准�
 - **禁回头重复 R46-R49 旧活体验证**。
 - 红线继承（§5）全保持: L4 冻结判据零触碰; PtsMonotonicity 四态禁洗;
   sampled_at_ms 禁修 PTS; 首跑 FAIL 留证禁为跑绿改判据。
+
+## §8 Unit 1 实现 + 六路真机首采（R51, 2026-09-05; observation only 落地）
+
+### 8.1 变更面（4d95ec6; §7.3 边界全守）
+
+- program_execution.rs 新增: `EvidencePhase` / `PathEvidence{pts,pts_state,
+  frames,advanced}` / `SixPathEvidence{六路+sampled_at_ms+switch_epoch+
+  program_av_delta_ns}` / `SixPathInputs` / `assemble_six_path_evidence`
+  ——纯 Domain 只测量; advanced=Option<bool> 三值（None=无可比帧计数 /
+  Some(false)=有证据未推进）实现 absence≠false; av_delta=|v−a| 只测量
+  （T2: ns 可比≠阈值授权）。**帧计数原料全已在**（健康弧帧计数/
+  BridgeObservation.video_frames,audio_frames/ProgramObservation 帧计数）
+  ——缺口纯在逐路 join 面, 契约零改。+3 纯函数测试（T3 聚合误报场景锁死/
+  absence≠false/epoch 透传）。
+- gates/dual_input.rs: L4 判据输入捕获后追加观测节——PRE 对 / SPAN（跨
+  切换推进=starvation 证据基础）/ POST 对, 每设备一行; 切换失败=如实缺席。
+  零判据零阈值; L4/Supervisor/contracts/MediaTap/watchdog/switch_graph/
+  program_timeline 零触碰。
+- 盒矩阵全绿（fmt / default 227(+3) / mock 393 / bmd+gst 251 / clippy×2）;
+  rt_01 flaky 一次中间跑留证（过滤重跑+全量复跑绿——既有隔离债非本轮
+  diff 面）。gates bin 重建须带 hardware features（分发 cfg 门控）。
+
+### 8.2 六路真机首采（2026-09-05 13:15 CST; gate 全链 10/10 按账本首次全绿）
+
+- 证据: ~/a2-8-02i-evidence/2026-09-05-r51-a204-sixpath-observation/
+  （header 五件套 + sha==HEAD 4d95ec6 + manifest v5 当日核验[L1a 2/2
+  production_grade · L1c dn0/dn1 signal=true]）。
+- 数据（PRE/SPAN/POST × {A,B} 每设备行六路）: 全部六路 advanced=Some(true)
+  × 全 ValidMonotonic; **SPAN 含被切离 A 路持续推进——跨切换 starvation
+  未观测（单次样本）**; **av_delta: 7,149,169ns(pre) → 15,482,503ns(post)
+  ——切换后 V/A 差翻倍, 首个 D2 PTS 漂移实测点（只测量, 不设阈值）**;
+  program 列整图共享（行间重复=TimelineSample 惯例）。
+- L5 全 PASS 但观测窗 B 类候选**不因单次 PASS 复案**（概率性重叠未再现≠
+  消除）。工件全为既有隔离债零新增。
+- T6 一致性: adapter observe() 行 Declared 过宽原样（Gap B 队列不变）;
+  L4 裁决消费 Authority snapshot（语义正确）——分层与 §7.1 T4 一致。
+
+### 8.3 下一步（§7.3 执行序不变）
+
+- 多场景继续采集（多次切换 / 长窗 / 异构 1080i25↔1080p25 format 边界）→
+  填 T5 证据矩阵（每格=证据 E, absence≠false）→ 验收谓词待矩阵填充后由
+  验收层定义 → C-TIMELINE correctness change（Gap B: adapter 行语义）→
+  A2-8-04 Gate。禁发明阈值; L4 冻结维持; 禁回头重复旧活体验证。

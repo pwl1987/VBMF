@@ -3778,3 +3778,82 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   §19 状态校准附录+tasks item-6 R50 段）。03-01 探针仍止于 §12（本轮
   无 03-01 域新裁定）; 无真机动作。
 - 基线: 639b0f3..（本轮两单元后新头）, master=7745968。
+
+## §66 第五十一轮（R50 复核 PASS + A2-8-04 进入代码阶段: 六路取证面落地 + 真机全链首次全绿 + 六路首采）
+
+### 66.1 R51 复核登记（用户对 9875b0e→e24aaa2 / runtime 基线 639b0f3 二层裁决）
+
+- 总裁决: R50 🟢 PASS 可继续推进代码; OQ-R1..R5 全冻结维持[案 A 代码级
+  成立——supervisor.rs:229-270 零域分支 + should_retry(:93) 无 FailureDomain
+  参数 + Status.last_domain(:137)/last_attributed(:141) 纯记录 + 潜伏读取面
+  (:203-210) 零调用方]; OQ-T1..T6 修订后全冻结确认; 03-02 CONTRACT FROZEN
+  维持; C-TIMELINE runtime EXISTS IN CODE + 文档已校准（§19）。
+- **"PtsMonotonicity 实为四态"用户侧确认**[pipeline.rs:263-276; 真问题=
+  adapter 生产使用 DiscontinuityDeclared 语义过宽（switch_graph.rs:969-984
+  mapped→Declared + continuity 硬编码）——correctness 队列, 非 enum 缺态]。
+- 授权边界（Unit 1）: 新增最小观测代码·六路独立·不发明阈值·不改 L4·不改
+  Supervisor/RestartPolicy·不修 C-TIMELINE correctness——先采真实六路数据;
+  **不做纯账面轮**。
+
+### 66.2 Unit 1 实现（4d95ec6; 零触 L4/Supervisor/契约面）
+
+- program_execution.rs: 新增纯 Domain 取证面——`EvidencePhase`(Pre/PostSwitch
+  纯标签) + `PathEvidence{pts,pts_state,frames,advanced:Option<bool>}`
+  [absence≠false: None=无可比证据 / Some(false)=有证据未推进, 严格分离] +
+  `SixPathEvidence`[六路逐平面 + sampled_at_ms + switch_epoch +
+  program_av_delta_ns 只测量(T2)] + `SixPathInputs` +
+  `assemble_six_path_evidence` 纯 join[三列同源: 健康弧/BridgeObservation/
+  ProgramObservation——**帧计数原料全已在**（PipelineHealth 帧计数/
+  BridgeObservation.video_frames,audio_frames/ProgramObservation 帧计数）,
+  缺口纯在逐路 join 面]。+3 纯函数测试[T3 场景锁死: input v 冻结 a 推进→
+  聚合"或"误报 vs 逐路 Some(false)/Some(true); absence≠false; epoch 透传]。
+- gates/dual_input.rs: L4 判据输入全部捕获之后追加独立观测节——PRE 对
+  （切换前相位推进, 隔 SAMPLE_GAP_SECS 两快照）/ SPAN（pre2→post1 跨切换
+  推进=starvation 证据基础）/ POST 对（切换后相位推进）, 每设备一行×六路
+  +av_delta; 切换失败臂=如实缺席行。**零判据零阈值零 L4 触碰**[插入点在
+  L4 判据输入捕获后, record 不变]。+`PathSnapshot` owned 快照。
+- 边界遵守: contracts/MediaTap/watchdog/supervisor/resolver/switch_graph/
+  program_timeline 零触碰; TimelineSample 零改（观测面=并列新类型非侵入）。
+
+### 66.3 盒矩阵（全绿）
+
+- fmt ✓ / default 227（+3 六路测试）✓ / mock 393 ✓ / bmd+gst 251 ✓ /
+  clippy×2（默认+features, -D warnings）✓ / bins ✓。
+- 留证: 中间一跑 `switch_graph_rt_01_paired_failure_compensated_rollback`
+  FAILED（背靠背负载 flaky）——过滤重跑 8/8 绿 + 全量复跑 251/251 绿; 该
+  测试与 pad_unlink CRITICAL×4 均既有隔离债, 本轮 diff 零触碰 switch_graph.rs。
+- 复跑教训（流程面）: gates bin 重建必须带 `--features bmd-provider,
+  gstreamer-backend`（分发整体 cfg 门控——默认构建 bin 无 gate dispatch,
+  表现为"未命中任何 gate env"）。
+
+### 66.4 Unit 3 真机取证（2026-09-05 13:15 CST; 证据盒
+~/a2-8-02i-evidence/2026-09-05-r51-a204-sixpath-observation/）
+
+- 证据头五件套 + 盒源 sha==HEAD（4d95ec6: program_execution b54faa5f /
+  dual_input b4faee32）+ gates bin（feature 构建 dd5198dc）+ v5 manifest
+  当日核验[L1a production_grade 2/2 + L1c dn0/dn1 signal=true——v5 映射
+  当日有效, 无需重生成]。ball 源 PID 992634 存活 22h。
+- **Gate 全链 10/10 ALL PASS——按账本记录为真机首次全绿**（L0/L1a-d/L2a-b/
+  L3/L4[switch epoch=1 + Preserve offset=78120ns + mapped==pre 精确拼接]/
+  L5[注入隔离 + recover 复流 + 故障域归因 Input 无越域]/Teardown）; **L5
+  观测窗 B 类候选不因单次 PASS 复案**（概率性重叠未再现≠已消除, 维持登记）。
+- **六路取证首采（本轮目标）**: PRE A/B（epoch 0）六路全 advanced=Some(true)
+  + 全 ValidMonotonic; SPAN A/B（epoch 1, 跨切换）六路全 Some(true)——含
+  被切离的 A 输入管线/桥持续推进（selector 切换不停输入管线, 与架构一致）,
+  跨切换 starvation 未观测（单次）; POST A/B 六路全 Some(true)。**av_delta
+  实测: pre 7,149,169ns(≈7.1ms) → post 15,482,503ns(≈15.5ms)——切换后
+  V/A 差翻倍, 首个 D2 PTS 漂移实测点（只测量登记, 不设阈值——T2）**。
+  program 列为整图共享（每设备行重复=TimelineSample 同惯例）。工件全为
+  既有隔离债（PortId 碰撞 WARN×2 / MainContext WARN×2 / pad_unlink
+  CRITICAL×4）零新增。
+- T6 一致性记录: adapter observe() 行仍报 mapped→DiscontinuityDeclared +
+  硬编码 continuity（Gap B 原样, correctness change 队列不变）; L4-TIMELINE
+  裁决消费的是 Authority snapshot 证据（declared 边界事实+映射实测, 语义
+  正确）——两路径分层与 R50 T4 裁决一致。
+
+### 66.5 本轮执行
+
+- 单元: ①4d95ec6 码（program_execution.rs + gates/dual_input.rs, +431/−0）;
+  ②本轮账（主账 §66 + a2-8-04 探针 §8 + tasks item-6 R51 段）。盒矩阵+
+  真机如上; 03-01/03-02 探针本轮不新增（无新域裁定）。
+- 基线: e24aaa2..4d95ec6..（本轮账后新头）, master=7745968。

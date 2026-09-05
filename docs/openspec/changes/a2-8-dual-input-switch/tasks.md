@@ -890,6 +890,25 @@
   Recovery 与 Timeline 两链正交性确认; **执行序=探针冻结→六路证据采集
   （observation only·最小观测面单独落地）→gaps→C-TIMELINE correctness
   change→A2-8-04 Gate·禁回头重复 R46-R49 旧活体验证**; 本项未勾]**
+  **[第五十一轮（主账 §66, 04-探针 §8; R51 用户裁决=R50 PASS+OQ-R/T 全
+  冻结确认+四态纠正[PtsMonotonicity 实为四态 pipeline.rs:263-276·真问题=
+  adapter 生产使用语义过宽]+"直接开 Observation Unit 1·不做纯账面轮"）:
+  **六路取证面落地 4d95ec6**[SixPathEvidence/PathEvidence/EvidencePhase+
+  assemble_six_path_evidence 纯 join·逐路独立·absence≠false[advanced 三值]
+  ·av_delta 只测量(T2)·帧计数原料全已在故契约零改; gate L4 判据输入捕获后
+  PRE/SPAN/POST 观测节零判据零阈值·L4/Supervisor/contracts/watchdog/
+  switch_graph 零触碰; +3 纯函数测试]; 盒矩阵全绿[fmt/default 227/mock
+  393/bmd+gst 251/clippy×2; rt_01 flaky 中间跑留证复跑绿=既有债; gates bin
+  重建须带 hardware features]; **真机 gate 全链 10/10 按账本首次全绿**
+  [v5 当日核验 L1a 2/2+L1c 双 signal; Preserve offset=78120ns; L5 观测窗
+  B 类候选不因单次 PASS 复案]; **六路首采**[PRE/SPAN/POST×{A,B} 全六路
+  advanced=Some(true)+ValidMonotonic·SPAN 含被切离 A 路持续推进=跨切换
+  starvation 未观测（单次）·**av_delta 7.15ms(pre)→15.48ms(post) 切换后
+  翻倍=首个 D2 漂移实测点（只测量不设阈值）**·program 列整图共享];
+  T6 一致性=adapter 行 Declared 过宽原样（Gap B 队列）vs L4 裁决消费
+  Authority snapshot（正确）; 工件全为既有隔离债零新增; 证据盒
+  2026-09-05-r51-a204-sixpath-observation; 本项未勾——T5 证据矩阵待多场景
+  填充+验收谓词未定义+多场景采集继续]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
