@@ -3423,3 +3423,69 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - **下一刀（待裁）**: 03-02 Recovery Contract（决策输入记录面的消费——
   域→恢复策略选择; R43/R44 冻结序下一环）; CONTRACT-ANCHOR-DOC-SYNC+
   Mock B 同步轮仍另行排期不混轮。
+
+## §61 第四十六轮（R45 复核裁决 + G-2-G 真机活体 + 03-02 设计提案）
+
+### 61.1 R45 复核裁决登记（用户独立实文核验后, 落账前已对分支头复核）
+
+- **R45=PASS 限定为 G-2 Stage-1 PASS, G-2 不关闭**; 状态表: 03-01-A..F
+  COMPLETE·G-2-00 COMPLETE·G-2-G PARTIAL·G-2 Final OPEN·03-02 NOT
+  STARTED·A2-8-04 OPEN。
+- **开发线纪律**: 一切后续复核/提交以 `comet/a2-8-dual-input-switch`@
+  ff864d2 为准（已核: 本地 HEAD=远端=ff864d2; **master=7745968 旧头,
+  禁混线**）。
+- 用户确认要点: E 前提纠偏被采信（FailureDomain 既有复用正确, 未新造
+  第二同名类型）; 单故障优先序分类器语义锁死重申（禁多故障多维归因）;
+  group custody batch 为 group-wide + 逐 action device-scoped attribution
+  双防线（identity correlation）边界在 03-02 必须沿用; tasks.md 单元不纯
+  =engineering hygiene 非架构缺陷, 保留披露不重写历史。
+
+### 61.2 R46 执行: 组 watchdog 真机活体（G-2-G Final 证据）
+
+- **活体观测行使能披露**: 组 watchdog 健康路径原为静默（仅 spawn/异常
+  日志）——增加两处**仅诊断输出、零决策逻辑**观测行（watchdog.rs: 周期
+  活体观测行每 20 tick≈10s + 决策输入指纹行于故障动作路径; 分类经同一
+  `assemble_decision_input` 纯函数, 结果不入任何状态——决策输入仍只在
+  故障动作路径装配）。矩阵全绿后开跑。
+- **真机活体跑**: 生产 `media-agent` bin（MEDIA_AGENT_MODE=diagnostic +
+  v5 manifest sha 7a52b498 + VBMF_DIAG_INPUTS=2; VBMF_OUTPUT_* 全缺省 ⇒
+  fail-soft 纯分析零外推流; 盒钟无失配; 无 stray 进程）9.5min（timeout
+  SIGTERM 终止=预期, 无优雅停路径）。
+- **活体证据（强阳性）**: "Execution Group 就绪... MultiInputWatchdog
+  四观测面启动"（graph_handle=3, initial_active=4fa33dcb）; **线程连续
+  tick 0→1120（57 条活体观测行）**; 双设备三列实时 observed=true/
+  advancing=true/bridge=Some(true) + program_advancing Some(true);
+  **分类器真机活体: tick 0 domain=None（首采样无证据诚实缺席）→ tick≥20
+  domain=Some(None)（三列齐备全健康臂——`FailureDomain::None` 变体在
+  生产线程真机产出）**。用户 §13 缺口"group watchdog 真机 ❌"的线程/
+  三列/分类器三面已闭合。
+- **活体缺口（如实）**: 窗口内零自然故障（TV 未抖动; ball 源 992634
+  勿杀; 生产注入面=gate-only R35 红线禁入）→ 故障动作路径决策输入活体
+  指纹=0（custody_evidence 恒 0, 无 ReportInputFailure）。该路径现有
+  证据=纯函数测试+gate L5d 真实故障注入分类真机复核+本轮线程/三列/
+  分类器活体。**OQ-R4 待裁**: 证据组合是否足以关闭 G-2-G, 还是要求
+  自然故障长窗复跑。
+- 证据盒: ~/a2-8-02i-evidence/2026-09-05-r46-g2g-group-watchdog-live/
+  （header 五件套 + production-run.log; bin media-agent ab361801）。
+- 矩阵（观测行使能后复跑）: fmt 绿·default 224·mock 390·bmd+gst 248·
+  clippy×2 绿·双 bin 构建（计数零变化——纯诊断输出无新测试）。
+
+### 61.3 03-02 Recovery Contract 设计冻结提案（零实现, 新探针文档）
+
+- 交付 `2026-09-05-a2-8-03-02-recovery-contract-design-probe.md`:
+  As-Is 实锚（决策/执行/证据/冻结四面）+ 五面契约提案（F-1 domain→
+  strategy: **提案不新造 Strategy 词表**; F-2 attribution→target 双路→
+  own handle 冻结; F-3 RestartPolicy 零变化; F-4 fail-closed None→现状;
+  F-5 **消费点=执行域**（watchdog 读 last_decision_* ——Supervisor 判定
+  /词表零变化, R44 §7 红线一致））+ **OQ-R1..R5 待裁**。
+- 关键提案默认: **OQ-R1 全维持现状（03-02 记账收口零代码候选）**——
+  Bridge/Program 域无执行面恢复能力, 禁凭空造; 若裁执行分支, 最小影响
+  面=watchdog Restart 分支读 last_decision_domain 分支（§6 预估, 未授权）。
+
+### 61.4 状态与下一刀
+
+- G-2 Stage-1=PASS（维持）; **G-2-G Final=待用户对 OQ-R4 裁定**; 03-02=
+  设计提案已交付待冻结（OQ-R1..R5）; A2-8-04 OPEN（组 tick 活体已并入
+  本轮证据, 真实故障路径活体与 Timeline/AV continuity 专项仍待）。
+- 提交: 观测行代码（watchdog.rs 单文件）+账单元（本 §+03-01 §11+03-02
+  新文档+tasks R46 段）分单元提交推送。

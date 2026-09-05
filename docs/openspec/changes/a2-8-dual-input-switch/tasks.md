@@ -781,6 +781,23 @@
   披露: 组 watchdog tick 生产活体证据缺[唯一 spawn=bin:479, 编译级+分类器
   同源 L5d 真机复核, 活体留 A2-8-04 bin 轮]·G-2 PASS 不自宣待用户复核;
   本项保持未勾——D/E/F 落地≠03-01 完成[G-2 终审+组 tick 活体+03-02 待裁]]**
+  **[第四十六轮（主账 §61, 03-01 探针 §11+03-02 新探针, R45 复核裁决
+  G-2 Stage-1 PASS/G-2 Final OPEN + G-2-G 真机活体 + 03-02 设计提案零
+  实现）: 开发线纪律=comet/a2-8-dual-input-switch@ff864d2 恒定
+  [master=7745968 旧头禁混]; 单故障优先序分类器语义锁死重申; group
+  custody batch group-wide+逐 action device-scoped attribution 双防线
+  边界 03-02 沿用; **组 watchdog 真机活体已获得**: 活体观测行使能披露
+  [健康路径原静默→两处仅诊断输出零决策逻辑观测行·矩阵 224/390/248 计数
+  零变化]+生产 bin 双输入诊断会话 9.5min[fail-soft 纯分析零外推·bin
+  ab361801·v5 manifest]——**线程连续 tick 0→1120（57 行）+双设备三列
+  实时全健康+分类器真机活体 tick0=None→tick≥20=Some(None)**[证据盒
+  2026-09-05-r46-g2g-group-watchdog-live]; 仍缺如实记档: 故障动作路径
+  决策输入活体指纹=0[窗口零自然故障·ball 源勿杀·生产注入面 gate-only
+  红线]——OQ-R4 待裁[证据组合关闭 G-2-G vs 自然故障长窗复跑]; 03-02
+  Recovery Contract 设计冻结提案已交付[五面 F-1..F-6+OQ-R1..R5 待裁;
+  提案默认=不新造 Strategy 词表+消费点=执行域读 last_decision_*+
+  Supervisor 判定/词表零变化+OQ-R1 全维持现状零代码收口候选]; 本项
+  保持未勾——G-2 Final/03-02 冻结/A2-8-04 专项均待裁待做]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案

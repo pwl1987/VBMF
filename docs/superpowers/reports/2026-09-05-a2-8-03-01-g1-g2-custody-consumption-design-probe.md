@@ -415,3 +415,22 @@ default 224[+1]·mock 390[+2]·bmd+gst 248[+1]·clippy×2 绿·盒源 7/7 sha8;
 **10/10 ALL PASS**（零回归; L5d 同一分类器真机复核"故障域归因完整=true"）。
 **组 watchdog tick 生产活体证据缺**（唯一 spawn=生产 bin:479）→ 留
 A2-8-04 bin 验证轮; G-2 stage-1 实现完成, PASS 判定待用户复核（不自宣）。
+
+## §11 R46 登记: G-2-G 真机活体证据 + 03-02 设计提案指针（2026-09-05）
+
+- **R45 复核=G-2 Stage-1 PASS / G-2 Final OPEN**（用户独立核验; G-2-G
+  PARTIAL——组 watchdog 真机活体为唯一剩余硬门）。
+- **活体行使能披露**: 健康路径原静默 → 新增两处仅诊断输出零决策逻辑
+  观测行（周期活体行每 20 tick + 决策输入指纹行; 分类经同一
+  assemble_decision_input 纯函数, 不入状态——决策输入仍只在故障动作
+  路径装配）。矩阵 224/390/248 全绿计数零变化。
+- **真机活体结果**: 生产 bin 双输入诊断会话 9.5min——组 watchdog 线程
+  连续 tick 0→1120（57 行）; 双设备三列实时全健康; **分类器活体
+  tick0=None（首采样诚实缺席）→ tick≥20=Some(None)（FailureDomain::None
+  真机产出）**。证据盒 2026-09-05-r46-g2g-group-watchdog-live/。
+- **仍缺（如实）**: 故障动作路径决策输入活体指纹=0（窗口零自然故障;
+  ball 源勿杀+生产注入面 gate-only）——该路径证据=纯函数测试+gate L5d
+  真机注入分类+线程/三列/分类器活体。OQ-R4 待裁（03-02 探针 §4）。
+- 03-02 Recovery Contract 设计冻结提案已交付（新文档, 零实现, OQ-R1..R5
+  待裁; 提案默认=OQ-R1 全维持现状零代码收口候选; 消费点提案=执行域读
+  last_decision_*, Supervisor 判定/词表零变化）。
