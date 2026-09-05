@@ -552,6 +552,8 @@ pub fn spawn_execution_group_watchdog(
         // 03-01-E: Program 进度列的两采样状态（program_progress_since 语义
         // =帧计数增长, 与 gate L5d 同口径; 首采样前无分类证据）。
         let mut prev_program_frames: Option<(u64, u64)> = None;
+        // 03-01-G（R46）: 活体观测行计数（每 20 tick≈10s 一行, 防刷屏）。
+        let mut tick: u64 = 0;
         loop {
             if stop_for_thread.load(std::sync::atomic::Ordering::SeqCst) {
                 tracing::info!("A2-8-02-E group watchdog: 停止旗置位, 观测线程退出");
@@ -622,6 +624,55 @@ pub fn spawn_execution_group_watchdog(
             };
             health_fold = crate::health::reduce(&health_fold, &drained);
             *agent_state.lock().unwrap() = health_fold.agent;
+            // 03-01-G（R46）: 组 watchdog 真机活体观测行——**仅诊断输出,
+            // 零决策逻辑**（线程活性 + 三列证据实时可得性 + 分类器活体;
+            // 分类经同一 assemble_decision_input 纯函数, 结果不入任何状态,
+            // 决策输入仍只在故障动作路径装配）。
+            if tick.is_multiple_of(20) {
+                let diag: Vec<String> = folded
+                    .per_input
+                    .iter()
+                    .map(|f| {
+                        let bridge = bridge_observation.as_ref().and_then(|p| {
+                            group_inputs
+                                .iter()
+                                .find(|(d, _)| *d == f.device_id)
+                                .and_then(|(_, h)| {
+                                    p.bridge_liveness(
+                                        h,
+                                        crate::program_execution::FAILURE_DOMAIN_LIVENESS_WINDOW_MS,
+                                    )
+                                    .into_iter()
+                                    .find(|l| {
+                                        l.channel
+                                            == crate::program_execution::tap_channel(f.device_id)
+                                    })
+                                    .map(|l| l.alive_in_window)
+                                })
+                        });
+                        let (dom, _) = assemble_decision_input(
+                            f.device_id,
+                            Some(f.advancing),
+                            bridge,
+                            program_advancing,
+                            &custody_failures,
+                        );
+                        format!(
+                            "{} observed={} advancing={} bridge={:?} domain={:?}",
+                            f.device_id, f.observed, f.advancing, bridge, dom
+                        )
+                    })
+                    .collect();
+                tracing::info!(
+                    tick,
+                    batch = drained.len(),
+                    custody_evidence = custody_failures.len(),
+                    program_advancing = ?program_advancing,
+                    inputs = ?diag,
+                    "A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义)"
+                );
+            }
+            tick += 1;
             // 故障动作 → Supervisor 决策（recovery only; 切换永不在此发生）。
             // 03-01-D/E: 每动作装配决策输入——三列进度证据（本输入 advancing
             // + 桥 liveness[tap 在场才有证据] + program 进度）+ custody 事件
@@ -658,6 +709,14 @@ pub fn spawn_execution_group_watchdog(
                     bridge_alive,
                     program_advancing,
                     &custody_failures,
+                );
+                // 03-01-G（R46）: 决策输入真机活体指纹（域+归因可见; 决策
+                // 逻辑零变化——记录与判定分离维持 R45 F 语义）。
+                tracing::info!(
+                    device = %device_id,
+                    domain = ?domain,
+                    attributed = ?attributed,
+                    "03-01-D/E 组 watchdog 决策输入装配 (真机活体指纹)"
                 );
                 match sup
                     .lock()
