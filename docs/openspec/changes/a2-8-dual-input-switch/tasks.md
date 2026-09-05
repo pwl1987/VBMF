@@ -847,6 +847,20 @@
   starvation; Program Timeline Continuity / Timestamp Normalization 方案
   裁决与验证（observation only，无 Engine——方案设计裁决属 02/04）
   `Contract: 03` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+  **[第四十九轮开启（A2-8-04 SoT 探针已交付:
+  2026-09-05-a2-8-04-program-timeline-av-continuity-sot-probe.md, 零代码;
+  R49 用户终裁"直接开 A2-8-04"授权）: 形态发现——"六路 PTS"=TimelineSample
+  六 PTS 流[input/bridge/program×video/audio, program_execution.rs:66-77]
+  ·六路已在 gate L4 同采只测量·现判据仅 L4-SWITCH+L4-TIMELINE（program
+  video 主导九项合取）其余五路未判; 四失败模式映射——rollback=六路
+  PtsMonotonicity 四态已在·discontinuity=DiscontinuityDeclared+program
+  双平面 PlaneContinuity 已在·divergence 两语义未消歧[pad 分离=av_paired
+  已检出 watchdog.rs:460/PTS 时序漂移=零观测面]·starvation=stalled+
+  progress_since+alive_in_window 已在验收判据未定义; **OQ-T1..T6 待裁——
+  裁决前零实现**[判据落点=提案默认新增独立验收节不触 L4 冻结判据/
+  divergence 漂移首版只测量+分布取证/starvation 复用 progress_since/
+  input-bridge 平面 continuity 必要性/合成谓词形状/与 C-TIMELINE-01
+  冻结关系确认不重开]; observation only 无 Engine; 本项未勾]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
