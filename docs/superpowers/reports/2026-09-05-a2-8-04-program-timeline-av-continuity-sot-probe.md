@@ -396,3 +396,34 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
   Gate PASS**（absence≠false: 证据不充分同样不放行）。
 - 状态: 谓词已冻结——A2-8-04 Final Gate 待按案 b 证据窗执行（另行
   轮次）; A2-8-05 仍不提前; 本轮零代码零硬件, 账本纯追加。
+
+## §14 第五十五轮修订二（R55.2）: 终裁补正与最终冻结（2026-09-05, docs-only）
+
+- **终裁基线声明（诚实区分）**: 验收层按 GitHub 远端真实状态复裁
+  ——远端分支 HEAD = **2f30d16**（父 d1a4fc6）; 本地链 2d66ab3/
+  89e2863/5235df3/R55.2 未推送。代码裁决以远端为准; R55.x 文档按
+  本地内容审查, 不称"远端已存在"; 推送延后至 Final Gate 完成后。
+- **裁决 = ACCEPT WITH ONE REQUIRED CORRECTION**: R55.1 四项必改
+  全部确认; 唯一必改 = **P2c 的"UndeclaredBackwardJump 事件计数
+  ==0" 同属 vacuous**——该失败路径真实存在（on_program_pts
+  program_timeline.rs:754-763 → fail_closed :776-786）但无独立生产
+  证据出口（fail_closed 不填充证据载荷, 失败经 timeline_fail_
+  closed→SwitchError program_execution.rs:751 走运行时错误面, 无
+  事件计数/日志 sink）——"无事件生产 ≠ 没有发生事件"。已拆双通道:
+  **P2c-1**（可观测通道, blocking）= 程序面 NM==0（交叉引用 P1）∧
+  Violated==0（读出面 = OBS 逐切换 outcome 全 Preserved
+  a204_obs.rs:537-545 + dual_input L4）; **P2c-2**（Authority 检出
+  通道）= **Unproven/Structural Gap 披露不阻塞**, 禁"0 事件"包装成
+  Satisfied, owner=后续 Domain/Observation change。
+- **两项澄清入稿**: ①PRE≥1∧POST≥1 = evidence sufficiency minimum
+  ≠ continuity completeness proof（采样证据非区间证明）; ②DD =
+  declaration-bearing observation state 非异常, Gate 报告禁
+  `DD>0→FAIL` 判法（否则把 R53 修复重新判成 failure）。P2 Failed
+  子句收紧: Violated ∨ TransitionFailed ∨ 任何明确 TransitionFailure
+  终态。首帧边界不连续与稳定态未声明回退=两个故障窗口禁混判
+  （on_mapped_buffer :621-624 吸收语义维持登记）。
+- 谓词文档状态 → **FROZEN-FINAL (R55.2)**（§8 = 本轮终裁登记）。
+- 执行序: 本轮文字纠偏 → 最终冻结 → **直接进入 A2-8-04 Final Gate
+  新鲜证据执行**（OBS N≥10 + dual_input 10/10 + hw 259 → 逐格
+  verdict → P8 → Gate 层 AND）。运行时零改动; D2 无阈值; A2-8-05
+  不提前。

@@ -4146,3 +4146,25 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   04-探针 §13。
 - 状态: A2-8-04 Final Gate 待按冻结谓词+案 b 证据窗执行（下一轮）;
   A2-8-05 不提前; 本轮零代码零硬件, 账本纯追加。
+
+## §72 第五十五轮修订二（R55.2: 终裁补正与最终冻结——零代码, docs-only）
+
+- 验收层按远端真实状态复裁（**远端 HEAD=2f30d16; 本地 R54/R55/
+  R55.1/R55.2 未推送——文档裁决按本地内容审查不称远端已存在; 推送
+  延后至 Final Gate 完成后**）。裁决 = **ACCEPT WITH ONE REQUIRED
+  CORRECTION**: R55.1 四项必改全确认; 唯一必改 = P2c
+  "UndeclaredBackwardJump 事件计数==0" 亦 vacuous（路径真实存在但
+  无生产证据 sink——失败经 timeline_fail_closed→SwitchError
+  program_execution.rs:751 走错误面）→ 拆双通道: P2c-1 可观测通道
+  blocking（程序面 NM==0 交叉引用 P1 ∧ Violated==0, 读出面=OBS 逐
+  切换 outcome a204_obs.rs:537-545+dual_input L4）/ P2c-2 =
+  Unproven·Structural Gap 披露（owner=后续 Domain/Observation
+  change, 禁 0 事件=Satisfied）。
+- 两项澄清入稿: PRE≥1∧POST≥1 = sufficiency minimum ≠ continuity
+  completeness proof; DD = declaration-bearing state 非异常（禁
+  DD>0→FAIL 判法）。P2 Failed 子句收紧（Violated∨TransitionFailed∨
+  任何 TransitionFailure 终态）。
+- 谓词文档 = **FROZEN-FINAL (R55.2)**, 登记 = 其 §8; 摘要 = 04-探针
+  §14。执行序: 直接进入 A2-8-04 Final Gate 新鲜证据窗（OBS N≥10 +
+  dual_input 10/10 + hw 259）→ 逐格 verdict → P8 → Gate 层 AND。
+  运行时零改动清单维持; D2 无阈值; A2-8-05 不提前。

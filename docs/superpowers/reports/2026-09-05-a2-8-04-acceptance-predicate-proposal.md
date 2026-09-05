@@ -1,9 +1,10 @@
 # A2-8-04 验收谓词（OQ-T5 兑现——Evidence Matrix → Predicate → Gate）
 
-状态: **FROZEN (R55.1, 2026-09-05)**——验收层终裁 ACCEPT WITH
-CORRECTIONS 已并入: §2 内标 〔R55.1〕 的条款为纠偏后冻结文本, §7 为
-终裁登记（旧→新对照）; 未标记条款按提案原文冻结。冻结后 A2-8-04 Gate
-方可按 §4 证据窗执行。
+状态: **FROZEN-FINAL (R55.2, 2026-09-05)**——R55.1 终裁 ACCEPT WITH
+CORRECTIONS 四项必改 + R55.2 终裁补正（唯一必改: P2c 拆双通道, §8）
+均已并入: §2 内标 〔R55.1〕/〔R55.2〕 的条款为纠偏后冻结文本, §7/§8
+为终裁登记（旧→新对照）; 未标记条款按提案原文冻结。冻结后 A2-8-04
+Gate 按 §4 证据窗执行。
 
 授权来源: R54 交接（04-探针 §11.2 矩阵已填充至可交接状态）+ 用户 R54
 收口指令（"逐格定义 OQ-T5 acceptance predicates·严格 Evidence Matrix →
@@ -46,7 +47,10 @@ Unproven 均阻断 Gate PASS）
 - **充分性前置（新增）**: 每路先过最低观测完整性——窗口内该路
   PRE≥1 ∧ POST≥1 且 pts_state≠Unknown（VM/NM/DD 任一）; 未达 → 该路
   **Unproven**（不转 PASS、不计 Failed、不进入计数裁决）。下限是观测
-  行数不是 PTS 数值, 不构成阈值发明。
+  行数不是 PTS 数值, 不构成阈值发明。〔R55.2 语义澄清〕PRE≥1∧POST≥1
+  = **Evidence Sufficiency minimum**, **不是 Continuity completeness
+  proof**——SixPathEvidence 是采样证据, 两个观察点有证据不证明整窗
+  全程无短暂 rollback/starvation; 二者禁混。
 - 断言: 通过前置的 path p, 证据窗内 `NonMonotonic` 行计数 == 0, p ∈
   {in_v, in_a, br_v, br_a, pr_v, pr_a}; Gate 报告六个独立数字,
   **禁求和成单值**。观测到任何 NM 行 = **Failed**。
@@ -64,27 +68,46 @@ Unproven 均阻断 Gate PASS）
     语义（Unproven 边界吸收 [on_mapped_buffer, program_timeline.rs:
     621-624] 或 DeclaredDiscontinuity）——NewEpoch 不得伪装成
     Preserved, 平面不 Continuous 时不得报 Preserved;
-  - 平面 `Violated` / `TimelinePhase::TransitionFailed` = **Failed**。
+  - 平面 `Violated` ∨ `TimelinePhase::TransitionFailed` ∨ 任何明确
+    `TransitionFailure` 终态 = **Failed**〔R55.2 收紧〕。
 - P2a（input/bridge 四路）: **仅对有 PTS 证据的行**断言四态如实 ==
   `ValidMonotonic`; 普通观测（pipeline.rs:323-333）无声明源, DD 不可
   产生——若出现即为异常（记录性定位）。无证据行 = Unknown →
   Unproven, 不判 PASS 也不判 failure。
 - P2b（pr_v/pr_a 基线签名）: {首切前 PRE 行 = ValidMonotonic} ∧
   {其后行 = DiscontinuityDeclared}——R53/R54 四跑稳定签名（34+2/
-  58+2/N4/178+2×2）。
-- P2c（未声明回退）〔R55.1 弃用字段值〕: **不再以**
+  58+2/N4/178+2×2）。〔R55.2〕**DD 是 declaration-bearing
+  observation state, 不是异常**——Gate 报告禁出现 `DD>0→FAIL` 类
+  判法（否则把 R53 修复重新判成 failure）; P2b 的 DD = 期望基线签名
+  （declaration 面）; 与稳定态 NM（failure 面）分属两个观测通道。
+- P2c（未声明回退）〔R55.1 弃用字段值; R55.2 拆双通道〕: **不再以**
   `TimelineTransitionEvidence.undeclared_backward_jump == None` 作
   证据——该字段全仓唯一构造点 program_timeline.rs:658 硬编码 None,
   `BackwardJumpFact`(:171) 从未实例化, 故 dual_input.rs:789 的
   `is_none()` 合取项**结构性恒真、不提供信息**（披露事实, 本 change
-  不修）。blocking 证据改为三支合取, 窗口内: ①`TransitionFailure::
-  UndeclaredBackwardJump` 事件计数==0（真检出链 = on_program_pts,
-  program_timeline.rs:754-763 → fail_closed :776-786）②程序面观测
-  NM 行==0（与 P1 pr 路**交叉引用, 不合并计数**）③PlaneContinuity
-  Violated 计数==0。语义边界如实登记: 落在首帧 mapped 边界的回退被
-  on_mapped_buffer 吸收为 Unproven→NewEpoch（合法声明路径）, fail
-  -closed 检出链不覆盖该相位。
-- 冻结: 核心/P2b/P2c **blocking**; P2a 记录性。
+  不修）。〔R55.2〕R55.1 三支合取中的"UndeclaredBackwardJump 事件
+  计数==0"**同属 vacuous**——该失败路径真实存在（on_program_pts,
+  program_timeline.rs:754-763 → fail_closed :776-786 → Transition
+  Outcome::Failed + TimelinePhase::TransitionFailed）, 但**无独立生产
+  证据出口**: fail_closed 不填充证据载荷, 失败经 `timeline_fail_
+  closed → SwitchError`（program_execution.rs:751）走运行时错误面,
+  无事件计数/日志 sink——"0 事件"不可观测即不可作证据（无事件生产
+  ≠没有发生事件, absence≠evidence 同构）。拆为双通道:
+  - **P2c-1（可观测通道, blocking）**: 窗口内 ①程序面观测 NM 行==0
+    （与 P1 pr 路**交叉引用, 不合并计数**）②PlaneContinuity Violated
+    观测==0——可观测面 = OBS 逐切换 outcome 全部 Preserved
+    （a204_obs.rs:537-545 逐行打印, 任何 FailClosed/带 Violated 的
+    NewEpoch 即 Failed）+ dual_input L4 Authority outcome 同检。
+  - **P2c-2（Authority 检出通道 = Unproven/Structural Gap, 披露不
+    阻塞）**: UndeclaredBackwardJump 检出能力 = 类型+触发路径真实
+    存在但无生产证据 sink → **不以"0 事件"包装成 Satisfied**; 登记
+    Gap(owner=后续 Domain/Observation change), A2-8-04 不修复, 仅
+    真实能力披露。
+  - 语义边界如实登记: 落在首帧 mapped 边界的回退被 on_mapped_buffer
+    （program_timeline.rs:621-624）吸收为 Unproven→NewEpoch（合法
+    声明路径）, fail-closed 检出链不覆盖该相位——首帧边界不连续与
+    稳定态未声明回退是**两个不同故障窗口**, 禁混判。
+- 冻结: 核心/P2b/P2c-1 **blocking**; P2a 记录性; P2c-2 Gap 披露。
 
 ### P3 D1 pad 分离
 - 断言: 证据窗内 `av_paired` 分离真机观测计数 == 0; 检出能力在证 =
@@ -110,7 +133,8 @@ Unproven 均阻断 Gate PASS）
 ### P5 starvation——六路各一, 逐路独立〔R55.1 加充分性前置〕
 - **充分性前置（新增, 与 P1 同一）**: 该路 PRE≥1 ∧ POST≥1 且
   pts_state≠Unknown; 未达 → Unproven——六路全 None 时
-  Some(false)==0 **不得**转 PASS。
+  Some(false)==0 **不得**转 PASS。〔R55.2〕前置 = sufficiency
+  minimum ≠ continuity completeness proof（同 P1 澄清）。
 - 断言: 通过前置的 path p, 证据窗内 `advanced==Some(false)` 计数 == 0
   （定位器逐路四元粒度）; 观测到 Some(false) = **Failed**;
   `advanced==None` 行 = absence 登记非 false（不计违例, 须报数）。
@@ -169,8 +193,8 @@ Unproven 均阻断 Gate PASS）
 | Semantic Correctness | P1, P2（核心/P2b/P2c; P2a 记录性）, P3, P5, P6a |
 | Regression Safety | P7（dual_input=L4 回归证据, **不得替代 Timeline Gate 裁决**） |
 
-P4（D2 案 a·登记性）与 P9（Gap 披露）不进入 blocking 合取集合, 按
-登记/披露义务呈现。
+P4（D2 案 a·登记性）、P9（Gap 披露）与 P2c-2（Authority 检出通道
+Gap）不进入 blocking 合取集合, 按登记/披露义务呈现。
 
 ## §4 证据窗定义〔OQ-P3 终裁=案 b, 冻结〕
 
@@ -193,6 +217,7 @@ P4（D2 案 a·登记性）与 P9（Gap 披露）不进入 blocking 合取集合
 | OQ-P6 | Gap 格阻塞化 | 披露性 non-blocking（维持三轮登记口径） |
 | OQ-P7 | 组合规则确认 | Gate 层四层固定合取（§3）; 格 verdict 独立保留 |
 | — | P1/P5 最低观测完整性下限 | 每路 PRE≥1 ∧ POST≥1 且 pts_state≠Unknown; 未达=Unproven（R55.1 补裁） |
+| — | P2c 通道拆分 | P2c-1 可观测通道 blocking（程序面 NM==0 ∧ Violated==0）; P2c-2 Authority sink 缺失 = Unproven/Gap 披露, 禁"0 事件"=Satisfied（R55.2 必改） |
 
 ## §6 边界与红线（不变, R55.1 增补）
 
@@ -251,3 +276,40 @@ contracts/media_tap.rs:93-101（controller.rs:841-849/684-694 独立
 :133-134/:175-177（`_agent_state` 下划线未用=结构证明）; close_
 transition 为模块私有（program_timeline.rs:639）, Failed 从不在其内
 派生（:637-638"矛盾已在证据入口 FailClosed"）。
+
+## §8 R55.2 终裁补正（ACCEPT WITH ONE REQUIRED CORRECTION → 最终冻结）
+
+**终裁基线声明**: 验收层按 GitHub 远端真实状态复裁——远端分支
+`comet/a2-8-dual-input-switch` HEAD = **2f30d16**（R53 账本单元, 父
+d1a4fc6）; 本地链 2d66ab3（R54）/89e2863（R55）/5235df3（R55.1）+
+本轮 R55.2 **未推送**。代码裁决以远端 2f30d16→d1a4fc6 为准; 文档
+裁决按本地冻结内容审查, **不称"远端已存在"**; 推送按终裁延后至
+Final Gate 完成后（否则最终闭环无法在仓库层面形成可追溯基线）。
+
+**裁决**: R55.1 四项必改全部确认（P1/P5 充分性 ✅ / P2 outcome↔
+continuity ✅ / P6 FieldPending ✅——含原 P2c 字段弃用方向 ✅）;
+**唯一必改 = P2c 的"UndeclaredBackwardJump 事件计数==0"**——与被
+弃用的字段断言同属 vacuous: 无生产证据出口的通道, "0 事件"≠"无
+事件"。已拆双通道（P2c-1 可观测通道 blocking / P2c-2 Unproven·
+Structural Gap 披露, owner=后续 Domain/Observation change）。
+
+**两项澄清一并入稿**: ①PRE≥1∧POST≥1 = evidence sufficiency
+minimum ≠ continuity completeness proof（采样证据非区间证明, P1/P5
+内注明）; ②DD = declaration-bearing observation state 非异常, Gate
+报告禁 `DD>0→FAIL` 判法（P2b 内注明; declaration 面 vs failure 面
+两通道分立）。P2 Failed 子句收紧: Violated ∨ TransitionFailed ∨
+任何明确 TransitionFailure 终态。
+
+**fail_closed 传播面实锚（本轮核验）**: on_program_pts 失败经
+`timeline_fail_closed(e) → SwitchError`（program_execution.rs:751）
+走运行时错误面; `TimelinePhase::TransitionFailed{reason}` 处理点
+:651; OBS gate 逐切换打印 outcome 短名 Preserved/NewEpoch/FailClosed
+（a204_obs.rs:115-116/:537-545/:626-630）= P2c-1 可观测通道的窗口
+读出面。
+
+**执行序（终裁确认, 本轮后直接进入）**: R55.2 文字纠偏 → 谓词最终
+冻结 → 新鲜证据窗（OBS N≥10 + dual_input 10/10 + hw 矩阵 259）→
+逐格 verdict → P8 完整性 → Gate 层 AND → A2-8-04 PASS/FAIL。
+运行时零改动清单维持: PipelineHealth/SwitchGraph/TimelineAuthority/
+SixPathEvidence/dual_input/Supervisor/L4 全不动; D2 不加阈值; 不因
+101 次累计证据漂亮提前 PASS; A2-8-05 不提前。

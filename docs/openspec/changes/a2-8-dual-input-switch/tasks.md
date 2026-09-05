@@ -1006,6 +1006,21 @@
   (P8)/Semantic Correctness(P1,P2,P3,P5,P6a)/Regression Safety(P7 不
   替代 Timeline Gate)]; 谓词文档状态 FROZEN(基线 89e2863); 本项未勾
   ——A2-8-04 Final Gate 按冻结谓词+案 b 证据窗执行→A2-8-05 待]**
+  **[第五十五轮修订二（R55.2 终裁补正+最终冻结已落地, 零代码 docs-only;
+  主账 §72+04 探针 §14+谓词文档 §8）: 验收层按远端真实状态复裁[远端
+  HEAD=2f30d16·本地 R54/R55/R55.1/R55.2 未推送·推送延后至 Gate 后]——
+  裁决=ACCEPT WITH ONE REQUIRED CORRECTION: R55.1 四项必改全确认, 唯一
+  必改=P2c "UndeclaredBackwardJump 事件计数==0" 亦 vacuous[路径真实
+  存在 on_program_pts :754-763→fail_closed :776-786 但无生产证据
+  sink·失败经 timeline_fail_closed→SwitchError :751 走错误面·无事件
+  生产≠无事件]→拆双通道: P2c-1 可观测通道 blocking[程序面 NM==0 交叉
+  引用 P1 ∧ Violated==0·读出面=OBS 逐切换 outcome :537-545+dual_
+  input L4]/P2c-2=Unproven·Structural Gap 披露[owner=后续 Domain/
+  Observation change·禁 0 事件=Satisfied]; 两澄清入稿[sufficiency
+  minimum≠continuity completeness proof·DD=declaration-bearing 非
+  异常禁 DD>0→FAIL]; P2 Failed 收紧[Violated∨TransitionFailed∨任何
+  TransitionFailure 终态]; 谓词文档 FROZEN-FINAL(R55.2); 下一步=直接
+  进入 A2-8-04 Final Gate 新鲜证据窗执行→Gate 层 AND→A2-8-05 待]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
