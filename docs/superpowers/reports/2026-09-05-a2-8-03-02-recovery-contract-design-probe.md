@@ -1,8 +1,9 @@
 # A2-8-03-02 Recovery Contract 设计探针/冻结提案（Design Probe / Freeze Proposal）
 
-状态: **DESIGN DELIVERED / FREEZE NOT YET COMPLETE** —— OQ-R1..R5 待用户
-裁决; 裁决前**不得**称"已冻结 Contract"、**不得**开写 Recovery 实现代码
-（R47 裁决命名纠偏: 设计提案 → OQ-R1..R5 用户裁决 → Contract Freeze → 实现）。
+状态: **CONTRACT FROZEN（R49, 2026-09-05 用户 OQ-R1..R5 终裁: R1=案 A
+全维持现状 / R2/R3/R5 接受 / R4 已闭）** —— 六面（F-1..F-6）冻结=既有
+行为+边界+"不新增语义"约束; **零运行时代码收口, 无独立实现轮**; 冻结
+记录见 §9。
 授权来源: R46 裁决 §17（先 Group Watchdog 真机活体, 再 03-02 Recovery Contract;
 开发线=comet/a2-8-dual-input-switch@f5eedcb, master=7745968 勿混）
 
@@ -42,7 +43,7 @@
 - **冻结约束**: MediaBackend::recover SPI 冻结（R34: 诊断注入 view 之外
   零改）; stop 注销语义不可反转; custody 七不; 单故障分类器禁扩。
 
-## §3 五面契约提案（默认值=提案, 全部待用户冻结）
+## §3 六面契约提案（F-1..F-6; R49 冻结=按案 A 成文, 见 §9）
 
 - **F-1 domain → recovery strategy**: 提案**不新造 Strategy 词表**——
   现有动作面已足够表达首版语义: Input 域 → 现状 recover(own handle)
@@ -69,13 +70,13 @@
 
 ## §4 OQ 汇总（待裁）
 
-| OQ | 问题 | 提案默认 |
-|---|---|---|
-| OQ-R1 | Bridge/Program 域执行分支: 显式跳 recover vs 全维持现状 | **全维持现状（03-02 记账收口零代码候选）** |
-| OQ-R2 | 域永不参与 restart budget/circuit 冻结 | 接受 |
-| OQ-R3 | 策略消费点=执行域（watchdog） | 接受 |
-| OQ-R4 | 故障动作路径决策输入活体指纹缺口: 接受"纯测试+gate L5d+线程活体"证据组合关闭 G-2-G, 还是要求自然故障长窗复跑 | 待裁 |
-| OQ-R5 | 03-02 若为零代码收口: 是否需独立实现轮 | 待裁 |
+| OQ | 问题 | 提案默认 | 终裁（R49） |
+|---|---|---|---|
+| OQ-R1 | Bridge/Program 域执行分支: 显式跳 recover vs 全维持现状 | **全维持现状（03-02 记账收口零代码候选）** | **裁案 A（全维持现状）** |
+| OQ-R2 | 域永不参与 restart budget/circuit 冻结 | 接受 | **接受** |
+| OQ-R3 | 策略消费点=执行域（watchdog） | 接受 | **接受** |
+| OQ-R4 | 故障动作路径决策输入活体指纹缺口: 接受"纯测试+gate L5d+线程活体"证据组合关闭 G-2-G, 还是要求自然故障长窗复跑 | 待裁 | **已闭（R47, 不重开）** |
+| OQ-R5 | 03-02 若为零代码收口: 是否需独立实现轮 | 待裁 | **接受（无独立实现轮）** |
 
 ## §5 红线继承（实现期不可触碰）
 
@@ -83,7 +84,7 @@ MediaBackend::recover SPI / stop 注销语义 / Supervisor action 词表 /
 单故障优先序分类器 / custody 七不 / 勿杀 ball 源 / 归因禁放宽（nil 不
 自动绑定）/ EventLog 契约（P1-3 FIFO+丢弃计数 fail-closed）。
 
-## §6 若 OQ-R1 裁"执行分支"的最小实现影响面（预估, 未授权）
+## §6 若 OQ-R1 裁"执行分支"的最小实现影响面（预估; **R49: 未启用**——OQ-R1 裁案 A, 保留为历史预估）
 
 watchdog Restart 分支读 last_decision_domain → Input → recover(own
 handle)（现状）; Bridge/Program → 跳 recover + 现有 escalate 面; +纯函数
@@ -143,3 +144,30 @@ handle)（现状）; Bridge/Program → 跳 recover + 现有 escalate 面; +纯�
   改 FROZEN, item-5 的 03-02 子项收口, A2-8-04（item 6）开启; 裁案 B ⇒
   先最小实现+矩阵+真机再收口。
 - 基线: 开发线 6f5735e（R48 账单元后新头）·master=7745968。
+
+## §9 R49 Contract Freeze 记录（2026-09-05, 用户 OQ-R1..R5 终裁落账）
+
+- **OQ 终裁（用户 R49 裁决）**: OQ-R1=**裁案 A（全维持现状）**——
+  FailureDomain/AttributedFailures=evidence / attribution /
+  decision-input, **≠** 新 Recovery Strategy selector / 新 restart
+  语义 / 新 escalation 词表; **不新增 Recovery runtime code**（用户原语:
+  "不是少做一点, 而是更严格地保持已经形成的架构边界"）。OQ-R2=接受
+  （域永不参与 restart budget/circuit; RestartPolicy unchanged）;
+  OQ-R3=接受（消费点=执行域既有 last_decision_*; Supervisor decision
+  vocabulary 不变）; OQ-R4=已闭（R47, 不重开——E2E 永不塞回 G-2 Final）;
+  OQ-R5=接受（案 A 下无独立 Recovery implementation round）。
+- **状态提升**: DESIGN DELIVERED / FREEZE NOT YET COMPLETE →
+  **CONTRACT FROZEN（R49）**。六面（F-1..F-6）按案 A 冻结——**冻结的是
+  既有行为+边界+"不新增语义"的约束本身**（零运行时代码收口）: F-1=域只
+  作证据面不驱动执行分支; F-5=消费点契约边界**潜伏**（未来若消费=执行
+  域, 本轮零新代码）; F-2/F-3/F-4/F-6=既有行为成文冻结。
+- **术语一次性统一（R47 §九授权, 本节执行）**: 非引用处"五面"→"六面"
+  恰三处修正——本 doc §3 标题 + 主账 §61 行 + tasks R46 段; 引用纠错
+  原文处（本 doc §7/§8、主账 §62.4、tasks R47/R48 段中的引号内引用）
+  **保留不改动**（改动=伪造被纠错对象）。
+- **Recovery runtime code 状态语**: NOT NEEDED（案 A 裁决——非仅
+  NOT STARTED）。
+- **后续**: 03-02 收口直进 A2-8-04（SoT 探针 R49 同轮开启, 独立单元）;
+  G-2-G-E2E 语义归属 03-02/A2-8-04 边界不变, 状态语言规则持续生效
+  （"03-02=FROZEN" 自本轮起可说; "G-2-G E2E=PASS"/"Recovery E2E=
+  COMPLETE" 仍然禁说）。

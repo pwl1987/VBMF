@@ -3473,7 +3473,7 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 ### 61.3 03-02 Recovery Contract 设计冻结提案（零实现, 新探针文档）
 
 - 交付 `2026-09-05-a2-8-03-02-recovery-contract-design-probe.md`:
-  As-Is 实锚（决策/执行/证据/冻结四面）+ 五面契约提案（F-1 domain→
+  As-Is 实锚（决策/执行/证据/冻结四面）+ 六面契约提案（F-1 domain→
   strategy: **提案不新造 Strategy 词表**; F-2 attribution→target 双路→
   own handle 冻结; F-3 RestartPolicy 零变化; F-4 fail-closed None→现状;
   F-5 **消费点=执行域**（watchdog 读 last_decision_* ——Supervisor 判定
@@ -3593,3 +3593,59 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - 无代码变更⇒无矩阵需求; 无真机动作（§十五: 活体复跑终止）。
 - 基线: comet/a2-8-dual-input-switch@6f5735e, master=7745968（本节提交
   后新头）。
+
+## §64 第四十九轮（OQ-R1..R5 终裁落账 + 03-02 Contract Freeze + 六面统一 + A2-8-04 开启; 零运行时代码）
+
+### 64.1 R48 复核登记 + OQ-R1..R5 终裁（用户 R49 裁决）
+
+- R48 复核=🟢 PASS（1-7/9 落实; 8=memory sync 自证项接受不阻塞）; 用户
+  重核事实: 远端=a6af188、master=7745968 未推进、a6af188 ledger-only
+  属实、无 03-02 偷冻结、无架构偷改（FailureDomain 未变新 Strategy
+  selector）; "不应该再做 R49 式的重复审计或重新跑 R46/R47" 接收。
+- **OQ 终裁**: OQ-R1=**案 A（全维持现状）**——FailureDomain=evidence/
+  attribution/decision-input, ≠新 Recovery Strategy selector/≠新
+  restart 语义/≠新 escalation 词表; **不新增 Recovery runtime code**
+  （用户原语: "不是少做一点, 而是更严格地保持已经形成的架构边界"）。
+  OQ-R2=接受（域永不参与 restart budget/circuit; RestartPolicy
+  unchanged）; OQ-R3=接受（消费点=执行域既有 last_decision_*;
+  Supervisor 词表不变）; OQ-R4=已闭不重开（E2E 永不塞回 G-2 Final）;
+  OQ-R5=接受（案 A 下无独立 Recovery implementation round）。
+
+### 64.2 03-02 Contract Freeze（DESIGN DELIVERED → FROZEN）
+
+- 状态正式提升 **CONTRACT FROZEN（R49）**（03-02 doc 状态行+§4 终裁列+
+  §6 未启用注记+§9 冻结记录）; 冻结内容=六面（F-1..F-6）既有行为+边界+
+  "不新增语义"约束——**零运行时代码收口**; Recovery runtime code 状态语
+  =NOT NEEDED（案 A, 非仅 NOT STARTED）。
+- **术语一次性统一（R47 §九授权执行）**: 非引用处"五面"→"六面"恰三处
+  （03-02 §3 标题/主账 §61 行/tasks R46 段）; 引用纠错原文处保留（改
+  动=伪造被纠错对象）。
+- 状态语言规则更新: **"03-02=FROZEN" 自本轮起解锁可说**（R48 禁语条件
+  已满足）; "G-2-G E2E=PASS"/"Recovery E2E=COMPLETE" **仍然禁说**（E2E
+  未实现未验证, 归属 03-02/A2-8-04 边界不变）。
+
+### 64.3 A2-8-04 开启（SoT 探针同轮交付, 独立第二单元）
+
+- 形态发现（探针实锚, 非类推）: tasks "六路 PTS"=**TimelineSample 六
+  PTS 流**（input/bridge/program × video/audio, program_execution.rs:
+  66-77）——**六路已在 gate L4 同采（只测量）**; 现判据仅覆盖
+  L4-SWITCH+L4-TIMELINE（program video 主导九项合取）, 其余五路未判。
+- 四失败模式×现有面: rollback=六路 PtsMonotonicity 四态已在;
+  discontinuity=DiscontinuityDeclared+program 双平面 PlaneContinuity
+  已在; divergence=**两语义未消歧**（pad 分离=av_paired 已检出
+  [watchdog.rs:460]/PTS 时序漂移=**零观测面**）; starvation=stalled 旗
+  [contracts/switch.rs:52]+progress_since+alive_in_window 已在, 验收
+  判据形状未定义。
+- **OQ-T1..T6 待裁——裁决前零实现**（判据落点[新增独立验收节不触 L4
+  冻结判据]/divergence 语义与界限[漂移首版只测量+分布取证]/starvation
+  判据复用 progress_since/input-bridge 平面 continuity 必要性/合成谓词
+  形状/与 C-TIMELINE-01 冻结关系确认不重开）。
+- 红线继承: observation only 无 Engine; L4 冻结判据零触碰（解冻需用户
+  明示授权）; 首跑 FAIL 留证禁为跑绿改判据。
+
+### 64.4 本轮执行（零运行时代码零矩阵）
+
+- 提交两单元: ①freeze 账（03-02 doc 冻结提升+主账 §64+tasks item-5
+  R49 段+三处五面→六面）; ②A2-8-04 SoT 探针（新探针 doc+tasks item-6
+  开启段）。03-01 探针仍止于 §12（本轮无 03-01 域新裁定）; 无真机动作。
+- 基线: a6af188..（本轮两单元后新头）, master=7745968。

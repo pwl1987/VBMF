@@ -794,7 +794,7 @@
   2026-09-05-r46-g2g-group-watchdog-live]; 仍缺如实记档: 故障动作路径
   决策输入活体指纹=0[窗口零自然故障·ball 源勿杀·生产注入面 gate-only
   红线]——OQ-R4 待裁[证据组合关闭 G-2-G vs 自然故障长窗复跑]; 03-02
-  Recovery Contract 设计冻结提案已交付[五面 F-1..F-6+OQ-R1..R5 待裁;
+  Recovery Contract 设计冻结提案已交付[六面 F-1..F-6+OQ-R1..R5 待裁;
   提案默认=不新造 Strategy 词表+消费点=执行域读 last_decision_*+
   Supervisor 判定/词表零变化+OQ-R1 全维持现状零代码收口候选]; 本项
   保持未勾——G-2 Final/03-02 冻结/A2-8-04 专项均待裁待做]**
@@ -830,6 +830,18 @@
   保持零 Recovery runtime code; 03-01 探针本轮不新增（R48 无 03-01 域
   新裁定·止于 §12——披露）; 本项保持未勾——03-02 冻结待 OQ 终裁/
   03-03[G-3]/03-04[G-4] 未做]**
+  **[第四十九轮（主账 §64, 03-02 doc §9, OQ-R1..R5 终裁+03-02 Contract
+  Freeze+六面统一; 零运行时代码零矩阵）: R48 复核=PASS 登记[远端 a6af188·
+  master 7745968·无偷冻结无架构偷改]; **OQ-R1=案 A 全维持现状**[域=
+  evidence/attribution/decision-input≠新 Strategy selector/restart 语义/
+  escalation 词表·不新增 Recovery runtime code·"不是少做而是更严格保持
+  边界"]+OQ-R2/R3/R5 接受+OQ-R4 已闭不重开; **03-02=CONTRACT FROZEN
+  （R49）**[六面 F-1..F-6 冻结=既有行为+边界+"不新增语义"约束·零代码
+  收口·无独立实现轮·F-5 消费点契约潜伏·Recovery code 状态语=NOT NEEDED];
+  五面→六面一次性统一[非引用恰三处: 03-02 §3 标题/主账 §61 行/本文件
+  R46 段·引用纠错原文保留]; "03-02=FROZEN" 表述解锁·E2E 两句仍禁;
+  A2-8-04 SoT 探针同轮开启（独立第二单元）; 本项保持未勾——03-02 已
+  冻结收口但 03-03[G-3 暂不授权]/03-04[G-4·Mock A/B DEFERRED] 未做]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案
