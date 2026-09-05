@@ -94,6 +94,26 @@ fn sleep(sec: u64) {
     std::thread::sleep(std::time::Duration::from_secs(sec));
 }
 
+/// A2-8-04（R51 Unit 1）: 三列原始观测 owned 快照——供
+/// `SixPathInputs` 借用装配六路取证行（observation only, 不判定）。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+struct PathSnapshot {
+    input: Option<crate::pipeline::PipelineHealth>,
+    bridge: Option<crate::contracts::media_tap::BridgeObservation>,
+    program: ProgramObservation,
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+impl PathSnapshot {
+    fn inputs(&self) -> crate::program_execution::SixPathInputs<'_> {
+        crate::program_execution::SixPathInputs {
+            input: self.input.as_ref(),
+            bridge: self.bridge.as_ref(),
+            program: &self.program,
+        }
+    }
+}
+
 /// 记录单条 verdict（打印 + 入账）。独立 fn 而非捕获闭包——fail-stop 路径
 /// 需在 record 之后立刻不可变借用 verdicts 终裁（H1）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
@@ -619,6 +639,66 @@ pub fn run(
     print_row("pre A", &pre_a);
     print_row("pre B", &pre_b);
 
+    // ── A2-8-04 六路逐平面取证（R51 Unit 1: observation only——只测量,
+    //    不判定/无阈值/L4 判据零变化。PRE 对=切换前相位推进; SPAN=跨切换
+    //    推进（starvation 证据基础——R50 T3: 聚合 progress_since 不能证
+    //    逐平面）; POST 对=切换后相位推进。absence≠false: adv=None 如实。）──
+    let snapshot_row = |input: &SessionInput, prog: &ProgramObservation| PathSnapshot {
+        input: crate::pipeline_events::read_health(&input.handle),
+        bridge: bridge_port.as_ref().and_then(|bp| {
+            bp.bridge_observations(&input.handle)
+                .into_iter()
+                .find(|b| b.channel == crate::program_execution::tap_channel(input.device_id))
+        }),
+        program: prog.clone(),
+    };
+    let evidence_row = |label: &str, e: &crate::program_execution::SixPathEvidence| {
+        let cell = |x: &crate::program_execution::PathEvidence| {
+            format!(
+                "pts={:?} st={:?} fr={:?} adv={:?}",
+                x.pts, x.pts_state, x.frames, x.advanced
+            )
+        };
+        println!(
+            "  [{label}] dev={} phase={:?} epoch={} av_delta={:?}ns | in_v({}) in_a({}) br_v({}) br_a({}) pr_v({}) pr_a({})",
+            e.device,
+            e.phase,
+            e.switch_epoch,
+            e.program_av_delta_ns,
+            cell(&e.input_video),
+            cell(&e.input_audio),
+            cell(&e.bridge_video),
+            cell(&e.bridge_audio),
+            cell(&e.program_video),
+            cell(&e.program_audio),
+        );
+    };
+    println!("=== A2-8-04 六路逐平面取证（observation only·不判定·无阈值）===");
+    let pre1_a = snapshot_row(&started_inputs[0], &obs2);
+    let pre1_b = snapshot_row(&started_inputs[1], &obs2);
+    sleep(SAMPLE_GAP_SECS);
+    let obs2_next = switcher.observe(&graph).program;
+    let pre2_a = snapshot_row(&started_inputs[0], &obs2_next);
+    let pre2_b = snapshot_row(&started_inputs[1], &obs2_next);
+    evidence_row(
+        "PRE A",
+        &crate::program_execution::assemble_six_path_evidence(
+            started_inputs[0].device_id,
+            crate::program_execution::EvidencePhase::PreSwitch,
+            Some(&pre1_a.inputs()),
+            &pre2_a.inputs(),
+        ),
+    );
+    evidence_row(
+        "PRE B",
+        &crate::program_execution::assemble_six_path_evidence(
+            started_inputs[1].device_id,
+            crate::program_execution::EvidencePhase::PreSwitch,
+            Some(&pre1_b.inputs()),
+            &pre2_b.inputs(),
+        ),
+    );
+
     // A→B 切换（诊断消费方经 Runtime 全链直驱——timeline orchestration ①-⑩;
     // Supervisor 不介入。C-TIMELINE-01 ⑫: L4=switch 正确 ∧ Timeline 九项合取）。
     let target_b = started_inputs[1].device_id;
@@ -644,6 +724,51 @@ pub fn run(
             println!("=== A2-8 L4 三列 PTS 证据（post-switch; 只测量）===");
             print_row("post A", &post_a);
             print_row("post B", &post_b);
+            // A2-8-04 SPAN（跨切换: pre2→post1——切换期 starvation 证据
+            // 基础）+ POST 对（切换后相位推进）。L4 判据输入已全部捕获,
+            // 本节只追加观测行。
+            let post1_a = snapshot_row(&started_inputs[0], &post);
+            let post1_b = snapshot_row(&started_inputs[1], &post);
+            evidence_row(
+                "SPAN A",
+                &crate::program_execution::assemble_six_path_evidence(
+                    started_inputs[0].device_id,
+                    crate::program_execution::EvidencePhase::PostSwitch,
+                    Some(&pre2_a.inputs()),
+                    &post1_a.inputs(),
+                ),
+            );
+            evidence_row(
+                "SPAN B",
+                &crate::program_execution::assemble_six_path_evidence(
+                    started_inputs[1].device_id,
+                    crate::program_execution::EvidencePhase::PostSwitch,
+                    Some(&pre2_b.inputs()),
+                    &post1_b.inputs(),
+                ),
+            );
+            sleep(SAMPLE_GAP_SECS);
+            let post_obs2 = switcher.observe(&graph).program;
+            let post2_a = snapshot_row(&started_inputs[0], &post_obs2);
+            let post2_b = snapshot_row(&started_inputs[1], &post_obs2);
+            evidence_row(
+                "POST A",
+                &crate::program_execution::assemble_six_path_evidence(
+                    started_inputs[0].device_id,
+                    crate::program_execution::EvidencePhase::PostSwitch,
+                    Some(&post1_a.inputs()),
+                    &post2_a.inputs(),
+                ),
+            );
+            evidence_row(
+                "POST B",
+                &crate::program_execution::assemble_six_path_evidence(
+                    started_inputs[1].device_id,
+                    crate::program_execution::EvidencePhase::PostSwitch,
+                    Some(&post1_b.inputs()),
+                    &post2_b.inputs(),
+                ),
+            );
             let l4_switch = completed
                 && post.observed_active == Some(target_b)
                 && report.executed.av_epoch == 1
@@ -695,6 +820,7 @@ pub fn run(
             );
         }
         Err(e) => {
+            println!("=== A2-8-04 六路取证: 切换失败——SPAN/POST 行不产生（如实缺席）===");
             l4_detail = format!("切换失败: {e:?}");
         }
     }

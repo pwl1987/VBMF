@@ -173,6 +173,178 @@ pub fn input_progress_since(
     cur.video_frame_count > prev.video_frame_count || cur.audio_frame_count > prev.audio_frame_count
 }
 
+// === A2-8-04: 六路逐平面连续性取证（R51 Unit 1——observation only） ===
+// R50 OQ-T3 修订后冻结: `program_progress_since`/`input_progress_since`
+// 为聚合 A/V "或"——不能证六路逐平面推进。本面逐路独立记账, **只测量
+// 不判定**（无阈值/无判据/不触 L4——判据属取证后的验收层）。absence≠
+// false: `advanced=None`=无可比帧计数证据, 与 `Some(false)`=有证据未
+// 推进严格分离。
+
+/// 取样所处切换阶段标签（调用方时序标注, 纯数据——无判定语义）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidencePhase {
+    PreSwitch,
+    PostSwitch,
+}
+
+/// 单路证据行: PTS + 单调态 + 帧计数 + 相对前一采样的推进证据。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathEvidence {
+    pub pts: Option<u64>,
+    pub pts_state: crate::pipeline::PtsMonotonicity,
+    /// 该路帧计数（观测行缺席=None——如 bridge 无对应行）。
+    pub frames: Option<u64>,
+    /// 相对前一采样推进: None=无可比证据（absence≠false）。
+    pub advanced: Option<bool>,
+}
+
+/// 六路证据行（input/bridge/program × video/audio——按 device 一行;
+/// program 列为整图共享）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SixPathEvidence {
+    pub sampled_at_ms: u64,
+    pub device: uuid::Uuid,
+    pub phase: EvidencePhase,
+    /// 采样时 adapter 侧切换计数（`ProgramObservation.switch_epoch` 同源）。
+    pub switch_epoch: u64,
+    pub input_video: PathEvidence,
+    pub input_audio: PathEvidence,
+    pub bridge_video: PathEvidence,
+    pub bridge_audio: PathEvidence,
+    pub program_video: PathEvidence,
+    pub program_audio: PathEvidence,
+    /// T2（R50 冻结）: 只测量 `|program_v_pts − program_a_pts|`——ns 可比
+    /// ≠阈值授权（阈值禁令维持）; 任一平面无 PTS=None。
+    pub program_av_delta_ns: Option<u64>,
+}
+
+/// 三列原始观测借用面（与 `assemble_timeline_sample` 同源三面: 输入=
+/// 输入管线健康弧; 桥=BridgeObservation 行[按 tap_channel 选行];
+/// 程序=ProgramObservation）。
+pub struct SixPathInputs<'a> {
+    pub input: Option<&'a crate::pipeline::PipelineHealth>,
+    pub bridge: Option<&'a crate::contracts::media_tap::BridgeObservation>,
+    pub program: &'a crate::contracts::switch::ProgramObservation,
+}
+
+/// 单路装配: 行缺席→全 None/Unknown + advanced=None; 帧计数双方在场
+/// 才产出推进证据（absence≠false）。
+fn path_row(
+    cur: Option<(Option<u64>, crate::pipeline::PtsMonotonicity, Option<u64>)>,
+    prev_frames: Option<Option<u64>>,
+) -> PathEvidence {
+    PathEvidence {
+        pts: cur.as_ref().and_then(|c| c.0),
+        pts_state: cur
+            .map(|c| c.1)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        frames: cur.and_then(|c| c.2),
+        advanced: match (prev_frames.flatten(), cur.and_then(|c| c.2)) {
+            (Some(p), Some(c)) => Some(c > p),
+            _ => None,
+        },
+    }
+}
+
+/// 六路证据装配（纯函数——两快照 join, 只取证不判定）。
+pub fn assemble_six_path_evidence(
+    device: uuid::Uuid,
+    phase: EvidencePhase,
+    prev: Option<&SixPathInputs<'_>>,
+    cur: &SixPathInputs<'_>,
+) -> SixPathEvidence {
+    // 输入列: 行在=健康弧在（帧计数恒 u64, 非 Option 源）。
+    let cur_input = |video: bool| {
+        cur.input.map(|h| {
+            if video {
+                (
+                    h.video_last_pts,
+                    h.video_pts_state,
+                    Some(h.video_frame_count),
+                )
+            } else {
+                (
+                    h.audio_last_pts,
+                    h.audio_pts_state,
+                    Some(h.audio_frame_count),
+                )
+            }
+        })
+    };
+    let prev_input = |video: bool| {
+        prev.and_then(|p| p.input).map(|h| {
+            Some(if video {
+                h.video_frame_count
+            } else {
+                h.audio_frame_count
+            })
+        })
+    };
+    // 桥列: 行缺席=无 bridge_observation 匹配行（frames None→advanced None）。
+    let cur_bridge = |video: bool| {
+        cur.bridge.map(|b| {
+            if video {
+                (b.video_last_pts, b.video_pts_state, Some(b.video_frames))
+            } else {
+                (b.audio_last_pts, b.audio_pts_state, Some(b.audio_frames))
+            }
+        })
+    };
+    let prev_bridge = |video: bool| {
+        prev.and_then(|p| p.bridge).map(|b| {
+            Some(if video {
+                b.video_frames
+            } else {
+                b.audio_frames
+            })
+        })
+    };
+    // 程序列: 行恒在（ProgramObservation 必有）。
+    let cur_prog = |video: bool| {
+        Some(if video {
+            (
+                cur.program.program_video_pts,
+                cur.program.program_video_pts_state,
+                Some(cur.program.program_video_frames),
+            )
+        } else {
+            (
+                cur.program.program_audio_pts,
+                cur.program.program_audio_pts_state,
+                Some(cur.program.program_audio_frames),
+            )
+        })
+    };
+    let prev_prog = |video: bool| {
+        prev.map(|p| {
+            Some(if video {
+                p.program.program_video_frames
+            } else {
+                p.program.program_audio_frames
+            })
+        })
+    };
+    SixPathEvidence {
+        sampled_at_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        device,
+        phase,
+        switch_epoch: cur.program.switch_epoch,
+        input_video: path_row(cur_input(true), prev_input(true)),
+        input_audio: path_row(cur_input(false), prev_input(false)),
+        bridge_video: path_row(cur_bridge(true), prev_bridge(true)),
+        bridge_audio: path_row(cur_bridge(false), prev_bridge(false)),
+        program_video: path_row(cur_prog(true), prev_prog(true)),
+        program_audio: path_row(cur_prog(false), prev_prog(false)),
+        program_av_delta_ns: match (cur.program.program_video_pts, cur.program.program_audio_pts) {
+            (Some(v), Some(a)) => Some(v.abs_diff(a)),
+            _ => None,
+        },
+    }
+}
+
 /// 故障域分类（G/H ④: Input/Bridge/Program 组合观测——单故障假设,
 /// 优先序 Input>Bridge>Program; 多重并发故障如实报首因不做多维归因）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1122,5 +1294,138 @@ mod tests {
             "位置=实测 program pts（恒等映射下 mapped==observed）"
         );
         rt.teardown();
+    }
+}
+
+// === A2-8-04 六路取证面纯函数测试（R51 Unit 1——observation only） ===
+#[cfg(test)]
+mod six_path_tests {
+    use super::*;
+
+    fn health(v_fr: u64, a_fr: u64) -> crate::pipeline::PipelineHealth {
+        crate::pipeline::PipelineHealth {
+            video_frame_count: v_fr,
+            audio_frame_count: a_fr,
+            ..Default::default()
+        }
+    }
+
+    fn bridge(v_fr: u64, a_fr: u64) -> crate::contracts::media_tap::BridgeObservation {
+        crate::contracts::media_tap::BridgeObservation {
+            channel: "ch".into(),
+            video_last_pts: Some(1_000),
+            audio_last_pts: Some(1_200),
+            video_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            video_frames: v_fr,
+            audio_frames: a_fr,
+        }
+    }
+
+    fn program_obs(
+        v_fr: u64,
+        a_fr: u64,
+        v_pts: Option<u64>,
+        a_pts: Option<u64>,
+    ) -> crate::contracts::switch::ProgramObservation {
+        crate::contracts::switch::ProgramObservation {
+            observed_active: None,
+            video_active: None,
+            audio_active: None,
+            switch_epoch: 0,
+            input_pts: Vec::new(),
+            program_video_pts: v_pts,
+            program_audio_pts: a_pts,
+            program_video_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            program_audio_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            program_video_frames: v_fr,
+            program_audio_frames: a_fr,
+        }
+    }
+
+    /// T3 实锚（R50 修订）: input video 冻结、audio 推进——聚合
+    /// `input_progress_since` 会报"推进", 逐平面证据必须分记
+    /// Some(false)/Some(true)。
+    #[test]
+    fn per_plane_independence_input() {
+        let dev = uuid::Uuid::new_v4();
+        let prog = program_obs(10, 10, Some(5_000), Some(5_500));
+        let prev = SixPathInputs {
+            input: Some(&health(10, 10)),
+            bridge: None,
+            program: &prog,
+        };
+        let cur = SixPathInputs {
+            input: Some(&health(10, 12)),
+            bridge: None,
+            program: &prog,
+        };
+        let e = assemble_six_path_evidence(dev, EvidencePhase::PreSwitch, Some(&prev), &cur);
+        assert_eq!(
+            e.input_video.advanced,
+            Some(false),
+            "video 冻结=有证据未推进"
+        );
+        assert_eq!(e.input_audio.advanced, Some(true), "audio 推进");
+        assert_eq!(e.input_video.frames, Some(10));
+        assert_eq!(e.program_av_delta_ns, Some(500));
+    }
+
+    /// absence≠false: bridge/input 行缺席→frames/advanced=None;
+    /// PTS 缺一平面→av_delta=None; prev=None→全路 advanced=None。
+    #[test]
+    fn absence_is_not_false() {
+        let dev = uuid::Uuid::new_v4();
+        let prog = program_obs(10, 10, Some(5_000), None);
+        let cur = SixPathInputs {
+            input: None,
+            bridge: None,
+            program: &prog,
+        };
+        let e = assemble_six_path_evidence(dev, EvidencePhase::PreSwitch, None, &cur);
+        assert_eq!(e.bridge_video.frames, None);
+        assert_eq!(e.bridge_video.advanced, None);
+        assert_eq!(
+            e.bridge_video.pts_state,
+            crate::pipeline::PtsMonotonicity::Unknown
+        );
+        assert_eq!(e.input_video.frames, None);
+        assert_eq!(
+            e.program_av_delta_ns, None,
+            "audio PTS 缺席→delta=None 非差值"
+        );
+        assert_eq!(e.program_video.advanced, None, "无 prev=无可比证据");
+    }
+
+    /// bridge v 冻结/a 推进 + program 双平面推进 + epoch/phase 透传;
+    /// av_delta=|v−a| 只测量。
+    #[test]
+    fn bridge_program_paths_independent_and_epoch_passthrough() {
+        let dev = uuid::Uuid::new_v4();
+        let b1 = bridge(7, 7);
+        let b2 = bridge(7, 9);
+        let p1 = program_obs(100, 100, Some(50_000), Some(50_900));
+        let mut p2 = program_obs(125, 125, Some(51_000), Some(51_900));
+        p2.switch_epoch = 1;
+        let h = health(5, 5);
+        let prev = SixPathInputs {
+            input: Some(&h),
+            bridge: Some(&b1),
+            program: &p1,
+        };
+        let cur = SixPathInputs {
+            input: Some(&h),
+            bridge: Some(&b2),
+            program: &p2,
+        };
+        let e = assemble_six_path_evidence(dev, EvidencePhase::PostSwitch, Some(&prev), &cur);
+        assert_eq!(e.bridge_video.advanced, Some(false));
+        assert_eq!(e.bridge_audio.advanced, Some(true));
+        assert_eq!(e.program_video.advanced, Some(true));
+        assert_eq!(e.program_audio.advanced, Some(true));
+        assert_eq!(e.input_video.advanced, Some(false));
+        assert_eq!(e.switch_epoch, 1);
+        assert_eq!(e.phase, EvidencePhase::PostSwitch);
+        assert_eq!(e.program_av_delta_ns, Some(900));
     }
 }
