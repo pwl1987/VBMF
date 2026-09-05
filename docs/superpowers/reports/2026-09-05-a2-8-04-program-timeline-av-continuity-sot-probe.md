@@ -546,3 +546,28 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
 - 诚实边界: 违例帧未被直接观测（无逐缓冲轨迹; M1=排除法+算术自洽的
   推理结论, 幅度 ≈40ms 为机制推断值）; A 未推进(k=0)为最简推断;
   红线全维持（零代码零判据、首败留证、不为跑绿调整）。
+
+### §16.1 R57 终裁复核（验收层 M1′ 修正裁决 × 源码逐条复核, 2026-09-05）
+
+- **实体裁决全成立**: FAIL/HOLD 维持·三 blocking 维持·调用链与
+  "③ pre-flip install" 注释（program_execution.rs:596-716/:624）·
+  `!t.executed` 门控（switch_graph.rs:221-223）·executed=true 仅
+  switch 后置位（:843-845）·锚读取面=健康弧末值+分支末值且
+  +last_delta 外推已删（:946-962/:126-129）·clean 相对序判定
+  （:265-268）·Authority 轮询两时间尺度（⑤-⑧ 只喂 facts :645-647）·
+  R53 生命周期·offset 唯一生产·R57-A/B/C/D 分级·修复否决三项·
+  边界原子性目标·Mutex 不足（状态已 Arc<Mutex>——缺口是协议定序）。
+- **M1′ 替换案被反驳, M1 维持**: [①c→③] 窗内槽中为 #7 状态
+  （executed=true; install :891 替换式写入, 运行期无清槽点）→出发源
+  帧仍被旧段映射; raw 无映射窗实为 [③→④], 且 offset#7=+100131607>0
+  ⇒ raw 帧落基线−100ms 被 #8 边界 clean→DD 覆写——与"跨 #9 才解除"
+  签名矛盾。裁决自身算术（P→P+40ms→A=P）即映射帧签名（raw 位移=
+  −offset7）。M1 = 唯一与源码结构和 #8 现场双相容机制。
+- **接受的锐化**: §六 相对序（R57 §5.2 精确化为条件排除
+  offset_prev>0, #8 成立）; §十七 mock 缺口加强（switch_mock.rs:396
+  observe→tick_once; :406-415 program pts_state 硬编码
+  ValidMonotonic——结构上不可复现竞态）。
+- **R58 输入修正**: 修复不变量按"健康弧观测序"表述（appsink
+  transit 晚于探针改写）; 确定性测试主缝=[①c→③] 映射帧注入, 次缝=
+  [③→④] raw（符号条件一般化面）; mock 需增强为可注入交错模型。
+- 红线全维持; 违例帧未直测的诚实边界维持; 全文 = R57 文档 §10。

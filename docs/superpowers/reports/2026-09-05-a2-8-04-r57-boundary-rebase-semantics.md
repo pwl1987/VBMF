@@ -252,3 +252,103 @@ absence≠false; 四态禁洗; DD 非异常禁 DD>0→FAIL; L4/Supervisor/
 PipelineHealth/SwitchGraph/SixPathEvidence/dual_input 运行时零触碰
 （只读核验）; A2-8-05 不进入（Gate 仍 FAIL/HOLD）; 不为跑绿调整任何
 判据或删除 NM——R56 的 FAIL 与六行 NM 是本轮全部推理的证据地基。
+
+---
+
+## §10 R57 终裁复核（验收层 M1′ 修正裁决 × 实现层源码逐条复核, 2026-09-05）
+
+授权: 验收层 R57 终裁全文（要求 "逐条复核并逐项确认; 不接受 R57 文档
+推理结论作前提, 用 2972fb8 实际代码逐层反证"）。基线核对: 2972fb8 =
+R56 Final Gate FAIL 提交（提交信息含 #8 B→A/pr_v/NM=6）✓; 本地
+a8ac09a = 其上纯 docs 差异（5 文件 +398/−2, `git diff --stat` 核对）——
+代码基线与裁决所引一致。
+
+### 10.1 裁决实体部分——逐项复核全部成立, 已落实
+
+| 裁决条目 | 复核（行号=当前源码实证） |
+|---|---|
+| A2-8-04 维持 FAIL/HOLD; 三 blocking 不撤销不豁免不修改 | ✓ 登记维持（本轮零 Gate 零判据） |
+| §二 调用链 ①a→①b①c→②→③(pre-flip install)→④→⑤-⑧→⑨→⑩ | ✓ 逐行证实（program_execution.rs:596-608/:610-613/:615-623/:625-627/:629-640/:642-668/:669-705/:707-716; "③ pre-flip install" 注释 :624 与 :578 原文在） |
+| §三 `apply_declared_mapping` 首条件 `!t.executed→None`; executed=true 仅 switch() 成功后置位; Segment 先于映射 | ✓（switch_graph.rs:221-223; :843-845 在双翻转 :822/:824 后; EVENT 探针 executed 门 :177-179 + :225-227） |
+| §四 锚=程序健康弧末值+目标分支末值; +last_delta 外推已删 | ✓（:946-962 read_health+branch_obs; last_delta 已 allow(dead_code) :126-129） |
+| §六 clean=!(mapped<last) 相对序决定 | ✓（:265-268） |
+| §七 Authority 轮询 vs 健康弧逐缓冲两时间尺度 | ✓（on_program_pts 仅 ①a :596-608 + ⑨ settle 轮询 :673-686; ⑤-⑧ 环只喂 facts :645-647——"可能完全错过"有源码支持） |
+| §八 ProgramObservation←HEALTH_ARCS; Authority 另链 | ✓ |
+| §九 六行=一事实六窗口投影 | ✓ 维持 |
+| §十 R53 段内闩锁/干净边界解除/plain sticky | ✓（:239-243; :273-280; pipeline.rs:323-333） |
+| §十一 offset 唯一生产=②declare; adapter 直存 plan 段不重算 | ✓（program_execution.rs:614 注释; :895 segment=plan.video; :229 map_pts） |
+| §十二 真正 gap=边界非原子（Authority 用 T0 位置, 健康弧可至 P+Δ） | ✓ 成立 |
+| §十三 修复否决三项（语义洗回退/40ms 阈值/Gate 忽略行） | ✓ 登记维持 |
+| §十四 修复=边界原子性临界区 | ✓ 接受为 R58 目标 |
+| §十五 不能只加 Mutex | ✓ 且加强: 状态本就是 Arc<Mutex<Option<TimelineExecutionState>>>（:328/:712/:891）——缺口是协议级跨线程定序, 非数据访问互斥 |
+| §十七 Mock observe()→tick_once() 掩盖并发 | ✓（switch_mock.rs:396）且加强: mock 运行时 program_*_pts_state **硬编码 ValidMonotonic**（:406-415）——结构上不可能产生 NM, 更不可能复现竞态 |
+| §十八 R57-A/B/C/D 分级 | ✓ 全维持 |
+| §二十 R58 边界原子性实现轮 11 步序 | ✓ 接受（步骤 4 注入缝按 10.4 修正） |
+
+### 10.2 机制叙述部分——M1′ 替换案被双重反驳, M1 维持
+
+裁决核心修正主张（"[锚采样→install] 窗内不存在声明映射帧, 因
+executed==false; 故 M1 不可能成立, 应改 M1′=raw/legacy 帧推进基准"）
+经源码逐层复核**不成立**——未通过裁决自身为 R57-C 设定的标准
+（"必须先从真实调用链证明"）:
+
+1. **窗口归属读反**: `!t.executed` 门控的是**当前已安装**的
+   TimelineExecutionState。#8 的 [①c 锚采样→③ install] 窗内, 槽中是
+   **#7 的状态**（#7 的 install 写入, #7 的 switch 置 executed=true）。
+   全仓唯一槽写点 = install 的替换式 `*slot=Some(...)`（:891）——
+   **运行图生命周期内无任何清槽**（:169/:189 探针克隆、:806/:843
+   switch、:980 facts、:1080 observe 全为读/改既有 Some, grep 核对）。
+   故该窗内出发源帧**仍被旧段 7 映射**（executed ✓ / segment_observed ✓
+   / pts ✓ → map_pts 改写）——这正是段间稳态映射持续生效的同一机制
+   （若旧状态被清, 段间所有帧都将是 raw——与全部字段据矛盾）。
+   executed=false 的无映射窗是 **[③ install→④ 翻转]**, 不是 [①c→③]。
+2. **符号封闭（现场数据）**: raw 路线即便经正确的 [③→④] 窗发生:
+   offset#7 = +100131607（§2 事件重建表, 正值）⇒ B raw 帧 = 映射值
+   −100.13ms ≈ 程序基线−100ms → plain 路径瞬时闩 NM → **#8 自身
+   边界 mapped=P 远高于该基线 → clean → DD 覆写解除**（:265-268/
+   :273-280/pipeline.rs:354-365）——与观测签名（NM 跨 SPAN8/POST8/
+   PRE9、至 #9 干净边界才解除、#8 边界本身非 clean）**直接矛盾**。
+   raw 路线对 #8 既产生不了持久 NM, 也解释不了非 clean 边界。
+
+佐证: 裁决自身的算术示例（anchor=P → 旧源帧 P+40ms → health.last=
+P+40ms → A 映射=P<P+40ms）是**映射帧签名**（raw 帧位移=−offset7≈
+−100ms, 非 +40ms）; §十二 的缺口陈述（"健康弧可能已推进到 P+Δ"）
+亦与 M1/W1 同构。
+
+**结论**: M1（[①c→③] 旧段映射帧穿越, 基线+1 帧 40ms, A 边界=锚成
+违例边界）维持为与源码结构和 #8 现场数据**双相容的唯一机制**; M1′
+作为替换案登记为 **PROPOSED-REFUTED**（窗口误置 + 符号封闭 + 签名
+矛盾）。
+
+### 10.3 接受的锐化（裁决 §六/§十七 的有效成分）
+
+- **§六 相对序修正成立为一般化**: "声明边界必洗此前 raw"非代码语义,
+  代码只按 mapped vs last 相对序判定。R57 §5.2 的 M2 洗除论证由此
+  精确化为**条件排除**（条件: raw 落边界下方 ⇔ offset_prev>0）。该
+  条件在 #8 现场成立（100ms 余量）, 故 §5.2 对 #8 的排除结论不变;
+  作为一般性陈述需附加符号条件——就地锐化登记。
+- **§十七 Mock 缺口确认并加强**: mock 的 program pts_state 为硬编码
+  常量, 连 NM 都无法表达——mock 证明 Domain/Adapter 状态机正确性,
+  不证明切换边界并发原子性; R58 确定性测试须补流线程交错注入能力。
+
+### 10.4 R58 输入（修复不变量与测试缝, 按复核修正）
+
+- **修复不变量**: 自锚快照时刻起, 至新段首枚映射缓冲被程序健康弧
+  **观测**止, 出发段不得再向程序健康弧贡献高于锚的映射观测。（以
+  "健康弧观测序"而非"探针穿越序"表述——selector 出口→appsink 有
+  管线 transit, 健康弧观测晚于探针改写。）
+- **候选实现族**（R58 步骤 3 设计裁决, 本轮不实施）: install 同临界
+  区重采样程序锚（漂移→fail-closed 重声明）; install 时冻结旧段映射
+  贡献上限; 程序锚读取移入 slot 锁并与 BUFFER 探针互斥。
+- **确定性测试注入缝（步骤 4 修正）**: 主缝 = [①c→③] 旧段映射帧
+  穿越（M1 复现: 锚 P → 注入映射帧 P+40ms → 翻转 → A 边界 P<基线
+  → NM）; 次缝 = [③→④] raw 透传（仅 offset_prev<0 时可见——#8 不
+  适用, 作 10.3 符号条件的一般化回归面）。mock 侧需增强为可注入
+  交错模型。
+
+### 10.5 红线（本轮维持）
+
+零代码零判据零 Gate 零阈值; 三 blocking 维持; 首败留证; 不为跑绿
+调整或删除 NM; **违例帧未被直接观测的诚实边界维持**（M1 仍为排除法
++算术自洽推理, M1′ 被反驳加强其排他性但不构成直接测量, 不升
+FieldProven）; A2-8-05 不进入。
