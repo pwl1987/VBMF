@@ -3649,3 +3649,132 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   R49 段+三处五面→六面）; ②A2-8-04 SoT 探针（新探针 doc+tasks item-6
   开启段）。03-01 探针仍止于 §12（本轮无 03-01 域新裁定）; 无真机动作。
 - 基线: a6af188..（本轮两单元后新头）, master=7745968。
+
+## §65 第五十轮（R49 二层代码真相审计 + OQ-T1..T6 终裁修订 + C-TIMELINE 状态校准; 零运行时代码）
+
+### 65.1 R49 复核登记 + 时间状态消歧（用户 §一）
+
+- R49 账面动作=🟢 PASS（03-02 冻结+OQ-R1..R5 终裁+开 A2-8-04 探针成立;
+  R49 自身零新增 runtime code 属实——OQ-T 不能全按原提案直接批准, 见
+  65.5）。用户审计对象（ProgramExecutionRuntime/ExecutionGroup/
+  SwitchExecutionAdapter/SwitchGraph/TimelineAuthority/TimelineSample/
+  MultiInputWatchdog/Supervisor/RestartPolicy/C-TIMELINE 冻结↔实现关系）
+  逐项与本账 SoT 实锚一致。
+- **时间状态消歧**: R49 pre-flight=远端/本地 **a6af188**（§64.1"远端=
+  a6af188"为单元开始前核验时点事实）; **R49 final=639b0f3**（44a32bb+
+  639b0f3 两单元推送后）; master=7745968 不变。§64.4"基线: a6af188..
+  （本轮两单元后新头）"口径一致, 本节补记 final 头消除歧义——只改账面
+  表述, 零代码。
+
+### 65.2 OQ-R1..R5 代码级坐实 + OQ-R3 措辞校准（用户 §二-§六）
+
+- **OQ-R1 案 A=代码证明级坐实**: 真实调用链 execution_group_observe_fold
+  →assemble_decision_input→classify_failure_domain/attribute_failures→
+  Supervisor::report_failure——report_failure 体（supervisor.rs:229-270）=
+  记录 last_domain/last_attributed（:240-241）→attempts+=1（:242）→
+  circuit_threshold（:243-245）→RestartPolicy.should_retry/circuit→
+  Restart|Escalate（:246-252）, **零 domain 条件分支**; docstring 自证
+  （:226-228"本轮无分支消费——有证据与无证据同判"）; RestartPolicy::
+  should_retry(attempt)（:93）**无 FailureDomain 参数**。
+- **OQ-R2 维持接受**: Status.last_domain/last_attributed（supervisor.rs:
+  137/:141）=记录性 decision evidence; budget/circuit 由 attempts/
+  max_retries/circuit_threshold 控制, 无域反向耦合。
+- **OQ-R3 措辞校准（用户 §四; 03-02 doc §4/§9 已就地修正+§10 修正
+  记录）**: domain 生产点=execution/watchdog; **当前唯一消费=Supervisor
+  记录 decision evidence**（读取面 last_decision_domain/
+  last_decision_attribution, supervisor.rs:203-210——当前零调用者=
+  潜伏读取面）; **domain→recovery strategy=NOT USED / NOT NEEDED**
+  （案 A=不新增该消费分支; F-5=预留消费边界潜伏, 非"已存在策略消费"）。
+  **禁表述"watchdog 已消费 FailureDomain 选择恢复策略"**——与真实代码
+  不符。
+- **OQ-R4 维持 CLOSED**（G-2-G 四层记账与 Timeline/Recovery E2E 两生命
+  周期正交——G-2-G-E2E 永不回写 G-2 Final）; **OQ-R5 维持接受**（案 A
+  下再造独立 Recovery 实现轮反而违反案 A）。
+
+### 65.3 缺口 A 登记+校准: C-TIMELINE-01 文档状态 vs 代码状态（用户 §七-§八）
+
+- 代码现实（截至 639b0f3, **非 R49 新增**）: ProgramExecutionRuntime::
+  switch_program 全链+TimelineAuthority+TimelineExecutionState+install_
+  timeline_transition+sample_switch_anchors/timeline_execution_facts+
+  GStreamer timeline probes（EVENT Segment 身份+BUFFER 声明 offset 施加）
+  +真实 GStreamer 测试 switch_graph_rt_02_timeline_full_chain_real_
+  gstreamer（switch_graph.rs:1093）+真机 L4 Timeline 三连续 PASS
+  （Preserve·epoch 0·offset 118799ns）。
+- 冻结期文本（design-freeze 文档 :12-15"Design Freeze 已形成; **不进入
+  实现**; 下一动作=开 implementation change"）=**冻结时点（2026-09-04）
+  状态**, 已被其后实现批次与真机记录接续——定性=**仓库状态一致性缺口**
+  （非 R49 违规: R49 零新增 runtime code 属实）。
+- 处置（用户裁定: 状态校准, **不回滚不重设计**）: design-freeze 文档已加
+  **§19 状态校准附录（R50）**——15 项冻结+八红线零修改; 状态歧义自附录
+  起以附录为准。
+
+### 65.4 缺口 B 登记（不本轮修）: DiscontinuityDeclared adapter 侧语义过宽 + 事实核验差异披露（用户 §十三-§十五）
+
+- **实锚**: GStreamer adapter 证据行在 `t.video.first_mapped.is_some()`
+  时无条件 `discontinuity_state=DiscontinuityDeclared` 且
+  `video_continuity` 硬编码 `Continuous`（switch_graph.rs:969-984;
+  switch_mock.rs:425-445 同构, 测试 :861-869 锁定 mapped→Declared+双
+  Continuous）——"发生 Source Segment transition/存在映射"被等价为
+  "声明了不连续", 与 Freeze 冻结项⑥语义（声明边界≠transition 本身;
+  **Preserve=同 epoch 连续时间线**）不完全一致。裁决级 Authority
+  snapshot 路径语义正确（program_timeline.rs:616-618: 仅"已声明边界被
+  观测证实"置 Declared）。
+- **事实核验差异披露（对用户审计 §十三"三态"表述）**: 与代码不符——
+  **PtsMonotonicity 实为四态**（pipeline.rs:263-276: Unknown/
+  ValidMonotonic/DiscontinuityDeclared/NonMonotonic, Batch 1 落地+
+  Freeze §14 语义注释在位, 仅经 observe_*_pts_declared 产生）。真缺口=
+  **第四态的生产使用语义过宽**（上述 adapter 行）, 非变体缺失——OQ-T4
+  终裁按此定稿, 修订方向不受影响。
+- 处置=登记→A2-8-04 取证→**C-TIMELINE implementation correctness
+  change**（独立队列; 禁 R50 收尾顺手修、禁趁 03-02/账面轮修）。
+
+### 65.5 A2-8-04 OQ-T1..T6 终裁（修订后冻结; 全文=A2-8-04 探针 §7）
+
+- **T1 🟢 接受**: 独立 A2-8-04 验收面; L4-SWITCH/L4-TIMELINE 冻结表面
+  零改动（禁偷偷扩大旧 L4 判据）。
+- **T2 🟢 接受（附前置）**: D1 平面/pad 结构性分离（av_paired 面）与
+  D2 PTS 时序漂移**分账**; PTS 全链 ns 单位（ClockTime::nseconds,
+  controller.rs:560/588/686+switch_graph.rs:180/328/354/503）=V/A
+  可比性成立**≠阈值授权**; 漂移首版只测量+真机分布取证后再裁界。
+- **T3 🔴 原案拒绝·修订后接受**: program/input progress_since=聚合
+  A/V"或"语义（program_execution.rs:160-174）不能证六路逐平面
+  starvation; 生产 InputPts.stalled 硬编码 false（switch_graph.rs:936;
+  Mock 真实 stalled≠生产——Mock≠GStreamer 契约面又一例）。修订边界=
+  六路 PTS continuity+六路各自 progress evidence+absence≠evidence;
+  **执行序=先观测探针取证六路推进行为→据实定 starvation window**;
+  本轮禁发明阈值、禁立即实现六路 starvation 判据。
+- **T4 🔴 原案拒绝·修订后接受**: 按 65.4 定稿——四态已在（非三态,
+  差异已披露）, 真缺口=adapter 行过宽→correctness change 队列;
+  A2-8-04 discontinuity 证据=逐路四态**如实读出**+declared vs
+  unexpected 区分+与 Freeze 语义偏差如实记录（**一致性验证, 非代码
+  修正**）; input/bridge 平面首版不新增 PlaneContinuity 级面（取证
+  发现不足再回裁）。
+- **T5 🟡 修订后冻结**: 验收模型=**六路×四模式证据矩阵**
+  （PathEvidence[6]×FailureMode 证据面; 每格=证据 E 非布尔; absence 与
+  false 分离）; 禁预设单一合成大布尔; 最终验收谓词由验收层在证据矩阵
+  填充后定义。
+- **T6 🟢 接受（新增职责）**: 不重开 C-TIMELINE-01 十二 OQ/四方案;
+  A2-8-04=验证/取证/发现缺口+**实现↔Design Freeze 一致性验证**。
+
+### 65.6 缺口 C/D 登记 + 执行序（用户 §21-§24）
+
+- **缺口 C**: 六路 starvation 无逐平面生产证据（stalled=false 硬事实;
+  progress_since=聚合）→ A2-8-04 观测探针先行, 不立即发明阈值。
+- **缺口 D**: "六路×四模式"当前=数据结构+分散观测面, 非完整独立可审计
+  证据矩阵 → A2-8-04 按 T5 模型完成。
+- Recovery 与 Timeline 两链正交性确认（用户依赖图: FailureDomain→
+  Supervisor decision evidence 与 TimelineAuthority→Program Timeline
+  无错误循环依赖——架构正确）。
+- **执行序**: 修订冻结文字（本轮已做）→ 六路实际证据采集（observation
+  only; 其最小观测面实现按探针 §7 冻结边界单独落地）→ 发现
+  implementation gaps → C-TIMELINE correctness change → A2-8-04 Gate;
+  **禁回头重复 R46-R49 旧活体验证**; 现在不写 A2-8-04 判据实现代码。
+
+### 65.7 本轮执行（零运行时代码零矩阵）
+
+- 两单元: ①R50 裁决账（主账 §65+03-02 doc §4/§9 OQ-R3 措辞校准+§10
+  修正记录+tasks item-5 R50 段）; ②A2-8-04 OQ-T 终裁修订+状态校准
+  （a2-8-04 探针 §2/§3 校准+§4 终裁列+§7 终裁记录+design-freeze 文档
+  §19 状态校准附录+tasks item-6 R50 段）。03-01 探针仍止于 §12（本轮
+  无 03-01 域新裁定）; 无真机动作。
+- 基线: 639b0f3..（本轮两单元后新头）, master=7745968。

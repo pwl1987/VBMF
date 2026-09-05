@@ -842,6 +842,16 @@
   R46 段·引用纠错原文保留]; "03-02=FROZEN" 表述解锁·E2E 两句仍禁;
   A2-8-04 SoT 探针同轮开启（独立第二单元）; 本项保持未勾——03-02 已
   冻结收口但 03-03[G-3 暂不授权]/03-04[G-4·Mock A/B DEFERRED] 未做]**
+  **[第五十轮（主账 §65, 03-02 doc §10, R49 二层代码真相审计+OQ-R3
+  措辞校准; 零运行时代码零矩阵）: R49 账面=PASS[R49 final=639b0f3·
+  pre-flight a6af188 时间状态消歧]; **OQ-R1 案 A 代码证明级坐实**
+  [report_failure 体 supervisor.rs:229-270 零 domain 条件分支·
+  should_retry :93 无 FailureDomain 参·docstring :226-228"本轮无分支
+  消费"]+OQ-R2/R4/R5 维持; **OQ-R3 措辞校准=预留消费边界非既存策略
+  消费**[当前唯一消费=Supervisor 记录 decision evidence·读取面
+  :203-210 零调用者=潜伏·domain→strategy=NOT USED/NOT NEEDED·禁表述
+  "watchdog 已消费 FailureDomain 选择恢复策略"]; 03-02=CONTRACT
+  FROZEN 状态不变; 本项保持未勾——03-03[G-3]/03-04[G-4] 未做]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案

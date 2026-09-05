@@ -74,7 +74,7 @@
 |---|---|---|---|
 | OQ-R1 | Bridge/Program 域执行分支: 显式跳 recover vs 全维持现状 | **全维持现状（03-02 记账收口零代码候选）** | **裁案 A（全维持现状）** |
 | OQ-R2 | 域永不参与 restart budget/circuit 冻结 | 接受 | **接受** |
-| OQ-R3 | 策略消费点=执行域（watchdog） | 接受 | **接受** |
+| OQ-R3 | 策略消费点=执行域（watchdog） | 接受 | **接受（R50 措辞校准: 预留消费边界, 非既存策略消费——见 §10）** |
 | OQ-R4 | 故障动作路径决策输入活体指纹缺口: 接受"纯测试+gate L5d+线程活体"证据组合关闭 G-2-G, 还是要求自然故障长窗复跑 | 待裁 | **已闭（R47, 不重开）** |
 | OQ-R5 | 03-02 若为零代码收口: 是否需独立实现轮 | 待裁 | **接受（无独立实现轮）** |
 
@@ -153,8 +153,9 @@ handle)（现状）; Bridge/Program → 跳 recover + 现有 escalate 面; +纯�
   语义 / 新 escalation 词表; **不新增 Recovery runtime code**（用户原语:
   "不是少做一点, 而是更严格地保持已经形成的架构边界"）。OQ-R2=接受
   （域永不参与 restart budget/circuit; RestartPolicy unchanged）;
-  OQ-R3=接受（消费点=执行域既有 last_decision_*; Supervisor decision
-  vocabulary 不变）; OQ-R4=已闭（R47, 不重开——E2E 永不塞回 G-2 Final）;
+  OQ-R3=接受（**R50 措辞校准**: 预留消费边界非既存策略消费——当前唯一
+  消费=Supervisor 记录 decision evidence; domain→recovery strategy=
+  NOT USED / NOT NEEDED; 详见 §10）; OQ-R4=已闭（R47, 不重开——E2E 永不塞回 G-2 Final）;
   OQ-R5=接受（案 A 下无独立 Recovery implementation round）。
 - **状态提升**: DESIGN DELIVERED / FREEZE NOT YET COMPLETE →
   **CONTRACT FROZEN（R49）**。六面（F-1..F-6）按案 A 冻结——**冻结的是
@@ -171,3 +172,23 @@ handle)（现状）; Bridge/Program → 跳 recover + 现有 escalate 面; +纯�
   G-2-G-E2E 语义归属 03-02/A2-8-04 边界不变, 状态语言规则持续生效
   （"03-02=FROZEN" 自本轮起可说; "G-2-G E2E=PASS"/"Recovery E2E=
   COMPLETE" 仍然禁说）。
+
+## §10 R50 修正记录（2026-09-05, OQ-R3 措辞校准——用户二层代码真相审计 §四; 零代码）
+
+- **修正对象**: §4 表 OQ-R3 终裁格与 §9 OQ-R3 句原文"消费点=执行域既有
+  last_decision_*"——可误读为"既存策略消费"。
+- **修正后终版语义**: domain 生产点=execution/watchdog
+  （execution_group_observe_fold→assemble_decision_input→
+  classify_failure_domain/attribute_failures）; **当前唯一消费=
+  Supervisor 记录 decision evidence**（report_failure 写 Status.
+  last_domain/last_attributed, supervisor.rs:229-241; 读取面
+  last_decision_domain/last_decision_attribution :203-210——当前零
+  调用者=潜伏读取面）; **domain→recovery strategy=NOT USED /
+  NOT NEEDED**（案 A=不新增该消费分支）。实锚: report_failure 体零
+  domain 条件分支——决策仅由 attempts/circuit_threshold/
+  RestartPolicy.should_retry（:93, 无 FailureDomain 参数）驱动;
+  docstring :226-228 自证"本轮无分支消费（有证据与无证据同判）"。
+- **禁表述**: "watchdog 已消费 FailureDomain 选择恢复策略"——与真实
+  代码不符。§3 F-5/§6/§8 为提案/预估/待裁历史文本保留原文, 冻结语义
+  以 §9+本节为准（F-5=消费点契约边界**潜伏**与本节一致）。
+- 裁决不变: OQ-R3=接受; **CONTRACT FROZEN 状态不变**; 零运行时代码。
