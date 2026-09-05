@@ -718,6 +718,20 @@
   无恢复 lifecycle[dual_input.rs:821-822 显式预留·受 Freeze'Recover
   语义冻结'约束]/G-4 Mock recover 契约面; 不新造清单在册; 下一刀=
   03-01 待用户对 Probe 裁决后授权]**
+  **[第四十三轮（主账 §58, 裁决落账零代码）: R42=PASS 收紧表述[Probe/
+  ledger round·no runtime implementation authorized or introduced];
+  **实施序正式冻结=G-1→G-2→Failure Attribution→Recovery Contract→
+  G-3→G-4 依赖 DAG 禁并列开工**; 授权 03-01 第一阶段=G-1 Identity/
+  Custody+G-2 Runtime Consumption 设计/实现探针（已交付
+  2026-09-05-a2-8-03-01-g1-g2-custody-consumption-design-probe.md:
+  internal 平面多消费者竞争 drain 新事实[watchdog.rs:192/:537 共享
+  world.internal_log 破坏性 drain——单一 drain 点假设不成立]+身份
+  丢失机制根因[ingest→mapper 边界归零]+custody 双零生产调用+组
+  watchdog 无 MediaTapPort 依赖+OQ-G1-1..7/OQ-G2-1..6 十三问待裁];
+  G-3 暂不授权; CONTRACT-ANCHOR-DOC-SYNC+Mock A/B 合并同一同步轮一次
+  统一[用户倾向 B 非现在改·禁半同步中间态]; 五误区禁令落账[禁
+  'Supervisor 已有⇒03 完成'等五句]; Mimosa 后置维持; 本轮零代码零
+  矩阵——R40 runtime 证据继续 baseline; 本项保持未勾]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案

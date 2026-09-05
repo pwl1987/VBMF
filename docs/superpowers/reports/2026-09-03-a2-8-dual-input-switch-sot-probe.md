@@ -3168,3 +3168,83 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   的 +1 臂, Preserve 成立, P1-A 失效模式在 mock 不可构造）。
 - 下一刀 = 03-01（依 03-00 Probe 缺口清单裁实现面——**待用户对 Probe
   结论裁决后授权**, 本轮零代码）。
+
+## §58 第四十三轮（R42 复核 + 03-01 第一阶段授权）
+
+### 58.1 终裁前核验（对 R43 裁决代码声明的逐条复核, 锚 `d981728`）
+
+- SupervisorAction 封闭 `{Restart, Escalate}`（supervisor.rs:120）✔;
+  supervisor.rs grep `switch_program|begin_switch|SwitchExecution`
+  **零命中**——硬红线维持（R43 §七强 PASS）。
+- `observations_from_events` 存在+**零生产调用者**（custody.rs:136
+  定义; 其余命中全在 #[cfg(test)] :399-:730）——G-1=真实架构/运行时
+  集成缺口非文档债（R43 §五）✔。
+- `custody_snapshot`/`attribute_failures` 生产调用**双零**（grep
+  复核）——「能力存在≠生产监督闭环存在」（R43 §六）✔。
+- classify/TimelineSample/bridge_health 生产消费面=仅 gate
+  （dual_input.rs:596/:758/:827-832）——G-2 确认 ✔。
+- Mock `+STEP` 旧语义仍在（switch_mock.rs:297-306 本轮重读）✔;
+  contracts/switch.rs:90-93「当前出口位置+步长」漂移仍在
+  （CONTRACT-ANCHOR-DOC-SYNC 两处, 本轮不修——裁决定位后续同步轮）✔。
+- **GStreamer adapter observed-boundary 原值未被回退**:
+  switch_graph.rs:802-863 `sample_switch_anchors`——program 锚=出口
+  实测 last PTS（pipeline_events::read_health, :836-844）, target 锚=
+  分支实测 last PTS（:845-852）, 零外推; R40 α 修复+真机 10/10 双证
+  维持（R43 §三「R40 的真实机器 Preserve 结论没有被 R42 破坏」核验
+  成立）✔。
+- `d981728`=HEAD、工作树干净、零运行时代码变更（R42 提交分类=
+  Documentation/Probe/Governance only——R43 §十五）✔。
+
+### 58.2 终裁落账（R43, 四十三轮裁决全文要点）
+
+- **R42 = PASS**（收紧表述: 「R42 PASS — Probe/ledger round
+  completed; no runtime implementation authorized or introduced.
+  A2-8-03-00 is complete. A2-8-03 implementation remains OPEN」）。
+  状态图维持: C-TIMELINE-01=CLOSED·A2-8-02=完成·03-00=COMPLETE·
+  **03-01=未实现**·04/05=OPEN·A2-8=OPEN。
+- **① 实施序正式冻结（依赖 DAG, 禁四项并列同时开工）**:
+  **G-1 → G-2 → Failure Attribution → Recovery Contract → G-3 →
+  G-4**（Supervisor 全程纯决策）; 03-01 不能直接从 G-1「补调用」
+  开始而不先裁身份/生产消费链。
+- **② 授权 A2-8-03-01 第一阶段: G-1 Identity/Custody + G-2 Runtime
+  Consumption 设计/实现探针; 暂不授权 Program-domain recovery
+  implementation（G-3）**——避免把 G-3 做成「看似完整、实际上没有
+  可靠事实来源的 supervision 系统」。
+- **③ CONTRACT-ANCHOR-DOC-SYNC 与 Mock A/B 合并同一文档/契约同步轮**
+  一次性统一（Contract→GStreamer[已合规零改]→Mock→F5/F6 测试意图）,
+  禁半同步中间态; 用户**倾向 B**（observed-boundary 语义镜像）但
+  非现在改、非本轮——执行授权留待该同步轮。
+- **④ 五误区禁令（R43 §十七）**: 禁说「Supervisor 已有⇒03 supervision
+  完成」/「FailureDomain::Program 存在⇒Program recovery 已完成」/
+  「Custody mapper 存在⇒事件链已闭合」/「Mock 与 GStreamer 不同⇒
+  一定是 bug」/「Mimosa 未完整扫描但没发现问题⇒安全」。
+- **⑤ Mimosa 后置维持**（05 后 Final full audit; 本轮零代码无矩阵/
+  真机复跑——R40 runtime 证据继续为 baseline, 两类证据不混）。
+- tasks 项 5 保持未勾（03-00 完成≠03 完成; 03-01/验证/证据全开放）。
+
+### 58.3 本轮交付（零代码）
+
+- **A2-8-03-01 Phase-1 设计/实现探针**（新文
+  `2026-09-05-a2-8-03-01-g1-g2-custody-consumption-design-probe.md`）:
+  03-00 之后展开新事实——**internal 平面多消费者竞争 drain**
+  （ingest watchdog 每输入一个 + group watchdog 共享同一
+  world.internal_log 破坏性 drain, watchdog.rs:192/:537·bin:39/:479/
+  :529——「单一 drain 点」假设不成立=G-1 拓扑硬约束）; 身份丢失
+  机制根因（bus Error 身份在 watchdog 已知、ingest→mapper 边界归零,
+  watchdog.rs:174-181·events.rs:164-189）; custody 双零生产调用
+  复核; 组 watchdog 无 MediaTapPort 依赖（G-2 接线=组合根+签名面）;
+  R43 目标链逐边映射表; **OQ-G1-1..7 + OQ-G2-1..6 共十三问待裁**
+  （身份语义先行: PipelineFault.pipeline 设备身份三选项; 消费拓扑
+  四选项含 FanoutSink 第三平面=D3 定稿修订裁面; 发射面三选项含
+  「supervisor 唯一事件出口」释法; 快照调用点+Observation SoT 双通道
+  职能; 丢弃×custody 事实性; G-2 子集/挂点/输出走向[GroupAction
+  T10/T12 扩词=裁面]/sim 模式面）。
+- 设计探针 §35（Mock 倾向 B 登记）; tasks.md 项 5 R43 段。
+
+### 58.4 状态与下一刀
+
+- 02-I 现状不变（10/10 EXIT=0 双证）; C-TIMELINE-01=CLOSED。
+- **下一刀 = 用户裁决 OQ-G1/OQ-G2 十三问 → 03-01 实现批次授权**
+  （依冻结序 G-1 先行; 实现轮须矩阵: fmt→default→mock→bmd+gst→
+  clippy→bin 盒序）。CONTRACT-ANCHOR-DOC-SYNC+Mock B 同步轮另行排期
+  （R43 §十一: 一次统一, 不与 03-01 混轮）。
