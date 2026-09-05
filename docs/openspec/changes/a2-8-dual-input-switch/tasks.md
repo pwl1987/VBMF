@@ -1078,6 +1078,25 @@
   健康弧观测序表述·确定性测试主缝=[①c→③] 映射帧注入·次缝=[③→④]
   raw 符号面; 本项未勾——R58 实现+回归+Gate 复跑待执行; A2-8-05
   不进入（Gate 仍 FAIL/HOLD）]**
+  **[第五十八轮 R58-Design 复核+步骤4（R58 unit 1, 测试先行零生产
+  代码; R57 文档 §11+谓词 §10 段+04 探针 §16.2+主账 §76）: 验收层
+  接受 R57-terminal 复核——M1′ 正式撤销, M1 恢复唯一双相容机制;
+  R58-Design 终裁 12 条逐项复核全相容（槽 :891 唯一写点无清槽·锚
+  :946-949·appsink 链 :422-446·拓扑 selector→queue→appsink
+  :508/:630-634·mock :396/:406-415·远端 2972fb8 实测）; 主方案=
+  selector-output BUFFER Cutover Fence（V+A 双面·只拦 BUFFER 不拦
+  EVENT·fence-confirmed 须覆盖 queue 在途·pre-flip 拦截缓冲 DROP）+
+  第二层 fail-closed 重采样; 实现层不变量登记（锚采样后 cutover
+  生效前旧执行态不得推程序基线——不触碰 Domain predicate）; §7
+  草图顺序校正=锚采样先于窜帧（窜帧先行锚=P+40ms 不可复现）; 步骤
+  4 执行: switch_graph.rs 测试模块两测——M1 确定性复现（数值=R56
+  #8 实测锚 74137405051×74037405049·offset#7=+100131607: S7→P→锚
+  P→窜帧 P+40ms Continuing→install #8→首枚映射 P→NM 断言→#9 干净
+  边界 DD 断言）+无窜帧差分对照（干净 DD）; 盒=编译+clippy×2
+  -D warnings 全绿·default/sim 227·gst 261=259+2（run-A 瞬态 1 失败
+  未捕获名·零改动重跑全绿——R51 flaky 同型）; 本项未勾——步骤
+  5-11（fence 实现/双侧回归/真机 #8 复现 NM 消失/生命周期仍立/全
+  回归/新鲜 Gate）待执行; A2-8-05 不进入（Gate 仍 FAIL/HOLD）]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

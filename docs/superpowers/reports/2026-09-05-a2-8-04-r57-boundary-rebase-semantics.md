@@ -352,3 +352,102 @@ P+40ms → A 映射=P<P+40ms）是**映射帧签名**（raw 帧位移=−offset7
 调整或删除 NM; **违例帧未被直接观测的诚实边界维持**（M1 仍为排除法
 +算术自洽推理, M1′ 被反驳加强其排他性但不构成直接测量, 不升
 FieldProven）; A2-8-05 不进入。
+
+## 11 R58-Design 终裁复核 + R58 步骤 4 执行（R58 unit 1, 测试先行零生产代码）
+
+验收层接受 §10 复核（**M1′ 正式撤销, M1 恢复唯一双相容机制**）并下达
+R58-Design 终裁 12 条。本轮逐条复核 + 执行步骤 4: 生产代码零字节改动,
+仅 switch_graph.rs 测试模块追加。
+
+### 11.1 逐条复核（对照源码基线）
+
+- **§1 根因（M1 保留）— 确认, 源码全相容**: 槽唯一写点=install 整槽
+  替换（switch_graph.rs:891 `*slot.lock().unwrap() = Some(...)`）, 运行期
+  无清槽点（`take()`/`timeline = None` 全文零命中）; executed=true 唯一
+  落点 :844; [①c→③] 窗内槽=#7（executed=true ∧ segment_observed=true）
+  → 旧段映射帧继续施加（与切换间续流同一机制）; offset#7=+100131607>0
+  ⇒ 窜帧上推基线一帧（40ms@25fps）; 锚=程序弧 last PTS
+  （sample_switch_anchors :946-949, read_health 同源）。
+- **§2 三案取舍 — 确认**: 现有锁 `Arc<Mutex<Option<TimelineExecutionState>>>`
+  （:390/:163）仅护槽自身, 不能阻止 selector→appsink 流面推进;
+  HEALTH_ARCS=观测事实源（pipeline_events.rs:16-29）——install 冻结/
+  覆盖基线=污染 observation, 否决正确; 重采样兜底仍有 sample→再竞态→
+  install 窗——归第二层 fail-closed, 非主修复。
+- **§3 Cutover Fence 主方案 — 方向确认 + 三条实现条件登记**:
+  (a) **fence-confirmed 语义必须覆盖在途缓冲**: 真实拓扑=selector→
+  queue→appsink（:630-634 链接; program-video-queue :508 /
+  program-audio-queue :552）——selector src 挂 fence 后 queue 在途帧仍会
+  到达 appsink plain 写弧（:439）, M1 窗未闭; confirmed 须含 queue 排放
+  /观测面静止证据（appsink 侧）, 非 fence 挂点静止;
+  (b) **pre-flip 拦截的旧段缓冲必须 DROP 不得 flush**——放行即把旧段帧
+  投入新段映射域（时间轴错位, 依原始 PTS 可低于推进后基线→NM, 亦挤占
+  新段帧位）;
+  (c) **同 pad 探针序**: mapping 探针建图时挂（:630-631）, fence 运行时
+  挂——同 pad 按添加序触发, fence 晚于 mapping; mapping 对续流帧仅
+  状态面（不写弧）, 弧写点在 appsink——§11 不变量不受此序影响, 实现
+  时须显式声明该前提。
+- **§4 位置=selector 出口 — 链路确认**: attach_program_video_sink
+  :422-446（new_sample→pull_sample→buf.pts→`h.observe_video_pts(pts)`
+  :439）; BUFFER/EVENT 探针挂 selector `static_pad("src")`（:165-167/
+  :170/:190）。"控制进入观测的帧, 不改观测"立场成立, 前提=§3a 确认
+  语义。
+- **§5 双面 fence — 确认**: video/audio selector 独立结构字段
+  （:1332-1335/:2432-2433）, 每平面独立探针/弧（:630-631）; 成对契约
+  （:879-888 V/A 一致性 fail-closed 校验）。单面冻结制造 V 冻/A 推进
+  新态。
+- **§6 fence 只拦 BUFFER — 确认**: EVENT 探针=EVENT_DOWNSTREAM ∧
+  Segment ∧ executed 门（:170-185）置 segment_observed; 映射门控
+  executed ∧ segment_observed（:221-227）。Segment EVENT→首枚映射
+  BUFFER 微观序必须保留——fence 语义与现结构一致。
+- **§7 确定性测试 — 本轮落实 + 一处顺序校正**: 终裁草图 T1/T2（窜帧）
+  先于 T3（锚采样）不可复现——锚=弧 last（:946-949）, 窜帧先行则锚=
+  P+40ms。按 §1/§11 机制序实现（锚→窜帧→install→首枚）, 其余照草图。
+- **§8 fence 修复后同序测试 — 未实现（属步骤 5+）**, 以 §3a/§3b 为其
+  实现输入。
+- **§9 Mock 增强 — 未实现（属步骤 6 前置）**: 缺口复核确认
+  （switch_mock.rs:396 observe→tick_once 绑定; :406-415 running ⇒ 硬编码
+  ValidMonotonic——不能表达 NM）; 步骤 4 用真实组件缝, 不被阻塞。
+- **§10 方案族排序 — 登记为冻结设计裁定**: Fence ✅主 / 重采样兜底
+  ✅二线 / 冻结基线❌ / 放宽 declared❌ / 阈值❌ / 单纯 Mutex❌ / 改
+  Authority❌ / 判 #8 合法排水❌——与既有红线（禁以声明洗回退等）
+  完全一致。
+- **§11 实现层不变量 — 原文登记（不触碰 Domain predicate）**:
+  "Once the program anchor is sampled for a transition, no buffer
+  belonging to the pre-transition execution state may newly advance the
+  Program observation baseline before the transition's selector cutover
+  becomes effective."（一旦切换锚被采样, 切换前执行态不得再有新 BUFFER
+  推进 Program observation baseline, 直到 selector cutover 生效。）
+- **§12 远端基线 — 确认**: 远端=2972fb8（`git ls-remote` 实测）, 本地
+  a8ac09a→f9dc935 未推送; 本轮不推送; 盒同步走既有 tar 通道
+  （BMD-LOCAL-BUILD.md:148-155）, 无需 GitHub 推送。
+
+### 11.2 R58 步骤 4 执行证据
+
+- **改动面**: switch_graph.rs 测试模块追加两测 + M1 装置辅助
+  （m1_segment/m1_rig/m1_install_8）——生产代码零改动。
+- **测试一（M1 确定性复现, 红测）**
+  `switch_graph_m1_straggler_race_reproduces_program_nonmonotonic`:
+  T0 #7 续流 S7→mapped=P（首枚映射, plain 写弧）→ T1 锚采样=P
+  （read_health 实路径）→ T2 竞态窗窜帧 S7+40ms→mapped=P+40ms
+  （Continuing——#7 行不 Violated, 违例只在程序弧=R56 pr_v 行签名）→
+  plain 写弧基线=P+40ms → T3 install #8（真实整槽替换 :891; 断言
+  offset#8=+100000002>0）→ ④⑤落点置位（executed=:844 落点/
+  segment_observed=EVENT 探针 :177-179 落点）→ T6 首枚映射 S8→P +
+  note_declared_boundary（违例边界→observe_declared NM——声明不豁免）
+  + plain 写弧 → **断言 NonMonotonic** → T7 #9 干净边界 P+40ms →
+  **断言 DiscontinuityDeclared**（闩锁解除=R56 #8→#9 现场签名闭环;
+  干净边界重开, 非声明洗违例）。数值全取 R56 #8 实测锚
+  （74137405051×74037405049; offset#7=+100131607）。
+- **测试二（差分对照）**
+  `switch_graph_m1_control_no_straggler_boundary_stays_clean`: 同序列
+  去窜帧 → 干净边界 → 断言 DiscontinuityDeclared——证明 NM 由窜帧
+  因果致, 边界/生命周期机制自身不产违例。
+- **盒证据（SSH lytv@10.30.15.10, tar 通道, cargo 全经盒）**: 编译
+  `cargo check --features bmd,gstreamer --tests` 通过; default 227/227 ✓;
+  simulation 227/227 ✓; gst m1_ 过滤 2/2 ✓; gst 全量 261=259+2——
+  run-A=260 过 1 失败（失败名未捕获——result 行过滤之误）, 零改动
+  立即重跑 run-B=**261/261 全绿** ⇒ 瞬态盒 flake（与 R51 rt_01 flaky
+  既有记录同型; 未改未删未跳过任何测试）; clippy default +
+  bmd,gstreamer `--all-targets -D warnings` 双绿。
+- **纪律**: 谓词/Gate/阈值零改动; 三 blocking 维持 Failed; 首败留证
+  （#8 证据盒不动）; 步骤 5-11 待执行; A2-8-05 不进入。

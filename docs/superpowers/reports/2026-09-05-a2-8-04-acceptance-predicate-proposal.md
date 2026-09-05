@@ -372,3 +372,18 @@ Gate = FAIL**。首败留证; 判据零改动; 后续路径（维持违例读法
   ValidMonotonic, 结构上不可复现竞态）。
 - 对本表影响: 无——谓词/词表/Gate 判定零改动; R58 按修正后的修复
   不变量与测试缝进入。
+- **R58-Design 终裁复核登记（R58 unit 1 同轮, 测试先行零生产代码）**:
+  验收层接受 R57-terminal 复核——M1′ 正式撤销, M1 恢复唯一双相容
+  机制; R58 设计终裁=主方案 selector-output BUFFER Cutover Fence
+  （V+A 双面·只拦 BUFFER 不拦 Segment EVENT·fence-confirmed 须覆盖
+  queue 在途·pre-flip 拦截缓冲 DROP）+ 第二层 fail-closed 重采样
+  兜底; 否决族维持（冻结基线/放宽 declared/阈值/单纯 Mutex/改
+  Authority/判合法排水）。新增**实现层不变量**（不改本表）: 锚采样后、
+  selector cutover 生效前, 切换前执行态不得再向程序观测基线贡献新
+  BUFFER。对本表影响: 无——谓词/词表/Gate 零改动; 三 blocking 维持
+  Failed。步骤 4 已执行: M1 确定性复现（窜帧→基线上推→边界 P<基线→
+  NM→#9 干净边界 DD 全链, 数值=R56 #8 实测锚）+ 无窜帧差分对照
+  两测落地 switch_graph.rs 测试模块; 盒=编译+clippy×2 -D warnings
+  全绿·default/sim 227·gst 261=259+2（run-A 瞬态 1 失败未捕获名,
+  零改动重跑 261/261 全绿）。Gate 复跑待 R58 步骤 5-11 完成后按
+  冻结谓词执行; A2-8-05 不进入。

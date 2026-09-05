@@ -1594,6 +1594,305 @@ mod tests {
             .remove(&handle);
     }
 
+    // ── R58（A2-8-04 步骤 4, R58-Design 终裁 §7/§11）: M1 边界竞态确定性
+    // 复现 ── 机制（R57 终裁恢复, R58-Design §1 确认）: [锚采样→install]
+    // 竞态窗内旧段（仍持槽、executed=true, :891 唯一写点=整槽替换无隐藏
+    // 失效路径）映射帧继续施加并经 appsink plain 写点（:439）推进程序
+    // 基线一帧; 新段首枚映射边界零间隙落旧锚 → mapped < last →
+    // NonMonotonic（声明不豁免, pipeline.rs:354-356）→ 下一个干净已声明
+    // 边界解除回 DD（rt_05 生命周期, R56 #8→#9 现场签名）。
+    // 数值=R56 switch #8 B→A 实测锚（R57 §2 锚表）; 顺序=锚采样→窜帧→
+    // install——sample_switch_anchors 读程序弧 last PTS（:946-949）, 窜帧
+    // 先行则锚=P+40ms 复现不成立（终裁 §7 草图 T1-T3 序据此校正）。
+    const M1_ANCHOR_P: u64 = 74_137_405_051; // #8 program 锚（pre-flip 出口实测）
+    const M1_SOURCE7: u64 = 74_037_273_444; // #7 source 锚（B 分支 last）
+    const M1_OFFSET7: i64 = 100_131_607; // offset#7（正——符号封闭前提）
+    const M1_SOURCE8: u64 = 74_037_405_049; // #8 source 锚（A 分支 last）
+    const M1_FRAME: u64 = 40_000_000; // 40ms @ 25fps
+
+    fn m1_segment(
+        source: Uuid,
+        program_epoch: ProgramEpoch,
+        segment_id: crate::program_timeline::SegmentId,
+        source_anchor: u64,
+    ) -> SourceSegment {
+        SourceSegment::declare(
+            source,
+            program_epoch,
+            segment_id,
+            crate::program_timeline::AnchorPair {
+                program_anchor: M1_ANCHOR_P,
+                source_anchor,
+            },
+        )
+        .expect("段声明（锚在量程内）")
+    }
+
+    /// M1 场景公共装置: #7（B 段, offset#7>0）已执行已观测持槽, active=B/
+    /// epoch=1; 程序健康弧注册于 graph handle（read_health 同源）; 返回
+    /// 槽 Arc 供竞态窗直驱（与 BUFFER 探针同一把锁——:190-196 同路径）。
+    struct M1Rig {
+        adapter: GStreamerSwitchAdapter,
+        graph: PipelineHandle,
+        arc: Arc<Mutex<PipelineHealth>>,
+        slot: Arc<Mutex<Option<TimelineExecutionState>>>,
+    }
+
+    fn m1_rig(handle: u64, a: Uuid, b: Uuid) -> M1Rig {
+        gstreamer::init().expect("gst init");
+        let seg7 = m1_segment(
+            b,
+            ProgramEpoch(0),
+            crate::program_timeline::SegmentId(7),
+            M1_SOURCE7,
+        );
+        assert_eq!(seg7.offset, M1_OFFSET7, "offset#7 正=旧段映射可上推基线");
+        let plane7 = || PlaneTimelineExec {
+            segment: seg7,
+            segment_observed: true,
+            first_mapped: None,
+            last_observed: None,
+            continuation: MappedContinuation::Boundary,
+        };
+        let t7 = TimelineExecutionState {
+            plan: ProgramTimelinePlan {
+                target: b,
+                switch_epoch: 1,
+                video: seg7,
+                audio: seg7,
+            },
+            executed: true,
+            video: plane7(),
+            audio: plane7(),
+        };
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = r53_insert_graph(&adapter, handle, a, b, t7);
+        {
+            let mut graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get_mut(&graph).unwrap();
+            g.active = Some(b); // #7 已执行完: active=B, epoch=1
+            g.av_epoch = 1;
+        }
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .insert(graph, Arc::new(Mutex::new(PipelineHealth::default())));
+        let arc = crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .get(&graph)
+            .cloned()
+            .expect("测试弧在");
+        let slot = adapter
+            .graphs
+            .lock()
+            .unwrap()
+            .get(&graph)
+            .unwrap()
+            .timeline
+            .clone();
+        M1Rig {
+            adapter,
+            graph,
+            arc,
+            slot,
+        }
+    }
+
+    /// install #8 + ④⑤落点置位（executed=:844 落点; segment_observed=
+    /// EVENT 探针 :177-179 落点——pad 翻转本体由 rt_02/真机覆盖, 此处按
+    /// 生产落点状态置位保持纯组件级确定性）。
+    fn m1_install_8(rig: &M1Rig, a: Uuid) {
+        let seg8 = m1_segment(
+            a,
+            ProgramEpoch(1),
+            crate::program_timeline::SegmentId(8),
+            M1_SOURCE8,
+        );
+        assert_eq!(seg8.offset, 100_000_002, "offset#8>0（终裁 §7 T3）");
+        rig.adapter
+            .install_timeline_transition(
+                &rig.graph,
+                &ProgramTimelinePlan {
+                    target: a,
+                    switch_epoch: 2,
+                    video: seg8,
+                    audio: seg8,
+                },
+            )
+            .expect("install #8");
+        let mut guard = rig.slot.lock().unwrap();
+        let t = guard.as_mut().expect("#8 已装槽");
+        t.executed = true;
+        t.video.segment_observed = true;
+        t.audio.segment_observed = true;
+    }
+
+    #[test]
+    fn switch_graph_m1_straggler_race_reproduces_program_nonmonotonic() {
+        // 红测试（终裁 §7）: 当前**未修复**代码模型 100% 确定复现——
+        // ①旧槽 install 前仍生效且旧映射帧继续施加; ②窜帧 plain 写点推进
+        // 基线; ③#8 首枚映射边界=旧锚 P → P < P+40ms → NonMonotonic（声明
+        // 不豁免——禁以声明洗回退）; ④#9 干净边界解除回 DD（现场签名
+        // 闭环）。#7 行全程 Continuing——违例只在程序健康弧浮现（R56
+        // pr_v 行签名: 行不 Violated, 健康弧 NM）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let rig = m1_rig(977_201, a, b);
+
+        // T0: #7 正常续流一枚 S7 → mapped=P（首枚映射）+ appsink plain 写点。
+        let mapped7 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#7 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE7),
+            )
+        };
+        assert_eq!(mapped7, Some((M1_ANCHOR_P, true)), "#7 首枚映射=S7+offset7=P");
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(h.video_pts_state, PtsMonotonicity::ValidMonotonic);
+            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P));
+        }
+
+        // T1: 锚采样=程序弧 last PTS（read_health 同源 sample_switch_anchors
+        // :946-949）。
+        let anchor = crate::pipeline_events::read_health(&rig.graph)
+            .expect("弧在")
+            .video_last_pts
+            .expect("锚证据在");
+        assert_eq!(anchor, M1_ANCHOR_P, "#8 程序锚=基线 P");
+
+        // T2 竞态窗: 旧段映射窜帧 S7+40ms → P+40ms（Continuing）。
+        let straggler = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#7 仍在槽（install 未到——竞态窗）"),
+                MediaPlane::Video,
+                Some(M1_SOURCE7 + M1_FRAME),
+            )
+        };
+        assert_eq!(
+            straggler,
+            Some((M1_ANCHOR_P + M1_FRAME, false)),
+            "旧槽在 install 前继续映射旧源——窜帧 mapped=P+40ms"
+        );
+        assert_eq!(
+            rig.slot.lock().unwrap().as_ref().unwrap().video.continuation,
+            MappedContinuation::Continuing,
+            "#7 行不 Violated——违例只在程序健康弧（R56 pr_v 签名）"
+        );
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P + M1_FRAME);
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(
+                h.video_pts_state,
+                PtsMonotonicity::ValidMonotonic,
+                "窜帧单调推进（无回退——基线被上抬）"
+            );
+            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P + M1_FRAME), "基线被推进一帧");
+        }
+
+        // T3-T5: install #8（真实整槽替换 :891——旧态让位不可达）+ executed/
+        // segment_observed 落点。
+        m1_install_8(&rig, a);
+
+        // T6: #8 首枚映射 S8 → P（零间隙落旧锚=现场事实）; 探针侧首枚
+        // 写点 note_declared_boundary=违例边界 → observe_declared NM;
+        // appsink plain 写点 P → NM sticky。
+        let first8 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#8 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE8),
+            )
+        };
+        assert_eq!(first8, Some((M1_ANCHOR_P, true)), "#8 首枚映射=旧锚 P");
+        note_declared_boundary(rig.graph, MediaPlane::Video, M1_ANCHOR_P);
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(
+                h.video_pts_state,
+                PtsMonotonicity::NonMonotonic,
+                "M1 断言: 边界帧 P < 被窜帧推进的基线 P+40ms → NonMonotonic（声明不豁免）"
+            );
+            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P));
+        }
+
+        // T7: #9 干净已声明边界 P+40ms ≥ 基线 P → 闩锁解除回 DD（R53 段
+        // 作用域生命周期——这是干净边界重开, 非声明洗违例）。
+        note_declared_boundary(rig.graph, MediaPlane::Video, M1_ANCHOR_P + M1_FRAME);
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(h.video_pts_state, PtsMonotonicity::DiscontinuityDeclared);
+            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P + M1_FRAME));
+        }
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .remove(&rig.graph);
+    }
+
+    #[test]
+    fn switch_graph_m1_control_no_straggler_boundary_stays_clean() {
+        // 差分对照: 同一序列去掉 T2 窜帧——首枚映射 P ≥ 基线 P → 干净
+        // 声明边界 → DD（非 NonMonotonic）。证明上测的 NM 由窜帧因果致,
+        // 边界/生命周期机制本身不产生违例。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let rig = m1_rig(977_202, a, b);
+
+        // T0 + T1: 基线 P + 锚采样 P（无 T2 窜帧）。
+        let mapped7 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#7 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE7),
+            )
+        };
+        assert_eq!(mapped7, Some((M1_ANCHOR_P, true)));
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+        let anchor = crate::pipeline_events::read_health(&rig.graph)
+            .expect("弧在")
+            .video_last_pts
+            .expect("锚证据在");
+        assert_eq!(anchor, M1_ANCHOR_P);
+
+        m1_install_8(&rig, a);
+
+        // 首枚映射 P → 干净声明边界 → DD（锁5 ③ 路径在 M1 场景形状下的
+        // 对照确认）。
+        let first8 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#8 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE8),
+            )
+        };
+        assert_eq!(first8, Some((M1_ANCHOR_P, true)));
+        note_declared_boundary(rig.graph, MediaPlane::Video, M1_ANCHOR_P);
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(
+                h.video_pts_state,
+                PtsMonotonicity::DiscontinuityDeclared,
+                "无窜帧对照: 边界干净——NM 只能由窜帧因果致"
+            );
+            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P));
+        }
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .remove(&rig.graph);
+    }
+
     #[test]
     fn switch_graph_rt_01_real_ba_roundtrip_paired() {
         // T3 完整形: A→B→A 双向 + 全程成对 + 出口存活。

@@ -4245,3 +4245,29 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - R58 输入修正: 修复不变量按健康弧观测序表述（appsink transit）;
   测试主缝=[①c→③] 映射帧、次缝=[③→④] raw 符号面。红线全维持,
   谓词/Gate 零改动, A2-8-05 不进入。
+
+## §76 R58-Design 终裁复核 + R58 步骤 4（R58 unit 1, 测试先行零生产代码）
+
+- 验收层接受 §75 复核（**M1′ 正式撤销·M1 恢复唯一双相容机制**）并
+  下达 R58-Design 终裁 12 条; 逐条复核全相容（§1 槽 :891 唯一写点/
+  运行期无清槽/executed :844/锚 :946-949; §2 锁仅护槽·弧冻结=污染
+  观测·重采样=二线; §3 fence 三条件——queue 在途入 confirmed（拓扑
+  selector→queue→appsink :508/:552/:630-634）·拦截缓冲 DROP·同 pad
+  探针序; §4 appsink 链 :422-446（:439 plain 写点）; §5 双面; §6 只拦
+  BUFFER（EVENT 门 :170-185）; §7 顺序校正=锚先于窜帧; §9 mock 缺口
+  :396/:406-415; §12 远端 2972fb8 `git ls-remote` 实测）。
+- **主方案=selector-output BUFFER Cutover Fence（V+A 双面）+重采样
+  fail-closed 二线**; 实现层不变量原文登记（锚采样后 cutover 生效前
+  旧执行态不得推程序基线——不触碰 Domain predicate）; 否决族维持
+  （冻结基线/放宽 declared/阈值/单纯 Mutex/改 Authority/判合法排水）。
+- **步骤 4 执行=switch_graph.rs 测试模块两测（生产代码零改动）**:
+  M1 确定性复现（数值=R56 #8 实测锚 74137405051×74037405049·
+  offset#7=+100131607——S7→P→锚 P→窜帧 P+40ms Continuing（#7 行不
+  Violated=pr_v 签名）→install #8→首枚映射 P→NM 断言（声明不豁免）
+  →#9 干净边界→DD 断言=现场签名闭环）+无窜帧差分对照（干净 DD）。
+- 盒=编译 bmd,gstreamer tests+clippy×2 -D warnings 全绿·default/sim
+  227·gst 261=259+2（run-A 瞬态 1 失败未捕获名·零改动重跑 261/261
+  全绿——R51 rt_01 flaky 同型·未改未删未跳过任何测试）; 谓词/Gate/
+  阈值零改动·三 blocking 维持; 步骤 5-11 待执行（fence 实现/双侧
+  回归/真机 #8 复现 NM 消失/生命周期仍立/全回归/新鲜 Gate）;
+  A2-8-05 不进入。

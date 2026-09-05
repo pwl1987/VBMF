@@ -571,3 +571,27 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
   transit 晚于探针改写）; 确定性测试主缝=[①c→③] 映射帧注入, 次缝=
   [③→④] raw（符号条件一般化面）; mock 需增强为可注入交错模型。
 - 红线全维持; 违例帧未直测的诚实边界维持; 全文 = R57 文档 §10。
+
+### §16.2 R58-Design 终裁复核 + 步骤 4 执行（R58 unit 1, 测试先行零生产代码）
+
+- **逐条复核 12 条全相容**: §1 槽生命周期（:891 唯一写点·运行期无
+  清槽·executed=:844·锚=:946-949）→ M1 保留; §2 现有锁仅护槽
+  （Arc<Mutex<Option<TES>>>）·弧=观测事实源（冻结=污染）·重采样=
+  第二层; §3 fence 三实现条件——queue 在途须入 confirmed 语义（拓扑
+  selector→queue→appsink: program-video-queue :508 / program-audio-
+  queue :552 / 链接 :630-634）、pre-flip 拦截缓冲 DROP（不得 flush）、
+  同 pad 探针添加序 mapping 先于 fence（弧写点在 appsink 故不变量不
+  受影响）; §4 appsink 链 :422-446（:439 plain 写点）+探针挂 selector
+  src :165-190; §5 双面 selector :1332/:2432+成对校验 :879-888; §6
+  EVENT 门 :170-185+映射门 :221-227——fence 只拦 BUFFER 一致; §7
+  草图顺序校正（锚必须先于窜帧——窜帧先行锚=P+40ms 不可复现）; §9
+  mock 缺口确认（:396/:406-415）; §12 远端 2972fb8 `git ls-remote`
+  实测。
+- **步骤 4 执行（生产代码零改动, 仅测试模块追加）**: M1 确定性复现
+  红测（S7→P→锚 P→窜帧 P+40ms Continuing→install #8→首枚映射 P→
+  note_declared_boundary 违例边界→NM 断言→#9 干净边界→DD 断言;
+  数值=R56 #8 实测锚 74137405051×74037405049·offset#7=+100131607）
+  + 无窜帧差分对照（干净 DD）——`switch_graph_m1_*` 两测盒上 2/2 绿。
+- **盒矩阵**: default 227/sim 227/gst 261=259+2（run-A 瞬态 1 失败
+  未捕获名·零改动重跑 261/261 全绿——R51 flaky 同型）·clippy×2
+  -D warnings 绿。红线全维持; 步骤 5-11 待执行; A2-8-05 不进入。
