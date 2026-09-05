@@ -4119,3 +4119,30 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - **OQ-P1..P7 待终裁**（D2 形状/FieldPending 阻塞/证据窗/B 类重试/
   工件漂移/Gap 阻塞化/组合规则——提案默认见文档 §5）。终裁前 A2-8-04
   Gate 不执行, A2-8-05 不提前; 本轮零代码, 账本纯追加。
+
+## §71 第五十五轮修订（R55.1: 终裁纠偏与冻结——零代码, docs-only）
+
+- 验收层终裁 R55 = **ACCEPT WITH CORRECTIONS**: 方向保留, 四项必改后
+  冻结（P1/P5 充分性前置·P2 改 outcome↔continuity 一致性·P2c 弃用
+  硬编码 None 字段改三支合取·P6 FieldPending 永不伪装 Satisfied）;
+  四层 Gate 组合冻结（Evidence Integrity(P8)/Semantic Correctness(P1,
+  P2,P3,P5,P6a)/Regression Safety(P7=dual_input 回归证据, 不替代
+  Timeline Gate 裁决)）。
+- 终裁前只读核验把裁决引用的代码事实逐条对到行号（全部属实; 运行时
+  代码 d1a4fc6→89e2863 零改动）, 新增两处结构性披露不修: ①
+  undeclared_backward_jump 死字段（唯一构造点 program_timeline.rs:658
+  硬编码 None）→ dual_input.rs:789 合取项恒真; ②on_mapped_buffer
+  （:621-624）首帧边界回退吸收为 Unproven→NewEpoch（fail-closed 链
+  仅在 on_program_pts :754-763）= P2c 语义边界。引用订正:
+  SixPathEvidence/advanced=program_execution.rs:204-247, av_paired=
+  watchdog.rs:456。
+- **OQ-P1..P7 全关**: R55 终裁五项 + R55.1 补裁三项（OQ-P3 证据窗=
+  **案 b** Gate 日新鲜确认集+累计背景; OQ-P4=仅 signal 类可重试全
+  归档; P1/P5 完整性下限=每路 PRE≥1∧POST≥1 非 Unknown）。verdict
+  词表 v2 {Satisfied/Failed/Unproven/Historical/UnitProven/
+  FieldPending/Gap}; blocking 格 Failed **或 Unproven** 均阻断 PASS。
+- 谓词文档 = 2026-09-05-a2-8-04-acceptance-predicate-proposal.md
+  **FROZEN (R55.1)**, 终裁登记+旧→新对照+披露 = 其 §7; 全文摘要 =
+  04-探针 §13。
+- 状态: A2-8-04 Final Gate 待按冻结谓词+案 b 证据窗执行（下一轮）;
+  A2-8-05 不提前; 本轮零代码零硬件, 账本纯追加。

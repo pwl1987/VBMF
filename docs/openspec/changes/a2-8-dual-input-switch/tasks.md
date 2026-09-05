@@ -985,6 +985,27 @@
   停查]/OQ-P6 Gap 阻塞化[默认披露性]/OQ-P7 组合规则[Gate 层固定合取]**;
   终裁前 Gate 不执行·A2-8-05 不提前; 本项未勾——OQ-P1..P7 终裁→
   谓词冻结→A2-8-04 Gate 执行→A2-8-05 待]**
+  **[第五十五轮修订（R55.1 终裁纠偏+冻结已落地, 零代码 docs-only; 主账
+  §71+04 探针 §13+谓词文档 FROZEN 段）: 验收层终裁 R55=ACCEPT WITH
+  CORRECTIONS——四项必改并入: ①P1/P5 最低观测完整性前置[每路 PRE≥1∧
+  POST≥1 非 Unknown·未达=Unproven 不转 PASS·观测违例=Failed]②P2 重写
+  为 outcome↔continuity 一致性[Preserved⇔双 Continuous·NewEpoch 合法
+  不伪装·Violated/TransitionFailed=Failed·原 P2d 永远 Continuous 弃用]
+  ③P2c 弃用 undeclared_backward_jump==None[核验: 唯一构造点
+  program_timeline.rs:658 硬编码 None·BackwardJumpFact 未实例化→改
+  三支合取: UndeclaredBackwardJump 事件==0(on_program_pts :754-763 真
+  检出链)∧程序面 NM==0(交叉引用 P1)∧Violated==0]④P6 FieldPending=
+  Pending(non-blocking)Gate 报告永不写 Satisfied; 终裁前只读核验全部
+  属实+两处结构性披露不修[死字段→dual_input.rs:789 恒真合取项/
+  on_mapped_buffer :621-624 首帧边界回退吸收 Unproven→NewEpoch=P2c
+  语义边界]+引用订正[SixPathEvidence/advanced=program_execution.rs:
+  204-247·av_paired=watchdog.rs:456]; OQ-P1..P7 全关[R55 终裁五项+
+  R55.1 补裁三项: OQ-P3=案 b Gate 日新鲜确认集/OQ-P4=仅 signal 类
+  重试全归档/完整性下限=PRE≥1∧POST≥1]; verdict 词表 v2 七值·blocking
+  格 Failed 或 Unproven 均阻断 PASS; 四层组合冻结[Evidence Integrity
+  (P8)/Semantic Correctness(P1,P2,P3,P5,P6a)/Regression Safety(P7 不
+  替代 Timeline Gate)]; 谓词文档状态 FROZEN(基线 89e2863); 本项未勾
+  ——A2-8-04 Final Gate 按冻结谓词+案 b 证据窗执行→A2-8-05 待]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

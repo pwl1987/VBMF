@@ -350,3 +350,49 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
   Gate 日新鲜确认集）/ OQ-P4（B 类重试政策）/ OQ-P5（工件漂移）/
   OQ-P6（Gap 阻塞化）/ OQ-P7（组合规则）**。
 - 状态: A2-8-04 Gate 仍 OPEN——谓词终裁前不执行; A2-8-05 不提前。
+
+## §13 第五十五轮修订（R55.1）: 终裁纠偏与冻结（2026-09-05, docs-only, 零代码）
+
+- **终裁**: 验收层裁定 R55 = **ACCEPT WITH CORRECTIONS**——方向保留,
+  四项语义纠偏后冻结; 不退回重做, R53 代码零改动, 裁决时点不执行
+  Final Gate。谓词文档状态 PROPOSAL → **FROZEN (R55.1, 基线 89e2863)**。
+- **终裁前只读核验**（裁决引用的代码事实逐条对到行号; 运行时代码自
+  d1a4fc6 至 89e2863 零改动, 全部行号对两基线等价）: 全部属实, 且发现
+  两处裁决未提及的结构性事实（见下"披露"）。
+- **四项必改（已并入冻结稿 §2/§7）**:
+  1. P1/P5 加最低观测完整性前置——每路 PRE≥1 ∧ POST≥1 且
+     pts_state≠Unknown; 未达 = Unproven 不转 PASS; 观测违例 = Failed
+     （下限值 = R55.1 补裁）。
+  2. P2 重写为 outcome↔continuity 一致性——Preserved ⇔ 双 Continuous;
+     NewEpoch 合法（声明性语义: Unproven 边界吸收/DeclaredDiscontinuity）
+     不得伪装 Preserved; Violated/TransitionFailed = Failed。原 P2d
+     "V/A 永远 Continuous" 弃用（会把合法 NewEpoch 全部误判失败）。
+  3. P2c 弃用 `undeclared_backward_jump==None`——核验证实该字段全仓
+     唯一构造点 program_timeline.rs:658 硬编码 None、BackwardJumpFact
+     (:171) 从未实例化, 该断言只证 close_transition 没填字段, 不证
+     运行时无回退。改三支合取: UndeclaredBackwardJump 事件==0（真
+     检出链 on_program_pts :754-763 → fail_closed :776-786）∧ 程序面
+     观测 NM==0（交叉引用 P1 不合并）∧ Violated 计数==0。
+  4. P6: P6a UnitProven = Satisfied（blocking）; P6b FieldPending =
+     Pending（non-blocking）, Gate 报告**永不写 Satisfied**。
+- **两处结构性披露（核验新增, 本 change 不修, 归属候选后续 Domain 轮）**:
+  ①死字段与恒真合取项——undeclared_backward_jump 恒 None →
+  dual_input.rs:789 `is_none()` 合取项结构性恒真不提供信息; ②边界吸收
+  语义——on_mapped_buffer（program_timeline.rs:621-624）将首帧 mapped
+  边界上的回退吸收为 Unproven→NewEpoch, fail-closed 链不覆盖该相位
+  （= P2c 语义边界, 如实登记）。
+- **引用订正（语义不变）**: SixPathEvidence/PathEvidence/`advanced`
+  派生 = program_execution.rs:204-247（a204_obs.rs:29 复用, 定位器
+  non_advancing 仍在 a204_obs.rs:189-207）; av_paired fold =
+  watchdog.rs:456; BridgeObservation = media_tap.rs:93-101。
+- **OQ 全关**: R55 终裁关 OQ-P1（案 a）/OQ-P2（non-blocking 不伪装）/
+  OQ-P5（零新增 blocking·漂移停查）/OQ-P6（披露 non-blocking）/OQ-P7
+  （四层固定合取: Evidence Integrity(P8)/Semantic Correctness(P1,P2,
+  P3,P5,P6a)/Regression Safety(P7 不替代 Timeline Gate））; R55.1 补裁
+  关 OQ-P3（**案 b**: Gate 日新鲜确认集+累计背景）/OQ-P4（仅 signal 类
+  可重试·全归档）/完整性下限（每路 PRE≥1∧POST≥1 非 Unknown）。
+- **verdict 词表 v2**: {Satisfied, Failed, Unproven, Historical,
+  UnitProven, FieldPending, Gap}; blocking 格 **Failed 或 Unproven 均阻断
+  Gate PASS**（absence≠false: 证据不充分同样不放行）。
+- 状态: 谓词已冻结——A2-8-04 Final Gate 待按案 b 证据窗执行（另行
+  轮次）; A2-8-05 仍不提前; 本轮零代码零硬件, 账本纯追加。
