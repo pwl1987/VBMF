@@ -245,3 +245,89 @@ discontinuity/divergence/starvation 三行已就地校准并标注【R50 校准�
   验收谓词由验收层定义 → A2-8-04 Gate → A2-8-05; 登记: switch_mock
   行为分歧（mock 行 Declared-forever+VM 硬编码——mock-sync 轮留后续）。
   禁发明阈值; L4 冻结维持; 禁回头重复旧活体验证。
+
+## §11 第五十四轮（R54）: T5 证据矩阵续填+正式化——零代码真机取证轮（2f30d16 基线）
+
+### 11.1 轮次性质与执行（零代码; 复用 R52 OBS gate + R53 四态语义）
+
+- 裁决来源: R53 = Unit B PASS（用户终裁+按仓库数据独立复核 13 项全过）;
+  R54 范围 = T5 矩阵续填（§10.3 执行序兑现）。**预期零代码 = 实际零代码**:
+  本地 HEAD 2f30d16 与盒 ~/media-agent-build 72/72 源 sha256 全等
+  （locale/分隔符归一后 diff 清零）; gates bin 重建（bmd-provider,
+  gstreamer-backend）md5=7a0ed95c… 与 R53 逐字节一致 = 零改动的确定性
+  复现佐证。
+- 真机四跑（2026-09-05 15:15-15:26 CST; 证据盒 ~/a2-8-02i-evidence/
+  2026-09-05-r54-a204-t5-matrix/: header 五件套[REV=2f30d16·status 0 行]
+  + 72 文件 box.sha256 + gates-bin.md5 + manifest-v5.md5[7521d17e… 同 R53]
+  + 四 run 日志各自 md5）:
+  - **run1**（N=30, dwell=1000ms, 15:19:46 完, EXIT=0）: 30/30 采集完整;
+    全 Preserved; pr_v/pr_a = DiscontinuityDeclared 178 + ValidMonotonic 2
+    （首切前 PRE=VM 签名 = R53 基线的 30 切换扩展）; in/br 四路 VM=180;
+    NonMonotonic=0; adv=Some(false)=0。
+  - **run2**（burst N=30, dwell=0, 15:24:22 完, EXIT=0）: 同签名全净
+    （DD 178+2 / NM=0 / adv=0）。
+  - **run3**（dual_input 首跑, EXIT=2）: **L1c FAIL——B 类瞬态前置条件**
+    （6ede00d0/ball 源 signal=Some(false) → H1 fail-stop, 3/4 verdicts,
+    L2-L5 未执行）; 首跑 FAIL 留证禁改判据, 日志原样保留; 时序佐证=run2
+    结束前数秒该源仍在供帧（in_a VM=180）→ 判瞬态信号非代码回归。
+  - **run4**（dual_input 重试, 15:26:21 完, EXIT=0）: **ALL PASS 10/10
+    ——判据面零扰动第三轮全绿**; L4 两 face 分层签名与 R53 同构（程序面
+    state=DiscontinuityDeclared + Authority outcome=Preserved·v/a=
+    Continuous·epoch=ProgramEpoch(0)·映射逐 ns 闭合 offset=32868814）;
+    L5.1/5.2/5.3+故障域归因完整+Teardown 全 PASS。
+- 累计切换样本: 本轮 +60 全 Preserved; **R53 语义后累计 80 切换
+  NonMonotonic=0——闩锁事件未复现**（R53 前历史频率 30 切换 1 次）;
+  闩锁解除真机样本仍未获得（不制造事件; rt_05 单测确定性锁定维持）。
+- **D2 新测量事实: av_delta 振荡包络随会话推进增长**——run1 PRE
+  1.2-117.9ms（SPAN 9.6-126.2, 均值 52.1）/ run2 PRE 1.8-126.8ms（SPAN
+  均值 58.6）; 两跑同形态: ~2-7ms 起步 → #30 时 ~101-127ms, 局部回落但
+  包络单调上升（run2 PRE 全序列 6.6→…→126.8→110.1ms 间隔递增可见
+  形态）; R52 20 切换短窗（1.7-40.1ms·"无单调漂移"结论）未暴露该包络
+  ——时长/切换数两变量在现有数据不可区分, 如实登记。候选=源内在 skew
+  随运行时间漂移（电视 1080i25 vs ball 1080p25）; 登记非裁决, 阈值仍禁
+  （T2 冻结: ns 可比性≠阈值授权）。
+- 工件（零新增, 与 R53 原始日志逐一实测对照）: OBS 跑 pad_unlink ×4/
+  跑·PortId ×2/跑·interlace 3-4/跑·MainContext ×1/跑（R54 实测复核
+  R53 OBS 三跑同为 MainContext ×1/跑——§68.4 "MainContext WARN 0/4"
+  表述与原始日志不符, 就地校准: 0/4 应为 OBS 域 1/跑·dual_input 域
+  2/跑）; dual_input 跑 maincontext ×2·pad_unlink ×4·interlace ×6 与
+  R53 run4 逐项相等。全为既有隔离债零新增。
+
+### 11.2 T5 证据矩阵（正式化; OQ-T5 冻结形状: 六路×四模式·每格=证据 E·absence≠false·禁合成大布尔）
+
+样本基数: R51 首采 1 + R52 20 + R53 20 + R54 60 = **101 次切换**
+（每切换 PRE/SPAN/POST × {A,B} 六行投影; dual_input 全链三轮 10/10 另计）。
+
+| 路＼模式 | rollback | discontinuity | D1 pad 分离 | D2 PTS 漂移 | starvation |
+|---|---|---|---|---|---|
+| in_v | E+: VM-only ×101 切换; NM 未观测（absence≠false） | 四态如实读出=VM; ingest 无声明源故无 DD 语义 | av_paired 域=watchdog fold 已检出+已测（mock）+R46 真机活体; 真机分离未观测（absence） | 不适用（D2=program 出口 \|v−a\|, 单路无定义） | E+: advanced=Some(true) 持续（含被切离路 SPAN 推进=跨切换不饿死首证 R51）; adv=Some(false)=0/101 |
+| in_a | 同 in_v | 同 in_v | 同 in_v（pad 级双平面） | 不适用 | 同 in_v |
+| br_v | E+: VM-only ×101; NM 未观测 | 四态=VM; bridge 无声明源 | 同 av_paired 域 | 不适用 | E+: bridge 帧计数推进+alive_in_window 观察时钟窗; Some(false)=0 |
+| br_a | 同 br_v | 同 br_v | 同 br_v | 不适用 | 同 br_v |
+| pr_v | E±: R52 首证 16/60 行（**旧闩锁语义·R53 前历史**）; R53 语义后 80 切换 NM=0; 生命周期=rt_05 五断言单测锁定 | **E+: DD 新基线格**（R53 34+2/58+2/N4 + R54 178+2×2: 首切前 PRE=VM, 此后 DD 边界事实保持——干净跑稳定签名）; undeclared_backward_jump=0（Authority 证据链）; PlaneContinuity=Continuous 全程 | 同 av_paired 域（program 双平面 selector） | **E-测量**: R51 7.15→15.48ms 首点; R52 振荡 1.7-40.1ms 短窗; R54 会话包络至 ~127ms（§11.1）——只测量无阈值 | E+: SPAN/POST 推进; adv=Some(false)=0 |
+| pr_a | E+: NM 未观测（R52 0/60; R53/R54 =0） | 同 pr_v（DD 基线 V/A 对称成立） | 同 pr_v | 同 pr_v（delta 的另一端） | 同 pr_v |
+
+**特殊格——闩锁解除（rollback×discontinuity 交叉生命周期）**: 真实
+NM → 下一干净声明边界 → 解除全链 = **rt_05 单测确定性证明 + 真机样本
+待采**（R53 语义后 80 切换 0 复现; 历史 30 切换 1 次为旧语义）。该格
+状态 = "单测证明+真机待样本"（如实, 不制造事件, 不阻塞交接）。
+
+**缺口格（如实登记, 均有独立归属）**: ①生产 InputPts.stalled 硬编码
+false（R50 校准; R52/R53/R54 三轮登记 deferred）——六路逐平面 stalled
+生产证据面=无, starvation 列现以 advanced/帧计数证据为据; ②S5
+negotiated caps=None（异构 format 边界正证据缺席, 异构事实仍以二十五轮
+canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-forever
++VM 硬编码, mock-sync 专门轮留后续, 不混入 A2-8-04 验收证据）。
+
+### 11.3 矩阵交接判定与下一步（执行序不变）
+
+- **T5 矩阵 = 已填充至可交接验收层状态**: 每格要么正证据（含首证/新
+  基线）、要么单测锁定、要么如实 absence/缺口（各有独立归属轮次）;
+  增量采集项（闩锁解除真机样本）opportunistic 续采不阻塞。
+- 验收谓词由验收层在填充后的矩阵上定义（OQ-T5 冻结; 禁发明 PTS delta
+  阈值——R54 D2 会话包络新事实恰好证明: 阈值必须由验收层据分布裁决,
+  非实现层预设; 禁合成大布尔——各模式证据类型本不同）→ A2-8-04 Gate
+  → A2-8-05。
+- 红线全维持: L4 冻结判据零触碰; PtsMonotonicity 四态禁洗; absence≠
+  false; sampled_at_ms 禁修 PTS; 首跑 FAIL 留证（run3 已执行）; 禁回头
+  重复 R46-R49 旧活体验证。

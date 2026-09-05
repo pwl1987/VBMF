@@ -4055,3 +4055,50 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   ③S5 negotiated caps=None 保持诚实缺席。
 - 下一步: T5 矩阵续填（含 [pr×DiscontinuityDeclared] 新基线格+闩锁解除
   真机样本待采）→ 验收谓词由验收层定义 → A2-8-04 Gate → A2-8-05。
+
+## §69 第五十四轮（R54: T5 证据矩阵续填+正式化——零代码真机取证轮）
+
+### 69.1 裁决登记（HEAD=2f30d16 复核起点）
+
+- R53 = Unit B PASS 用户终裁 + 独立复核（本会话按 git 对象+代码逐行+
+  账本原文 13 项全过: d1a4fc6 单文件 +387/−40·MappedContinuation 四态
+  派生与五锁断言逐行核实·账本三处纯追加·A2-8-04 未提前关闭）; 复核边界
+  如实声明: 盒矩阵与真机四跑未重执行（记录级交叉一致）, 仓库外证据盒未
+  开（plan-mode 权限拦截）。
+- R54 范围 = T5 矩阵续填（§68.5/04-探针 §10.3 执行序）: 真机增量采集 +
+  矩阵正式化 + 交接验收层; **零代码轮**（预期=实际: 72/72 源 sha 本地↔
+  盒全等; gates bin 重建 md5 与 R53 逐字节一致）。裁决依据=账本执行序,
+  无新 OQ, 无判据变化, 无阈值。
+
+### 69.2 真机四跑（2026-09-05 15:15-15:26 CST; 证据盒 ~/a2-8-02i-evidence/
+2026-09-05-r54-a204-t5-matrix/）
+
+- run1 N=30 dwell=1000ms EXIT=0: 30/30 采集完整·全 Preserved·pr_v/pr_a
+  DD=178+VM2（R53 基线 30 切换扩展）·NM=0·adv=0。
+- run2 burst N=30 dwell=0 EXIT=0: 同签名全净。
+- run3 dual_input 首跑 **EXIT=2 = L1c B 类瞬态**（ball 源 signal=false→
+  H1 fail-stop 3/4）; 首跑留证日志保留; run2 数秒前该源仍供帧→判瞬态。
+- run4 dual_input 重试 **ALL PASS 10/10 EXIT=0 = 判据面零扰动第三轮**;
+  L4 两 face 同构（DD+Preserved/Continuous/epoch0/offset 32868814 逐 ns）;
+  L5+Teardown 全绿。
+- 累计: 本轮 +60 切换全 Preserved; R53 语义后 80 切换 NM=0（闩锁未复现,
+  解除格维持"rt_05 单测证明+真机待样本"）。
+- **D2 新事实: av_delta 振荡包络随会话推进增长**（两跑同形态 ~2-7ms →
+  ~101-127ms; R52 短窗 1.7-40.1ms 未暴露; 候选=源 skew 随时间漂移;
+  登记非裁决阈值仍禁）。
+- 工件零新增: OBS 跑 4/2/3-4/1（pad_unlink/PortId/interlace/MainContext）
+  ·dual_input 跑 4/6/2 与 R53 原始日志逐项相等; **就地校准: §68.4
+  "MainContext WARN 0/4" 与原始日志不符（实测 OBS 域 1/跑·dual_input 域
+  2/跑）——历史登记表述修正, 技术结论（既有隔离债零新增）不变**。
+
+### 69.3 T5 矩阵正式化与交接（全文=04-探针 §11.2）
+
+- 显式六路×四模式矩阵落账（每格=证据 E·absence≠false·样本基数 101
+  切换）: 正证据格（六路 VM/推进/DD 新基线/跨切换不饿死首证）+ 首证格
+  （pr_v NM=R52 旧语义历史）+ 单测锁定格（闩锁解除）+ 如实 absence/缺口
+  （stalled 生产硬编码·S5 caps=None·switch_mock 分歧——各有独立归属）。
+- **交接判定: T5 矩阵 = 已填充至可交接验收层状态**; 闩锁解除真机样本
+  = opportunistic 增量项不阻塞。
+- 下一步: **验收谓词由验收层在矩阵上定义**（禁发明 PTS delta 阈值——
+  D2 会话包络新事实即阈值必须由验收层据分布裁决的实证; 禁合成大布尔）→
+  A2-8-04 Gate → A2-8-05。R52/R53 历史零回改; 本轮账本纯追加。

@@ -948,6 +948,27 @@
   switch_mock 行为分歧留 mock-sync 轮+stalled:false 非本轮+S5 caps=None
   诚实保持; 证据盒 2026-09-05-r53-ctimeline-correctness; 本项未勾——T5
   矩阵续填+验收谓词定义+A2-8-04 Gate 待]**
+  **[第五十四轮执行（R54 T5 矩阵续填+正式化已落地, 零代码; 主账 §69+04
+  探针 §11）: 裁决=R53 Unit B PASS（用户终裁+独立复核 13 项全过——复核
+  边界如实: 记录级交叉一致非重执行）, R54 范围=真机增量采集+矩阵正式化+
+  交接验收层, 无新 OQ 无判据变化无阈值; 零代码确认=72/72 源 sha 本地↔盒
+  全等+gates bin 重建 md5 与 R53 逐字节一致; 真机四跑（2026-09-05
+  15:15-15:26 CST, 证据盒 2026-09-05-r54-a204-t5-matrix 五件套+四日志
+  md5）: run1 N=30 dwell1000 EXIT=0[30/30 全 Preserved·pr DD=178+VM2·NM=0
+  ·adv=0]+run2 burst N=30 EXIT=0[同签名]+run3 dual_input 首跑 EXIT=2[
+  L1c B 类瞬态 ball signal=false→H1 fail-stop·首跑留证禁改判据]+run4
+  重试 ALL PASS 10/10 EXIT=0[判据面零扰动第三轮·L4 两 face 同构 DD+
+  Preserved/Continuous/epoch0·L5+Teardown 全绿]; 累计 R53 语义后 80 切换
+  NM=0 闩锁未复现（解除格=rt_05 单测证明+真机待样本, 不阻塞）; **D2 新
+  测量事实: av_delta 会话包络增长**（两跑同形态 2-7ms→101-127ms, R52 短
+  窗未暴露, 候选=源 skew 时间漂移, 登记非裁决阈值仍禁）; 工件与 R53 逐
+  项相等零新增[就地校准: 主账 §68.4 "MainContext WARN 0/4" 与原始日志不
+  符→实测 OBS 域 1/跑·dual_input 域 2/跑, 技术结论不变]; T5 显式六路×
+  四模式矩阵落账（04 探针 §11.2: 样本基数 101 切换·正证据/首证/单测
+  锁定/absence 缺口四类格齐备·缺口各有独立归属[stalled 硬编码/S5 caps=
+  None/switch_mock 分歧]）; **T5 矩阵=已填充至可交接验收层状态**; 本项
+  未勾——验收谓词由验收层定义（禁发明 PTS delta 阈值·禁合成大布尔）→
+  A2-8-04 Gate → A2-8-05 待]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
