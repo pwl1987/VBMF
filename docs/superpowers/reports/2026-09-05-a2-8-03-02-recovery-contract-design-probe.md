@@ -1,8 +1,10 @@
-# A2-8-03-02 Recovery Contract 设计冻结提案（R46 交付, 零实现）
+# A2-8-03-02 Recovery Contract 设计探针/冻结提案（Design Probe / Freeze Proposal）
 
-状态: DESIGN PROPOSAL — **开工门=用户对 §3/§4 OQ 冻结后授权实现**
+状态: **DESIGN DELIVERED / FREEZE NOT YET COMPLETE** —— OQ-R1..R5 待用户
+裁决; 裁决前**不得**称"已冻结 Contract"、**不得**开写 Recovery 实现代码
+（R47 裁决命名纠偏: 设计提案 → OQ-R1..R5 用户裁决 → Contract Freeze → 实现）。
 授权来源: R46 裁决 §17（先 Group Watchdog 真机活体, 再 03-02 Recovery Contract;
-开发线=comet/a2-8-dual-input-switch@ff864d2, master=7745968 勿混）
+开发线=comet/a2-8-dual-input-switch@f5eedcb, master=7745968 勿混）
 
 ## §1 R46 活体证据基线（03-01-G Final 的输入, 先于本提案记录）
 
@@ -86,3 +88,21 @@ MediaBackend::recover SPI / stop 注销语义 / Supervisor action 词表 /
 watchdog Restart 分支读 last_decision_domain → Input → recover(own
 handle)（现状）; Bridge/Program → 跳 recover + 现有 escalate 面; +纯函数
 测试; 矩阵+真机复跑。Supervisor 零改动。
+
+## §7 R47 状态修正记录（2026-09-05, 用户裁决落账）
+
+- **命名纠偏（R47 §八, 立即修正）**: 本文档曾以"设计冻结提案"为题——
+  OQ-R1..R5 未裁决前**不是 Frozen Contract**; 准确名称=**设计探针/冻结
+  提案（Design Probe / Freeze Proposal）**, 状态=DESIGN DELIVERED /
+  FREEZE NOT YET COMPLETE。演进序: 设计提案 → OQ-R1..R5 用户裁决 →
+  Contract Freeze → 实现。
+- **hygiene 修正（R47 §九, defer）**: 主账/tasks 中"五面 F-1..F-6"计数
+  有误（实为**六面** contract proposal faces）——按用户裁定**不在本轮
+  单独制造提交**, 于下一次 03-02 正式冻结时顺手统一为"六面（F-1..F-6）"。
+- **OQ-R4 已由 R47 裁决关闭**: 用户裁定=接受三层组合证据（生产线程活体
+  +生产线程分类器活体+gate L5d 真机注入分类）关闭 G-2-G, **不要求自然
+  故障长窗复跑**; Gate 分层模型: G-2-G-LIVE=PASS / G-2-G-CLASSIFY=PASS /
+  G-2-G-FAULT=NOT OBSERVED（不阻塞）/ G-2-G-E2E=属后续 03-02 Recovery
+  与 A2-8-04 范围。**G-2 Final=CLOSED（R47）**; 03-01-G=COMPLETE。
+- 红线重申（R47 §十三）: **先裁 OQ-R1..R5 后按冻结 Contract 实现**——
+  禁实现先于 Contract; 当前分支基线=f5eedcb。

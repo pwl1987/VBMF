@@ -798,6 +798,22 @@
   提案默认=不新造 Strategy 词表+消费点=执行域读 last_decision_*+
   Supervisor 判定/词表零变化+OQ-R1 全维持现状零代码收口候选]; 本项
   保持未勾——G-2 Final/03-02 冻结/A2-8-04 专项均待裁待做]**
+  **[第四十七轮（主账 §62, 03-01 探针 §12, R46 复核裁决+OQ-R4 关闭+
+  G-2 Final CLOSE+03-02 命名纠偏; 零运行时代码零矩阵）: R46=PASS
+  G-2-G LIVE EVIDENCE[12 行复核: 1-6/8-9/11-12 PASS·7 有条件[LIVE
+  PASS/E2E 未触发]·10=DESIGN DELIVERED/FREEZE NOT YET COMPLETE];
+  **OQ-R4=组合证据关闭**[Layer1 生产线程活体+Layer2 生产线程分类器活体
+  +Layer3 gate L5d 真机注入分类; 长窗复跑=概率性证据非确定性软件证据;
+  **Gate 分层记账: G-2-G-LIVE=PASS·G-2-G-CLASSIFY=PASS·G-2-G-FAULT=NOT
+  OBSERVED 不阻塞·G-2-G-E2E=属 03-02/A2-8-04·LIVE 与 E2E 禁混**];
+  **G-2 Final=CLOSED（R47）**·03-01-A..G 全 COMPLETE·03-01-G 收口注记
+  [观测行=诊断零决策语义·E2E 触发证据随 03-02/A2-8-04 补齐]; **03-02
+  命名纠偏: 设计探针/冻结提案[Design Probe / Freeze Proposal]·DESIGN
+  DELIVERED/FREEZE NOT YET COMPLETE·禁称已冻结 Contract·文档标题/状态
+  行已就地修正+§7 修正记录**; hygiene defer: "五面"→六面[F-1..F-6]于
+  03-02 冻结时顺手修不单独提交; **纪律重申: 禁先写 Recovery 代码——先
+  OQ-R1..R5 用户裁决→Contract Freeze→最小实现→matrix+真机→A2-8-04**;
+  本项保持未勾——03-02/03-03[G-3]/03-04[G-4] 未做]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案

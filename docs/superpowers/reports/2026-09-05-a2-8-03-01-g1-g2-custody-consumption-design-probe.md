@@ -434,3 +434,21 @@ A2-8-04 bin 验证轮; G-2 stage-1 实现完成, PASS 判定待用户复核（�
 - 03-02 Recovery Contract 设计冻结提案已交付（新文档, 零实现, OQ-R1..R5
   待裁; 提案默认=OQ-R1 全维持现状零代码收口候选; 消费点提案=执行域读
   last_decision_*, Supervisor 判定/词表零变化）。
+
+## §12 R47 登记: OQ-R4 关闭 + G-2 Final CLOSED + G-2 Gate 分层记账（2026-09-05, 零代码）
+
+- **R46=PASS — G-2-G LIVE EVIDENCE**（用户三层复核: 裁决原文→GitHub
+  提交/分支→证据链语义; a8b87b1 观测行边界确认为架构正确非仅符合）。
+- **OQ-R4=组合证据关闭**（用户裁决）: Layer1 生产线程活体+Layer2 生产线程
+  分类器活体+Layer3 gate L5d 真机注入分类——三层覆盖链路/分类器/真实故障
+  分类; 缺失仅"production watchdog+真实故障同时发生"=概率性事件非软件
+  证据, 不要求自然故障长窗。**Gate 分层**: G-2-G-LIVE=PASS·G-2-G-CLASSIFY
+  =PASS·G-2-G-FAULT=NOT OBSERVED（不阻塞）·G-2-G-E2E=属 03-02/A2-8-04。
+- **G-2 Final=CLOSED（R47）**; 03-01-A..G 全 COMPLETE; 本探针的 G-1/G-2
+  消费链闭环至此完整（identity 契约→单一 drain→custody 生产接线→归因/
+  域/决策输入面→真机活体三层证据）。
+- **03-01-G 收口注记**: 观测行=诊断输出零决策语义（R46 已裁架构边界
+  正确）; 故障动作路径的 E2E 触发证据随 03-02 Recovery 实现与 A2-8-04
+  生产验证轮自然补齐（Live/E2E 禁混——R47 §七 分层模型）。
+- 03-02=Design Probe/Freeze Proposal（命名纠偏, FREEZE PENDING
+  OQ-R1..R5; 禁实现先于 Contract——R47 §十三 纪律）。

@@ -3489,3 +3489,54 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   本轮证据, 真实故障路径活体与 Timeline/AV continuity 专项仍待）。
 - 提交: 观测行代码（watchdog.rs 单文件）+账单元（本 §+03-01 §11+03-02
   新文档+tasks R46 段）分单元提交推送。
+
+## §62 第四十七轮（R46 复核裁决 + OQ-R4 关闭 + G-2 Final CLOSE + 03-02 命名纠偏; 零运行时代码）
+
+### 62.1 R46 复核裁决登记（用户三层复核: 裁决原文→GitHub 提交/分支→证据链语义）
+
+- **R46=PASS — G-2-G LIVE EVIDENCE**; 12 行逐条复核: 1-6/8-9/11-12 全
+  PASS; 7 有条件通过（LIVE Gate PASS / Production Failure E2E 未触发）;
+  10 = DESIGN DELIVERED / FREEZE NOT YET COMPLETE。
+- 分支与提交核验属实: comet/a2-8-dual-input-switch=f5eedcb, master=
+  7745968 旧头, 无混线; a8b87b1（纯代码, 观测行）/f5eedcb（账 4 文件）
+  单元分离实际修正; R45 d6c6a45 卷入维持披露不重写。
+- 观测代码边界确认（用户 §四: 非基本符合而是**架构边界正确**）: 诊断
+  观测→assemble_decision_input→仅 logging, 零状态零决策路径; 故障动作
+  路径保持独立——未污染 G-2 边界。
+
+### 62.2 OQ-R4 正式裁决（用户 §六/§七）: **组合证据关闭, 不要求自然故障长窗**
+
+- 裁决理由: 长窗复跑=把"验证软件链路"变成"等待电视信号自然故障"——
+  概率性证据非确定性软件证据; 现有三层证据已覆盖链路/分类器/真实故障
+  分类本身: Layer1 生产线程真实活体（tick 0→1120·57 行·双设备三列）+
+  Layer2 生产线程真实分类器（同 assemble_decision_input, 非测试 harness,
+  FailureDomain::None 真机产出）+ Layer3 真实故障分类（gate L5d 真机
+  注入, 故障域归因完整=true）。
+- **Gate 分层模型（正式记账）**: G-2-G-LIVE=PASS / G-2-G-CLASSIFY=PASS /
+  G-2-G-FAULT=NOT OBSERVED（不阻塞——缺的是"production watchdog+真实
+  故障同时发生"而非链路/分类器正确性）/ G-2-G-E2E（recovery action）=
+  属后续 03-02 Recovery 与 A2-8-04 范围。**LIVE 与 E2E 两 Gate 禁混**。
+
+### 62.3 G-2 Final=CLOSED（R47）; 03-01-G=COMPLETE
+
+- 用户状态表收敛: 03-01-A..G 全 COMPLETE; G-2-00/G-2 Stage-1/G-2-G LIVE
+  COMPLETE; G-2-G FAULT-ACTION E2E NOT OBSERVED（OQ-R4 已裁=接受, 不
+  阻塞）; **G-2 Final=CLOSED**。R40..R46 全 PASS 链保持。
+- 边界面保持: Supervisor RECOVERY ONLY / Switch boundary / Timeline /
+  Mock A/B DEFERRED / Mimosa DEFERRED。
+
+### 62.4 03-02 命名纠偏（用户 §八, 立即修正）
+
+- "设计冻结提案"表述不严谨——OQ-R1..R5 未裁决前**不是 Frozen Contract**;
+  准确名称=**设计探针/冻结提案（Design Probe / Freeze Proposal）**,
+  状态=DESIGN DELIVERED / FREEZE NOT YET COMPLETE。03-02 文档标题/状态
+  行已就地修正+§7 修正记录; 本账及下游账自本节起统一用词。
+- hygiene（用户 §九, defer）: "五面 F-1..F-6"计数修正为**六面**——
+  不单独制造提交, 于 03-02 正式冻结时顺手统一。
+
+### 62.5 下一刀（用户 §十三路线图, 纪律重申）
+
+- **禁先写 Recovery 代码**——先 OQ-R1..R5 用户裁决 → Recovery Contract
+  Freeze → 最小实现（若裁执行分支）→ matrix+真机 → A2-8-04。
+- 本轮=零运行时代码零矩阵（纯账面）; 提交=账单元（主账 §62+03-01 §12+
+  03-02 文档纠偏+tasks R47 段）; 基线=f5eedcb..（本节提交后新头）。
