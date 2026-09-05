@@ -909,6 +909,23 @@
   Authority snapshot（正确）; 工件全为既有隔离债零新增; 证据盒
   2026-09-05-r51-a204-sixpath-observation; 本项未勾——T5 证据矩阵待多场景
   填充+验收谓词未定义+多场景采集继续]**
+  **[第五十二轮执行（R52 多场景采集已落地, e843eba; 主账 §67+04 探针 §9）:
+  新第七真机 env VBMF_A2_8_04_OBS（gates/a204_obs.rs）——N/DWELL 参数化
+  交替 A↔B 多场景（dwell=0 连续切换/N 调大长窗）, 每切换 PRE 对/SPAN/POST
+  对复用 R51 六路投影**零 Domain API 扩张·无判据无阈值·exit=采集完整性**;
+  S5 format 行（caps=None 缺席如实）; 汇总=纯数据（pts_state 计数+adv 定位+
+  av_delta 三相位序列）; 3 纯函数测试入硬件矩阵; dual_input/switch_graph/
+  Supervisor/契约零触碰, Gap B 未修（R53）; 盒矩阵 fmt/227/393/254(+3)/
+  clippy×2 全绿, sha 盒==HEAD; **真机四跑全 EXIT=0: 20 切换（6/10/4×
+  dwell 5s/1s/0s）全 Preserved·av_epoch 1..N·ProgramEpoch(0) 全程保持=
+  Preserve 多切换连续性真机首证; run2 pr_v NonMonotonic=16/60 闩锁首证
+  （#8 B→A 边界 per-buffer 单次回退→无复位闩锁; pts 递增+帧推进+Authority
+  Continuous 并存=R53 correctness 直接输入证据; pr_a 0/60; 20 样本 1 次
+  概率性如实）; D2 av_delta 方向振荡（B 活跃 15.0-40.1ms/A 活跃 1.7-26.7ms
+  无单调漂移, 候选=源内在 skew, 登记非裁决不设阈值）; run4 dual_input 回归
+  10/10（判据面零扰动）**; T5 矩阵大面积正证据+pr_v 负格首证; 工件全为
+  既有隔离债零新增; 证据盒 2026-09-05-r52-a204-multi-scenario; 本项未勾——
+  R53 correctness 未做+验收谓词未定义]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

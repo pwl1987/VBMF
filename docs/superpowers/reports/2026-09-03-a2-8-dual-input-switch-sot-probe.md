@@ -3857,3 +3857,100 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   ②本轮账（主账 §66 + a2-8-04 探针 §8 + tasks item-6 R51 段）。盒矩阵+
   真机如上; 03-01/03-02 探针本轮不新增（无新域裁定）。
 - 基线: e24aaa2..4d95ec6..（本轮账后新头）, master=7745968。
+
+## §67 第五十二轮（R51 复核 PASS + R52 多场景证据采集: 观测 Gate 落地 + 真机 20 切换三场景 + pr_v NonMonotonic 闩锁首证）
+
+### 67.1 R52 裁决登记（代码锚点 HEAD=d49dbcd 复核全过）
+
+- 总裁决: **R51 PASS 不回滚; 直接进入多场景证据采集（Unit A）→ R53 才修
+  Gap B**——两链分离硬纪律: ①Observation Expansion（多场景六路采集,
+  不改业务判定）②C-TIMELINE correctness（switch_graph.rs
+  `first_mapped.is_some()→DiscontinuityDeclared` 过宽, 独立 R53 单元修+
+  测试锁死 mapped+monotonic→非 Declared / 显式 declaration→Declared /
+  真回退→NonMonotonic / Unknown=证据不足非 false）。
+- 架构链确认: 切换链与故障链无错误循环（Supervisor 不调 switch; FailureDomain
+  不反向入 Timeline; watchdog 只供 evidence/decision input）——HEAD 实锚:
+  supervisor.rs 全文唯一 "switch" 命中=R44 §7 红线注释本身（:224）; 生产
+  drain 唯一入口=watchdog.rs:203 `consume()`（event_intake.rs 其余命中全为
+  测试）。
+- 裁决所锚代码事实复核: **Gap B 原文在位**——switch_graph.rs observe()
+  `Some(t) if t.video.first_mapped.is_some()` ⇒ `discontinuity_state:
+  DiscontinuityDeclared` + `video_continuity: Continuous` 硬编码（≈:975-984）
+  + `stalled: false`（:936）; TimelineSample 六 PTS+六态（program_execution.rs
+  :66-78）; `program_progress_since`=video‖audio 聚合（:160-166）——均与
+  裁决文一致, 零偏差。
+- 模块影响表接受: program_execution.rs 六路投影✅已正确/pipeline.rs 四态❌
+  不改/switch_graph.rs 🔴 R53 必修/其余全部 ❌ 不动（含 L4 暂不打开、
+  TimelineSample 不扩张、Contract 不重开、Mimosa ⏸ A2-8-05）。
+- **R52 硬约束: 零 Domain API 扩张**——复用 R51
+  SixPathEvidence/PathEvidence/EvidencePhase/assemble_six_path_evidence,
+  禁造第二套 TimelineEvidence/TimelineProbe/PathHealth; 无阈值（T2）; 数据
+  只采集不判定; exit=采集完整性非时间线裁决。
+
+### 67.2 R52 实现（e843eba, +784/−2, 纯增量）
+
+- **新模块 `gates/a204_obs.rs`（VBMF_A2_8_04_OBS, 第七真机 env）**:
+  - 多场景参数化: `_N`（默认 6 交替 A↔B）/`_DWELL_MS`（默认 5000; **0=场景 3
+    连续切换**; N 调大=场景 4 长窗）; 每切换 PRE 对→切换→SPAN→POST 对六行,
+    复用 R51 投影零新 Domain 类型; 方向自校正（读 Desired→另一端）。
+  - S5 format 证据行: 每设备 dn/signal/negotiated caps 同行（实测
+    **caps=None 缺席如实**——probe 上下文读不到协商 caps, absence≠evidence;
+    i25/p25 异构事实仍以二十五轮 canonical closure+ffmpeg 指纹为据, 本行
+    只做在场记录）。
+  - 汇总=纯数据: 每切换 outcome/epoch/av_delta[PRE/SPAN/POST] 序列 + 六路
+    pts_state 计数 + adv=Some(false) 定位行（absence≠false, None 不计）;
+    Teardown=卫生打印非 verdict。
+  - 全量 feature 门控（同 dual_input 惯例——默认构建零编译面, 纯聚合项亦
+    门控否则 dead_code 击穿 clippy）; 3 纯函数测试（tally 计数/负推进定位/
+    delta 三相位读取）入硬件矩阵。
+- 变更面: a204_obs.rs 新增 + gates/mod.rs（+1）+ bin/gates.rs（派发臂+env
+  清单）; **dual_input.rs/program_execution.rs/switch_graph.rs/Supervisor/
+  RestartPolicy/契约面零触碰; Gap B 未修（R53 队列不变）**。
+- 两处初版编译缺陷自纠（未出仓）: impl 块漏门控 + find().map() 双层
+  Option→and_then 展平; SessionPhase 未用导入清除。
+
+### 67.3 盒矩阵（全绿）
+
+- fmt --check ✓; default **227**（新测试硬件门控不动默认数）/ mock **393** /
+  bmd+gst **254**（251+3 新测试）/ clippy ×2（default+hw）`-D warnings` ✓;
+  bins ✓（gates hw bin md5=81bbc40a…）。
+- SHA: 三变更文件 盒==HEAD e843eba（SHA_MATCH_ALL_3）; 证据头五件套+
+  REV+bin md5+manifest v5 md5 齐备。
+- v5 当日核验内生: 三跑 format 行 dn0/dn1 signal=true + run4 L1a 2/2
+  production_grade + L1c 双 true——v5 映射当日有效, 无需重生成。
+
+### 67.4 真机四跑（2026-09-05, 证据盒 ~/a2-8-02i-evidence/2026-09-05-r52-a204-multi-scenario/）
+
+- **run1 默认 N=6 dwell=5s**: 6/6 采集完整 EXIT=0; 全 Preserved; av_epoch
+  1..6 / segment 1..6 / **ProgramEpoch(0) 全程保持**（Preserve 语义多切换
+  真机首次成立）; 六路×36 行全 ValidMonotonic; adv=Some(false)=0。
+- **run2 长窗 N=10 dwell=1s**: 10/10 EXIT=0; 全 Preserved; epoch/segment
+  1..10 / ProgramEpoch(0) 保持。**pr_v NonMonotonic=16/60 首证（本轮最重要
+  数据）**: 全部集中于 pr_v（pr_a 60/60 ValidMonotonic）; 起于 switch #8
+  (B→A) SPAN 持续到会话尾; 边界链 #7 POST=70.137s(VM)→#8 PRE=74.137s(VM)
+  →#8 SPAN=76.304s(**闩锁**)——**采样 pts 全程严格递增+帧推进(fr
+  2299→2941)+10/10 Preserved+Authority 证据 Continuous** ⇒ 回退事件发生在
+  切换窗内 per-buffer 层（adapter 原始面追踪器内部）, 单次回退后状态闩锁
+  无复位语义——**Gap B 相邻的 adapter 原始行闩锁行为首次真机多场景显形,
+  登记 R53 correctness change 输入证据, 本轮不修不判**。对照: dwell=5s×6
+  切换与 dwell=0×4 切换均零闩锁（20 切换样本恰 1 次, 非 dwell 决定论,
+  概率性边界事件——如实记录样本量）。
+- **run3 突发 N=4 dwell=0**: 4/4 EXIT=0; 全 Preserved; 全 ValidMonotonic;
+  adv=Some(false)=0——连续切换场景首采干净。
+- **run4 dual_input 回归（同 bin 含 obs gate）: 10/10 ALL PASS**——判据面
+  零扰动实证（L4 Preserve 全细节/L5 三段+归因/Teardown 全绿）。
+- **av_delta 方向振荡（D2 数据, 不设阈值）**: 20 切换 PRE→SPAN delta 跳变
+  与方向强相关——B 活跃期 ≈15.0-40.1ms / A 活跃期 ≈1.7-26.7ms, 无跨会话
+  单调漂移; SPAN≈POST（run2 #9 唯一 SPAN≠POST=18.4→6.6ms, 后续采样回落
+  稳态）。候选解释（登记非裁决）: 两源各自内在 A/V skew 不同（电视 i25 vs
+  ball p25）, 边界跳变=源 skew 切换非时间线损伤证据——待 R53 后更多样本。
+- 工件: pad_unlink CRITICAL ×4/跑、PortId 碰撞 WARN ×2/跑、converter
+  interlace ×3（run4 ×6）——全为既有隔离债零新增; MainContext WARN 本轮
+  未复现（0/4）。
+
+### 67.5 本轮执行
+
+- 单元: ①e843eba 码（gates/a204_obs.rs+mod+bin）; ②本轮账（主账 §67 +
+  a2-8-04 探针 §9 + tasks item-6 R52 段）。04-探针 §8.3 执行序兑现:
+  多场景采集→T5 矩阵部分填充→R53 correctness 下一刀。
+- 基线: d49dbcd..e843eba..（本轮账后新头）, master=7745968。

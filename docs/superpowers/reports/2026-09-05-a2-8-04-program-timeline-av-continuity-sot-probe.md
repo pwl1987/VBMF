@@ -169,3 +169,42 @@ discontinuity/divergence/starvation 三行已就地校准并标注【R50 校准�
   填 T5 证据矩阵（每格=证据 E, absence≠false）→ 验收谓词待矩阵填充后由
   验收层定义 → C-TIMELINE correctness change（Gap B: adapter 行语义）→
   A2-8-04 Gate。禁发明阈值; L4 冻结维持; 禁回头重复旧活体验证。
+
+## §9 R52 执行：多场景采集落地 + 真机 20 切换三场景 + pr_v 闩锁首证（主账 §67）
+
+### 9.1 变更面（§8.3 执行序兑现; §7 边界全保持）
+
+- 新 gate `gates/a204_obs.rs`（VBMF_A2_8_04_OBS·第七 env）: N/DWELL 参数化
+  交替 A↔B（dwell=0=连续切换; N 调大=长窗）, 每切换 PRE 对/SPAN/POST 对
+  复用 §8 R51 投影——**零 Domain API 扩张（R52 §十）**, 无判据无阈值,
+  exit=采集完整性; S5 format 行 caps=None 缺席如实（异构事实仍以二十五轮
+  canonical closure 为据）。盒矩阵 227/393/**254(+3)**/clippy×2 全绿;
+  sha 盒==HEAD e843eba。
+- dual_input/program_execution/switch_graph/Supervisor/契约零触碰; Gap B
+  未修（R53 队列）。
+
+### 9.2 真机数据（四跑全 EXIT=0; 证据盒 2026-09-05-r52-a204-multi-scenario）
+
+- **20 切换（6+10+4 三 dwell 场景）全 Preserved; av_epoch 1..N 严格递增;
+  segment 1..N; ProgramEpoch(0) 全程保持**——Preserve 多切换连续性真机
+  首证。dwell=5s/1s/0 三场景 + run4 dual_input 回归 10/10（判据面零扰动）。
+- **T5 矩阵填充（每格=证据 E）**: [六路×ValidMonotonic]大面积正证据
+  （run1 36×6, run3 24×6, run2 44-60/60）; **[pr_v×NonMonotonic]=16 行
+  首证**（run2 switch #8 B→A 边界 per-buffer 单次回退→状态闩锁无复位;
+  采样 pts 严格递增+帧推进+Preserved+Authority Continuous 并存——**adapter
+  原始行闩锁语义首次真机显形, =R53 correctness change 直接输入证据**;
+  pr_a 0/60; dwell 5s/0 场景 0 次: 20 样本 1 次, 概率性如实）; [adv=
+  Some(false)]=三跑全 0。
+- **D2 av_delta 方向振荡**: B 活跃 ≈15.0-40.1ms / A 活跃 ≈1.7-26.7ms,
+  无单调漂移; SPAN≈POST（1/20 例外后回落）——候选解释=两源内在 A/V skew
+  不同（i25 电视 vs p25 ball）, 登记非裁决; 阈值仍禁（T2）。
+- 工件全为既有隔离债（pad_unlink ×4/PortId ×2/interlace ×3）零新增;
+  MainContext WARN 未复现。
+
+### 9.3 下一步（执行序不变）
+
+- **R53 C-TIMELINE correctness（Gap B）**: switch_graph.rs mapped→Declared
+  过宽修正 + 测试四锁（mapped+monotonic≠Declared/显式 declaration→Declared/
+  真回退→NonMonotonic/Unknown=证据不足）+ **闩锁无复位语义纳入设计输入
+  （§9.2 首证）**; 然后全矩阵回归 → A2-8-04 Gate（验收谓词矩阵填充后由
+  验收层定义）→ A2-8-05。禁发明阈值; L4 冻结维持; 禁回头重复旧活体验证。
