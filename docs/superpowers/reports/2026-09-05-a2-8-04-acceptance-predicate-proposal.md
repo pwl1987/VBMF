@@ -1,10 +1,12 @@
 # A2-8-04 验收谓词（OQ-T5 兑现——Evidence Matrix → Predicate → Gate）
 
-状态: **FROZEN-FINAL (R55.2, 2026-09-05)**——R55.1 终裁 ACCEPT WITH
+状态: **FROZEN-FINAL (R55.2, 2026-09-05) + §10 R57 裁决登记**——R55.1 终裁 ACCEPT WITH
 CORRECTIONS 四项必改 + R55.2 终裁补正（唯一必改: P2c 拆双通道, §8）
 均已并入: §2 内标 〔R55.1〕/〔R55.2〕 的条款为纠偏后冻结文本, §7/§8
 为终裁登记（旧→新对照）; 未标记条款按提案原文冻结。冻结后 A2-8-04
-Gate 按 §4 证据窗执行。
+Gate 按 §4 证据窗执行; **R56 执行结果 = FAIL（§9）; R57 验收层终裁 =
+FAIL / HOLD FOR BOUNDARY-REBASE SEMANTICS ADJUDICATION + 词汇表
+v2.1 增补 FieldProven（§10）——冻结谓词本体零改动**。
 
 授权来源: R54 交接（04-探针 §11.2 矩阵已填充至可交接状态）+ 用户 R54
 收口指令（"逐格定义 OQ-T5 acceptance predicates·严格 Evidence Matrix →
@@ -324,3 +326,27 @@ P2b-pr_v / P2c-1 三 blocking 格 Failed**（switch #8 B→A pr_v NM=6
 首证）外全 Satisfied/披露齐 → **Gate 层固定合取 = A2-8-04 Final
 Gate = FAIL**。首败留证; 判据零改动; 后续路径（维持违例读法 vs
 边界 rebase 语义裁决轮）归验收层。
+
+## §10 R57 裁决登记（2026-09-05, 验收层对 R56 FAIL 的终裁）
+
+- **A2-8-04 状态 = FAIL / HOLD FOR BOUNDARY-REBASE SEMANTICS
+  ADJUDICATION**: 三 blocking 格（P1-pr_v/P2b-pr_v/P2c-1）维持
+  Failed, 不撤销、不豁免、不修改; FAIL 定性改为 "Semantic
+  adjudication required"（非 "R53 实现已证伪"——R53 生命周期反而
+  获真机正面验证）。
+- **P6a**: UnitProven→**Satisfied**（blocking 不变——R55.1 既定映射
+  的确认）。**P6b**: FieldPending→**FieldProven**（词汇表 v2.1 增补
+  FieldProven, 证据域=生命周期仅有: R56 #8 NM 闩锁→#9 干净边界解除
+  →DD 全链首个真机样本）。**明确边界: 该升级不改变任何 blocking
+  格 verdict——生命周期证明 ≠ #8 回退的业务合法性**（两个问题必须
+  分开, 验收层原话）。
+- R57 = 只读裁决支持轮（零代码零判据零 Gate）: 全文 =
+  `2026-09-05-a2-8-04-r57-boundary-rebase-semantics.md`（事件重建
+  表/四答/机制排查 M1 唯一存活/**skew 框架消解**——锚构造 skew 相消,
+  真问题=出发段 [锚采样→install] 微秒窗映射帧的边界原子性缺口/
+  裁决问题锐化为 (i) 连续性违例 vs (ii) 合法排水语义）。
+- 待验收层下轮裁定: (i)/(ii) 之择一。(i) → adapter/runtime 边界原子性
+  修复→回归→Gate 复跑（谓词不动）; (ii) → Domain contract 变更
+  （drain 语义+事件计数证据面, 与 "禁以声明洗回退" 冻结纪律冲突
+  需正面裁决）。P1 "NM 行==0" 度量闩锁投影数≠事件数——若需事件
+  计数判据属 Domain/Observation 扩展, 非谓词改写可达（登记不改）。

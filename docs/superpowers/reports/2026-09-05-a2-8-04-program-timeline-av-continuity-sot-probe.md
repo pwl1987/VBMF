@@ -488,3 +488,61 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
   R53 语义后 111 切换 pr_v NM 共 6 行（全部在本窗 #8 单事件）。
 - 状态: A2-8-04 = **FAIL（待验收层裁决后续路径）**; A2-8-05 不进入;
   本轮零代码（运行时零改动）; 远端基线推送按终裁于 Gate 后执行。
+
+## §16 第十六轮（R57）: 边界回退语义裁决支持——只读重建（零代码）
+
+- 裁决授权: 用户 R56 终裁选 **(b) 严格版**——A2-8-04 = **FAIL / HOLD
+  FOR BOUNDARY-REBASE SEMANTICS ADJUDICATION**; 三 blocking 不撤销
+  不豁免不修改; FAIL 定性 = "Semantic adjudication required"（非
+  "R53 已证伪"）; **P6a→Satisfied / P6b→FieldProven（v2.1 词汇增补,
+  生命周期证据域, 不改 blocking）**; 本轮零代码零判据零 Gate。
+  全文 = `2026-09-05-a2-8-04-r57-boundary-rebase-semantics.md`
+  （+谓词文档 §10 登记）。
+- **R57-A（六行 NM 产生链）**: 行 st= 唯一来源 = **PipelineHealth
+  程序面健康弧**（selector src-pad 探针改写 mapped → appsink 逐缓冲
+  plain :439 / 段首帧 declared note_declared_boundary :199-201→:259-282
+  → pipeline.rs:323-333/:354-365 → observe() :1058-1067 → snapshot_row
+  克隆共享 ProgramObservation a204_obs.rs:436-445 → pr 行 :339-340）。
+  **TimelineAuthority 从未收到违例值**——喂入粒度 = 切换前 ①a 一次 +
+  50ms 轮询（program_execution.rs:596-608/:641-668/:669-705）, 单缓冲
+  瞬态在采样下不可见; 反证: 若收到则 fail_closed 终态, #9~#30 无法
+  正常执行。**观察面逐缓冲 vs 控制面 50ms 采样 = "同 PTS 数学关系两
+  个裁定"的接缝实锚（IMP-4 设计结果, 非 bug）。**
+- **R57-B（事件重建）**: #8 锚 = 74137405051（=PRE8 末样本精确）×
+  source_anchor 74037405049, offset=100000002=差值精确; 边界帧 mapped
+  精确落旧段末值（零间隙声明）; **切换行 mapped=74304071718 不是锚**
+  ——是 settle 期 50ms×3 轮推进后的 last_program_pts（R56 "锚点前跳
+  +26.67ms" 读法就地修正）; av_epoch(7/8/9 执行计数) ≠ tl_epoch
+  ProgramEpoch(0)（Preserve 同世代）; 段 8 行 pts 单调 +3s/+4s、帧计数
+  推进、av_delta 随活跃源 15150956→1515711→6817622、输入面 skew
+  25.8ms→反向 14.1ms、源 offset 差 131605.5ns 逐源稳定。
+- **R57-C（六行=投影）**: 3 窗 × 双设备克隆同一 ProgramObservation
+  （双行 pr 字段逐 ns 恒同即证）→ 6 次闩锁读数; 底层回退事件 ≥1、
+  最简恰 1; **行数≠事件数**——P1 "NM 行==0" 度量闩锁投影数; 事件计数
+  判据需证据面扩展（健康弧无计数字段）, 属 Domain/Observation change,
+  登记不自行改。
+- **机制排查（M1 唯一存活）**: **M2**（install→⑤ 未映射 raw 穿越 ≈
+  基线−100ms）会被随后干净边界 DD 释放**洗除**（边界≈锚 > raw）→ 不
+  可能产生行 NM, 排除; **M1** = [锚采样→install] 微秒窗内一枚出发段
+  映射帧穿越（旧段 offset 仍生效）→ 基线推高 1 帧（40ms@25fps）→ A
+  边界帧（=锚, 零间隙）成违例边界 → observe_video_pts_declared 置 NM
+  （"声明不豁免回退" :353-356）→ 段作用域 sticky → #9 干净边界解除。
+  概率 ≈ 窗(数十~数百µs)/40ms ≈ 0.1-0.6%/切换, 与 R53 后 ~170 切换
+  1 例 + R52 run2（pre-R53 无解除→16/60 行到运行尾）相容; **#8 同索引
+  复现**（两跑同节拍同相位）候选=周期瞬态拉长竞态窗, n=2 未证。
+- **R57-D**: SixPathEvidence=六路行+program_av_delta_ns 仅此; 跨源
+  表达=逐源 offset/AnchorPair（**skew 相消构造**: 两锚同瞬采样、offset
+  =差、s(T) 相消——日志锚差精确==offset 到 ns 双证）; 无 source_skew/
+  boundary_rebase/declared_rebase/drain 概念、无事件计数面 → **D2 不能
+  裁决边界合法性确认; "跨源 skew 边界 rebase" 框架在证据下消解**。
+- **锐化裁决问题（交验收层）**: 出发段在 [锚采样→新段映射生效] 微秒
+  窗内继续推送的映射帧 = **(i) 连续性违例**（现行代码立场, FAIL=correctness
+  gap → adapter/runtime 边界原子性修复→回归→Gate 复跑, 谓词不动）vs
+  **(ii) 合法排水语义**（Domain contract 变更+事件计数证据面, 与
+  "禁以声明洗回退" 冻结纪律正面冲突）。**执行层分析（非裁决）: 证据
+  支持 (i)**——有界（≤1 帧）真实输出面回跳、健康弧正确检出、R53 按
+  设计自愈、Authority 采样粒度设计性不可见; 缺口在切换协议原子性
+  （锚快照与映射安装对旧段在途流不原子）, 不在任一状态机语义本身。
+- 诚实边界: 违例帧未被直接观测（无逐缓冲轨迹; M1=排除法+算术自洽的
+  推理结论, 幅度 ≈40ms 为机制推断值）; A 未推进(k=0)为最简推断;
+  红线全维持（零代码零判据、首败留证、不为跑绿调整）。

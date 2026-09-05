@@ -1035,6 +1035,32 @@
   留证·判据零改动）**; 交接验收层两读法待裁: (a) 维持=rollback 违例
   (b) R52→R53 先例边界 rebase 语义裁决轮; 本项未勾——Gate FAIL 后续
   路径待验收层裁决; A2-8-05 不进入]**
+  **[第五十七轮执行（R57 边界回退语义裁决支持已交付, 只读零代码;
+  主账 §74+04 探针 §16+R57 独立文档+谓词文档 §10）: 用户 R56 终裁=
+  (b) 严格版——A2-8-04 = FAIL/HOLD FOR BOUNDARY-REBASE SEMANTICS
+  ADJUDICATION·三 blocking 不撤销不豁免不修改·FAIL 定性="Semantic
+  adjudication required" 非"R53 已证伪"·P6a→Satisfied·P6b→FieldProven
+  （词汇 v2.1 增补·生命周期证据域·不改 blocking）; 只读重建四答:
+  A=六行 NM 唯一来源 PipelineHealth 程序面健康弧（appsink 逐缓冲
+  plain+段首帧 declared 两写点）·Authority 从未收到违例值（喂入=①a
+  一次+50ms 轮询·单缓冲瞬态采样不可见·反证 #9~#30 正常执行）→观察面
+  逐缓冲 vs 控制面采样=接缝实锚; B=#8 锚 74137405051×74037405049·
+  offset=差值精确·边界帧零间隙落旧段末值·切换行 mapped 非锚（settle
+  推进·R56 "+26.67ms 前跳"读法就地修正）; C=六行=3 窗×双设备克隆同一
+  程序观测的闩锁读数·底层事件 ≥1 最简恰 1·行数≠事件数（事件计数判据
+  需证据面扩展=Domain/Observation change·登记不自行改）; D=无跨源
+  rebase/排水/事件计数 Domain 概念·D2 不能裁决边界合法性; 机制排查
+  M1 唯一存活[M2 未映射 raw 穿越被干净边界 DD 释放洗除→排除; M1=
+  锚采样→install 微秒窗一枚出发段映射帧穿越→基线+1 帧(40ms)→A 边界
+  帧(=锚)成违例边界→NM"声明不豁免回退"·概率 0.1-0.6%/切换与 1/~170
+  相容·#8 同索引复现=同节拍同相位候选 n=2 未证]; **skew 框架消解**
+  （锚构造两锚同瞬·offset=差·skew 相消·日志双证到 ns——#8 非 skew
+  驱动）; 锐化裁决问题交验收层: (i) 连续性违例→adapter 边界原子性
+  修复→回归→Gate 复跑（谓词不动）vs (ii) 合法排水语义→Domain 变更+
+  事件计数（与"禁以声明洗回退"冻结纪律冲突）; 执行层分析（非裁决）
+  =证据支持 (i); 诚实边界=违例帧未被直接观测（M1=排除法推理）; 本项
+  未勾——(i)/(ii) 择一待验收层下轮裁定; A2-8-05 不进入（Gate 仍
+  FAIL/HOLD）]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
