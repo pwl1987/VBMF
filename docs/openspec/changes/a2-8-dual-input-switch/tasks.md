@@ -753,6 +753,34 @@
   匹配维持)/watchdog 本地 fold 分区语义不变]; custody「双零生产调用」
   闭合其一, 归因/快照生产消费仍零[03-01-D/E/F 待授权]; 本项保持未勾
   ——A/B/C≠03-01 完成]**
+  **[第四十五轮（主账 §60, 03-01 探针 §10, R44 复核裁决+G-2 stage-1 实现）:
+  R44=PASS[A/B/C 实现轮]; 两措辞降级采信[①A=运行时身份修复≠类型语义锁死
+  (PipelineFault.pipeline 双语义留 V0.3) ②B="类型级排他"→"组合根接线级唯一
+  drain ownership"[internal_log 仍 pub, 注释已纠偏, 强类型封锁留治理轮]];
+  **E 前提纠偏: FailureDomain 并非不存在**[program_execution.rs:179
+  {None,Input,Bridge,Program}+classify_failure_domain 三列进度观测既有,
+  消费=dual_input L5d gate-only=恰 03-00 G-2 缺口原文; §8.10 消费面
+  master_join/api_boundary 预留]——依用户红线复用现有 contract 生产化,
+  禁新造第二同名类型[SharedPipeline scope 与 FailureDomain 两族证据禁融合];
+  授权 R45 全序 G-2-00→D→E→F→G 已执行: G-2-00 预检[report_failure 生产
+  调用者恰 2/桥 liveness=bundle 第三 view 现成/bin composition 扩 4 元透传];
+  D=assemble_decision_input 纯函数装配[attribute_failures 首个生产调用者,
+  ingest/group 两 tick 同临界区; 空 custody→None=absence≠evidence];
+  E=组 tick 三列生产喂入[fold advancing+桥 liveness view(窗口 3000 与 gate
+  同值同义常量)+program_progress_since 两采样; 三列齐备才分类, 缺席不分类
+  ≠gate L5d 缺席→false 口径差异披露]; F=report_failure(+domain,+attributed)
+  决策输入面[Status 逐决策替换记录+只读访问器; **决策判定逻辑零变化**
+  (无分支消费, 域→恢复策略选择=03-02); Custody→Supervisor→switch 禁式
+  不可构造维持; 四红线全守]; 测试+5[证据记录/替换/读取 fail-closed/装配
+  规则三列齐备缺席不分类空 custody 不归因]; 盒矩阵 fmt/default 224/mck
+  390/bmd+gst 248/clippy×2/盒源 7/7 sha8 全绿[hw 门控闭包作用域 bug 盒上
+  抓到修复=default/mock 不编译该段的分层实证]; **真机双 gate: session_
+  lifecycle ALL PASS EXIT=0[ingest tick D/F 接线活体]+dual_input ALL PASS
+  10/10 EXIT=0 零回归[L4 Preserved epoch0·L5d 归因完整; 基线校准: R36/R37
+  已闭环 L5.4, R40 起 10/10]**; 证据盒 2026-09-05-r45-g2-decision-input/;
+  披露: 组 watchdog tick 生产活体证据缺[唯一 spawn=bin:479, 编译级+分类器
+  同源 L5d 真机复核, 活体留 A2-8-04 bin 轮]·G-2 PASS 不自宣待用户复核;
+  本项保持未勾——D/E/F 落地≠03-01 完成[G-2 终审+组 tick 活体+03-02 待裁]]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案

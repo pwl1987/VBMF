@@ -36,7 +36,8 @@ pub struct BootstrapContext {
     pub internal_log: Arc<RuntimeEventLog>,
     /// A2-8-03-01-B: internal 平面唯一 drain 边界（共享单实例——watchdog 族
     /// 经此消费, custody 在边界内全量恰一次累积; 生产线程不直接持 internal
-    /// log——类型级排他）。
+    /// log——组合根接线级唯一 drain ownership, 非 Rust 类型系统绝对封锁
+    /// （R45 复核纠偏: BootstrapContext.internal_log 仍公开, 禁未经 intake 直接 drain）。
     pub event_intake: Arc<std::sync::Mutex<crate::event_intake::InternalEventIntake>>,
     pub event_sink: Arc<dyn RuntimeEventSink>,
     /// bootstrap 占位租约已按设备全部持有（真实会话接管时让位——见各消费方）。

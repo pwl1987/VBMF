@@ -194,7 +194,22 @@ pub fn spawn_ingest_watchdog(
             // 边界内 custody 全量恰一次累积 (A2-7 桥提取规则: echo 排除/nil 拒收),
             // drained 返回本 tick 批次供本地 fold (health/fault_trigger 分区
             // 语义与既有行为一致) → reduce → 写回 agent_state。
-            let drained_internal = intake.lock().unwrap().consume();
+            // 03-01-D (R45 §11): 同一临界区内 custody 归因装配——
+            // `attribute_failures` 首个生产消费点 (单输入 watchdog 无
+            // Bridge/Program 观测列, 域分类证据缺席 → 不分类, 见
+            // assemble_decision_input)。
+            let (drained_internal, decision_attributed) = {
+                let mut g = intake.lock().unwrap();
+                let drained = g.consume();
+                let (_, attributed) = assemble_decision_input(
+                    device_uuid,
+                    None,
+                    None,
+                    None,
+                    &g.observations().failures,
+                );
+                (drained, attributed)
+            };
             // P0-7D-1.4 (事件驱动故障输入): 谓词抽为 supervisor::fault_trigger_from_events
             // (纯函数, mock 面可测 — 见 evt_int_rt_01_fault_trigger_echo_never_retriggers);
             // 自回声排除/归属判定/平面分离语义在彼处锁定。
@@ -214,7 +229,11 @@ pub fn spawn_ingest_watchdog(
                     )
                 })
             {
-                match sup.lock().unwrap().report_failure(&device_uuid) {
+                match sup
+                    .lock()
+                    .unwrap()
+                    .report_failure(&device_uuid, None, decision_attributed)
+                {
                     Ok(supervisor::SupervisorAction::Restart) => {
                         // Lease→Pipeline: recover 前必须重校租约仍在有效期内 (MEDIA-03 排他不变量).
                         if !lm.is_valid(&device_uuid) {
@@ -456,6 +475,45 @@ pub fn execution_group_observe_fold(tick: &GroupTickInputs) -> GroupObservation 
     }
 }
 
+/// 03-01-D/E（R45 §11）: Supervisor 决策输入装配（纯函数, mock 可测）——
+/// R45 §11 目标拓扑 `Custody → FailureDomain → Policy input → Supervisor`
+/// 的证据装配点。
+///
+/// - **域证据**（E）: 现有 [`crate::program_execution::classify_failure_domain`]
+///   三列进度观测——三列**齐备才分类**; 任一列缺席 → `None`（禁伪造健康
+///   臂/故障臂。对照 gate L5d 喂入口径: 行缺席在 L2b 已保证 tap 在场前提
+///   下按 not-alive 记账; 运行时无此前提, 按 media_tap.rs `absence≠evidence`
+///   契约不分类——差异已在 R45 账本披露）。
+/// - **归因证据**（D）: custody 累积观测 → [`crate::custody::attribute_failures`]
+///   （A2-7 冻结语义零放宽）; 空 custody 证据 → `None`（absence≠evidence;
+///   证据在场但身份不匹配 → 产出零归因结果——"证据在场但零归因"是诚实
+///   观测, 与"无证据"区分）。
+/// - 本函数只装配证据, **不做任何决策**（Restart/Escalate 判定属 Supervisor,
+///   逻辑零变化; 域→恢复策略选择=03-02 Recovery Contract 消费面）。
+pub fn assemble_decision_input(
+    device: uuid::Uuid,
+    input_advancing: Option<bool>,
+    bridge_alive: Option<bool>,
+    program_advancing: Option<bool>,
+    custody_failures: &[crate::custody::FailureObservation],
+) -> (
+    Option<crate::program_execution::FailureDomain>,
+    Option<crate::custody::AttributedFailures>,
+) {
+    let domain = match (input_advancing, bridge_alive, program_advancing) {
+        (Some(i), Some(b), Some(p)) => {
+            Some(crate::program_execution::classify_failure_domain(i, b, p))
+        }
+        _ => None,
+    };
+    let attributed = if custody_failures.is_empty() {
+        None
+    } else {
+        Some(crate::custody::attribute_failures(device, custody_failures))
+    };
+    (domain, attributed)
+}
+
 /// A2-8-01: MultiInputWatchdog 薄壳（hw 门控; 单实例服务整个 execution
 /// group——禁 for 循环 spawn 多 watchdog, 终裁修正方向）。
 ///
@@ -477,6 +535,10 @@ pub fn spawn_execution_group_watchdog(
     agent_state: Arc<std::sync::Mutex<health::AgentState>>,
     sink: Arc<dyn events::RuntimeEventSink>,
     intake: Arc<std::sync::Mutex<crate::event_intake::InternalEventIntake>>,
+    // 03-01-E（R45 §11）: 桥 liveness 观测 view（bundle 第三 trait view
+    // 同源注入, OQ-G2-2 的最小闭合——不经第二 registry; None=无桥证据 →
+    // 域不分类, 禁伪造健康/故障臂）。
+    bridge_observation: Option<Arc<dyn crate::contracts::media_tap::BridgeObservationPort>>,
 ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
     // A2-8-02-E: 停止旗（ProgramExecutionRuntime teardown 置位——线程随
     // program 生命周期退出, 不再进程常驻）。
@@ -487,6 +549,9 @@ pub fn spawn_execution_group_watchdog(
             group_inputs.iter().map(|(d, _)| (*d, (0, 0))).collect();
         let mut health_fold = crate::health::HealthFold::bootstrap(*agent_state.lock().unwrap());
         let mut signal_latched: std::collections::HashSet<Uuid> = Default::default();
+        // 03-01-E: Program 进度列的两采样状态（program_progress_since 语义
+        // =帧计数增长, 与 gate L5d 同口径; 首采样前无分类证据）。
+        let mut prev_program_frames: Option<(u64, u64)> = None;
         loop {
             if stop_for_thread.load(std::sync::atomic::Ordering::SeqCst) {
                 tracing::info!("A2-8-02-E group watchdog: 停止旗置位, 观测线程退出");
@@ -497,6 +562,15 @@ pub fn spawn_execution_group_watchdog(
             // 组合面）——fold 消费既有 program 平面（timeline 证据行不入
             // fold——观测折叠语义零变化, 机械路径适配）。
             let observation = switcher.observe(&graph).program;
+            // 03-01-E: Program 进度列（两采样帧计数增长——classify 的第三列;
+            // 首采样 None = 无分类证据, 不伪造）。
+            let program_advancing = prev_program_frames.map(|(pv, pa)| {
+                observation.program_video_frames > pv || observation.program_audio_frames > pa
+            });
+            prev_program_frames = Some((
+                observation.program_video_frames,
+                observation.program_audio_frames,
+            ));
             let (desired, inputs_tick): (SwitchDesired, Vec<InputTick>) = {
                 let g = group.lock().unwrap();
                 let tick_inputs = group_inputs
@@ -539,14 +613,57 @@ pub fn spawn_execution_group_watchdog(
                 }
             }
             // 事件内消费: 03-01-B 唯一 drain 边界（边界内 custody 全量恰一次
-            // 累积）→ reduce → 写回 agent_state。
-            let drained = intake.lock().unwrap().consume();
+            // 累积）→ reduce → 写回 agent_state。03-01-D: 同一临界区取出
+            // custody 累积证据供决策输入归因装配（只读 clone, 不重新 drain）。
+            let (drained, custody_failures) = {
+                let mut g = intake.lock().unwrap();
+                let d = g.consume();
+                (d, g.observations().failures.clone())
+            };
             health_fold = crate::health::reduce(&health_fold, &drained);
             *agent_state.lock().unwrap() = health_fold.agent;
             // 故障动作 → Supervisor 决策（recovery only; 切换永不在此发生）。
+            // 03-01-D/E: 每动作装配决策输入——三列进度证据（本输入 advancing
+            // + 桥 liveness[tap 在场才有证据] + program 进度）+ custody 事件
+            // 证据归因; 证据缺席 → 不分类/不归因（assemble_decision_input）。
             for action in &folded.actions {
                 let GroupAction::ReportInputFailure { device_id, .. } = action;
-                match sup.lock().unwrap().report_failure(device_id) {
+                let input_advancing = folded
+                    .per_input
+                    .iter()
+                    .find(|f| f.device_id == *device_id)
+                    .map(|f| f.advancing);
+                let bridge_alive = match bridge_observation.as_ref() {
+                    Some(port) => {
+                        group_inputs
+                            .iter()
+                            .find(|(d, _)| d == device_id)
+                            .and_then(|(_, h)| {
+                                port.bridge_liveness(
+                                    h,
+                                    crate::program_execution::FAILURE_DOMAIN_LIVENESS_WINDOW_MS,
+                                )
+                                .into_iter()
+                                .find(|l| {
+                                    l.channel == crate::program_execution::tap_channel(*device_id)
+                                })
+                                .map(|l| l.alive_in_window)
+                            })
+                    }
+                    None => None,
+                };
+                let (domain, attributed) = assemble_decision_input(
+                    *device_id,
+                    input_advancing,
+                    bridge_alive,
+                    program_advancing,
+                    &custody_failures,
+                );
+                match sup
+                    .lock()
+                    .unwrap()
+                    .report_failure(device_id, domain, attributed)
+                {
                     Ok(supervisor::SupervisorAction::Restart) => {
                         if !lm.is_valid(device_id) {
                             tracing::error!(device = %device_id, "recover 中止: lease 失效 (排他不变量)");
@@ -768,6 +885,53 @@ mod group_fold_tests {
         assert!(
             folded.switch_state.av_paired,
             "AV 平面成对性独立于 PTS 回退"
+        );
+    }
+
+    /// 03-01-D/E（R45 §11）: 决策输入装配证据规则全锁——
+    /// 三列齐备 → 分类（镜像 gh_rt_01 矩阵行）; 任一列缺席 → 不分类
+    /// （禁伪造健康/故障臂——media_tap.rs absence≠evidence 契约, 与 gate
+    /// L5d 喂入口径差异已在账本披露）; custody 空 → 不归因, 非空 →
+    /// attribute_failures（A2-7 冻结语义, 身份不匹配=零归因非无证据）。
+    #[test]
+    fn r45_decision_input_assembly_evidence_rules() {
+        use crate::custody::{FailureObservation, FailureScope, FailureSource};
+        use crate::program_execution::FailureDomain;
+        let dev = Uuid::new_v4();
+        // 三列齐备: input 停进 + 桥活 + program 进 → Input 域（单故障优先序）。
+        let (d, _) = assemble_decision_input(dev, Some(false), Some(true), Some(true), &[]);
+        assert_eq!(d, Some(FailureDomain::Input));
+        // 三列齐备: 全健康 → None 域（分类器明确产出 None 变体, 非缺席）。
+        let (d, _) = assemble_decision_input(dev, Some(true), Some(true), Some(true), &[]);
+        assert_eq!(d, Some(FailureDomain::None));
+        // 桥列缺席 → 不分类（运行时按 absence≠evidence 契约——不伪造健康臂）。
+        let (d, _) = assemble_decision_input(dev, Some(false), None, Some(true), &[]);
+        assert_eq!(d, None, "证据列缺席 → 不分类");
+        let (d, _) = assemble_decision_input(dev, None, Some(true), Some(true), &[]);
+        assert_eq!(d, None);
+        // custody 空 → 不归因（absence≠evidence）。
+        let (_, a) = assemble_decision_input(dev, Some(true), Some(true), Some(true), &[]);
+        assert_eq!(a, None, "空 custody 证据 → 不归因");
+        // 非空 custody + 本设备 SharedPipeline → 双路归因（A2-7 冻结语义）。
+        let failures = [FailureObservation {
+            pipeline_id: dev,
+            source: FailureSource::PipelineFault,
+            scope: FailureScope::SharedPipeline,
+        }];
+        let (_, a) = assemble_decision_input(dev, Some(false), Some(true), Some(true), &failures);
+        let attr = a.expect("非空 custody 证据 → 产出归因结果");
+        assert!(
+            attr.video_failed && attr.audio_failed,
+            "SharedPipeline → 双路"
+        );
+        // 证据在场但身份不匹配 → 产出零归因结果（与"无证据=None"区分——
+        // "证据在场但零归因"是诚实观测, identity correlation 零污染）。
+        let other = Uuid::new_v4();
+        let (_, a2) = assemble_decision_input(other, Some(true), Some(true), Some(true), &failures);
+        let attr2 = a2.expect("custody 证据在场 → 产出归因结果（零归因也是结果）");
+        assert!(
+            !attr2.video_failed && !attr2.audio_failed,
+            "跨设备零污染（identity correlation）"
         );
     }
 }

@@ -291,6 +291,12 @@ fn main() {
                 let media_tap_port: Option<
                     std::sync::Arc<dyn media_agent::contracts::media_tap::MediaTapPort>,
                 > = adapter_bundle.media_tap;
+                // 03-01-E（R45）: 桥观测 view 同源留存（组 watchdog 域分类的
+                // 桥 liveness 证据源——bundle 第三 trait view, 同一 concrete
+                // controller; 不构成第二 ownership 面）。
+                let bridge_observation: Option<
+                    std::sync::Arc<dyn media_agent::contracts::media_tap::BridgeObservationPort>,
+                > = adapter_bundle.bridge_observation;
                 // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
                 // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
                 let mgr: std::sync::Arc<media_agent::session::SessionManager> =
@@ -306,7 +312,7 @@ fn main() {
                         media_agent::session::SessionTuning::default(),
                         event_sink.clone(),
                     ));
-                (mgr, ctrl, media_tap_port)
+                (mgr, ctrl, media_tap_port, bridge_observation)
             };
 
             // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
@@ -403,6 +409,7 @@ fn main() {
                     let mgr = composition.0.clone();
                     let ctrl = composition.1.clone();
                     let media_tap_port = composition.2.clone();
+                    let bridge_observation_port = composition.3.clone();
                     api_mgr = Some(mgr.clone());
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
                     // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。
@@ -490,6 +497,10 @@ fn main() {
                                                     agent_state.clone(),
                                                     event_sink.clone(),
                                                     event_intake.clone(),
+                                                    // 03-01-E（R45）: 桥观测 view 注入
+                                                    // （组 watchdog 域分类桥列证据源;
+                                                    // None=无桥证据 → 不分类）。
+                                                    bridge_observation_port.clone(),
                                                 );
                                             runtime.set_watchdog_stop(stop_flag);
                                             tracing::info!(
@@ -572,7 +583,7 @@ fn main() {
                     // 一等消费: registry→ResourceRegistry→preflight）; mgr 常驻（tick
                     // 线程持有——lease 房务, 零媒体启动）; 查询/命令面仍不暴露
                     // （0.7C-8 生产 503 契约保持, 待 Control Plane transport 接线）。
-                    let (mgr, _ctrl, _media_tap_port) = composition;
+                    let (mgr, _ctrl, _media_tap_port, _bridge_observation) = composition;
                     tracing::info!(
                         "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 等待 Control Plane 显式 StartPipeline Intent (RPC transport 待接, 见 rpc.rs)"
                     );

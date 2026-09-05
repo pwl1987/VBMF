@@ -199,6 +199,12 @@ pub fn classify_failure_domain(
     }
 }
 
+/// 03-01-E（R45）: 运行时故障域分类的桥 liveness 观察窗——与 gate L5
+/// （gates/dual_input.rs `LIVENESS_WINDOW_MS`=3000）同值同义, 分类器喂入
+/// 口径一致。常量在本模块定义（gates→runtime 依赖禁反转; gate 局部常量
+/// 保持不动）。
+pub const FAILURE_DOMAIN_LIVENESS_WINDOW_MS: u64 = 3000;
+
 struct Inner {
     group: Arc<Mutex<ExecutionGroup>>,
     switcher: Arc<dyn SwitchExecutionAdapter>,

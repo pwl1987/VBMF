@@ -24,7 +24,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
+use crate::custody::AttributedFailures;
 use crate::events::{EventSource, RuntimeEvent, RuntimeEventSink};
+use crate::program_execution::FailureDomain;
 
 /// `report_failure` Restart 路径发射的 `PipelineFault` 摘要 (P0-7D)。
 ///
@@ -129,6 +131,14 @@ struct Status {
     state: ProcessState,
     attempts: u32,
     circuit_open: bool,
+    /// 03-01-F（R45 §11）: 最近一次决策的**域证据输入**（现有
+    /// `classify_failure_domain` 三列进度观测产出; None=本次决策无分类
+    /// 证据——逐决策如实替换, absence≠evidence 不累积）。
+    last_domain: Option<FailureDomain>,
+    /// 最近一次决策的 **custody 事件证据归因**（`attribute_failures`
+    /// 产出; None=本次决策无 custody 证据）。决策逻辑零分支消费——
+    /// 域→恢复策略选择属 03-02 Recovery Contract。
+    last_attributed: Option<AttributedFailures>,
 }
 
 /// Watchdog / restart supervisor. Hardware-independent; drive it from health probes.
@@ -178,6 +188,8 @@ impl Supervisor {
                 state: ProcessState::Running,
                 attempts: 0,
                 circuit_open: false,
+                last_domain: None,
+                last_attributed: None,
             },
         );
     }
@@ -186,18 +198,47 @@ impl Supervisor {
         self.states.get(handle).map(|s| s.state)
     }
 
+    /// 03-01-F: 最近一次 `report_failure` 决策的域证据输入（只读; 未注册
+    /// 句柄/无证据 → None——absence≠evidence 读取面 fail-closed）。
+    pub fn last_decision_domain(&self, handle: &Uuid) -> Option<FailureDomain> {
+        self.states.get(handle).and_then(|s| s.last_domain)
+    }
+
+    /// 03-01-F: 最近一次 `report_failure` 决策的 custody 归因证据（只读;
+    /// 语义同上）。
+    pub fn last_decision_attribution(&self, handle: &Uuid) -> Option<AttributedFailures> {
+        self.states.get(handle).and_then(|s| s.last_attributed)
+    }
+
     /// Health probe reported failure for `handle`.
     /// Increments the attempt counter, trips the circuit breaker at `circuit_threshold`,
     /// and decides Restart (within budget) vs Escalate (budget exhausted / circuit open).
     ///
     /// 0.6D: 决策同时发射 canonical `RuntimeEvent` (Restart → `PipelineFault{retryable}`,
     /// Escalate → `HealthChanged{.. manual_required}`), 经唯一出口写入 `events`。
-    pub fn report_failure(&mut self, handle: &Uuid) -> Result<SupervisorAction, SupervisorError> {
+    ///
+    /// **03-01-F（R45 §11）: 决策输入面（policy input）**——`domain` =
+    /// 现有 `classify_failure_domain` 三列进度观测产出（watchdog 周期驱动器
+    /// 装配, 见 `watchdog::assemble_decision_input`）; `attributed` = custody
+    /// 事件证据归因。按值携带（**Supervisor 不持有 Custody——零反向依赖**;
+    /// 无任何 switch/execution 语义——R44 §7 红线）; 逐决策如实记录到
+    /// `Status`（读取面 [`Self::last_decision_domain`]/[`Self::last_decision_attribution`],
+    /// 消费=03-02 Recovery Contract 域→恢复策略选择）。**决策判定逻辑
+    /// 零变化**: attempts/circuit/Restart/Escalate 词表与预算全冻结——
+    /// 本轮无分支消费（有证据与无证据同判）。
+    pub fn report_failure(
+        &mut self,
+        handle: &Uuid,
+        domain: Option<FailureDomain>,
+        attributed: Option<AttributedFailures>,
+    ) -> Result<SupervisorAction, SupervisorError> {
         let action = {
             let st = self
                 .states
                 .get_mut(handle)
                 .ok_or(SupervisorError::UnknownHandle)?;
+            st.last_domain = domain;
+            st.last_attributed = attributed;
             st.attempts += 1;
             if st.attempts >= self.policy.circuit_threshold {
                 st.circuit_open = true;
@@ -334,7 +375,7 @@ mod tests {
         let h = Uuid::new_v4();
         s.register(h);
         for i in 0..4 {
-            let action = s.report_failure(&h).unwrap();
+            let action = s.report_failure(&h, None, None).unwrap();
             assert_eq!(
                 action,
                 SupervisorAction::Restart,
@@ -344,7 +385,7 @@ mod tests {
             s.begin_restart(&h).unwrap();
         }
         // 5th failure exhausts budget.
-        let action = s.report_failure(&h).unwrap();
+        let action = s.report_failure(&h, None, None).unwrap();
         assert_eq!(action, SupervisorAction::Escalate);
         assert_eq!(s.status(&h), Some(ProcessState::ManualRequired));
     }
@@ -360,10 +401,19 @@ mod tests {
         let (mut s, _log) = sup_with_log(policy);
         let h = Uuid::new_v4();
         s.register(h);
-        assert_eq!(s.report_failure(&h).unwrap(), SupervisorAction::Restart);
-        assert_eq!(s.report_failure(&h).unwrap(), SupervisorAction::Restart);
+        assert_eq!(
+            s.report_failure(&h, None, None).unwrap(),
+            SupervisorAction::Restart
+        );
+        assert_eq!(
+            s.report_failure(&h, None, None).unwrap(),
+            SupervisorAction::Restart
+        );
         // 3rd failure trips circuit -> escalate even though max_retries=10.
-        assert_eq!(s.report_failure(&h).unwrap(), SupervisorAction::Escalate);
+        assert_eq!(
+            s.report_failure(&h, None, None).unwrap(),
+            SupervisorAction::Escalate
+        );
         assert_eq!(s.status(&h), Some(ProcessState::ManualRequired));
     }
 
@@ -372,14 +422,14 @@ mod tests {
         let (mut s, _log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         s.register(h);
-        let _ = s.report_failure(&h); // attempt 1
-        let _ = s.report_failure(&h); // attempt 2 -> still restart
+        let _ = s.report_failure(&h, None, None); // attempt 1
+        let _ = s.report_failure(&h, None, None); // attempt 2 -> still restart
         assert_eq!(s.status(&h), Some(ProcessState::Unhealthy));
         s.begin_restart(&h).unwrap();
         s.report_recovered(&h).unwrap();
         assert_eq!(s.status(&h), Some(ProcessState::Recovered));
         // after recovery, failures count from zero again.
-        let a = s.report_failure(&h).unwrap();
+        let a = s.report_failure(&h, None, None).unwrap();
         assert_eq!(a, SupervisorAction::Restart);
         assert_eq!(s.status(&h), Some(ProcessState::Unhealthy));
     }
@@ -388,7 +438,10 @@ mod tests {
     fn unknown_handle_errors() {
         let (mut s, _log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
-        assert_eq!(s.report_failure(&h), Err(SupervisorError::UnknownHandle));
+        assert_eq!(
+            s.report_failure(&h, None, None),
+            Err(SupervisorError::UnknownHandle)
+        );
         assert_eq!(s.escalate(&h), Err(SupervisorError::UnknownHandle));
     }
 
@@ -397,7 +450,7 @@ mod tests {
         let (mut s, log) = sup_with_log(RestartPolicy::default());
         let h = Uuid::new_v4();
         s.register(h);
-        s.report_failure(&h).unwrap();
+        s.report_failure(&h, None, None).unwrap();
         let ev = log.drain();
         assert_eq!(ev.len(), 1);
         assert_eq!(
@@ -447,7 +500,9 @@ mod tests {
         // 03-01-A: 管线级故障携带设备身份（非 nil——custody 可归因）。
         s.ingest(EventSource::Upstream, dev, "pipeline error: gst bus");
         let ev2 = log.drain();
-        assert!(matches!(&ev2[0], RuntimeEvent::PipelineFault { pipeline, .. } if *pipeline == dev));
+        assert!(
+            matches!(&ev2[0], RuntimeEvent::PipelineFault { pipeline, .. } if *pipeline == dev)
+        );
         // 无故障语义的观测不产生事件 (不伪造)。
         s.ingest(EventSource::Upstream, dev, "all nominal");
         assert!(log.drain().is_empty());
@@ -552,5 +607,45 @@ mod tests {
             }],
             dev
         ));
+    }
+
+    /// 03-01-F（R45 §11）: 决策输入证据记录面——域+归因逐决策**替换**记录
+    /// （Some/None 均为本次决策的证据状态, 不累积）; 决策动作词表与判定
+    /// 逻辑零变化（有证据与无证据同判——本轮无分支消费, 消费=03-02）;
+    /// 未注册句柄读取 = None（读取面 fail-closed）。
+    #[test]
+    fn r45_decision_input_evidence_recorded_actions_unchanged() {
+        let (mut s, _log) = sup_with_log(RestartPolicy::default());
+        let h = Uuid::new_v4();
+        s.register(h);
+        let attributed = crate::custody::AttributedFailures {
+            video_failed: true,
+            audio_failed: true,
+        };
+        let a1 = s
+            .report_failure(
+                &h,
+                Some(crate::program_execution::FailureDomain::Input),
+                Some(attributed),
+            )
+            .unwrap();
+        assert_eq!(
+            a1,
+            SupervisorAction::Restart,
+            "有决策证据不改变判定（词表/预算/熔断零变化）"
+        );
+        assert_eq!(
+            s.last_decision_domain(&h),
+            Some(crate::program_execution::FailureDomain::Input)
+        );
+        assert_eq!(s.last_decision_attribution(&h), Some(attributed));
+        // 逐决策替换: 下一次无证据决策 → 证据位如实回落 None。
+        let a2 = s.report_failure(&h, None, None).unwrap();
+        assert_eq!(a2, SupervisorAction::Restart);
+        assert_eq!(s.last_decision_domain(&h), None);
+        assert_eq!(s.last_decision_attribution(&h), None);
+        // 未注册句柄读取 = None。
+        assert_eq!(s.last_decision_domain(&Uuid::new_v4()), None);
+        assert_eq!(s.last_decision_attribution(&Uuid::new_v4()), None);
     }
 }

@@ -9,7 +9,10 @@
 //! 边界语义:
 //! - 本类型持有 internal 平面 [`RuntimeEventLog`] 的共享句柄, 是**唯一**调用
 //!   `drain()` 的生产消费点（组合根经 bootstrap 构造共享单实例——BS-01;
-//!   生产 watchdog 线程不再直接持有 internal log——类型级排他）;
+//!   生产 watchdog 线程不再直接持有 internal log——组合根接线级唯一
+//!   drain ownership, 非 Rust 类型系统绝对封锁[R45 复核纠偏: Bootstrap
+//!   Context.internal_log 仍 pub, 强类型封锁留后续治理轮, 不为形式漂亮
+//!   重构已过 Gate 的接线]);
 //! - 各周期驱动器（ingest / execution group watchdog tick——watchdog 退化为
 //!   周期驱动器, 不再是事件事实的唯一所有者）经 [`InternalEventIntake::consume`]
 //!   取得本 tick 批次并做**本地** fold（health reduce / fault_trigger——调用方
@@ -176,7 +179,7 @@ mod tests {
         // Supervisor 决策回声（report_failure 产 RESTART_ECHO_SUMMARY）+
         // 携带身份的生产上游故障（03-01-A: 身份不再在 mapper 边界丢失）。
         sup.register(dev);
-        sup.report_failure(&dev).unwrap();
+        sup.report_failure(&dev, None, None).unwrap();
         sup.ingest(
             EventSource::Upstream,
             dev,
