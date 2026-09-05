@@ -926,6 +926,28 @@
   10/10（判据面零扰动）**; T5 矩阵大面积正证据+pr_v 负格首证; 工件全为
   既有隔离债零新增; 证据盒 2026-09-05-r52-a204-multi-scenario; 本项未勾——
   R53 correctness 未做+验收谓词未定义]**
+  **[第五十三轮执行（R53 Unit B 已落地, d1a4fc6; 主账 §68+04 探针 §10）:
+  裁决=R52 PASS 直接落码, 范围严格仅 switch_graph.rs+测试（R53-1 修
+  mapped→DiscontinuityDeclared 过宽 / R53-2 定义 NonMonotonic 生命周期 /
+  R53-3 四锁+第五锁 / R53-4 全矩阵 / R53-5 真机; 禁 Supervisor/L4/Contract/
+  Observation 反向入控制）; 两层缺陷分层确认[Gap B=行装配·零生产消费方;
+  run2 闩锁=HEALTH_ARCS PipelineHealth·pipeline.rs 禁动——observe_*_
+  pts_declared 预留 API 首个生产调用者]; 交付=MappedContinuation 段作用域
+  状态机+plane_row_state 四态派生[mapped+续流=VM/Continuous 非 Declared·
+  防御退化=Unknown/Unproven·边界帧=DD+DeclaredDiscontinuity·段内回退=NM+
+  Violated·V/A 对称删硬编码]+note_declared_boundary 生命周期[干净边界
+  段基准重开=上一段 NM 解除·闩锁不跨声明边界·违例边界 NM 传播不洗·段内
+  普通帧不自动恢复]+apply_declared_mapping 可测抽出[passthrough 逐字节
+  同语义·legacy 零变化]+五锁测试[rt_04×4+rt_05 生命周期五断言]; 盒矩阵
+  fmt/227/393/**259**(+5)/clippy×2 全绿·sha 盒==HEAD; **真机四跑: obs 三
+  场景 EXIT=0**[20 切换全 Preserved·ProgramEpoch(0) 保持·**pr_v/pr_a=
+  DiscontinuityDeclared+VM2 边界事实首次显形**（此前被 VM 掩盖）·
+  NonMonotonic=0·闩锁事件未复现如实记样本（解除路径 rt_05 单测锁定）]+
+  **dual_input 10/10 第二轮**[L4 分层签名同帧: 程序面 DD+Authority
+  Preserved/Continuous·九项合取零影响·L3 切前 VM=legacy 不变]; 登记:
+  switch_mock 行为分歧留 mock-sync 轮+stalled:false 非本轮+S5 caps=None
+  诚实保持; 证据盒 2026-09-05-r53-ctimeline-correctness; 本项未勾——T5
+  矩阵续填+验收谓词定义+A2-8-04 Gate 待]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

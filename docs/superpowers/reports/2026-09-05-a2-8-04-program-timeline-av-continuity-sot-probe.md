@@ -208,3 +208,40 @@ discontinuity/divergence/starvation 三行已就地校准并标注【R50 校准�
   真回退→NonMonotonic/Unknown=证据不足）+ **闩锁无复位语义纳入设计输入
   （§9.2 首证）**; 然后全矩阵回归 → A2-8-04 Gate（验收谓词矩阵填充后由
   验收层定义）→ A2-8-05。禁发明阈值; L4 冻结维持; 禁回头重复旧活体验证。
+
+## §10 第五十三轮（R53）: C-TIMELINE correctness 落地——两 face 修正 + 五锁 + 真机分层签名（d1a4fc6）
+
+### 10.1 变更面（§7 边界全保持）
+
+- **仅 switch_graph.rs**（+387/−40; Domain/契约/mock/gates/L4/Supervisor/
+  watchdog 零触碰; Observation 结果未入任何控制路径）。
+- Fix 1 行装配（Gap B）: `MappedContinuation` 段作用域状态机 +
+  `plane_row_state` 四态派生——**Mapped ≠ DiscontinuityDeclared**; V/A 对称。
+- Fix 2 arc 生命周期（§9.2 闩锁首证的作用面=pr_v/pr_a ←
+  TimelineSample.program_*_state ← 程序图健康弧）:
+  `note_declared_boundary` 于段首枚映射缓冲通知健康弧——
+  `observe_*_pts_declared`（pipeline 预留 API 首个生产调用者）+ 干净边界
+  段基准重开（上一段 NonMonotonic 解除, 闩锁不跨声明边界）+ 违例边界
+  NonMonotonic 传播（声明不洗回退）; 段内普通单调帧永不自动恢复。
+- 五锁测试入硬件矩阵（254→259）; default 227/mock 393 不变。
+
+### 10.2 真机数据（T5 矩阵更新; 证据盒 2026-09-05-r53-ctimeline-correctness）
+
+- **干净跑新基线格 [pr_v/pr_a×DiscontinuityDeclared]**: run1 34+2·run2
+  58+2·run3（N=4）同签名——首切前 PRE=VM, 此后边界事实保持; 全 Preserved·
+  ProgramEpoch(0) 保持·adv=Some(false)=0·NonMonotonic=0（20 切换样本）。
+- **闩锁解除真机样本未获得**: 概率性边界回退本轮未复现（历史 30 切换 1
+  次）; 解除路径由 rt_05 单测确定性锁定——T5 该格="单测证明+真机待样本"
+  （如实, 不制造事件）。
+- **L4 分层实证（run4 dual_input 10/10）**: 同帧"程序面
+  state=DiscontinuityDeclared + Authority outcome=Preserved v/a=Continuous
+  timeline_ok=true"——两 face 语义分层正确, 九项合取零影响; L3 切前 VM=
+  legacy 路径不变实证。
+- dual_input 全链第二轮 10/10（判据面零扰动两轮实证）。
+
+### 10.3 下一步（执行序不变）
+
+- T5 矩阵续填（DiscontinuityDeclared 新基线格+闩锁解除真机样本待采）→
+  验收谓词由验收层定义 → A2-8-04 Gate → A2-8-05; 登记: switch_mock
+  行为分歧（mock 行 Declared-forever+VM 硬编码——mock-sync 轮留后续）。
+  禁发明阈值; L4 冻结维持; 禁回头重复旧活体验证。

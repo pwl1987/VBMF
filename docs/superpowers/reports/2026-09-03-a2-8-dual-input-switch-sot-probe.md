@@ -3954,3 +3954,104 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   a2-8-04 探针 §9 + tasks item-6 R52 段）。04-探针 §8.3 执行序兑现:
   多场景采集→T5 矩阵部分填充→R53 correctness 下一刀。
 - 基线: d49dbcd..e843eba..（本轮账后新头）, master=7745968。
+
+## §68 第五十三轮（R53: C-TIMELINE adapter correctness——Gap B 修正 + NonMonotonic 生命周期 + 五锁 + 全绿矩阵 + 真机四跑）
+
+### 68.1 R53 裁决登记（代码锚点 HEAD=c06cdbe 复核全过）
+
+- 总裁决: **R52 PASS 直接进入 R53 代码落地**（"不要再做一轮纯账面验证"）;
+  范围严格=R53-1 修 `mapped→DiscontinuityDeclared` 过宽 / R53-2 定义
+  NonMonotonic 生命周期 / R53-3 四锁+第五锁 / R53-4 全矩阵回归 / R53-5
+  真机再跑——**禁借机修改 Supervisor/L4/Contract; Observation 结果禁反向
+  塞进 switch_program() 控制逻辑**; S5 caps 保持诚实 None。
+- §九两独立问题映射: Correctness-1（mapped≠Declared）=行装配面;
+  Correctness-2（NonMonotonic=事件还是状态+解除条件）=生命周期面。
+  **代码事实分层确认: 两缺陷不在同一处**——Gap B 块在 observe() 行装配
+  （≈:975-984, 零生产消费方——observe_execution 用 Authority snapshot
+  替换/L4 九项吃 Authority/a204_obs 打印 Authority）; run2 闩锁在
+  `HEALTH_ARCS` 的 `PipelineHealth`（pipeline.rs plain 观测器, sticky 由
+  `non_monotonic_is_sticky` 测试锁死——pipeline.rs 禁动）。**pipeline 预留
+  `observe_*_pts_declared`（:354-378, 文档明言 ingest 无声明源永不出现）
+  零生产调用者**——为本轮生命周期能在 switch_graph.rs 单文件内落地提供了
+  既有 API 基础。
+- §十二未完成项对照: ①Gap B ✅本轮修 ②闩锁生命周期 ✅本轮定义+测试
+  ③S5 caps=None 保持诚实 ④T5 矩阵继续（非本轮收口）⑤验收谓词归验收层
+  （不自行发明 delta<X/NM=0）⑥不因 20/20 Preserved 宣布 A2-8-04 CLOSED。
+- **§十三 R52 表述确认（append-only 不回改）**: §67.5 与 tasks R52 段本就
+  未写"多场景验证完成"（§67.5="多场景采集→T5 矩阵部分填充→R53
+  correctness 下一刀"; tasks R52 段="本项未勾——R53 correctness 未做+
+  验收谓词未定义"）——与建议的"Unit A PASS + open items"形态一致, 无需
+  修正; 本轮起按该形态续记（R53=Unit B PASS, open=T5/谓词/Gate）。
+
+### 68.2 实现（d1a4fc6, 单文件 +387/−40, 仅 switch_graph.rs）
+
+- **Fix 1（Gap B, R53-1）**: `PlaneTimelineExec` 增加 adapter 私有
+  `continuation: MappedContinuation{Boundary/Continuing/Violated}`（install
+  置 Boundary=声明段作用域, 新段自动重置）; 探针核心抽出可测纯函数
+  `apply_declared_mapping`（未执行/⑤未观测/无 PTS/映射越界四 passthrough
+  与抽前逐字节同语义——legacy 路径零变化）; 行装配新 `plane_row_state`
+  四态派生: **mapped+续流单调→ValidMonotonic/Continuous（非 Declared）**
+  / 防御退化（mapped 无声明, 结构不可达）→Unknown/Unproven / 显式声明
+  （仅边界帧）→DiscontinuityDeclared+DeclaredDiscontinuity / 段内真回退→
+  NonMonotonic+Violated; **V/A 两平面对称派生**（删除 video 硬编码
+  Continuous 与 audio 单独门控不对称）。
+- **Fix 2（生命周期, R53-2——run2 闩锁首证输入）**: `note_declared_boundary`
+  ——段首枚映射缓冲（BUFFER 探针 first_mapped 迁移时刻）通知程序平面健康弧:
+  ①`observe_*_pts_declared`（**pipeline 预留 API 首个生产调用者**; ingest
+  平面零触碰）; ②**干净边界**（mapped≥段前基准）显式重开段基准=
+  DiscontinuityDeclared（上一段内 NonMonotonic 就此解除——**闩锁不跨声明
+  边界**）; ③**违例边界**（mapped<基准）→NonMonotonic 传播入新段（声明不
+  豁免连续性违反——禁以声明洗回退, pipeline 反洗纪律原样）。**明文规则
+  （代码注释+本账+测试三重锁）**: 段内普通单调帧永不自动恢复; NonMonotonic
+  唯一解除条件=下一个干净已声明边界。
+- 五锁测试: rt_04×4（行四锁: mapped+monotonic≠Declared / mapped 无声明
+  NOT Declared / 显式声明→Declared+audio Unproven 对称 / 真回退→NM+
+  Violated 且新段重置）+ rt_05（arc 生命周期: ①段内回退→NM ②普通单调帧
+  不自动恢复 ③干净边界→Declared+基准重开=闩锁解除 ④违例边界传播不洗
+  ⑤V/A 平面独立）——全入硬件矩阵（254→**259**）。
+- 出仓前自纠两处（披露）: cargo fmt 三处重排（盒 fmt 重写回拷两侧一致）+
+  一条 doc_lazy_continuation（文档列表续段空行）; 均未出仓。
+
+### 68.3 盒矩阵（全绿）
+
+- fmt --check ✓; default **227**（不变）/ mock **393**（不变）/ bmd+gst
+  **259**（254+5 新锁测试， 一次全过）/ clippy ×2（default+hw）
+  `-D warnings` ✓; bins ✓（gates hw bin md5=7a0ed95c…）。
+- SHA: switch_graph.rs 盒==HEAD d1a4fc6（3c303952…, 单文件比对通过）;
+  证据盒 `~/a2-8-02i-evidence/2026-09-05-r53-ctimeline-correctness/`
+  （header 五件套+REV d1a4fc6+bin md5+manifest v5 md5 7521d17e…）。
+- v5 当日有效内生核验: run4 L1a 2/2 production_grade + L1c 双 signal=true。
+
+### 68.4 真机四跑（R53-5, 2026-09-05 14:37-14:49 CST）
+
+- **run1 N=6 dwell5s**: 6/6 采集完整 EXIT=0; 全 Preserved; ProgramEpoch(0)
+  ×6; **pr_v/pr_a = DiscontinuityDeclared=34 + ValidMonotonic=2**——恰为
+  预测签名: 首切前 2 行 PRE=VM（无边界）, 此后边界事实按四态纪律保持
+  （**此前干净跑被 VM 全程掩盖**——闩锁 API 接线后 DiscontinuityDeclared
+  首次真机显形）; adv=Some(false)=0; NonMonotonic=0。
+- **run2 N=10 dwell1s（上轮闩锁场景复刻）**: 10/10 EXIT=0; 全 Preserved;
+  ProgramEpoch(0)×10; pr=Declared 58+VM 2; **概率性边界回退未复现**（历史
+  30 切换恰 1 次; 闩锁解除路径由 rt_05 确定性单测锁定, 真机解除样本待
+  未来——如实记样本量, 不制造事件）。
+- **run3 burst N=4 dwell0**: 4/4 EXIT=0; 同签名（Declared 边界事实+VM 首切前）。
+- **run4 dual_input 回归: 10/10 ALL PASS EXIT=0**——L3 切前
+  state v=ValidMonotonic（legacy 路径不变实证）; **L4 分层签名同帧共存:
+  程序面 state=DiscontinuityDeclared + Authority 证据 timeline_ok=true
+  outcome=Preserved v/a=Continuous**（两 face 语义分层如设计, 九项合取
+  零影响）; L5 三段+故障域归因+Teardown 全绿——**判据面零扰动第二轮实证**。
+- 工件: pad_unlink CRITICAL ×4/跑、PortId 碰撞 WARN ×2/跑、converter
+  interlace ×3/跑——全为既有隔离债零新增; MainContext WARN 0/4。
+- 首跑留证: run1 首次调用漏带 MEDIA_AGENT_DEVICE_BINDING env → EXIT=2
+  （调用侧疏漏非代码失败, log 同文件留存）。
+
+### 68.5 本轮执行与登记
+
+- 单元: ①d1a4fc6 码（switch_graph.rs 单文件）; ②本轮账（主账 §68 +
+  a2-8-04 探针 §10 + tasks item-6 R53 段）。
+- 基线: c06cdbe..d1a4fc6..（本轮账后新头）, master=7745968。
+- 登记不修: ①switch_mock 行为分歧（mock timeline 行仍 Declared-forever+
+  program 面 VM 硬编码, 其自有测试锁死——mock-sync 轮留后续独立登记）;
+  ②`stalled:false`（observe() input 行硬编码, mock 侧有真值）非本轮范围;
+  ③S5 negotiated caps=None 保持诚实缺席。
+- 下一步: T5 矩阵续填（含 [pr×DiscontinuityDeclared] 新基线格+闩锁解除
+  真机样本待采）→ 验收谓词由验收层定义 → A2-8-04 Gate → A2-8-05。
