@@ -300,3 +300,58 @@ internal 平面在无 watchdog 的运行形态下无人 drain（自测面 bin:10
 | OQ-G2-4 | 单故障语义维持 | 维持（禁扩） | 维持 |
 | OQ-G2-5 | A2-7 冻结面兼容 | 不触碰 | 不触碰 |
 | OQ-G2-6 | sim 模式消费面 | 空转诚实 / 常驻消费者 | 待裁 |
+
+## 8. 第四十四轮裁决登记（R44, 2026-09-05, 基线 2b5835c）
+
+**R43 = PASS（Probe/架构裁决轮 PASS——非实现轮 PASS）**; 状态维持:
+02-I COMPLETE·C-TIMELINE-01 CLOSED·03-00 COMPLETE·**03-01 NOT COMPLETE→
+本轮开 A/B/C**·04/05 OPEN·A2-8 OPEN。
+
+R44 对本探针十三问的裁决（不逐问重裁, 按依赖重排后直接授权）:
+
+- **P0 两问由 R44 直接裁掉**:
+  - **OQ-G1-1（身份语义）**: 方向裁定=先锁定 `PipelineFault` 的
+    canonical identity 语义——**形式化"设备 canonical 身份"承载**
+    （`pipeline: Uuid` 字段名不动·不加字段——类型级修正仍留 V0.3 Event
+    Contract 债; 生产路径身份必须到达事件; nil=未归属诚实信号, custody
+    拒收 fail-closed **禁放宽**——"只有一个设备"式自动绑定明令禁止）。
+  - **OQ-G1-2（消费拓扑）**: **禁 custody 自行 drain**（三消费者竞争
+    方案否决）; 正确方向=「**一个事实消费点完成事件取得, 然后做非破坏性
+    fan-out / fold**」——非 §7 选项 (a)第三平面/(b)全 drain 点/(c)emit 时
+    折叠/(d)projection, 为 R44 自定新解。
+- **P1 四问（G1-3/4/5/6）随实现落地**; **P2=G-2 链**; **暂缓 G-3/G-4**。
+- **实施顺序收紧**: 03-01-A 身份契约→B 单一 drain 边界→C custody 生产
+  接线→D 观测→custody/归因→E FailureDomain 生产消费→F Supervisor 集成→
+  G tests+matrix+真机; 后 03-02 Recovery Contract→03-03 Program 域监督→
+  03-04 Mock recover/终验。
+- **新正式实施红线**: G-2 禁改 `ProgramExecutionRuntime` 切换逻辑/禁把
+  supervision 塞进 `switch_program`（execution authority 与 failure
+  decision authority 不融合）; EventLog 契约（FIFO/severity/bounded/
+  dropped 计数/fail-closed）硬约束**禁 clone→多 Vec 绕开**; watchdog
+  保留但重接线为**周期驱动器/调度器**（非事件事实唯一所有者）。
+- **本轮授权面 = 03-01-A/B/C + 矩阵 fmt→default→mock→bmd+gst→clippy→
+  binary gate**; G-2 接线等真实测试结果再裁。**不碰**: G-3·Mock A/B·
+  Mimosa·Timeline·Supervisor switch 边界。
+
+## 9. A/B/C 交付映射（实现落账详见主账 §59）
+
+- **A（身份契约）**: `Supervisor::ingest(source, device, observation)`
+  签名扩展（OQ-G1-3 取 (b) ingest 扩展而非 (a) watchdog 直发——
+  「supervisor 唯一事件出口」归一化语义保持, 零释法）; mapper 单一归类
+  实现 `map_with_identity` + 携身份入口 `map_upstream_for_device`
+  （trait 面 identity-less 兜底维持 nil=未归属）。**词面零变化**
+  （RuntimeEvent/EventSource/FanoutSink/RuntimeEventLog 零触碰——
+  OQ-G1-7 过）。
+- **B（单一 drain 边界）**: 新模块 `event_intake.rs`——`InternalEventIntake`
+  持 internal log 共享句柄, `consume()` 为**唯一生产 drain 实现**（类型级
+  排他: 生产 watchdog 线程不再直接持 internal log——spawn 参数
+  `internal_log`→`intake`）; 组合根 bootstrap 构造共享单实例（BS-01）;
+  watchdog×2 tick 退化为周期驱动器（本地 fold 分区语义不变——披露非缺陷）。
+- **C（custody 生产接线）**: 边界内对每 drained 批次调用
+  `observations_from_events`（A2-7 冻结桥规则原样: echo 排除/nil 拒收/
+  只提取 PipelineFault——OQ-G1-4 过）全量恰一次累积; `observations()`
+  只读暴露; **不新增生产消费者、不 advance 三 Master、快照调用点不加**
+  （OQ-G1-5 留 D/E/F）。
+- 交付时点 custody「双零生产调用」缺口闭合其一: 事件事实流已到达 custody
+  累积面（observations_from_events 获生产调用者）; attribute/snapshot 的
+  生产消费仍零（D/E/F 待裁）。

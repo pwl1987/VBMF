@@ -3248,3 +3248,87 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   （依冻结序 G-1 先行; 实现轮须矩阵: fmt→default→mock→bmd+gst→
   clippy→bin 盒序）。CONTRACT-ANCHOR-DOC-SYNC+Mock B 同步轮另行排期
   （R43 §十一: 一次统一, 不与 03-01 混轮）。
+
+## 59. 第四十四轮（R44, 2026-09-05: 裁决落账 + 03-01-A/B/C 实现 + 盒矩阵全绿）
+
+### 59.1 裁决前核验（落账前置义务）
+
+- 基线: `git rev-parse HEAD`=2b5835c·worktree clean·`git diff --stat
+  d981728..2b5835c` = 恰 4 文档（tasks.md/主账/设计探针/03-01 探针）
+  +412 行零 runtime——**R43 零代码轮成立**, R44 十六行代码声明在 2b5835c
+  全部延续成立（代码状态与 R43 核验时点 d981728 逐字节一致）。
+- 抽验复核（本轮实测）: SupervisorAction 仍恰 {Restart, Escalate}
+  （supervisor.rs:120-125·全仓 grep switch 零命中）; fault_trigger
+  归属/回声谓词原样（:45-58）; ingest 旧签名无身份（:161-166 旧态）;
+  mapper 三类故障恒 nil（events.rs 旧态）; FanoutSink 同序双写
+  （emit :328-333）+internal 有界两级丢弃原样; custody 桥规则原样
+  （custody.rs:136-158）; 组 watchdog drain 只喂 health::reduce
+  （watchdog.rs:537-539 旧态）; `observations_from_events`/
+  `attribute_failures`/`custody_snapshot` 生产调用者零（grep 实测）。
+
+### 59.2 R44 终裁落账
+
+- **R43 = PASS（Probe/架构裁决轮）**; G-1/G-2 缺口确认为真实集成缺口
+  非推测。
+- **① 消费拓扑裁定**: 禁 custody 挂第三 drain（多消费者抢事件否决）——
+  「一个事实消费点完成事件取得, 然后非破坏性 fan-out / fold」。
+- **② 实施顺序收紧**: 03-01-A→B→C→D→E→F→G; 03-02 Recovery Contract;
+  03-03 Program 域监督; 03-04 Mock recover/终验（十三问不逐问重裁,
+  P0 两问由本轮裁掉, P1 随实现落地, P2=G-2, G-3/G-4 暂缓）。
+- **③ 授权 = 03-01-A/B/C + 矩阵 fmt→default→mock→bmd+gst→clippy→binary
+  gate**; G-2 接线依真实测试结果后裁。**不碰**: G-3·Mock A/B·Mimosa·
+  Timeline·Supervisor switch 边界。
+- **④ 新正式红线**: G-2 禁改 ProgramExecutionRuntime 切换逻辑/禁塞
+  supervision 入 switch_program（execution authority≠failure decision
+  authority）; 归因禁放宽（identity absent→NO ATTRIBUTION fail-closed）;
+  EventLog 契约禁绕开; watchdog 重接线为周期驱动器。
+- **⑤ 五误区禁令维持**; Mimosa 后置 05 后维持（不宣称安全）。
+
+### 59.3 03-01-A/B/C 实现（运行时代码, 9 文件）
+
+- **A 身份契约**: `Supervisor::ingest(source, device, observation)`
+  签名扩展——生产唯一调用点 watchdog.rs:177 携 `device_uuid`; mapper
+  重构为单一归类 `map_with_identity` + 携身份入口
+  `map_upstream_for_device`（三类故障事件身份=device canonical 身份;
+  trait 面 identity-less 兜底维持 nil=未归属, custody 桥拒收语义不变）。
+  **词面零变化**: RuntimeEvent/EventSource/FanoutSink/RuntimeEventLog/
+  EventSeverity 零触碰。
+- **B 单一 drain 边界**: 新 `event_intake.rs`（+277 行含测试）——
+  `InternalEventIntake{log, custody}` 持 internal log 句柄, `consume()`
+  =**唯一生产 drain 实现**（生产 internal 平面 drain 全仓普查: 仅
+  event_intake.rs:60 一处; transport.rs:232=projection 面 D3 既定;
+  gates/session_lifecycle.rs:564=gate 诊断 E7 残留断言——披露维持）;
+  生产 watchdog 线程不再直接持 internal log（spawn 参数 `internal_log`
+  →`intake`, 类型级排他）; bootstrap 构造共享单实例（BS-01, 字段
+  `event_intake`）; bin 三处 spawn + gates bin/session_lifecycle 接线
+  同步。
+- **C custody 生产接线**: `consume()` 边界内对每 drained 批次调
+  `observations_from_events`（A2-7 冻结桥规则原样）**全量恰一次累积**
+  （任意驱动器先 drain 都不丢 custody 事实——G-1 拓扑硬约束闭合）;
+  `observations()` 只读暴露; 零新增生产消费者·零 advance·快照调用点
+  不加（OQ-G1-5 留 D/E/F）。
+- **测试 +6（全绿）**: event_intake ×4（唯一 drain/跨驱动器恰一次累积/
+  生产链身份→custody→归因 FAILED 全闭环·fault_trigger 精度·投影面
+  D3 不破坏/本地 fold 分区语义披露锁）+ events mapper 携身份 vs
+  identity-less ×1 + supervisor 身份化故障只触归属设备 ×1（nil 保守
+  匹配维持）; supervisor 既有 ingest 测试升级身份断言。
+- **行为变化披露（两处, 均为授权方向内的语义修正）**: ①生产上游故障
+  事件由恒 nil 改为携带真实设备身份——custody 归因面可达, fault_trigger
+  由"nil 误触所有设备"收敛为"只触归属设备"（nil 未归属路径的保守全匹配
+  维持既有语义零变化）; ②组/ingest watchdog 本地 fold 仍按消费分区
+  （既有行为零变化——R43 §1.2 事实; 全量统一 fold 属 D/E/F 裁面,
+  intake_04 测试锁死该披露）。
+
+### 59.4 盒矩阵（终态实测, 盒源 9/9 sha8 与本地一致）
+
+- fmt --check 绿·**default 223**[217+6]·**mock 388**[382+6, §31 起
+  baseline 382——主账 :2918 记录]·**bmd+gst 247**[241+6]·clippy ×2
+  （default+bmd,gst 均 -D warnings exit 0）·bin: media-agent
+  `d38af05f`·media-agent-gates `e73281d5`。
+- 修复过程: fmt 两轮（长断言换行, 盒 cargo fmt 应用后回传本地=格式 SoT）;
+  clippy 修 supervisor.rs 未用 trait import（ingest 改走 inherent 方法）。
+- **状态**: 03-01 A/B/C 落地——custody「双零生产调用」闭合其一（事件
+  事实流已入 custody 累积面）; 归因/快照生产消费仍零（D/E/F 待授权）。
+- **下一刀 = R44 §5**: 依真实测试结果裁决 G-2 runtime consumption 具体
+  接线（03-01-D/E/F）→G tests+真机; CONTRACT-ANCHOR-DOC-SYNC+Mock B
+  同步轮另行排期不混轮。

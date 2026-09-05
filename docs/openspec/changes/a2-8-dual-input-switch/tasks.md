@@ -732,6 +732,27 @@
   统一[用户倾向 B 非现在改·禁半同步中间态]; 五误区禁令落账[禁
   'Supervisor 已有⇒03 完成'等五句]; Mimosa 后置维持; 本轮零代码零
   矩阵——R40 runtime 证据继续 baseline; 本项保持未勾]**
+  **[第四十四轮（主账 §59+03-01 探针 §8/§9, 裁决+实现落地）: R43=PASS
+  [Probe/架构裁决轮]; R44 裁定=P0 两问直接裁[OQ-G1-1 身份语义=形式化
+  设备身份承载·字段名不动·类型级修正留 V0.3/OQ-G1-2 拓扑=禁 custody
+  第三 drain·「单一事实消费点+非破坏性 fan-out」新解]; 实施序收紧
+  03-01-A..G→03-02→03-03→03-04; 授权=A/B/C+矩阵+binary gate; 新红线=
+  [G-2 禁改 ProgramExecutionRuntime 切换逻辑/归因禁放宽 nil→NO
+  ATTRIBUTION/EventLog 契约 FIFO·两级丢弃·计数·fail-closed 禁绕开/
+  watchdog 重接线为周期驱动器]; **A/B/C 已落地 9 文件**: A=Supervisor.
+  ingest 签名扩展携带设备身份[watchdog.rs:177 生产唯一调用点]+mapper
+  携身份入口 map_upstream_for_device[词面零变化·trait 面 nil=未归属
+  维持]/B=event_intake.rs InternalEventIntake 唯一生产 drain 实现
+  [生产 internal 平面 drain 全仓普查仅一处·生产 watchdog 不再持
+  internal log 类型级排他·bootstrap 共享单实例 BS-01]/C=consume 边界内
+  observations_from_events 全量恰一次累积[A2-7 桥规则原样·零新增
+  消费者·零 advance·快照调用点不加=OQ-G1-5 留 D/E/F]; +6 测试全绿;
+  盒矩阵 fmt/default 223[217+6]/mock 388[382+6]/bmd+gst 247[241+6]/
+  clippy×2/bin 全绿·盒源 9/9 sha8==本地; 行为变化披露两处[生产故障
+  事件 nil→真实设备身份·fault_trigger 收敛为只触归属设备(nil 保守
+  匹配维持)/watchdog 本地 fold 分区语义不变]; custody「双零生产调用」
+  闭合其一, 归因/快照生产消费仍零[03-01-D/E/F 待授权]; 本项保持未勾
+  ——A/B/C≠03-01 完成]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案
