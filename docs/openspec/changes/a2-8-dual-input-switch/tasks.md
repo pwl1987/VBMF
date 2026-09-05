@@ -969,6 +969,22 @@
   None/switch_mock 分歧]）; **T5 矩阵=已填充至可交接验收层状态**; 本项
   未勾——验收谓词由验收层定义（禁发明 PTS delta 阈值·禁合成大布尔）→
   A2-8-04 Gate → A2-8-05 待]**
+  **[第五十五轮执行（R55 验收谓词提案已交付, 零代码 docs-only; 主账 §70+
+  04 探针 §12+提案文档 2026-09-05-a2-8-04-acceptance-predicate-proposal.md）:
+  用户 R54 收口边界确认后进入验收层裁决准备——逐格起草 P1-P9 谓词
+  （rollback 六路独立计数·pr_v 双层不混/discontinuity declared-vs-
+  unexpected 三段/D1 分离计数/D2 无阈值形状/starvation 六路逐路 Some
+  (false)==0·聚合 OR 显式排除/闩锁解除 UnitProven+FieldPending/
+  dual_input 回归/证据完整性/Gap 披露）+ Gate 层固定合取（禁大布尔·格
+  verdict 独立保留可审计）; 证据粒度全部锚定实码（non_advancing 四元
+  定位 :189-207/Authority 九项合取/rt_04×4+rt_05/av_paired fold+R46
+  活体）; **状态=PROPOSAL 待终裁: OQ-P1 D2 形状[默认案 a 测量完备性·
+  阈值外排专项分布轮]/OQ-P2 FieldPending 阻塞[默认 non-blocking]/
+  OQ-P3 证据窗[默认案 b Gate 日新鲜确认集+累计背景]/OQ-P4 B 类重试
+  政策[仅 signal 类·全日志归档]/OQ-P5 工件漂移[零新增 blocking·漂移
+  停查]/OQ-P6 Gap 阻塞化[默认披露性]/OQ-P7 组合规则[Gate 层固定合取]**;
+  终裁前 Gate 不执行·A2-8-05 不提前; 本项未勾——OQ-P1..P7 终裁→
+  谓词冻结→A2-8-04 Gate 执行→A2-8-05 待]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

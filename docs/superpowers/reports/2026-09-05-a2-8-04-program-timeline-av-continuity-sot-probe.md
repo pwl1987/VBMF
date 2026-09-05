@@ -331,3 +331,22 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
 - 红线全维持: L4 冻结判据零触碰; PtsMonotonicity 四态禁洗; absence≠
   false; sampled_at_ms 禁修 PTS; 首跑 FAIL 留证（run3 已执行）; 禁回头
   重复 R46-R49 旧活体验证。
+
+## §12 第五十五轮（R55）: 验收谓词提案交付——OQ-P1..P7 待终裁（零代码）
+
+- 交付: `docs/superpowers/reports/2026-09-05-a2-8-04-acceptance-predicate-
+  proposal.md`（状态 PROPOSAL; 基线 2d66ab3; 严格 Evidence Matrix →
+  Predicate → Gate——禁自己解释成 PASS）。
+- 形状: 逐格谓词 P1-P9（rollback/discontinuity/D1/D2/starvation/
+  闩锁解除特殊格/dual_input 回归/证据完整性/Gap 披露）, verdict 封闭
+  词表 {Satisfied/Historical/UnitProven+FieldPending/Absent/Gap};
+  组合仅 Gate 层固定合取; 证据粒度锚定 OBS 逐路 tally（non_advancing
+  :189-207 四元定位）+ Authority 九项合取 + hw 单测 + av_paired 活体。
+- 用户 R54 收口边界全部内嵌: pr_v×NM 双层不混（R52 历史=provenance）;
+  闩锁解除=单测证明+真机待样本禁制造; av_delta 无阈值; 六路独立
+  starvation（聚合 OR 显式排除）; S5=None/switch_mock/stalled=Gap 披露。
+- **待裁: OQ-P1（D2 形状, 默认案 a 测量完备性·阈值外排专项轮）/ OQ-P2
+  （FieldPending 阻塞, 默认 non-blocking）/ OQ-P3（证据窗, 默认案 b
+  Gate 日新鲜确认集）/ OQ-P4（B 类重试政策）/ OQ-P5（工件漂移）/
+  OQ-P6（Gap 阻塞化）/ OQ-P7（组合规则）**。
+- 状态: A2-8-04 Gate 仍 OPEN——谓词终裁前不执行; A2-8-05 不提前。

@@ -4102,3 +4102,20 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - 下一步: **验收谓词由验收层在矩阵上定义**（禁发明 PTS delta 阈值——
   D2 会话包络新事实即阈值必须由验收层据分布裁决的实证; 禁合成大布尔）→
   A2-8-04 Gate → A2-8-05。R52/R53 历史零回改; 本轮账本纯追加。
+
+## §70 第五十五轮（R55: 验收谓词提案交付——零代码, 待终裁）
+
+- 用户 R54 收口确认: R53 PASS 冻结不重跑; R54=T5 矩阵零代码; 正确
+  收口点=矩阵整理交验收层逐格裁决——**Evidence Matrix → Predicate →
+  Gate**, 禁 Evidence→自己解释成 PASS→Gate。
+- 交付: 验收谓词提案文档（04-探针 §12 摘要+全文=2026-09-05-a2-8-04-
+  acceptance-predicate-proposal.md, PROPOSAL 状态, 基线 2d66ab3）:
+  P1-P9 逐格谓词（六路 rollback/discontinuity 三段/D1/D2 无阈值/
+  六路 starvation/闩锁解除 UnitProven+FieldPending/dual_input 回归/
+  证据完整性/Gap 披露）+ Gate 层固定合取组合（格 verdict 独立保留）。
+- 用户边界全部内嵌: pr_v×NM 双层不混; NM 解除禁人为制造; av_delta
+  分布事实不发明阈值; advanced 逐路独立（聚合 OR 排除）; S5=None/
+  mock/stalled=Gap 披露不顺手修; 首跑 FAIL 留证。
+- **OQ-P1..P7 待终裁**（D2 形状/FieldPending 阻塞/证据窗/B 类重试/
+  工件漂移/Gap 阻塞化/组合规则——提案默认见文档 §5）。终裁前 A2-8-04
+  Gate 不执行, A2-8-05 不提前; 本轮零代码, 账本纯追加。
