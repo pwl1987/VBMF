@@ -19,6 +19,13 @@
 //! 观测 = **Observed 平面实测**: `active-pad` 属性回读（非命令回显）+
 //! program appsink 帧计数/PTS 三态（经 `HEALTH_ARCS` 注册, 与输入管线同
 //! 机制）+ 组输入管线健康弧读数（零第二 registry）。
+//!
+//! **R53（A2-8-04 Unit B）C-TIMELINE adapter correctness**: timeline 证据
+//! 行按段内续流状态派生（**Mapped ≠ DiscontinuityDeclared**——显式声明
+//! 只有边界帧本身）; 程序平面健康弧的 NonMonotonic = **声明段作用域
+//! sticky**（唯一解除=下一个干净已声明边界重开段基准; 违例边界传播不洗;
+//! 段内普通单调帧永不自动恢复）——见 `apply_declared_mapping` /
+//! `note_declared_boundary` / `plane_row_state`。
 
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -65,6 +72,23 @@ struct PlaneTimelineExec {
     first_mapped: Option<(u64, u64)>,
     /// 最近观测（source, mapped）——持续证据。
     last_observed: Option<(u64, u64)>,
+    /// R53: 段内映射续流状态——observe() timeline 行 `discontinuity_state`/
+    /// `continuity` 的语义源（install 置 Boundary → 新声明段自动重置）。
+    continuation: MappedContinuation,
+}
+
+/// R53: 声明段内映射续流状态（adapter 私有——禁入契约/Domain）。
+///
+/// **Mapped ≠ DiscontinuityDeclared**: 声明边界只有边界帧本身; 其后的
+/// 非回退续流是普通连续, 段内回退一次即 Violated 闩锁（至下一 install）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MappedContinuation {
+    /// 仅首枚映射缓冲（边界帧）——显式声明边界已证实, 续流未证。
+    Boundary,
+    /// ≥2 枚映射缓冲且无回退——续流成立。
+    Continuing,
+    /// 段内映射回退——闩锁至下一声明段（install 重置）。
+    Violated,
 }
 
 /// Adapter 侧 TimelineExecutionState（SwitchGraph 持有; install 期填充,
@@ -130,10 +154,12 @@ impl BranchObservations {
 /// ④⑤⑥⑦ 探针: selector src pad 双探针——EVENT_DOWNSTREAM 捕获自然
 /// Segment 边界（F2 免费边界标记; 声明驱动身份）; BUFFER 探针施加 Domain
 /// 声明映射（生效边界=下一缓冲——F6; 无声明/未执行/⑤未观测→透传零改写,
-/// legacy 行为逐字节保持）。
+/// legacy 行为逐字节保持）。R53: 段首枚映射缓冲同步通知程序平面健康弧
+/// （声明边界——`note_declared_boundary`）。
 fn attach_plane_probes(
     selector: &gstreamer::Element,
     plane: MediaPlane,
+    handle: PipelineHandle,
     timeline: &Arc<Mutex<Option<TimelineExecutionState>>>,
 ) -> Result<(), SwitchError> {
     let src = selector
@@ -157,42 +183,123 @@ fn attach_plane_probes(
             gstreamer::PadProbeReturn::Ok
         },
     );
-    // ⑥⑦ BUFFER probe（映射施加——offset=声明段冻结值）。
+    // ⑥⑦ BUFFER probe（映射施加——offset=声明段冻结值）。核心逻辑在
+    // `apply_declared_mapping`（可测纯状态函数）; 首枚映射缓冲（声明边界）
+    // 同步通知程序平面健康弧（R53 生命周期——见 note_declared_boundary）。
     let slot = Arc::clone(timeline);
     src.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
+        let pts = info.buffer().and_then(|b| b.pts()).map(|p| p.nseconds());
         let mut guard = slot.lock().unwrap();
         let Some(t) = guard.as_mut() else {
             return gstreamer::PadProbeReturn::Ok;
         };
-        if !t.executed {
+        let Some((mapped, is_first)) = apply_declared_mapping(t, plane, pts) else {
             return gstreamer::PadProbeReturn::Ok;
+        };
+        if is_first {
+            note_declared_boundary(handle, plane, mapped);
         }
-        let (segment, segment_observed) = {
-            let p = t.plane(plane);
-            (p.segment, p.segment_observed)
-        };
-        if !segment_observed {
-            return gstreamer::PadProbeReturn::Ok;
-        }
-        let Some(pts) = info.buffer().and_then(|b| b.pts()) else {
-            return gstreamer::PadProbeReturn::Ok; // 无 PTS 帧: 不映射（absence）
-        };
-        let src_ns = pts.nseconds();
-        let Some(mapped) = segment.map_pts(src_ns) else {
-            return gstreamer::PadProbeReturn::Ok; // 声明映射越界: 不改写（Authority 侧将失配 fail-closed）
-        };
         if let Some(buf) = info.buffer_mut() {
             let bref = buf.make_mut();
             bref.set_pts(Some(gstreamer::ClockTime::from_nseconds(mapped)));
         }
-        let p = t.plane_mut(plane);
-        if p.first_mapped.is_none() {
-            p.first_mapped = Some((src_ns, mapped));
-        }
-        p.last_observed = Some((src_ns, mapped));
         gstreamer::PadProbeReturn::Ok
     });
     Ok(())
+}
+
+/// ⑥⑦ 探针核心（R53 抽出可测）: 对一枚到达 selector 出口的缓冲施加声明
+/// 映射并推进段内续流状态。passthrough 条件与抽出前逐字节同语义——
+/// 未执行 / ⑤ 未观测 / 无 PTS / 声明映射越界 → `None`（零改写, legacy
+/// 行为保持; 越界时 Authority 侧将失配 fail-closed）。返回
+/// `Some((mapped, is_first))`: `is_first`=该声明段首枚映射缓冲。
+fn apply_declared_mapping(
+    t: &mut TimelineExecutionState,
+    plane: MediaPlane,
+    pts: Option<u64>,
+) -> Option<(u64, bool)> {
+    if !t.executed {
+        return None;
+    }
+    let segment = t.plane(plane).segment;
+    if !t.plane(plane).segment_observed {
+        return None;
+    }
+    let src_ns = pts?;
+    let mapped = segment.map_pts(src_ns)?;
+    let p = t.plane_mut(plane);
+    let is_first = p.first_mapped.is_none();
+    if is_first {
+        p.first_mapped = Some((src_ns, mapped));
+        // install 已置 Boundary——边界帧本身即声明边界证据。
+    } else {
+        // 后续映射缓冲: 与段内上一枚 mapped 比较（Violated 段内闩锁,
+        // install 新段自动重置——R53 段作用域语义）。
+        let prev_mapped = p.last_observed.map(|(_, m)| m);
+        p.continuation = match (p.continuation, prev_mapped) {
+            (MappedContinuation::Violated, _) => MappedContinuation::Violated,
+            (_, Some(prev)) if mapped < prev => MappedContinuation::Violated,
+            _ => MappedContinuation::Continuing,
+        };
+    }
+    p.last_observed = Some((src_ns, mapped));
+    Some((mapped, is_first))
+}
+
+/// R53-2 生命周期: 程序平面 PTS 观测基准的**声明段作用域**——启用
+/// pipeline 预留的 declared 观测路径（`observe_*_pts_declared`, 唯一
+/// 生产调用者; ingest 平面无声明源不受影响）:
+/// - **干净边界**（mapped ≥ 段前基准）→ 段基准重开 = `DiscontinuityDeclared`
+///   （上一段内 NonMonotonic 就此解除——闩锁不跨声明边界）;
+/// - **违例边界**（mapped < 基准）→ `NonMonotonic` 传播入新段（声明不
+///   豁免连续性违反——禁以声明洗回退, pipeline 反洗纪律原样）。
+///
+/// 段内普通回退仍 sticky（plain 路径不动）: NonMonotonic 唯一解除条件=
+/// 下一个干净已声明边界; 普通单调帧永不自动恢复。
+fn note_declared_boundary(handle: PipelineHandle, plane: MediaPlane, mapped: u64) {
+    let registry = crate::pipeline_events::HEALTH_ARCS.lock().unwrap();
+    let Some(hp) = registry.get(&handle) else {
+        return;
+    };
+    let mut h = hp.lock().unwrap();
+    let clean = match plane {
+        MediaPlane::Video => !h.video_last_pts.is_some_and(|last| mapped < last),
+        MediaPlane::Audio => !h.audio_last_pts.is_some_and(|last| mapped < last),
+    };
+    match plane {
+        MediaPlane::Video => h.observe_video_pts_declared(mapped),
+        MediaPlane::Audio => h.observe_audio_pts_declared(mapped),
+    }
+    if clean {
+        // 段基准重开（干净边界）: 即便上一段遗有 NonMonotonic 亦解除——
+        // Domain 已为新段声明基准; 违例边界则 observe_declared 已置
+        // NonMonotonic 传播, 此分支不触。
+        match plane {
+            MediaPlane::Video => h.video_pts_state = PtsMonotonicity::DiscontinuityDeclared,
+            MediaPlane::Audio => h.audio_pts_state = PtsMonotonicity::DiscontinuityDeclared,
+        }
+    }
+}
+
+/// R53（Gap B 修正）: 单平面 timeline 行状态派生——**证据语义**。
+/// 无首枚映射缓冲, 或声明事件未观测（防御退化——结构上不可达: 映射仅在
+/// ⑤ Segment 观测之后施加）→ Unknown/Unproven（absence ≠ evidence,
+/// **非 DiscontinuityDeclared**）。其余按段内续流: 边界帧=Declared, 续流
+/// =ValidMonotonic/Continuous, 段内回退=NonMonotonic/Violated。
+fn plane_row_state(p: &PlaneTimelineExec) -> (PtsMonotonicity, PlaneContinuity) {
+    if p.first_mapped.is_none() || !p.segment_observed {
+        return (PtsMonotonicity::Unknown, PlaneContinuity::Unproven);
+    }
+    match p.continuation {
+        MappedContinuation::Boundary => (
+            PtsMonotonicity::DiscontinuityDeclared,
+            PlaneContinuity::DeclaredDiscontinuity,
+        ),
+        MappedContinuation::Continuing => {
+            (PtsMonotonicity::ValidMonotonic, PlaneContinuity::Continuous)
+        }
+        MappedContinuation::Violated => (PtsMonotonicity::NonMonotonic, PlaneContinuity::Violated),
+    }
 }
 
 /// 一张已物化的 Program graph（真实 GStreamer 元素引用 + 观测簿记）。
@@ -518,9 +625,10 @@ impl GStreamerSwitchAdapter {
         link_src(&asrc_b, &audio_selector, 1, MediaPlane::Audio)?;
 
         // ④⑤⑥⑦: selector src 双探针（EVENT 自然段边界 + BUFFER 声明映射;
-        // V/A 各一套——禁 audio=video 附属[第三十二轮 §八]）。
-        attach_plane_probes(&video_selector, MediaPlane::Video, timeline)?;
-        attach_plane_probes(&audio_selector, MediaPlane::Audio, timeline)?;
+        // V/A 各一套——禁 audio=video 附属[第三十二轮 §八]）。handle 供
+        // R53 声明边界通知程序平面健康弧。
+        attach_plane_probes(&video_selector, MediaPlane::Video, handle, timeline)?;
+        attach_plane_probes(&audio_selector, MediaPlane::Audio, handle, timeline)?;
 
         video_selector
             .link(&v_queue)
@@ -788,12 +896,14 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 segment_observed: false,
                 first_mapped: None,
                 last_observed: None,
+                continuation: MappedContinuation::Boundary,
             },
             audio: PlaneTimelineExec {
                 segment: plan.audio,
                 segment_observed: false,
                 first_mapped: None,
                 last_observed: None,
+                continuation: MappedContinuation::Boundary,
             },
         });
         Ok(())
@@ -963,25 +1073,28 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         // **裁决级 TimelineObservation=Runtime 侧 Authority snapshot**（消费
         // 经 ProgramExecutionRuntime::observe_execution——adapter 行=执行侧
         // 原始证据; 无声明=no_evidence(已知 epoch) 诚实缺席）。
+        // R53（Gap B 修正）: discontinuity_state/continuity 按段内续流状态
+        // 派生（plane_row_state）——Mapped ≠ DiscontinuityDeclared, V/A 两
+        // 平面对称（删除 video 硬编码 Continuous 与 audio 单独门控不对称）。
         let timeline = {
             let guard = g.timeline.lock().unwrap();
             match guard.as_ref() {
-                Some(t) if t.video.first_mapped.is_some() => TimelineObservation {
-                    program_epoch: t.plan.video.program_epoch,
-                    source_id: g.active,
-                    segment_id: Some(t.plan.video.segment_id),
-                    input_pts: t.video.last_observed.map(|(s, _)| s),
-                    mapped_program_pts: t.video.last_observed.map(|(_, m)| m),
-                    mapping_offset: Some(t.plan.video.offset),
-                    discontinuity_state: PtsMonotonicity::DiscontinuityDeclared,
-                    video_continuity: PlaneContinuity::Continuous,
-                    audio_continuity: if t.audio.first_mapped.is_some() {
-                        PlaneContinuity::Continuous
-                    } else {
-                        PlaneContinuity::Unproven
-                    },
-                    observed_at_ms: now_observed_ms(),
-                },
+                Some(t) if t.video.first_mapped.is_some() => {
+                    let (discontinuity_state, video_continuity) = plane_row_state(&t.video);
+                    let (_, audio_continuity) = plane_row_state(&t.audio);
+                    TimelineObservation {
+                        program_epoch: t.plan.video.program_epoch,
+                        source_id: g.active,
+                        segment_id: Some(t.plan.video.segment_id),
+                        input_pts: t.video.last_observed.map(|(s, _)| s),
+                        mapped_program_pts: t.video.last_observed.map(|(_, m)| m),
+                        mapping_offset: Some(t.plan.video.offset),
+                        discontinuity_state,
+                        video_continuity,
+                        audio_continuity,
+                        observed_at_ms: now_observed_ms(),
+                    }
+                }
                 Some(t) => {
                     TimelineObservation::no_evidence(t.plan.video.program_epoch, now_observed_ms())
                 }
@@ -1245,6 +1358,240 @@ mod tests {
             anchors.audio.source_anchor, 895_000_000,
             "audio source_anchor=target 分支实测原值（节拍不外推）"
         );
+    }
+
+    // ── R53（A2-8-04 Unit B）: C-TIMELINE adapter correctness 四+一锁 ──
+    // （五十二轮终裁: Mapped ≠ DiscontinuityDeclared + NonMonotonic 生命
+    // 周期=声明段作用域——普通单调帧不自动恢复, 唯一解除=干净已声明边界。）
+
+    fn r53_timeline(target: Uuid) -> TimelineExecutionState {
+        // 恒等段（offset 0→mapped==src）+ 已执行/已观测 ⑤: 直接驱动
+        // apply_declared_mapping 的最小合法状态。
+        let seg = SourceSegment::identity(
+            target,
+            ProgramEpoch(0),
+            crate::program_timeline::SegmentId(1),
+        );
+        let plane = || PlaneTimelineExec {
+            segment: seg,
+            segment_observed: true,
+            first_mapped: None,
+            last_observed: None,
+            continuation: MappedContinuation::Boundary,
+        };
+        TimelineExecutionState {
+            plan: ProgramTimelinePlan {
+                target,
+                switch_epoch: 1,
+                video: seg,
+                audio: seg,
+            },
+            executed: true,
+            video: plane(),
+            audio: plane(),
+        }
+    }
+
+    /// 纯状态构造图项（rt_03 同式——无 PLAYING/无流线程, 状态不被真实
+    /// 缓冲覆写, 断言确定性; handle 逐测试唯一避免并行互踩）。
+    fn r53_insert_graph(
+        adapter: &GStreamerSwitchAdapter,
+        handle: u64,
+        a: Uuid,
+        b: Uuid,
+        t: TimelineExecutionState,
+    ) -> PipelineHandle {
+        let graph = PipelineHandle(handle);
+        adapter.graphs.lock().unwrap().insert(
+            graph,
+            SwitchGraph {
+                devices: [a, b],
+                input_handles: [(a, PipelineHandle(977_061)), (b, PipelineHandle(977_062))],
+                started: true,
+                initial_active: a,
+                active: Some(a),
+                av_epoch: 0,
+                degraded: false,
+                pipeline: gstreamer::Pipeline::builder()
+                    .name(format!("r53-{handle}"))
+                    .build(),
+                video_selector: make_element("input-selector", &format!("r53-{handle}-vsel"))
+                    .expect("video selector 构造"),
+                audio_selector: make_element("input-selector", &format!("r53-{handle}-asel"))
+                    .expect("audio selector 构造"),
+                pad_index: HashMap::from([(a, 0), (b, 1)]),
+                timeline: Arc::new(Mutex::new(Some(t))),
+                branch_obs: Arc::default(),
+            },
+        );
+        graph
+    }
+
+    #[test]
+    fn switch_graph_rt_04_row_mapped_monotonic_not_declared() {
+        // 锁1: mapped + 续流单调（≥2 枚映射缓冲非回退）→ ValidMonotonic/
+        // Continuous——**非 DiscontinuityDeclared**（V/A 对称派生）。
+        gstreamer::init().expect("gst init");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut t = r53_timeline(b);
+        for pts in [1_000_000_000u64, 1_000_033_333, 1_000_066_666] {
+            let first = pts == 1_000_000_000;
+            assert_eq!(
+                apply_declared_mapping(&mut t, MediaPlane::Video, Some(pts)),
+                Some((pts, first))
+            );
+            assert_eq!(
+                apply_declared_mapping(&mut t, MediaPlane::Audio, Some(pts + 7)),
+                Some((pts + 7, first))
+            );
+        }
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = r53_insert_graph(&adapter, 977_101, a, b, t);
+        let row = adapter.observe(&graph).timeline;
+        assert_eq!(row.discontinuity_state, PtsMonotonicity::ValidMonotonic);
+        assert_eq!(row.video_continuity, PlaneContinuity::Continuous);
+        assert_ne!(
+            row.discontinuity_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+        assert_eq!(row.audio_continuity, PlaneContinuity::Continuous);
+    }
+
+    #[test]
+    fn switch_graph_rt_04_row_mapped_without_declaration_not_declared() {
+        // 锁2: mapped + 无声明（防御退化——生产结构上不可达: 映射仅在 ⑤
+        // Segment 观测后施加）→ NOT DiscontinuityDeclared（Unknown/Unproven,
+        // absence ≠ evidence 非 false）。
+        gstreamer::init().expect("gst init");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut t = r53_timeline(b);
+        t.video.segment_observed = false;
+        t.video.first_mapped = Some((1_000_000_000, 1_000_000_000));
+        t.video.last_observed = Some((1_000_000_000, 1_000_000_000));
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = r53_insert_graph(&adapter, 977_102, a, b, t);
+        let row = adapter.observe(&graph).timeline;
+        assert_ne!(
+            row.discontinuity_state,
+            PtsMonotonicity::DiscontinuityDeclared,
+            "mapped ≠ DiscontinuityDeclared——无声明证据不得报 Declared"
+        );
+        assert_eq!(row.discontinuity_state, PtsMonotonicity::Unknown);
+        assert_eq!(row.video_continuity, PlaneContinuity::Unproven);
+    }
+
+    #[test]
+    fn switch_graph_rt_04_row_explicit_declaration_boundary_only() {
+        // 锁3: 显式声明（段首枚映射缓冲, 续流未证）→ DiscontinuityDeclared
+        // + DeclaredDiscontinuity; audio 无首枚映射 → Unproven（对称派生,
+        // 废除旧 video 硬编码 Continuous 的不对称）。
+        gstreamer::init().expect("gst init");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut t = r53_timeline(b);
+        apply_declared_mapping(&mut t, MediaPlane::Video, Some(1_000_000_000))
+            .expect("首枚映射缓冲");
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = r53_insert_graph(&adapter, 977_103, a, b, t);
+        let row = adapter.observe(&graph).timeline;
+        assert_eq!(
+            row.discontinuity_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+        assert_eq!(row.video_continuity, PlaneContinuity::DeclaredDiscontinuity);
+        assert_eq!(row.audio_continuity, PlaneContinuity::Unproven);
+    }
+
+    #[test]
+    fn switch_graph_rt_04_row_actual_rollback_non_monotonic() {
+        // 锁4: 段内真回退 → NonMonotonic + Violated; 段内后续非回退不洗
+        // （闩锁至下一 install）——新声明段后干净续流即 ValidMonotonic
+        // （段作用域, 旧段 Violated 不跨边界携带）。
+        gstreamer::init().expect("gst init");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut t = r53_timeline(b);
+        for pts in [
+            1_000_000_000u64,
+            1_000_033_333,
+            1_000_010_000,
+            1_000_090_000,
+        ] {
+            apply_declared_mapping(&mut t, MediaPlane::Video, Some(pts)).expect("映射施加");
+        }
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = r53_insert_graph(&adapter, 977_104, a, b, t);
+        let row = adapter.observe(&graph).timeline;
+        assert_eq!(row.discontinuity_state, PtsMonotonicity::NonMonotonic);
+        assert_eq!(row.video_continuity, PlaneContinuity::Violated);
+        // 新声明段（install 置 Boundary=重置）后干净续流。
+        let mut t2 = r53_timeline(a);
+        for pts in [2_000_000_000u64, 2_000_033_333] {
+            apply_declared_mapping(&mut t2, MediaPlane::Video, Some(pts)).expect("新段映射");
+        }
+        let graph2 = r53_insert_graph(&adapter, 977_105, a, b, t2);
+        let row2 = adapter.observe(&graph2).timeline;
+        assert_eq!(row2.discontinuity_state, PtsMonotonicity::ValidMonotonic);
+        assert_eq!(row2.video_continuity, PlaneContinuity::Continuous);
+    }
+
+    #[test]
+    fn switch_graph_rt_05_program_arc_lifecycle_declared_boundary_release() {
+        // 锁5（run2 闩锁首证场景）: 程序平面健康弧 NonMonotonic=声明段
+        // 作用域 sticky——①段内回退→NonMonotonic; ②后续普通单调帧不自动
+        // 恢复; ③干净已声明边界→段基准重开 DiscontinuityDeclared（闩锁
+        // 解除, 不跨声明边界永久 latch）; ④违例边界→NonMonotonic 传播
+        // （禁以声明洗回退）; ⑤video/audio 平面独立。
+        let handle = PipelineHandle(977_106);
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .insert(handle, Arc::new(Mutex::new(PipelineHealth::default())));
+        let arc = crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .get(&handle)
+            .cloned()
+            .expect("测试弧在");
+        {
+            let mut h = arc.lock().unwrap();
+            h.observe_video_pts(1_000_000_000);
+            h.observe_video_pts(900_000_000); // ①段内回退 → NonMonotonic
+            assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+            h.observe_video_pts(2_000_000_000); // ②普通单调帧不自动恢复
+            assert_eq!(h.video_pts_state, PtsMonotonicity::NonMonotonic);
+        }
+        // ③干净声明边界（mapped ≥ 段前基准）→ 闩锁解除+基准重开。
+        note_declared_boundary(handle, MediaPlane::Video, 2_000_033_333);
+        {
+            let h = arc.lock().unwrap();
+            assert_eq!(h.video_pts_state, PtsMonotonicity::DiscontinuityDeclared);
+            assert_eq!(h.video_last_pts, Some(2_000_033_333));
+        }
+        // 边界后普通单调帧保持边界事实（pipeline 四态纪律: 不洗不降级）。
+        arc.lock().unwrap().observe_video_pts(2_000_066_666);
+        assert_eq!(
+            arc.lock().unwrap().video_pts_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+        // ④违例边界（mapped < 基准）→ NonMonotonic 传播, 干净分支不触。
+        note_declared_boundary(handle, MediaPlane::Video, 2_000_010_000);
+        assert_eq!(
+            arc.lock().unwrap().video_pts_state,
+            PtsMonotonicity::NonMonotonic
+        );
+        // ⑤audio 平面独立（video 违例不污染 audio——PIPELINE-AV 解耦）。
+        note_declared_boundary(handle, MediaPlane::Audio, 5_000_000_000);
+        assert_eq!(
+            arc.lock().unwrap().audio_pts_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .remove(&handle);
     }
 
     #[test]
