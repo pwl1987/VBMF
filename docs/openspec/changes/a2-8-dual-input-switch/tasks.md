@@ -871,6 +871,25 @@
   divergence 漂移首版只测量+分布取证/starvation 复用 progress_since/
   input-bridge 平面 continuity 必要性/合成谓词形状/与 C-TIMELINE-01
   冻结关系确认不重开]; observation only 无 Engine; 本项未勾]**
+  **[第五十轮终裁（A2-8-04 探针 §7, 主账 §65.5; OQ-T1..T6 修订后
+  冻结）: T1/T2/T6 接受[独立验收面·L4 冻结表面零改动/D1 pad 分离与
+  D2 PTS 漂移分账·ns 可比性≠阈值授权/不重开四方案+新增实现↔Freeze
+  一致性验证职责]; **T3/T4 拒原案修订后接受**[progress_since=聚合
+  A/V"或"[program_execution.rs:160-174]不能证六路逐平面+生产 stalled
+  恒 false[switch_graph.rs:936]→逐平面证据+观测先行·禁发明阈值禁立即
+  实现; adapter 行 mapped→DiscontinuityDeclared+continuity 硬编码
+  [switch_graph.rs:969-984]语义过宽=correctness 缺口登记→C-TIMELINE
+  correctness change·**PtsMonotonicity 实为四态**[pipeline.rs:263-276,
+  用户"三态"表述与代码不符如实登记]]; **T5 修订后冻结=六路×四模式
+  证据矩阵**[PathEvidence×FailureMode·每格=证据 E 非布尔·absence≠
+  false·禁预设合成大布尔]; **C-TIMELINE 状态校准**[design-freeze 文档
+  §19 附录: 代码已存在 Batch 1/2+真机三连 PASS vs 冻结期"不进入实现"=
+  时点状态·不回滚不重设计]; **缺口四项登记**[A 文档vs代码=已校准/B
+  DiscontinuityDeclared 过宽=correctness 队列/C 六路 starvation 无逐
+  平面生产证据/D 六路×四模式=数据结构非验收证明→A2-8-04 完成];
+  Recovery 与 Timeline 两链正交性确认; **执行序=探针冻结→六路证据采集
+  （observation only·最小观测面单独落地）→gaps→C-TIMELINE correctness
+  change→A2-8-04 Gate·禁回头重复 R46-R49 旧活体验证**; 本项未勾]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

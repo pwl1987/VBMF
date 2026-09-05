@@ -374,3 +374,33 @@ namespace · A2-8-03/04/05。
   实现期五段门 / CI 全矩阵 / 真机 Gate 复跑纪律照旧（§29.2）。
 - 在该 change 授权落地前，**任何 normalization 实现代码不动**
   （含 C1-P1——保持隔离）。
+
+## 19. 状态校准附录（R50, 2026-09-05; 零代码）
+
+本文件 §0 前状态行「Design Freeze 已形成；**不进入实现**；下一动作=开
+`A2-8-C-TIMELINE-01` implementation change」为**冻结时点（2026-09-04）
+状态**。按 R50 用户二层代码真相审计裁决校准如下——**不修改 15 项冻结与
+八红线，不回滚代码，不重新设计**；状态歧义自本附录起以本附录为准：
+
+- **implementation 状态=已存在于代码（EXISTS IN CODE）**: C-TIMELINE-01
+  Batch 1（program_timeline.rs TimelineAuthority/SourceSegment 映射/三
+  结局/契约组合面+switch_mock 双模式+机械 .program 波及）与 Batch 2
+  （switch_graph TimelineExecutionState+EVENT Segment 身份+BUFFER 声明
+  offset 施加+install_timeline_transition+sample_switch_anchors/
+  timeline_execution_facts+ProgramExecutionRuntime::switch_program ①-⑩
+  +L4 九项合取）已落地并通过真机验收（L4 Timeline 三连续 PASS·
+  Preserve·epoch 0·offset 118799ns·mapped==pre_v 精确相等）；记录见
+  设计探针（2026-09-04-c-timeline-01-program-timeline-authority-
+  design-probe.md）实现批次各节。
+- **登记实现正确性缺口（不随本附录修，隔离入 §17 惯例）**: adapter 侧
+  证据行在 first_mapped 存在时无条件 `discontinuity_state=
+  DiscontinuityDeclared` 且 `video_continuity` 硬编码 `Continuous`
+  （switch_graph.rs:969-984; switch_mock.rs:434 同构，测试 :861-869
+  锁定）——与本文件冻结项⑥语义（已声明边界被观测证实≠Segment
+  transition 本身；**Preserve=同 ProgramEpoch 连续时间线**）不完全
+  一致；裁决级 Authority snapshot 路径（program_timeline.rs:616-618，
+  仅声明边界置 Declared）语义正确。处置=A2-8-04 取证 → **C-TIMELINE
+  implementation correctness change**（独立正式 change 队列）。
+- PtsMonotonicity 四态（pipeline.rs:263-276）与冻结项⑥词表一致在位
+  （R50 核验——"当前三态"的审计表述与代码不符，已按实锚记录于主账
+  §65.4）。
