@@ -8,6 +8,7 @@
 //!
 //! 迁移自 main.rs 对应 env 块, 逐字节搬运（a2-0-runtime-repositioning, 行为零变）。
 
+pub mod a204_obs;
 pub mod config_probe;
 pub mod dual_input;
 pub mod loopback;
