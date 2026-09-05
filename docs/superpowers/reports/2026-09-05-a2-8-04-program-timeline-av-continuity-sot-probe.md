@@ -427,3 +427,64 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
   新鲜证据执行**（OBS N≥10 + dual_input 10/10 + hw 259 → 逐格
   verdict → P8 → Gate 层 AND）。运行时零改动; D2 无阈值; A2-8-05
   不提前。
+
+## §15 第五十六轮（R56）: A2-8-04 Final Gate 执行——逐格裁决 = **FAIL**（新真机事实: pr_v 边界违例 NM 首现, R53 状态机如实显形）
+
+- **执行身份链（P8）**: 冻结 bin target/debug/media-agent-gates md5
+  `7a0ed95c…` == R53/R54 登记 ✓; 72/72 源 sha 盒==本地 HEAD（6ffff44,
+  运行时自 d1a4fc6 零改动）✓; manifest v5 md5 `7521d17e…` ✓; 工件
+  零新增（同模式实测: OBS 4/2/3/0==R54 run1·dual_input 4/2/6/0==R54
+  run4——pad_unlink/collision/interlace/MainContext-acquired）✓。
+  证据盒 `~/a2-8-02i-evidence/2026-09-05-r56-a204-final-gate/`（五件套
+  +三日志+av_delta 全序列+NM 事件提取+md5s; 2026-09-05 17:06-17:17 CST）。
+- **案 b 新鲜确认集三件**: run1 OBS N=30 dwell=1000ms **EXIT=0 30/30**
+  全 Preserved·六路 adv=Some(false)=0; run2 dual_input **首跑 ALL PASS
+  10/10 EXIT=0**（无需重试; L1c 双源 signal=true; L4 outcome=Preserved
+  epoch=ProgramEpoch(0) V/A=Continuous）; run3 hw 矩阵 bmd,gstreamer
+  **259/259 EXIT=0**。
+- **核心事件——switch #8 B→A pr_v NonMonotonic=6 行（R53 语义后首次;
+  此前 80 切换为 0; 累计 111 切换）**: 逐行还原（box nm-event 提取件）:
+  #8 边界 mapped==program_start 锚 74137405051（offset=100000002）;
+  NM 闩锁贯穿段 8 早窗（SPAN×2/POST×2 归 #8 + PRE×2 归 #9 共六行;
+  期间 pr_v 帧计数 2299→2509 全程推进 adv=Some(true)·PTS 跨相位
+  +3s/+4s 正常步进——**非停流/非帧损, 是 mapped 顺序事实**）;
+  **#9 A→B 干净边界解除回 DD**（段 9+ 全 DD）——rt_05 五断言锁定的
+  生命周期（违例边界传播 + 干净边界解除）**真机完整首证 = P6b
+  FieldPending 样本落地**。候选成因=跨源 skew（PRE #8 in_v A 落后
+  B 25.8ms·会话累积）与边界锚点交互; av_delta 本跑 SPAN 包络
+  1.52→101.52ms·mean 31.72ms 振荡持续（R54 包络增长现象同形态延续）。
+- **逐格 verdict（词表 v2; P1/P5 充分性前置六路全过——每路
+  PRE/SPAN/POST 每 switch 均 pts_state≠Unknown）**:
+
+  | 格 | verdict |
+  |---|---|
+  | P1 in_v/in_a/br_v/br_a | **Satisfied**（各 180 行全 VM·NM=0） |
+  | P1 pr_a | **Satisfied**（178 DD+2 VM·NM=0） |
+  | **P1 pr_v** | **Failed**（**NM=6**·行级定位 epoch=8 六行） |
+  | P2 核心 outcome↔continuity | **Satisfied**（30/30 Preserved·Authority V/A=Continuous 逐切换·无 NewEpoch/FailClosed/TransitionFailed） |
+  | P2a | Satisfied 记录性（in/br 无 DD 制造） |
+  | **P2b pr_v face** | **Failed**（6 NM 行破 {PRE VM→此后 DD} 签名; pr_a face 保持） |
+  | **P2c-1 可观测通道** | **Failed**（程序面 NM=6>0·plane Violated 伴随>0; Authority face 全 Preserved——两 face 分层如实呈现） |
+  | P2c-2 | Gap 披露（Authority sink 缺失·Unproven·不阻塞） |
+  | P3 D1 | Satisfied（窗内 av_paired 分离观测=0·absence 如实; 能力在证=rt_01∈259+R46 活体背景） |
+  | P4 D2 | Satisfied 登记性（min/max/mean=1.52/101.52/31.72ms·全序列入盒·无阈值） |
+  | P5 starvation 六路 | **Satisfied**（Some(false)=0·SPAN 含被切离路推进） |
+  | P6a | Satisfied（rt_05∈259 绿） |
+  | P6b | **field 首证落地**（NM→干净边界→reset 全链·非阻塞登记·待验收层确认升级） |
+  | P7 | Satisfied（dual_input 10/10 首跑·EXIT=0） |
+  | P8 | Satisfied（身份链全过·工件零新增） |
+  | P9 | Gap 披露（stalled 硬编码/S5 caps=None/switch_mock 分歧/P2c-2） |
+
+- **Gate 层固定合取: A2-8-04 Final Gate = FAIL**——三 blocking 格
+  Failed（P1-pr_v/P2b-pr_v/P2c-1），其余 blocking 格全 Satisfied，
+  Gap/增量格披露登记齐。**首败留证·判据零改动·禁为跑绿回改。**
+- **交接验收层（实现层不自行解释）**: FAIL 驱动因子=单一新事实
+  （跨源 skew 下切换边界 mapped 落于前段 last 之下 → R53 状态机如实
+  标 NM 并于下一干净边界解除; 帧流全程健康）。两种待裁读法:
+  (a) 维持现冻结谓词=rollback 违例（Gate 维持 FAIL, 修复/缓解后
+  复跑）; (b) 参照 R52→R53 先例开边界 rebase 语义裁决轮（判定该类
+  "边界 mapped 回退"属 declared-discontinuity 家族的测量事实还是
+  correctness 缺口——P6b 真机首证同时是该项裁决的输入）。累计口径:
+  R53 语义后 111 切换 pr_v NM 共 6 行（全部在本窗 #8 单事件）。
+- 状态: A2-8-04 = **FAIL（待验收层裁决后续路径）**; A2-8-05 不进入;
+  本轮零代码（运行时零改动）; 远端基线推送按终裁于 Gate 后执行。

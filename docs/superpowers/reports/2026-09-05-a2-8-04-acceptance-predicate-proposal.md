@@ -313,3 +313,14 @@ minimum ≠ continuity completeness proof（采样证据非区间证明, P1/P5
 运行时零改动清单维持: PipelineHealth/SwitchGraph/TimelineAuthority/
 SixPathEvidence/dual_input/Supervisor/L4 全不动; D2 不加阈值; 不因
 101 次累计证据漂亮提前 PASS; A2-8-05 不提前。
+
+## §9 Gate 执行结果登记（R56, 2026-09-05）
+
+按本冻结谓词+案 b 窗执行（证据盒 2026-09-05-r56-a204-final-gate;
+细节 = 04-探针 §15/主账 §73）: 新鲜三件全 EXIT=0（OBS 30/30 全
+Preserved·dual_input 首跑 10/10·hw 259/259）; 逐格: 除 **P1-pr_v /
+P2b-pr_v / P2c-1 三 blocking 格 Failed**（switch #8 B→A pr_v NM=6
+行——R53 语义后首现, 帧流全程健康, #9 干净边界自解除=P6b 真机
+首证）外全 Satisfied/披露齐 → **Gate 层固定合取 = A2-8-04 Final
+Gate = FAIL**。首败留证; 判据零改动; 后续路径（维持违例读法 vs
+边界 rebase 语义裁决轮）归验收层。

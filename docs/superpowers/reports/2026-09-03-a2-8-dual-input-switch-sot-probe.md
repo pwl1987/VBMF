@@ -4168,3 +4168,24 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   §14。执行序: 直接进入 A2-8-04 Final Gate 新鲜证据窗（OBS N≥10 +
   dual_input 10/10 + hw 259）→ 逐格 verdict → P8 → Gate 层 AND。
   运行时零改动清单维持; D2 无阈值; A2-8-05 不提前。
+
+## §73 第五十六轮（R56: A2-8-04 Final Gate 执行——Gate = FAIL·pr_v 边界违例 NM 首现）
+
+- 按冻结谓词+案 b 窗执行（6ffff44; 冻结 bin md5 7a0ed95c ✓·72/72
+  源 sha ✓·manifest 7521d17e ✓·工件零新增 OBS 4/2/3/0==R54run1·
+  dual 4/2/6/0==R54run4 ✓; 证据盒 2026-09-05-r56-a204-final-gate）。
+  新鲜三件: OBS N=30 dwell1000 **EXIT=0 30/30 全 Preserved**·
+  dual_input **首跑 10/10 EXIT=0**·hw **259/259 EXIT=0**。
+- **核心事件: switch #8 B→A pr_v NM=6 行——R53 语义后首次（80→111
+  切换累计仅此一例）**: 边界 mapped==program_start 锚; NM 闩锁贯穿
+  段 8 早窗（帧计数全程推进·PTS 正常步进=非停流）; **#9 干净边界
+  解除回 DD——rt_05 生命周期（违例传播+干净解除）真机完整首证 =
+  P6b FieldPending 样本落地**。候选成因=跨源 skew（PRE #8 A 落后
+  B 25.8ms）× 边界锚点交互; av_delta 包络 1.52→101.52ms 振荡延续。
+- 逐格 verdict（§15 全表）: P1 四 in/br 路+pr_a/P2 核心/P2a/P3/P4/
+  P5/P6a/P7/P8 全 **Satisfied**; P6b field 首证落地; **P1-pr_v/
+  P2b-pr_v/P2c-1 三 blocking 格 Failed** → **Gate 层固定合取 =
+  A2-8-04 Final Gate = FAIL**。首败留证·判据零改动。
+- 交接验收层两读法: (a) 维持冻结谓词=rollback 违例（FAIL 维持）;
+  (b) R52→R53 先例开边界 rebase 语义裁决轮。实现层不自行解释;
+  A2-8-05 不进入。全文 = 04-探针 §15。

@@ -1021,6 +1021,20 @@
   异常禁 DD>0→FAIL]; P2 Failed 收紧[Violated∨TransitionFailed∨任何
   TransitionFailure 终态]; 谓词文档 FROZEN-FINAL(R55.2); 下一步=直接
   进入 A2-8-04 Final Gate 新鲜证据窗执行→Gate 层 AND→A2-8-05 待]**
+  **[第五十六轮执行（R56 A2-8-04 Final Gate 已执行, 零代码; 主账 §73+
+  04 探针 §15; 证据盒 2026-09-05-r56-a204-final-gate）: 按冻结谓词+案 b
+  新鲜窗执行——身份链全过[bin 7a0ed95c·72/72 sha·manifest 7521d17e·
+  工件零新增 4/2/3/0 与 4/2/6/0 同模式==R54]; 新鲜三件全 EXIT=0[OBS
+  N=30 dwell1000 30/30 全 Preserved·dual_input 首跑 10/10·hw 259/259];
+  **逐格裁决: P1 四 in/br 路+pr_a/P2 核心 outcome↔continuity/P2a/P3/
+  P4/P5 六路/P6a/P7/P8 全 Satisfied; P6b 真机首证落地[#8 NM→#9 干净
+  边界→reset 全链=FieldPending 样本]; 但 switch #8 B→A pr_v
+  NonMonotonic=6 行（R53 语义后首现·111 切换唯一事件·帧流全程健康·
+  R53 状态机如实标显并自解除）→ P1-pr_v/P2b-pr_v/P2c-1 三 blocking
+  格 Failed → **Gate 层固定合取 = A2-8-04 Final Gate = FAIL**（首败
+  留证·判据零改动）**; 交接验收层两读法待裁: (a) 维持=rollback 违例
+  (b) R52→R53 先例边界 rebase 语义裁决轮; 本项未勾——Gate FAIL 后续
+  路径待验收层裁决; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
