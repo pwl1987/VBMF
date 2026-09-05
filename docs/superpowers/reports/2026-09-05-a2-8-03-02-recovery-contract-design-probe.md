@@ -106,3 +106,40 @@ handle)（现状）; Bridge/Program → 跳 recover + 现有 escalate 面; +纯�
   与 A2-8-04 范围。**G-2 Final=CLOSED（R47）**; 03-01-G=COMPLETE。
 - 红线重申（R47 §十三）: **先裁 OQ-R1..R5 后按冻结 Contract 实现**——
   禁实现先于 Contract; 当前分支基线=f5eedcb。
+
+## §8 R48 复核确认 + OQ-R1..R5 冻结包（2026-09-05, 用户裁决落账; 待裁版）
+
+- **R47 复核=PASS**（用户四层复核: 用户报告→GitHub 实际提交→当前分支
+  状态→语义一致性）——本 doc 命名/状态纠偏经 GitHub 实文核验属实
+  （6f5735e）; 无运行时代码越界。
+- **状态语言规则（R48 §十三, 永久锁）**: 本 doc 在 OQ-R1..R5 裁决冻结前
+  **不得**称 Frozen Contract（状态行已载）; **G-2 Final=CLOSED ≠
+  G-2-G-E2E 完成**——E2E 属 03-02/A2-8-04 且未实现未验证, 永久不入
+  G-2 Final 记账; 四层 Gate LIVE/CLASSIFY/FAULT/E2E 边界永久保持。
+- **OQ-R1..R5 冻结包（R48 §十五指令: 下一轮=逐项最终裁决; 最关键=
+  OQ-R1）**:
+  - **OQ-R1（关键）——两案**:
+    - **案 A=全维持现状（用户维持推荐）**: FailureDomain/
+      AttributedFailures 只作 evidence/attribution/决策输入记录, 不驱动
+      新 Recovery Strategy 分支; 不新造 Strategy 词表; Bridge/Program 域
+      不新造 skip-recover 语义。后果: 03-02=**零运行时代码 Contract
+      close-out**（§3 F-1..F-6 成文冻结既有行为+边界, 非新行为）, 收口
+      后直进 A2-8-04。
+    - **案 B=执行分支（§6 预估面）**: watchdog Restart 分支读
+      last_decision_domain → Input→recover(own handle)（现状）;
+      Bridge/Program→既有 escalate 面跳 recover; Supervisor 零改。后果:
+      最小实现+纯函数测试+矩阵+真机, 再收口。
+  - **OQ-R2**: 域永不参与 restart budget/circuit（RestartPolicy 零变化）
+    ——裁=接受/否决（提案默认=接受）。
+  - **OQ-R3**: 策略消费点=执行域（watchdog 读 last_decision_*;
+    Supervisor 判定/词表零变化, 与 R44 §7 红线一致）——裁=接受/否决
+    （提案默认=接受）。
+  - **OQ-R4**: 已 CLOSED（R47 组合证据裁决; R48 复核确认, 不重开）。
+  - **OQ-R5**: 若 OQ-R1 裁案 A（零代码收口）: 03-02 不设独立实现轮,
+    收口即直进 A2-8-04——裁=接受/否决（提案默认=接受）。
+  - 随冻结顺手修（R47 §九已授权）: §3 标题"五面契约提案"→
+    "**六面契约提案（F-1..F-6）**"。
+- 裁决后状态语（届时解锁）: 裁案 A ⇒ Contract Freeze 完成, 本 doc 状态
+  改 FROZEN, item-5 的 03-02 子项收口, A2-8-04（item 6）开启; 裁案 B ⇒
+  先最小实现+矩阵+真机再收口。
+- 基线: 开发线 6f5735e（R48 账单元后新头）·master=7745968。

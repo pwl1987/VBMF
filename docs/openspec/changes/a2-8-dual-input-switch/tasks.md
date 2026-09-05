@@ -814,6 +814,22 @@
   03-02 冻结时顺手修不单独提交; **纪律重申: 禁先写 Recovery 代码——先
   OQ-R1..R5 用户裁决→Contract Freeze→最小实现→matrix+真机→A2-8-04**;
   本项保持未勾——03-02/03-03[G-3]/03-04[G-4] 未做]**
+  **[第四十八轮（主账 §63, 03-02 doc §8, R47 复核裁决登记+状态语言规则
+  永久锁+OQ-R1..R5 冻结包; 零运行时代码零矩阵）: R47=PASS 无运行时代码
+  越界[用户四层复核: 用户报告→GitHub 实际提交→当前分支状态→语义一致性;
+  13 项全过除 F-1..F-6 六面计数 🟡 DEFER 维持+memory sync 🟡=自证项
+  GitHub 不可独立验证（接受登记非阻塞）]; **状态语言规则（永久锁）**:
+  G-2 Final=CLOSED 语义=G-2 自身 consumption/evidence/attribution/
+  decision-input 闭环·**G-2-G-E2E 永久不入 G-2 Final**（属 03-02/A2-8-04
+  未验证）·四层 Gate LIVE/CLASSIFY/FAULT 不阻塞/E2E 边界永久保持·禁说
+  'G-2-G E2E=PASS'/'Recovery E2E=COMPLETE'/'03-02=FROZEN'（直至 OQ 裁决）;
+  **§十五: 不再跑 R46/R47 活体——本轮彻底结束·唯一待裁=03-02
+  OQ-R1..R5·用户维持推荐 OQ-R1=全维持现状**[FailureDomain 只作 evidence/
+  attribution 不驱动新 Recovery Strategy 分支→03-02=零运行时代码 Contract
+  close-out→直进 A2-8-04 Program Timeline/AV continuity]; 裁决完成前继续
+  保持零 Recovery runtime code; 03-01 探针本轮不新增（R48 无 03-01 域
+  新裁定·止于 §12——披露）; 本项保持未勾——03-02 冻结待 OQ 终裁/
+  03-03[G-3]/03-04[G-4] 未做]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案

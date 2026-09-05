@@ -3540,3 +3540,56 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   Freeze → 最小实现（若裁执行分支）→ matrix+真机 → A2-8-04。
 - 本轮=零运行时代码零矩阵（纯账面）; 提交=账单元（主账 §62+03-01 §12+
   03-02 文档纠偏+tasks R47 段）; 基线=f5eedcb..（本节提交后新头）。
+
+## §63 第四十八轮（R47 复核裁决登记 + 状态语言规则永久锁 + OQ-R1..R5 冻结包; 零运行时代码）
+
+### 63.1 R47 复核裁决登记（用户四层复核: 用户报告→GitHub 实际提交→当前分支状态→语义一致性）
+
+- **总体: 🟢 R47 PASS——"实际落地正确, 且没有发现运行时代码越界"; 结论比
+  R47 报告再收紧一点**。
+- 13 项逐条: 分支纪律 / R46 状态继承 / 观测边界 / OQ-R4 / Gate 分层 /
+  G-2 Final / 03-01-A..G / 03-02 命名 / Recovery 禁先实现 / 提交单元
+  纯度 / Mimosa DEFERRED 全 ✅; F-1..F-6 六面计数 🟡 DEFER（维持, 随
+  03-02 正式冻结顺手修）; **memory sync 🟡=报告自证通过但 GitHub 不可
+  独立验证**（外部执行环境动作, 不构成 R47 阻塞——按"自证项"登记接受）。
+- 本轮独立核验（R48 执行前置, 实文/git 为准）: local=remote=6f5735e,
+  master=7745968, 树净; 6f5735e=4 文件 +108/−3 ledger-only（tasks/主账/
+  03-01/03-02）, commit message 载明基线 f5eedcb/7745968+零运行时代码
+  声明; 03-02 doc 实文=纠偏后标题+状态行+§7 修正记录（会话恢复缓存中的
+  旧标题为陈旧快照, 实文无问题）。
+
+### 63.2 状态语言规则（用户 §十三, **永久锁死**）
+
+- **可以说**: G-2 Final=CLOSED（语义=**G-2 自身的 consumption/evidence/
+  attribution/decision-input 闭环**）; G-2-G-LIVE=PASS /
+  G-2-G-CLASSIFY=PASS / G-2-G-FAULT=NOT OBSERVED（不阻塞）。
+- **不能说**: 'G-2-G E2E=PASS' / 'Recovery E2E=COMPLETE' /
+  '03-02 Recovery Contract=FROZEN'（直至 OQ-R1..R5 裁决冻结）。
+- 边界根源: R47 已将 E2E 从 G-2 Final 验收范围剥离——**G-2 Final=
+  CLOSED 与 G-2-G-E2E=未实现/未验证 并存不矛盾**; 后续账本永久保持此
+  分离, **禁把 E2E 写回 G-2 Final**; 四层 Gate LIVE/CLASSIFY/FAULT/E2E
+  分层边界永久保持。
+- 观测边界升级表述（用户 §三）: 诊断观测面**没有改变原有决策拓扑**
+  （非仅"代码没出问题"）——此表述入账为口径基准。
+
+### 63.3 §十五 指令接收: 活体复跑终止 + 唯一待裁=OQ-R1..R5
+
+- **不再跑任何 R46/R47 活体——该轮已彻底结束**。
+- 唯一真正待裁=03-02 OQ-R1..R5（最关键=OQ-R1）; **用户维持推荐:
+  OQ-R1=全维持现状**——FailureDomain 继续作 evidence/attribution,
+  不驱动新 Recovery Strategy 分支; 03-02 可成为**零运行时代码 Contract
+  close-out**, 直进 A2-8-04 Program Timeline/AV continuity; 比贸然增加
+  Input→recover/Bridge→…/Program→… 更稳, 符合已冻结 Supervisor
+  Recovery-only 边界。
+- **裁决完成前继续保持零 Recovery runtime code**; 下一轮=OQ-R1..R5
+  逐项最终裁决（冻结包已落 03-02 doc §8, 待裁版）。
+
+### 63.4 本轮执行（零运行时代码零矩阵）
+
+- 主账 §63 + 03-02 doc §8（R48 确认+OQ 冻结包待裁版）+ tasks R48 段;
+  单一账单元提交; **03-01 探针本轮不新增**（R48 无 03-01 域新裁定——
+  G-2 Final 及四层 Gate 模型已录 §12, 状态语言规则属全局口径记本账+
+  03-02 doc; 止于 §12——如实披露, 避免重复记账噪音）。
+- 无代码变更⇒无矩阵需求; 无真机动作（§十五: 活体复跑终止）。
+- 基线: comet/a2-8-dual-input-switch@6f5735e, master=7745968（本节提交
+  后新头）。
