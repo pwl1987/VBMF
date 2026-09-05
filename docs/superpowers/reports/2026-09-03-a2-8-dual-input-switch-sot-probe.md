@@ -3332,3 +3332,94 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - **下一刀 = R44 §5**: 依真实测试结果裁决 G-2 runtime consumption 具体
   接线（03-01-D/E/F）→G tests+真机; CONTRACT-ANCHOR-DOC-SYNC+Mock B
   同步轮另行排期不混轮。
+
+### 60.1 落账前独立核验（b6b9a3f, 用户 R44 复核逐条实文对照）
+
+- git: HEAD=b6b9a3f==远端, working tree clean; a787974 9 文件 +410/−27
+  与账面一致。用户 16 行复核表逐条实文确认: custody.rs:61-68 注释原文
+  确证 `PipelineFault.pipeline` 当前承载 device identity（legacy 双语义
+  =V0.3 Event Contract 债, 本轮不动字段——用户裁定正确）; bootstrap.rs:36
+  `internal_log` 仍 pub——**"类型级排他"表述降级为"组合根接线级唯一 drain
+  ownership"成立**（代码注释 bootstrap.rs:39/event_intake.rs:12 已同步
+  纠偏措辞; 强类型封锁留后续治理轮, 不为形式重构已过 Gate 接线）;
+  Supervisor 无 switch 入口维持。
+- **E 前提纠偏（本轮最重要事实披露）**: 用户 §11-E 前提"仓库不存在
+  FailureDomain runtime contract"与实文**不符**——`program_execution.rs:179`
+  已有 `pub enum FailureDomain{None,Input,Bridge,Program}` +
+  `classify_failure_domain`(:186, 三列进度观测 input/bridge/program,
+  单故障优先序 Input>Bridge>Program, gh_rt_01 矩阵测试); 消费现状=
+  dual_input.rs L5d(:827-838) gate-only——**恰是 03-00 探针 G-2 缺口
+  原文**("分类器三列观测 gate-only 无 runtime 常驻消费");
+  master_join.rs:112/api_boundary.rs:406 早已预留"红后 Runtime
+  classify_failure_domain"消费面(§8.10)。依用户自身红线（"必须从现有
+  真实 evidence contract 向前推"）**禁新造第二同名类型**
+  （PipelineFault.pipeline 同名双语义教训）→ E 刀=把现有分类器生产化。
+  custody `FailureScope::SharedPipeline`（事件身份证据）与 FailureDomain
+  （进度证据）为**两族互补证据, 禁融合**。
+
+### 60.2 G-2-00 契约/组合预检 + D/E/F 落地（a787974 后续实现提交）
+
+- **预检**: report_failure 生产调用者恰 2（watchdog.rs:217 ingest tick /
+  :549 group tick; event_projection.rs:277+intake_03 均测试代码）——签名
+  扩展波及面有界; 桥 liveness=`BridgeObservationPort` trait 方法
+  （controller.rs:814 实现）, 组 watchdog 今日无此依赖=OQ-G2-2 实锚;
+  **装配点现成**: `MediaAdapterBundle.bridge_observation` 第三 trait view
+  （registry.rs:206, A2-8-02-G/H 同源 controller）——bin composition
+  元组 :290-293 原样丢弃该 view, 扩 4 元透传零新构造。
+- **D（custody 归因生产消费）**: `watchdog::assemble_decision_input`
+  纯函数装配点——ingest tick 同临界区 consume+归因（attribute_failures
+  首个生产调用者; 空 custody 证据→None=absence≠evidence; 证据在场身份
+  不匹配→零归因结果≠无证据, identity correlation 零污染）。
+- **E（FailureDomain 生产消费）**: 组 watchdog tick 三列生产喂入——
+  ①input 列=fold per_input advancing ②桥列=bundle bridge_observation view
+  `bridge_liveness(handle, FAILURE_DOMAIN_LIVENESS_WINDOW_MS=3000)`
+  （与 gate L5 LIVENESS_WINDOW_MS 同值同义, 常量落 program_execution.rs
+  ——gates→runtime 依赖禁反转）按 tap_channel 取本设备行 ③program 列=
+  program_progress_since 两采样帧计数（首采样前不分类）。
+- **F（Supervisor 决策输入面）**: `report_failure(+domain, +attributed)`
+  ——按值携带零 Custody 所有权（用户拓扑: Policy input→Supervisor;
+  **Custody→Supervisor→switch 禁式不可构造维持**）; Status 逐决策**替换**
+  记录（Some/None 均如实——absence≠evidence 不累积）;
+  `last_decision_domain/last_decision_attribution` 只读访问器;
+  **决策判定逻辑零变化**: attempts/circuit/Restart/Escalate 词表预算全
+  冻结, 本轮无分支消费——域→恢复策略选择=03-02 Recovery Contract 消费面。
+
+### 60.3 披露（五项）
+
+1. **组 tick 桥列缺席→不分类 ≠ gate L5d 缺席→false**: gate 在 L2b（tap
+   在场已验）前提下 `is_some_and(alive)=false` 记账; 运行时无此前提, 按
+   media_tap.rs:109 `absence≠evidence` 契约不分类（None=无分类证据）。
+   喂入口径差异如实记档, 分类器本身零改动。
+2. **F 无分支消费**: 决策输入本轮只记录不改变判定（用户 §11-F 授权语义
+   =接收决策输入; 分支消费属 03-02）——测试锁"有证据与无证据同判"。
+3. **组 watchdog tick 接线真机活体证据缺**: `spawn_execution_group_watchdog`
+   唯一 spawn 点=生产 bin（bin:479）; 本轮活体=编译级（bmd+gst 全绿）+
+   同一分类器 gate 侧 L5d 真机复核通过; 组 tick 活体执行留 A2-8-04 生产
+   bin 验证轮。
+4. **hw 门控闭包作用域 bug 盒上抓到**: bridge_alive 闭包链 `p` 越域
+   （E0425）——该段 cfg(bmd+gst) 专属, default/mock 不编译（矩阵分层
+   价值实证）; 盒上修复复跑全绿。
+5. **基线校准**: R40 真机 dual_input 已 10/10（L5.4 经 R36/R37 闭环;
+   记忆线"9/10 L5.4 FAIL"过期作废）→ 本轮门槛=10/10。
+
+### 60.4 盒矩阵 + 真机（终态实测, 盒源 7/7 sha8 与本地一致）
+
+- fmt 绿·**default 224**[223+1]·**mock 390**[388+2]·**bmd+gst 248**
+  [247+1]·clippy ×2（default+bmd,gst 均 -D warnings exit 0）·双 bin
+  构建成功; 变更 7 文件 sha8 全对（38d05f68/40e3fa87/0eeb4e93/4ff9e9e9/
+  061f2b9b/cd631c0e/24e07bb5）。
+- **真机（证据盒 ~/a2-8-02i-evidence/2026-09-05-r45-g2-decision-input/,
+  盒钟 UTC 02:02=CST 10:02 无失配, v5 manifest sha 7a52b498 复用）**:
+  ①VBMF_SESSION_LIFECYCLE **ALL PASS EXIT=0**——ingest watchdog 新决策
+  输入接线真机活体（custody 归因逐 tick 生产计算+E7 internal residue
+  既有语义维持）; ②VBMF_A2_8_DUAL_INPUT **ALL PASS 10/10 EXIT=0**——
+  L0→L5+Teardown 全链零回归（L1a 2/2 production_grade·L1c 双信号·L2a
+  port_id 精确·L2b 双 tap 82 帧·L3 120→210·L4 Preserved{epoch 0,
+  offset 278599ns, V/A Continuous, DiscontinuityDeclared}·L5 归因完整
+  "A行=None B行=Input"·Teardown 停止链）。
+- **状态**: G-2 stage-1（D/E/F）落地——custody 归因+FailureDomain 生产
+  消费+Supervisor 决策输入面三缺口闭合; **G-2 PASS 不自宣**（真机已跑
+  但按纪律待用户复核; 组 tick 活体见披露 3）。
+- **下一刀（待裁）**: 03-02 Recovery Contract（决策输入记录面的消费——
+  域→恢复策略选择; R43/R44 冻结序下一环）; CONTRACT-ANCHOR-DOC-SYNC+
+  Mock B 同步轮仍另行排期不混轮。

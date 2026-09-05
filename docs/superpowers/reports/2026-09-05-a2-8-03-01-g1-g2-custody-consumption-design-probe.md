@@ -355,3 +355,63 @@ R44 对本探针十三问的裁决（不逐问重裁, 按依赖重排后直接�
 - 交付时点 custody「双零生产调用」缺口闭合其一: 事件事实流已到达 custody
   累积面（observations_from_events 获生产调用者）; attribute/snapshot 的
   生产消费仍零（D/E/F 待裁）。
+
+## §10 R45 裁决登记 + G-2-00/D/E/F 交付记账（2026-09-05）
+
+### 10.1 R45 裁决（用户对 R44 的复核, 落账前已逐条实文核验）
+
+- **R44 = PASS**（A/B/C 实现轮 PASS）; 两处措辞降级均属实并已采信:
+  ①03-01-A=运行时身份不再丢失 ≠ 类型语义锁死（`PipelineFault.pipeline`
+  双语义留 V0.3, 本轮禁改字段）; ②03-01-B="类型级排他"降级为"**组合根
+  接线级唯一 drain ownership**"（BootstrapContext.internal_log 仍 pub;
+  bootstrap.rs:39/event_intake.rs:12 注释已同步纠偏; 强类型封锁留治理轮）。
+- 授权=R45 全序 G-2-00→D→E→F→G（不再单开 Probe 轮; 最小增量; 四红线:
+  不新增第二 SoT/不重新 drain/不猜 Video-Audio path/不让 Custody 执行
+  recovery）。
+- **E 前提纠偏（用户前提与实文不符, 缺口原样上报）**: `FailureDomain`
+  并非不存在——program_execution.rs:179 已有 {None,Input,Bridge,Program}
+  + classify_failure_domain（三列进度观测, §8.10 消费面预留于
+  master_join.rs:112/api_boundary.rs:406）, 消费=dual_input L5d gate-only
+  =恰 03-00 G-2 缺口原文。E 刀依用户红线"从现有真实 evidence contract
+  向前推"复用该 contract 生产化, **禁新造第二同名类型**;
+  custody SharedPipeline scope 与 FailureDomain 为两族互补证据禁融合。
+
+### 10.2 G-2-00 契约/组合预检结论（本轮内完成, 零独立 Probe 轮）
+
+| 面板 | 结论（实锚） |
+|---|---|
+| report_failure 生产调用者 | 恰 2: watchdog.rs:217（ingest tick）/:549（group tick）; event_projection:277/intake_03=测试 |
+| 域分类证据源 | 三列: input advancing（组 fold 既有）/桥 liveness/program progress（program_progress_since 两采样, gate L5d 同口径） |
+| 桥 liveness 依赖 | BridgeObservationPort trait 方法; 组 watchdog 原无（OQ-G2-2 实锚）; 装配点=MediaAdapterBundle.bridge_observation 第三 view（registry.rs:206 既有, 同源 controller）——bin composition 扩 4 元透传零新构造 |
+| 观察窗 | FAILURE_DOMAIN_LIVENESS_WINDOW_MS=3000（program_execution.rs 新常量, 与 gate LIVENESS_WINDOW_MS 同值同义; gates→runtime 依赖禁反转） |
+| 决策输入面 | report_failure(+domain:Option<FailureDomain>, +attributed:Option<AttributedFailures>)——按值携带, Supervisor 不持 Custody |
+
+### 10.3 D/E/F 交付（最小增量, 四红线全守）
+
+- **D**: `watchdog::assemble_decision_input`（纯函数, mock 可测）——
+  归因=attribute_failures 于 ingest/group 两 tick 同临界区装配（首个生产
+  调用者）; 空 custody→None（absence≠evidence）; 身份不匹配→零归因结果
+  （≠无证据, 零污染）。intake.observations() 只读消费, **零重新 drain、
+  零第二 SoT、零 advance、零快照调用点**（OQ-G1-5 维持）。
+- **E**: 组 tick 三列生产喂入 classify_failure_domain（三列齐备才分类,
+  任一缺席→不分类——与 gate L5d 缺席→false 的口径差异已披露, 依据
+  media_tap.rs absence≠evidence）; OQ-G2-3 由用户 §11-F 裁定=决策输入面
+  （Policy input→Supervisor）非 observation-only; OQ-G2-1/G2-2 stage-1
+  不消费 tap capability 列（三列=进度观测非能力列——tap 能力列分类留
+  后续）; OQ-G2-4 单故障优先序维持（分类器冻结未动）; OQ-G2-6 Mock 消费
+  面不涉（组 watchdog hw-gated, Mock 不混入维持）。
+- **F**: Status.last_domain/last_attributed 逐决策替换记录+
+  last_decision_domain/attribution 只读访问器; **决策判定逻辑零变化**
+  （无分支消费——域→恢复策略选择=03-02 Recovery Contract）; 测试锁
+  "有证据与无证据同判"+替换语义+未注册句柄读取 None。
+- **OQ-G1-3/4/7 复核**: ingest 身份签名扩展维持"supervisor 唯一事件出口"
+  （零变化）; 桥提取规则 A2-7 冻结原样; RuntimeEvent/EventSource/
+  FanoutSink/RuntimeEventLog 词表零触碰。
+
+### 10.4 矩阵与真机（§60.4 同源, 此处记验收面）
+
+default 224[+1]·mock 390[+2]·bmd+gst 248[+1]·clippy×2 绿·盒源 7/7 sha8;
+真机: session_lifecycle ALL PASS（ingest tick D/F 接线活体）+ dual_input
+**10/10 ALL PASS**（零回归; L5d 同一分类器真机复核"故障域归因完整=true"）。
+**组 watchdog tick 生产活体证据缺**（唯一 spawn=生产 bin:479）→ 留
+A2-8-04 bin 验证轮; G-2 stage-1 实现完成, PASS 判定待用户复核（不自宣）。
