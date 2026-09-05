@@ -3114,3 +3114,57 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - **下一刀 = A2-8-03 failure/supervision 验证**（watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界 recovery-only）——
   按探针先行纪律, 开工前须其 SoT Probe/裁决授权, 本轮未启动。
+
+## §57 第四十二轮终裁: R41=PASS（含一项登记的契约注释漂移）·A2-8-03-00 SoT Probe 授权·Mock 分叉批 Probe·Mimosa 后置（2026-09-05, 裁决落账零代码）
+
+### 57.1 核验（裁决前实锚复核——主张全部属实）
+
+- **契约注释漂移属实**: contracts/switch.rs:91-92 仍写「program 连续性锚
+  （当前出口位置+步长）与 target 源连续性锚（target 分支位置+步长）」
+  ——与 R40 后真实实现（已观测边界帧原值）不一致; trait 默认面无运行
+  时执行, 属**契约文档语义残留**非 P1-A 缺陷。**扩面发现**:
+  switch_mock.rs:271-273 注释同源同文（"当前出口+步长"）——漂移面实为
+  两处, R40 注释统一只覆盖 program_timeline.rs AnchorPair +
+  switch_graph.rs。
+- 既有监督能力五件属实: ①TimelineSample 三列 Input/Bridge/Program +
+  program_alive（program_execution.rs:63-79, assemble :83-118）; ②
+  program_progress_since/input_progress_since（:160-174, 帧计数增量
+  语义）; ③BridgeHealthReport{pipeline_recovered,expected_channels,
+  observed_alive_channels,bridge_degraded}+alive_in_window 当前推进性
+  （:120-154, 观察时钟窗口）; ④FailureDomain{None,Input,Bridge,Program}
+  + 单故障优先序 Input>Bridge>Program（:176-200）; ⑤Supervisor 纯决策
+  引擎 + SupervisorAction 封闭词表 {Restart,Escalate}（supervisor.rs
+  :1-19/:119-125）。
+- tasks.md A2-8-02 定义含 L5 Supervision、项 5/6/7 全 `[ ]` 待——03 非
+  从零开始, 定位=收敛已有 02/G/H/I supervision 观测能力。
+
+### 57.2 终裁落账
+
+- **R41 = PASS with one documented semantic-drift follow-up**。
+- **① A2-8-03: 批准开工, 第一步必须是 SoT Probe（仅探针零代码）**;
+  不重新造 watchdog/liveness/FailureDomain（代码现实已在册）; 核心查
+  Observation→RuntimeEvent→Custody→Supervisor→Recovery 唯一无旁路
+  无重复归因闭环; **硬红线: Supervisor 禁 switch()/begin_switch()**
+  （违反即触 A2-8 冻结「Supervisor ≠ switch executor」）。Probe 十二问
+  见裁决 §十二。
+- **② MOCK-ANCHOR-SEMANTIC-ALIGNMENT: 立项批准, 暂不选 A/B, 批 Probe**
+  ——先答三问（消费者/F5F6 测试意图/+STEP 是否入 Authority）, 第三问
+  明确后才裁同步或保留。
+- **③ Mimosa: 后置, 不作为 A2-8-03 前置 Gate**——正确位置=05 后 Final
+  Mimosa full audit → archive/CI/merge; 例外=03 Probe 若涉新增/高风险
+  路径可做局部检查, 但不得宣称完整 audit PASS。不宣称项目安全维持。
+- **④ 契约注释漂移正式登记 = CONTRACT-ANCHOR-DOC-SYNC**（两处:
+  contracts/switch.rs:91-92 + switch_mock.rs:271-273）: 契约注释漂移
+  非 P1-A 运行缺陷; 于下一次允许的文档/契约同步轮处理, **禁留到
+  A2-8 最终归档**; 届时允许修改 contracts/switch.rs（SPI 文档与已冻结
+  实现语义一致, 非扩架构面）。本轮不修（裁决定位"后续修正"）。
+
+### 57.3 状态与下一刀
+
+- 本轮交付: A2-8-03-00 SoT Probe（另文
+  `2026-09-05-a2-8-03-00-failure-supervision-sot-probe.md`, 十二问全锚
+  + 三缺口 + 红线核验）+ MOCK-ANCHOR-SEMANTIC-ALIGNMENT Probe（设计
+  探针 §34, 三问全答——含确定性时钟代数: mock +STEP 恒取 {0,+1} 窗口
+  的 +1 臂, Preserve 成立, P1-A 失效模式在 mock 不可构造）。
+- 下一刀 = 03-01（依 03-00 Probe 缺口清单裁实现面——**待用户对 Probe
+  结论裁决后授权**, 本轮零代码）。

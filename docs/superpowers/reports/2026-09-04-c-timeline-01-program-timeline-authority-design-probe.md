@@ -1304,3 +1304,67 @@ phase_released=true）。**Teardown 本体无独立缺陷**。
 - Mock +STEP 分叉自本轮转正为独立裁决项 **MOCK-ANCHOR-SEMANTIC-
   ALIGNMENT**（主账 §56.3）——不再挂本 change disclosure; 不阻塞本 Close;
   修复待独立裁决。
+
+## 34. MOCK-ANCHOR-SEMANTIC-ALIGNMENT Probe：三问作答（第四十二轮授权, 2026-09-05, 零代码）
+
+- **授权**: 第四十二轮终裁 ②（主账 §57.2）——立项批准、暂不选 A/B、
+  先答三问; 第三问明确后才裁同步或保留。锚于 `3eff2e8`。
+
+### 34.1 Q1 Mock `sample_switch_anchors()` 的消费者有哪些？
+
+- **唯一生产调用者** = `ProgramExecutionRuntime::switch_program` ①
+  （program_execution.rs:435——全仓 `sample_switch_anchors` 的唯一非
+  trait-impl/非测试调用点; 真实/GStreamer 与 Mock 同经此口）。
+- `MockSwitchExecutionAdapter` 实例化仅在测试: program_execution.rs
+  tests（:710/:798/:824/:974/:1098）+ switch_mock.rs 自测（:498）;
+  **bin 生产接线 = GStreamer adapter**（bin/media-agent.rs:479 组装组
+  watchdog 用 GStreamer 面）。
+- ⇒ **Mock 锚不进任何生产路径**——分叉的影响面=测试语义层（同构基线
+  资格）, 无运行时风险。
+
+### 34.2 Q2 F5/F6 既有测试验证的是 Adapter 独立时序模型还是 AnchorPair Domain contract？
+
+- Mock 双模式（switch_mock.rs）: 已安装 timeline 声明→**映射后源流**
+  （`program = f(source)`——F5 selector 后 probe+声明映射语义同构,
+  header :9-11）; 未安装=legacy 独立再生成流（A2-8-01 语义逐字节保持,
+  :65/:127/:171/:611; 测试 :905 `legacy_observation_surface_unchanged`）。
+- 微观序: ⑤边界 tick Segment(B) 事件先于首枚 B 缓冲、该 tick 出口不
+  交付（生效边界=下一缓冲——F6; :134-141）; 首映射 tick 出 `first/
+  last` 事实（:142-170）; `timeline_execution_facts` 纯读（:309-326,
+  tick 由 `observe()` 驱动 :396——Runtime ⑤-⑧ 证据环每轮
+  `switcher.observe` 即推进仿真时钟）。
+- ⇒ F5/F6 测试**两者都验**: mock 仿真 adapter 执行/证据角色（声明→
+  翻转→Segment→首枚映射缓冲, 与 SIM-01 同构）, **同时**经真实 Runtime
+  ①-⑩+真实 `TimelineAuthority` 消费锚=AnchorPair Domain contract 链路
+  验证——非纯独立时序模型。测试确把 mock 锚当 Domain 声明输入。
+
+### 34.3 Q3 Mock 的 +STEP 是否进入任何 TimelineAuthority continuity 判定？
+
+- **是（测试面）**: Runtime ① 采 mock 锚（pv+STEP/bv+STEP）→declare→
+  真实 Authority。确定性时钟代数: 声明 program_start=pv+STEP·
+  source_start=bv+STEP·offset=pv−bv; 证据环 observe 推进——T1 Segment
+  tick（pts[b]→bv+STEP, 无交付）, T2 首映射 tick（pts[b]→bv+2·STEP）
+  ⇒ mapped = map_pts(bv+2·STEP) = **pv+2·STEP = program_start+STEP**。
+- ⇒ Mock 世界的 mapped−program_start ≡ +1 STEP 恒定——恰为真实 α 世界
+  `{0,+1 帧}` 窗口的 **+1 臂恒取**, 从不取 0（精确相等）臂;
+  mapped≥program_start 无回退 ⇒ **Preserve 恒成立**; mock 测试断言
+  `≥`/`>0`（program_execution.rs:1008/:1034）**不锁精确相等** ⇒ 全绿
+  自洽。P1-A 失效模式（边界领先致字面谓词翻转/±1ns 双节拍竞态）在
+  mock **不可构造**（整步进无抖动+恒 +1 臂）。
+- ⇒ **+STEP 不是"误把 Adapter 实现细节当 contract"的测试层错误**:
+  它是确定性仿真构造, 满足较弱不变量（mapped≥program_start）, 且无
+  任何测试借它锁死 R40 精确相等世界（该锁在 rt_03+真机 L4）。
+
+### 34.4 供裁选项（不代选）
+
+- **A 保留 +STEP 并 doc 声明**: mock=确定性下一帧预测语义; 不变量=
+  较弱臂 mapped≥program_start; 生产零路径故无回归面。代价=AnchorPair
+  语义文档在 mock 处显式标注分歧。
+- **B 同步观测原值**: program_start=pv·source_start=bv ⇒ gap 变 +2·STEP
+  （T1/T2 各一步进）, 仍 Preserve; mock 测试不断言等式故预期零翻;
+  代价=F5 同构流"声明边界=下一缓冲"叙事改变+须回归 legacy 逐字节面。
+- 两案行为面均绿——分歧本质=语义叙事与文档一致性; 与
+  CONTRACT-ANCHOR-DOC-SYNC（contracts/switch.rs:91-92 + switch_mock.rs
+  :271-273 两处同源"位置+步长"注释漂移, 主账 §57.2 ④）同根, 建议
+  同轮处理。
+- **待用户裁 A/B 后单刀实现**（若选 B 含注释同步）。

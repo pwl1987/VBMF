@@ -703,6 +703,21 @@
 - [ ] 5. A2-8-03 failure/supervision 验证: watchdog 四视角观测穿
   RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界（recovery only）
   `Contract: 02` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+  **[第四十二轮（主账 §57, 裁决落账零代码）: A2-8-03 批准开工·第一步
+  =SoT Probe 仅探针零代码——不重造 watchdog/liveness/FailureDomain
+  （代码现实已在册: watchdog 三件套+Bridge liveness+progress_since+
+  FailureDomain+SupervisorAction 封闭）; 硬红线=Supervisor 禁 switch()/
+  begin_switch(); 核验扩面发现=契约注释漂移两处[contracts/switch.rs:
+  91-92+switch_mock.rs:271-273 同源"位置+步长"]正式登记 CONTRACT-
+  ANCHOR-DOC-SYNC 下一次文档/契约同步轮处理禁留归档]**;
+  **同轮 Probe 交付（A2-8-03-00 SoT Probe=
+  2026-09-05-a2-8-03-00-failure-supervision-sot-probe.md 十二问全锚+
+  红线核验[Supervisor 禁 switch/begin_switch 零存在·四层证据]+缺口
+  G-1 事件→Custody 生产链未闭合[custody.rs:119-123 零生产调用者]/
+  G-2 分类器三列观测 gate-only 无 runtime 常驻消费/G-3 Program 域故障
+  无恢复 lifecycle[dual_input.rs:821-822 显式预留·受 Freeze'Recover
+  语义冻结'约束]/G-4 Mock recover 契约面; 不新造清单在册; 下一刀=
+  03-01 待用户对 Probe 裁决后授权]**
 - [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案
