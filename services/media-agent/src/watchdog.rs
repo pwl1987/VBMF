@@ -30,7 +30,7 @@ use crate::contracts::backend::MediaBackend;
 use crate::{events, health, lease, supervisor};
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-#[allow(clippy::too_many_arguments)] // P0-7D: +sink/+internal_log 事件内消费接线 (watchdog 装配参数, 非领域 API)
+#[allow(clippy::too_many_arguments)] // P0-7D: +sink 事件接线 + 03-01-B intake 唯一 drain 边界 (watchdog 装配参数, 非领域 API)
 pub fn spawn_ingest_watchdog(
     ctrl: Arc<dyn MediaBackend>,
     handle: crate::pipeline::PipelineHandle,
@@ -39,7 +39,7 @@ pub fn spawn_ingest_watchdog(
     lm: Arc<lease::InMemoryLeaseManager>,
     agent_state: Arc<std::sync::Mutex<health::AgentState>>,
     sink: Arc<dyn events::RuntimeEventSink>,
-    internal_log: Arc<events::RuntimeEventLog>,
+    intake: Arc<std::sync::Mutex<crate::event_intake::InternalEventIntake>>,
 ) {
     std::thread::spawn(move || {
         // A1/A2 在 start 前已由 materialize (身份解析) + lm.is_valid (租约) 保证, 否则不会进 watchdog.
@@ -168,13 +168,15 @@ pub fn spawn_ingest_watchdog(
 
             // P0-7D-1.4 (ingest 接线): 上游总线观测 → canonical 事件流 (Supervisor.ingest
             // 归一化, C2 契约首次接线; mapper 关键字: "error"→PipelineFault{retryable},
-            // "device lost"/"hotplug"→HardwareFault)。ingest 先于本 tick drain — 事件在
-            // 产生当 tick 即被消费 (drain 破坏性单次), 与轮询条件 OR 后同一 if 内至多一次
-            // report_failure, 无跨 tick 双计。
+            // "device lost"/"hotplug"→HardwareFault)。**03-01-A**: ingest 携带
+            // device_uuid——故障事件携带 canonical 设备身份（非 nil, custody 可归因）。
+            // ingest 先于本 tick consume — 事件在产生当 tick 即被消费 (drain 破坏性单次),
+            // 与轮询条件 OR 后同一 if 内至多一次 report_failure, 无跨 tick 双计。
             for e in events.iter() {
                 if matches!(e.kind, crate::pipeline_events::PipelineBusEventKind::Error) {
                     sup.lock().unwrap().ingest(
                         events::EventSource::Upstream,
+                        device_uuid,
                         &format!("pipeline error: {}", e.detail),
                     );
                 }
@@ -188,8 +190,11 @@ pub fn spawn_ingest_watchdog(
                     port_id: None,
                 });
             }
-            // P0-7D-1.3 (事件内消费): drain internal → reduce → 写回 agent_state。
-            let drained_internal = internal_log.drain();
+            // P0-7D-1.3 + 03-01-B (事件内消费): internal 平面唯一 drain 边界——
+            // 边界内 custody 全量恰一次累积 (A2-7 桥提取规则: echo 排除/nil 拒收),
+            // drained 返回本 tick 批次供本地 fold (health/fault_trigger 分区
+            // 语义与既有行为一致) → reduce → 写回 agent_state。
+            let drained_internal = intake.lock().unwrap().consume();
             // P0-7D-1.4 (事件驱动故障输入): 谓词抽为 supervisor::fault_trigger_from_events
             // (纯函数, mock 面可测 — 见 evt_int_rt_01_fault_trigger_echo_never_retriggers);
             // 自回声排除/归属判定/平面分离语义在彼处锁定。
@@ -459,7 +464,7 @@ pub fn execution_group_observe_fold(tick: &GroupTickInputs) -> GroupObservation 
 /// handle——绝不切换源）。Observed 确认时推进 Desired 落定
 /// （`complete_switch`——Observation 驱动, 非命令回显; 不发起切换）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-#[allow(clippy::too_many_arguments)] // 装配参数（组合根一次性接线）, 非领域 API
+#[allow(clippy::too_many_arguments)] // 装配参数（组合根一次性接线）, 非领域 API; 03-01-B: intake 唯一 drain 边界
 pub fn spawn_execution_group_watchdog(
     ctrl: Arc<dyn MediaBackend>,
     switcher: Arc<dyn crate::contracts::switch::SwitchExecutionAdapter>,
@@ -471,7 +476,7 @@ pub fn spawn_execution_group_watchdog(
     lm: Arc<lease::InMemoryLeaseManager>,
     agent_state: Arc<std::sync::Mutex<health::AgentState>>,
     sink: Arc<dyn events::RuntimeEventSink>,
-    internal_log: Arc<events::RuntimeEventLog>,
+    intake: Arc<std::sync::Mutex<crate::event_intake::InternalEventIntake>>,
 ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
     // A2-8-02-E: 停止旗（ProgramExecutionRuntime teardown 置位——线程随
     // program 生命周期退出, 不再进程常驻）。
@@ -533,8 +538,9 @@ pub fn spawn_execution_group_watchdog(
                     group.lock().unwrap().complete_switch(to);
                 }
             }
-            // 事件内消费: drain internal → reduce → 写回 agent_state。
-            let drained = internal_log.drain();
+            // 事件内消费: 03-01-B 唯一 drain 边界（边界内 custody 全量恰一次
+            // 累积）→ reduce → 写回 agent_state。
+            let drained = intake.lock().unwrap().consume();
             health_fold = crate::health::reduce(&health_fold, &drained);
             *agent_state.lock().unwrap() = health_fold.agent;
             // 故障动作 → Supervisor 决策（recovery only; 切换永不在此发生）。

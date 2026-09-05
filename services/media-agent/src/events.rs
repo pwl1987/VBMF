@@ -158,33 +158,65 @@ pub trait RuntimeEventMapper: Send + Sync {
 /// 默认映射器 — 基于 canonical 观测字符串的保守归类 (Adapter 未提供专属映射器时的兜底)。
 ///
 /// 仅识别明确的故障/健康语义关键字, 避免误判; 未知观测返回 `None` (不伪造事件)。
+///
+/// **03-01-A（R44 §3/§9）——canonical 身份语义**: 生产 ingest 路径（watchdog
+/// 持 device_uuid）经 [`DefaultRuntimeEventMapper::map_upstream_for_device`]
+/// 把设备 canonical 身份注入故障事件（`PipelineFault.pipeline` /
+/// `HardwareFault.device_id` / `AmbiguousIdentity.device_id`——Supervisor 决策
+/// 句柄 = 设备维度, `fault_trigger_from_events` 同源语义）。无设备上下文的
+/// 调用方走 trait `map_upstream`（identity-less 兜底: nil = 未归属, custody
+/// 生产桥拒收——fail-closed, 不误归因到任何真实设备）。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DefaultRuntimeEventMapper;
 
-impl RuntimeEventMapper for DefaultRuntimeEventMapper {
-    fn map_upstream(&self, _source: EventSource, observation: &str) -> Option<RuntimeEvent> {
+impl DefaultRuntimeEventMapper {
+    /// 携带 canonical 设备身份的归一化（生产 ingest 路径）——三类故障事件均
+    /// 以 `device` 为身份; 关键字归类与 identity-less trait 面共享同一实现。
+    pub fn map_upstream_for_device(
+        &self,
+        source: EventSource,
+        device: Uuid,
+        observation: &str,
+    ) -> Option<RuntimeEvent> {
+        Self::map_with_identity(source, device, observation)
+    }
+
+    /// 单一归类实现: identity-less trait 面以 nil 委托（未归属语义）。
+    fn map_with_identity(
+        _source: EventSource,
+        device: Uuid,
+        observation: &str,
+    ) -> Option<RuntimeEvent> {
         let obs = observation.to_lowercase();
         if obs.contains("ambiguous") {
             return Some(RuntimeEvent::AmbiguousIdentity {
-                device_id: Uuid::nil(),
+                device_id: device,
                 candidates: vec![observation.to_string()],
             });
         }
         if obs.contains("hardware") || obs.contains("device lost") || obs.contains("hotplug") {
             return Some(RuntimeEvent::HardwareFault {
-                device_id: Uuid::nil(),
+                device_id: device,
                 summary: observation.to_string(),
             });
         }
         // 其余 (pipeline 级) 归为可重试管线故障; 由 Supervisor 决定是否重试。
         if obs.contains("fault") || obs.contains("error") || obs.contains("failed") {
             return Some(RuntimeEvent::PipelineFault {
-                pipeline: Uuid::nil(),
+                pipeline: device,
                 summary: observation.to_string(),
                 retryable: true,
             });
         }
         None
+    }
+}
+
+impl RuntimeEventMapper for DefaultRuntimeEventMapper {
+    fn map_upstream(&self, source: EventSource, observation: &str) -> Option<RuntimeEvent> {
+        // identity-less 兜底: 调用方无设备上下文 → nil = 未归属（custody 生产
+        // 桥拒收 fail-closed; fault_trigger 保守匹配语义维持）。
+        Self::map_with_identity(source, Uuid::nil(), observation)
     }
 }
 
@@ -370,6 +402,40 @@ mod tests {
         // 无故障语义的观测 → 不伪造事件。
         assert!(m
             .map_upstream(EventSource::Upstream, "all nominal")
+            .is_none());
+    }
+
+    /// 03-01-A: 携带身份入口三类故障事件均注入 canonical 设备身份;
+    /// identity-less trait 面 nil = 未归属（custody 拒收语义不变）; 噪声
+    /// 路径两入口一致。
+    #[test]
+    fn default_mapper_identity_carrying_vs_identity_less() {
+        let m = DefaultRuntimeEventMapper;
+        let dev = Uuid::new_v4();
+        let hw = m
+            .map_upstream_for_device(EventSource::Upstream, dev, "hardware: device lost")
+            .expect("hardware 归类");
+        assert!(matches!(hw, RuntimeEvent::HardwareFault { device_id, .. } if device_id == dev));
+        let pf = m
+            .map_upstream_for_device(EventSource::Upstream, dev, "pipeline error: gst bus")
+            .expect("pipeline 归类");
+        assert!(matches!(pf, RuntimeEvent::PipelineFault { pipeline, .. } if pipeline == dev));
+        let am = m
+            .map_upstream_for_device(EventSource::Upstream, dev, "ambiguous identity: 2 high")
+            .expect("ambiguous 归类");
+        assert!(
+            matches!(am, RuntimeEvent::AmbiguousIdentity { device_id, .. } if device_id == dev)
+        );
+        // identity-less 兜底: nil = 未归属。
+        let nil_pf = m
+            .map_upstream(EventSource::Upstream, "pipeline error: gst bus")
+            .expect("pipeline 归类");
+        assert!(
+            matches!(nil_pf, RuntimeEvent::PipelineFault { pipeline, .. } if pipeline == Uuid::nil())
+        );
+        // 噪声路径两入口一致 (不伪造事件)。
+        assert!(m
+            .map_upstream_for_device(EventSource::Upstream, dev, "all nominal")
             .is_none());
     }
 

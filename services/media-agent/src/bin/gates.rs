@@ -51,6 +51,7 @@ fn main() {
         &_world.event_sink,
         &_world.projection_log,
         &_world.internal_log,
+        &_world.event_intake,
     );
 
     // A2-8-02-I（第十八轮 §十/§十五）: 双输入五层真机 Gate（两块独立单输入卡形态）。

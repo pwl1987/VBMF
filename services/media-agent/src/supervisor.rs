@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::events::{EventSource, RuntimeEvent, RuntimeEventMapper, RuntimeEventSink};
+use crate::events::{EventSource, RuntimeEvent, RuntimeEventSink};
 
 /// `report_failure` Restart 路径发射的 `PipelineFault` 摘要 (P0-7D)。
 ///
@@ -157,10 +157,15 @@ impl Supervisor {
 
     /// 消费上游 (Provider/Backend) 上抛的 vendor 观测, 归一化为 `RuntimeEvent` (经默认映射器)。
     ///
+    /// **03-01-A（R44 §3/§9）**: `device` = 该观测的 canonical 设备身份——
+    /// watch 点持 device_uuid, 生产路径身份不再在 mapper 边界丢失
+    /// （`PipelineFault.pipeline` = 设备 canonical 身份, 与 `register`/
+    /// `report_failure` 决策句柄同源; nil 仅在调用方确无设备上下文时出现
+    /// = 未归属, custody 生产桥拒收——fail-closed 不放宽）。
     /// Adapter 可提供专属 `RuntimeEventMapper` 消化 vendor 细节; 此处兜底使用默认映射器。
-    pub fn ingest(&self, source: EventSource, observation: &str) {
+    pub fn ingest(&self, source: EventSource, device: Uuid, observation: &str) {
         let mapper = crate::events::DefaultRuntimeEventMapper;
-        if let Some(ev) = mapper.map_upstream(source, observation) {
+        if let Some(ev) = mapper.map_upstream_for_device(source, device, observation) {
             self.sink.emit(ev);
         }
     }
@@ -427,13 +432,52 @@ mod tests {
     #[test]
     fn ingest_normalizes_upstream_observation_via_mapper() {
         let (s, log) = sup_with_log(RestartPolicy::default());
-        s.ingest(EventSource::Upstream, "hardware: device lost (no hotplug)");
+        let dev = Uuid::new_v4();
+        s.ingest(
+            EventSource::Upstream,
+            dev,
+            "hardware: device lost (no hotplug)",
+        );
         let ev = log.drain();
         assert_eq!(ev.len(), 1);
-        assert!(matches!(ev[0], RuntimeEvent::HardwareFault { .. }));
+        assert!(
+            matches!(&ev[0], RuntimeEvent::HardwareFault { device_id, .. } if *device_id == dev),
+            "03-01-A: HardwareFault 携带 canonical 设备身份"
+        );
+        // 03-01-A: 管线级故障携带设备身份（非 nil——custody 可归因）。
+        s.ingest(EventSource::Upstream, dev, "pipeline error: gst bus");
+        let ev2 = log.drain();
+        assert!(matches!(&ev2[0], RuntimeEvent::PipelineFault { pipeline, .. } if *pipeline == dev));
         // 无故障语义的观测不产生事件 (不伪造)。
-        s.ingest(EventSource::Upstream, "all nominal");
+        s.ingest(EventSource::Upstream, dev, "all nominal");
         assert!(log.drain().is_empty());
+    }
+
+    /// 03-01-A: 身份化故障只触发归属设备的 fault_trigger——他设备零误触;
+    /// nil（未归属）保守全匹配维持既有语义（identity-less 兜底路径）。
+    #[test]
+    fn evt_int_rt_02_identity_carried_fault_triggers_only_owning_device() {
+        let dev = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let carried = [RuntimeEvent::PipelineFault {
+            pipeline: dev,
+            summary: "decode error".into(),
+            retryable: true,
+        }];
+        assert!(fault_trigger_from_events(&carried, dev));
+        assert!(
+            !fault_trigger_from_events(&carried, other),
+            "身份化故障不误触他设备"
+        );
+        let unattributed = [RuntimeEvent::PipelineFault {
+            pipeline: Uuid::nil(),
+            summary: "pipeline error: unattributed".into(),
+            retryable: true,
+        }];
+        assert!(
+            fault_trigger_from_events(&unattributed, other),
+            "nil 未归属保守匹配维持（既有语义零变化）"
+        );
     }
 
     /// P0-7D-4.2: 事件驱动故障触发谓词 — 错误路径全覆盖

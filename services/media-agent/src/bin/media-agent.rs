@@ -36,7 +36,7 @@ fn main() {
     let discovered = &world.discovered;
     let projection_log = &world.projection_log;
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-    let internal_log = &world.internal_log;
+    let event_intake = &world.event_intake;
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
     let event_sink = &world.event_sink;
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
@@ -111,7 +111,7 @@ fn main() {
                             lm.clone(),
                             agent_state.clone(),
                             event_sink.clone(),
-                            internal_log.clone(),
+                            event_intake.clone(),
                         );
                     }
                     Err(e) => tracing::error!(error = %e, "MEDIA-RT-01 self-test 启动失败"),
@@ -489,7 +489,7 @@ fn main() {
                                                     lm.clone(),
                                                     agent_state.clone(),
                                                     event_sink.clone(),
-                                                    internal_log.clone(),
+                                                    event_intake.clone(),
                                                 );
                                             runtime.set_watchdog_stop(stop_flag);
                                             tracing::info!(
@@ -534,7 +534,7 @@ fn main() {
                                             lm.clone(),
                                             agent_state.clone(),
                                             event_sink.clone(),
-                                            internal_log.clone(),
+                                            event_intake.clone(),
                                         );
                                     }
                                 }

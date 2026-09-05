@@ -34,6 +34,7 @@ pub mod contracts;
 pub mod custody; // A2-7-02: Program Runtime Custody (Program semantic lifecycle owner; Runtime/Orchestration 边界; 七不终裁)
 pub mod device;
 pub mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离)
+pub mod event_intake; // A2-8-03-01-B/C: internal 平面唯一 drain 边界 + custody 生产接线 (R44 单一事实消费点)
 pub mod event_projection; // P0.7C-6: Event Projection Foundation (Runtime→Event→Projection 生产边)
 pub mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 pub mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)

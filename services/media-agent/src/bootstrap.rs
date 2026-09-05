@@ -34,6 +34,10 @@ pub struct BootstrapContext {
     /// P0-7D D3 双日志: 投影（transport/gate 证据）与内消费（watchdog→reduce）。
     pub projection_log: Arc<RuntimeEventLog>,
     pub internal_log: Arc<RuntimeEventLog>,
+    /// A2-8-03-01-B: internal 平面唯一 drain 边界（共享单实例——watchdog 族
+    /// 经此消费, custody 在边界内全量恰一次累积; 生产线程不直接持 internal
+    /// log——类型级排他）。
+    pub event_intake: Arc<std::sync::Mutex<crate::event_intake::InternalEventIntake>>,
     pub event_sink: Arc<dyn RuntimeEventSink>,
     /// bootstrap 占位租约已按设备全部持有（真实会话接管时让位——见各消费方）。
     pub lease_manager: Arc<InMemoryLeaseManager>,
@@ -85,6 +89,12 @@ pub fn build() -> BootstrapContext {
         internal_log.clone(),
     ));
 
+    // A2-8-03-01-B: internal 平面唯一 drain 边界（BS-01 构造源; 唯一事实
+    // 消费点——R44 §5/§8 裁决方向）。
+    let event_intake = Arc::new(std::sync::Mutex::new(
+        crate::event_intake::InternalEventIntake::new(internal_log.clone()),
+    ));
+
     // Gate 2.3: lease manager + bootstrap 占位租约（初始化态; 真实会话让位语义在各消费方）。
     let lease_manager = Arc::new(InMemoryLeaseManager::new());
     for d in &devices {
@@ -127,6 +137,7 @@ pub fn build() -> BootstrapContext {
         devices,
         projection_log,
         internal_log,
+        event_intake,
         event_sink,
         lease_manager,
         supervisor,
