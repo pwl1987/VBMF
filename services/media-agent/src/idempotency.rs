@@ -87,8 +87,12 @@ enum RecordState {
 ///
 /// `CommandId → fingerprint → atomic claim → execute once → persist outcome
 ///  → duplicate replay / conflict` 全链 (终审执行令逐字)。
+/// v0.2（R60 裁决①）: 可选携带 `SwitchDispatchPlane`——SwitchProgram 命令
+/// 的执行通道（会话三命令仍走 SessionManager; 平面缺席时该命令按
+/// 不可用拒绝, 见 command::dispatch）。
 pub struct CommandIdempotency {
     mgr: Arc<SessionManager>,
+    switch_plane: Option<Arc<dyn crate::switch_dispatch_plane::SwitchDispatchPlane>>,
     records: Mutex<HashMap<CommandId, Record>>,
     completed: Condvar,
 }
@@ -97,9 +101,20 @@ impl CommandIdempotency {
     pub fn new(mgr: Arc<SessionManager>) -> Self {
         Self {
             mgr,
+            switch_plane: None,
             records: Mutex::new(HashMap::new()),
             completed: Condvar::new(),
         }
+    }
+
+    /// v0.2: 附加切换执行平面（builder——未装配时 SwitchProgram 拒绝;
+    /// Production 503 契约维持）。
+    pub fn with_switch_plane(
+        mut self,
+        plane: Arc<dyn crate::switch_dispatch_plane::SwitchDispatchPlane>,
+    ) -> Self {
+        self.switch_plane = Some(plane);
+        self
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<CommandId, Record>> {
@@ -173,7 +188,7 @@ impl CommandIdempotency {
                 // 4. claimant 锁外独占执行 (执行期不持 records 锁 — 无关命令不被阻塞);
                 //    panic 兜底落终态 Failed, 防等待者死等。
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    command_contract::dispatch(&self.mgr, env)
+                    command_contract::dispatch(&self.mgr, self.switch_plane.as_deref(), env)
                 }))
                 .unwrap_or_else(|_| CommandOutcome {
                     command_id: env.command_id,
@@ -565,6 +580,81 @@ mod tests {
             idem.dispatch(&env_b),
             IdempotentDispatch::Conflict { .. }
         ));
+    }
+
+    /// v0.2（R60 裁决①）: SwitchProgram 经同一幂等裁决面——replay/conflict
+    /// 语义与会话命令同表同律（D9-A~E 无特例）; 平面缺席 → Rejected 未占 id。
+    #[test]
+    fn idem_rt_01_switch_program_replay_conflict_and_rejection() {
+        use crate::switch_dispatch_plane::test_support::FakeSwitchPlane;
+
+        let mgr = world();
+        let sid = crate::session::SessionId(Uuid::new_v4());
+        let dev_a = Uuid::new_v4();
+        let dev_b = Uuid::new_v4();
+        let switch_env = |dev: uuid::Uuid| CommandEnvelope {
+            command_id: CommandId(Uuid::new_v4()),
+            kind: CommandKind::SwitchProgram,
+            target: CommandTarget::SwitchProgram {
+                session_id: sid,
+                target_device: dev,
+            },
+            issued_at_ms: 0,
+            requested_by: "t".into(),
+        };
+        // 平面缺席: 形状过·能力无——命令进入裁决表, outcome=Rejected（非
+        // IdempotentDispatch::Rejected——那是形状层拒绝不占 id; 能力拒绝已
+        // 过形状, 占 id 且重放同果）。
+        let idem = CommandIdempotency::new(Arc::clone(&mgr));
+        let env = switch_env(dev_a);
+        match idem.dispatch(&env) {
+            IdempotentDispatch::Executed(o) => {
+                assert_eq!(o.status, CommandStatus::Rejected);
+                assert!(o
+                    .detail
+                    .as_deref()
+                    .unwrap()
+                    .contains("switch_plane_unavailable"));
+            }
+            other => panic!("期望 Executed(Rejected), 实得 {other:?}"),
+        }
+        match idem.dispatch(&env) {
+            IdempotentDispatch::Replayed(o) => {
+                assert_eq!(o.status, CommandStatus::Rejected);
+            }
+            other => panic!("期望 Replayed(Rejected), 实得 {other:?}"),
+        }
+        // 平面在位: Executed 恰一次 → 同 payload 重复 = Replayed（原样）;
+        // 同 id 异 payload（target_device 改变）= Conflict。
+        let plane = Arc::new(FakeSwitchPlane::new(sid));
+        let idem = CommandIdempotency::new(Arc::clone(&mgr)).with_switch_plane(plane.clone());
+        let env_a = switch_env(dev_a);
+        let env_b = {
+            let mut e = switch_env(dev_b);
+            e.command_id = env_a.command_id;
+            e
+        };
+        match idem.dispatch(&env_a) {
+            IdempotentDispatch::Executed(o) => {
+                assert_eq!(o.status, CommandStatus::Executed);
+                assert_eq!(o.kind, CommandKind::SwitchProgram);
+            }
+            other => panic!("期望 Executed, 实得 {other:?}"),
+        }
+        assert_eq!(plane.calls.lock().unwrap().len(), 1, "恰一次执行");
+        match idem.dispatch(&env_a) {
+            IdempotentDispatch::Replayed(o) => assert_eq!(o.status, CommandStatus::Executed),
+            other => panic!("期望 Replayed, 实得 {other:?}"),
+        }
+        assert!(matches!(
+            idem.dispatch(&env_b),
+            IdempotentDispatch::Conflict { .. }
+        ));
+        assert_eq!(
+            plane.calls.lock().unwrap().len(),
+            1,
+            "replay/conflict 不再执行"
+        );
     }
 
     /// **D9-E** — 8 线程 barrier 并发击穿: 恰一次执行, 其余 replay, 会话数 1。

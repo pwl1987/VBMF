@@ -284,7 +284,8 @@ mod tests {
         let mgr = world();
         let idem = CommandIdempotency::new(Arc::clone(&mgr));
         // Executed ⇒ None。
-        let out = crate::command::dispatch(&mgr, &start_env());
+        // (v0.2 签名: dispatch 增 switch_plane Option 参——此处无平面传 None。)
+        let out = crate::command::dispatch(&mgr, None, &start_env());
         assert_eq!(out.status, CommandStatus::Executed);
         assert!(
             out.classification.is_none(),
@@ -301,7 +302,7 @@ mod tests {
             issued_at_ms: 0,
             requested_by: "t".into(),
         };
-        let out = crate::command::dispatch(&mgr, &ghost);
+        let out = crate::command::dispatch(&mgr, None, &ghost);
         assert_eq!(out.status, CommandStatus::Failed);
         assert_eq!(
             out.classification,
@@ -311,7 +312,7 @@ mod tests {
         // Rejected ⇒ Some(Rejected)。
         let mut bad = start_env();
         bad.requested_by = String::new();
-        let out = crate::command::dispatch(&mgr, &bad);
+        let out = crate::command::dispatch(&mgr, None, &bad);
         assert_eq!(out.status, CommandStatus::Rejected);
         assert_eq!(out.classification, Some(ErrorClassification::Rejected));
         // 幂等重放: 同一命令重放同一归因 (D9-D 逐字节重放天然涵盖)。

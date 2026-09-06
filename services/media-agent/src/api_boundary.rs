@@ -164,11 +164,102 @@ pub struct ApiQuerySnapshot {
     pub sessions: Vec<ApiSession>,
     pub capabilities: Vec<(String, ApiCapability)>,
     pub generated_at_ms: u64,
-    /// D14: 观察信封 additive 投影（wire 同名字段, 非破坏）。
+    /// D14: 观察信封 additive 投影 (wire 同名字段, 非破坏)。
     /// 有意**不带** `#[serde(default)]`: 本结构是响应模型, 无旧 JSON 反序列化消费方
     /// （与 CanonicalRuntimeState 的 additive 兼容义务不对称是设计决定）。
     pub observation_revision: u64,
     pub observation_lineage: uuid::Uuid,
+    /// v0.2（R60 裁决③）: program_switch 顶层投影块——数据源唯一绑定
+    /// `observe_execution`（Query Plane 事实回读; 不污染 sessions[]）。
+    /// null = 无活跃执行平面/已 teardown（诚实缺席; 由 transport 组装处
+    /// 合并——canonical 状态面不携带, to_api_query_snapshot 恒置 None）。
+    pub program_switch: Option<ApiProgramSwitchState>,
+}
+
+/// v0.2: `program_switch` 投影块（program 观测面字段——observed 双平面
+/// active/epoch/PTS 状态/帧计数）。API 字符串化**不绑回** Domain 枚举
+/// （终审 NOTE-3: API 资源模型独立）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ApiProgramSwitchState {
+    pub session_id: String,
+    pub observed_active: Option<String>,
+    pub video_active: Option<String>,
+    pub audio_active: Option<String>,
+    pub switch_epoch: u64,
+    pub program_video_pts_state: String,
+    pub program_audio_pts_state: String,
+    pub program_video_frames: u64,
+    pub program_audio_frames: u64,
+    /// timeline 证据行摘要（observe_execution 第二分量）。
+    pub timeline: ApiTimelineEvidence,
+}
+
+/// v0.2: timeline 证据行摘要 wire 投影（十键形状的观测子集——epoch/
+/// 段世代/两平面连续性/声明态）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ApiTimelineEvidence {
+    pub program_epoch: u64,
+    pub source_id: Option<String>,
+    pub segment_id: Option<u64>,
+    pub discontinuity_state: String,
+    pub video_continuity: String,
+    pub audio_continuity: String,
+    pub observed_at_ms: u64,
+}
+
+/// 纯函数: 枚举 → snake_case wire 字符串（serde 命名优先; 无 serde rename
+/// 的 PascalCase 变体统一转 snake_case——多词变体不失下划线; 已 snake_case
+/// 的原样通过）。
+fn enum_tag<T: serde::Serialize + std::fmt::Debug>(v: &T) -> String {
+    let raw = serde_json::to_value(v)
+        .ok()
+        .and_then(|x| x.as_str().map(str::to_owned))
+        .unwrap_or_else(|| format!("{v:?}"));
+    if !raw.chars().any(char::is_uppercase) {
+        return raw;
+    }
+    let mut out = String::with_capacity(raw.len() + 4);
+    for (i, ch) in raw.char_indices() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.extend(ch.to_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// 纯函数: `ProgramExecutionObservation` → `program_switch` 投影块
+/// （v0.2 Query Plane 唯一数据源绑定; 缺席字段保持 Option 缺席——不伪造）。
+pub fn to_api_program_switch(
+    session_id: &crate::session::SessionId,
+    obs: &crate::contracts::switch::ProgramExecutionObservation,
+) -> ApiProgramSwitchState {
+    let p = &obs.program;
+    let t = &obs.timeline;
+    ApiProgramSwitchState {
+        session_id: session_id.0.to_string(),
+        observed_active: p.observed_active.map(|u| u.to_string()),
+        video_active: p.video_active.map(|u| u.to_string()),
+        audio_active: p.audio_active.map(|u| u.to_string()),
+        switch_epoch: p.switch_epoch,
+        program_video_pts_state: enum_tag(&p.program_video_pts_state),
+        program_audio_pts_state: enum_tag(&p.program_audio_pts_state),
+        program_video_frames: p.program_video_frames,
+        program_audio_frames: p.program_audio_frames,
+        timeline: ApiTimelineEvidence {
+            program_epoch: t.program_epoch.0,
+            source_id: t.source_id.map(|u| u.to_string()),
+            segment_id: t.segment_id.map(|s| s.0),
+            discontinuity_state: enum_tag(&t.discontinuity_state),
+            video_continuity: enum_tag(&t.video_continuity),
+            audio_continuity: enum_tag(&t.audio_continuity),
+            observed_at_ms: t.observed_at_ms,
+        },
+    }
 }
 
 pub fn to_api_query_snapshot(state: &CanonicalRuntimeState) -> ApiQuerySnapshot {
@@ -187,6 +278,9 @@ pub fn to_api_query_snapshot(state: &CanonicalRuntimeState) -> ApiQuerySnapshot 
         generated_at_ms: state.generated_at_ms,
         observation_revision: state.observation_revision,
         observation_lineage: state.observation_lineage,
+        // canonical 状态面不携带执行平面事实——v0.2 投影由 transport 组装处
+        // 合并（Query Plane 数据源=observe_execution, 非 CanonicalRuntimeState）。
+        program_switch: None,
     }
 }
 
@@ -212,6 +306,12 @@ pub enum ApiCommandTarget {
     },
     SessionById {
         session_id: String,
+    },
+    /// SwitchProgram 用（v0.2·R60 裁决②）: 目标会话 + 目标输入设备
+    /// （canonical UUID 字符串; policy 固定 FrameSwitch 不入 wire）。
+    SwitchProgram {
+        session_id: String,
+        target_device: String,
     },
 }
 
@@ -475,6 +575,71 @@ pub fn to_api_program_master(
 mod tests {
     use super::*;
     use crate::error_model::ErrorClassification as E;
+
+    /// v0.2（R60 裁决③）: program_switch 投影等值 + 诚实缺席——字段逐项
+    /// 从 ProgramExecutionObservation 透传, Option 缺席不伪造。
+    #[test]
+    fn api_rt_01_program_switch_projection() {
+        use crate::contracts::switch::{InputPts, ProgramExecutionObservation, ProgramObservation};
+        use crate::program_timeline::{
+            PlaneContinuity, ProgramEpoch, SegmentId, TimelineObservation,
+        };
+        let dev = uuid::Uuid::new_v4();
+        let obs = ProgramExecutionObservation {
+            program: ProgramObservation {
+                observed_active: Some(dev),
+                video_active: Some(dev),
+                audio_active: Some(dev),
+                switch_epoch: 3,
+                input_pts: vec![InputPts {
+                    device_id: dev,
+                    video_pts: Some(100),
+                    audio_pts: Some(80),
+                    video_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+                    audio_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+                    stalled: false,
+                }],
+                program_video_pts: Some(100),
+                program_audio_pts: Some(80),
+                program_video_pts_state: crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
+                program_audio_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+                program_video_frames: 42,
+                program_audio_frames: 40,
+            },
+            timeline: TimelineObservation {
+                program_epoch: ProgramEpoch(1),
+                source_id: Some(dev),
+                segment_id: Some(SegmentId(2)),
+                input_pts: Some(100),
+                mapped_program_pts: Some(120),
+                mapping_offset: Some(20),
+                discontinuity_state: crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
+                video_continuity: PlaneContinuity::Continuous,
+                audio_continuity: PlaneContinuity::Continuous,
+                observed_at_ms: 12345,
+            },
+        };
+        let sid = crate::session::SessionId(uuid::Uuid::new_v4());
+        let api = to_api_program_switch(&sid, &obs);
+        assert_eq!(api.session_id, sid.0.to_string());
+        assert_eq!(
+            api.observed_active.as_deref(),
+            Some(dev.to_string().as_str())
+        );
+        assert_eq!(api.switch_epoch, 3);
+        // snake_case 统一（无 serde rename 的 PascalCase 变体亦转 snake）。
+        assert_eq!(api.program_video_pts_state, "discontinuity_declared");
+        assert_eq!(api.program_video_frames, 42);
+        assert_eq!(api.timeline.program_epoch, 1);
+        assert_eq!(api.timeline.segment_id, Some(2));
+        assert_eq!(api.timeline.video_continuity, "continuous");
+        assert_eq!(api.timeline.observed_at_ms, 12345);
+        // 诚实缺席: observed None 透传为 None（不伪造字符串）。
+        let mut obs2 = obs;
+        obs2.program.observed_active = None;
+        let api2 = to_api_program_switch(&sid, &obs2);
+        assert_eq!(api2.observed_active, None);
+    }
 
     /// **API-BOUNDARY-01 白盒门禁** — 静态扫描: 本文件/模块不得 `use` vendor 实现路径。
     #[test]

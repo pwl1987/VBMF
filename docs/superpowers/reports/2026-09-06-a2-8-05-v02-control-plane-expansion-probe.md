@@ -232,3 +232,80 @@ Transport 联调（16）→ Preview RC（17）。本报告 = 只读裁决交付:
 
 登记: tasks item-7 探针段 + 主账 §89 + 记忆。交付后停——待验收层
 对 §7 六点裁决; 实现轮按裁决边界另启。
+
+---
+
+## §9 R61 验收裁决回执 + 实现记录（2026-09-06）
+
+### 9.1 六点裁决回执（用户 R61 终裁·逐字入册）
+
+| # | 项目 | 裁决 | 冻结规则 |
+|---|---|---|---|
+| 1 | 命令面归属 | ✅ A 正式扩词表 | CommandKind::SwitchProgram 第 4 正式命令; 必须同步词表快照测试 |
+| 2 | Payload | ✅ 单字段 target_device + 固定 FrameSwitch | Packet/Master 不暴露 wire; 未经真机验证的能力不进公共契约 |
+| 3 | 回读 | ✅ GET /api/v1/runtime 顶层 program_switch | 数据源唯一绑定 observe_execution; 不污染 sessions[] |
+| 4 | 多会话 | ✅ v0.2 单活跃会话 | 明示语义不伪装; 注册表/Event/RPC 后置 Step 16 |
+| 5 | Events | ✅ 本轮不新增切换事件 | 不加 SwitchExecuted; 事件化归 Step 16 |
+| 6 | Production | ✅ 继续 503 | 最小 Control Plane 接线; 不提前宣称 Production Control Plane 完成 |
+
+- 硬边界: 允许 = command/idempotency/api_boundary/transport/新
+  switch_dispatch_plane 模块/bin/media-agent/对应词表契约单测;
+  **禁止 = switch graph / program execution / switch 契约 / switch mock
+  （核心四·A2-8 Fence/Timeline/Epoch 冻结）**。
+- 架构纪律（原文）: "Command Plane 负责'请求执行', Query Plane 负责
+  '事实回读', 两者不互相越界。"
+- Step 14 解锁条件: 实现过自身契约门禁后, 真实服务进程内
+  API→runtime→switch→observed readback 完整闭环——**不再接受"gates
+  能切换"作为替代**。
+
+### 9.2 实现记录（单轮代码·工作树=7978250 基线）
+
+- **新模块 `switch_dispatch_plane`**: 双 trait 类型级隔离
+  （`SwitchDispatchPlane` 命令面 / `SwitchReadbackPlane` 查询面——
+  白盒测试锁 Fake 只进命令面）; `RuntimeSwitchPlane` 真实实现
+  （switch_program 薄包装·policy 固定 FrameSwitch·会话不匹配→
+  Failed/Permanent）; `classify_switch_error`（状态机类→Permanent·
+  Backend→Unknown 不臆造）; **outcome=Failed{reason} → 命令如实
+  Failed**（不把降级切换包装成 Executed——04-探针 P2 语义）。
+- **command.rs**: 词表四命令（快照测试显式更新=架构评审动作）·
+  validate 第四臂（nil 双字段）·dispatch 签名增
+  `switch_plane: Option<&dyn …>`（平面缺席→Rejected
+  "switch_plane_unavailable"）。
+- **idempotency.rs**: `switch_plane` 字段 + `with_switch_plane`
+  builder; replay/conflict 与会话命令同表同律（能力拒绝过形状→
+  占 id·outcome=Rejected·重放同果——与形状拒绝[不占 id]分层）。
+- **api_boundary.rs**: target 变体 + `ApiProgramSwitchState`/
+  `ApiTimelineEvidence` DTO + `to_api_program_switch`（enum_tag
+  snake_case 统一·诚实缺席透传）; ApiQuerySnapshot 增
+  `program_switch`（canonical 恒 None·transport 组装处合并）。
+- **transport.rs**: 模块头显式契约修订注记（非静默扩面）·vocab
+  四词·map 双 UUID 解析·`apply_program_switch` 合并（平面缺席/
+  teardown→块缺席）·query None 仍 503（平面不越权）。
+- **bin**: 双输入分支 Arc 化 runtime（clone 先于 move 进 hook
+  注册表——探针 §2.6 所有权修复）·同一 Arc 分进命令/查询两通道·
+  Production/单输入/非 gst 构建 None。
+- **强制调用点（签名变更机械传导·零语义改动·如实登记超出允许
+  清单的 2 文件）**: error_model.rs 测试 ×3 + gates/
+  session_lifecycle.rs ×3（补 None 参）; lib.rs ×1（新模块声明行）。
+- **核心四零 diff 实证**: `git diff --stat` 四文件 = 0。
+
+### 9.3 验证记录（盒 10.30.15.10·2026-09-06）
+
+- **盒矩阵全绿**: fmt ✓ / default 229 / simulation 229 / mock 405
+  （397+8 新）/ **hw 268**（266+2）/ clippy ×3（default/mock/
+  bmd,gstreamer·-D warnings）。
+- **新 bin**: media-agent md5 `90186bb9`（gates `a93df2b3`——lib
+  变更后重构建·预期）。
+- **Step 14 闭环全过（真实服务进程内·非 gates）**: 启动→双输入
+  起流（watchdog 双路 advancing）→ **program_switch 投影块首次
+  兑现**（observed=A·epoch=0·valid_monotonic·帧推进）→ API
+  A→B（`executed·av_epoch=1 outcome=preserved timeline_epoch=0`）
+  → 回读 observed=B/seg=1/continuous/discontinuity_declared（R53
+  冻结签名）→ API B→A（av_epoch=2 preserved）→ 回读 observed=A/
+  seg=2 → 错误路径（目标不在组/已是当前源→permanent 分类·
+  TargetNotInGroup/TargetAlreadyActive 透传）→ 幂等重放
+  （replayed·原 detail 逐字节）→ 冲突（conflict）→ stop_session
+  executed → teardown 链（Program Stop→Tap Detach + watchdog
+  停止旗）→ 进程死亡。证据 =
+  `evidence/bmd-10.30.15.10/r61-v02-step14/`（盒=origin·md5 全过）。
+- 登记链: 主账 §90 + tasks item-7 R61 段 + EVIDENCE-INDEX + 记忆。

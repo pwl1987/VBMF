@@ -71,6 +71,16 @@ fn main() {
     #[allow(unused_mut)]
     let mut api_mgr: Option<std::sync::Arc<media_agent::session::SessionManager>> = None;
 
+    // v0.2 Control Plane（R60 六点裁决）: SwitchProgram 执行/回读平面——同一
+    // `RuntimeSwitchPlane` Arc 分别进 CommandIdempotency（命令通道·dispatch
+    // trait）与 TransportContext（查询通道·readback trait）, 类型级隔离。
+    // 仅诊断双输入分支装配; Production/单输入/非 gstreamer 构建保持 None
+    // （命令面 Rejected·查询块诚实缺席——0.7C-8 503 契约语义不变）。
+    #[allow(unused_mut)]
+    let mut switch_plane: Option<
+        std::sync::Arc<media_agent::switch_dispatch_plane::RuntimeSwitchPlane>,
+    > = None;
+
     // Gate 2.6 (CAP-01) — 关键边界澄清 (Phase 0.6 锁死):
     //   * `decklink::start_capture` (IDeckLinkInput) = SDK 能力 / 诊断探针
     //     (Gate 6/7), 验证 SDK 能否打开设备 / callback 是否正常 / 格式是否可读.
@@ -510,10 +520,19 @@ fn main() {
                                             );
                                             // 生命周期接线: Session 停止 → hook → teardown
                                             // （Session-scoped 注册——第八轮 P0: 多会话互不覆盖）。
-                                            mgr.register_stop_hook(
-                                                &sid,
-                                                std::sync::Arc::new(runtime),
+                                            // v0.2: Arc 化 runtime——hook 注册表与 Control
+                                            // Plane 共享同一执行体（原 :513 整体 move 不留
+                                            // 句柄, R60 探针 §2.6; clone 先于 move）。
+                                            let runtime_arc = std::sync::Arc::new(runtime);
+                                            switch_plane = Some(
+                                                std::sync::Arc::new(
+                                                    media_agent::switch_dispatch_plane::RuntimeSwitchPlane::new(
+                                                        sid,
+                                                        runtime_arc.clone(),
+                                                    ),
+                                                ),
                                             );
+                                            mgr.register_stop_hook(&sid, runtime_arc);
                                             group_wired = true;
                                         }
                                         Err(e) => {
@@ -610,10 +629,20 @@ fn main() {
             .as_ref()
             .map(|m| std::sync::Arc::new(media_agent::runtime_query::RuntimeQuery::new(m.clone()))),
         idem: api_mgr.as_ref().map(|m| {
-            std::sync::Arc::new(media_agent::idempotency::CommandIdempotency::new(m.clone()))
+            // v0.2: 双输入执行平面在位时附带切换命令通道; 否则 SwitchProgram
+            // 命令按不可用拒绝（command::dispatch None 臂）。
+            let idem = media_agent::idempotency::CommandIdempotency::new(m.clone());
+            match &switch_plane {
+                Some(plane) => std::sync::Arc::new(idem.with_switch_plane(plane.clone())),
+                None => std::sync::Arc::new(idem),
+            }
         }),
         // P1b: 静态文件面 /hls/* 目录（A 方案; 诊断输出配置接线, 生产/未配置 None ⇒ 503）。
         hls_dir: media_agent::config::PrototypeOutputConfig::from_env().hls_dir,
+        // v0.2: program_switch 事实回读（Query Plane 通道; None ⇒ 投影块缺席）。
+        switch_readback: switch_plane.map(|p| {
+            p as std::sync::Arc<dyn media_agent::switch_dispatch_plane::SwitchReadbackPlane>
+        }),
     };
 
     std::thread::spawn({

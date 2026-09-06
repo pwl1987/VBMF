@@ -1328,3 +1328,16 @@
   （命令面归属/payload 面/回读形状/多会话/events 面/Production
   语义·各带推荐）——实现轮待裁决后另启; 用户 R60 令"不能偷偷塞进
   v0.1·先只读裁决再定最小边界"已按此履行]**
+  **[R61 实现段（2026-09-06·代码轮）: 六点裁决全部按推荐冻结（R60 探针
+  §9.1 回执）+ v0.2 实现——新模块 switch_dispatch_plane（命令/查询双
+  trait 类型级隔离·classify·outcome Failed 如实 Failed）+ command 词表
+  四命令/validate/dispatch 扩展 + idempotency switch_plane+replay/conflict
+  同表 + api_boundary 投影 DTO + transport 显式契约修订注记/vocab 四词/
+  投影合并 + bin Arc 化 clone 双通道装配 + 强制调用点 2 文件（error_model
+  测试×3+gates/session_lifecycle×3 补 None·零语义·如实登记）; **核心四
+  git diff = 0 实证**; 盒矩阵 fmt/229/229/405（397+8）/268（266+2）/
+  clippy×3 全绿·新服务 bin md5 90186bb9; **Step 14 闭环全过**（真实服务
+  进程内: 投影块首次兑现→API A→B executed preserved→回读 observed=B/
+  seg=1/DD 冻结签名→API B→A→回读→错误路径 permanent 分类→幂等重放
+  逐字节→冲突→stop_session→teardown 链→进程死亡·非 gates 替代）+ 证据盒
+  r61-v02-step14 入库 md5 全过——R60 探针 §9.2/§9.3 + 主账 §90]**

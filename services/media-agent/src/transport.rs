@@ -9,6 +9,13 @@
 //! - **零触碰**: api_boundary / command / idempotency / runtime_query / event_projection /
 //!   rpc 契约零改动; 本模块只做纯函数映射 + 路由 + 序列化。
 //!
+//! **v0.2 契约修订（R60 探针 §2.3/§7 + 用户六点裁决, 2026-09-06 显式修订——
+//! 非静默扩面）**: ①命令词表增第 4 命令 `switch_program`（经
+//! `SwitchDispatchPlane` 执行通道·架构评审=R60 裁决①）; ②`GET /api/v1/runtime`
+//! 增顶层 `program_switch` 可选投影块（数据源唯一绑定 `observe_execution`·
+//! 裁决③）。端点集合不变; 其余 0.7C 纪律（三平面分离/不可执行性/503 契约）
+//! 原样维持。
+//!
 //! 红线: Observation≠Configuration / Semantic Intent≠Execution Plan / 0.7C-3 不可执行性
 //! (map_command_request 零执行字段) / 0.7C-5 三平面分离 (status+classification 独立) /
 //! 0.7C-7 NOTE (snapshot_kind 守门 / API 模型独立 / 不暴露 serde tag)。
@@ -48,6 +55,11 @@ pub struct TransportContext {
     /// P1b: HLS 分片目录（A 方案静态文件面; 诊断路径自 `VBMF_OUTPUT_HLS_DIR` 接线,
     /// 生产/未配置 = None ⇒ `GET /hls/*` 503 契约诚实）。
     pub hls_dir: Option<String>,
+    /// v0.2（R60 裁决③）: program_switch 事实回读平面——Query Plane 通道
+    /// （只读 observe_execution; 命令执行通道在 CommandIdempotency 的
+    /// dispatch plane 内, 两平面类型级隔离不互通）。None = 无活跃执行
+    /// 平面 ⇒ runtime 投影块缺席（诚实缺席, 非 false）。
+    pub switch_readback: Option<Arc<dyn crate::switch_dispatch_plane::SwitchReadbackPlane>>,
 }
 
 /// 请求解析结果 (method, path, body)。
@@ -111,10 +123,11 @@ pub fn command_id_from_string(s: &str) -> crate::command::CommandId {
 /// Err = 400 detail (未触 Runtime); 形状对但语义拒绝由 dispatch 平面表达 (200+Rejected)。
 pub fn map_command_request(req: &ApiCommandRequest) -> Result<CommandEnvelope, String> {
     // 封闭词表守卫 (0.7C-3 不可执行性: 形状层拒绝, 未触 Runtime)。
-    const KIND_VOCAB: &str = "start_session/stop_session/release_session";
+    // v0.2（R60 裁决①）: 第 4 命令 switch_program 经显式契约修订加入。
+    const KIND_VOCAB: &str = "start_session/stop_session/release_session/switch_program";
     if !matches!(
         req.kind.as_str(),
-        "start_session" | "stop_session" | "release_session"
+        "start_session" | "stop_session" | "release_session" | "switch_program"
     ) {
         return Err(format!(
             "unknown_command_kind: {} (封闭词表: {KIND_VOCAB})",
@@ -124,6 +137,7 @@ pub fn map_command_request(req: &ApiCommandRequest) -> Result<CommandEnvelope, S
     let kind = match req.kind.as_str() {
         "start_session" => CommandKind::StartSession,
         "stop_session" => CommandKind::StopSession,
+        "switch_program" => CommandKind::SwitchProgram,
         _ => CommandKind::ReleaseSession, // 守卫已排除未知值, 此处必为 release_session
     };
     let target = match &req.target {
@@ -138,6 +152,20 @@ pub fn map_command_request(req: &ApiCommandRequest) -> Result<CommandEnvelope, S
             let intent = serde_json::from_value::<GraphRuntimeIntent>(intent.clone())
                 .map_err(|e| format!("invalid_intent: {e}"))?;
             CommandTarget::Session { intent }
+        }
+        crate::api_boundary::ApiCommandTarget::SwitchProgram {
+            session_id,
+            target_device,
+        } => {
+            let sid = Uuid::parse_str(session_id)
+                .map_err(|_| format!("invalid_session_id: {session_id} (须 canonical UUID)"))?;
+            let dev = Uuid::parse_str(target_device).map_err(|_| {
+                format!("invalid_target_device: {target_device} (须 canonical UUID)")
+            })?;
+            CommandTarget::SwitchProgram {
+                session_id: SessionId(sid),
+                target_device: dev,
+            }
         }
     };
     Ok(CommandEnvelope {
@@ -156,6 +184,7 @@ pub fn map_dispatch(d: &IdempotentDispatch) -> ApiCommandResponse {
         CommandKind::StartSession => "start_session",
         CommandKind::StopSession => "stop_session",
         CommandKind::ReleaseSession => "release_session",
+        CommandKind::SwitchProgram => "switch_program",
     };
     match d {
         IdempotentDispatch::Executed(o) => ApiCommandResponse {
@@ -209,7 +238,8 @@ pub fn route(method: &str, path: &str, body: &[u8], ctx: &TransportContext) -> (
             let Some(query) = &ctx.query else {
                 return not_available("runtime");
             };
-            let snap: ApiQuerySnapshot = to_api_query_snapshot(&query.get_runtime_state());
+            let mut snap: ApiQuerySnapshot = to_api_query_snapshot(&query.get_runtime_state());
+            apply_program_switch(&mut snap, ctx.switch_readback.as_deref());
             (200, serde_json::to_string(&snap).unwrap_or_default())
         }
         ("POST", "/api/v1/commands") => {
@@ -255,6 +285,23 @@ fn not_available(endpoint: &str) -> (u16, String) {
             "service_unavailable: {endpoint} (session runtime not active)"
         )),
     )
+}
+
+/// v0.2（R60 裁决③）: `program_switch` 投影合并——Query Plane 事实回读
+/// （只读 observe_execution; canonical 状态面不携带）。平面缺席/已
+/// teardown（observe None）⇒ 块保持 null（诚实缺席, 非 false）。
+fn apply_program_switch(
+    snap: &mut ApiQuerySnapshot,
+    plane: Option<&dyn crate::switch_dispatch_plane::SwitchReadbackPlane>,
+) {
+    if let Some(plane) = plane {
+        if let Some(obs) = plane.observe() {
+            snap.program_switch = Some(crate::api_boundary::to_api_program_switch(
+                &plane.session_id(),
+                &obs,
+            ));
+        }
+    }
 }
 
 fn error_body(msg: &str) -> String {
@@ -601,6 +648,7 @@ mod tests {
             query: None,
             idem: None,
             hls_dir: None,
+            switch_readback: None,
         };
         let (code, body) = route("GET", "/health", &[], &ctx);
         assert_eq!(code, 200);
@@ -777,6 +825,7 @@ mod tests {
             query: None,
             idem: None,
             hls_dir: None,
+            switch_readback: None,
         };
         // 404 未知。
         let (code, body) = route("GET", "/nope", &[], &ctx);
@@ -827,6 +876,7 @@ mod tests {
             query: None,
             idem: None,
             hls_dir: None,
+            switch_readback: None,
         };
         // 服务端: accept 单连接 → serve_connection (处理完关闭, 无持久连接)。
         let server = std::thread::spawn(move || {
@@ -852,5 +902,142 @@ mod tests {
         assert!(v.get("dropped_bus_events").is_some());
         assert!(v.get("clock_lost_events").is_some());
         let _ = server.join();
+    }
+
+    // ── v0.2 Control Plane Expansion（R60 裁决①③）──────────────────────────
+
+    /// 假读回平面（Query Plane 通道测试——命令面 Fake 见 idempotency 测试）。
+    struct FakeReadback {
+        sid: crate::session::SessionId,
+        obs: Option<crate::contracts::switch::ProgramExecutionObservation>,
+    }
+    impl crate::switch_dispatch_plane::SwitchReadbackPlane for FakeReadback {
+        fn observe(&self) -> Option<crate::contracts::switch::ProgramExecutionObservation> {
+            self.obs.clone()
+        }
+        fn session_id(&self) -> crate::session::SessionId {
+            self.sid
+        }
+    }
+
+    fn empty_observation(
+        active: Option<uuid::Uuid>,
+    ) -> crate::contracts::switch::ProgramExecutionObservation {
+        crate::contracts::switch::ProgramExecutionObservation {
+            program: crate::contracts::switch::ProgramObservation {
+                observed_active: active,
+                video_active: active,
+                audio_active: active,
+                switch_epoch: 1,
+                input_pts: Vec::new(),
+                program_video_pts: None,
+                program_audio_pts: None,
+                program_video_pts_state: crate::pipeline::PtsMonotonicity::Unknown,
+                program_audio_pts_state: crate::pipeline::PtsMonotonicity::Unknown,
+                program_video_frames: 0,
+                program_audio_frames: 0,
+            },
+            timeline: crate::program_timeline::TimelineObservation::no_evidence(
+                crate::program_timeline::ProgramEpoch(0),
+                0,
+            ),
+        }
+    }
+
+    /// 词表守卫: switch_program 过形状层; 未知 kind 报四词封闭词表。
+    #[test]
+    fn transport_rt_01_switch_program_wire_mapping() {
+        let sid = uuid::Uuid::new_v4();
+        let dev = uuid::Uuid::new_v4();
+        let req = ApiCommandRequest {
+            command_id: "switch-1".into(),
+            kind: "switch_program".into(),
+            target: crate::api_boundary::ApiCommandTarget::SwitchProgram {
+                session_id: sid.to_string(),
+                target_device: dev.to_string(),
+            },
+            requested_by: "t".into(),
+        };
+        let env = map_command_request(&req).expect("switch_program 映射");
+        assert_eq!(env.kind, CommandKind::SwitchProgram);
+        match &env.target {
+            CommandTarget::SwitchProgram {
+                session_id,
+                target_device,
+            } => {
+                assert_eq!(session_id.0, sid);
+                assert_eq!(*target_device, dev);
+            }
+            other => panic!("target 形状失配: {other:?}"),
+        }
+        // 非法 target_device → 400 detail（形状层, 未触 Runtime）。
+        let mut bad = req.clone();
+        bad.target = crate::api_boundary::ApiCommandTarget::SwitchProgram {
+            session_id: sid.to_string(),
+            target_device: "not-a-uuid".into(),
+        };
+        assert!(map_command_request(&bad)
+            .unwrap_err()
+            .contains("invalid_target_device"));
+        // 未知 kind 报四词词表（v0.2 快照）。
+        let mut unknown = req;
+        unknown.kind = "reboot".into();
+        let err = map_command_request(&unknown).unwrap_err();
+        assert!(err.contains("unknown_command_kind"));
+        assert!(err.contains("switch_program"), "词表含第 4 命令: {err}");
+    }
+
+    /// 投影合并: 平面在位+有观测 → 块填充; observe None → 诚实缺席;
+    /// 平面缺席 → 保持 null; query 缺席 → 503（投影不足以救活 runtime 面）。
+    #[test]
+    fn transport_rt_01_program_switch_projection_merge() {
+        let sid = crate::session::SessionId(uuid::Uuid::new_v4());
+        let dev = uuid::Uuid::new_v4();
+        let mut snap = to_api_query_snapshot(&empty_canonical());
+        assert_eq!(snap.program_switch, None, "canonical 恒不携带");
+        // 在位 + 有观测 → 填充。
+        let live = FakeReadback {
+            sid,
+            obs: Some(empty_observation(Some(dev))),
+        };
+        apply_program_switch(&mut snap, Some(&live));
+        let block = snap.program_switch.as_ref().expect("块填充");
+        assert_eq!(block.session_id, sid.0.to_string());
+        assert_eq!(
+            block.observed_active.as_deref(),
+            Some(dev.to_string().as_str())
+        );
+        assert_eq!(block.timeline.program_epoch, 0);
+        // teardown（observe None）→ 诚实缺席（从新鲜快照起测——投影只增不改）。
+        let mut torn = to_api_query_snapshot(&empty_canonical());
+        apply_program_switch(&mut torn, Some(&FakeReadback { sid, obs: None }));
+        assert_eq!(torn.program_switch, None);
+        // 平面缺席 → null; 且 query None 时 runtime 仍 503（平面不越权）。
+        let ctx = TransportContext {
+            events: Arc::new(crate::events::RuntimeEventLog::new()),
+            agent_state: Arc::new(Mutex::new(crate::health::AgentState::Ready)),
+            device_count: 1,
+            query: None,
+            idem: None,
+            hls_dir: None,
+            switch_readback: Some(Arc::new(live)),
+        };
+        let (code, body) = route("GET", "/api/v1/runtime", &[], &ctx);
+        assert_eq!(code, 503);
+        assert!(body.contains("service_unavailable"));
+    }
+
+    /// 最小 canonical 状态（投影合并测试只关心 program_switch 字段）。
+    fn empty_canonical() -> crate::runtime_state::CanonicalRuntimeState {
+        crate::runtime_state::CanonicalRuntimeState {
+            devices: Vec::new(),
+            ports: Vec::new(),
+            resources: Vec::new(),
+            sessions: Vec::new(),
+            media_semantics: Vec::new(),
+            generated_at_ms: 0,
+            observation_revision: 0,
+            observation_lineage: uuid::Uuid::nil(),
+        }
     }
 }

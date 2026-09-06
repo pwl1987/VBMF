@@ -85,6 +85,17 @@
 > 无版本行）如实标注于 IDENTITY; `gst_pad_unlink`×3/@teardown 与
 > `gst_video_converter_free`×1/@startup = 既有已知类工件非新类.
 
+## A2-8-05 v0.2 Control Plane + Step 14 — 2026-09 R61 闭环证据
+
+| 目录 | 状态 | 说明 |
+|---|---|---|
+| `r61-v02-step14/` | Current | **R61 v0.2 控制面扩面 + Step 14 闭环（真实服务进程内·非 gates 替代）**: v0.2 服务 bin md5 90186bb9（R61 实现·核心四零 diff）; API A→B executed（av_epoch=1 preserved）→回读 observed=B/seg=1/continuous/discontinuity_declared（R53 冻结签名）→B→A→回读; 错误路径 permanent（TargetNotInGroup/TargetAlreadyActive）+幂等 replay 逐字节+conflict; stop_session→teardown 链→进程死亡; run.log=盒上原件·响应值=终端捕获口径. 实现+裁决回执=docs/superpowers/reports/2026-09-06-a2-8-05-v02-control-plane-expansion-probe.md §9. |
+
+> v0.2 口径: 命令/查询双平面类型级隔离; 能力拒绝（平面缺席）过形状层→
+> 占幂等 id·outcome=Rejected（与形状拒绝不占 id 分层）; wire
+> status.status=dispatch 裁决（executed/replayed/conflict）·
+> classification/detail=命令 outcome——两层分层诚实.
+
 ## 治理规则 (跨证据通用)
 
 1. 任何新证据落地时, 在文件名带日期, 并**在此索引登记状态**; 被覆盖的旧证据改为 `Superseded`/`Historical`.

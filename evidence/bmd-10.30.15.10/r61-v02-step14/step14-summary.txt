@@ -1,0 +1,36 @@
+VBMF Media-Agent v0.2 Control Plane — Step 14 闭环执行摘要（2026-09-06·盒 10.30.15.10）
+形态: v0.2 真实服务 bin（md5 90186bb9）·MEDIA_AGENT_MODE=diagnostic·VBMF_DIAG_INPUTS=2·manifest v5
+口径: run.log/runtime-before.json 为盒上原件; 本文件中的 API 响应为运行时操作员终端捕获值（非二次抓取）。
+
+[启动+回读面兑现]
+- /health: {"active_pipelines":3,"clock_lost_events":0,"devices":3,"dropped_bus_events":0,"state":"Capturing"}
+- watchdog 活体行 24 行（双路 advancing）
+- GET /api/v1/runtime → **program_switch 投影块首次在真实服务兑现**:
+  observed_active=4fa33dcb(A)·video/audio 同步·switch_epoch=0·pts_state=valid_monotonic·
+  frames v/a=7006/9341 推进·timeline（tl_epoch=0·seg 缺席）
+
+[API 发起 A→B（SW1·command_id=step14-sw1）]
+- 响应: {"status":"executed","kind":"switch_program","detail":"switch executed: av_epoch=1 outcome=preserved timeline_epoch=0"}
+- 回读: observed=6ede00d0(B)·v/a 同步·switch_epoch=1·tl_epoch=0·seg=1·video_continuity=continuous·
+  discontinuity_state=discontinuity_declared（R53 基线签名）·frames 7761/10349 继续推进
+
+[API 发起 B→A（SW2·command_id=step14-sw2）]
+- 响应: executed·"av_epoch=2 outcome=preserved timeline_epoch=0"
+- 回读: observed=4fa33dcb(A)·switch_epoch=2·tl_epoch=0·seg=2·v_cont=continuous·disc=discontinuity_declared
+
+[错误路径/幂等面]
+- 目标不在组（1afe2dcc Mini Monitor）: classification=permanent·"switch target … not in execution group"
+  （wire status.status=executed = IdempotentDispatch 裁决"已执行一次"; 分类+detail=命令 outcome 分层诚实）
+- 幂等重放（同 id 同 payload 重发 step14-sw1）: {"status":"replayed"}·原 detail 逐字节
+- 冲突（同 id 异 payload）: {"status":"conflict","classification":"conflict","detail":"same command_id with different payload"}
+- 已是当前源（step14-err2→A）: permanent·"target 4fa33dcb … is already the active source"
+
+[teardown]
+- POST stop_session: executed
+- run.log: "Program Execution Runtime teardown 完成（Program Stop→Tap Detach） session=bd971e36 graph=3"
+  + "group watchdog: 停止旗置位, 观测线程退出"
+- 进程: pgrep 空（PROC-DEAD）
+
+[结论] Step 14 闭环全过: 真实服务进程内 API→Idempotency→SwitchDispatchPlane→switch_program→
+Fence/Timeline/Epoch→observe_execution→GET /api/v1/runtime 完整闭环（双方向切换·preserved 语义·
+冻结签名逐字·错误/重放/冲突/teardown 面）——不依赖 gates 二进制。

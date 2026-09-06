@@ -292,7 +292,7 @@ pub fn run(
                 issued_at_ms: 0,
                 requested_by: "vbmf-session-lifecycle-gate".into(),
             };
-            let out = dispatch(&mgr, &cmd_env);
+            let out = dispatch(&mgr, None, &cmd_env);
             println!(
                 "COMMAND-CONTRACT-RT-01 step=start status={:?} detail={:?}",
                 out.status, out.detail
@@ -313,7 +313,7 @@ pub fn run(
                     issued_at_ms: 0,
                     requested_by: "vbmf-session-lifecycle-gate".into(),
                 };
-                let out = dispatch(&mgr, &stop_env);
+                let out = dispatch(&mgr, None, &stop_env);
                 println!(
                     "COMMAND-CONTRACT-RT-01 step=stop status={:?} detail={:?}",
                     out.status, out.detail
@@ -325,7 +325,7 @@ pub fn run(
                     issued_at_ms: 0,
                     requested_by: "vbmf-session-lifecycle-gate".into(),
                 };
-                let out = dispatch(&mgr, &rel_env);
+                let out = dispatch(&mgr, None, &rel_env);
                 println!(
                     "COMMAND-CONTRACT-RT-01 step=release status={:?} detail={:?}",
                     out.status, out.detail

@@ -4655,3 +4655,35 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   vs 嵌 session）④多会话（单会话如实 vs B 注册表）⑤events 面
   （不加 vs 加 SwitchExecuted）⑥Production 语义（503 维持 vs 接线）。
 - 实现轮待验收层对六点裁决后另启; 基线 29cef9c。
+
+## §90 R61: v0.2 Control Plane Expansion 实现 + Step 14 闭环全过（代码轮·2026-09-06）
+
+- **六点裁决全部按推荐冻结**（R60 探针 §9.1 回执）: A 扩词表/payload
+  单字段+FrameSwitch 固定/回读顶层块/单会话/不加 events/Production
+  503; 硬边界=七文件面, 核心四禁改; 架构纪律=命令面请求执行·查询面
+  事实回读不越界。
+- **实现**: 新模块 switch_dispatch_plane（双 trait 类型级隔离+
+  RuntimeSwitchPlane+classify_switch_error+outcome Failed 如实
+  Failed）; command 词表四命令+validate 第四臂+dispatch 签名扩展
+  （平面缺席→Rejected）; idempotency switch_plane 字段+builder
+  （replay/conflict 同表同律·能力拒绝占 id 分层）; api_boundary
+  target 变体+ApiProgramSwitchState/ApiTimelineEvidence+enum_tag
+  snake_case; transport 显式契约修订注记+vocab 四词+投影合并
+  （query None 仍 503·平面不越权）; bin Arc 化 runtime clone 先于
+  move（探针 §2.6 所有权修复）+双通道装配; 强制调用点 2 文件
+  （error_model 测试×3+gates/session_lifecycle×3 补 None 参——
+  签名变更机械传导·零语义·如实登记）+lib 模块声明行。
+  **核心四 git diff --stat = 0 实证**。
+- **盒矩阵全绿**: fmt/229/229/405（397+8）/268（266+2）/clippy×3;
+  新服务 bin md5 90186bb9。
+- **Step 14 闭环全过（真实服务进程内·非 gates 替代）**: 投影块首次
+  兑现（observed=A·epoch=0·valid_monotonic）→ API A→B executed
+  （av_epoch=1 outcome=preserved timeline_epoch=0）→ 回读 observed=B/
+  seg=1/continuous/discontinuity_declared（R53 冻结签名逐字）→ API
+  B→A（av_epoch=2 preserved）→ 回读 observed=A/seg=2 → 错误路径
+  （TargetNotInGroup/TargetAlreadyActive→permanent）→ 幂等重放
+  （replayed 原 detail 逐字节）→ 冲突 → stop_session → teardown 链
+  → 进程死亡。证据盒 2026-09-06-r61-v02-step14 入库（md5 全过·
+  盒=origin）。
+- 下一步: Step 15 长稳（30min→2h→8h→24h）/Step 16 联调/Step 17
+  Preview RC 与链末 archive+merge+tag——待用户指令; A2-8-05 进行中。

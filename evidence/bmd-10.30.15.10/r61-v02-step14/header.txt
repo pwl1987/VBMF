@@ -1,0 +1,13 @@
+               Local time: Sun 2026-09-06 16:03:17 CST
+           Universal time: Sun 2026-09-06 08:03:17 UTC
+                 RTC time: Sun 2026-09-06 08:03:17
+                Time zone: Asia/Shanghai (CST, +0800)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+REV=7978250 的工作树实现（R61 v0.2·未提交先验）— 盒矩阵 fmt/229/229/405/268/clippy×3 全绿
+bin md5:
+90186bb9c4ad29846c4bb95139ee68ff  /home/lytv/a2-8-05-v02-step14/media-agent
+manifest md5:
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+form: v0.2 control-plane closed-loop (API A<->B + readback + error/replay/conflict + teardown)
