@@ -5,7 +5,13 @@
 //! - **五端点不发明**: `GET /health` (行为不变, 回归锚点) / `GET /api/v1/runtime` /
 //!   `POST /api/v1/commands` / `GET /api/v1/events/projection` /
 //!   `GET /api/v1/idempotency/boundary`; 未知 404 / 方法错 405 / 无 mgr 503。
-//! - **无持久连接**: 每连接一请求后关闭 (与 /health 既有单 accept 循环模型一致, 不偷升级)。
+//! - **无持久连接**: 每连接一请求后关闭 (协议模型不变, 不偷升级)。
+//!   **R63-B1 并发契约修订（2026-09-06 显式修订·B0 契约）**: accept →
+//!   per-connection std thread（`serve_forever`）——连接并发 ≠ 切换并发:
+//!   查询端点可并发, 切换命令经 `ProgramExecutionRuntime::inner` 既有串行
+//!   边界（零新全局锁）; std-only 维持; 慢读者只占自身连接线程
+//!   （10s read timeout 不再冻结整个管理面——R62 实测 10.175s 的修复）。
+//!   残留如实: 无连接数上限（诊断 127.0.0.1 回环前提·正式化归反向代理层）。
 //! - **零触碰**: api_boundary / command / idempotency / runtime_query / event_projection /
 //!   rpc 契约零改动; 本模块只做纯函数映射 + 路由 + 序列化。
 //!
@@ -21,7 +27,7 @@
 //! 0.7C-7 NOTE (snapshot_kind 守门 / API 模型独立 / 不暴露 serde tag)。
 
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 
 use uuid::Uuid;
@@ -476,7 +482,7 @@ fn serve_hls_file(
 
 /// 连接处理: 读→解析→路由→写 (无持久连接, 处理完关闭)。
 /// 读模型: 累积至 `parse_request` 成功 (头部+body 完整) 或连接关闭/超限;
-/// 与 /health 既有单 accept 循环并发模型一致 (不偷升级线程池/async)。
+/// 由 `serve_forever` 在每连接一线程内调用（R63-B1——慢读者只阻塞自身）。
 pub fn serve_connection(mut stream: TcpStream, ctx: &TransportContext) {
     let mut buf: Vec<u8> = Vec::with_capacity(4096);
     let mut chunk = [0u8; 4096];
@@ -539,6 +545,25 @@ pub fn serve_connection(mut stream: TcpStream, ctx: &TransportContext) {
     resp.extend_from_slice(&body);
     let _ = stream.write_all(&resp);
     let _ = stream.flush();
+}
+
+/// R63-B1: accept → per-connection std::thread（B0 契约 §2）。
+/// **HTTP 连接并发 ≠ 切换并发**: 查询端点（/health·/runtime·/events）并发
+/// 服务; POST 切换命令经 idempotency→plane→`ProgramExecutionRuntime::inner`
+/// 既有串行边界（零新全局锁）。std-only（无 tokio/axum/hyper/tower）;
+/// `Connection: close` 协议模型不变。socket 超时（读 10s/写 30s）只约束
+/// 单个连接——停滞读者占住自身线程, 不再冻结管理面（R62 实测 10.175s
+/// 单 accept 铁证的修复）。残留如实: 无连接数上限（诊断 127.0.0.1 回环
+/// 绑定前提; 正式化归反向代理层）。
+pub fn serve_forever(listener: TcpListener, ctx: TransportContext) {
+    for stream in listener.incoming().flatten() {
+        // P1b: socket 超时（review Important#4）——每连接线程内防停滞读者
+        // /空闲连接永久占用（原型级加固; 正式化记档 §7）。
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+        let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(30)));
+        let ctx = ctx.clone();
+        std::thread::spawn(move || serve_connection(stream, &ctx));
+    }
 }
 
 /// 子串查找 (避免引入 memchr 依赖; 数据量小, 线性扫描足够)。

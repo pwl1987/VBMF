@@ -652,13 +652,8 @@ fn main() {
         move || match std::net::TcpListener::bind(&_cfg.health_bind) {
             Ok(listener) => {
                 tracing::info!(bind = %_cfg.health_bind, "health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
-                for s in listener.incoming().flatten() {
-                    // P1b: socket 超时（review Important#4）——串行 accept 循环下防单个
-                    // 停滞读者/空闲连接永久占住唯一 listener（原型级加固; 正式化记档 §7）。
-                    let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(10)));
-                    let _ = s.set_write_timeout(Some(std::time::Duration::from_secs(30)));
-                    media_agent::transport::serve_connection(s, &transport_ctx);
-                }
+                // R63-B1: per-connection std thread（连接并发≠切换并发·B0 契约）。
+                media_agent::transport::serve_forever(listener, transport_ctx);
             }
             Err(e) => tracing::error!(error = %e, "health bind failed"),
         }

@@ -4772,3 +4772,44 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - 下一步: **R63-B Transport 并发（std-only·per-connection worker+命令
   串行边界+查询短锁/snapshot·首步 inner 结构小审计）→ R64 全矩阵+真机
   故障恢复+并发查询 → Step 15 → Step 17 → 链末收口**——待用户指令。
+
+## §93 R63-B: Transport 并发与 Query 解耦（修复架构轮第二刀·代码轮·2026-09-06）
+
+- 用户 R63-B 裁决: B0 审计先行·B1 连接并发/B2 切换串行边界/B3 查询快照
+  解耦三层·两 commit 分离架构与实现·真机并发验证（B-T1..T7+慢读者+
+  B6 恢复后连续切换）后才进 R64/Step 15; Step 15 不启动（长稳异常须先
+  排除基础设施串行混杂）。
+- **B0 契约+审计（commit 1 ad3f002·docs 先行）**: HTTP 并发≠切换并发
+  （inner=既有串行边界零新锁·idempotency 不合并）/std-only（无
+  tokio/axum/hyper/tower·Connection: close 不变）/快照 SoT=既有
+  ProgramExecutionObservation（Clone 已在·contracts 零触碰·derived
+  published 非第二状态）/慢读者隔离 per-connection thread/残留=无连接
+  上限+窗内查询=上一次已提交事实（诚实时间戳在载荷）; inner 审计:
+  group 独立可锁/timeline 纯派生/adapter observe 沿 watchdog 真机先例
+  并发安全/inner=切换编排边界保持。
+- **B1+B2+B3 实现（3 文件 +89/−28+新测试）**: transport 新 serve_forever
+  （accept→超时→clone→thread::spawn）+bin 一行化; program_execution 最小
+  四处开启（published 字段/create 发布/switch 出口发布/teardown 清空+
+  observe_execution try_lock 短锁+快照回退·锁序恒 inner→published 零死锁）;
+  核心域文件续冻零触碰实证。
+- **B4 mock 全链 8/8（真实 socket+serve_forever 本体+真实 5s 证据窗）**:
+  b3 窗内 worst_query=19.9µs（回退快照 observed=旧源→切换后新鲜·恢复落
+  B·teardown 后 None）/t1 health 840µs/t2 runtime 816µs（快照语义可见证
+  明）/t3 events 653µs/t4 replay 逐字节 identical（二发等待 4.99s）/
+  **t5 双反向串行双消费 epoch+2·终态唯一 Active(a)（恢复后连续切换=B6
+  锚）**/**t6 慢读者 718µs（R62 同形=10.175s 冻结）**/t7 n=16 worst
+  1.43ms; R63-A 矩阵 9/9 零回归; 盒矩阵 fmt CLEAN/229/229/**411+9+8=428**/
+  268/clippy×3 exit0。
+- **真机 B5/B6（bin 1326be28 重建先行）**: 后台切换窗内 health/runtime/
+  events 并发全 200 ~1ms 级·慢读者挂 8s 期间三时点 962µs–1.08ms（**
+  10.175s 冻结的修复实证**）·同 id replay=executed+replayed detail/
+  classification identical·N=8 并发 680µs–1.04ms·A→B/B→A 双 preserved+
+  R53 签名回读+stop_session teardown 行+watchdog 退出行验证; 证据盒
+  r63b-concurrency 14 件 md5 盒=origin。
+- 披露: 真机脚本首版裸 wait 把自 nohup 服务当 job 等待→挂起+手工收尾两
+  笔误（一次 invalid_session_id 工件·服务未经 stop_session 被杀）——规范
+  证据以修复脚本完整重跑为准·归档脚本=修复版; 无连接上限残留; 盒上≠CI
+  分述（gh 实测 616543d=run 34028205578 success 已记·新 commit 另测）;
+  Mimosa python_ast_unavailable×4+脚本 HOME advisory（误报语境）。
+- 下一步: **R64 全矩阵+真机故障恢复+并发查询+30min 稳定基线 → Step 15
+  （2h/8h/24h）→ Step 17 Preview RC → 链末收口**——待用户指令。

@@ -1,0 +1,9 @@
+R63B-MATRIX t7 n=16 worst=1.427972ms
+R63B-MATRIX t6 health_during_slow_reader=717.912µs (R62 同形=10.175s 冻结)
+R63B-MATRIX b3 worst_query_latency=19.864µs (5s switch window)
+R63B-MATRIX t3 events_during=652.659µs
+R63B-MATRIX t4 replay_detail_identical first=5.014389388s second=4.994878555s
+R63B-MATRIX t2 runtime_during=815.995µs snapshot_observed=a then=b
+R63B-MATRIX t1 health_worst=840.111µs during 5s switch
+R63B-MATRIX t5 serialized both_consumed epoch=2 final=Active(a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.17s

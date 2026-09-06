@@ -1,0 +1,3 @@
+readback1: {"observed":"6ede00d0-baf4-573f-a0dd-4a503bf7f766","seg":1,"disc":"discontinuity_declared","vc":"continuous"}
+readback2: {"observed":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","seg":2,"disc":"discontinuity_declared","vc":"continuous"}
+readback3: {"observed":"6ede00d0-baf4-573f-a0dd-4a503bf7f766","seg":3,"disc":"discontinuity_declared","vc":"continuous"}

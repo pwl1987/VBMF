@@ -1437,3 +1437,25 @@
   program_timeline/contracts/switch_mock/command/idempotency/api_boundary
   续冻——契约全文=2026-09-06-a2-8-05-r63-b-transport-concurrency.md §2-§3
   （随用户计划批准即锁）]**
+
+  **[R63-B1 实现段（2026-09-06·代码轮·commit 2）: B1+B2+B3 落地——3 文件
+  +89/−28 + 新并发测试文件（核心域文件续冻零触碰实证）; transport 新
+  serve_forever（accept→超时→clone→std::thread·std-only·Connection: close
+  不变·无连接上限=残留如实）+bin 一行化; program_execution 最小四处开启
+  （B0 审计证明必须: published 快照字段[Inner 外·derived 非第二状态]/
+  create 发布/switch_program 出口发布[成败与 R63-A 恢复后]/teardown 清空
+  [投影块诚实缺席契约保持]+observe_execution try_lock 短锁+快照回退·锁序
+  恒 inner→published 零死锁）; B2=零新锁（inner 既有串行边界·idempotency
+  不合并未动）; **B4 mock 并发矩阵 8/8**（真实 socket+serve_forever 本体+
+  真实 5s 证据窗: b3 窗内 worst_query=19.9µs 快照回退·t1 840µs·t2 816µs
+  快照语义可见·t3 653µs·t4 replay 逐字节+等待 4.99s·**t5 双反向串行双
+  消费 epoch+2 终态唯一 Active=恢复后连续切换 B6 锚**·**t6 慢读者 718µs
+  [R62 同形=10.175s 冻结]**·t7 n=16 worst 1.43ms）; R63-A 矩阵 9/9 零回归;
+  盒矩阵 fmt CLEAN/229/229/**428（411+9+8）**/268/clippy×3 exit0; **真机
+  B5/B6**（bin 1326be28 重建先行）: 切换窗内并发查询全 200 ~1ms·慢读者挂
+  8s 期间 962µs–1.08ms 三时点·replay executed+replayed identical·N=8 并发
+  680µs–1.04ms·A→B/B→A 双 preserved+R53 签名+teardown 行+watchdog 退出行;
+  证据盒 r63b-concurrency 14 件 md5 盒=origin; 披露: 真机脚本首版裸 wait
+  挂起+手工收尾两笔误——规范证据以修复脚本完整重跑为准——报告 §4-§7 +
+  主账 §93; **R64（全矩阵+真机故障恢复+并发查询+30min 基线）→Step 15→
+  Step 17→链末收口待令**]**

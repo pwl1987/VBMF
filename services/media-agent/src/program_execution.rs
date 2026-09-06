@@ -398,6 +398,13 @@ struct Inner {
 pub struct ProgramExecutionRuntime {
     session_id: SessionId,
     inner: Mutex<Option<Inner>>,
+    /// R63-B3: 最近一次**已提交事实快照**（derived 缓存——同型
+    /// `ProgramExecutionObservation`, 非第二 Runtime State; B0 契约 §2.3）。
+    /// 发布点=create 初始 / switch_program 出口（成败与恢复后）/ 自由读;
+    /// teardown 清空。切换编排长持 inner 期间, `observe_execution` 以
+    /// try_lock 短锁回退本快照——查询面不等待切换（诚实时间戳在载荷）。
+    /// 锁序恒 inner→published（无反向路径）。
+    published: Mutex<Option<ProgramExecutionObservation>>,
 }
 
 impl std::fmt::Debug for ProgramExecutionRuntime {
@@ -469,18 +476,27 @@ impl ProgramExecutionRuntime {
         };
         match graph {
             Ok(graph) => match switcher.start_program(&graph) {
-                Ok(()) => Ok(Self {
-                    session_id,
-                    inner: Mutex::new(Some(Inner {
-                        group,
-                        switcher,
-                        graph,
-                        taps: attached,
-                        tap_port,
-                        watchdog_stop: None,
-                        timeline,
-                    })),
-                }),
+                Ok(()) => {
+                    // R63-B3: 发布初始快照（服务起后首个查询即见已提交事实——
+                    // 即便首场切换进行中, 诚实缺席语义不被误伤）。
+                    let initial = ProgramExecutionObservation {
+                        program: switcher.observe(&graph).program,
+                        timeline: timeline.snapshot(now_observed_ms()),
+                    };
+                    Ok(Self {
+                        session_id,
+                        inner: Mutex::new(Some(Inner {
+                            group,
+                            switcher,
+                            graph,
+                            taps: attached,
+                            tap_port,
+                            watchdog_stop: None,
+                            timeline,
+                        })),
+                        published: Mutex::new(Some(initial)),
+                    })
+                }
                 Err(e) => {
                     Self::cleanup_partial(&switcher, Some(&graph), &attached, tap_port.as_ref());
                     Err(e)
@@ -521,6 +537,9 @@ impl ProgramExecutionRuntime {
         let Some(inner) = self.inner.lock().unwrap().take() else {
             return;
         };
+        // R63-B3: 清空已发布快照（teardown 后查询=诚实缺席 None——
+        // 投影块缺席 transport 契约保持）。
+        *self.published.lock().unwrap() = None;
         if let Some(flag) = &inner.watchdog_stop {
             flag.store(true, std::sync::atomic::Ordering::SeqCst);
         }
@@ -611,6 +630,12 @@ impl ProgramExecutionRuntime {
             // 与 watchdog 同通路（不取 inner 锁——无自锁）。
             recover_after_failed_switch(inner);
         }
+        // R63-B3: 出口发布（成败与恢复后各一次）——切换结束后首个查询即见
+        // 新鲜事实; 切换进行中的查询回退上一次已提交快照（B0 契约 §2.3）。
+        *self.published.lock().unwrap() = Some(ProgramExecutionObservation {
+            program: inner.switcher.observe(&inner.graph).program,
+            timeline: inner.timeline.snapshot(now_observed_ms()),
+        });
         result
     }
 
@@ -765,13 +790,29 @@ impl ProgramExecutionRuntime {
     /// ⑪ 裁决级 observation 组合面: program=adapter 既有平面; timeline=
     /// **Authority snapshot**（Domain SoT——epoch/段/连续性恒当前; adapter
     /// 行=执行侧原始证据）。
+    ///
+    /// R63-B3 查询短锁/快照（B0 契约 §2.3）: 切换编排长持 inner 期间以
+    /// `try_lock` 回退**最近一次已提交事实快照**（derived published 缓存
+    /// ——非第二 Runtime State; observed_at_ms 在载荷=诚实时间戳）——
+    /// 查询面不等待切换。锁空闲时真读并刷新发布。
     pub fn observe_execution(&self) -> Option<ProgramExecutionObservation> {
-        let inner = self.inner.lock().unwrap();
-        let inner = inner.as_ref()?;
-        Some(ProgramExecutionObservation {
-            program: inner.switcher.observe(&inner.graph).program,
-            timeline: inner.timeline.snapshot(now_observed_ms()),
-        })
+        match self.inner.try_lock() {
+            Ok(guard) => {
+                let Some(inner) = guard.as_ref() else {
+                    // teardown 竞态窗口: 与已发布快照口径一致
+                    //（teardown 已清空 → None 诚实缺席）。
+                    return self.published.lock().unwrap().clone();
+                };
+                let obs = ProgramExecutionObservation {
+                    program: inner.switcher.observe(&inner.graph).program,
+                    timeline: inner.timeline.snapshot(now_observed_ms()),
+                };
+                *self.published.lock().unwrap() = Some(obs.clone());
+                Some(obs)
+            }
+            // inner 被切换编排/teardown 持有——回退快照（不阻塞查询面）。
+            Err(_) => self.published.lock().unwrap().clone(),
+        }
     }
 }
 

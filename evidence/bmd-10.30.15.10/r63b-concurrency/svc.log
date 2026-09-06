@@ -1,0 +1,56 @@
+[2m2026-09-06T12:12:53.092350Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"gstreamer" [3mmode[0m[2m=[0m"diagnostic"
+[2m2026-09-06T12:12:53.096237Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-06T12:12:53.096341Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-06T12:12:53.096373Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-06T12:12:53.096393Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-06T12:12:53.096414Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-06T12:12:53.096444Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-06T12:12:53.096489Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+[2m2026-09-06T12:12:57.769559Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m2 [3merror[0m[2m=[0mStateFailed: device-number 2: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T12:12:57.769703Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m3 [3merror[0m[2m=[0mStateFailed: device-number 3: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T12:12:57.769748Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m4 [3merror[0m[2m=[0mStateFailed: device-number 4: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T12:12:57.769788Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m5 [3merror[0m[2m=[0mStateFailed: device-number 5: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T12:12:57.769826Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m6 [3merror[0m[2m=[0mStateFailed: device-number 6: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T12:12:57.769864Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m7 [3merror[0m[2m=[0mStateFailed: device-number 7: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T12:12:57.770372Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m BMD SDK runtime identity (provenance) [3mdetected_sdk[0m[2m=[0msdk_include=/home/lytv/decklink-sdk-include;lib=/usr/lib/libDeckLinkAPI.so;lib_bytes=8851504
+[2m2026-09-06T12:12:57.770819Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-06T12:12:57.770906Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+WARN: sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-06T12:12:57.771824Z[0m [33m WARN[0m [2mmedia_agent::pipeline[0m[2m:[0m sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-06T12:12:57.771893Z[0m [33m WARN[0m [2mmedia_agent::pipeline[0m[2m:[0m sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-06T12:12:57.979421Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+[2m2026-09-06T12:12:57.980829Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m GStreamer runtime version (evidence) [3mgst_version[0m[2m=[0m(1, 28, 2, 0)
+[2m2026-09-06T12:12:57.980863Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m P0-7A Session create+start 全链通过 (SessionManager owner) [3msession[0m[2m=[0msession-efccb1d85c394ba5b865e8b83366e593
+[2m2026-09-06T12:12:58.024390Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m A2-8-02-E Execution Group 就绪: ProgramExecutionRuntime 接管 (program 资源唯一 owner), MultiInputWatchdog 四观测面启动, Session 停止链经 hook 接 teardown [v1 topology=测试源仿真; 真机 SDI inter 系+MediaTap=A2-8-02-F] [3mgraph_handle[0m[2m=[0m3 [3minitial_active[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-06T12:12:58.024656Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m media-agent canonical runtime loaded (health :8080; ingest via GStreamer started on lease acquire)
+[2m2026-09-06T12:12:58.024826Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二) [3mbind[0m[2m=[0m127.0.0.1:8080
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.296: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.296: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.296: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.334: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.334: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.334: gst_video_converter_free: assertion 'convert != NULL' failed
+[2m2026-09-06T12:12:58.524909Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m0 [3mbatch[0m[2m=[0m15 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mNone [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=None", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=None"]
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.835: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.835: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:1234387): GStreamer-Video-CRITICAL **: 20:12:58.835: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent:1234387): GStreamer-CRITICAL **: 20:13:08.316: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:1234387): GStreamer-CRITICAL **: 20:13:08.316: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:1234387): GStreamer-CRITICAL **: 20:13:08.316: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:1234387): GStreamer-CRITICAL **: 20:13:08.316: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+[2m2026-09-06T12:13:08.317081Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0mefccb1d8-5c39-4ba5-b865-e8b83366e593 [3mgraph[0m[2m=[0m3
+[2m2026-09-06T12:13:08.531818Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m20 [3mbatch[0m[2m=[0m1 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mSome(false) [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=None domain=None", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=None domain=None"]
+[2m2026-09-06T12:13:08.532013Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-02-E group watchdog: 停止旗置位, 观测线程退出
