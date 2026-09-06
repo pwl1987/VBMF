@@ -63,13 +63,40 @@ struct MockGraph {
     pts: HashMap<Uuid, (u64, u64)>,
     program_pts: (u64, u64),
     program_frames: (u64, u64),
+    /// R58 步骤6: 程序出口单调性真状态机（替换硬编码 ValidMonotonic——
+    /// R57-terminal 点名缺口: 段内回退→NonMonotonic sticky; 干净已声明
+    /// 边界→DiscontinuityDeclared; 语义=真实健康弧 observe_plain/
+    /// note_declared_boundary 的 mock 镜像最小集）。
+    program_v_state: PtsMonotonicity,
+    program_a_state: PtsMonotonicity,
     /// C-TIMELINE-01: 已安装 timeline 声明（None=legacy 独立再生成流模式）。
     timeline: Option<MockTimelineState>,
-    /// R58 步骤5 staging: cutover fence 状态（Step 6 接入交错模型——
-    /// AnchorSampled/OldStraggler/FenceConfirmed/InstallNew/SwitchNew/
-    /// OldBufferDropped/FirstNewMapped; 无 Fence→M1 FAIL / 有 Fence→M1
-    /// PASS 双模式共存）。
+    /// R58 步骤5/6: cutover fence 状态 + 交错模型簿记（armed=消费门生效
+    /// ——tick 交付与竞态窗窜帧一律 cutover-discard; 丢弃计数 per-plane
+    /// 诚实累计, arm 清零; generation 递增; 七事件交错日志 arm 清空）。
     cutover_fence_armed: bool,
+    cutover_discarded: (u64, u64),
+    cutover_generation: u64,
+    interleave: Vec<CutoverInterleaveEvent>,
+    /// R58 步骤6: 竞态窗窜帧预置（staged 注入——下一次锚采样读毕即投递,
+    /// 模型=[锚采样→install] µs 窗内旧世代映射帧穿越消费门）。
+    pending_straggler: Option<(u64, u64)>,
+}
+
+/// R58 步骤6: cutover 交错事件词汇（终裁锁死七事件——控制/数据线程
+/// 交错的可断言证据面）。生产序=AnchorSampled→OldStraggler→
+/// [OldBufferDropped: 门处置]→InstallNew→SwitchNew→FenceConfirmed
+/// （排空确认+Release）→FirstNewMapped; 无 Fence 模式无 OldBufferDropped/
+/// FenceConfirmed（窜帧直写观测——基线被推进）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CutoverInterleaveEvent {
+    AnchorSampled { program_video: u64 },
+    OldStraggler { mapped_video: u64 },
+    OldBufferDropped,
+    FenceConfirmed { generation: u64, discarded: u64 },
+    InstallNew { segment: u64 },
+    SwitchNew { epoch: u64 },
+    FirstNewMapped { mapped_video: u64 },
 }
 
 impl MockGraph {
@@ -77,6 +104,40 @@ impl MockGraph {
     fn device_base(device: &Uuid, devices: &[Uuid; 2]) -> (u64, u64) {
         let idx = if devices[0] == *device { 0 } else { 1 };
         (1000 * (idx as u64 + 1), 800 * (idx as u64 + 1))
+    }
+
+    /// R58 步骤6: 程序出口 plain 写点状态推进（真实 observe_video_pts 镜像:
+    /// 首观测→ValidMonotonic; 回退→NonMonotonic sticky; 否则保持）。
+    fn observe_program_plain(&mut self, v: u64, a: u64) {
+        let (lv, la) = self.program_pts;
+        self.program_v_state = plain_step(self.program_v_state, v, lv);
+        self.program_a_state = plain_step(self.program_a_state, a, la);
+    }
+
+    /// R58 步骤6: 已声明边界写点状态推进（note_declared_boundary+observe_
+    /// declared 净语义镜像: 违例→NonMonotonic sticky; 干净→Discontinuity
+    /// Declared——上一段内 NonMonotonic 就此解除, R53 段作用域生命周期）。
+    fn observe_program_declared(&mut self, v: u64, a: u64) {
+        let (lv, la) = self.program_pts;
+        self.program_v_state = declared_step(self.program_v_state, v, lv);
+        self.program_a_state = declared_step(self.program_a_state, a, la);
+    }
+
+    /// R58 步骤6: 竞态窗窜帧投递（消费门同裁决——armed→丢弃+计数+日志;
+    /// open→plain 写点推进基线, 正是 M1 无 Fence 穿透路径）。
+    fn deliver_straggler(&mut self, mapped: (u64, u64)) {
+        self.interleave.push(CutoverInterleaveEvent::OldStraggler {
+            mapped_video: mapped.0,
+        });
+        if self.cutover_fence_armed {
+            self.cutover_discarded = (self.cutover_discarded.0 + 1, self.cutover_discarded.1 + 1);
+            self.interleave
+                .push(CutoverInterleaveEvent::OldBufferDropped);
+            return;
+        }
+        self.observe_program_plain(mapped.0, mapped.1);
+        self.program_pts = mapped;
+        self.program_frames = (self.program_frames.0 + 1, self.program_frames.1 + 1);
     }
 
     fn input_pts_row(&self, device: Uuid) -> InputPts {
@@ -111,6 +172,9 @@ impl MockSwitchExecutionAdapter {
     }
 
     /// 观测一个 tick（驱动 PTS/帧计数推进——观测即推进的仿真时钟）。
+    /// R58 步骤6: 程序出口交付受 cutover fence 消费门裁决——Armed 期
+    /// 到达缓冲一律 cutover-discard（计数+不写 pts/状态/帧数; Segment
+    /// 事件观测照常推进——EVENT 不被门拦截, 与真实探针类型分离同构）。
     fn tick_once(graph: &mut MockGraph) {
         graph.tick += 1;
         for device in graph.devices {
@@ -148,6 +212,11 @@ impl MockSwitchExecutionAdapter {
                 t.first_mapped = true;
                 first
             };
+            if graph.cutover_fence_armed {
+                graph.cutover_discarded =
+                    (graph.cutover_discarded.0 + 1, graph.cutover_discarded.1 + 1);
+                return;
+            }
             let active = graph.active.expect("alive ⇒ active");
             let (v, a) = graph.pts[&active];
             let (video_seg, audio_seg) = {
@@ -170,15 +239,32 @@ impl MockSwitchExecutionAdapter {
                 }
                 t.last = facts;
             }
+            if is_first_mapped_tick {
+                graph
+                    .interleave
+                    .push(CutoverInterleaveEvent::FirstNewMapped {
+                        mapped_video: mapped.0,
+                    });
+                graph.observe_program_declared(mapped.0, mapped.1);
+            } else {
+                graph.observe_program_plain(mapped.0, mapped.1);
+            }
             graph.program_pts = mapped;
             graph.program_frames = (graph.program_frames.0 + 1, graph.program_frames.1 + 1);
             return;
         }
-        // legacy: 独立再生成流——跨切换单调不回退。
-        graph.program_pts = (
+        // legacy: 独立再生成流——跨切换单调不回退（Armed 期同受消费门）。
+        if graph.cutover_fence_armed {
+            graph.cutover_discarded =
+                (graph.cutover_discarded.0 + 1, graph.cutover_discarded.1 + 1);
+            return;
+        }
+        let next = (
             graph.program_pts.0 + VIDEO_PTS_STEP,
             graph.program_pts.1 + AUDIO_PTS_STEP,
         );
+        graph.observe_program_plain(next.0, next.1);
+        graph.program_pts = next;
         graph.program_frames = (graph.program_frames.0 + 1, graph.program_frames.1 + 1);
     }
 
@@ -188,6 +274,68 @@ impl MockSwitchExecutionAdapter {
         if let Some(g) = self.graphs.lock().unwrap().get_mut(graph) {
             g.stalled.insert(device_id);
         }
+    }
+
+    /// R58 步骤6: 竞态窗窜帧直接投递（协议级显式链测试驱动——数据平面
+    /// 事件; 消费门同裁决: armed→丢弃, open→plain 推进基线=M1 穿透路径）。
+    pub fn deliver_window_straggler(
+        &self,
+        graph: &PipelineHandle,
+        mapped_video: u64,
+        mapped_audio: u64,
+    ) {
+        if let Some(g) = self.graphs.lock().unwrap().get_mut(graph) {
+            g.deliver_straggler((mapped_video, mapped_audio));
+        }
+    }
+
+    /// R58 步骤6: 竞态窗窜帧预置注入（Runtime 级——下一次锚采样读毕即
+    /// 投递, 模型=[锚采样→install] µs 窗内旧世代映射帧穿越消费门;
+    /// 编排同步调用内不可插针, 由 mock 自身在 ①c 落点后触发）。
+    pub fn stage_window_straggler(
+        &self,
+        graph: &PipelineHandle,
+        mapped_video: u64,
+        mapped_audio: u64,
+    ) {
+        if let Some(g) = self.graphs.lock().unwrap().get_mut(graph) {
+            g.pending_straggler = Some((mapped_video, mapped_audio));
+        }
+    }
+
+    /// R58 步骤6: 交错日志读取（证据面——七事件生产序快照）。
+    pub fn cutover_interleave_log(&self, graph: &PipelineHandle) -> Vec<CutoverInterleaveEvent> {
+        self.graphs
+            .lock()
+            .unwrap()
+            .get(graph)
+            .map(|g| g.interleave.clone())
+            .unwrap_or_default()
+    }
+}
+
+/// R58 步骤6: plain 写点单平面状态步进（Unknown→VM; 回退→NM sticky;
+/// 否则保持——真实健康弧 observe_*_pts 镜像）。
+fn plain_step(state: PtsMonotonicity, pts: u64, last: u64) -> PtsMonotonicity {
+    match state {
+        PtsMonotonicity::Unknown => PtsMonotonicity::ValidMonotonic,
+        s => {
+            if pts < last {
+                PtsMonotonicity::NonMonotonic
+            } else {
+                s
+            }
+        }
+    }
+}
+
+/// R58 步骤6: 已声明边界单平面状态步进（违例→NM sticky; 干净→DD——
+/// 上一段 NM 就此解除, R53 生命周期镜像）。
+fn declared_step(state: PtsMonotonicity, pts: u64, last: u64) -> PtsMonotonicity {
+    if state != PtsMonotonicity::Unknown && pts < last {
+        PtsMonotonicity::NonMonotonic
+    } else {
+        PtsMonotonicity::DiscontinuityDeclared
     }
 }
 
@@ -217,8 +365,14 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             pts,
             program_pts: MockGraph::device_base(&initial_active, &devices),
             program_frames: (0, 0),
+            program_v_state: PtsMonotonicity::Unknown,
+            program_a_state: PtsMonotonicity::Unknown,
             timeline: None,
             cutover_fence_armed: false,
+            cutover_discarded: (0, 0),
+            cutover_generation: 0,
+            interleave: Vec::new(),
+            pending_straggler: None,
         };
         self.graphs.lock().unwrap().insert(handle, graph);
         Ok(handle)
@@ -234,9 +388,9 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         Ok(())
     }
 
-    /// R58 步骤5（执行契约 staging）: V+A 双面 fence Armed——barrier 非权威
-    /// （INV-F3）; 本单元仅记录状态, Step 6 接入交错模型后驱动
-    /// FenceConfirmed/OldBufferDropped 语义。
+    /// R58 步骤5/6（执行契约）: V+A fence Armed（mock 单字段承载双面
+    /// ——结构上无单面窗口; barrier 非权威 INV-F3）。交错簿记: 世代递增/
+    /// 丢弃计数清零/日志清空（每世代独立证据面）。
     fn arm_cutover_fence(&self, graph: &PipelineHandle) -> Result<(), SwitchError> {
         let mut graphs = self.graphs.lock().unwrap();
         let g = graphs
@@ -247,14 +401,18 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             "fence 双重 arm——编排序破坏（前序未 Release）"
         );
         g.cutover_fence_armed = true;
+        g.cutover_discarded = (0, 0);
+        g.cutover_generation += 1;
+        g.interleave.clear();
         Ok(())
     }
 
-    /// R58 步骤5.1（执行契约 staging）: 确认式 Release。Mock 无真实
-    /// queue/流面——**排空确认按"立即可用"建模**（auto-confirm; 协议强制
+    /// R58 步骤5.1/6（执行契约）: 确认式 Release。Mock 无真实 queue/流面
+    /// ——**排空确认按"立即可用"建模**（auto-confirm; 协议强制
     /// [Both-confirmed 前置/世代序号匹配/超时 fail-closed] 由真适配器
-    /// switch_graph 确定性测试 T-F1/F2/F3 证明; Mock 交错协议表达=Step 6
-    /// 范围[终裁本轮暂停]）。丢弃计数恒 0（诚实: 状态记录面, 非仿真丢弃面）。
+    /// switch_graph 确定性测试 T-F1/F2/F3 证明——Mock 交错模型表达的是
+    /// 控制序/数据序/门处置, 非 queue 保序本身）。丢弃计数**如实**交回
+    /// （Step 6 起消费门真实计数——arm 清零, per-plane 累计）。
     fn release_cutover_fence(
         &self,
         graph: &PipelineHandle,
@@ -266,27 +424,34 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             .ok_or(SwitchError::GraphNotRunning(*graph))?;
         debug_assert!(g.cutover_fence_armed, "fence release 未 arm——编排序破坏");
         g.cutover_fence_armed = false;
-        Ok(CutoverDrainEvidence {
-            generation: 0,
+        let ev = CutoverDrainEvidence {
+            generation: g.cutover_generation,
             video: PlaneDrainEvidence {
                 segment_confirmed: true,
-                discarded: 0,
+                discarded: g.cutover_discarded.0,
             },
             audio: PlaneDrainEvidence {
                 segment_confirmed: true,
-                discarded: 0,
+                discarded: g.cutover_discarded.1,
             },
-        })
+        };
+        g.interleave.push(CutoverInterleaveEvent::FenceConfirmed {
+            generation: ev.generation,
+            discarded: g.cutover_discarded.0 + g.cutover_discarded.1,
+        });
+        Ok(ev)
     }
 
-    /// R58 步骤5.1（执行契约 staging）: 兜底强释（无确认前提; 幂等）。
+    /// R58 步骤5.1（执行契约）: 兜底强释（无确认前提; 幂等; **不产
+    /// FenceConfirmed 事件**——强释=失败处置非确认, 与真适配器类型面
+    /// 分离同构）。丢弃计数如实交回。
     fn force_release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
         let mut graphs = self.graphs.lock().unwrap();
         let g = graphs
             .get_mut(graph)
             .ok_or(SwitchError::GraphNotRunning(*graph))?;
         g.cutover_fence_armed = false;
-        Ok(0)
+        Ok(g.cutover_discarded.0 + g.cutover_discarded.1)
     }
 
     fn install_timeline_transition(
@@ -322,6 +487,9 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             first: [(0, 0); 2],
             last: [(0, 0); 2],
         });
+        g.interleave.push(CutoverInterleaveEvent::InstallNew {
+            segment: plan.video.segment_id.0,
+        });
         Ok(())
     }
 
@@ -333,9 +501,11 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         // C-TIMELINE-01 ①: 锚=纯观测（offset 归 Authority 声明——本方法不产
         // offset）。program 连续性锚=当前出口+步长; target 源连续性锚=target
         // 分支+步长。停滞/缺席=无证据 fail-closed。
-        let graphs = self.graphs.lock().unwrap();
+        // R58 步骤6: 锚采样落点记 AnchorSampled; staged 竞态窗窜帧在此
+        // 读毕即投递（[锚采样→install] µs 窗模型——控制/数据交错）。
+        let mut graphs = self.graphs.lock().unwrap();
         let g = graphs
-            .get(graph)
+            .get_mut(graph)
             .ok_or(SwitchError::GraphNotRunning(*graph))?;
         if !g.started {
             return Err(SwitchError::GraphNotRunning(*graph));
@@ -356,6 +526,11 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             .pts
             .get(&target)
             .ok_or_else(|| SwitchError::Backend("target 分支 PTS 缺席——锚证据不足".into()))?;
+        g.interleave
+            .push(CutoverInterleaveEvent::AnchorSampled { program_video: pv });
+        if let Some(straggler) = g.pending_straggler.take() {
+            g.deliver_straggler(straggler);
+        }
         Ok(SwitchAnchors {
             video: AnchorPair {
                 program_anchor: pv + VIDEO_PTS_STEP,
@@ -429,6 +604,8 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         // 在本模型中不可构造, 方案 A 语义由结构保证）。
         g.active = Some(plan.target);
         g.av_epoch = plan.epoch;
+        g.interleave
+            .push(CutoverInterleaveEvent::SwitchNew { epoch: plan.epoch });
         Ok(SwitchExecuted {
             boundary: FrameBoundary::FrameAligned,
             av_epoch: g.av_epoch,
@@ -465,13 +642,15 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             input_pts: g.devices.iter().map(|d| g.input_pts_row(*d)).collect(),
             program_video_pts: running.then_some(g.program_pts.0),
             program_audio_pts: running.then_some(g.program_pts.1),
+            // R58 步骤6: 程序出口单调性=真实状态机读数（替换硬编码
+            // ValidMonotonic——R57-terminal 点名缺口闭合）。
             program_video_pts_state: if running {
-                PtsMonotonicity::ValidMonotonic
+                g.program_v_state
             } else {
                 PtsMonotonicity::Unknown
             },
             program_audio_pts_state: if running {
-                PtsMonotonicity::ValidMonotonic
+                g.program_a_state
             } else {
                 PtsMonotonicity::Unknown
             },
@@ -522,7 +701,9 @@ mod tests {
     use super::*;
     use crate::adapters::mock::MockBackend;
     use crate::contracts::backend::MediaBackend;
-    use crate::program_timeline::{AnchorPair, MediaPlane, TimelineAuthority, TransitionOutcome};
+    use crate::program_timeline::{
+        AnchorPair, MediaPlane, SegmentId, SourceSegment, TimelineAuthority, TransitionOutcome,
+    };
     use crate::session::{SessionId, SessionInput};
 
     fn input(device_id: Uuid, handle: u64) -> SessionInput {
@@ -961,6 +1142,259 @@ mod tests {
             authority.phase(),
             &crate::program_timeline::TimelinePhase::Stable { source: b }
         );
+    }
+
+    /// R58 步骤6 M1 装置: 段 #1（旧段）已生效的映射流在流（B active,
+    /// epoch 1; 声明段经 SourceSegment 直构——Authority 不参与, 本组测试
+    /// 聚焦 adapter 交错面）。
+    fn m1_old_segment_rig() -> (
+        Uuid,
+        Uuid,
+        ExecutionGroup,
+        PipelineHandle,
+        MockSwitchExecutionAdapter,
+    ) {
+        let (a, b, mut group, graph, adapter) = running_group_and_graph();
+        let _ = adapter.observe(&graph).program;
+        let o2 = adapter.observe(&graph).program;
+        let b_row = o2
+            .input_pts
+            .iter()
+            .find(|p| p.device_id == b)
+            .expect("B 行");
+        let seg1_v = SourceSegment::declare(
+            b,
+            ProgramEpoch(0),
+            SegmentId(1),
+            AnchorPair {
+                program_anchor: o2.program_video_pts.expect("v") + VIDEO_PTS_STEP,
+                source_anchor: b_row.video_pts.expect("bv") + VIDEO_PTS_STEP,
+            },
+        )
+        .expect("段#1 video");
+        let seg1_a = SourceSegment::declare(
+            b,
+            ProgramEpoch(0),
+            SegmentId(1),
+            AnchorPair {
+                program_anchor: o2.program_audio_pts.expect("a") + AUDIO_PTS_STEP,
+                source_anchor: b_row.audio_pts.expect("ba") + AUDIO_PTS_STEP,
+            },
+        )
+        .expect("段#1 audio");
+        adapter
+            .install_timeline_transition(
+                &graph,
+                &ProgramTimelinePlan {
+                    target: b,
+                    switch_epoch: 1,
+                    video: seg1_v,
+                    audio: seg1_a,
+                },
+            )
+            .expect("安装#1");
+        do_switch(&mut group, &adapter, &graph, b);
+        let _seg_tick = adapter.observe(&graph);
+        let mapped1 = adapter.observe(&graph).program;
+        assert_eq!(
+            mapped1.program_video_pts_state,
+            PtsMonotonicity::DiscontinuityDeclared,
+            "#1 首枚映射=干净声明边界（装置前提）"
+        );
+        assert!(group.complete_switch(b), "#1 Observed=B 落定 Desired");
+        (a, b, group, graph, adapter)
+    }
+
+    #[test]
+    fn switch_rt_03_m1_no_fence_straggler_reproduces_nonmonotonic() {
+        // R58 步骤6 T-M1-FAIL（协议级·无 Fence = pre-R58 编排序, 不 arm
+        // 不 release）: [锚采样→install] 竞态窗窜帧 plain 写弧推进程序基线
+        // → 新段首枚映射边界帧落回退位 → NonMonotonic sticky——M1 在
+        // mock 的确定性复现（真实侧=switch_graph m1 红测在案）。
+        // 窜帧关系同构: mock tick 模型边界帧带 2-tick 前导（segment tick+
+        // first-mapped tick）→ 边界=P+2 步长; 真实 M1 窜帧恒领先边界一帧
+        // （P+40ms vs P 零间隙）——窜帧=边界+1 帧。
+        let (a, _b, mut group, graph, adapter) = m1_old_segment_rig();
+        // ①a 基准观测（无 arm——基线随本 tick 续流推进后读取）。
+        let pre = adapter.observe(&graph).program;
+        let p_v = pre.program_video_pts.expect("P_v");
+        let p_a = pre.program_audio_pts.expect("P_a");
+        let boundary_v = p_v + 2 * VIDEO_PTS_STEP;
+        let boundary_a = p_a + 2 * AUDIO_PTS_STEP;
+        // ①c 锚采样（AnchorSampled 落点——控制线程）。
+        let anchors = adapter.sample_switch_anchors(&graph, a).expect("锚");
+        // 竞态窗窜帧（数据线程事件直投——open 门 plain 写弧=基线被推进）。
+        adapter.deliver_window_straggler(
+            &graph,
+            boundary_v + VIDEO_PTS_STEP,
+            boundary_a + AUDIO_PTS_STEP,
+        );
+        // ②③ 声明段 #2 + install（InstallNew）。
+        let seg2_v =
+            SourceSegment::declare(a, ProgramEpoch(0), SegmentId(2), anchors.video).expect("段#2v");
+        let seg2_a =
+            SourceSegment::declare(a, ProgramEpoch(0), SegmentId(2), anchors.audio).expect("段#2a");
+        adapter
+            .install_timeline_transition(
+                &graph,
+                &ProgramTimelinePlan {
+                    target: a,
+                    switch_epoch: 2,
+                    video: seg2_v,
+                    audio: seg2_a,
+                },
+            )
+            .expect("安装#2");
+        // ④ 翻转（SwitchNew）。
+        do_switch(&mut group, &adapter, &graph, a);
+        // ⑤ Segment tick → ⑥ 首枚映射（边界帧）。
+        let _ = adapter.observe(&graph);
+        let mapped2 = adapter.observe(&graph).program;
+        assert_eq!(
+            mapped2.program_video_pts,
+            Some(boundary_v),
+            "边界帧=P+2 步长（mock 模型前导）"
+        );
+        assert_eq!(
+            mapped2.program_video_pts_state,
+            PtsMonotonicity::NonMonotonic,
+            "无 Fence→M1 FAIL: 窜帧推进的基线(边界+1帧) 越过边界帧 → 违例边界 NM"
+        );
+        assert_eq!(
+            mapped2.program_audio_pts_state,
+            PtsMonotonicity::NonMonotonic,
+            "audio 面同判（V+A 成对语义）"
+        );
+        // sticky: 段内后续单调帧不恢复（R53 生命周期镜像）。
+        let next = adapter.observe(&graph).program;
+        assert_eq!(
+            next.program_video_pts_state,
+            PtsMonotonicity::NonMonotonic,
+            "NM sticky——普通单调帧不自动恢复"
+        );
+        // 交错日志: #2 窗口生产序五事件; 无 Fence 全程无 OldBufferDropped/
+        // FenceConfirmed（窜帧直写观测——穿透路径在案）。
+        let log = adapter.cutover_interleave_log(&graph);
+        assert!(!log.contains(&CutoverInterleaveEvent::OldBufferDropped));
+        assert!(
+            !log.iter()
+                .any(|e| matches!(e, CutoverInterleaveEvent::FenceConfirmed { .. })),
+            "无 Fence→无确认事件"
+        );
+        let tail_start = log
+            .iter()
+            .rposition(|e| matches!(e, CutoverInterleaveEvent::AnchorSampled { .. }))
+            .expect("#2 AnchorSampled 在");
+        let tail = &log[tail_start..];
+        assert_eq!(
+            tail.len(),
+            5,
+            "AnchorSampled→OldStraggler→InstallNew→SwitchNew→FirstNewMapped"
+        );
+        assert!(matches!(
+            tail[0],
+            CutoverInterleaveEvent::AnchorSampled { .. }
+        ));
+        assert!(matches!(
+            tail[1],
+            CutoverInterleaveEvent::OldStraggler { .. }
+        ));
+        assert!(matches!(tail[2], CutoverInterleaveEvent::InstallNew { .. }));
+        assert!(matches!(tail[3], CutoverInterleaveEvent::SwitchNew { .. }));
+        assert!(matches!(
+            tail[4],
+            CutoverInterleaveEvent::FirstNewMapped { .. }
+        ));
+    }
+
+    #[test]
+    fn switch_rt_03_m1_fence_closes_race_boundary_declared() {
+        // R58 步骤6 T-M1-PASS（协议级·有 Fence = R58 编排序）: ⓪arm→①a
+        // （Armed 期 tick 交付被消费门处置——基线冻结）→①c 锚采样→竞态窗
+        // 窜帧（armed 门→丢弃+计数, 不写弧）→install→switch→确认式 Release
+        // （mock auto-confirm——协议强制由真适配器 T-F1/F2/F3 证明）→
+        // Segment tick→首枚映射 ≥ 冻结基线 → 干净声明边界 Discontinuity
+        // Declared; 七事件生产序完整在案（arm 清空日志——恰为该序）。
+        let (a, _b, mut group, graph, adapter) = m1_old_segment_rig();
+        // ⓪ arm（生产序——①a 之前; 世代 1/计数清零/日志清空）。
+        adapter.arm_cutover_fence(&graph).expect("arm");
+        // ①a 基准观测（Armed——本 tick 交付被门处置, 基线冻结于 #1 末值）。
+        let pre = adapter.observe(&graph).program;
+        let p_v = pre.program_video_pts.expect("P_v");
+        let p_a = pre.program_audio_pts.expect("P_a");
+        let boundary_v = p_v + 2 * VIDEO_PTS_STEP;
+        let boundary_a = p_a + 2 * AUDIO_PTS_STEP;
+        // ①c 锚采样（AnchorSampled）。
+        let anchors = adapter.sample_switch_anchors(&graph, a).expect("锚");
+        // 竞态窗窜帧（armed 门→OldStraggler+OldBufferDropped——不写弧）。
+        adapter.deliver_window_straggler(
+            &graph,
+            boundary_v + VIDEO_PTS_STEP,
+            boundary_a + AUDIO_PTS_STEP,
+        );
+        // ②③④ 声明/install/翻转。
+        let seg2_v =
+            SourceSegment::declare(a, ProgramEpoch(0), SegmentId(2), anchors.video).expect("段#2v");
+        let seg2_a =
+            SourceSegment::declare(a, ProgramEpoch(0), SegmentId(2), anchors.audio).expect("段#2a");
+        adapter
+            .install_timeline_transition(
+                &graph,
+                &ProgramTimelinePlan {
+                    target: a,
+                    switch_epoch: 2,
+                    video: seg2_v,
+                    audio: seg2_a,
+                },
+            )
+            .expect("安装#2");
+        do_switch(&mut group, &adapter, &graph, a);
+        // 确认式 Release（executed 之后——mock auto-confirm; 计数=①a tick
+        // v+a + 窜帧 v+a = 4 如实）。
+        let ev = adapter
+            .release_cutover_fence(&graph, std::time::Duration::from_secs(1))
+            .expect("确认式 Release");
+        assert_eq!(ev.generation, 1);
+        assert_eq!(ev.video.discarded, 2, "video 面=①a tick+窜帧");
+        assert_eq!(ev.audio.discarded, 2, "audio 面对称");
+        // ⑤ Segment tick → ⑥ 首枚映射（门已开——干净声明边界）。
+        let _ = adapter.observe(&graph);
+        let mapped2 = adapter.observe(&graph).program;
+        assert_eq!(mapped2.program_video_pts, Some(boundary_v));
+        assert_eq!(
+            mapped2.program_video_pts_state,
+            PtsMonotonicity::DiscontinuityDeclared,
+            "有 Fence→M1 PASS: 窜帧被处置基线未推进 → 干净声明边界（对照无 Fence=NM）"
+        );
+        assert_eq!(
+            mapped2.program_audio_pts_state,
+            PtsMonotonicity::DiscontinuityDeclared
+        );
+        // 七事件生产序（完整日志恰为该序——arm 清空前无残余）。
+        let log = adapter.cutover_interleave_log(&graph);
+        assert_eq!(log.len(), 7, "七事件生产序");
+        assert!(matches!(
+            log[0],
+            CutoverInterleaveEvent::AnchorSampled { .. }
+        ));
+        assert!(matches!(
+            log[1],
+            CutoverInterleaveEvent::OldStraggler { .. }
+        ));
+        assert!(matches!(log[2], CutoverInterleaveEvent::OldBufferDropped));
+        assert!(matches!(log[3], CutoverInterleaveEvent::InstallNew { .. }));
+        assert!(matches!(log[4], CutoverInterleaveEvent::SwitchNew { .. }));
+        assert!(matches!(
+            log[5],
+            CutoverInterleaveEvent::FenceConfirmed {
+                generation: 1,
+                discarded: 4
+            }
+        ));
+        assert!(matches!(
+            log[6],
+            CutoverInterleaveEvent::FirstNewMapped { .. }
+        ));
     }
 
     #[test]

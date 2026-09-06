@@ -1160,6 +1160,33 @@
   端到端反证）→ **Step 5.1 正式 CLOSED**; 后续序=Step 6 Mock 交错模型
   →Step 7 真机 #8→Step 10 全回归→Step 11 新鲜 Gate; A2-8-04 仍
   FAIL/HOLD·三 blocking 维持 Failed; A2-8-05 不进入]**
+- [ ] 6.x **[Step 5.1 终审级措辞修正（docs-only）: C 项排空顺序保证
+  归因修正=serialized SEGMENT 数据流顺序+AppSink new_sample 回调在
+  streaming thread 执行（sync=false/async=false 非主要来源——前者为
+  时钟同步等待关闭后者为 BaseSink 状态转换语义）; 结论不变 Step 5.1
+  维持 CLOSED 不回滚; 端到端正确性由 Step 7 真机 #8 验证; 正式进入
+  Step 6（七事件交错词汇 AnchorSampled/OldStraggler/FenceConfirmed/
+  InstallNew/SwitchNew/OldBufferDropped/FirstNewMapped·双模式证明
+  无 Fence→M1 FAIL/有 Fence→M1 PASS·Mock 须模拟控制/数据线程交错
+  非孤立测试 FencePair）]**
+- [ ] 6.x **[第五十八轮步骤 6（R58 unit 5, 代码轮）: Mock 交错模型
+  落地——程序面真实单调状态机（plain/declared 双写点·R57-terminal
+  硬编码 VM 缺口闭合）+消费门施加于 tick 交付（EVENT 不拦·设备 PTS
+  照推）+竞态窗窜帧注入（deliver 协议级/stage Runtime 级 ①c 读毕
+  投递=[锚采样→install] µs 窗模型）+七事件交错日志（arm 清空·生产
+  序·终裁列举序按词汇理解映射登记）+诚实 per-plane 丢弃计数与
+  generation; 三测全绿=无 Fence→M1 FAIL（窜帧 plain 写弧推进基线→
+  首枚映射违例边界 NM sticky·日志五事件无确认）/有 Fence→M1 PASS
+  （窜帧被门处置基线冻结→干净 DD·计数 4 如实·日志恰七事件）/
+  Runtime 级（全链×2 切换 staged 窜帧→Preserved+程序面 DD+七事件
+  ——生产编排序端到端证明）; 盒 mock 396/396（393 既有零破坏）·
+  最终矩阵 fmt/227/227/396/gst 266 不变/clippy×3 全绿（E0252·rig
+  complete_switch 两错如实登记修复）; 披露: mock 锚=+步长外推
+  （真实=last PTS·超出本轮范围登记不改）·M1 以窜帧恒领先边界一帧
+  同构表达·queue 保序不在 mock 范围（T-F1/F2/F3 在案）; Domain/
+  谓词/Gate/真适配器/契约端口零字节·三 blocking 维持 Failed; 下一步
+  =Step 7 真机 #8 复现（NM 消失+#9 生命周期仍立）→10→11; A2-8-04
+  仍 FAIL/HOLD; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

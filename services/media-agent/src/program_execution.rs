@@ -1305,6 +1305,72 @@ mod tests {
     }
 
     #[test]
+    fn timeline_rt_03_m1_staged_straggler_fenced_runtime_preserves() {
+        // R58 步骤6 Runtime 级 M1 证明: staged 竞态窗窜帧于 ①c 锚采样读毕
+        // 即投递（[锚采样→install] µs 窗模型——编排同步调用内不可插针, 由
+        // mock 自身落点触发）; R58 编排（⓪arm→…→④switch→④executed→确认
+        // Release）处置窜帧——全链 Preserve + 程序面 DiscontinuityDeclared
+        // （非 NonMonotonic）+ 七事件生产序完整在案。
+        let (a, b, _sid, runtime, adapter) = runtime_with_mock();
+        let graph = runtime.graph_handle().expect("graph");
+        // 段 #1 生效（Runtime 全链——Authority 闭合 Preserved）。
+        let r1 = runtime
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect("#1 全链");
+        assert!(matches!(r1.outcome, TransitionOutcome::Preserved { .. }));
+        assert_eq!(
+            runtime
+                .observe_execution()
+                .expect("obs")
+                .program
+                .program_video_pts_state,
+            crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
+            "#1 首枚映射=干净声明边界（装置前提）"
+        );
+        // 竞态窗窜帧预置（值取现实领先量——armed 门必处置, 数值不进观测）。
+        let cur = runtime.observe_execution().expect("obs").program;
+        let (pv, pa) = (
+            cur.program_video_pts.expect("pv"),
+            cur.program_audio_pts.expect("pa"),
+        );
+        adapter.stage_window_straggler(&graph, pv + 3 * 40, pa + 3 * 20);
+        // 段 #2 全链: ⓪arm（①a 前）→①a（Armed tick 交付被门处置）→①c
+        // （AnchorSampled+窜帧投递→OldBufferDropped）→②③④→executed→
+        // 确认式 Release（FenceConfirmed）→⑤ 循环 Segment/首枚映射。
+        let r2 = runtime
+            .switch_program(&SwitchIntent {
+                target: a,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect("#2 全链");
+        assert!(
+            matches!(r2.outcome, TransitionOutcome::Preserved { .. }),
+            "窜帧被 fence 处置——连续性成立 Preserve, 得 {:?}",
+            r2.outcome
+        );
+        let obs = runtime.observe_execution().expect("obs").program;
+        assert_eq!(
+            obs.program_video_pts_state,
+            crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
+            "Runtime 级 M1 PASS: 竞态窗窜帧被 fence 处置——干净声明边界（非 NM）"
+        );
+        // 七事件生产序（arm 清空; ⑤ 循环内首枚映射收尾——完整日志恰为该序）。
+        let log = adapter.cutover_interleave_log(&graph);
+        assert_eq!(log.len(), 7, "七事件生产序: {:?}", log);
+        use crate::adapters::switch_mock::CutoverInterleaveEvent as E;
+        assert!(matches!(log[0], E::AnchorSampled { .. }));
+        assert!(matches!(log[1], E::OldStraggler { .. }));
+        assert!(matches!(log[2], E::OldBufferDropped));
+        assert!(matches!(log[3], E::InstallNew { .. }));
+        assert!(matches!(log[4], E::SwitchNew { .. }));
+        assert!(matches!(log[5], E::FenceConfirmed { .. }));
+        assert!(matches!(log[6], E::FirstNewMapped { .. }));
+    }
+
+    #[test]
     fn timeline_rt_02_runtime_switch_aborts_timeline_on_backend_failure() {
         // ④ 失败路径: adapter.switch 失败 → timeline abort（回 Stable 旧源,
         // 零时间线变化）+ 错误传播; 组停留 Switching（与既有显式链一致——

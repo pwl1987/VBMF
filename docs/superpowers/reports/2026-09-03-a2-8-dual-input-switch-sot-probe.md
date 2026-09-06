@@ -4399,3 +4399,36 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   Domain 零触碰）。后续序=Step 6 Mock 交错→Step 7 真机 #8→Step 10
   全回归→Step 11 新鲜 Gate; A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。
   本轮零代码纯 docs 登记。
+- **C 项措辞终审级修正（验收层核对 GStreamer 官方语义）**: 排空
+  顺序保证的正确归因=serialized SEGMENT 数据流顺序 + AppSink
+  new_sample 回调在 streaming thread 执行; sync=false/async=false
+  非该顺序主要来源（前者=时钟同步等待关闭, 后者=BaseSink 状态转换
+  语义）。结论不变——Step 5.1 维持 CLOSED, 不回滚; 端到端正确性仍由
+  Step 7 真机 #8 验证; 进入 Step 6。
+
+## §81 R58 步骤 6: Mock 交错模型落地（代码轮）— 无 Fence→M1 FAIL / 有 Fence→M1 PASS 双模式在案
+
+- 终裁输入: Step 5.1 CLOSED + C 项措辞修正登记（§15.6/§80 注——
+  serialized SEGMENT 数据流顺序+AppSink streaming-thread 回调为排空
+  顺序保证的正确归因）。
+- Mock 交错模型: 程序面真实单调状态机（plain/declared 双写点——
+  R57-terminal 硬编码 VM 缺口闭合）+ 消费门施加于 tick 交付（EVENT
+  不拦·设备 PTS 照推）+ 竞态窗窜帧注入（deliver=协议级/stage=Runtime
+  级 ①c 读毕投递——[锚采样→install] µs 窗模型）+ 七事件交错日志
+  （arm 清空·生产序·序映射登记: 终裁列举序按词汇理解, 生产序由
+  Step 5.1 终审锁死）+ 诚实 per-plane 丢弃计数与 generation（force
+  不产确认事件——类型面分离同构）。
+- 三测全绿: T-M1-FAIL（协议级: 窜帧 plain 写弧推进基线→首枚映射
+  违例边界 NM sticky·V+A 双面·日志五事件无确认）+ T-M1-PASS（协议
+  级: R58 编排序下窜帧被门处置基线冻结→干净声明边界 DD·计数 4 如
+  实·日志恰七事件）+ T-RUNTIME（Runtime 级全链×2 切换 staged 窜帧
+  →Preserved+程序面 DD+七事件——生产编排序端到端证明）。
+- 盒: E0252 重复导入→删·rig 缺 complete_switch→补·**mock
+  396/396（393 既有零破坏）**·最终矩阵全绿 fmt/default 227/sim
+  227/mock 396/gst 266 不变/clippy×3（fmt 差 apply+拉回复验绿）。
+- 披露: mock 锚=+步长外推（真实=last PTS——第四十轮 α 未及 mock,
+  超出本轮范围登记不改）; M1 以"窜帧恒领先边界一帧"同构表达（mock
+  边界 2-tick 前导）; queue 保序不在 mock 证明范围（T-F1/F2/F3 在案）。
+- 红线: Domain/谓词/Gate/真适配器/契约端口零字节; 三 blocking 维持
+  Failed; 下一步=**Step 7 真机 #8 复现（NM 消失+#9 生命周期仍立）**
+  →Step 10→Step 11; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。

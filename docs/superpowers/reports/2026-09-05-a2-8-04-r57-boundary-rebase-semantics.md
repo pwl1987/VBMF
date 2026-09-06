@@ -833,3 +833,118 @@ ffdb9ce 实际调用链逐行核验——**A ✅ / B ✅ / C ✅（一项 GStrea
   Step 10 全回归 → Step 11 新鲜 Gate**; A2-8-04 仍 🔴 FAIL/HOLD
   （三 blocking 维持 Failed, 仅 Gate PASS 可改）; A2-8-05 不进入。
 - 本轮零代码零测试——纯 docs 登记轮。
+
+### 15.6 C 项措辞终审级修正（验收层独立复核 GStreamer 官方语义后下达）
+
+- 终审复核确认: SEGMENT 属**与 buffer flow 序列化的 downstream
+  event**（serialized 事件与 buffer 保持数据流顺序）; AppSink 官方
+  文档明确 **new_sample 回调从 streaming thread 发出**——本工程直接
+  安装 AppSinkCallbacks::new_sample, 回调内立即执行消费门。
+- 正确的生产路径表述: 旧 buffer → appsink sink pad → AppSink
+  render/new-sample **streaming-thread callback** → 消费门 → 下一
+  序列化 Segment → appsink sink pad confirm。在此路径上"Segment 已
+  确认但其前面的旧 buffer 尚未经过消费门"不能作为正常串行执行路径
+  成立。
+- **措辞修正**: §15.4 将该顺序主要归因于"sync=false/async=false
+  导致 inline 渲染"不准确——sync=false 是关闭时钟同步等待,
+  async=false 是 BaseSink 状态转换语义; 真正决定序列关系的是
+  serialized SEGMENT 数据流顺序 + AppSink 回调在 streaming thread
+  执行。后续审计措辞统一为:
+  > "C 已 CONFIRMED; 其排空证明依赖 GStreamer 的 serialized
+  > SEGMENT 数据流顺序, 以及 AppSink new-sample callback 在
+  > streaming thread 执行; sync=false/async=false 不应被表述为该
+  > 顺序保证的主要来源。最终端到端正确性仍由 Step 7 真机 #8 验证。"
+- 定案: Step 5.1 维持 CLOSED（结论不变, 措辞修正）; 不回滚代码;
+  A2-8-04 维持 FAIL/HOLD; 进入 Step 6。
+
+## §16 R58 步骤 6 执行: Mock 交错模型（代码轮）
+
+### 16.1 终裁输入与 C 项修正登记
+
+- 验收层终审: Step 5.1 = **CLOSED**（A/B 源码级成立; C 结论成立但
+  措辞修正——排空顺序保证的正确归因=**serialized SEGMENT 数据流顺序
+  + AppSink new-sample 回调在 streaming thread 执行**, sync=false/
+  async=false 非该顺序主要来源[前者=时钟同步等待关闭, 后者=BaseSink
+  状态转换语义]; 不回滚; 端到端正确性由 Step 7 真机 #8 验证）——
+  §15.6 已按终审原文登记。
+- Step 6 关键要求（终裁锁死）: 七事件交错词汇 AnchorSampled/
+  OldStraggler/FenceConfirmed/InstallNew/SwitchNew/OldBufferDropped/
+  FirstNewMapped; 双模式证明 无 Fence→M1 FAIL/NonMonotonic ∧
+  有 Fence→M1 PASS/DiscontinuityDeclared; **Mock 必须模拟控制/数据
+  线程交错, 非孤立测试 FencePair**。
+
+### 16.2 实现（mock adapter 单文件 + runtime 测试; Domain/契约/真适配器零触碰）
+
+- **程序面真实单调状态机**（R57-terminal 点名缺口闭合）: mock observe
+  的 program pts_state 从硬编码 ValidMonotonic 改为真状态机——plain
+  写点（legacy/段内续流/窜帧）: Unknown→VM·回退→NM sticky·否则保持;
+  已声明边界写点（段首枚映射）: 违例→NM sticky·干净→DD（上一段 NM
+  就此解除——R53 段作用域生命周期镜像; note_declared_boundary 净语义）。
+- **消费门施加于 tick 交付**: Armed 期 tick 的程序出口交付一律
+  cutover-discard（per-plane 计数, 不写 pts/状态/帧数）; 设备 PTS 照常
+  推进（输入面不受门影响）; Segment 事件观测照常推进（EVENT 不被门
+  拦截——与真实探针类型分离同构）。
+- **竞态窗窜帧注入 API**（控制/数据交错表达）: `deliver_window_
+  straggler`（协议级显式链直投）+ `stage_window_straggler`（Runtime
+  级——下一次锚采样读毕即投递, 模型=[锚采样→install] µs 窗; 编排
+  同步调用内不可插针, 由 mock 自身在 ①c 落点后触发）。
+- **七事件交错日志**: CutoverInterleaveEvent 枚举（AnchorSampled/
+  OldStraggler/OldBufferDropped/FenceConfirmed/InstallNew/SwitchNew/
+  FirstNewMapped）; arm 清空（每世代独立证据面）; 生产序=Anchor
+  Sampled→OldStraggler→[OldBufferDropped:门处置]→InstallNew→
+  SwitchNew→FenceConfirmed→FirstNewMapped。**序映射登记**: 终裁
+  列举序（FenceConfirmed 第 3/OldBufferDropped 第 6）按事件词汇
+  理解; 生产序由 Step 5.1 终审锁死（drain 确认在 switch 之后, 门
+  处置在窜帧到达时）——mock 按生产序记录, 七词汇全覆盖。
+- **诚实计数**: mock release 交回真实 per-plane 丢弃计数+generation
+  （此前恒 0——"状态记录面"披露升级为真实仿真丢弃面）; force_release
+  不产 FenceConfirmed（强释=失败处置非确认——类型面分离同构）。
+- **披露**: mock 锚=出口+步长外推（真实适配器=last PTS 无外推,
+  第四十轮 α 修正未及 mock）——本轮不改（超出 Step 6 范围, 改动
+  波及既有 mock 断言面）; M1 关系以"窜帧恒领先边界帧一帧"同构表达
+  （mock tick 模型边界带 2-tick 前导: 边界=P+2 步长, 窜帧=P+3 步长;
+  真实 M1: 边界 P 零间隙/窜帧 P+40ms）。queue 保序本身不在 mock
+  证明范围（真适配器 T-F1/F2/F3 在案）。
+
+### 16.3 测试（三测全绿）
+
+- **T-M1-FAIL（协议级）** `switch_rt_03_m1_no_fence_straggler_
+  reproduces_nonmonotonic`: 段#1 生效→①a 基线 P（无 arm——pre-R58
+  编排）→①c 锚采样→窜帧直投（open 门 plain 写弧=基线推进至边界+1
+  帧）→声明#2/install/switch→Segment tick→首枚映射=边界 P+2 步长
+  <被推进基线→**NonMonotonic**（V+A 双面）→段内续流单调帧 NM
+  sticky; 日志尾=五事件序（AnchorSampled→OldStraggler→InstallNew→
+  SwitchNew→FirstNewMapped）, 全程无 OldBufferDropped/FenceConfirmed。
+- **T-M1-PASS（协议级）** `switch_rt_03_m1_fence_closes_race_boundary_
+  declared`: 同场景加 R58 编排序（⓪arm→①a[Armed tick 交付被门处置
+  基线冻结]→①c→窜帧[armed 门→OldStraggler+OldBufferDropped 不写弧]
+  →install→switch→确认式 Release[auto-confirm·FenceConfirmed{gen:1,
+  discarded:4}=①a tick v+a+窜帧 v+a 如实]→Segment tick→首枚映射
+  ≥冻结基线→**DiscontinuityDeclared**; 日志=恰七事件生产序。
+- **T-RUNTIME（Runtime 级）** `timeline_rt_03_m1_staged_straggler_
+  fenced_runtime_preserves`: ProgramExecutionRuntime 全链×2 切换;
+  #2 前 stage 窜帧（①c 读毕投递）→runtime.switch_program 全链
+  （⓪arm→…→executed→确认 Release→⑤ 循环）→**Preserved + 程序面
+  DD（非 NM）+ 日志恰七事件**——生产编排序在 mock 交错的端到端证明。
+- 装置 `m1_old_segment_rig`: 声明段经 SourceSegment 直构（Authority
+  不参与——聚焦 adapter 交错面; 组态 complete_switch 落定后二切）。
+
+### 16.4 盒证据（逐轮如实）
+
+- run1: E0252 重复导入（PtsMonotonicity 经 pipeline 聚合导入已在,
+  追加导入重复）→删; run2: 两新测 NotActiveSource（rig 缺
+  complete_switch 落定组态）→补; run3: **mock 396/396 全绿**
+  （393 既有零破坏+3 新增——pts_state 语义升级[切换后 DD 边界]
+  未破坏任何现有断言）; run4 最终矩阵: fmt 差（两修复编辑晚于盒上
+  fmt）→apply+拉回+mock 复验绿。
+- **最终矩阵全绿: fmt ✓·default 227/227·sim 227/227·mock
+  396/396·gst 266/266（不变——真适配器零触碰）·clippy×3
+  --all-targets -D warnings**（default/mock/bmd,gstreamer）。
+
+### 16.5 边界与红线
+
+- Domain（program timeline/Authority）/谓词/Gate/阈值/真适配器
+  switch graph/契约端口零字节; 三 blocking 维持 Failed; 首败留证。
+- 步骤 6 完成; **下一步=Step 7 真机 #8 场景复现**（NM 消失+ #9
+  生命周期仍立）→Step 10 全回归→Step 11 新鲜 Gate。A2-8-04 仍 🔴
+  FAIL/HOLD; A2-8-05 不进入。
