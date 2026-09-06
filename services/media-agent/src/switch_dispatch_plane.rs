@@ -144,10 +144,12 @@ impl SwitchReadbackPlane for RuntimeSwitchPlane {
 /// `SwitchError` → `ErrorClassification`（映射收在本模块——error_model 非本轮
 /// 允许修改面）。状态机/目标类错误 = PermanentFailure（重试同请求无意义）;
 /// `Backend(String)` 为 adapter 透传字符串, 归因不可知 → Unknown（沿
-/// 0.7C-5 "不臆造" 语义, 与 panic 兜底同桶）。
+/// 0.7C-5 "不臆造" 语义, 与 panic 兜底同桶）。R63-A: `RecoveryRequired`
+/// 显式单列（词表快照=架构评审动作——重试同请求无意义, 归 Permanent）。
 pub fn classify_switch_error(e: &SwitchError) -> ErrorClassification {
     match e {
         SwitchError::Backend(_) => ErrorClassification::Unknown,
+        SwitchError::RecoveryRequired(_) => ErrorClassification::PermanentFailure,
         _ => ErrorClassification::PermanentFailure,
     }
 }
@@ -225,7 +227,8 @@ pub(crate) mod test_support {
 mod tests {
     use super::*;
 
-    /// 分类快照: 状态机类 → PermanentFailure; Backend → Unknown（不臆造）。
+    /// 分类快照: 状态机类 → PermanentFailure; Backend → Unknown（不臆造）;
+    /// R63-A: RecoveryRequired → PermanentFailure（降级终态显式入快照）。
     #[test]
     fn switch_plane_rt_01_error_classification_snapshot() {
         let dev = uuid::Uuid::new_v4();
@@ -240,6 +243,15 @@ mod tests {
         assert_eq!(
             classify_switch_error(&SwitchError::Backend("x".into())),
             ErrorClassification::Unknown
+        );
+        assert_eq!(
+            classify_switch_error(&SwitchError::RecoveryRequired(
+                crate::switch_execution::SwitchDesired::RecoveryRequired {
+                    from: dev,
+                    to: uuid::Uuid::new_v4()
+                }
+            )),
+            ErrorClassification::PermanentFailure
         );
     }
 

@@ -913,6 +913,25 @@ mod group_fold_tests {
     }
 
     #[test]
+    fn group_fold_rt_01_recovery_required_reports_inconsistent_no_settle() {
+        // R63-A 钉子: 降级终态 RecoveryRequired 落入 consistent=false 通配臂
+        // ——如实上报不一致, 且落定路径（complete_switch）仅匹配 Switching
+        // 臂, 对降级态结构性不动作（恢复归会话级故障面, watchdog 不越权）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let folded = execution_group_observe_fold(&GroupTickInputs {
+            inputs: vec![healthy(a, 110, 88), healthy(b, 100, 80)],
+            observation: observation(Some(b), Some(b), Some(b), a, b),
+            desired: SwitchDesired::RecoveryRequired { from: a, to: b },
+        });
+        assert!(
+            !folded.switch_state.consistent,
+            "降级终态不宣称一致（observed 值无关——desired 无可确认目标）"
+        );
+        assert!(folded.actions.is_empty(), "输入健康则零故障动作（不越权）");
+    }
+
+    #[test]
     fn group_fold_rt_01_av_divergence_detected() {
         // T5 观测侧: video=B / audio=A 分离态——av_paired=false 检出
         // （Master Join 前置证据; Mock adapter 结构性构造不出, 折叠面可检）。

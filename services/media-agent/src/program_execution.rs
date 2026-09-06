@@ -455,6 +455,11 @@ impl ProgramExecutionRuntime {
             switching @ crate::switch_execution::SwitchDesired::Switching { .. } => {
                 return Err(SwitchError::NotActiveSource(switching))
             }
+            // R63-A 强制调用点: 降级终态组不可物化 graph（诚实拒收——
+            // 出口=会话级 teardown 后重建）。
+            recovery @ crate::switch_execution::SwitchDesired::RecoveryRequired { .. } => {
+                return Err(SwitchError::RecoveryRequired(recovery))
+            }
         };
         let timeline = TimelineAuthority::new(initial_active);
         let group = Arc::new(Mutex::new(group));
@@ -585,7 +590,9 @@ impl ProgramExecutionRuntime {
     ///   FailClosed——"evidence 不足"不猜测成功）;
     /// - ⑨ settle 稳定窗（映射后连续观测; 停滞超时不 FailClosed——停滞=
     ///   Observation 事实归 watchdog/Gate 故障面, 时间线证据已闭合）;
-    /// - ⑩ confirm_settled + Desired 推进（Observed 驱动——非命令回显）。
+    /// - ⑩ confirm_settled + Desired 推进（Observed 驱动——非命令回显）;
+    /// - R63-A: 任何失败由外层包装统一按**再观测**恢复落定（Observed 优先
+    ///   ——契约 2026-09-06 R63-A0; 命令 outcome 保持 Failed, 不伪装成功）。
     pub fn switch_program(
         &self,
         intent: &SwitchIntent,
@@ -596,6 +603,23 @@ impl ProgramExecutionRuntime {
                 "runtime 未激活（已 teardown）——切换拒收".into(),
             ));
         };
+        let result = Self::switch_program_locked(inner, intent);
+        if result.is_err() {
+            // R63-A 恢复契约（Observed 优先）: 任何失败后按再观测落定两平面
+            // ——尽力恢复, 恢复自身失败只记录, 绝不吞/改原始错误。fence 守卫
+            // 在本函数返回时 Drop 兜底解除; 恢复先于 Drop, 经 adapter observe
+            // 与 watchdog 同通路（不取 inner 锁——无自锁）。
+            recover_after_failed_switch(inner);
+        }
+        result
+    }
+
+    /// ①-⑩ 全链切换主体（R63-A 抽出——外层 `switch_program` 包装失败恢复;
+    /// 编排语义与既有链逐字等价, 文档见 `switch_program`）。
+    fn switch_program_locked(
+        inner: &mut Inner,
+        intent: &SwitchIntent,
+    ) -> Result<ProgramSwitchReport, SwitchError> {
         // ⓪ R58 cutover fence: V+A 双面 Armed——自此旧世代数据不再进入
         // Program 观测（INV-F1 在途处置按构造覆盖; INV-F3 双面同装;
         // 守卫 Drop 兜底 ①-④ 任意错误路径解除 barrier 恢复流面）。
@@ -633,18 +657,12 @@ impl ProgramExecutionRuntime {
         inner
             .switcher
             .install_timeline_transition(&inner.graph, &plan)?;
-        // ④ 执行（既有显式链不动: begin→switch; 失败→abort+传播）。
+        // ④ 执行（既有显式链不动: begin→switch）。
         inner.group.lock().unwrap().begin_switch(&execution_plan)?;
-        let executed = match inner.switcher.switch(&inner.graph, &execution_plan) {
-            Ok(ex) => ex,
-            Err(e) => {
-                // 失败路径: fence 守卫 Drop 解除 barrier 恢复流面（屏障不
-                // 吞错误）; timeline abort 交回 Domain fail-closed; 错误
-                // 如实上抛。
-                let _ = inner.timeline.abort_transition();
-                return Err(e);
-            }
-        };
+        // 失败路径: fence 守卫 Drop 解除 barrier 恢复流面（屏障不吞错误）;
+        // R63-A: 状态恢复统一交外层包装按再观测落定（Observed 优先——
+        // adapter Err ≠ 翻转未发生, 不再盲 abort）。
+        let executed = inner.switcher.switch(&inner.graph, &execution_plan)?;
         // ④ Domain 联动（executed 标记——终裁 §9 顺序: mark execution
         // state → 等下游 cutover 证据 → Release）。
         inner
@@ -657,8 +675,8 @@ impl ProgramExecutionRuntime {
         // 非时间猜测——timeout 仅异常界）后原子 Release 重开流面。超时 →
         // Err 且 fence 保持 Armed → 守卫 Drop 强释恢复流面（强释属失败
         // 处置, 非确认放行; 切换已执行而排空未证实=如实失败, 不伪装连续;
-        // 残留: Domain 停留 SwitchExecuted 相, 后续 declare InvalidPhase
-        // fail-closed——恢复归会话级故障面, 与 TransitionFailed 同层）。
+        // R63-A: 失败后状态恢复由外层包装按再观测落定（SwitchExecuted 闩锁
+        // 不再残留——契约 2026-09-06 R63-A0）。
         fence.confirm_and_release(CUTOVER_DRAIN_CONFIRM_TIMEOUT)?;
         // ⑤⑥⑦⑧ 证据收集（poll adapter observe[驱动 Mock tick]+facts→Authority）。
         let evidence_deadline = std::time::Instant::now() + TIMELINE_EVIDENCE_TIMEOUT;
@@ -755,6 +773,53 @@ impl ProgramExecutionRuntime {
             timeline: inner.timeline.snapshot(now_observed_ms()),
         })
     }
+}
+
+/// R63-A: 失败后恢复落定（Observed 优先——契约 2026-09-06 R63-A0）。
+/// 再观测经 adapter observe（与 watchdog 同通路, 不取 inner 锁）; 组平面
+/// 仅当停留 Switching 才 `reconcile_switch`（pre-begin 失败组未动）; 时间线
+/// 按相位分流: 未翻转（SwitchRequested 且 observed≠to）→ 既有
+/// `abort_transition`（epoch/世代不变）; 已执行/已闩（SwitchExecuted/
+/// TimelineTransition/TransitionFailed, 含 ①a 稳态 PTS 闩锁）→
+/// `reconcile_executed_failure`（落地=epoch+1 恒等重开+DiscontinuityDeclared;
+/// observed 未知→诚实停留, 恢复归会话级故障面）。恢复失败只记录——尽力
+/// 恢复, 不改变原始错误的上抛。
+fn recover_after_failed_switch(inner: &mut Inner) {
+    let observed = inner.switcher.observe(&inner.graph).program.observed_active;
+    let mut group_landed: Option<Result<crate::switch_execution::SwitchDesired, SwitchError>> =
+        None;
+    {
+        let mut g = inner.group.lock().unwrap();
+        if matches!(
+            g.desired,
+            crate::switch_execution::SwitchDesired::Switching { .. }
+        ) {
+            group_landed = Some(g.reconcile_switch(observed));
+        }
+    }
+    let phase = inner.timeline.phase().clone();
+    let timeline_landed = match phase {
+        TimelinePhase::Stable { .. } => None,
+        TimelinePhase::SwitchRequested { to, .. } => {
+            if observed == Some(to) {
+                // 后端半执行（adapter Err ≠ 翻转未发生）——按已执行落定。
+                Some(inner.timeline.reconcile_executed_failure(observed))
+            } else {
+                Some(inner.timeline.abort_transition().map(|_| None))
+            }
+        }
+        TimelinePhase::SwitchExecuted { .. }
+        | TimelinePhase::TimelineTransition { .. }
+        | TimelinePhase::TransitionFailed { .. } => {
+            Some(inner.timeline.reconcile_executed_failure(observed))
+        }
+    };
+    tracing::warn!(
+        observed_active = ?observed,
+        group = ?group_landed,
+        timeline = ?timeline_landed,
+        "R63-A 切换失败后恢复落定（Observed 优先）"
+    );
 }
 
 /// C-TIMELINE-01 轮询参数（观察层节流——非时间线语义; 常量不 IO 等待媒体）。
@@ -1375,9 +1440,9 @@ mod tests {
 
     #[test]
     fn timeline_rt_02_runtime_switch_aborts_timeline_on_backend_failure() {
-        // ④ 失败路径: adapter.switch 失败 → timeline abort（回 Stable 旧源,
-        // 零时间线变化）+ 错误传播; 组停留 Switching（与既有显式链一致——
-        // Observed 未确认即不落定）。
+        // ④ 失败路径: adapter.switch 失败 → R63-A 外层恢复（再观测=旧源 →
+        // timeline abort 回 Stable 旧源, 零时间线变化; 组 reconcile 回
+        // Active(from)）+ 原始错误传播——observed=from 的失败落定契约锚。
         struct FailingSwitchOnly(MockSwitchExecutionAdapter);
         impl crate::contracts::switch::SwitchExecutionAdapter for FailingSwitchOnly {
             fn build_program_graph(

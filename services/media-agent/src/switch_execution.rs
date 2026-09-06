@@ -10,8 +10,13 @@
 //! **可以做**: 定义 Execution Group（恰双输入 fail-closed, 复用
 //! `SessionInput`——零第二 identity, 冻结 #1）/ 校验显式手动切换 Intent
 //! （首版仅 FRAME_SWITCH, PACKET/MASTER fail-closed 拒收, 冻结 #6+T12）/
-//! 维护 Desired 状态（ACTIVE / SWITCHING——与 Session lifecycle 状态空间
-//! **绝对分离**, 禁 `Session.active_input`/`SessionInput.is_active`）。
+//! 维护 Desired 状态（ACTIVE / SWITCHING / RECOVERY_REQUIRED——与 Session
+//! lifecycle 状态空间 **绝对分离**, 禁 `Session.active_input`/
+//! `SessionInput.is_active`）。
+//!
+//! **R63-A 恢复契约（2026-09-06 冻结）**: 失败后落定 Observed 优先——
+//! `reconcile_switch` 为显式失败落定原语（无隐式触发入口, 冻结 #4/#10
+//! 不变; 正常切换仍走 `complete_switch` 的 observed==to 单律）。
 //!
 //! **不能做**: 不构建 GStreamer graph（SessionManager 亦不构图, 冻结 #3）/
 //! 不执行 recovery（Supervisor = recovery only, 冻结 #4）/ 不自动 failover
@@ -51,9 +56,14 @@ pub enum SwitchError {
     GraphNotRunning(PipelineHandle),
     #[error("switch execution backend error: {0}")]
     Backend(String),
+    #[error(
+        "switch recovery required before next switch (observed unknown after failed switch): {0:?}"
+    )]
+    RecoveryRequired(SwitchDesired),
 }
 
-/// Desired 状态平面（终裁 §7.4 Domain/Intent 层: ACTIVE_A/ACTIVE_B/SWITCHING）。
+/// Desired 状态平面（终裁 §7.4 Domain/Intent 层: ACTIVE_A/ACTIVE_B/SWITCHING
+/// + R63-A 恢复契约第三终态 RECOVERY_REQUIRED）。
 ///
 /// 按 device_id 标识源（组内恰双输入, 输入身份=SessionInput——不新造
 /// A/B 枚举, 防位置序脆弱与第二 identity）。
@@ -61,7 +71,17 @@ pub enum SwitchError {
 #[serde(rename_all = "snake_case")]
 pub enum SwitchDesired {
     ActiveInput(Uuid),
-    Switching { from: Uuid, to: Uuid },
+    Switching {
+        from: Uuid,
+        to: Uuid,
+    },
+    /// R63-A: 切换失败后再观测未知（absence≠false——不猜 A/B）的诚实终态。
+    /// 唯一入口 `reconcile_switch`（observed 未知时）; 期间 plan/begin 拒收;
+    /// 出口=会话级 teardown（自动恢复不在 R63-A 范围）。
+    RecoveryRequired {
+        from: Uuid,
+        to: Uuid,
+    },
 }
 
 /// 显式手动切换 Intent（终裁: 首版 Manual Switch——无 from 字段, 当前源
@@ -144,6 +164,9 @@ impl ExecutionGroup {
             switching @ SwitchDesired::Switching { .. } => {
                 return Err(SwitchError::NotActiveSource(switching))
             }
+            recovery @ SwitchDesired::RecoveryRequired { .. } => {
+                return Err(SwitchError::RecoveryRequired(recovery))
+            }
         };
         if intent.target == from {
             return Err(SwitchError::TargetAlreadyActive(from));
@@ -189,6 +212,30 @@ impl ExecutionGroup {
             }
         }
         false
+    }
+
+    /// R63-A 失败后落定（Observed 优先——契约: 2026-09-06 R63-A0）。仅从
+    /// `Switching{from,to}` 起: observed=Some(to)→Active(to)（已执行但证据
+    /// 失败——不伪装成功, 命令仍 Failed, 状态如实落观测）; Some(from)→
+    /// Active(from)（翻转未生效的失败回旧源）; None/组外→
+    /// `RecoveryRequired{from,to}`（absence≠false——不猜）。与
+    /// `complete_switch` 同源不同律: 正常切换的 observed==to 单律不动, 本
+    /// 方法只服务失败恢复路径。epoch 已在 begin 消费, 此处不再变更;
+    /// 非 Switching → Err（相位由 Runtime 编排保证）。
+    pub fn reconcile_switch(
+        &mut self,
+        observed_active: Option<Uuid>,
+    ) -> Result<SwitchDesired, SwitchError> {
+        let SwitchDesired::Switching { from, to } = self.desired else {
+            return Err(SwitchError::NotActiveSource(self.desired));
+        };
+        let landed = match observed_active {
+            Some(o) if o == to => SwitchDesired::ActiveInput(to),
+            Some(o) if o == from => SwitchDesired::ActiveInput(from),
+            _ => SwitchDesired::RecoveryRequired { from, to },
+        };
+        self.desired = landed;
+        Ok(landed)
     }
 }
 
@@ -324,6 +371,71 @@ mod tests {
         assert!(g.complete_switch(b), "observed=to 应落定");
         assert_eq!(g.desired, SwitchDesired::ActiveInput(b));
         assert_eq!(g.switch_epoch, 1);
+    }
+
+    #[test]
+    fn switch_rt_01_reconcile_switch_lands_on_observed() {
+        let (a, b, mut g) = dual_group();
+        let plan = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("合法计划");
+        g.begin_switch(&plan).expect("begin");
+        // observed=from（翻转未生效的失败）→ 回旧源; epoch 已在 begin 消费不再变更。
+        assert_eq!(
+            g.reconcile_switch(Some(a))
+                .expect("reconcile(from) 应落旧源"),
+            SwitchDesired::ActiveInput(a)
+        );
+        assert_eq!(g.switch_epoch, 1);
+        // 回 Active 后下一次切换合法（R63-A 契约: 恢复后 A→B 可再执行）。
+        let plan2 = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("恢复后应可再计划");
+        g.begin_switch(&plan2).expect("第二次 begin");
+        // observed=to（已执行但证据失败）→ 如实落 to（命令层仍 Failed——不伪装成功）。
+        assert_eq!(
+            g.reconcile_switch(Some(b))
+                .expect("reconcile(to) 应落目标源"),
+            SwitchDesired::ActiveInput(b)
+        );
+        assert_eq!(g.switch_epoch, 2);
+    }
+
+    #[test]
+    fn switch_rt_01_reconcile_unknown_observed_degrades_to_terminal() {
+        let (a, b, mut g) = dual_group();
+        let plan = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("合法计划");
+        g.begin_switch(&plan).expect("begin");
+        // observed=None / 组外 → RecoveryRequired 终态（absence≠false——不猜）。
+        assert_eq!(
+            g.reconcile_switch(None).expect("reconcile(None) 应降级"),
+            SwitchDesired::RecoveryRequired { from: a, to: b }
+        );
+        let outsider = Uuid::new_v4();
+        assert_eq!(
+            g.reconcile_switch(Some(outsider))
+                .expect_err("降级后不可再 reconcile"),
+            SwitchError::NotActiveSource(SwitchDesired::RecoveryRequired { from: a, to: b })
+        );
+        // 降级终态: plan 拒收（专用错误词——下次切换 Permanent 拒绝）。
+        assert!(matches!(
+            g.plan_switch(&SwitchIntent {
+                target: a,
+                policy: SwitchPolicy::FrameSwitch
+            }),
+            Err(SwitchError::RecoveryRequired(_))
+        ));
     }
 
     #[test]

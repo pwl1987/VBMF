@@ -1,0 +1,6 @@
+=== R63-A recovery smoke 2026-09-06T18:37:35+08:00
+bin_md5=f6e6303bd8ed1540c41a79522c6473cd
+teardown_line=1 watchdog_exit_line=1 (service resident by design)
+service-resident-after-session-teardown (expected for diagnostic mode)
+process-stopped-after-evidence (explicit)
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd

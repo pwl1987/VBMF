@@ -785,6 +785,72 @@ impl TimelineAuthority {
         Err(reason)
     }
 
+    /// R63-A 失败恢复落定（Observed 优先——契约: 2026-09-06 R63-A0 §2）。
+    /// 从 SwitchRequested/SwitchExecuted/TimelineTransition/TransitionFailed
+    /// 起, 以 observed 落 `Stable{observed}`: **ProgramEpoch+1 + 新段以
+    /// observed 恒等锚重开 + pts_state=DiscontinuityDeclared + PTS 基线清空
+    /// （不伪造连续性）**。R53 闩锁纪律不破坏: 本方法是显式恢复转移（干净
+    /// 边界重开段基准）, 违例历史入 immutable 段史不洗, `last_outcome` 保留
+    /// 失败事实。observed=None/候选外 → `Ok(None)` 诚实不落地（相位停留,
+    /// 恢复归会话级故障面）; Stable → Err（无可恢复相位）。未翻转路径
+    /// （observed=from 且声明未执行）由调用方走既有 `abort_transition`。
+    pub fn reconcile_executed_failure(
+        &mut self,
+        observed: Option<Uuid>,
+    ) -> Result<Option<TransitionOutcome>, TransitionFailure> {
+        let (from, to) = match self.phase.clone() {
+            TimelinePhase::SwitchRequested { from, to }
+            | TimelinePhase::SwitchExecuted { from, to } => (from, to),
+            TimelinePhase::TimelineTransition { to, .. } => {
+                // 证据已闭合并提交到 to（current_source==to）; 恢复只落 to。
+                (self.video.current_source, to)
+            }
+            TimelinePhase::TransitionFailed { .. } => {
+                // 在途 plan 仍在（fail_closed 不清 plan）; 无 plan=稳态闩锁
+                // （①a 稳态回退）——候选即当前源。
+                match self.plan.as_ref().map(|p| p.target) {
+                    Some(to) => (self.video.current_source, to),
+                    None => (self.video.current_source, self.video.current_source),
+                }
+            }
+            TimelinePhase::Stable { .. } => {
+                return Err(TransitionFailure::InvalidPhase {
+                    operation: "reconcile_executed_failure",
+                })
+            }
+        };
+        let Some(landed_source) = observed.filter(|o| *o == from || *o == to) else {
+            return Ok(None);
+        };
+        let new_epoch = ProgramEpoch(self.epoch.0 + 1);
+        let segment_id = SegmentId(self.segment_counter + 1);
+        let identity = SourceSegment::identity(landed_source, new_epoch, segment_id);
+        self.epoch = new_epoch;
+        self.segment_counter += 1;
+        for p in [&mut self.video, &mut self.audio] {
+            p.current_source = landed_source;
+            p.current_segment = identity;
+            p.transition = None;
+            p.boundary = None;
+            p.last_source_pts = None;
+            p.last_program_pts = None;
+            p.pts_state = PtsMonotonicity::DiscontinuityDeclared;
+            p.continuity = PlaneContinuity::DeclaredDiscontinuity;
+        }
+        self.plan = None;
+        // 段史只增不改: 恒等重开段 append; last_outcome 不动（失败事实不洗）。
+        self.video_history.push(identity);
+        self.audio_history.push(identity);
+        self.phase = TimelinePhase::Stable {
+            source: landed_source,
+        };
+        Ok(Some(TransitionOutcome::NewEpoch {
+            epoch: new_epoch,
+            video: identity,
+            audio: identity,
+        }))
+    }
+
     /// §8 证据行投影（observed_at=观察层 wall clock——绝不用于计算 PTS, R1）。
     /// 单行字段以 video 平面为规范载体（结构文档约定）。
     pub fn snapshot(&self, observed_at_ms: u64) -> TimelineObservation {
@@ -1220,6 +1286,116 @@ mod tests {
         authority
             .declare_transition(b, 1, anchors(11_000, 3_000), anchors(21_000, 6_000))
             .expect("中止后可重新声明（epoch 联动重取）");
+    }
+
+    #[test]
+    fn timeline_rt_01_reconcile_lands_observed_with_new_epoch_identity_rebase() {
+        // R63-A: 已执行后失败 → reconcile(Some(to)) 落 Stable{to} + epoch+1 +
+        // 恒等段重开 + DiscontinuityDeclared + 基线清空; 段史 append; 可再声明。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut authority = TimelineAuthority::new(a);
+        authority
+            .declare_transition(b, 1, anchors(10_000, 3_000), anchors(20_000, 6_000))
+            .expect("声明");
+        authority.on_switch_executed(1).expect("执行标记");
+        let outcome = authority
+            .reconcile_executed_failure(Some(b))
+            .expect("reconcile 应成功")
+            .expect("observed=to 应落地");
+        assert!(
+            matches!(&outcome, TransitionOutcome::NewEpoch { epoch, .. } if *epoch == ProgramEpoch(1)),
+            "落地即 NewEpoch（连续性不可证——不伪装 Preserved）"
+        );
+        assert_eq!(authority.epoch(), ProgramEpoch(1));
+        assert_eq!(authority.phase(), &TimelinePhase::Stable { source: b });
+        for plane in [MediaPlane::Video, MediaPlane::Audio] {
+            let p = authority.plane(plane);
+            assert_eq!(p.current_source, b);
+            assert_eq!(p.pts_state, PtsMonotonicity::DiscontinuityDeclared);
+            assert_eq!(p.continuity, PlaneContinuity::DeclaredDiscontinuity);
+            assert_eq!(p.last_program_pts, None, "PTS 基线清空（不伪造连续性）");
+            assert_eq!(p.last_source_pts, None);
+        }
+        assert_eq!(authority.segment_history(MediaPlane::Video).len(), 2);
+        assert_eq!(authority.segment_history(MediaPlane::Audio).len(), 2);
+        authority
+            .declare_transition(a, 2, anchors(11_000, 3_000), anchors(21_000, 6_000))
+            .expect("reconcile 后可再声明（闩锁解除的契约锚）");
+    }
+
+    #[test]
+    fn timeline_rt_01_reconcile_unknown_observed_stays_honest() {
+        // observed=None/组外 → Ok(None) 诚实不落地（相位停留, 恢复归会话级）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut authority = TimelineAuthority::new(a);
+        authority
+            .declare_transition(b, 1, anchors(10_000, 3_000), anchors(20_000, 6_000))
+            .expect("声明");
+        authority.on_switch_executed(1).expect("执行标记");
+        assert_eq!(
+            authority
+                .reconcile_executed_failure(None)
+                .expect("None 是诚实不落地, 非 Err"),
+            None
+        );
+        let outsider = Uuid::new_v4();
+        assert_eq!(
+            authority
+                .reconcile_executed_failure(Some(outsider))
+                .expect("组外同不落地"),
+            None
+        );
+        assert!(
+            matches!(authority.phase(), TimelinePhase::SwitchExecuted { .. }),
+            "相位诚实停留"
+        );
+    }
+
+    #[test]
+    fn timeline_rt_01_reconcile_steady_state_latch_lands_current_keeps_failure_fact() {
+        // ①a 稳态 PTS 回退闩锁（组未动而 timeline 卡 TransitionFailed——R63
+        // 新登记位点）: reconcile 落当前源 + epoch+1; last_outcome 失败事实不洗。
+        let a = Uuid::new_v4();
+        let mut authority = TimelineAuthority::new(a);
+        authority
+            .on_program_pts(MediaPlane::Video, 100)
+            .expect("首观测");
+        authority
+            .on_program_pts(MediaPlane::Video, 50)
+            .expect_err("回退应 FailClosed");
+        assert!(matches!(
+            authority.phase(),
+            TimelinePhase::TransitionFailed { .. }
+        ));
+        let landed = authority
+            .reconcile_executed_failure(Some(a))
+            .expect("稳态闩锁 reconcile")
+            .expect("observed=当前源应落地");
+        assert!(
+            matches!(landed, TransitionOutcome::NewEpoch { .. }),
+            "稳态闩锁恢复同样记不连续"
+        );
+        assert_eq!(authority.epoch(), ProgramEpoch(1));
+        assert_eq!(authority.phase(), &TimelinePhase::Stable { source: a });
+        assert!(
+            matches!(
+                authority.last_outcome(),
+                Some(TransitionOutcome::Failed { .. })
+            ),
+            "失败事实不洗（R53 纪律——违例历史保留）"
+        );
+        // 稳态无闩锁时 reconcile = InvalidPhase（无可恢复相位）。
+        let err = authority
+            .reconcile_executed_failure(Some(a))
+            .expect_err("Stable 上 reconcile 应拒收");
+        assert!(matches!(
+            err,
+            TransitionFailure::InvalidPhase {
+                operation: "reconcile_executed_failure"
+            }
+        ));
     }
 
     #[test]

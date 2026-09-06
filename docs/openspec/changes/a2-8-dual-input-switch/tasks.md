@@ -1377,3 +1377,35 @@
   历史入 immutable 段史不洗）; switch_epoch 在 begin 已消费·reconcile 不再
   变更——契约全文=2026-09-06-a2-8-05-r63-a-switch-failure-recovery.md §2
   （随用户计划批准即锁）]**
+
+  **[R63-A 实现段（2026-09-06·代码轮·commit 2）: A1 最小恢复机制 + A2
+  异常矩阵落地——9 文件 +853/−194（contracts/transport/api_boundary/
+  command/idempotency/bin 零触碰实证）; 新词表 2 项（SwitchDesired::
+  RecoveryRequired{from,to} 终态 + SwitchError::RecoveryRequired→classify
+  Permanent+快照更新）; 新方法 2 个（ExecutionGroup::reconcile_switch
+  三路落定[Some(to)/Some(from)/None→降级] + TimelineAuthority::
+  reconcile_executed_failure[四相位→Stable{observed}+ProgramEpoch+1+恒等
+  重开+DiscontinuityDeclared+基线清空+段史 append·None 诚实停留·复用
+  abort_transition 处未翻转]）; switch_program 抽 locked+外层统一
+  recover_after_failed_switch（再观测经 adapter observe 与 watchdog 同
+  通路·不取 inner 锁·恢复失败只记录不吞原始错误）; **新鲜度谓词修正
+  （执行中发现并闭合的第二缺口）**: 两 adapter plan.epoch!=av_epoch+1
+  精确锁步 → <=av_epoch 重放判据（begin 后失败留下合法 epoch 间隙——
+  组已消费/adapter 未执行——R62 前被组闩锁掩盖, 修复后 R1/R7 重试被
+  StalePlanEpoch 永久拒绝; 防重放锚保留·未来 epoch 新鲜度归组平面·
+  干净运行数值不变[hw 268 零改动全过]; 两纵深测试改重放锚）; **A2 矩阵
+  mock 全链 9/9**（ctrl/F0 同形 + R1+R7 回旧源再 A→B Preserved + R2+R8
+  fence 确认失败落 B·epoch+1+DD 再 B→A + R3+R6 证据超时[真实 5s]不伪装
+  成功落 B + R4[R5 类] settle 矛盾落 B + degraded observed=None→
+  RecoveryRequired 终态·下次 Permanent·teardown 恢复 + 0a ①a 稳态 PTS
+  闩锁[R63 新登记位点]解除 + replay 同 command_id 逐字节[恢复后]）;
+  盒矩阵 fmt CLEAN/229/229/**411+9=420**/268/clippy×3 全绿; 真机正常
+  路径回归（bin 重建 md5 f6e6303b 先行核验→A→B executed preserved
+  av_epoch=1→回读 R53 冻结签名逐字→B→A av_epoch=2→回读→stop→
+  teardown 完成行+watchdog 退出行验证·服务常驻为设计语义）; 核心四
+  开启面逐处登记（program_execution 主体 + switch_mock/switch_graph
+  各 1 强制臂+2 谓词位+1 测试更新——R53 correctness 面零触碰）+ gates/
+  a204_obs 1 强制臂 + watchdog 零行为改动（折叠钉子单测）; 证据盒
+  r63a-recovery 入库 md5 盒=origin 全等（12 件含 mock-recovery-matrix
+  矩阵行日志）——报告=2026-09-06-a2-8-05-r63-a-switch-failure-recovery.md
+  §3-§6 + 主账 §92; **R63-B Transport 并发（std-only）下一轮另开**]**

@@ -483,6 +483,12 @@ pub fn run(
                 incomplete = true;
                 break;
             }
+            // R63-A 强制调用点: 降级终态同款如实截断（observed 未知——不猜）。
+            stuck @ crate::switch_execution::SwitchDesired::RecoveryRequired { .. } => {
+                println!("=== switch #{k}: group 降级 RecoveryRequired（{stuck:?}）——如实截断 ===");
+                incomplete = true;
+                break;
+            }
         };
         let target = started_inputs
             .iter()

@@ -375,6 +375,10 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             switching @ SwitchDesired::Switching { .. } => {
                 return Err(SwitchError::NotActiveSource(switching))
             }
+            // R63-A 强制调用点: 降级终态组不可物化 graph。
+            recovery @ SwitchDesired::RecoveryRequired { .. } => {
+                return Err(SwitchError::RecoveryRequired(recovery))
+            }
         };
         let devices = [group.inputs[0].device_id, group.inputs[1].device_id];
         let pts: HashMap<Uuid, (u64, u64)> = devices
@@ -503,7 +507,10 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         if g.active == Some(plan.target) {
             return Err(SwitchError::TargetAlreadyActive(plan.target));
         }
-        if plan.switch_epoch != g.av_epoch + 1 {
+        // R63-A 新鲜度谓词: 重放已执行世代（<= av_epoch）拒收; 未来 epoch
+        // 的精确锁步不再要求——begin 后失败会留下合法 epoch 间隙（组平面
+        // 已消费, adapter 未执行）, 恢复后重试须放行。
+        if plan.switch_epoch <= g.av_epoch {
             return Err(SwitchError::StalePlanEpoch {
                 got: plan.switch_epoch,
                 expected: g.av_epoch + 1,
@@ -610,7 +617,9 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         if plan.policy != SwitchPolicy::FrameSwitch {
             return Err(SwitchError::UnsupportedPolicy(plan.policy));
         }
-        if plan.epoch != g.av_epoch + 1 {
+        // R63-A 新鲜度谓词（同 install 位点）: 重放已执行世代拒收, 合法
+        // epoch 间隙（失败重试）放行。
+        if plan.epoch <= g.av_epoch {
             return Err(SwitchError::StalePlanEpoch {
                 got: plan.epoch,
                 expected: g.av_epoch + 1,
@@ -1007,12 +1016,13 @@ mod tests {
 
     #[test]
     fn switch_rt_02_install_pre_flip_fail_closed() {
-        // pre-flip 安装纪律（IMP-5 ③）: 声明 epoch 必须=下一次执行; 目标
-        // 已 active 拒收; 未运行 graph 拒收。
+        // pre-flip 安装纪律（IMP-5 ③ + R63-A 新鲜度谓词）: 重放已执行世代
+        // 拒收（未来 epoch 的新鲜度归组平面——失败重试的合法间隙放行）;
+        // 目标已 active 拒收; 未运行 graph 拒收。
         let (_a, b, mut group, graph, adapter) = running_group_and_graph();
         let plan = crate::program_timeline::ProgramTimelinePlan {
             target: b,
-            switch_epoch: 9, // ≠ av_epoch+1=1
+            switch_epoch: 0, // <= av_epoch(0)——重放拒收
             video: crate::program_timeline::SourceSegment::identity(
                 b,
                 crate::program_timeline::ProgramEpoch(0),
@@ -1027,7 +1037,7 @@ mod tests {
         assert_eq!(
             adapter.install_timeline_transition(&graph, &plan),
             Err(SwitchError::StalePlanEpoch {
-                got: 9,
+                got: 0,
                 expected: 1
             })
         );

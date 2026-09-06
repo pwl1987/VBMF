@@ -990,6 +990,10 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             switching @ SwitchDesired::Switching { .. } => {
                 return Err(SwitchError::NotActiveSource(switching))
             }
+            // R63-A 强制调用点: 降级终态组不可物化 graph。
+            recovery @ SwitchDesired::RecoveryRequired { .. } => {
+                return Err(SwitchError::RecoveryRequired(recovery))
+            }
         };
         let devices = [group.inputs[0].device_id, group.inputs[1].device_id];
         let input_handles = [
@@ -1085,7 +1089,10 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         if plan.policy != SwitchPolicy::FrameSwitch {
             return Err(SwitchError::UnsupportedPolicy(plan.policy));
         }
-        if plan.epoch != g.av_epoch + 1 {
+        // R63-A 新鲜度谓词: 重放已执行世代（<= av_epoch）拒收; 精确锁步
+        // 不再要求——begin 后失败留下合法 epoch 间隙（组已消费, adapter
+        // 未执行）, 恢复后重试须放行。未来 epoch 新鲜度归组平面。
+        if plan.epoch <= g.av_epoch {
             return Err(SwitchError::StalePlanEpoch {
                 got: plan.epoch,
                 expected: g.av_epoch + 1,
@@ -1166,7 +1173,9 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         if g.active == Some(plan.target) {
             return Err(SwitchError::TargetAlreadyActive(plan.target));
         }
-        if plan.switch_epoch != g.av_epoch + 1 {
+        // R63-A 新鲜度谓词（同 switch 位点）: 重放已执行世代拒收, 合法
+        // epoch 间隙（失败重试）放行。
+        if plan.switch_epoch <= g.av_epoch {
             return Err(SwitchError::StalePlanEpoch {
                 got: plan.switch_epoch,
                 expected: g.av_epoch + 1,
@@ -3268,13 +3277,13 @@ mod tests {
         assert_eq!(
             adapter.switch(
                 &graph,
-                &forged(b, SwitchPolicy::FrameSwitch, epoch_before + 5)
+                &forged(b, SwitchPolicy::FrameSwitch, epoch_before)
             ),
             Err(SwitchError::StalePlanEpoch {
-                got: epoch_before + 5,
+                got: epoch_before,
                 expected: epoch_before + 1
             }),
-            "fail-closed: 错 epoch（适配器纵深）"
+            "fail-closed: 重放已执行 epoch（适配器纵深; 未来 epoch 新鲜度归组平面——R63-A 合法间隙）"
         );
         assert_eq!(
             adapter.switch(

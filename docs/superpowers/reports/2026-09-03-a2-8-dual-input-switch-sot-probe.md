@@ -4724,3 +4724,51 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   safety-probe.md §1-§6。
 - 下一步: R62-A/R62-B 修复边界二轮裁决 / Step 15 长稳 / Step 16 联调 /
   Step 17 RC 与链末收口——待用户指令。
+
+## §92 R63-A: Switch Failure Recovery（修复架构轮第一刀·代码轮·2026-09-06）
+
+- 用户 R63 裁决: 两实证问题升级修复轮; A（域状态机恢复）/B（Transport
+  并发·std-only·禁 async）两 change 分开·先 A 后 B; R64 全矩阵→Step 15
+  （30m→24h·场景升级）→Step 17 RC 顺序冻结; 逐条确认表 9 项落报告 §1。
+- **A0 契约先行（commit 1 a6ecbb0·先于代码 commit）**: SoT=Observed 优先·
+  Desired 由 reconciliation 推进·absence≠false; 三类落定（未翻转变效→abort
+  语义回旧源 epoch 不变 / 已执行证据失败→命令仍 Failed+两平面落 Active
+  (observed)+ProgramEpoch+1+恒等重开+DiscontinuityDeclared+基线清空 /
+  observed 未知→RecoveryRequired 终态不猜·下次 Permanent·恢复=会话级
+  teardown）; replay≡原始 outcome; complete_switch/force_release/watchdog
+  语义冻结; R53 闩锁纪律不破坏（显式恢复转移·违例历史入 immutable 段史
+  不洗·last_outcome 保留失败事实）。
+- **A1 实现（9 文件 +853/−194）**: 新词表 2（SwitchDesired::RecoveryRequired
+  {from,to}+SwitchError::RecoveryRequired→Permanent）; 新方法 2
+  （reconcile_switch 三路落定 + reconcile_executed_failure 四相位落地/
+  None 诚实停留/复用 abort_transition）; switch_program 抽 locked+外层
+  recover_after_failed_switch（adapter observe 通路·不取 inner 锁·不吞
+  原始错误）; 强制编译臂 5 处（create/两 adapter build_program_graph/
+  a204_obs 如实截断/plan_switch 拒收）; contracts/transport/api_boundary/
+  command/idempotency/bin 零触碰。
+- **新鲜度谓词修正（执行中发现的第二缺口·R62 前被组闩锁掩盖）**: 两
+  adapter plan.epoch != av_epoch+1 精确锁步→<=av_epoch 重放判据——begin
+  后失败留下合法 epoch 间隙（组已消费/adapter 未执行）→ 修复后 R1/R7
+  重试被 StalePlanEpoch 永久拒绝（mock+真 adapter 同病）; 防重放锚保留·
+  未来 epoch 新鲜度归组平面·干净运行数值不变（hw 268 零改动全过=证）。
+- **A2 矩阵 mock 全链 9/9**: ctrl/F0 同形 + R1+R7（adapter Err→回旧源→
+  再 A→B Preserved epoch2）+ R2+R8（fence 确认 Err→落 B+epoch+1+DD→再
+  B→A）+ R3+R6（证据超时真实 5s→不伪装成功落 B）+ R4[R5 类]（settle
+  矛盾→落 B）+ degraded（observed=None→RecoveryRequired 终态·下次
+  Permanent 确定性·teardown 恢复）+ **0a（①a 稳态 PTS 闩锁——R63 新登记
+  第三闩锁位点: 组未动而 timeline 卡 TransitionFailed·R62 矩阵未列）**
+  + replay（恢复改变状态后同 command_id 逐字节 Replayed·新 id 真实
+  Executed）。
+- 盒矩阵全绿: fmt CLEAN/default 229/sim 229/mock **411+9=420**/hw 268/
+  clippy×3（-D warnings）; 真机正常路径回归: bin 重建 md5 f6e6303b（重建
+  先行·R62 纪律）→A→B executed preserved av_epoch=1→回读 R53 冻结签名
+  逐字→B→A av_epoch=2→回读→stop→teardown 完成行+watchdog 退出行验证
+  （服务常驻=设计语义·首轮误标已澄清）; 证据盒 r63a-recovery 入库 md5
+  盒=origin 全等（12 件含 R63-MATRIX 矩阵行日志）。
+- 披露: R5=settle 唯一 Err 源 on_program_pts 矛盾（observe 无 Err 通道）
+  由 R4 类覆盖; F2 即时同类注入（沿 R62）; adapter 层未来-epoch 纵深移除
+  归组平面; Mimosa python_ast_unavailable×4+冒烟脚本 HOME advisory（误报
+  语境如实披露）; 盒上≠CI 分述; 真机故障注入仍无旋钮（R64 再议）。
+- 下一步: **R63-B Transport 并发（std-only·per-connection worker+命令
+  串行边界+查询短锁/snapshot·首步 inner 结构小审计）→ R64 全矩阵+真机
+  故障恢复+并发查询 → Step 15 → Step 17 → 链末收口**——待用户指令。
