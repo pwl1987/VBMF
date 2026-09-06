@@ -4271,3 +4271,28 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   阈值零改动·三 blocking 维持; 步骤 5-11 待执行（fence 实现/双侧
   回归/真机 #8 复现 NM 消失/生命周期仍立/全回归/新鲜 Gate）;
   A2-8-05 不进入。
+
+## §77 R58 独立远端裁决复核（验收层基于 GitHub 真实状态, docs-only 零代码）
+
+- **远端事实独立实测与裁决一致**: `git ls-remote`=2972fb80…（R56
+  FAIL=远端最新·证据完整）; `git branch -r --contains d1f1e58`=空
+  （d1f1e58/f9dc935/a8ac09a 均本地; tip=祖先⇒GitHub 无 R58 测试）;
+  **口径纪律冻结**: 本地/远端事实分开陈述·本地提交永不表述为远端
+  落地·推送仅按明确指示。
+- **M1=源码闭环证实非推测**（appsink 链 :422-446/:439·install 整槽
+  :889-891·门 :221-223·锚 :946-949·①-⑩ :596-716·fail-closed
+  program_timeline.rs:746/:755-763/:776·50ms 采样 :739——两时间尺度
+  ⇒ NM×Preserved 并存=观察粒度差非模块错误）; HOLD 维持=设计方向
+  无错·生产修复未进远端·R58 完成至「根因确定+测试先行」层级。
+- **fence 不变量升格冻结**: INV-F1（confirmed 含 queue 在途排放——
+  selector src fence≠output 静止, 拓扑 :508/:552/:630-634; 原 §76
+  条件 a 升格）·INV-F2（旧世代拦截帧不可复放——三段模型「旧世代
+  排空+cutover barrier+新世代重开」, 非 pause/resume; 原 §76 条件
+  b 升格）·INV-F3（V+A Both Confirmed→anchor/declare/install/switch
+  →Both Release——switch() :822 video 先/:824 audio 后/:828 回滚/
+  :830-837 degraded）; BUFFER-only 与 Mock 交错增强维持。
+- **步骤 5 边界树登记**（裁决 §十三）: V/A 双 BUFFER fence→confirmed
+  （含 queue in-flight）→anchor snapshot→declare→install→dual
+  switch→拦截帧不可复放→mark executed→release; 二线=stale-baseline
+  detection→fail-closed/secondary resample（非主一致性机制）;
+  A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入。

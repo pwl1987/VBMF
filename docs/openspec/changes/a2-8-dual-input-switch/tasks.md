@@ -1097,6 +1097,21 @@
   未捕获名·零改动重跑全绿——R51 flaky 同型）; 本项未勾——步骤
   5-11（fence 实现/双侧回归/真机 #8 复现 NM 消失/生命周期仍立/全
   回归/新鲜 Gate）待执行; A2-8-05 不进入（Gate 仍 FAIL/HOLD）]**
+  **[第五十八轮补·独立远端裁决复核（docs-only 零代码; R57 文档 §12+
+  04 探针 §16.3+主账 §77+谓词 §10 注）: 验收层基于 GitHub 真实状态
+  独立裁决 13 节逐条复核全相容——远端事实独立实测一致（ls-remote=
+  2972fb8·branch -r --contains d1f1e58=空·R58 测试不在任何远端分支）;
+  口径纪律冻结=本地/远端分述·本地提交永不称远端落地·推送仅按明确
+  指示; M1=源码闭环证实非推测（50ms 采样 :739 两时间尺度⇒NM×
+  Preserved 并存·fail-closed 链 :746/:755-763/:776 无声明豁免）;
+  HOLD 维持=设计方向无错·生产修复未进远端·完成至「根因确定+测试
+  先行」层级; fence 不变量升格冻结: INV-F1 queue-in-flight 入
+  confirmed（原条件 a 升格）·INV-F2 旧世代拦截帧不可复放（三段模型
+  排空→barrier→重开·原条件 b 升格）·INV-F3 V+A Both-Confirmed 握手
+  （switch() :822/:824/:828 video 先 audio 后+回滚）; 步骤 5 边界树
+  登记（fence→confirmed→anchor→declare→install→switch→不可复放→
+  executed→release+二线 stale-baseline resample 非主机制）; 本项未
+  勾——步骤 5-11 待执行; A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

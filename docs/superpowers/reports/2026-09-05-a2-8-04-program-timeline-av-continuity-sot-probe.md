@@ -595,3 +595,24 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
 - **盒矩阵**: default 227/sim 227/gst 261=259+2（run-A 瞬态 1 失败
   未捕获名·零改动重跑 261/261 全绿——R51 flaky 同型）·clippy×2
   -D warnings 绿。红线全维持; 步骤 5-11 待执行; A2-8-05 不进入。
+
+### §16.3 R58 独立远端裁决复核（验收层×GitHub 真实状态, docs-only 零代码）
+
+- 远端事实独立实测与裁决一致: `git ls-remote`=2972fb80…（R56 FAIL=
+  远端最新·证据完整）; `git branch -r --contains d1f1e58`=空（R58
+  测试不在任何远端分支; tip=祖先⇒不可能含）; **口径纪律冻结**: 本地/
+  远端分述·本地提交永不称远端落地·推送仅按明确指示。
+- M1=源码闭环证实非推测（§16.2 锚点全数复认+TIMELINE_POLL_INTERVAL
+  50ms :739——两时间尺度 ⇒ NM×Preserved 并存=观察粒度差非模块错误;
+  fail-closed 链 program_timeline.rs:746/:755-763/:776 无声明豁免）;
+  HOLD 维持定性=设计方向无错·生产修复未进远端·完成至「根因确定+
+  测试先行」层级。
+- **fence 不变量升格冻结**: INV-F1 queue-in-flight 入 confirmed
+  （selector src fence≠output 静止——原条件 a 升格）·INV-F2 旧世代
+  拦截帧不可复放/三段模型「排空→barrier→重开」（原条件 b 升格）·
+  INV-F3 V+A Both-Confirmed 握手（新; switch() :822 video 先/:824
+  audio 后/:828 回滚/:830-837 degraded）; BUFFER-only 与 Mock 交错
+  增强维持。
+- 步骤 5 边界树登记（V/A fence→confirmed→anchor→declare→install→
+  switch→不可复放→executed→release; 二线 stale-baseline→fail-closed
+  resample 非主机制）; A2-8-04 不得宣布恢复 PASS·A2-8-05 不进入。

@@ -451,3 +451,70 @@ R58-Design 终裁 12 条。本轮逐条复核 + 执行步骤 4: 生产代码零�
   bmd,gstreamer `--all-targets -D warnings` 双绿。
 - **纪律**: 谓词/Gate/阈值零改动; 三 blocking 维持 Failed; 首败留证
   （#8 证据盒不动）; 步骤 5-11 待执行; A2-8-05 不进入。
+
+## 12 R58 独立远端裁决复核（验收层基于 GitHub 真实状态, docs-only 零代码）
+
+验收层独立复核 GitHub 远端后下达 13 节裁决。本轮逐条复核+登记。
+生产修复未进远端 ⇒ **A2-8 = HOLD 维持**——定性（裁决 §十三原话）:
+设计方向无错, R56 已证实现有实现存在真实 Program-output cutover
+race, R58 目前完成至「根因确定+测试先行」层级。
+
+### 12.1 远端事实（本轮独立实测, 与裁决一致）
+
+- `git ls-remote origin comet/a2-8-dual-input-switch` = **2972fb80b8a3…**
+  （R56 FAIL 提交=远端最新——FAIL 结论+三 blocking 在远端证据完整）。
+- `git branch -r --contains d1f1e58` = **空**——d1f1e58/f9dc935/a8ac09a
+  均不在任何远端分支; 远端 tip=2972fb8 为 d1f1e58 祖先 ⇒ 数学上不可
+  能含 R58 测试; GitHub 无 `switch_graph_m1_*`。
+- **口径纪律（本轮冻结为常设）**: 本地事实与远端事实分开陈述; 本地
+  提交永不表述为「远端已落地」（R58 unit 1 自身记录已守此界——提交
+  信息尾 "unpushed"、报告远端行「未推送」; 现升格为常设纪律）; 推送
+  仍仅按明确指示执行。
+
+### 12.2 M1=源码闭环证实（裁决 §二-§五与本仓复核逐点相合）
+
+- appsink→HEALTH_ARCS 链 :422-446/:439（§二①）; install 整槽替换
+  :889-891+无中间清空步骤（§二②）; `!t.executed` 门 :221-223（§二②）;
+  锚=弧 last :946-949（§三）; switch_program ①-⑩ 序 :596-716——anchor
+  快照与 switch 之间窗口客观存在（§三）; 回退 fail-closed 链
+  program_timeline.rs:746/:755-756/:763/:776——无声明豁免（§四）;
+  TIMELINE_POLL_INTERVAL=50ms :739（§五——两时间尺度 ⇒
+  ProgramObservation=NonMonotonic 与 Authority=Preserved 可并存:
+  观察粒度不同, 非模块谁错）。**接受裁决定性: M1 非「理论 race」,
+  是控制平面 T0 快照 × 数据平面 T0→T1 在途帧的结构性缺口。**
+
+### 12.3 fence 不变量升格冻结（裁决 §七/§八/§九）
+
+R58 unit 1 已作为「实现条件」登记（§11.1 §3a/§3b）的两条, 本轮按
+裁决**升格为实现不变量并冻结**（从设计注记变为协议强制）:
+- **INV-F1（queue-in-flight confirmed）**: 「selector src 已 fence」≠
+  「Program output 静止」——confirmed 条件必须纳入 selector→queue→
+  appsink 在途排放证据（拓扑事实 :508/:552/:630-634）; 否则 M1 窗
+  未闭。
+- **INV-F2（旧世代拦截帧不可复放）**: cutover 前被阻塞且属旧世代的
+  buffer 永不允许重新进入 Program output——fence=「旧世代排空+cutover
+  barrier+新世代重新开放」三段模型, 非 pause/resume; 否则 race 只从
+  fence 前移到 fence 后。
+- **INV-F3（双面握手形, 本轮新冻结）**: Video Fence+Audio Fence →
+  **Both Confirmed** → anchor/declare/install/switch → **Both
+  Release**; 代码依据: switch() video 先 :822 / audio 后 :824 /
+  audio 败→video 回滚 :828 / 回滚败→degraded :830-837——单面 fence
+  必引入 AV skew race。
+- 维持（§十/§十一）: BUFFER-only（EVENT 承担 segment_observed 前置
+  :170-185——阻塞 EVENT 将把 flip→Segment→首枚映射 执行协议改写为
+  flip→fence→segment, Authority 永等不到闭合）; Mock 增强必须表达
+  「控制事件×数据事件交错」（步骤 6 前置, 非测试数量）。
+
+### 12.4 步骤 5 执行边界（裁决 §十三, 登记=下轮规格）
+
+selector-output Cutover Fence 树: V/A 双 BUFFER fence → confirmation
+（含 queue in-flight, INV-F1）→ anchor snapshot → TimelineAuthority
+declare → install 新 TimelineExecutionState → dual selector switch →
+旧世代拦截帧不可复放（INV-F2）→ mark executed → release 新世代流;
+二线=stale-baseline detection → fail-closed / secondary resample
+（不作主一致性机制——race 未消灭只是降概率）。
+
+### 12.5 红线（维持）
+
+零代码零判据零 Gate; 三 blocking 维持; 首败留证; 本地/远端口径分述;
+推送仅按明确指示; A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入。

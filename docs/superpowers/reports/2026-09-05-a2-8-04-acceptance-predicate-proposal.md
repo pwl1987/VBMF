@@ -387,3 +387,10 @@ Gate = FAIL**。首败留证; 判据零改动; 后续路径（维持违例读法
   全绿·default/sim 227·gst 261=259+2（run-A 瞬态 1 失败未捕获名,
   零改动重跑 261/261 全绿）。Gate 复跑待 R58 步骤 5-11 完成后按
   冻结谓词执行; A2-8-05 不进入。
+- **R58 独立远端裁决复核登记（docs-only）**: 远端事实独立实测一致
+  （ls-remote=2972fb8·`branch -r --contains d1f1e58`=空）; 口径纪律
+  冻结（本地/远端分述·本地提交永不称远端落地）; M1=源码闭环证实;
+  HOLD 维持; fence 三不变量冻结（INV-F1 queue-in-flight confirmed·
+  INV-F2 旧世代拦截帧不可复放·INV-F3 V+A Both-Confirmed）; 步骤 5
+  边界树登记。对本表影响: 无——谓词/词表/Gate 零改动; 三 blocking
+  维持 Failed; Gate 复跑待生产修复进库后按冻结谓词执行。
