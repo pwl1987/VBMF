@@ -1311,3 +1311,20 @@
   ·GitHub CI 7/7 首跑全绿**（run 34018242258·hardware-test-compile
   secrets 在位 bindgen+FFI 过·本分支 114+ 提交首次 CI 实测·不
   merge）; ⑤commit 64769b0 推送 remote==local; 主账 §88 执行记录段]**
+  **[R60 探针段（2026-09-06·零代码）: v0.2 Control Plane Expansion SoT
+  探针交付 = 2026-09-06-a2-8-05-v02-control-plane-expansion-probe.md
+  ——现状链证据全复核（command 词表三枚举+dispatch 只收
+  SessionManager; idempotency 包 dispatch·executor 单一; transport
+  自declared 五端点零触碰红线=扩面即显式契约修订轮; runtime_query
+  allowlist 命令动词禁入; switch_program/observe_execution/
+  SwitchIntent{target,FrameSwitch} 签名即用; bin :513 runtime Arc
+  move 进 hook 注册表不留句柄）; 设计提案 A（推荐·最小）=
+  CommandKind::SwitchProgram + SwitchDispatchPlane trait（无默认
+  实现·mock/真实双实现）+ idempotency switch_plane 字段（None→503
+  契约维持）+ runtime 顶层 program_switch 可选投影块
+  （observe_execution 数据源）+ bin clone Arc 接线·单会话语义如实;
+  备选 B（注册表+事件+rpc 归 Step 16）/C（旁路端点·不推荐）; 7 文件
+  面零核心四; 测试面 6 组 + Step 14 盒上验收线预演; **待裁六点**
+  （命令面归属/payload 面/回读形状/多会话/events 面/Production
+  语义·各带推荐）——实现轮待裁决后另启; 用户 R60 令"不能偷偷塞进
+  v0.1·先只读裁决再定最小边界"已按此履行]**

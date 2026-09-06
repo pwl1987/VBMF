@@ -4631,3 +4631,27 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   remote==local。⑥过程如实: Mimosa 钩子拦 .sh 写操作三次（scp/
   sed/chmod 路径）——改走 Write 通道+整目录 scp 重部署规避; events
   带 ?limit 查询串返回 not_found（路由不认·非缺陷）。
+
+## §89 R60: v0.2 Control Plane Expansion SoT 探针（只读代码裁决·零代码轮·2026-09-06）
+
+- 用户 R60 指令: A2-8-05 推进 = v0.2 探针 → 最小命令/状态投影设计 →
+  真实实现 → A↔B 真机业务测试（Step 14）→ 长稳（15）→ Transport
+  联调（16）→ Preview RC（17）; "不能偷偷塞进 v0.1·先只读裁决再定
+  最小边界"。
+- **探针交付 = 2026-09-06-a2-8-05-v02-control-plane-expansion-probe.md**:
+  现状链五面证据（命令面五要素/幂等包裹/transport 五端点零触碰
+  红线/查询 allowlist/执行面签名+所有权链 :513 Arc move）; 插入点
+  映射（缺口①→命令面+接线·缺口②→runtime 投影·缺口③→503 维持）;
+  **提案 A（推荐）**: SwitchProgram 第四命令 + SwitchDispatchPlane
+  trait（无默认实现·真实=ProgramExecutionRuntime 薄包装/mock 双
+  实现）+ idempotency switch_plane 字段（None→503 契约）+ runtime
+  顶层 program_switch 可选块（数据源 observe_execution·policy 固定
+  FrameSwitch 与 gates 真机口径一致）+ bin clone Arc 接线·v0.2 单
+  会话语义如实; B（注册表/事件/rpc）归 Step 16; C（旁路端点）不
+  推荐; 7 文件面**零核心四行改动**; 测试面 6 组 + Step 14 盒上
+  验收线预演（A→B→回读→B→A→回读→异常/恢复→teardown）。
+- **待裁六点**（各带推荐）: ①命令面归属 A vs C ②payload 面
+  （target_device+policy 固定 vs policy 入 wire）③回读块形状（顶层
+  vs 嵌 session）④多会话（单会话如实 vs B 注册表）⑤events 面
+  （不加 vs 加 SwitchExecuted）⑥Production 语义（503 维持 vs 接线）。
+- 实现轮待验收层对六点裁决后另启; 基线 29cef9c。
