@@ -1307,10 +1307,11 @@ mod tests {
     #[test]
     fn timeline_rt_03_m1_staged_straggler_fenced_runtime_preserves() {
         // R58 步骤6 Runtime 级 M1 证明: staged 竞态窗窜帧于 ①c 锚采样读毕
-        // 即投递（[锚采样→install] µs 窗模型——编排同步调用内不可插针, 由
-        // mock 自身落点触发）; R58 编排（⓪arm→…→④switch→④executed→确认
-        // Release）处置窜帧——全链 Preserve + 程序面 DiscontinuityDeclared
-        // （非 NonMonotonic）+ 七事件生产序完整在案。
+        // 即投递（[锚采样→install] µs 窗模型——Runtime 调用链 cut-point
+        // 注入, 确定性非 OS 线程并发; 真实并发归 Step 7 真机）; R58 编排
+        // （⓪arm→…→④switch→④executed→确认 Release）处置窜帧——全链
+        // Preserve + 程序面 DiscontinuityDeclared（非 NonMonotonic）+
+        // 八事件生产序完整在案（七词汇——HOLD-1 后 ①a 门处置入日志）。
         let (a, b, _sid, runtime, adapter) = runtime_with_mock();
         let graph = runtime.graph_handle().expect("graph");
         // 段 #1 生效（Runtime 全链——Authority 闭合 Preserved）。
@@ -1357,17 +1358,19 @@ mod tests {
             crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
             "Runtime 级 M1 PASS: 竞态窗窜帧被 fence 处置——干净声明边界（非 NM）"
         );
-        // 七事件生产序（arm 清空; ⑤ 循环内首枚映射收尾——完整日志恰为该序）。
+        // 八事件生产序（七词汇——HOLD-1: ①a Armed tick 门处置如实入日志
+        // 为首事件; arm 清空; ⑤ 循环内首枚映射收尾——完整日志恰为该序）。
         let log = adapter.cutover_interleave_log(&graph);
-        assert_eq!(log.len(), 7, "七事件生产序: {:?}", log);
+        assert_eq!(log.len(), 8, "八事件生产序: {:?}", log);
         use crate::adapters::switch_mock::CutoverInterleaveEvent as E;
-        assert!(matches!(log[0], E::AnchorSampled { .. }));
-        assert!(matches!(log[1], E::OldStraggler { .. }));
-        assert!(matches!(log[2], E::OldBufferDropped));
-        assert!(matches!(log[3], E::InstallNew { .. }));
-        assert!(matches!(log[4], E::SwitchNew { .. }));
-        assert!(matches!(log[5], E::FenceConfirmed { .. }));
-        assert!(matches!(log[6], E::FirstNewMapped { .. }));
+        assert!(matches!(log[0], E::OldBufferDropped));
+        assert!(matches!(log[1], E::AnchorSampled { .. }));
+        assert!(matches!(log[2], E::OldStraggler { .. }));
+        assert!(matches!(log[3], E::OldBufferDropped));
+        assert!(matches!(log[4], E::InstallNew { .. }));
+        assert!(matches!(log[5], E::SwitchNew { .. }));
+        assert!(matches!(log[6], E::FenceConfirmed { .. }));
+        assert!(matches!(log[7], E::FirstNewMapped { .. }));
     }
 
     #[test]

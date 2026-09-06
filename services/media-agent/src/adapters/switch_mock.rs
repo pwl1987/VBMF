@@ -88,6 +88,9 @@ struct MockGraph {
 /// [OldBufferDropped: 门处置]→InstallNew→SwitchNew→FenceConfirmed
 /// （排空确认+Release）→FirstNewMapped; 无 Fence 模式无 OldBufferDropped/
 /// FenceConfirmed（窜帧直写观测——基线被推进）。
+/// R58 步骤6 HOLD-1: 消费门先于一切 timeline 证据状态推进——tick 路径
+/// 的 Armed 丢弃（①a 基准观测/post-switch Armed 窗口在途缓冲）同记
+/// OldBufferDropped（门处置如实入账; 词汇仍七, 事件数如实）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CutoverInterleaveEvent {
     AnchorSampled { program_video: u64 },
@@ -173,8 +176,11 @@ impl MockSwitchExecutionAdapter {
 
     /// 观测一个 tick（驱动 PTS/帧计数推进——观测即推进的仿真时钟）。
     /// R58 步骤6: 程序出口交付受 cutover fence 消费门裁决——Armed 期
-    /// 到达缓冲一律 cutover-discard（计数+不写 pts/状态/帧数; Segment
-    /// 事件观测照常推进——EVENT 不被门拦截, 与真实探针类型分离同构）。
+    /// 到达缓冲一律 cutover-discard（计数+日志+不写 pts/状态/帧数）。
+    /// R58 步骤6 HOLD-1 修复: 门裁决先于一切 timeline 证据状态推进——
+    /// 被丢弃缓冲不占用 first_mapped 槽位（终裁处方: Fence Drop 必须
+    /// 先于任何 first_mapped/timeline evidence 状态推进）。Segment 事件
+    /// 观测照常推进——EVENT 不被门拦截, 与真实探针类型分离同构。
     fn tick_once(graph: &mut MockGraph) {
         graph.tick += 1;
         for device in graph.devices {
@@ -200,23 +206,43 @@ impl MockSwitchExecutionAdapter {
             .as_ref()
             .is_some_and(|t| graph.av_epoch >= t.plan.switch_epoch);
         if timeline_active {
+            if !graph
+                .timeline
+                .as_ref()
+                .expect("timeline_active")
+                .segment_seen
+            {
+                // ⑤ 边界 tick: Segment(B) 事件先于首枚 B 缓冲——本 tick
+                // 出口不交付缓冲（生效边界=下一缓冲, F6 微观序）。Segment
+                // =EVENT 不受消费门拦截（与真实 EVENT/BUFFER 探针类型分
+                // 离同构——drain 确认锚即挂在该事件上）。
+                graph
+                    .timeline
+                    .as_mut()
+                    .expect("timeline_active")
+                    .segment_seen = true;
+                return;
+            }
+            // R58 步骤6 HOLD-1 修复: 消费门先于一切 timeline 证据状态推进
+            // ——Armed 期到达的缓冲在写 first_mapped/facts/程序 PTS/帧数
+            // 之前丢弃（被丢弃缓冲不得占用"首枚已映射"槽位; 门不分辨世代
+            // 只认 Armed——post-switch Armed 窗口/confirm→release 控制隙
+            // 内到达的新世代缓冲同受此处置, 真适配器消费门同语义）。门
+            // 处置如实入交错日志（HOLD-1: 修复前 tick 路径丢弃不可见）。
+            if graph.cutover_fence_armed {
+                graph.cutover_discarded =
+                    (graph.cutover_discarded.0 + 1, graph.cutover_discarded.1 + 1);
+                graph
+                    .interleave
+                    .push(CutoverInterleaveEvent::OldBufferDropped);
+                return;
+            }
             let is_first_mapped_tick = {
                 let t = graph.timeline.as_mut().expect("timeline_active");
-                if !t.segment_seen {
-                    // ⑤ 边界 tick: Segment(B) 事件先于首枚 B 缓冲——本 tick
-                    // 出口不交付缓冲（生效边界=下一缓冲, F6 微观序）。
-                    t.segment_seen = true;
-                    return;
-                }
                 let first = !t.first_mapped;
                 t.first_mapped = true;
                 first
             };
-            if graph.cutover_fence_armed {
-                graph.cutover_discarded =
-                    (graph.cutover_discarded.0 + 1, graph.cutover_discarded.1 + 1);
-                return;
-            }
             let active = graph.active.expect("alive ⇒ active");
             let (v, a) = graph.pts[&active];
             let (video_seg, audio_seg) = {
@@ -292,6 +318,9 @@ impl MockSwitchExecutionAdapter {
     /// R58 步骤6: 竞态窗窜帧预置注入（Runtime 级——下一次锚采样读毕即
     /// 投递, 模型=[锚采样→install] µs 窗内旧世代映射帧穿越消费门;
     /// 编排同步调用内不可插针, 由 mock 自身在 ①c 落点后触发）。
+    /// R58 步骤6 HOLD-1 命名口径: 本注入=**Runtime 调用链 cut-point
+    /// 注入**（确定性——同步落点触发）, 非 OS 意义真实控制/数据线程
+    /// 并发竞态; 真实并发归 Step 7 真机验证（终裁 §3）。
     pub fn stage_window_straggler(
         &self,
         graph: &PipelineHandle,
@@ -1310,11 +1339,12 @@ mod tests {
     #[test]
     fn switch_rt_03_m1_fence_closes_race_boundary_declared() {
         // R58 步骤6 T-M1-PASS（协议级·有 Fence = R58 编排序）: ⓪arm→①a
-        // （Armed 期 tick 交付被消费门处置——基线冻结）→①c 锚采样→竞态窗
-        // 窜帧（armed 门→丢弃+计数, 不写弧）→install→switch→确认式 Release
-        // （mock auto-confirm——协议强制由真适配器 T-F1/F2/F3 证明）→
-        // Segment tick→首枚映射 ≥ 冻结基线 → 干净声明边界 Discontinuity
-        // Declared; 七事件生产序完整在案（arm 清空日志——恰为该序）。
+        // （Armed 期 tick 交付被消费门处置——基线冻结+OldBufferDropped
+        // 如实入日志）→①c 锚采样→竞态窗窜帧（armed 门→丢弃+计数, 不写
+        // 弧）→install→switch→确认式 Release（mock auto-confirm——协议
+        // 强制由真适配器 T-F1/F2/F3 证明）→Segment tick→首枚映射 ≥ 冻结
+        // 基线 → 干净声明边界 Discontinuity Declared; 八事件生产序完整
+        // 在案（七词汇——arm 清空日志, 恰为该序）。
         let (a, _b, mut group, graph, adapter) = m1_old_segment_rig();
         // ⓪ arm（生产序——①a 之前; 世代 1/计数清零/日志清空）。
         adapter.arm_cutover_fence(&graph).expect("arm");
@@ -1370,30 +1400,133 @@ mod tests {
             mapped2.program_audio_pts_state,
             PtsMonotonicity::DiscontinuityDeclared
         );
-        // 七事件生产序（完整日志恰为该序——arm 清空前无残余）。
+        // 八事件生产序（七词汇——HOLD-1 修复后 ①a Armed tick 门处置
+        // 如实入日志为首个事件; arm 清空前无残余）。
         let log = adapter.cutover_interleave_log(&graph);
-        assert_eq!(log.len(), 7, "七事件生产序");
+        assert_eq!(log.len(), 8, "八事件生产序（含 ①a Armed tick 门处置）");
+        assert!(matches!(log[0], CutoverInterleaveEvent::OldBufferDropped));
         assert!(matches!(
-            log[0],
+            log[1],
             CutoverInterleaveEvent::AnchorSampled { .. }
         ));
         assert!(matches!(
-            log[1],
+            log[2],
             CutoverInterleaveEvent::OldStraggler { .. }
         ));
-        assert!(matches!(log[2], CutoverInterleaveEvent::OldBufferDropped));
-        assert!(matches!(log[3], CutoverInterleaveEvent::InstallNew { .. }));
-        assert!(matches!(log[4], CutoverInterleaveEvent::SwitchNew { .. }));
+        assert!(matches!(log[3], CutoverInterleaveEvent::OldBufferDropped));
+        assert!(matches!(log[4], CutoverInterleaveEvent::InstallNew { .. }));
+        assert!(matches!(log[5], CutoverInterleaveEvent::SwitchNew { .. }));
         assert!(matches!(
-            log[5],
+            log[6],
             CutoverInterleaveEvent::FenceConfirmed {
                 generation: 1,
                 discarded: 4
             }
         ));
         assert!(matches!(
-            log[6],
+            log[7],
             CutoverInterleaveEvent::FirstNewMapped { .. }
+        ));
+    }
+
+    #[test]
+    fn switch_rt_03_m1_armed_gate_precedes_first_mapped_evidence_state() {
+        // R58 步骤6 HOLD-1 回归（终裁处方测试）: post-switch 仍 Armed 窗口
+        // 内到达的 timeline 缓冲被消费门丢弃时——first_mapped/timeline
+        // 证据状态不得推进（被丢弃缓冲不占用"首枚已映射"槽位）; Release
+        // 后首枚真正放行的缓冲才成为 FirstNewMapped。序列=install→switch
+        // →Armed→缓冲到达→Drop→first_mapped 仍 false→release→下一枚
+        // 放行缓冲=FirstNewMapped。修复前该窗口 first_mapped 被丢弃 tick
+        // 预占（丢弃不可见+首放行帧走 plain 弧——FirstNewMapped 永不出现
+        // 且 timeline 行提前出事实, 本测双断言锁定）。
+        let (a, _b, mut group, graph, adapter) = m1_old_segment_rig();
+        // ①a 基准观测（未 arm——正常交付, 读基线）。
+        let pre = adapter.observe(&graph).program;
+        let p_v = pre.program_video_pts.expect("P_v");
+        // ①c 锚采样 → ②③ 声明段 #2 + install（InstallNew）。
+        let anchors = adapter.sample_switch_anchors(&graph, a).expect("锚");
+        let seg2_v =
+            SourceSegment::declare(a, ProgramEpoch(0), SegmentId(2), anchors.video).expect("段#2v");
+        let seg2_a =
+            SourceSegment::declare(a, ProgramEpoch(0), SegmentId(2), anchors.audio).expect("段#2a");
+        adapter
+            .install_timeline_transition(
+                &graph,
+                &ProgramTimelinePlan {
+                    target: a,
+                    switch_epoch: 2,
+                    video: seg2_v,
+                    audio: seg2_a,
+                },
+            )
+            .expect("安装#2");
+        // ⓪ arm（install 后——专测 post-switch Armed 窗口; 生产编排 arm
+        // 在 ①a 之前, Armed 横跨 ⓪→release, 窗口语义相同。arm 清空日志
+        // ——本测日志恰为窗口四事件）。
+        adapter.arm_cutover_fence(&graph).expect("arm");
+        // ④ 翻转（SwitchNew; timeline#2 生效）。
+        do_switch(&mut group, &adapter, &graph, a);
+        // ⑤ Segment tick（EVENT 不受门拦截——segment_seen 照常推进, 无
+        // 缓冲交付）。
+        let seg_tick = adapter.observe(&graph);
+        assert_eq!(
+            seg_tick.timeline.mapped_program_pts, None,
+            "Segment tick 无缓冲交付"
+        );
+        // post-switch Armed 窗口: 首枚 timeline#2 缓冲候选到达 → 消费门 Drop。
+        let dropped = adapter.observe(&graph);
+        assert_eq!(
+            dropped.timeline.mapped_program_pts, None,
+            "被丢弃缓冲不得成为首映射——first_mapped 未推进（timeline 行仍诚实缺席）"
+        );
+        assert_eq!(
+            dropped.program.program_video_pts,
+            Some(p_v),
+            "被丢弃缓冲不写程序出口（基线冻结）"
+        );
+        assert_eq!(
+            dropped.program.program_video_frames, pre.program_video_frames,
+            "被丢弃缓冲不进帧数"
+        );
+        // 确认式 Release（mock auto-confirm——本窗口恰一次门丢弃 v+a=2）。
+        let ev = adapter
+            .release_cutover_fence(&graph, std::time::Duration::from_secs(1))
+            .expect("确认式 Release");
+        assert_eq!(ev.generation, 1);
+        assert_eq!(ev.video.discarded, 1, "窗口内恰一次 video 门丢弃");
+        assert_eq!(ev.audio.discarded, 1, "audio 面对称");
+        // Release 后首枚真正放行缓冲 = FirstNewMapped + 干净声明边界 DD。
+        // 锚采样后 tick 序: Segment tick + dropped tick（设备 PTS 无条件
+        // 推进）→ 首放行帧源位=锚源+3 步长 → 映射=P+3 步长（比常规边界
+        // 多一个 dropped tick——模型前导如实）。
+        let mapped2 = adapter.observe(&graph).program;
+        assert_eq!(mapped2.program_video_pts, Some(p_v + 3 * VIDEO_PTS_STEP));
+        assert_eq!(
+            mapped2.program_video_pts_state,
+            PtsMonotonicity::DiscontinuityDeclared,
+            "首放行帧=首映射（被丢弃候选未占槽）→ declared 弧 DD（非 plain）"
+        );
+        assert!(group.complete_switch(a), "#2 Observed=A 落定 Desired");
+        // 窗口四事件: SwitchNew→OldBufferDropped（门处置）→FenceConfirmed
+        // →FirstNewMapped（修复前: 槽位被丢弃 tick 预占——FirstNewMapped
+        // 永不出现且日志无该门处置事件）。
+        let log = adapter.cutover_interleave_log(&graph);
+        assert_eq!(log.len(), 4, "窗口四事件: {:?}", log);
+        assert!(matches!(
+            log[0],
+            CutoverInterleaveEvent::SwitchNew { epoch: 2 }
+        ));
+        assert!(matches!(log[1], CutoverInterleaveEvent::OldBufferDropped));
+        assert!(matches!(
+            log[2],
+            CutoverInterleaveEvent::FenceConfirmed {
+                generation: 1,
+                discarded: 2
+            }
+        ));
+        assert!(matches!(
+            log[3],
+            CutoverInterleaveEvent::FirstNewMapped { mapped_video } if mapped_video == p_v + 3 * VIDEO_PTS_STEP
         ));
     }
 

@@ -1187,6 +1187,26 @@
   谓词/Gate/真适配器/契约端口零字节·三 blocking 维持 Failed; 下一步
   =Step 7 真机 #8 复现（NM 消失+#9 生命周期仍立）→10→11; A2-8-04
   仍 FAIL/HOLD; A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 6 独立复核终裁: IMPLEMENTATION PASS /
+  TEST MODEL HOLD-1——核心成果成立（三证明方向/非孤立测/真实计数/
+  七事件在案）, 但 tick_once timeline 分支先置 first_mapped 再查
+  fence_armed: Armed 丢弃缓冲占用首映射槽位（三测调用序恰好避开
+  post-switch Armed 在途窗口——恰是 Step 5.1 要防的边界）; 修复=
+  终裁处方"Fence Drop 必须先于任何 first_mapped/timeline evidence
+  状态推进"（segment_seen EVENT 不拦→消费门丢弃+计数+OldBufferDropped
+  入日志[同根证据面缺口顺带闭合: tick 门处置原先不可见]→状态推进;
+  门不分辨世代只认 Armed）; 新增回归 switch_rt_03_m1_armed_gate_
+  precedes_first_mapped_evidence_state（install→switch→Armed→缓冲
+  到达→Drop→first_mapped 仍 false·PTS 冻结·帧数不进→release v/a
+  各 1→下一枚放行=FirstNewMapped+DD·窗口四事件; 旧序必红判别性在案）
+  ; 两项登记口径修正=stage_window_straggler 为 Runtime 调用链
+  cut-point 注入（确定性非 OS 线程竞态·真实并发归 Step 7）+04c3dd1
+  无 GitHub combined status（396/396=盒上本地验证口径非 CI 结论）;
+  盒 mock 397/397（396 零破坏+新增一次过）·矩阵 fmt/227/227/397/
+  gst 266 不变/clippy×3 全绿·T-M1-PASS/T-RUNTIME 事件数 7→8 如实
+  （词汇仍七）; Domain/谓词/Gate/真适配器/契约端口零字节·三 blocking
+  维持 Failed; Step 6 最终 CLOSED 裁决权在验收层（处方测试已通过）
+  ·Step 7 不先于该裁决启动; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

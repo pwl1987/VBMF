@@ -4432,3 +4432,35 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - 红线: Domain/谓词/Gate/真适配器/契约端口零字节; 三 blocking 维持
   Failed; 下一步=**Step 7 真机 #8 复现（NM 消失+#9 生命周期仍立）**
   →Step 10→Step 11; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。
+
+## §82 R58 步骤 6 独立复核: IMPLEMENTATION PASS / TEST MODEL HOLD-1 → 状态顺序修复落地
+
+- 终裁（验收层独立复核 04c3dd1 实际源码）: Step 6 = **IMPLEMENTATION
+  PASS / TEST MODEL HOLD-1**——核心成果成立（三证明方向对·非换名单测·
+  计数真实·七事件在案）, 但 Mock 交错模型自身有一处状态语义缺口必须
+  先修: tick_once timeline 分支**先置 first_mapped=true 再查 cutover_
+  fence_armed**——Armed 丢弃的缓冲占用"首枚已映射"槽位（与字段定义
+  "真正被接受的首帧"不一致; 三测调用序恰好避开 post-switch Armed 在途
+  窗口——恰是 Step 5.1 要防的边界）。
+- 修复（处方=终裁原文"Fence Drop 必须先于任何 first_mapped/timeline
+  evidence 状态推进"）: timeline 分支重排 segment_seen（EVENT 不拦）
+  →消费门（丢弃+计数+**OldBufferDropped 入日志**——同根证据面缺口
+  顺带闭合: 修复前 tick 路径门处置不可见）→first_mapped/facts/PTS/
+  帧数; 门不分辨世代只认 Armed（confirm→release 控制隙新世代缓冲同
+  处置, 真适配器同语义）。legacy/straggler 分支顺序审计=本正确零改动。
+- 新增回归（终裁处方逐条）: `switch_rt_03_m1_armed_gate_precedes_
+  first_mapped_evidence_state`——install→switch→Armed→缓冲到达→Drop
+  （timeline 行仍 no_evidence·PTS 冻结·帧数不进）→release（v/a 各 1
+  如实）→下一枚放行=FirstNewMapped+DD（P+3 步长前导如实）·窗口四
+  事件; 修复判别性在案（旧序必红: 槽位被预占+FirstNewMapped 消失）。
+- 两项登记口径修正: ① stage_window_straggler=**Runtime 调用链
+  cut-point 注入**（确定性同步落点, 非 OS 线程并发竞态——真实并发归
+  Step 7 真机）; ② 04c3dd1 无 GitHub combined status——"396/396"=
+  盒上本地验证口径, 不表述为 GitHub CI 结论（§16.4 加注·§17.3）。
+- 盒（本地验证口径）: mock 397/397（396 零破坏+新增一次过）·最终矩阵
+  fmt ✓/default 227/sim 227/mock 397/gst 266 不变/clippy×3 全绿
+  （fmt 差→盒上 apply+拉回复验）; T-M1-PASS/T-RUNTIME 事件数断言
+  7→8 如实更新（①a 门处置入日志后的诚实计数——词汇仍七）。
+- 红线: Domain/谓词/Gate/真适配器/契约端口零字节; 三 blocking 维持
+  Failed; **Step 6 最终 CLOSED 裁决权在验收层（处方测试已通过）;
+  Step 7 不先于该裁决启动**; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。

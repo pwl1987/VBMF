@@ -859,6 +859,10 @@ ffdb9ce 实际调用链逐行核验——**A ✅ / B ✅ / C ✅（一项 GStrea
 
 ## §16 R58 步骤 6 执行: Mock 交错模型（代码轮）
 
+> （本节交付后的独立复核终裁=IMPLEMENTATION PASS / TEST MODEL HOLD-1;
+> 状态语义修复+命名/CI 口径修正见 §17——本节"控制/数据交错表达"等
+> 措辞以 §17.2 修正后口径为准。）
+
 ### 16.1 终裁输入与 C 项修正登记
 
 - 验收层终审: Step 5.1 = **CLOSED**（A/B 源码级成立; C 结论成立但
@@ -947,4 +951,110 @@ ffdb9ce 实际调用链逐行核验——**A ✅ / B ✅ / C ✅（一项 GStrea
   switch graph/契约端口零字节; 三 blocking 维持 Failed; 首败留证。
 - 步骤 6 完成; **下一步=Step 7 真机 #8 场景复现**（NM 消失+ #9
   生命周期仍立）→Step 10 全回归→Step 11 新鲜 Gate。A2-8-04 仍 🔴
+  FAIL/HOLD; A2-8-05 不进入。
+
+## §17 R58 步骤 6 独立复核终裁: IMPLEMENTATION PASS / TEST MODEL HOLD-1 → 修复落地
+
+### 17.1 终裁（验收层独立复核 04c3dd1 实际源码后下达）
+
+- 裁决: **Step 6 = IMPLEMENTATION PASS / TEST MODEL HOLD-1**（非回滚、
+  非推倒重来——先修一个 Mock 交错模型自身的状态语义问题, 再进 Step 7）。
+- 终裁确认成立项: 04c3dd1 为真实远端提交（SHA
+  04c3dd1178a10d90c88f074ec273be96358a5873）; Mock 状态机/straggler
+  注入/七事件日志/三测在案; 明确未修改 Domain/真 GStreamer adapter/
+  契约端口。三项核心证明方向均对: 无 Fence→M1 FAIL（窜帧 plain 写弧
+  推进基线→边界落回→NM+sticky）/ 有 Fence→M1 PASS（Armed 期 tick+
+  straggler 走 discard→Release→新段首帧 DD; 丢弃计数实际累加非伪造
+  常数）/ Runtime 级非孤立测 FencePair（stage_window_straggler 由
+  runtime 的锚采样消费→真 switch_program 全链→Preserved+DD+事件序）
+  ——"不是只把单元测试换个名字"。
+- **HOLD-1 根因（终裁源码级发现）**: tick_once 的 timeline 分支顺序=
+  先置 `first_mapped = true` 再检查 `cutover_fence_armed`——Armed 丢弃
+  的缓冲先占用"首枚已映射"槽位。与字段定义（"首枚 B 缓冲已按声明映射
+  施加"=真正被接受/映射的首帧, 非尝试过的首帧）不一致; 与步骤 6 自称
+  "Armed 期 cutover-discard 不写 pts/状态/帧数"不完全一致（未写
+  Program PTS 但改变了 timeline evidence state）。三测未抓到=Runtime/
+  协议测试调用序恰好避开 [install+switch→仍 Armed→timeline 缓冲到达
+  →Drop] 窗口——恰是 Step 5.1 要防的边界（post-switch、pre-release
+  在途新 timeline 缓冲未走过 tick_once）。
+- **修复处方（终裁原文）**: "Fence Drop 必须先于任何 first_mapped /
+  timeline evidence 状态推进"——timeline buffer 到达→Fence Armed?
+  Yes→Drop / No→更新 first_mapped/facts/Program PTS; 并补专门测试:
+  install→switch→Armed→timeline buffer 到达→Drop→first_mapped 仍
+  false→release→下一枚真正放行的 buffer 才成为 FirstNewMapped。
+
+### 17.2 命名口径修正（登记层, 终裁 §3）
+
+- 终裁原文: stage_window_straggler 的实现"实际上不是操作系统意义上的
+  真实并发……它证明的是 Runtime call-chain cut-point injection 而
+  不是真实控制线程/数据线程并发 race。这没有问题, 甚至是更好的确定性
+  测试方式, 但登记时不能把它描述成已经证明了真实线程竞态。真实并发
+  仍然要靠 Step 7 的 GStreamer/BMD 真机链验证。"
+- 登记修正: §16.2"竞态窗窜帧注入 API"中 Runtime 级注入的正确口径=
+  **Runtime 调用链 cut-point 注入**（确定性——①c 落点同步触发, 非
+  OS 线程并发竞态）; §16.3 T-RUNTIME 的证明力=生产编排序在 mock 的
+  端到端证明, **不含真实多线程竞态证明**; 真实并发=Step 7 真机。
+  代码 doc comment 已同步该口径（stage_window_straggler + runtime
+  测试头注）。
+
+### 17.3 CI 口径修正（登记层）
+
+- 终裁: GitHub 对 04c3dd1 无 combined status——"396/396 全绿"属盒上
+  本地验证, 不得写成 GitHub CI 结论。
+- 登记修正: §16.4 及后续所有矩阵结论一律以**盒上本地验证**口径表述
+  （tar 通道上盒+盒上 cargo; 本仓无 GitHub CI 覆盖该提交）。
+
+### 17.4 修复实现（单文件 mock adapter + runtime 测试注释; Domain/契约/真适配器零触碰）
+
+- **tick_once timeline 分支重排**: segment_seen 推进（Segment=EVENT
+  不受门拦截——与真实 EVENT/BUFFER 探针类型分离同构, drain 确认锚
+  即挂在该事件上）→ **消费门（Armed→丢弃+计数+OldBufferDropped 入
+  日志）** → first_mapped/facts/程序 PTS/帧数推进。被丢弃缓冲不再
+  占用首映射槽位。门不分辨世代只认 Armed——post-switch Armed 窗口/
+  confirm→release 控制隙内到达的新世代缓冲同受此处置（真适配器消费
+  门同语义: appsink 门 discard_if_armed 不检查缓冲世代）。
+- **同根证据面缺口顺带闭合**: 修复前 tick 路径门处置不入交错日志
+  （仅窜帧路径入 OldBufferDropped）——tick 丢弃在证据面不可见; 现
+  如实入账（词汇仍七, 事件数如实: T-M1-PASS/T-RUNTIME 日志 7→8——
+  ①a Armed tick 门处置如实成为首个事件）。
+- legacy 分支/deliver_straggler 审计: 门已在一切状态写之前（顺序
+  本正确——零改动）。
+
+### 17.5 新增回归测试（终裁处方逐条落地）
+
+`switch_rt_03_m1_armed_gate_precedes_first_mapped_evidence_state`
+（协议级）: 段#1 装置→①a 基线 P（未 arm）→锚采样→声明#2/install→
+arm（install 后, 专测 post-switch Armed 窗口; 生产编排 arm 在 ①a 前,
+Armed 横跨 ⓪→release 窗口语义相同）→switch（SwitchNew）→Segment
+tick（EVENT 不拦, 无缓冲交付）→ **post-switch Armed 窗口首枚缓冲候选
+到达→Drop** ——断言三件: timeline 行仍 no_evidence（first_mapped 未
+推进——外部可见）/程序出口 PTS 冻结于 P/帧数不进→确认式 Release
+（gen=1, v/a 各 1=窗口恰一次门丢弃）→下一 tick 首放行帧=**First
+NewMapped**+DiscontinuityDeclared（映射=P+3 步长——比常规边界多一个
+dropped tick 前导, 模型如实）→窗口日志恰四事件 SwitchNew→
+OldBufferDropped→FenceConfirmed{gen:1, discarded:2}→FirstNewMapped。
+**修复判别性**（修复前该测试必红）: 旧序下窗口内丢弃 tick 预占
+first_mapped→timeline 行提前出事实（mapped_program_pts=Some(P)）+
+FirstNewMapped 永不出现+首放行帧走 plain 弧。
+
+### 17.6 盒证据（盒上本地验证口径——无 GitHub CI）
+
+- run1: mock **397/397**（396 既有零破坏+1 新增 HOLD-1 回归一次通过）。
+- run2 矩阵: default 227/sim 227/gst 266（真适配器零触碰, 不变）;
+  fmt 差（新测断言换行）→盒上 cargo fmt+格式化文件拉回本地（语义零
+  变化）+复验。
+- run3 最终矩阵全绿: **fmt ✓·default 227/227·sim 227/227·mock
+  397/397·gst 266/266·clippy×3 --all-targets -D warnings**
+  （default/mock/bmd,gstreamer）。
+- T-M1-PASS/T-RUNTIME 事件数断言 7→8 如实更新（①a 门处置入日志后
+  的诚实计数）。
+
+### 17.7 边界与红线
+
+- Domain（program timeline/Authority）/谓词/Gate/阈值/真适配器
+  switch graph/契约端口零字节; 三 blocking 维持 Failed; 首败留证。
+- **Step 6 状态**: 终裁处方修复+回归测试已落地并全绿——终裁原文
+  "这个测试一旦通过, Step 6 就可以正式 CLOSED"——测试已通过, 最终
+  CLOSED 裁决权在验收层, 本轮不自行宣布 CLOSED。**Step 7 不先于该
+  裁决启动**（终裁: "现在不要直接进入 Step 7"）。A2-8-04 仍 🔴
   FAIL/HOLD; A2-8-05 不进入。
