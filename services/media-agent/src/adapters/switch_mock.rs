@@ -64,6 +64,11 @@ struct MockGraph {
     program_frames: (u64, u64),
     /// C-TIMELINE-01: 已安装 timeline 声明（None=legacy 独立再生成流模式）。
     timeline: Option<MockTimelineState>,
+    /// R58 步骤5 staging: cutover fence 状态（Step 6 接入交错模型——
+    /// AnchorSampled/OldStraggler/FenceConfirmed/InstallNew/SwitchNew/
+    /// OldBufferDropped/FirstNewMapped; 无 Fence→M1 FAIL / 有 Fence→M1
+    /// PASS 双模式共存）。
+    cutover_fence_armed: bool,
 }
 
 impl MockGraph {
@@ -212,6 +217,7 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
             program_pts: MockGraph::device_base(&initial_active, &devices),
             program_frames: (0, 0),
             timeline: None,
+            cutover_fence_armed: false,
         };
         self.graphs.lock().unwrap().insert(handle, graph);
         Ok(handle)
@@ -225,6 +231,37 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         g.started = true;
         g.active = Some(g.initial_active);
         Ok(())
+    }
+
+    /// R58 步骤5（执行契约 staging）: V+A 双面 fence Armed——barrier 非权威
+    /// （INV-F3）; 本单元仅记录状态, Step 6 接入交错模型后驱动
+    /// FenceConfirmed/OldBufferDropped 语义。
+    fn arm_cutover_fence(&self, graph: &PipelineHandle) -> Result<(), SwitchError> {
+        let mut graphs = self.graphs.lock().unwrap();
+        let g = graphs
+            .get_mut(graph)
+            .ok_or(SwitchError::GraphNotRunning(*graph))?;
+        debug_assert!(
+            !g.cutover_fence_armed,
+            "fence 双重 arm——编排序破坏（前序未 Release）"
+        );
+        g.cutover_fence_armed = true;
+        Ok(())
+    }
+
+    /// R58 步骤5（执行契约 staging）: 双面 Release。Mock 无流面丢弃——
+    /// 计数恒 0（诚实: 状态记录面, 非仿真丢弃面）。
+    fn release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
+        let mut graphs = self.graphs.lock().unwrap();
+        let g = graphs
+            .get_mut(graph)
+            .ok_or(SwitchError::GraphNotRunning(*graph))?;
+        debug_assert!(
+            g.cutover_fence_armed,
+            "fence release 未 arm——编排序破坏"
+        );
+        g.cutover_fence_armed = false;
+        Ok(0)
     }
 
     fn install_timeline_transition(

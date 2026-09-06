@@ -574,6 +574,8 @@ impl ProgramExecutionRuntime {
     /// downstream Event/Buffer 产生"实际上发生了什么"的证据; 两者在本
     /// Runtime 中闭合成 TimelineMapped**。
     ///
+    /// - ⓪ R58 cutover fence: V+A 双面 Armed（INV-F1/F2/F3 编码进执行
+    ///   契约——barrier 非权威; 守卫 Drop 兜底任意错误路径解除）;
     /// - ① 基准+锚采样（Adapter 观测——offset 归 Authority 声明）;
     /// - ② Authority 声明（fail-closed）; ③ pre-flip install（只安装）;
     /// - ④ group begin→adapter switch（失败→timeline abort+传播）;
@@ -592,6 +594,10 @@ impl ProgramExecutionRuntime {
                 "runtime 未激活（已 teardown）——切换拒收".into(),
             ));
         };
+        // ⓪ R58 cutover fence: V+A 双面 Armed——自此旧世代数据不再进入
+        // Program 观测（INV-F1 在途处置按构造覆盖; INV-F3 双面同装;
+        // 守卫 Drop 兜底 ①-④ 任意错误路径解除 barrier 恢复流面）。
+        let fence = CutoverFenceGuard::arm(inner.switcher.clone(), inner.graph)?;
         // ①a 连续性基准（pre-flip program 实测位置——Authority 连续性校验基准）。
         let pre = inner.switcher.observe(&inner.graph).program;
         if let Some(v) = pre.program_video_pts {
@@ -630,10 +636,16 @@ impl ProgramExecutionRuntime {
         let executed = match inner.switcher.switch(&inner.graph, &execution_plan) {
             Ok(ex) => ex,
             Err(e) => {
+                // 失败路径: fence 守卫 Drop 解除 barrier 恢复流面（屏障不
+                // 吞错误）; timeline abort 交回 Domain fail-closed; 错误
+                // 如实上抛。
                 let _ = inner.timeline.abort_transition();
                 return Err(e);
             }
         };
+        // INV-F3 落点: executed 已建立——Release 重开新世代流面（丢弃计数
+        // 为证据面, 编排当前不消费; ⑤-⑧/settle 依赖放行后的新世代观测）。
+        fence.defuse();
         inner
             .timeline
             .on_switch_executed(executed.av_epoch)
@@ -812,6 +824,44 @@ pub struct ProgramSwitchReport {
     pub observation: TimelineObservation,
 }
 
+/// R58 步骤5: cutover fence 编排守卫——Drop 兜底 Release（①-④ 任意错误
+/// 路径必解除 barrier 恢复流面; 屏障不是权限, 不吞切换错误）; 成功路径在
+/// switch() executed 落点显式 `defuse()`（INV-F3: Release 仅由编排在
+/// executed 之后驱动——fence 永不自宣布完成）。
+struct CutoverFenceGuard {
+    switcher: Arc<dyn SwitchExecutionAdapter>,
+    graph: PipelineHandle,
+    armed: bool,
+}
+
+impl CutoverFenceGuard {
+    fn arm(
+        switcher: Arc<dyn SwitchExecutionAdapter>,
+        graph: PipelineHandle,
+    ) -> Result<Self, SwitchError> {
+        switcher.arm_cutover_fence(&graph)?;
+        Ok(Self {
+            switcher,
+            graph,
+            armed: true,
+        })
+    }
+
+    /// INV-F3 落点 Release（丢弃计数=证据面, 编排当前不消费——`let _`）。
+    fn defuse(mut self) {
+        self.armed = false;
+        let _ = self.switcher.release_cutover_fence(&self.graph);
+    }
+}
+
+impl Drop for CutoverFenceGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.switcher.release_cutover_fence(&self.graph);
+        }
+    }
+}
+
 #[cfg(all(test, feature = "mock"))]
 mod tests {
     use super::*;
@@ -871,6 +921,12 @@ mod tests {
         }
         fn stop_program(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
             Ok(())
+        }
+        fn arm_cutover_fence(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
+            unreachable!("失败注入不用于 fence")
+        }
+        fn release_cutover_fence(&self, _g: &PipelineHandle) -> Result<u64, SwitchError> {
+            unreachable!("失败注入不用于 fence")
         }
     }
 
@@ -1260,6 +1316,12 @@ mod tests {
                 _p: &crate::switch_execution::SwitchExecutionPlan,
             ) -> Result<crate::contracts::switch::SwitchExecuted, SwitchError> {
                 Err(SwitchError::Backend("注入: switch 执行失败".into()))
+            }
+            fn arm_cutover_fence(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
+                self.0.arm_cutover_fence(g)
+            }
+            fn release_cutover_fence(&self, g: &PipelineHandle) -> Result<u64, SwitchError> {
+                self.0.release_cutover_fence(g)
             }
             fn observe(
                 &self,

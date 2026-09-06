@@ -518,3 +518,63 @@ declare → install 新 TimelineExecutionState → dual selector switch →
 
 零代码零判据零 Gate; 三 blocking 维持; 首败留证; 本地/远端口径分述;
 推送仅按明确指示; A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入。
+
+## 13 R58 步骤 5 执行：Cutover Fence 生产实现（代码轮, 本地未推送）
+
+验收层终裁「下一工作单元就是 Step 5·INV-F1/F2/F3 必须直接编码进
+Adapter execution contract」——按 §12.4 冻结边界树落地。
+
+### 13.1 实现面（四文件, Domain 零触碰）
+
+- **switch graph 适配器（主修）**: `FenceState{Open,Armed}` +
+  `PlaneFence{state,discarded}` + `FencePair{video,audio}`（单字段
+  承载=V+A 成对的结构性表达）+ `fence_should_discard` 纯门函数
+  （单语义、双应用点）; SwitchGraph 增 `fences` 字段（build 期创建,
+  探针/消费门/契约共享）; **两层门**——selector src BUFFER 探针门
+  （drop-first: 先于 `apply_declared_mapping`, 丢弃帧不消耗
+  first_mapped/不改写 PTS）+ appsink 消费门（V/A 对称, 不计帧数不写
+  弧）; `arm_cutover_fence`（V+A 同装, INV-F3 无单面窗口; 未启动
+  graph fail-closed）/`release_cutover_fence`（双面 Open+丢弃计数
+  交回）; **Open=legacy 逐字节保持**（门仅在 Armed 时改变行为）。
+- **switch 执行契约（端口扩展, 无默认实现）**: 新增
+  `arm_cutover_fence`/`release_cutover_fence` 两个 trait 方法——
+  编译期强制全部 4 个实现方表态: 真实 GStreamer（双面 fence）/
+  Mock（staging 旗标+编排序 debug_assert）/两个测试包装器
+  （unreachable+转发）。barrier=执行屏障非权威（INV-F3: 永不自宣布
+  切换完成）。
+- **program execution 编排**: `CutoverFenceGuard`（arm 于 ⓪——
+  ①a 基准观测之前; **Drop 兜底**: ①-④ 任意错误路径必解除 barrier
+  恢复流面, 不吞切换错误）; 成功路径在 `switch()` executed 落点
+  **之后**显式 defuse=Release（INV-F3 落点序; 丢弃计数为证据面）。
+  Runtime 只发起 barrier, 不实现 fence——方向与裁决一致。
+- **Mock**: staging 最小实现（状态记录面; 真实交错模型=步骤 6——
+  OldStraggler/FenceConfirmed/OldBufferDropped 语义接入后驱动
+  无 Fence→FAIL/有 Fence→PASS 双模式）。
+- **INV-F1 语义落定（登记）**: confirmed=**构造性覆盖**——appsink
+  消费门保证 Armed 期间到达的在途帧（含 queue 已有帧）一律
+  consumed-as-cutover-discard, 无时间等待、确定性非启发式;
+  INV-F2: Drop 无 flush/复放路径, 丢弃计数如实交回。
+
+### 13.2 测试与盒证据
+
+- 契约测 `switch_graph_fence_contract_arm_release_both_planes`:
+  初始 Open（legacy）→ arm=V+A 双 Armed（无单面窗口）→ release=
+  双 Open+计数如实 → 未知 graph 双向 fail-closed。
+- fence 闭合测 `switch_graph_fence_armed_closes_m1_race_boundary_
+  stays_clean`（R58-Design §8 同序）: T0 #7 续流 P（Open=放行）→
+  T1 arm → T2 锚=P → T3 竞态窗窜帧被探针门处置（**基线未被推进
+  ——对照 m1 红测在案: 无 fence 时已被推进 P+40ms**）→ T4 install#8
+  → T6 executed 落点 Release（计数=1 如实）→ T7 新世代首枚映射 P
+  → **干净声明边界 DD**（对照无 fence→NonMonotonic）。
+- 盒（tar 通道）: 首跑 2 处编译错误（测试闭包 E0597 借期+
+  clippy too_many_arguments 8/7）→ FencePair 重构+闭包拷贝修复 →
+  复跑**全绿**: default 227/227·sim 227/227·**gst 263=259+2(m1)+
+  2(fence)**·clippy×2 `--all-targets -D warnings` 过。
+
+### 13.3 边界与红线（维持）
+
+Domain（program timeline/Authority）/谓词/Gate/阈值零字节; 三
+blocking 维持 Failed; 首败留证; 真机 #8 场景复现（步骤 7·NM 消失
++ #9 生命周期仍立）与 Mock 交错模型（步骤 6）待执行; Gate 复跑仅
+按冻结谓词于步骤 11 执行; A2-8-04 仍 FAIL/HOLD·A2-8-05 不进入;
+本地提交未推送（远端基线=dd263be）。

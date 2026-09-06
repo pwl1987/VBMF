@@ -616,3 +616,23 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
 - 步骤 5 边界树登记（V/A fence→confirmed→anchor→declare→install→
   switch→不可复放→executed→release; 二线 stale-baseline→fail-closed
   resample 非主机制）; A2-8-04 不得宣布恢复 PASS·A2-8-05 不进入。
+
+### §16.4 R58 步骤 5 执行: Cutover Fence 生产实现（代码轮, 本地未推送）
+
+- **INV-F1/F2/F3 编码进执行契约**: trait 增 arm/release 两法（无默认
+  实现——4 个实现方编译期表态）; switch graph 层 FenceState/
+  PlaneFence/FencePair（V+A 单字段成对承载）+ 两层门（selector src
+  BUFFER 探针门 drop-first 先于映射 + appsink 消费门 V/A 对称不写
+  弧——INV-F1 构造性覆盖在途帧, 无时间等待; INV-F2 Drop 无复放,
+  计数交回）; Open=legacy 逐字节。
+- **编排序**: ⓪ arm（①a 前）→①c 锚→②③④→switch executed 落点→
+  Release（INV-F3）; `CutoverFenceGuard` Drop 兜底 ①-④ 任意错误路径
+  必解除 barrier（不吞错误）。Mock=staging（真实交错模型=步骤 6）。
+- **测试**: 契约测（双面同装同释/未知 graph fail-closed）+
+  fence 闭合 M1 测（窜帧被处置→基线不推进→executed 落点 Release→
+  新世代首帧干净 DD——对照无 fence 红测 NonMonotonic）。盒复跑全绿:
+  default 227/sim 227/gst 263=259+2+2/clippy×2 -D warnings（首跑
+  2 编译错: 闭包借期 E0599+参数 8/7→FencePair 重构修复, 如实登记）。
+- Domain/谓词/Gate/阈值零字节; 步骤 6（Mock 交错）/7（真机 #8 复现
+  NM 消失+生命周期仍立）/10（全回归）/11（新鲜 Gate）待执行;
+  A2-8-04 仍 FAIL/HOLD·A2-8-05 不进入; 未推送（远端=dd263be）。

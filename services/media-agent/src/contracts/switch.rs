@@ -184,6 +184,19 @@ pub trait SwitchExecutionAdapter: Send + Sync {
         None
     }
 
+    /// R58 步骤5（INV-F1/F2/F3 编码进 Adapter 执行契约——执行层端口扩展,
+    /// Domain 语义零变更; program_timeline/Gate 不触碰）: V+A 双面 cutover
+    /// fence Armed。**barrier=执行屏障, 非执行权威**（INV-F3: 永不自宣布
+    /// 切换完成——Release 仅由编排于 `switch` 落点后驱动; 失败路径同样
+    /// 解除以恢复流面, 切换错误如实上抛）。确认语义=双面 Armed 返回
+    /// （INV-F1 在途处置由消费门按构造覆盖——无时间等待, 确定性非启发式;
+    /// INV-F2 旧世代数据丢弃不可复放）。BUFFER-only（EVENT 微观序保持）。
+    fn arm_cutover_fence(&self, graph: &PipelineHandle) -> Result<(), SwitchError>;
+
+    /// R58 步骤5: 双面 Release（恢复放行——legacy 逐字节）。返回 cutover
+    /// 丢弃帧计数（证据面; arm 清零——每次切换独立计数）。
+    fn release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError>;
+
     /// Observed 平面读数（实际 active + 六路 PTS + 帧计数 + timeline 证据
     /// 行——C-TIMELINE-01 起经 `ProgramExecutionObservation` 单一组合面）。
     fn observe(&self, graph: &PipelineHandle) -> ProgramExecutionObservation;

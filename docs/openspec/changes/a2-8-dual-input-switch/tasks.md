@@ -1112,6 +1112,22 @@
   登记（fence→confirmed→anchor→declare→install→switch→不可复放→
   executed→release+二线 stale-baseline resample 非主机制）; 本项未
   勾——步骤 5-11 待执行; A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入]**
+  **[第五十八轮步骤 5（R58 unit 2, 代码轮, 本地未推送; R57 文档 §13+
+  04 探针 §16.4+主账 §78+谓词 §10 注）: Cutover Fence 生产实现——
+  INV-F1/F2/F3 编码进 Adapter 执行契约（端口 arm/release 无默认实现·
+  4 实现方编译期表态; switch graph 两层门=selector src BUFFER 探针
+  drop-first 先于映射+appsink 消费门 V/A 对称——INV-F1 构造性覆盖
+  queue 在途帧无时间等待·INV-F2 Drop 无 flush/复放丢弃计数交回·
+  INV-F3 V+A FencePair 成对单字段+编排序 ⓪arm→①c 锚→②③④→executed
+  落点 Release+守卫 Drop 兜底错误路径必解除不吞错误）; Open=legacy
+  逐字节保持; Mock=staging（真实交错模型=步骤 6）; 契约测+fence
+  闭合 M1 测（窜帧被处置→基线不推进→干净 DD——对照红测 NonMonotonic
+  在案）; 盒复跑全绿 default 227/sim 227/gst 263=259+2+2/clippy×2
+  -D warnings（首跑 2 编译错闭包借期+参数 8/7→FencePair 重构修复
+  如实登记）; Domain/谓词/Gate/阈值零字节·三 blocking 维持 Failed;
+  本项未勾——步骤 6（Mock 交错模型）/7（真机 #8 复现 NM 消失+生命周期
+  仍立）/10（全回归）/11（新鲜 Gate）待执行; A2-8-04 仍 FAIL/HOLD;
+  A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

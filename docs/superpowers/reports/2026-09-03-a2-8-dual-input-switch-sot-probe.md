@@ -4296,3 +4296,35 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   switch→拦截帧不可复放→mark executed→release; 二线=stale-baseline
   detection→fail-closed/secondary resample（非主一致性机制）;
   A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入。
+
+## §78 R58 步骤 5 执行: Cutover Fence 生产实现（代码轮, 本地未推送）
+
+- 验收层 Step 5 执行令落地——INV-F1/F2/F3 编码进 Adapter 执行契约:
+  端口新增 arm_cutover_fence/release_cutover_fence（无默认实现,
+  4 个实现方编译期表态: 真实 GStreamer 双面 fence / Mock staging
+  旗标+编排序 debug_assert / 两个测试包装器）。
+- switch graph: FenceState{Open,Armed}+PlaneFence{state,discarded}+
+  FencePair{video,audio}（V+A 成对单字段）+fence_should_discard
+  纯门（单语义双应用点）; 两层门=selector src BUFFER 探针门
+  （drop-first 先于映射——丢弃帧不消耗 first_mapped/不改写 PTS/
+  不写弧）+appsink 消费门（V/A 对称; INV-F1 构造性覆盖 queue 在途
+  帧——无时间等待确定性非启发式; INV-F2 Drop 无 flush/复放, 丢弃
+  计数 release 交回）; Open=legacy 逐字节保持; 未知 graph 双向
+  fail-closed。
+- 编排: CutoverFenceGuard ⓪ arm（①a 前）→①c 锚→②③④→switch
+  executed 落点→defuse=Release（INV-F3 落点序; fence 非权威）;
+  Drop 兜底 ①-④ 任意错误路径必解除 barrier 恢复流面（不吞错误）。
+  Mock=staging 最小实现（真实交错模型 OldStraggler/FenceConfirmed/
+  OldBufferDropped=步骤 6）。
+- 测试: switch_graph_fence_contract_arm_release_both_planes（契约:
+  双面同装同释/计数如实/未知 graph fail-closed）+
+  switch_graph_fence_armed_closes_m1_race_boundary_stays_clean
+  （§8 同序: 窜帧被门处置→基线不推进（对照红测已推进 P+40ms 在
+  案）→executed 落点 Release 计数=1→新世代首帧 P→干净 DD）。
+- 盒（tar 通道）: 首跑 2 编译错（测试闭包 E0597 借期+clippy 参数
+  8/7）→FencePair 重构+闭包先拷贝后组元组修复→复跑全绿: default
+  227/227·sim 227/227·gst **263=259+2(m1)+2(fence)**·clippy×2
+  --all-targets -D warnings 过（失败如实登记非隐藏）。
+- 红线: Domain/谓词/Gate/阈值零字节; 三 blocking 维持 Failed; 首败
+  留证; 步骤 6/7（真机 #8 复现 NM 消失+生命周期仍立）/10/11 待执行;
+  A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入; 本地未推送（远端=dd263be）。

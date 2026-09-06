@@ -394,3 +394,12 @@ Gate = FAIL**。首败留证; 判据零改动; 后续路径（维持违例读法
   INV-F2 旧世代拦截帧不可复放·INV-F3 V+A Both-Confirmed）; 步骤 5
   边界树登记。对本表影响: 无——谓词/词表/Gate 零改动; 三 blocking
   维持 Failed; Gate 复跑待生产修复进库后按冻结谓词执行。
+- **R58 步骤 5 执行登记（代码轮, 本地未推送）**: Cutover Fence 生产
+  实现落地（INV-F1/F2/F3 编码进执行契约: 端口 arm/release 无默认
+  实现·两层门探针 drop-first+appsink 消费门·INV-F1 构造性覆盖在途
+  ·INV-F2 Drop 无复放计数交回·INV-F3 executed 落点 Release+Drop
+  兜底错误路径）; 契约测+fence 闭合 M1 测盒上全绿（gst 263=259+2+2·
+  clippy×2）; Domain/谓词/词表/Gate 零字节。对本表影响: 无——三
+  blocking 维持 Failed; Gate 复跑仍仅按冻结谓词于 R58 步骤 11 执行
+  （前置: 步骤 6 Mock 交错+步骤 7 真机 #8 复现 NM 消失+生命周期
+  仍立）; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。
