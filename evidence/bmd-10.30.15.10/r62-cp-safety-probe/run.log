@@ -1,0 +1,50 @@
+===== R62 probe start 2026-09-06T16:55:50+08:00 =====
+90186bb9c4ad29846c4bb95139ee68ff  /home/lytv/media-agent-build/services/media-agent/target/debug/media-agent
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+PROBE|SID=35cee665-b7f4-41e1-958e-456f975ea9fd|A(active)=4fa33dcb-5f76-5f76-aea8-330df7ada03e|B(target)=6ede00d0-baf4-573f-a0dd-4a503bf7f766
+--- [1] 串行基线 ---
+TIMING|serial-health-1|start=1788684950.515058596|code_total=200 0.000657
+TIMING|serial-health-2|start=1788684950.531336771|code_total=200 0.000376
+TIMING|serial-health-3|start=1788684950.545931892|code_total=200 0.000330
+TIMING|serial-runtime-1|start=1788684950.559694084|code_total=200 0.001106
+TIMING|serial-runtime-2|start=1788684950.579097735|code_total=200 0.001115
+TIMING|serial-runtime-3|start=1788684950.595942564|code_total=200 0.000987
+TIMING|serial-events-1|start=1788684950.612730608|code_total=200 0.000526
+--- [2] 16-0A 真机: 正常切换全程耗时 ---
+SWITCH|r62-serial-a2b-1788684950627752337|target=6ede00d0-baf4-573f-a0dd-4a503bf7f766|code_time=200 0.152099|body={"command_id":"82533749-59e2-5eba-9476-0e02bbe6841d","status":{"status":"executed"},"kind":"switch_program","classification":null,"detail":"switch executed: av_epoch=1 outcome=preserved timeline_epoch=0"}
+{"observed":"6ede00d0-baf4-573f-a0dd-4a503bf7f766","epoch":1,"seg":1,"video_continuity":"continuous","discontinuity":"discontinuity_declared"}
+SWITCH|r62-serial-b2a-1788684950818538247|target=4fa33dcb-5f76-5f76-aea8-330df7ada03e|code_time=200 0.152244|body={"command_id":"23a04a92-e7a6-5f3d-b2e9-025eba36dcda","status":{"status":"executed"},"kind":"switch_program","classification":null,"detail":"switch executed: av_epoch=2 outcome=preserved timeline_epoch=0"}
+{"observed":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","epoch":2,"seg":2,"video_continuity":"continuous","discontinuity":"discontinuity_declared"}
+PROBE|serial_switch_time=0.152099s|during_window_delay=0.08s
+--- [3] 16-0B: 切换在途并发查询 ---
+TIMING|during-switch-health-1|start=1788684951.106048527|code_total=200 0.061182
+TIMING|during-switch-health-2|start=1788684951.184924640|code_total=200 0.000465
+TIMING|during-switch-runtime-1|start=1788684951.201803226|code_total=200 0.001276
+TIMING|during-switch-events-1|start=1788684951.218827914|code_total=200 0.000493
+TIMING|during-switch-replay|start=1788684951.235486812|code_total=200 0.000573|body={"command_id":"bab76b0f-fef3-5d44-ab28-1c078e99f72c","status":{"status":"replayed"},"kind":"switch_program","classification":null,"detail":"switch executed: av_epoch=3 outcome=preserved timeline_epoch=0"}
+SWITCH|r62-conc-a2b-1788684951014415055|target=6ede00d0-baf4-573f-a0dd-4a503bf7f766|code_time=200 0.151970|body={"command_id":"bab76b0f-fef3-5d44-ab28-1c078e99f72c","status":{"status":"executed"},"kind":"switch_program","classification":null,"detail":"switch executed: av_epoch=3 outcome=preserved timeline_epoch=0"}
+{"observed":"6ede00d0-baf4-573f-a0dd-4a503bf7f766","epoch":3,"seg":3,"video_continuity":"continuous","discontinuity":"discontinuity_declared"}
+--- [4] 16-0B: 双并发反向切换 ---
+SWITCH|r62-opp-a2b-1788684951271539988|target=6ede00d0-baf4-573f-a0dd-4a503bf7f766|code_time=200 0.000828|body={"command_id":"96611976-22cf-5328-9493-e9a58046460b","status":{"status":"executed"},"kind":"switch_program","classification":"permanent","detail":"target 6ede00d0-baf4-573f-a0dd-4a503bf7f766 is already the active source"}
+SWITCH|r62-opp-b2a-1788684951277584950|target=4fa33dcb-5f76-5f76-aea8-330df7ada03e|code_time=200 0.152110|body={"command_id":"6d8e72fe-ee10-54bd-be43-5541cda25440","status":{"status":"executed"},"kind":"switch_program","classification":null,"detail":"switch executed: av_epoch=4 outcome=preserved timeline_epoch=0"}
+{"observed":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","epoch":4,"seg":4,"video_continuity":"continuous","discontinuity":"discontinuity_declared"}
+--- [5] 16-0B: 停滞读者（未完成请求占住唯一 accept） ---
+TIMING|stalled-during-health-1|start=1788684951.779851853|code_total=200 10.175067
+TIMING|stalled-during-health-2|start=1788684961.975632232|code_total=200 0.000473
+TIMING|post-stall-health|start=1788684974.612738|code_total=200 0.000632
+--- [6] 收尾快照 ---
+{"observed":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","epoch":4,"seg":4,"video_continuity":"continuous","discontinuity":"discontinuity_declared"}
+===== R62 probe done 2026-09-06T16:56:14+08:00 =====
+--- [7] stop_session（会话级 teardown） ---
+{"command_id":"956de138-1394-5443-99e1-c5217f65c933","status":{"status":"executed"},"kind":"stop_session","classification":null,"detail":null}
+STOP-HTTPCODE=200 STOP-TIME=1.231268
+STOP-WALL|start=1788685003.941864703
+--- [8] 进程停止 + 日志收取 ---
+process-dead
+41
+--- [9] md5 ---
+1aafc209315e9b45e44cc5b621fc156b  ./run.log
+5fc9448b5fc0332e76ae7ee255255097  ./runtime-after.json
+3fe413771a6d7466838b4e7156f8f74f  ./runtime-before.json
+a750205200228d1cf0bb60699d44bf87  ./svc.log
+3d4e88066b19f7aa0f882436a35f9046  ./watchdog-tail.txt

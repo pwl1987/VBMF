@@ -1341,3 +1341,19 @@
   seg=1/DD 冻结签名→API B→A→回读→错误路径 permanent 分类→幂等重放
   逐字节→冲突→stop_session→teardown 链→进程死亡·非 gates 替代）+ 证据盒
   r61-v02-step14 入库 md5 全过——R60 探针 §9.2/§9.3 + 主账 §90]**
+
+  **[R62 探针段（2026-09-06·只读探针轮）: Control Plane Safety Probe——
+  用户裁决逐条复核（A 组 R61 实现 10/10 落实 ✓·含核心四零 diff 实测;
+  B 组两风险属实+精细化: watchdog:612 条件落定只救组平面/declare
+  Stable-only+TransitionFailed 终态/inner 锁双层阻塞/超时全编译期常量
+  无旋钮）; 新增 mock 级全链故障注入集成测试 **6/6**（F0 pre-begin 完全
+  可恢复·F1 组闩锁 NotActiveSource 永久·F2/F3（真实 5s）/F4 时间线闩锁
+  declare InvalidPhase·全类 readback 活+teardown 可用·生产源码零改动）;
+  真机: 正常切换 0.152s（R53 签名）·停滞读者冻结管理面 10.175s（单
+  accept 铁证）·在途查询排队 61ms·并发 replay 逐字节·双反向串行化
+  epoch 恰一次·stop_session 1.23s teardown; 16-0C=风险 2 情况 B/风险 1
+  情况 C·修复面建议 R62-A（a timeline reconcile+b 组 abort 最小完整 /
+  c 契约声明化）+R62-B（std-only 并发·禁 async）两 change 分开待二轮
+  裁决; 矩阵全绿 fmt/229/229/405+6/268/clippy×3; 证据盒
+  r62-cp-safety-probe 入库 md5 全过——报告=2026-09-06-a2-8-05-r62-
+  control-plane-safety-probe.md + 主账 §91]**

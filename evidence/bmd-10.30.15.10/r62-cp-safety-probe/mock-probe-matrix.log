@@ -1,0 +1,31 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running tests/switch_fault_probe.rs (target/debug/deps/switch_fault_probe-75a60a6913bb8baf)
+
+running 6 tests
+R62-MATRIX F2   err_class=Backend desired=Switching { from: 31a44899-ae42-4749-b00f-bf14f9b856e1, to: de4232e3-cd76-4977-9690-d98eea7c8743 } switch_epoch=1 observed=Some(de4232e3-cd76-4977-9690-d98eea7c8743) runtime_active=true
+R62-MATRIX F1   err_class=Backend desired=Switching { from: c7d4c500-6fab-4ffa-b3a3-261a2fa9ce83, to: 000f4e54-f57c-41a0-a4d2-29ec1c8c192e } switch_epoch=1 observed=Some(c7d4c500-6fab-4ffa-b3a3-261a2fa9ce83) runtime_active=true
+R62-MATRIX F0   err_class=Backend desired=ActiveInput(6cca614a-776b-4614-bcfe-bf59f5f7678b) switch_epoch=0 observed=Some(6cca614a-776b-4614-bcfe-bf59f5f7678b) runtime_active=true
+R62-MATRIX F2-next err_class=Backend desired=ActiveInput(de4232e3-cd76-4977-9690-d98eea7c8743) switch_epoch=1 observed=Some(de4232e3-cd76-4977-9690-d98eea7c8743) runtime_active=true
+R62-MATRIX F1-next err_class=NotActiveSource desired=Switching { from: c7d4c500-6fab-4ffa-b3a3-261a2fa9ce83, to: 000f4e54-f57c-41a0-a4d2-29ec1c8c192e } switch_epoch=1 observed=Some(c7d4c500-6fab-4ffa-b3a3-261a2fa9ce83) runtime_active=true
+R62-MATRIX F2-recover group=watchdog-settle(Active) timeline=latched(SwitchExecuted) teardown=Ok
+R62-MATRIX F1-recover teardown=Ok(session 级唯一恢复面)
+test r62_probe_f2_drain_confirm_err_timeline_latched ... ok
+test r62_probe_f1_adapter_err_group_latched_switching ... ok
+R62-MATRIX F4   err_class=Backend desired=Switching { from: 113df698-0347-4d0b-8edf-98125be80b51, to: d01e4886-77c8-48fe-9bff-045d088350cf } switch_epoch=1 observed=Some(d01e4886-77c8-48fe-9bff-045d088350cf) runtime_active=true
+R62-MATRIX F4-next err_class=Backend desired=ActiveInput(d01e4886-77c8-48fe-9bff-045d088350cf) switch_epoch=1 observed=Some(d01e4886-77c8-48fe-9bff-045d088350cf) runtime_active=true
+R62-MATRIX F4-recover group=watchdog-settle(Active) timeline=latched(TransitionFailed) teardown=Ok
+test r62_probe_f4_settle_contradiction_fail_closed_latched ... ok
+R62-MATRIX ctrl outcome=Preserved desired=ActiveInput(b) epoch=1 observed=Some(b)
+test r62_probe_00_control_normal_switch_preserved ... ok
+R62-MATRIX F0-recover next_switch=Preserved desired=ActiveInput(b)
+test r62_probe_f0_pre_begin_failure_recoverable ... ok
+R62-MATRIX F3   err_class=Backend desired=Switching { from: 2f677367-4648-4a57-a08f-e857e2e6e28d, to: 68c02420-aa57-467d-9360-09a74ebca7bc } switch_epoch=1 observed=Some(68c02420-aa57-467d-9360-09a74ebca7bc) runtime_active=true
+R62-MATRIX F3-next err_class=Backend desired=ActiveInput(68c02420-aa57-467d-9360-09a74ebca7bc) switch_epoch=1 observed=Some(68c02420-aa57-467d-9360-09a74ebca7bc) runtime_active=true
+R62-MATRIX F3-recover group=watchdog-settle(Active) timeline=latched(TransitionFailed 终态) teardown=Ok
+test r62_probe_f3_evidence_timeout_fail_closed_latched ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.01s
+
+=== R62 box matrix ===
+fmt=CLEAN default=229 sim=229 mock=405+6 hw=268 clippy-default/sim... see run.log header
+clippy x3 -D warnings = PASS (default/mock/bmd+gstreamer)

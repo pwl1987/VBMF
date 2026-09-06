@@ -4687,3 +4687,40 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   盒=origin）。
 - 下一步: Step 15 长稳（30min→2h→8h→24h）/Step 16 联调/Step 17
   Preview RC 与链末 archive+merge+tag——待用户指令; A2-8-05 进行中。
+
+## §91 R62: Control Plane Safety Probe（Step 16-0A/0B/0C·只读探针轮·2026-09-06）
+
+- 用户裁决逐条复核: **A 组 R61 实现 10/10 落实 ✓**（含核心四
+  `git diff 7978250..HEAD`=0 实测）; **B 组两风险属实+精细化**——
+  ①Transport 单连接同步属实且更强: switch_program:593 持 inner 锁全程
+  （排空 5s+证据 5s+settle 5s）·observe_execution:751 同锁=**双层阻塞**;
+  单 accept 循环 bin:655·单请求即关 transport:535·五超时全编译期常量
+  （无 env/配置旋钮）。②Switching 无恢复属实: ExecutionGroup 方法面
+  无 abort/reconcile; **裁决未覆盖的精细化**——watchdog:612-616 条件
+  落定（observed==Some(to)→complete_switch）只救组平面; declare
+  Stable-only + TransitionFailed 终态救不了时间线 → 失败×平面矩阵:
+  F1 组闩锁（NotActiveSource 永久）/F2-F4 时间线闩锁（InvalidPhase）,
+  恢复=仅会话级 teardown（代码注释自认的文档化残留·非未发现 bug）。
+- 16-0A mock 级全链注入 **6/6**（新增 tests/switch_fault_probe.rs 集成
+  测试·生产源码零改动·核心面全零触碰）: F0 pre-begin 完全可恢复; F1
+  组闩锁+重放逐字节一致; F2/F3（真实 5s 墙钟）/F4 watchdog 落定组平面
+  但下次 declare InvalidPhase; 全类失败后 readback 仍活+teardown 可用。
+- 16-0A 真机 leg: 正常切换全程 POST **0.152s**（av_epoch 递进·R53 签名
+  preserved/seg/continuous/discontinuity_declared）→ 正常路径 inner 锁
+  持有窗≈152ms。
+- 16-0B 真机并发: 串行基线 sub-ms; 切换在途查询排队 61ms; 在途同 id
+  replay **replayed 逐字节**; 双并发反向=accept 串行化（一 executed 一
+  permanent「already active」·epoch 恰推进一次）; **停滞读者冻结整个
+  管理面 10.175s**（=read timeout·单 accept 串行性铁证）; stop_session
+  1.23s 完整 teardown; watchdog 活体行全程无中断（tick 720→780）。
+- 16-0C 裁决: 风险 2=**情况 B** 成立 / 风险 1=**情况 C** 成立; 修复面
+  建议（不实现·待用户二轮裁决）: R62-A 状态恢复三案（a timeline
+  reconcile [F2-F4] + b 组 abort [F1] = 最小完整组合 / c 契约声明化
+  零代码）+ R62-B std-only Transport 并发（per-connection worker+命令
+  串行边界+查询非阻塞·禁 async 框架）; 两条 change 分开开。
+- 矩阵回归全绿: fmt CLEAN/default 229/sim 229/mock **405+6**/hw 268/
+  clippy×3（-D warnings）; 证据盒 r62-cp-safety-probe 入库 md5 全过
+  （盒=origin·8 文件）; 报告=2026-09-06-a2-8-05-r62-control-plane-
+  safety-probe.md §1-§6。
+- 下一步: R62-A/R62-B 修复边界二轮裁决 / Step 15 长稳 / Step 16 联调 /
+  Step 17 RC 与链末收口——待用户指令。
