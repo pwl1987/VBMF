@@ -4464,3 +4464,36 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - 红线: Domain/谓词/Gate/真适配器/契约端口零字节; 三 blocking 维持
   Failed; **Step 6 最终 CLOSED 裁决权在验收层（处方测试已通过）;
   Step 7 不先于该裁决启动**; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。
+
+## §83 R58 步骤 7: 真机 #8 场景复现（fence 生效轮）— 71 fence 周期全确认·NM=0·C 项真链反证闭合
+
+- 终裁输入: **Step 6 = 实质 CLOSED（HOLD-1 解除, cfb0943）**; Step 7
+  放行（硬验收=NM 消失/DD 边界/后续帧 face 读数/#9 生命周期/V-A 一致/
+  无跨边界 NM+C 项真链兑现——非"测试命令跑绿"）。
+- 部署指纹: cfb0943 干净树 tar 上盒·源 SHA 四文件盒==HEAD 全等; gates
+  bin `--features bmd,gstreamer` md5=d05be28f…; manifest v5 7521d17e…
+  不变; 证据盒 `~/a2-8-02i-evidence/2026-09-06-r58-step7-fence-replay/`
+  （header+四跑 log md5 齐备）。
+- 四跑（12:29-12:42 CST·switch_program 全链含 fence）: run1 **#8 精确
+  形态**（N=10 dwell1s）EXIT=0·全 Preserved·epoch(0)×10·pr_v/pr_a
+  对称 DD=58+VM=2·**NM=0·adv=0**·**#8 B→A 执行行 disc=DD v/a=
+  Continuous**（R52/R56 闩锁位点干净）·#9 PRE=DD→新边界 DD 生命周期
+  仍立·SPAN av_delta 1.28-34.6ms（无 5s 逼近）; run2 N=30 dwell1000
+  同签名（DD=178+VM2·NM=0）; run3 burst N=30 dwell0 同签名; run4
+  **dual_input ALL PASS 10/10**（L3 切前 VM legacy 不变·L4 fence 在链
+  timeline_ok=true Preserved+程序面 DD+两 face 分层·L5+Teardown 全绿）。
+- **C 项端到端反证闭合**: 71 fence 周期（70 obs+1 L4）全部 Both-
+  confirmed 确认式 Release·四跑 "cutover" 错误串=0·NM=0——serialized
+  SEGMENT 顺序+AppSink streaming-thread 回调在真实 BMD/GStreamer 链
+  兑现为"旧 buffer 消费门先于 Segment confirmation"（序破坏的两种
+  可见后果——确认超时/NM 重现——均未发生）; §15.4 披露的 GStreamer
+  内部行为依赖就此落地真机反证。
+- 工件: 既有隔离债零新增（pad_unlink×4/converter interlace 家族同
+  量级）; 诚实口径=NM 消失属必要非充分（历史事件概率性 0.1-0.6%/
+  切换·R53 无 fence 30 切换亦 0）——确定性击杀证明在 mock 双模式+真
+  适配器红/绿测; 真机贡献=71/71 fence 周期可运行+无反例+R53 基线
+  签名逐字保持。
+- 红线: 零代码轮（ gates bin 重建外无源改动）; Step 7 验收判定归
+  验收层; 后续=**Step 10 全回归→Step 11 新鲜 Final Gate（冻结谓词）
+  ——仅届时 A2-8-04 verdict 可变**; A2-8-04 仍 🔴 FAIL/HOLD;
+  A2-8-05 不进入。登记=R57 文档 §18+主账 §83+tasks item-6。

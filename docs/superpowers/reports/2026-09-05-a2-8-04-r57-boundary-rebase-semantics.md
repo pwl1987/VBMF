@@ -1058,3 +1058,82 @@ FirstNewMapped 永不出现+首放行帧走 plain 弧。
   CLOSED 裁决权在验收层, 本轮不自行宣布 CLOSED。**Step 7 不先于该
   裁决启动**（终裁: "现在不要直接进入 Step 7"）。A2-8-04 仍 🔴
   FAIL/HOLD; A2-8-05 不进入。
+
+## §18 R58 步骤 7 执行: 真机 #8 场景复现（fence 生效轮）
+
+### 18.1 终裁输入
+
+- 验收层终裁: **Step 6 = 实质 CLOSED（HOLD-1 解除）**——cfb0943 修复
+  按处方准确落地（重排方向正确·回归测试击中 [post-switch+pre-release+
+  timeline buffer 在途] 窗口·deliver_straggler 正确路径未被无谓改动·
+  04c3dd1→cfb0943 严格单提交前进仅 5 文件）; 三层证明成立（协议 FAIL/
+  协议 PASS/Runtime cut-point 注入口径正确）; 盒上验证=盒上本地验证
+  PASS 不冒充 GitHub CI。**Step 7 正式放行**。
+- Step 7 硬验收（终裁列举, 非测试命令跑绿）: #8 切换 M1 NM 消失·首枚
+  新段边界保持 DD·后续普通帧恢复 VM/Continuous·#9 clean boundary 仍
+  正确·V/A 双平面一致·无新跨边界 NM; 并把 C 项最后的外部行为假设落到
+  真实 BMD/GStreamer 链——serialized SEGMENT 顺序+AppSink streaming-
+  thread 回调是否兑现为"旧 buffer 消费门先于 Segment confirmation"。
+
+### 18.2 部署与构建指纹（证据可审计）
+
+- 盒部署=cfb0943 干净树 tar 通道; 源 SHA 抽验四文件**盒==HEAD 全等**
+  （switch_graph d2167b82…/program_execution 64f8890f…/switch_mock
+  1c5c17a0…/a204_obs 08fc1d63…）。
+- gates bin 重建 `--features bmd,gstreamer`（DECKLINK_SDK_INCLUDE）
+  md5=**d05be28fda9e5e5138f99c6828124afa**; manifest v5 md5=7521d17e…
+  （与 R53/R54 记录一致）; 证据盒 `~/a2-8-02i-evidence/2026-09-06-
+  r58-step7-fence-replay/`（header 五件套+REV+bin/manifest md5+四跑
+  log 及其 md5: run1 07365dbe…/run2 b7e69a75…/run3 c84befd1…/run4
+  509c7e3a…）。
+
+### 18.3 真机四跑（2026-09-06 12:29-12:42 CST, fence 在链·switch_program 全链）
+
+- **run1（#8 精确形态复刻 N=10 dwell=1s——R52 run2/R56 #8 闩锁同形）**:
+  EXIT=0·10/10 采集完整·全 Preserved·ProgramEpoch(0)×10·**pr_v/pr_a
+  对称 DD=58+VM=2**（首切前 2 行 PRE=VM·此后边界事实四态纪律保持
+  ——R53 基线签名逐字复现）·**NonMonotonic=0**·adv=Some(false)=0。
+  **switch #8 B→A 执行行: outcome=Preserved·seg=8·disc=
+  DiscontinuityDeclared·v/a=Continuous/Continuous·epoch(0)**——R52/
+  R56 的 #8 闩锁位点干净; #9 A→B: PRE=DD→新边界 SPAN=DD（干净边界
+  生命周期仍立·无 NM 传播/无跨边界 NM）; SPAN av_delta 17.9/34.6/
+  1.28ms 量级（drain 确认等待未引入秒级停顿——无 5s 逼近）。
+- **run2（扩展窗 N=30 dwell=1000ms）**: EXIT=0·30/30·全 Preserved·
+  epoch(0)×30·in/br 四路 VM=180 各·pr_v/pr_a DD=178+VM=2 对称·NM=0·
+  adv=0。
+- **run3（burst N=30 dwell=0——在途窗最大化压力形态）**: EXIT=0·同
+  签名全净·NM=0。
+- **run4（dual_input 五层 Gate 回归·fence 在 L4 切换链）**: **ALL PASS
+  10/10（L0→L5+Teardown）**——L3 切前 state v=ValidMonotonic（legacy
+  路径不变）; L4: switch_ok=true·timeline_ok=true·outcome=Preserved·
+  程序面 state=DiscontinuityDeclared·v/a=Continuous/Continuous·
+  ProgramEpoch(0)·segment/mapped/offset 证据行齐（两 face 分层签名
+  同帧共存——R53 第三轮实证复现）; L5 三段+故障域归因+Teardown 全绿。
+- **工件**: CRITICAL/错误类=既有隔离债零新增（gst_pad_unlink×4/跑+
+  video_converter interlace 家族——与 R53 登记同类同量级）; 四跑
+  **"cutover" 错误串=0**——71 个 fence 周期（70 obs 切换+1 L4）全部
+  Both-confirmed 确认式 Release 零超时。
+
+### 18.4 验收点逐条对照（终裁 Step 7 清单）
+
+| 终裁验收点 | 真机证据 | 结论 |
+|---|---|---|
+| #8 切换 M1 NM 消失 | run1 #8 位 SPAN/POST=DD·NM=0; run2/3 扩展共 70 切换 NM=0 | ✅（见 18.5 口径） |
+| 首枚新段边界保持 DD | 每切换执行行 disc=DiscontinuityDeclared·pr 行 DD | ✅ |
+| 后续普通帧恢复 VM/Continuous | in/br 四路全程 VM=180 各·timeline face v/a=Continuous·pr 面 DD=R53 四态纪律的段声明事实（VM 恢复面=输入/桥/连续性 face, 与 R53 基线一致） | ✅（按 R53 语义分 face 读数） |
+| #9 clean boundary 仍正确 | run1 #9: PRE=DD→SPAN 新边界 DD·epoch(0)·无 NM 传播 | ✅ |
+| V/A 双平面一致 | pr_v/pr_a·in_v/in_a·br_v/br_a 计数全对称 | ✅ |
+| 无新跨边界 NM | 四跑 NM=0·adv=0 | ✅ |
+| **C 项真链兑现** | 71 fence 周期 Both-confirmed 零超时+零 cutover 错误+NM=0——serialized SEGMENT 顺序与 streaming-thread 回调在真实 BMD/GStreamer 链兑现为"旧 buffer 消费门先于 Segment confirmation"（若序被破坏: 要么确认超时要么 NM 重现——两者皆未发生） | ✅ 端到端反证闭合 |
+
+### 18.5 诚实口径（样本量与证明分工）
+
+- **NM 消失=必要非充分证据**: 历史 NM 事件本身概率性（0.1-0.6%/切换;
+  R53 无 fence 30 切换亦 NM=0 未复现）——本轮 70 个 fence 切换 NM=0
+  =无反例+基线签名保持, **M1 机制的确定性击杀证明在 mock 双模式+
+  真适配器红/绿测**（T-M1-FAIL/PASS+R58 步骤 5 红测在案）; 真机贡献=
+  fence 周期端到端可运行性（71/71 确认式 Release）+无新破坏。
+- 裁决权: 本节为执行记录; Step 7 验收判定归验收层。后续=**Step 10
+  全回归**（六路/Authority/Desired/epoch——dual_input L4 本轮已绿）→
+  **Step 11 新鲜 Final Gate（冻结谓词）**——仅届时 A2-8-04 verdict
+  可变。A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。

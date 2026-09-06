@@ -1207,6 +1207,24 @@
   （词汇仍七）; Domain/谓词/Gate/真适配器/契约端口零字节·三 blocking
   维持 Failed; Step 6 最终 CLOSED 裁决权在验收层（处方测试已通过）
   ·Step 7 不先于该裁决启动; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 6 终裁+步骤 7 执行: Step 6=实质 CLOSED
+  （HOLD-1 解除·cfb0943 修复按处方落地+回归测试击中 post-switch
+  Armed 在途窗口+cut-point 注入/盒上验证两项口径修正）; Step 7 真机
+  #8 复现（零代码轮·2026-09-06）: cfb0943 tar 部署源 SHA 四文件盒==
+  HEAD·gates bin md5 d05be28f·manifest v5 不变·证据盒 2026-09-06-
+  r58-step7-fence-replay; 四跑=run1 #8 精确形态（N=10 dwell1s）EXIT=0
+  全 Preserved·epoch(0)×10·pr_v/pr_a 对称 DD58+VM2·NM=0·adv=0·#8
+  执行行 disc=DD v/a=Continuous·#9 生命周期仍立/run2 N=30 dwell1000
+  同签名/run3 burst N=30 dwell0 同签名/run4 dual_input ALL PASS 10/10
+  （L4 fence 在链 timeline_ok=true Preserved+程序面 DD 两 face 分层）;
+  C 项真链反证闭合=71 fence 周期 Both-confirmed 零超时·零 cutover 错误
+  串·NM=0（serialized SEGMENT+streaming-thread 回调在真实 BMD/
+  GStreamer 链兑现——序破坏两后果确认超时/NM 重现均未发生）; 工件=
+  既有隔离债零新增; 诚实口径=NM 消失必要非充分（历史概率性 0.1-0.6%
+  /切换·确定性击杀在 mock 双模式+真适配器红绿测）·真机贡献=71/71
+  fence 可运行+无反例+R53 基线签名逐字保持; Step 7 验收判定归验收层
+  →后续 Step 10 全回归→Step 11 新鲜 Final Gate（仅届时 A2-8-04
+  verdict 可变）; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
