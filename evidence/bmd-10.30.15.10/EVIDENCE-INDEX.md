@@ -75,6 +75,16 @@
 > 盒上原件为 P8 origin. `.json` 类新文件受根 `.gitignore` `evidence/**/*.json`
 > 规则约束（入库需 `-f`）; `*.log`/`*.md`/`*.txt` 不受约束.
 
+## A2-8-05 Normal-Use Preview v0.1 — 2026-09 R59 冒烟证据
+
+| 目录 | 状态 | 说明 |
+|---|---|---|
+| `a2-8-05-v0.1-smoke/` | Current | **R59 v0.1 零代码测试包盒上冒烟（run2 全过）**: 诊断模式真实 bin（服务 bin md5 6a0fa224·REV 4b473b3 生产面==e09ed97·manifest 7521d17e）; run1 留证（stop_session 400=打包脚本 UUID 格式缺陷·已修）+ run2 全绿（health Capturing·双输入起流两路 advancing·events total=15·stop_session executed·teardown 链 Program Stop→Tap Detach+watchdog 停止旗·进程死亡）; README/IDENTITY/env.sample 为部署原件; 打包面=仓库 `preview/a2-8-05-v0.1/`; 审计=2026-09-06-a2-8-05-normal-use-startup-entry-audit.md. |
+
+> v0.1 口径: 冒烟非谓词 Gate; 已知限制（无切换入口/无回读端点/无信号处理/
+> 无版本行）如实标注于 IDENTITY; `gst_pad_unlink`×3/@teardown 与
+> `gst_video_converter_free`×1/@startup = 既有已知类工件非新类.
+
 ## 治理规则 (跨证据通用)
 
 1. 任何新证据落地时, 在文件名带日期, 并**在此索引登记状态**; 被覆盖的旧证据改为 `Superseded`/`Historical`.

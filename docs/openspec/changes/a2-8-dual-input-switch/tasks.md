@@ -852,11 +852,11 @@
   :203-210 零调用者=潜伏·domain→strategy=NOT USED/NOT NEEDED·禁表述
   "watchdog 已消费 FailureDomain 选择恢复策略"]; 03-02=CONTRACT
   FROZEN 状态不变; 本项保持未勾——03-03[G-3]/03-04[G-4] 未做]**
-- [ ] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
+- [x] 6. A2-8-04 Program Timeline / AV continuity 验证（第三轮终裁更名）:
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案
   裁决与验证（observation only，无 Engine——方案设计裁决属 02/04）
-  `Contract: 03` | `Implementation: 完成` | `Verification: 完成（R56 FAIL→R58 Step 11 冻结谓词重算·2026-09-06）` | `Gate: PASS（R58 Step 11 冻结合取·三 blocking cells Satisfied·待验收层终裁）`
+  `Contract: 03` | `Implementation: 完成` | `Verification: 完成（R56 FAIL→R58 Step 11 冻结谓词重算·2026-09-06）` | `Gate: PASS / CLOSED（R59 验收终裁 2026-09-06·三 blocking cells Satisfied·终裁登记 R57 §23）`
   **[第四十九轮开启（A2-8-04 SoT 探针已交付:
   2026-09-05-a2-8-04-program-timeline-av-continuity-sot-probe.md, 零代码;
   R49 用户终裁"直接开 A2-8-04"授权）: 形态发现——"六路 PTS"=TimelineSample
@@ -1290,7 +1290,10 @@
   口径非 CI·同轮入库 Step 10 四跑副本+索引更新）]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
-  `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
-  **[R58 Step 11 注（2026-09-06）: A2-8-04 冻结合取 = PASS（三 blocking
-  cells Satisfied·待验收层终裁）——**A2-8-05 解锁待令·不进入**; 进入
-  与否归用户明令（item 7 仍为 A2-8 收口唯一入口）]**
+  `Contract: 04` | `Implementation: 进行中（R59 开启）` | `Verification: CI+归档` | `Gate: 待`
+  **[R59 解锁注（2026-09-06）: 验收层终裁 A2-8-04 = PASS / CLOSED（R57
+  §23）——**A2-8-05 解锁·R59 开启**; 收口时序用户裁决 = 开 PR 跑 CI·
+  链末收口（本轮开 PR 仅求 GitHub CI 真实信号·不 merge; archive+
+  merge+tag 推至 Step 13-17 正常使用形态阶梯完成后）; Step 12 基线
+  冻结 = R57 §24; Step 13a 启动入口审计 + 零代码 v0.1 测试包本轮落地
+  （切换面缺口如实标注 v0.2 控制面扩面·待裁决）]**

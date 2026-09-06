@@ -1393,3 +1393,131 @@ NM 消失且 R53 基线签名完整**, 与 Step 7 #8 精确形态复现相互印
   **Step 11 验收终裁归验收层**（PASS 为冻结合取的机械产出与登记·非
   提前宣布; 本轮零代码零判据零豁免·首跑留证纪律未触发[无 FAIL 跑]
   ·无重试）。
+
+## 23. R59 步骤 11 验收终裁登记: **A2-8-04 = PASS / CLOSED**（2026-09-06）
+
+### 23.1 终裁结论（验收层裁决要点逐条入册）
+
+- **代码裁决: PASS。架构裁决: PASS。Fence 状态模型: PASS。Control
+  Plane → Contract → Data Plane 调用链: 闭合。Mock ↔ GStreamer 两侧
+  契约: 闭合。Step 5.1 / 6 / 7 / 10 / 11: 全部 CLOSED。A2-8-04:
+  PASS**——原话: "没有发现必须回滚或重新修改生产代码的问题。"
+- 证据层终裁表（验收层十八行表）全数通过: Source identity / Frozen
+  binary identity / Manifest identity / OBS N=30 / P1-pr_v / P2b-pr_v /
+  P2c-1 / dual_input 10/10 / hw matrix 266/266 / P3 capability（Mock
+  定向补证）/ Fence 71 cycles / New ERROR class = 0 / New
+  counterexample = 0 / Step 11 生产源码改动 = 0 / 冻结谓词改动 = 0 /
+  A2-8-04 = PASS / A2-8-05 = NOT STARTED·BLOCKED BY GOVERNANCE
+  （终裁时点状态; 同轮末尾明令进入 release 链 → R59 开启, 见 §23.4）。
+- 架构层认可要点（验收层代码裁决依据·登记备查）: FencePairState 收
+  Arc&lt;Mutex&gt; 单事务状态域（V ready/A ready/captured seqnum/
+  generation/discard counters 同域——V+A 确认与释放无双锁漂移）;
+  generation 生命周期隔离（晚到确认不污染下一轮 fence 状态）;
+  Armed Drop 先于 first_mapped/PTS/帧证据推进（被 Fence 丢弃的旧
+  Buffer 不再伪装 FirstNewMapped——证据状态防污染）; install→
+  on_switch_executed 两段推进（计划切换 ≠ 实际媒体切换）;
+  release_after_drain 超时 = Err 非 Ok（timeout 不等价 success·
+  fail-closed）; 契约 trait 无默认空实现（无"编译过而功能不存在"
+  后门）; Mock 证明协议顺序/状态机/事件因果 + 真机证明真实
+  queue/drain/Segment/appsink/selector/buffer——两证互补非替代;
+  A2-8 与 Transport/SessionManager 状态域分离（不为 A2-8 再动
+  Transport/Session 生命周期）。
+
+### 23.2 裁决基础与边界声明（逐字登记）
+
+- 基础 = 冻结谓词 Step 11 重算（§22）+ 验收层既往源码审计 + 本轮
+  登记的执行记录与盒上证据。
+- **边界声明（验收层原话）**: "我本轮 GitHub 原始文件读取接口没有
+  成功返回正文，因此上述'当前 HEAD 的远端代码逐文件复核'不能冒充
+  已经在本轮重新完成；代码部分是基于此前已经实际检查过的源码 +
+  你本轮登记的 Step 11 实际证据裁决。"——真机数字按"执行记录已
+  登记"口径采信, 不称本轮独立复跑。
+
+### 23.3 残余风险四条冻结登记（验收层明令·后续轮禁触碰）
+
+1. **force_release = 故障恢复动作, 非成功切换证据**（"force
+   release ≠ successful cutover evidence"）; 禁改为
+   force_release→return Ok 式"快速恢复"。
+2. **P3 capability proof = Mock 定向补证**——文档口径冻结: 必须写
+   "P3 capability proof = Mock", 禁写 "P3 physical hardware
+   proof"。
+3. **sync=false / async=false 非正确性依据**（仅 AppSink 行为配置）;
+   正确依据 = SEGMENT event 序列化 + pad probe + new-sample
+   streaming callback + 共享 FencePairState。
+4. **Mimosa = 工具能力限制**（python_ast_unavailable）——"功能
+   编译通过/测试通过/真机回归通过"成立, "全项目静态安全审计通过"
+   不成立。
+
+### 23.4 红线与状态表
+
+- **红线（验收层明令）**: 不再动 A2-8 核心四文件（switch graph /
+  program execution / switch 契约 / switch mock）做无必要优化式
+  修改——"当前最大的错误反而会是继续在已经通过的 A2-8 Fence 核心
+  代码上做'优化式修改'"。
+- 状态表: Step 5.1 / 6 / 7 / 10 / 11 = CLOSED; **A2-8-04 = PASS /
+  CLOSED**; **A2-8-05 = 解锁（R59 开启）**——收口时序用户裁决 =
+  **开 PR 跑 CI · 链末收口**（本轮开 PR 仅求 GitHub CI 真实信号·
+  不 merge; archive+merge+tag 推至 Step 13-17 阶梯完成后）;
+  阶段切换 = 核心切换正确性验证 → **正常使用形态验证**（Step
+  12-17 阶梯, §24.4）。
+
+## 24. R59 步骤 12: A2-8-05 前置解锁与基线冻结（2026-09-06）
+
+### 24.1 基线身份链（冻结对象）
+
+- commit **4b473b3**（remote = local 已核·R58 unit 9）; 源基线
+  **e09ed97**（4b473b3 对 `services/` 零改动——`git diff --stat
+  e09ed97..4b473b3 -- services/` 为空, 27 文件全为 docs/evidence/
+  memory/tasks）。
+- 核心四文件 SHA256（Step 10 四文件口径·本轮盒==本地复核**全等**）:
+  - switch graph: `d2167b82f8087d715c9441d35a705dfd7fd31620e9f2e856ceb39848f344ab90`
+  - program execution: `64f8890fe739216181beedd4ccc4ff1160b510b4e474c56a7e8248e512c728ad`
+  - switch 契约: `74189c2fa886b881ddcc97d7e61d5c41fa2fa3698f223952538626bc65f7459e`
+  - switch mock: `1c5c17a010b7291857e355ed2aa49cc61f94f04b0f55542b2cf433eaac44f5f9`
+- manifest v5 md5 `7521d17e` 不变; 冻结 gates bin md5 `440c761b`
+  （R58 Step 10/11 案 b 口径）; 矩阵计数 fmt / 227 / 227 / 397 /
+  266 + clippy ×3（-D warnings）。
+- 证据盒索引: `~/a2-8-02i-evidence/` 三箱（2026-09-06-r58-
+  step7-fence-replay / -step10-regression / -step11-final-gate）+
+  `evidence/bmd-10.30.15.10/` 入库副本（盒 = origin·本地验证口径
+  非 CI）。
+
+### 24.2 冻结清单（禁改面）
+
+- A2-8 核心四文件（上列 SHA 锚定）+ 谓词文档 §2/§3/§4 冻结文本 +
+  词汇表 v2.1 + 全部阈值 + 豁免清单 = **禁改**; 验收层 Step 12 令:
+  "后续版本只允许新增验证, 不允许为了通过测试修改 A2-8 核心谓词";
+  force_release 语义禁改（§23.3-1）。
+
+### 24.3 A2-8-05 前置审查事实表
+
+- **CI**: `.github/workflows/media-agent.yml` 7 job（rust-format /
+  architecture-portability / rust-clippy ×2 / session-lifecycle /
+  rust-test-matrix / hardware-test-compile / gstreamer-build）;
+  触发 = master·main push + 全部 PR——**当前分支 114 提交从未跑过
+  GitHub CI**; hardware-test-compile 依赖 secrets
+  DECKLINK_SDK_HEADERS_1/2 分片注入（缺失则步骤门控跳过·非代码
+  回归——盒上已证编译）。
+- **收口时序（用户裁决 R59）**: 本轮开 PR 跑 CI（不 merge）→
+  Step 13-17 阶梯完成 → 链末 archive + merge + tag。
+- **归档/合并惯例**: `changes/archive/` 29 例 = `YYYY-MM-DD-
+  <change-id>` 整目录迁移（`specs/` 目录为空·真实 spec/设计同步走
+  `docs/superpowers/` specs+plans+reports）; merge 惯例 = 每 change
+  一 PR squash 进 master + `phase-*` tag（16 例 phase-0.6-* …
+  phase-0.7D-*）; `master..HEAD` = 114 提交纯领先·master 顶 =
+  7745968（A2-7 #29）。
+
+### 24.4 步骤 13-17 阶梯登记（验收层路线图入册）
+
+Step 12 前置解锁与基线冻结（本节）→ **Step 13** 正常使用形态测试版
+（真实运行入口验证·非 gates 二进制）→ **Step 14** 真实业务操作测试
+（A→B / B→A / 连续 / 多次 / 长时 / 输入丢失恢复 / 单双路异常 / 重启
+恢复; 观察 Desired/Observed 最终一致·epoch 单调·Timeline/Fence
+正确·无旧帧穿透/状态卡死/恢复漂移）→ **Step 15** 长稳（30min → 2h
+→ 8h → 24h; 内存/FD/socket/pipeline/pad-probe 泄漏·repeated
+switch 漂移·BMD 长稳）→ **Step 16** 控制面/Transport 联调
+（API→Command→Program State→Switch→GStreamer→Observed/Health
+回读·验证调用链完整性非重验 Fence）→ **Step 17** 正常使用测试版
+（版本号/源 SHA/binary SHA/manifest SHA/部署目录/启停/配置样例/
+health/操作入口/回滚/测试报告/已知限制）= **VBMF Media-Agent
+Normal-Use / Engineering Preview**。

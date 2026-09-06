@@ -1,0 +1,3 @@
+RUN1: START/DISCOVER/DUAL-INPUT/LIVENESS/READBACK=PASS; STOP_SESSION=400 (script-format defect, registered); PROC-KILL=OK
+RUN2: ALL PASS (stop_session=executed, teardown chain logged, watchdog exit flag, proc dead)
+SMOKE VERDICT: PASS (v0.1 zero-code form)

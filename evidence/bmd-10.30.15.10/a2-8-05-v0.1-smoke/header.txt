@@ -1,0 +1,13 @@
+               Local time: Sun 2026-09-06 15:04:07 CST
+           Universal time: Sun 2026-09-06 07:04:07 UTC
+                 RTC time: Sun 2026-09-06 07:04:07
+                Time zone: Asia/Shanghai (CST, +0800)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+REV=4b473b3ce20af284113a95b7b19c964980356ee4 (production source == e09ed97, services/ zero-diff; core four-file SHA box==local)
+bin md5:
+6a0fa22464f37a4e23c737e1b247e0e0  /home/lytv/a2-8-05-v0.1/media-agent
+manifest md5:
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+form: diagnostic auto-start dual-input (preview v0.1)
