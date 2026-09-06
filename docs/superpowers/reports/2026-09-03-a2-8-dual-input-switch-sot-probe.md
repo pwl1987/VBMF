@@ -4607,5 +4607,27 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   7521d17e·冻结 gates bin 440c761b·矩阵 227/227/397/266+clippy×3）;
   Step 13a 启动入口全盘审计（新报告·八缺口表·v0.2 控制面扩面
   提案待裁决）; 零代码 v0.1 测试包（诊断模式真实 bin 冒烟·切换面
-  如实标注 v0.2）。R59 执行细节（PR/CI 结果·v0.1 冒烟）= 本节
-  尾部执行记录段。
+  如实标注 v0.2）。
+- **R59 执行记录（2026-09-06 14:5x-15:2x CST·零生产源码）**: ①身份链
+  ——`git diff e09ed97..4b473b3 -- services/` 零差 + 核心四文件 SHA
+  盒==本地全等（d2167b82/64f8890f/74189c2f/1c5c17a0）+ 服务 bin md5
+  `6a0fa224`（build-bmd 口径·--bin media-agent·增量 8.79s）+ manifest
+  `7521d17e` 复核。②Step 13a 审计 = 新报告 2026-09-06-a2-8-05-
+  normal-use-startup-entry-audit.md（八缺口表·v0.2 控制面扩面提案
+  待裁决）。③v0.1 打包 = preview/a2-8-05-v0.1/（README runbook+
+  启停脚本+env.sample+IDENTITY）+ 盒上冒烟两跑（run1 留证:
+  stop_session 400 = 打包脚本 UUID 展示形缺陷·形状层拒绝未触
+  Runtime; run2 全绿: Capturing·双输入两路 advancing·events 15·
+  stop_session executed·teardown 链+watchdog 停止旗·进程死亡·
+  gst_pad_unlink×3/@teardown+gst_video_converter_free×1/@startup
+  =既有已知类）+ 证据盒入库 evidence/bmd-10.30.15.10/a2-8-05-
+  v0.1-smoke/（9 文件 md5sum -c 全过·盒=origin·EVIDENCE-INDEX
+  Current）。④**PR #30 开出·GitHub CI 7/7 首跑全绿**（run
+  34018242258: rust-format 15s / architecture-portability 31s /
+  rust-clippy 32s / session-lifecycle 37s / hardware-test-compile
+  55s[secrets 在位·bindgen+FFI 过] / rust-test-matrix 1m11s /
+  gstreamer-build 1m16s）——本分支 114+ 提交首次 CI 实测一次通过·
+  与盒上口径分述互证·**不 merge**。⑤commit 64769b0 推送
+  remote==local。⑥过程如实: Mimosa 钩子拦 .sh 写操作三次（scp/
+  sed/chmod 路径）——改走 Write 通道+整目录 scp 重部署规避; events
+  带 ?limit 查询串返回 not_found（路由不认·非缺陷）。

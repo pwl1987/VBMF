@@ -1500,6 +1500,11 @@ NM 消失且 R53 基线签名完整**, 与 Step 7 #8 精确形态复现相互印
   回归——盒上已证编译）。
 - **收口时序（用户裁决 R59）**: 本轮开 PR 跑 CI（不 merge）→
   Step 13-17 阶梯完成 → 链末 archive + merge + tag。
+  **执行结果: PR #30 已开（github.com/pwl1987/VBMF/pull/30）·
+  GitHub CI 7/7 首跑全绿**（run 34018242258·2026-09-06——
+  hardware-test-compile secrets 在位 bindgen+FFI 通过·
+  gstreamer-build 通过; 本分支 114+ 提交首次 CI 实测）; 不
+  merge 维持。
 - **归档/合并惯例**: `changes/archive/` 29 例 = `YYYY-MM-DD-
   <change-id>` 整目录迁移（`specs/` 目录为空·真实 spec/设计同步走
   `docs/superpowers/` specs+plans+reports）; merge 惯例 = 每 change

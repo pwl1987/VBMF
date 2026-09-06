@@ -1297,3 +1297,17 @@
   merge+tag 推至 Step 13-17 正常使用形态阶梯完成后）; Step 12 基线
   冻结 = R57 §24; Step 13a 启动入口审计 + 零代码 v0.1 测试包本轮落地
   （切换面缺口如实标注 v0.2 控制面扩面·待裁决）]**
+  **[R59 执行段（2026-09-06·零生产源码）: ①身份链——services/ 零差
+  +核心四文件 SHA 盒==本地全等+服务 bin md5 6a0fa224（build-bmd 口径）
+  +manifest 7521d17e; ②Step 13a 审计 = 2026-09-06-a2-8-05-normal-use-
+  startup-entry-audit.md（八缺口表：switch 触发入口/回读端点/
+  Production 503/无信号处理/program 物化未合流/无版本行/无 runbook/
+  日志 stdout·v0.2 控制面扩面提案待裁决）; ③v0.1 测试包 =
+  preview/a2-8-05-v0.1/ + 盒上冒烟两跑（run1 留证: stop_session 400=
+  打包脚本 UUID 展示形缺陷; run2 全绿: Capturing·双输入两路
+  advancing·events 15·stop_session executed·teardown 链 Program Stop→
+  Tap Detach+watchdog 停止旗·进程死亡·工件既有已知类）+证据盒入库
+  （md5sum -c 全过·盒=origin·EVIDENCE-INDEX Current）; ④**PR #30 开出
+  ·GitHub CI 7/7 首跑全绿**（run 34018242258·hardware-test-compile
+  secrets 在位 bindgen+FFI 过·本分支 114+ 提交首次 CI 实测·不
+  merge）; ⑤commit 64769b0 推送 remote==local; 主账 §88 执行记录段]**
