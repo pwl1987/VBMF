@@ -1225,6 +1225,31 @@
   fence 可运行+无反例+R53 基线签名逐字保持; Step 7 验收判定归验收层
   →后续 Step 10 全回归→Step 11 新鲜 Final Gate（仅届时 A2-8-04
   verdict 可变）; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 7 终裁+步骤 10 全回归: Step 7=✅ PASS/
+  CLOSED（五关键点全过: #8 位点 Preserved+DD+V/A Continuous+PE(0)+
+  NM=0 击中 R52/R56 闩锁位点·#9 生命周期保持无 NM 传播·V/A 对称
+  含 L4 fence 在链·71 fence 周期 Both-confirmed 零超时零 cutover
+  错误·SPAN 1.28-34.6ms）; C 项升级 CONFIRMED/REAL-HARDWARE-
+  VALIDATED（措辞红线保留: NM=0 必要非充分·确定性证明在 mock 双
+  模式+真适配器红绿测·真机=协议落实+无反例）; A2-8-04 不因连续
+  通过自动转绿（三 blocking cells 冻结门禁）; Step 10 放行→执行
+  （零代码轮 2026-09-06）: 远端=本地=6ab24a3 双侧核验·源 SHA 四
+  文件盒==HEAD 全等·gates bin md5 440c761b（源同源新构建指纹）·
+  manifest v5 不变·证据盒 2026-09-06-r58-step10-regression; 盒
+  矩阵 fmt/227/227/397/266/clippy×3 基线齐平零回归; 真机四跑=
+  dual_input ALL PASS 10/10（L4 epoch=1·observed=B·completed·
+  timeline_ok·Preserved{PE(0)}·程序面 DD·v/a Continuous——
+  Authority/Desired/active/epoch/连续性 Gate 级一行齐·fence 在链·
+  L5 四 verdict·Teardown 绿）+obs 三场景（#8 形态/N30/burst）全
+  EXIT=0·全 Preserved·PE(0) 保持·NM=0·adv=0·R53 签名逐字（in/br
+  VM=60/180×4·pr DD=58/178+VM2 对称）·#8/#9 位点干净·SPAN 毫秒
+  量级（1.56-31.8ms）无 5s 逼近; 错误面零新类（pad_unlink×4/跑·
+  interlace 3-6 同量级·ERROR=0·cutover 字串=0）·71 fence 周期全
+  确认式 Release; 澄清=adv 初判 1 例系 grep 命中定位行字面量实为
+  0; 结论=六路/Authority/Desired/observed active/epoch/V-A/
+  teardown 全局无回归; Step 11 新鲜 Final Gate（冻结谓词）待验收
+  层对 Step 10 裁决后另启——届时才允许改判; A2-8-04 仍 FAIL/
+  HOLD; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

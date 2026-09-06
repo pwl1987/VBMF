@@ -1137,3 +1137,117 @@ FirstNewMapped 永不出现+首放行帧走 plain 弧。
   全回归**（六路/Authority/Desired/epoch——dual_input L4 本轮已绿）→
   **Step 11 新鲜 Final Gate（冻结谓词）**——仅届时 A2-8-04 verdict
   可变。A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。
+
+## 19. R58 步骤 7 终裁登记: ✅ PASS / CLOSED——C 项升级 CONFIRMED / REAL-HARDWARE-VALIDATED
+
+### 19.1 终裁（验收层, 2026-09-06, 独立复核 6ab24a3）
+
+- **Step 7 = ✅ PASS / CLOSED**。独立核对: 6ab24a3 为真实远端提交;
+  零生产源码变更的验证/登记轮（Git 重点=部署指纹+真机四跑+登记,
+  未把盒上结果冒充 GitHub CI）; tasks 已解除 Step 6 HOLD-1 并登记
+  Step 7 真机执行结果。
+- 五关键点逐条裁定通过:
+  1. **#8 M1 位点**: B→A 第 8 切换实际通过——Preserved +
+     DiscontinuityDeclared + V/A Continuous + ProgramEpoch(0) +
+     NM=0, 直接击中 R52/R56 历史闩锁位点;
+  2. **#9 生命周期**: 后续干净边界仍 DD、无 NM 传播——修复未破坏
+     下一段生命周期;
+  3. **V/A 一致**: run1-3 pr_v/pr_a 对称; run4 dual_input 五层回归
+     通过（L4 明确带 fence、timeline_ok、Preserved、DD、V/A
+     Continuous）;
+  4. **Fence 真链**: 71 fence 周期全部 Both-confirmed, 零超时零
+     cutover 错误串——真实 BMD/GStreamer 执行结果, 非 Mock 推演;
+  5. **性能/等待面**: SPAN 1.28-34.6ms, 无 5s 级异常等待。
+
+### 19.2 C 项升级
+
+- **C = CONFIRMED / REAL-HARDWARE-VALIDATED**（自 §15.4 披露的
+  GStreamer 内部行为依赖升级）: 真实 BMD→GStreamer→selector→queue→
+  appsink→Fence→Program observation 链上 71/71 fence 周期正常完成,
+  confirmation timeout=0 · cross-boundary NM=0 · #8 historical
+  latch absent · #9 DD lifecycle preserved。
+- **措辞红线保留**: "NM=0"不能单独证明 M1 永不存在——必要非充分
+  （§18.5 口径不变）; 确定性因果证明仍来自 Mock 双模式+真适配器
+  红/绿测试; 真机承担=Fence 协议落实到真实媒体链并观察无反例。
+
+### 19.3 状态表（终裁）与放行
+
+| 层 | 状态 |
+|---|---|
+| Step 5.1 Fence | ✅ CLOSED |
+| Step 6 Mock 交错 | ✅ CLOSED |
+| Step 7 真机 #8 | ✅ CLOSED |
+| #8 M1 NM / #9 DD 生命周期 / V-A 一致 | ✅ |
+| Fence Both-confirmed 71/71 / timeout 0 / 新增隔离债 0 | ✅ |
+| A2-8-04 | 🔴 仍 FAIL/HOLD |
+
+- 纪律: A2-8-04 不因 5.1/6/7 连续通过而自动转绿——三 blocking
+  cells 由冻结门禁控制, 仅 Step 10 全回归+Step 11 新鲜 Final Gate
+  允许改判。**🚦放行 Step 10**（重点非再证 Fence, 而是证明六路
+  PTS→TimelineAuthority→Desired→observed active→epoch→V/A
+  continuity→teardown 加入 Fence/Mock/真机修复后全局无回归）;
+  之后才进入 Step 11 新鲜 Final Gate（冻结谓词重算, 此前不提前
+  宣布 PASS）。
+
+## 20. R58 步骤 10: 全回归执行记录（零代码轮, 2026-09-06）
+
+### 20.1 部署指纹
+
+- 双侧核验: ls-remote/rev-parse 均=**6ab24a3**（远端=本地, 工作树
+  clean）; tar 通道上盒（排除 target/.git）+ BUILD_REV 落盘。
+- 源 SHA 四文件**盒==HEAD 全等**: switch_mock 1c5c17a0…/switch_graph
+  d2167b82…/program_execution 64f8890f…/a204_obs 08fc1d63…（与
+  §18.2 同值——6ab24a3 为 docs-only, 源未变）。
+- gates bin 重建 `--features bmd,gstreamer` md5=**440c761b…**（新
+  构建指纹; 源 SHA 已证与 d05be28f 轮逐字节同源, debug 构建非逐
+  字节复现属预期, 如实登记）; manifest v5 md5=7521d17e… 不变。
+- 证据盒 `~/a2-8-02i-evidence/2026-09-06-r58-step10-regression/`
+  （header 五件套+REV+bin/manifest md5+四跑 log 及 md5: run1
+  8361e98a…/run2 2d2b724e…/run3 f9c60fbe…/run4 355330b3…）。
+
+### 20.2 盒矩阵（本地验证口径, 非 CI）
+
+fmt ✓ · default 227/0 · simulation 227/0 · mock 397/0 ·
+bmd,gstreamer 266/0 · clippy×3（default/mock/bmd,gstreamer）
+--all-targets -D warnings 全绿——**计数与基线齐平, 单元面零回归**
+（Desired 状态机/fence/timeline/四态生命周期测试族全在其中）。
+
+### 20.3 真机四跑（12:57-13:13 CST）
+
+- **run1 dual_input 五层 Gate: ALL PASS 10/10（EXIT=0）**——L1a-d
+  身份/绑定/能力/信号/Port↔Resource 闭包全 PASS; L2a/b 双输入会话+
+  Tap/Bridge 接线; L3 program 推进（切前 VM=legacy 不变）; **L4:
+  switch epoch=1·observed=B·completed·switch_ok=true·timeline_ok=
+  true·outcome=Preserved{ProgramEpoch(0)}·程序面 DD·v/a Continuous/
+  Continuous·seg=1·offset=123912**（TimelineAuthority+Desired+
+  observed active+epoch+V/A continuity 的 Gate 级证据一行齐, fence
+  在链）; L5 四 verdict（A-fail→B-alive/recover-A 桥复流/B-fail→
+  A-alive/故障域归因完整）; Teardown session_stop/rt_inactive/
+  Released 全 PASS。
+- **run2 obs #8 精确形态（N=10 dwell=1000）**: EXIT=0·10/10·全
+  Preserved·tl_epoch=ProgramEpoch(0)×10·NM=0·**adv=Some(false)
+  出现=0**·tally: in/br 四路 VM=60 各·pr_v/pr_a DD=58+VM=2 对称
+  （R53 基线签名逐字）; **#8 B→A 执行行 Preserved+PE(0)+seg=8+v/a
+  Continuous+DD**（闩锁位点干净）·**#9 A→B 同签名, SPAN pr=DD
+  （PRE=DD→新边界 DD 生命周期仍立）**; SPAN av_delta 毫秒量级
+  （样值 1.56-31.8ms）无 5s 逼近。
+- **run3 obs N=30 dwell=1000**: EXIT=0·30/30·全 Preserved·PE(0)×30·
+  NM=0·adv=0·tally VM=180×4·pr DD=178+VM=2 对称。
+- **run4 obs burst N=30 dwell=0**: EXIT=0·同签名全净。
+- **错误类**: 四跑 ERROR=0·"cutover" 字串=0·CRITICAL 全=gst_pad_
+  unlink 族 ×4/跑·interlace 家族 3-6/跑——**既有隔离债同类同量级,
+  零新类**。
+- **fence 周期 carried watch（非本轮目标）**: 70 obs 切换+1 L4=71
+  周期全部确认式 Release（超时必产生切换失败截断/exit≠0, 均未
+  出现）。
+- 分析澄清如实登记: 初判 "adv=Some(false)=1" 系 grep 命中定位行
+  自身字面量（该行含 "adv=Some(false) 出现: N" 字样）——locator
+  明示 0, 证据行零非推进格。
+
+### 20.4 回归结论
+
+**全局无回归成立**: 六路 PTS（obs 三跑签名逐字）→ TimelineAuthority/
+Desired/observed active/epoch/V-A continuity（dual_input L4 一行齐+
+obs tl_epoch 全保持）→ teardown（L5+Teardown+obs 卫生打印全绿）,
+盒矩阵基线齐平。A2-8-04 仍 🔴 FAIL/HOLD——Step 11 新鲜 Final Gate
+（冻结谓词）前不宣布 PASS; A2-8-05 不进入。
