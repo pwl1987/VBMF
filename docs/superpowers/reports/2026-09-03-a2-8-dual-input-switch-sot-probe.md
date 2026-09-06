@@ -4860,3 +4860,13 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   计划批准）——结果与补章归 commit 2。
 - 下一步: 发现①②③裁决→（修复轮若裁）→R64-6 完成后 Step 15（2h/8h/24h）
   →Step 17 Preview RC→链末收口——待用户指令。
+- **R64-6 30min 基线结果（commit 2·bin e08978e1 重建钉扎）**: 脚本裁决
+  VERDICT FAIL(5/9)——按原样交付未改谓词未重跑。实质数据全绿: 60/60 切换
+  executed+preserved（tl 恒 0·R53 签名逐周期）/replay 12/12 原样/854 并发
+  查询全 200 ~1ms（max 1.26ms）/fd 14→14 零漂移/RSS +12MB 无爬升/零丢弃
+  零 critical/frames 全程推进。四项 FAIL 定性: threads 29-31 有界振荡
+  （per-connection 模型本性·无增长趋势·语义归裁）/switch_epoch_plus60 与
+  observed_tracks=谓词实现取样伪影（数据满足批准语义: 绝对纪元 0→60 恰
+  +60·readbacks 60/60 observed==target）/watchdog_ticks=测量缺口
+  （RUST_LOG=warn 遮蔽 info 级 tick 与 teardown 行——非 watchdog 失败·
+  下轮 info 级重测）。证据盒 r64-stability-30m 19 件 md5 盒=origin。

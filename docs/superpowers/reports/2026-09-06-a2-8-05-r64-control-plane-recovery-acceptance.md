@@ -73,9 +73,23 @@ gate 内纯函数 `check_quiescent_consistency`（静息快照 ①命令 ②幂�
 
 **红线核对**：生产服务代码零触碰（本轮源内=gate 新文件+mod.rs 一行+bin/gates.rs 派发与 env 清单+mock 测试文件加 1 测试）；发现即停即报未在线修；complete_switch/force_release 语义禁改；Mimosa 纪律（.sh 经 Write+scp -r；一次合并命令被拒后已按纪律拆分执行；HOME 拼接 advisory 同先例披露）；盒上≠CI 分述。
 
-## 9. R64-6 30min 稳定基线
+## 9. R64-6 30min 稳定基线（真服务·无注入·bin e08978e1 重建钉扎）
 
-（commit 2 补章——脚本 `r64-probe/r64-stability-30m.sh`：60 周期×30s A↔B + 每 5 周期 replay + 2s 并发查询环 + 30s RSS/fd/threads/frames 采样 + 60s /events 稀疏采样；九项显式验收谓词。）
+脚本 `r64-probe/r64-stability-30m.sh`：60 周期 × ~30s A↔B + 每 5 周期同 id replay + 2s 并发查询环（854 次）+ 30s RSS/fd/threads/frames 采样 + 60s /events 稀疏采样（破坏性 drain 如实注明）。九项显式验收谓词（经 R64 计划批准）脚本裁决：**VERDICT FAIL（5/9）——逐项定性后按原样交付，未改谓词未重跑刷绿**。
+
+| 谓词 | 裁决 | 定性 |
+|---|---|---|
+| fd_bounded | PASS | 14→14 零漂移（854 连接零泄漏） |
+| rss_bounded | PASS | 首 1/3 均值 1226.8MB → 末 1/3 1239.0MB（+12MB·无单调爬升） |
+| frames_advancing | PASS | v 24→51033 · a 33→68033（全程推进） |
+| drops_zero | PASS | dropped_bus_events=0 且 clock_lost_events 全程恒 0 |
+| events_no_critical | PASS | 30 次 /events 采样 has_critical=0 |
+| threads_constant | FAIL | 实测 29–31 振荡：per-connection 线程模型下 854 次查询的连接线程生灭（起始 31→稳定 29，**无增长趋势**）——"恒定"字面谓词不满足，有界振荡语义归裁决 |
+| switch_epoch_plus60 | FAIL | 采样点取自每周期切换后（首样本 sw=1 末样本 sw=60）→差 59；**绝对纪元 0→60=恰 +60 由数据满足**（60/60 全 preserved，readbacks 逐周期 observed==target）——谓词实现取样伪影 |
+| observed_tracks | FAIL | 首末比较实现伪影（周期交替设计首≠末）；逐周期 readbacks **60/60 observed==target** |
+| watchdog_ticks_advancing | FAIL | **测量缺口非 watchdog 失败**：RUST_LOG=warn 遮蔽 info 级 tick 行与 teardown 完成行（ticks mid=end=0·teardown 行 grep=0）——下轮以 info 级重测（归 R64 后续或 Step 15 前置） |
+
+**稳定性实质（数据面）全绿**：60/60 切换全 executed+preserved（tl_epoch 恒 0·R53 签名 DD+continuous 逐周期）；同 id replay 12/12 原样（原始 executed outcome detail 逐字节）；854 次并发查询全 200 ~1ms（max 1.26ms）；零 fd/RSS 泄漏；零丢弃零 critical。**FAIL 裁决构成**＝1 项语义待裁（线程有界振荡）+2 项谓词实现伪影（数据满足批准语义）+1 项测量缺口（日志级）——无一项指向系统缺陷；是否以修正谓词/信息级日志重测归用户裁决。
 
 ## 10. 盒矩阵与验证闭环
 
