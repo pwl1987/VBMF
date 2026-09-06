@@ -1459,3 +1459,39 @@
   挂起+手工收尾两笔误——规范证据以修复脚本完整重跑为准——报告 §4-§7 +
   主账 §93; **R64（全矩阵+真机故障恢复+并发查询+30min 基线）→Step 15→
   Step 17→链末收口待令**]**
+
+  **[R64 段（2026-09-06·综合验收轮·用户 R64-0..6 十一节裁决）: 真服务恢复
+  矩阵+并发综合+快照真值+六平面审计全绿交付·三条发现停裁（未在线修·生产
+  零触碰——源内仅 gate 新文件+mod.rs 一行+bin/gates.rs 派发与 env 清单+mock
+  测试加 r64_storm 1 测试）; 载体=新 gate `r64_control_plane`（env
+  VBMF_A2_8_R64_CP·两阶段）: 真 BMD 双输入+真 GStreamerSwitchAdapter::bridged()
+  包私有 FaultControlWrapper（11 方法全委托·R53 face 零触碰·四旋钮场景前置
+  位）+真 transport/idempotency/api_boundary **全程 HTTP 闭环**·watchdog 不
+  接线（a204 先例·披露）; epoch 记账真机钉死（group=begin 尝试数/
+  ProgramObservation=已委托 plan epoch 绝对值可跳号）; **阶段一 attempt5 规范
+  跑 exit0·failures=0**（C0 R53 签名/C1 observed=from 落 Active(from)+
+  replay 原样+再切成功/C2 observed=to 硬件真翻转+真 5.02s 证据超时=R62 场景
+  恢复闭环·NewEpoch(1)+DD+identity 段+反向再切 preserved@1/STORM 真切换窗
+  0.87s 四路并发 200<2s+replay 原样+异 id 串行+快照真值窗内=旧已提交无未来
+  时间戳/C3 observed=None 接缝注入落 RecoveryRequired 终态拒绝猜测→拒收→
+  teardown 全缺席; 13 静息六平面检查点全 OK——六平面=命令/幂等/组 group_arc
+  直读零 API 扩张/程序观测/时间线/API 投影·纯函数 checker+5 单测入 hw 腿）;
+  **阶段二 C2b（release Err=真机 5s 确认超时同型）四跑三态 KNOWN-FINDING**:
+  L1 observed=Some(from)→Active(from)+强释迟到翻转→静息分歧+死锁（唯一出口
+  teardown）/L2 None→RecoveryRequired 诚实终态/L3 Some(to)→Active(to) 自洽
+  （from-探针合法切换成功）; 规范跑 findings=12 不 gate exit（观察≠判据）;
+  **发现三条**: ①[P1] 真机物理 cutover 在 release（force_open 只开屏障不回拨
+  selector）非 switch(); release 失败恢复观测读于屏障拆除窗→迟到翻转→L1
+  死锁（真实超时同后果·mock F2 掩盖）②[P2] 恢复观测非确定（三跑三态）③
+  [P2] C3 类 fence 周期留 PTS 基线伪影→下一切换 ①a FailClosed（3/3 复现）
+  遮蔽 RecoveryRequired 拒收形态（unknown 非 permanent·状态机未破坏·恢复
+  rebase tl+1 在案）——修复建议=恢复落定后移至 guard Drop 强释之后（核心域
+  文件·另裁）; 盒矩阵终态代码 fmt0/clippy×3=0/229/229/**429（含 r64_storm）**/
+  **273（268+5 checker）**/gates bin 31a00197 exit0; 证据盒 r64-recovery 9 件
+  （canonical+attempt1-4 全档+mock-storm-matrix）md5 盒=origin; R64-0 基线
+  审计=HEAD faa9b8d 干净·PR#30 OPEN 未 merge·R63-A 五文件中 R63-B 仅开
+  program_execution 四处边界确认; R64-6 30min 基线脚本已上盒启动（九项显式
+  谓词经计划批准）——补章归下一 commit; 报告=docs/superpowers/reports/
+  2026-09-06-a2-8-05-r64-control-plane-recovery-acceptance.md + 主账 §94;
+  **发现①②③裁决→（修复轮若裁）→R64-6 完成→Step 15（2h/8h/24h）→Step 17
+  Preview RC→链末收口——待用户指令**]**

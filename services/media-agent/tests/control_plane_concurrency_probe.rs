@@ -555,3 +555,98 @@ fn r63b_t7_sixteen_concurrent_runtime_queries() {
     println!("R63B-MATRIX t7 n=16 worst={worst:?}");
     srv.runtime.teardown();
 }
+
+// ── R64-3/4: 并发综合 storm——同一 5s 证据窗内 T1 切换 + T2×2 查询 + T4/T5
+//    端点 + T6 同 id replay + T7 异 id 反向排队; 快照真值（窗内只读旧已提交
+//    值·不读未来状态）; 查询只读。mock 确定性主证, 真机同型场景在 R64 gate。──
+
+#[test]
+fn r64_storm_switch_query_replay_matrix() {
+    let srv = server();
+    let cid = Uuid::new_v4();
+    // T1: 后台首切（5s 证据窗·inner 被编排长持——suppress 仅首次切换）。
+    let first = spawn_switch(&srv, cid, srv.b);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while srv.adapter.switches_done.load(Ordering::SeqCst) < 1 {
+        assert!(Instant::now() < deadline, "switch 未执行");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    std::thread::sleep(Duration::from_millis(100));
+    // 窗内并发查询四路（T2×2 + T4 + T5）: 全 200 且 <1s。
+    let addr = srv.addr;
+    let mut probes = Vec::new();
+    for path in [
+        "/api/v1/runtime",
+        "/api/v1/runtime",
+        "/health",
+        "/api/v1/events/projection",
+    ] {
+        let a = addr;
+        probes.push(std::thread::spawn(move || http(a, "GET", path, None)));
+    }
+    for (i, p) in probes.into_iter().enumerate() {
+        let (s, _b, dt) = p.join().unwrap();
+        assert_eq!(s, 200, "storm probe#{i}");
+        assert!(dt < Duration::from_secs(1), "storm probe#{i} 延迟 {dt:?}");
+    }
+    // 快照真值: 窗内 GET observed==旧已提交 a（不得读到未来 b）。
+    let (s, body, _) = http(addr, "GET", "/api/v1/runtime", None);
+    assert_eq!(s, 200);
+    assert!(
+        body.contains(&format!("\"observed_active\":\"{}\"", srv.a)),
+        "窗内=上一次已提交事实（observed=旧源 a）: {body}"
+    );
+    // T6 同 id replay（等待 InFlight 完成后原样）+ T7 异 id 反向排队（inner 串行）。
+    let replay = spawn_switch(&srv, cid, srv.b);
+    let queued = spawn_switch(&srv, Uuid::new_v4(), srv.a);
+    let (s1, b1, _) = first.join().unwrap();
+    let (sr, br, _) = replay.join().unwrap();
+    let (sq, bq, dq) = queued.join().unwrap();
+    assert_eq!(s1, 200);
+    assert!(b1.contains("证据超时"), "首个=Failed（不伪装成功）: {b1}");
+    assert_eq!(sr, 200);
+    let j1: serde_json::Value = serde_json::from_str(&b1).expect("json");
+    let jr: serde_json::Value = serde_json::from_str(&br).expect("json");
+    assert_eq!(
+        jr["status"]["status"], "replayed",
+        "同 id 二发=Replayed: {br}"
+    );
+    assert_eq!(j1["detail"], jr["detail"], "replay detail 逐字节");
+    assert_eq!(j1["classification"], jr["classification"]);
+    assert_eq!(j1["command_id"], jr["command_id"]);
+    assert_eq!(sq, 200);
+    assert!(
+        bq.contains("switch executed") && bq.contains("preserved"),
+        "异 id 在恢复后串行合法执行: {bq}"
+    );
+    assert!(
+        dq >= Duration::from_secs(3),
+        "异 id 应被 inner 串行（等待首个完成）: {dq:?}"
+    );
+    // 终态: 双消费 epoch=2、唯一 Active(a)——与 t5 同锚。
+    let g = srv.runtime.group_arc().expect("group");
+    let g = g.lock().unwrap();
+    assert_eq!(
+        g.desired,
+        media_agent::switch_execution::SwitchDesired::ActiveInput(srv.a)
+    );
+    assert_eq!(g.switch_epoch, 2, "两次 begin 各消费一个 epoch");
+    drop(g);
+    // 查询只读: 连续 observe 不改变 epoch。
+    let e1 = srv
+        .runtime
+        .observe_execution()
+        .expect("obs")
+        .program
+        .switch_epoch;
+    let _ = srv.runtime.observe_execution();
+    let e2 = srv
+        .runtime
+        .observe_execution()
+        .expect("obs")
+        .program
+        .switch_epoch;
+    assert_eq!(e1, e2, "查询只读");
+    println!("R64-MATRIX storm(mock) queries_fast observed_committed replay_identical queued_serialized epoch=2 final=Active(a)");
+    srv.runtime.teardown();
+}

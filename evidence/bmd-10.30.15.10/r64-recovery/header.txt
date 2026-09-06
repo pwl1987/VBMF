@@ -1,0 +1,5 @@
+date=2026-09-06T21:52:01+08:00
+gates_bin_md5=31a0019765b4213d616e839337892dc6
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+env=VBMF_A2_8_R64_CP=1 two-phase three-variant CANONICAL(attempt5)
+attempts: 1=discovery(exit2,22F,L1-world) 2=L2(exit2) 3=L3(exit2) 4=L2(exit0,PASS-AND-FINDINGS)

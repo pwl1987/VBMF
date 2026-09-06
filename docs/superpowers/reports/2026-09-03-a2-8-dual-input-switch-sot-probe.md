@@ -4813,3 +4813,50 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   Mimosa python_ast_unavailable×4+脚本 HOME advisory（误报语境）。
 - 下一步: **R64 全矩阵+真机故障恢复+并发查询+30min 稳定基线 → Step 15
   （2h/8h/24h）→ Step 17 Preview RC → 链末收口**——待用户指令。
+
+## §94 R64: Control Plane / Switch Recovery 综合验收（真服务恢复矩阵·两跑架构·代码轮·2026-09-06）
+
+- 用户裁决（R64-0..6 十一节）: 基线审计→真服务恢复矩阵（real Control Plane
+  + test-controlled adapter·现有适配器抽象接缝而非生产旋钮）→故障→恢复→
+  再切换三态→Command/Query/Idempotency 并发综合→快照真值（快≠读未来）→
+  六平面一致性审计→30min 稳定基线→Step 15→Step 17→收口; 暴露契约违背→
+  停·如实报告·修复另裁。
+- **载体（源内新增仅测试脚手架·生产零触碰）**: 新 gate
+  `src/gates/r64_control_plane.rs`（env `VBMF_A2_8_R64_CP`·bin/gates.rs
+  派发+mod.rs 一行）+ mock 测试文件加 `r64_storm` 1 测试。gate=真 BMD 双输入
+  Session+真 `GStreamerSwitchAdapter::bridged()` 包私有 FaultControlWrapper
+  （11 方法全委托·R53 face 零触碰·四旋钮场景前置位）+真 transport/
+  idempotency/api_boundary **全程 HTTP 闭环**; watchdog 不接线（a204 先例·
+  披露）。epoch 记账真机钉死: group=begin 尝试数·ProgramObservation=已委托
+  plan epoch（绝对值可跳号）。
+- **阶段一判据段（attempt5 规范跑 exit0·failures=0·bin 31a00197 钉扎）**:
+  C0 preserved+R53 签名/C1 observed=from 落 Active(from)+replay 原样+再切
+  成功（av=2 保持·重试直跳 4 在案）/C2 observed=to **硬件真翻转+真 5.02s
+  证据超时（R62 场景+恢复闭环）**落 Active(to)+NewEpoch(1)+DD+identity 段+
+  反向再切 preserved@1/STORM 真切换窗 0.87s 四路并发查询 200<2s+同 id
+  replay 原样+异 id 串行+快照真值窗内 observed=旧已提交+无未来时间戳/C3
+  observed=None（接缝注入·披露）落 **RecoveryRequired 终态**拒绝猜测→
+  拒收+replay 原样→teardown 全缺席; **13 静息六平面检查点全 OK**（六平面
+  =命令/幂等/组 group_arc 直读·零 API 扩张/程序观测/时间线/API 投影; 纯函数
+  checker+5 单测入 hw 腿）。
+- **阶段二 KNOWN-FINDING（C2b release Err=真机 5s 确认超时同型）四跑三态**:
+  L1(attempt1) observed=Some(from)→落 Active(from)+强释迟到翻转→**静息分歧
+  +死锁**（切 to 适配器拒/切 from 组平面拒·唯一出口 teardown）/L2(attempt2/4)
+  observed=None→RecoveryRequired 诚实终态/L3(attempt3/5) observed=Some(to)→
+  Active(to) 自洽可服务（from-探针合法切换成功）。规范跑 findings=12 不 gate
+  exit（观察≠判据·R52 纪律）。
+- **发现三条（停·报告·未在线修——归裁决）**: ①[P1] 真机物理 cutover 在
+  release（force_open 只开屏障不回拨 selector）完成而非 switch(); release
+  失败恢复观测读于屏障拆除窗内→迟到翻转→L1 死锁（真实超时同后果·mock F2
+  掩盖）②[P2] 恢复观测非确定（三跑三态·Observed-first 判据在物理未落定窗
+  内不稳定）③[P2] C3 类 fence 周期留 PTS 基线伪影→下一切换 ①a FailClosed
+  （3/3 复现）遮蔽 RecoveryRequired 拒收形态（分类 unknown 非 permanent·
+  状态机未破坏·恢复 rebase tl+1 在案）。修复建议: 恢复落定后移至 guard
+  Drop 强释之后——核心域文件·另裁。
+- 盒矩阵（终态代码）: fmt 0/clippy×3 全 0/229/229/**429**(411+9+9 含
+  r64_storm)/**273**(268+5 checker)/gates bin exit0; 证据盒 r64-recovery
+  9 件（canonical+attempt1-4 全档+mock-storm-matrix）md5 盒=origin。
+- R64-6 30min 基线脚本已上盒启动（60 周期×30s+九项显式验收谓词·经 R64
+  计划批准）——结果与补章归 commit 2。
+- 下一步: 发现①②③裁决→（修复轮若裁）→R64-6 完成后 Step 15（2h/8h/24h）
+  →Step 17 Preview RC→链末收口——待用户指令。
