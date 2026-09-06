@@ -1409,3 +1409,31 @@
   r63a-recovery 入库 md5 盒=origin 全等（12 件含 mock-recovery-matrix
   矩阵行日志）——报告=2026-09-06-a2-8-05-r63-a-switch-failure-recovery.md
   §3-§6 + 主账 §92; **R63-B Transport 并发（std-only）下一轮另开**]**
+
+  **[R63-B0 并发契约+inner ownership 审计段（2026-09-06·契约先行·本 commit
+  先于实现 commit）: 用户 R63-B 裁决=B1 连接并发/B2 切换串行边界/B3 查询
+  快照解耦三层拆分·两 commit 分离架构与实现·真机并发验证（B-T1..T7+慢
+  读者+恢复后连续切换）后才能进 R64/Step 15; **并发契约冻结**: ①HTTP
+  concurrency ≠ switch concurrency——GET /health·/runtime·/events 可并发,
+  同一 Program 的切换经 runtime.inner 串行（现有锁=串行边界·**不新造全局
+  锁**; idempotency[同 id exactly-once/replay/conflict] 与 inner[Program
+  execution 互斥]职责不同不合并）; ②std-only——无 tokio/axum/hyper/
+  tower, Connection: close 协议模型不变; ③Query 快照模型——**快照 SoT=
+  既有 ProgramExecutionObservation**（Clone 派生已在·contracts 零触碰）,
+  runtime 增 derived published 缓存（非第二 Runtime State）, observe_execution
+  改 try_lock 短锁+回退最近已提交事实快照, 发布点=create 初始/switch_program
+  出口（成败与恢复后）/自由读, teardown 清空（投影块诚实缺席契约保持）;
+  ④慢读者隔离=per-connection std thread（10s read timeout 只约束自身连接）;
+  ⑤残留如实: 无连接数上限（诊断 127.0.0.1 回环前提·正式化归反向代理层）·
+  during-switch 查询=上一次已提交事实（observed_at_ms 在载荷=诚实时间戳）·
+  adapter observe 并发安全沿 watchdog 真机先例（R62: 切换期 tick 720→780
+  无中断）; **inner ownership 审计**: group=Arc<Mutex<ExecutionGroup>>
+  独立可锁/timeline=TimelineAuthority 纯 snapshot 派生读/switcher+graph=
+  adapter observe 通路（watchdog 先例并发安全）/taps·tap_port·watchdog_stop
+  =teardown 专用/inner Mutex<Option<Inner>>=切换编排串行边界（保持）;
+  触碰面=transport+bin+program_execution（B3 审计证明必须: observe_execution
+  即阻塞点·最小开启: published 字段/create 发布/switch_program 出口发布/
+  teardown 清空+observe try_lock）·switch_graph/switch_execution/
+  program_timeline/contracts/switch_mock/command/idempotency/api_boundary
+  续冻——契约全文=2026-09-06-a2-8-05-r63-b-transport-concurrency.md §2-§3
+  （随用户计划批准即锁）]**
