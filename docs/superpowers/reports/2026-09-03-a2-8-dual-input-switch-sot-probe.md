@@ -4919,5 +4919,14 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   确定性 permanent+recovery required（①a 遮蔽真机同样消失）**·c3-after-reject
   六平面 OK（tl 诚实停留未治愈）·F2×10 仍 10/10+F4 OK=R65-A 零回归。
   证据 r65-cutover-recovery 增至 6 件（header-b/gate-run-b）md5 盒=origin。
-- 下步: R64-6' 30min（谓词 v2·R65 后服务 bin 重建先行）→停, 等用户裁
-  Step 15（2h/8h/24h）。
+- **R64-6' 30min 重跑（commit 4·谓词 v2·VERDICT PASS 10/10）**: 入口门禁
+  满足（R65-A/B 真机 exit0+全矩阵）; bin 2b5aa760 重建钉扎; 60 周期+replay
+  12/12+855 查询全 200+teardown 完成行——threads spread=2（29-31 有界）·
+  fd 14→14·RSS +2.8MB 无爬升·**epoch 逐命令恰 +1（1→60）**·60/60
+  executed+preserved·**observed 逐命令==target 60/60**·frames 推进·零
+  丢弃·**watchdog tick 84→173（info 级可测——v1 测量缺口消除）**·零
+  critical。如实登记: 首跑 summary 9/10 = v2 解析器 bug（detail 误当
+  status 内嵌→0/60 假 FAIL）; 原始证据零改动, 修正解析对同一份产物重析
+  =10/10; 首跑保留 summary-parserbug.txt。证据 r64-stability-30m-v2
+  22 件 md5 盒=origin。
+- R65 全链完成（A0→A1→A2→B→R64-6'）: 停, 等用户裁 Step 15（2h/8h/24h）。

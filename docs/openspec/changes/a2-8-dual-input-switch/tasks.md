@@ -1566,3 +1566,19 @@
   零回归; 证据 r65-cutover-recovery 增至 6 件 md5 盒=origin; 下一步=
   R64-6' 30min 重跑（谓词 v2 四条·R65 后服务 bin 重建钉扎先行）→停等
   Step15（2h/8h/24h）裁决]**
+
+  **[R64-6' 30min 重跑段（2026-09-07·commit 4·谓词 v2·VERDICT PASS
+  10/10）: 入口门禁满足（R65-A/B 真机 exit0+全矩阵·用户 §十三）; bin
+  2b5aa760 重建钉扎先行; 60 周期 A↔B + replay 12/12 原样 + 855 并发查询
+  全 200 + /events 30 采样零 critical + teardown 完成行; 谓词 v2 全过=
+  threads 有界 spread=2（29-31）·fd 14→14·RSS +2.8MB 无爬升·**epoch 逐
+  命令恰 +1（1→60 连续）**·**60/60 executed+preserved**·**observed 逐
+  命令==target 60/60**·frames v 31→51035/a 42→68032 推进·零丢弃·
+  **watchdog tick 84→173（RUST_LOG=info 可测——v1 warn 级测量缺口消除）**;
+  如实登记: 首跑 summary 9/10=v2 解析器 bug（detail 误当 status 内嵌字段
+  →0/60 假 FAIL·词表实为顶层 status.status+顶层 detail/classification）
+  ——原始证据零改动, 修正解析器对同一份产物重析=10/10 PASS, 首跑保留
+  summary-parserbug.txt, 脚本+独立重析工具 r64-probe/reanalyze-v2.py
+  修正入库; 证据 r64-stability-30m-v2 22 件 md5 盒=origin; **R65 全链
+  完成（A0→A1→A2→B→R64-6'·四 commit 82834fd/b5a54b0/4250e79/本提交）
+  ——停, 等用户裁 Step 15（2h→8h→24h）→Step 17→链末收口]**

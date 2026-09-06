@@ -217,3 +217,33 @@ gate-run.log（attempt2 规范 exit0）+ gate-run-attempt1.log（F4 场景错误
   模拟迟翻序列表达（force_release 后先报 from 连续 K=6 次再报 to），首次
   使该缺陷在 mock 侧可回归。
 - 本契约不改变 0.7C 冻结契约的任何 wire 词表/classification 映射。
+
+## 7. R64-6' 30min 稳定基线重跑（commit 4·谓词 v2·VERDICT PASS 10/10）
+
+- **入口门禁满足**（用户 §十三）: R65-A PASS（commit 2 真机 exit0）+
+  R65-B PASS（commit 3 真机 exit0）+ 全矩阵 + 真机恢复 PASS。
+- **bin 重建钉扎先行**: build-bmd.sh 重建（R65 后代码态）md5 2b5aa760·
+  manifest 7521d17e。60 周期 ×~30s A↔B 交替 + 每 5 周期 replay + 2s 交替
+  查询环（855 查询全 200）+ /events 稀疏 30 采样。
+- **VERDICT PASS（10/10 谓词 v2）**:
+  | 谓词 | 结果 |
+  |---|---|
+  | threads 有界振荡 ≤4 | PASS spread=2（29-31） |
+  | fd 末≤首+8 | PASS 14→14 零漂移 |
+  | RSS 末 1/3≤首 1/3+50MB 无爬升 | PASS 1236.7→1239.5MB（+2.8MB） |
+  | switch_epoch 逐命令恰 +1 | PASS 1→60 连续 +1 |
+  | 全部切换 executed+preserved | PASS 60/60 |
+  | observed 逐命令==target | PASS 60/60 |
+  | frames 严格递增 | PASS v 31→51035 / a 42→68032 |
+  | dropped/clock_lost 恒 0 | PASS |
+  | watchdog tick 递增（info 级） | PASS mid=84→end=173（v1 测量缺口消除） |
+  | events has_critical=0 | PASS 30 采样 |
+  - 附数据: replay 12/12 replayed 原样; teardown 完成行=1; R53 签名逐周期
+    （tl 恒 0·DD·continuous）。
+- **如实登记——首跑 summary 9/10 的解析器 bug**: v2 新增谓词
+  switches_all_executed_preserved 的解析器误把 detail 当 status 内嵌字段
+  （词表实为顶层: status.status + 顶层 detail/classification）→ 0/60 假
+  FAIL; **原始证据零改动**, 以修正解析器对同一份原始产物重析 = 10/10
+  PASS; 首跑 summary 保留为 summary-parserbug.txt, 脚本与独立重析工具
+  （r64-probe/reanalyze-v2.py）均已修正入库。
+- 证据 `r64-stability-30m-v2/` 22 件 md5 盒=origin。
