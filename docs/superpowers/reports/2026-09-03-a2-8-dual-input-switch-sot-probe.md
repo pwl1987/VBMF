@@ -4374,3 +4374,28 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   停留 SwitchExecuted 相（后续 declare InvalidPhase fail-closed,
   恢复归会话级故障面）+confirm 等待期 inner 锁持有（正常 ms 级,
   与既有 settle 轮询同类）。
+
+## §80 R58 步骤 5.1 源码级调用链终审（ffdb9ce）: A/B/C 全 CONFIRMED → CLOSED
+
+- 验收层第一轮独立复核确认 ffdb9ce=真实远端基线（ahead_by=1, 4 生产/
+  契约文件+3 审计文档, "实质性正确修复非账本包装"; queue 穿透与双
+  Mutex 两核心问题分别被 Downstream Segment+Seqnum 确认与单锁
+  FencePairState 正面解决, 无需回滚无需重设计）; 关闭前置=三项源码
+  级终审, 本轮逐行核验完毕。
+- **A ✅**: capture first-wins+Armed 门; confirm 世代序号三元组匹配;
+  Segment 源枚举（启动段=Open 期不可捕获/切换段=rt_02 实机在案/
+  伪段=超时 fail-closed 安全方向）; BUFFER 门与 EVENT 探针类型分离。
+- **B ✅**: confirm_and_release Ok→armed=false·Err→Drop 强释;
+  force_release 类型面无法构造 CutoverDrainEvidence, 生产调用点仅
+  守卫 Drop; release_after_drain Open 翻转仅在 both_ready 同一临界区;
+  :662 `?` 如实传播; 调用链终序 ⓪arm→①→②declare→③install→
+  ④switch→④executed→confirm_and_release——无隐藏序。
+- **C ✅（一项披露）**: 四接线点共用同一 FencePair; T-F1/F2/F3 驱动
+  生产方法零复刻; 旧 buffer 消费门先于 Segment 确认由 queue→appsink
+  单流线程 FIFO+sync=false 内联渲染保证——**披露: 依赖 GStreamer
+  basesink 标准内部行为（非本仓可证）, Step 7 真机 NM 消失为端到端
+  反证**。
+- **Step 5.1 正式 CLOSED**（依据=A/B/C CONFIRMED+§14.4 矩阵全绿+
+  Domain 零触碰）。后续序=Step 6 Mock 交错→Step 7 真机 #8→Step 10
+  全回归→Step 11 新鲜 Gate; A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。
+  本轮零代码纯 docs 登记。

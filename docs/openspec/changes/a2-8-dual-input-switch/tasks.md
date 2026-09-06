@@ -1146,6 +1146,20 @@
   E0308+needless_borrow×2 修复）; Domain/谓词/Gate/阈值零字节·三
   blocking 维持 Failed; **步骤 6 ⏸️/7 ⏸️（终裁: 先 Fence 修正确定性
   验证）**/10/11 待执行; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 5.1 终审+CLOSED（R58 unit 4, docs-only 零代码）:
+  验收层独立复核确认 ffdb9ce=真实远端基线·实质性正确修复非账本包装
+  （queue 穿透与双 Mutex 两核心问题被正面解决·无需回滚）; 三边界源码级
+  终审 A ✅（capture first-wins+Armed 门·世代序号三元组匹配·伪 Segment
+  超时 fail-closed 安全方向·BUFFER/EVENT 探针类型分离）/B ✅（Ok→
+  armed=false·Err→Drop 强释·force_release 类型面无法构造 DrainEvidence
+  ·生产调用点仅守卫 Drop·Open 翻转仅 both_ready 同临界区·:662 ? 如实
+  传播·调用链终序 ⓪→①→②→③→④switch→④executed→confirm_and_release
+  无隐藏序）/C ✅（四接线点共用 FencePair·T-F 驱动生产方法零复刻·旧
+  buffer 消费门先于 Segment 确认=单流线程 FIFO+sync=false 内联渲染
+  ——披露: 依赖 GStreamer basesink 标准行为, 真机 Step 7 NM 消失为
+  端到端反证）→ **Step 5.1 正式 CLOSED**; 后续序=Step 6 Mock 交错模型
+  →Step 7 真机 #8→Step 10 全回归→Step 11 新鲜 Gate; A2-8-04 仍
+  FAIL/HOLD·三 blocking 维持 Failed; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

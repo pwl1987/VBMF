@@ -754,3 +754,82 @@ blocking 维持 Failed; 首败留证; 真机 #8 场景复现（步骤 7·NM 消�
 - **步骤 6 ⏸️ / 步骤 7 ⏸️**（终裁指令——先完成 Fence 修正后的确定性
   验证即本轮）; 步骤 10（全回归）/11（新鲜 Gate）待执行。
 - A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。
+
+## §15 R58 步骤 5.1 源码级调用链终审（ffdb9ce）——A/B/C 三边界核验 + CLOSED 登记
+
+### 15.1 终审令与结论
+
+验收层第一轮独立复核（ffdb9ce=真实远端基线确认·ahead_by=1·4 生产
+/契约文件+3 审计文档）裁定: Step 5.1 设计闭环基本成立, 关闭前置=
+三项源码级最终审查（A Seqnum 捕获/匹配唯一性; B timeout 路径绝不
+伪装确认; C EVENT/BUFFER 微观序与测试-生产对齐）。本轮按令对
+ffdb9ce 实际调用链逐行核验——**A ✅ / B ✅ / C ✅（一项 GStreamer
+内部行为依赖披露）→ Step 5.1 正式关闭**。
+
+### 15.2 A. Segment Seqnum 捕获/匹配唯一性 — CONFIRMED
+
+- `capture_segment`（:446-460）: 仅 `state==Armed && seq.is_none()`
+  （first-wins）捕获; `confirm_segment`（:466-495）: 仅
+  `Armed && !ready && captured==arriving` 置 ready+notify。序号身份=
+  世代内三元组（generation+plane+Seqnum）——与终裁④"generation 身份
+  闭合"一致。
+- Segment 源全枚举: ①启动初始 Segment——fence 处 Open（arm 仅在
+  switch_program ⓪）, `Armed` 门使捕获不可能; ②本次切换 Segment
+  ——input-selector 翻转必推（rt_02 真链多轮绿=实机在案证明,
+  apply_declared_mapping 的 segment_observed 前置即其事实链）;
+  ③假设性伪 Segment（arm→switch 间无 pad 翻转、无 seek、live 源不
+  自发新段——理论残余）: first-wins 捕获它→真实切换 Segment 序号
+  不匹配→永不 Both-confirmed→超时 Err→**fail-closed**。失败方向=
+  拒绝放行而非陈旧误认（安全方向——伪 Segment 只能把切换变失败,
+  不能把未排空伪装成已排空）。
+- 类型分离: BUFFER 门=PadProbeType::BUFFER（:192, Drop）; EVENT
+  探针=EVENT_DOWNSTREAM（:171, 恒返 Ok）——Segment 在 Armed 期
+  照常穿透, 终裁 §10"不阻塞 EVENT"成立。
+
+### 15.3 B. timeout 路径绝不伪装确认 — CONFIRMED
+
+- `confirm_and_release`（:870-877）: `Ok→armed=false`（Drop 空转）;
+  `Err→armed=true`→Drop 走 `force_release`。**类型面分离**:
+  `force_release_cutover_fence` 返回 u64 丢弃计数, 结构上无法构造
+  `CutoverDrainEvidence`; 后者仅在真适配器 `release_after_drain`
+  Ok 路径（:1303）与 Mock auto-confirm 构造, 不进 ProgramSwitchReport。
+- `force_release` 生产调用点全枚举=**仅守卫 Drop（:883）**;
+  switch_program 成功路径零调用（:958/:1360 为 cfg-test 包装器,
+  :1324/:283 为 trait 实现本体）。
+- `release_after_drain`（:502-520）: Open 翻转仅发生在观测
+  `both_ready` 的**同一临界区内**; 超时分支 return Err 不翻状态。
+- `switch_program:662` 以 `?` 传播（不吞不转成功）; 错误时点 Domain
+  已在 SwitchExecuted 相（残留维持 §14.2 登记: 后续 declare
+  InvalidPhase fail-closed, 恢复归会话级故障面）。
+- **调用链终序（对终审⑥的正面回答）**: ⓪arm→①a/①b/①c→②declare
+  →③install→④begin/switch→④Domain on_switch_executed→
+  confirm_and_release（mark→wait→release）——无 defuse 先于
+  executed、无 confirm 先于 executed 的隐藏序, 与冻结原则逐字相符。
+
+### 15.4 C. EVENT/BUFFER 微观序 + 测试-生产对齐 — CONFIRMED（一项披露）
+
+- 四接线点共用同一 FencePair 实例（build_program_pipeline 单一
+  `fences: &FencePair`）: selector src EVENT 捕获（:181）·selector
+  src BUFFER 丢弃门（:196）·appsink 消费门（:806/:851 经
+  attach_program_*_sink）·appsink sink pad 确认探针（:806/:851
+  attach_drain_confirm_probe）。
+- T-F1/F2/F3 与既有两测全部驱动**生产方法**（discard_if_armed/
+  capture_segment/confirm_segment/release_cutover_fence/
+  force_release——测试行 :2325+ 逐点核验）, 无逻辑复刻; 真实 pad
+  接线/真实事件序由 rt_02 全链覆盖（含确认等待, 盒上已绿）。
+- "confirm 超越已投递旧 buffer"不可能: 旧 buffer 与新 Segment 同经
+  queue→appsink sink pad **单流线程**; sink pad 探针在该线程触发,
+  appsink sync=false/async=false 时 render/new_sample 亦在该线程
+  内联执行——同线程 FIFO 保证旧 buffer 的消费门裁决先于 Segment
+  确认。**披露（GStreamer 内部行为依赖, 非本仓代码可证）**:
+  basesink 非同步渲染内联于推送线程属 GStreamer 标准行为——
+  Step 7 真机 #8 NM 消失将提供端到端反证。
+
+### 15.5 Step 5.1 CLOSED
+
+- 关闭依据: 终裁 A/B/C 三边界全 CONFIRMED + 最终矩阵全绿（§14.4）
+  + Domain/谓词/Gate/阈值零字节。
+- 后续序（终裁令）: **Step 6 Mock 交错模型 → Step 7 真机 #8 →
+  Step 10 全回归 → Step 11 新鲜 Gate**; A2-8-04 仍 🔴 FAIL/HOLD
+  （三 blocking 维持 Failed, 仅 Gate PASS 可改）; A2-8-05 不进入。
+- 本轮零代码零测试——纯 docs 登记轮。
