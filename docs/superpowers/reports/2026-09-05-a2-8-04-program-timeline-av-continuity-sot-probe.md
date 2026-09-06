@@ -636,3 +636,37 @@ canonical closure 为据）; ③switch_mock 行为分歧（mock 行 Declared-for
 - Domain/谓词/Gate/阈值零字节; 步骤 6（Mock 交错）/7（真机 #8 复现
   NM 消失+生命周期仍立）/10（全回归）/11（新鲜 Gate）待执行;
   A2-8-04 仍 FAIL/HOLD·A2-8-05 不进入; 未推送（远端=dd263be）。
+
+## §17 第十七轮（R58 Step 11）: 新鲜 Final Gate 冻结谓词重算——逐格裁决 = **PASS**（三 blocking cells Failed→Satisfied·同形失败窗 NM 消失）
+
+- **执行身份链（P8）**: git archive e09ed97 上盒·源 sha **864/864 盒==
+  archive==HEAD**; **冻结 bin md5 440c761b…==Step 10 登记值（复用未
+  重建·案 b 逐字节口径）**; manifest 7521d17e ✓; 工件零新类（pad_
+  unlink 4/collision 2/interlace 3/MainContext 1——vs R56 OBS 仅
+  MainContext 0→1 已知类内漂移·与 Step 10 run3 同形·OQ-P5 登记）。
+  证据盒 2026-09-06-r58-step11-final-gate（五件套+四跑 log md5+NM
+  抽取件[0 行]+av_delta 全序列 n=180+stats; 2026-09-06 13:48-13:57
+  CST）; **入库审计副本** evidence/bmd-10.30.15.10/a2-8-04-r58-
+  step11-final-gate/（md5 全过·盒=origin·非 CI）。
+- **案 b 三件**: run1 OBS N=30 dwell1000（**R56 失败窗同形**）EXIT=0·
+  30/30 全 Preserved·**六路 NM 独立计数全 0**·adv=0·签名逐字（VM=180×4
+  ·pr DD=178+VM2 对称·VM=首切前 PRE 对恰 2 行）·**#8 Preserved+PE(0)+
+  V/A Continuous+DD（闩锁位点干净）**·#9 生命周期仍立·av_delta
+  2.037-118.704ms/mean 51.124ms; run2 dual_input **ALL PASS 10/10 首跑**
+  （L4 一行齐·Authority outcome=Preserved）; run3 hw **266/266**（259+
+  R58 批准增量 7 如实登记）; run3b 能力补证 group_fold_rt_01_av_
+  divergence_detected ok（**口径修正: cfg(test,mock) 门控∈mock 397
+  非 hw 集——R56 "∈259" 引用不准**）。
+- **逐格 verdict（词表 v2.1·明细=R57 §22.3 表）**: P1 六路全 Satisfied
+  （**P1-pr_v: Failed→Satisfied·NM=0**）·P2 核心/P2a Satisfied·
+  **P2b pr_v face: Failed→Satisfied（签名逐字）**·**P2c-1: Failed→
+  Satisfied（①NM==0 交叉引用②Violated==0+L4 同检）**·P2c-2 Gap·P3
+  Satisfied（分离观测 0+run3b 能力）·P4 登记性 Satisfied·P5 六路
+  Satisfied·P6a Satisfied（rt_05∈266）·P6b FieldProven·P7 Satisfied
+  （10/10 首跑）·P8 Satisfied·P9 Gap。
+- **Gate 层固定合取 = A2-8-04 Final Gate = PASS**——驱动差异=R58
+  Fence+Mock 交错+HOLD-1 修复后**同一失败窗形态 NM 消失且 R53 基线
+  签名完整**（与 Step 7 #8 精确复现互证）; 判据零改动·零豁免·无重试。
+- **验收终裁归验收层（PASS=冻结合取机械产出·非提前宣布）**;
+  A2-8-05 = 解锁待令·不进入。登记=谓词文档 §10 增补+§11+R57 §21+
+  §22+主账 §86+§87+tasks item-6/item-7 注。

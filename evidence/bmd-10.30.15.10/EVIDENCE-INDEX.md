@@ -63,6 +63,18 @@
 | `real-canonical-run-2026-08-26.log` | Historical | 早期 canonical run 探索日志; 非最终验收. |
 | `2026-08-27-media-rt-01-2ec54a2.json` | Current | MEDIA-RT-01 当前快照 (commit `2ec54a2`): **A/B/C 仍未达成**; HW-IDENT-02 已 PASS (`d182cb5`), 现可占设备做 MEDIA-RT-01 A/B/C 真机验收. |
 
+## A2-8 Dual-Input Switch (A2-8-02i/A2-8-04) — 2026-09 R58 步骤 10/11 真机证据
+
+| 目录 | 状态 | 说明 |
+|---|---|---|
+| `a2-8-04-r58-step11-final-gate/` | Acceptance | **R58 Step 11 新鲜 Final Gate 证据窗（冻结谓词重算=PASS·验收终裁归验收层）**: 案 b 三件（OBS N=30 dwell1000=R56 失败窗同形·六路 NM=0·dual_input 10/10·hw 266/266）+run3b 能力补证; 冻结 bin md5 440c761b（复用）; REV e09ed97; 源 sha 864/864 盒==HEAD; 逐格明细=谓词文档 §11/R57 §22.3. |
+| `a2-8-04-r58-step10-regression/` | Acceptance | **R58 Step 10 全回归证据（验收层终裁 PASS/CLOSED）**: 四跑（dual_input 10/10+obs 三场景）全 EXIT=0·NM=0·adv=0·R53 签名逐字; bin md5 440c761b; REV 6ab24a3（e09ed97 为 docs-only 后继·源全等）. |
+
+> A2-8 系列证据口径: 日志 md5 同步登记于 docs/superpowers/reports/ 相应
+> 章节; 入库副本 = 审计便利层, **不称 GitHub CI**（盒上本地验证口径）;
+> 盒上原件为 P8 origin. `.json` 类新文件受根 `.gitignore` `evidence/**/*.json`
+> 规则约束（入库需 `-f`）; `*.log`/`*.md`/`*.txt` 不受约束.
+
 ## 治理规则 (跨证据通用)
 
 1. 任何新证据落地时, 在文件名带日期, 并**在此索引登记状态**; 被覆盖的旧证据改为 `Superseded`/`Historical`.

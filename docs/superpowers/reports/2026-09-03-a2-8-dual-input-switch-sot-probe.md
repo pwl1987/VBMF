@@ -4547,3 +4547,44 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   epoch→V/A continuity→teardown 全局无回归**; A2-8-04 仍 🔴
   FAIL/HOLD（Step 11 新鲜 Final Gate 冻结谓词重算前不改判）;
   A2-8-05 不进入。登记=R57 §19+§20+主账 §84+§85+tasks item-6。
+
+## §86 R58 步骤 10 终裁: ✅ PASS / CLOSED（验收层全盘裁决 e09ed97）
+
+- regression 轮四条件同时成立: ①e09ed97 docs-only（生产源码未改·
+  盒上四文件 SHA==基线）②盒矩阵基线齐平（contracts 无 default impl
+  掩盖——实现缺失编译期暴露）③控制面→Fence→数据面状态链零回归
+  （单锁事务 V+A·Seqnum 匹配防假释放·Drop 先于证据推进——Step 6
+  修复+Step 7 replay+Step 10 回归闭合）④真机无反例（L4 一行齐·
+  #8/#9 干净·NM=0·adv=0）。
+- 边界口径: 验收层 GitHub 连接器本轮未返回 raw 内容——代码裁决基于
+  此前源码审计+登记+执行记录（不冒充重新抓取）; 真机数字="执行记录
+  已登记"口径。adv 误报定性认可（locator 行字面量·证据行=0）; 既有
+  artifact 不重开（已知债务保留）; Mimosa="功能编译、测试、真机回归
+  通过; AST 扫描能力不完整, 不构成全项目静态安全保证"（不阻塞·不
+  宣称安全）。
+- 状态: 5.1/6/7/10 ✅ CLOSED·C 项 CONFIRMED/REAL-HARDWARE-VALIDATED·
+  A2-8-04 🔴 FAIL/HOLD 维持·A2-8-05 ⛔ BLOCKED。**无足够证据要求继续
+  改生产代码**（禁为 Final Gate 变绿预改 predicate/NM 定义/判据/
+  threshold/artifact 分类——Step 10≠Final Gate, 连续 PASS 不推导
+  A2-8-04 PASS）。🚦**放行 Step 11 新鲜 Final Gate**（冻结谓词+案 b
+  新鲜窗重算三 blocking cells·双出口预定义）。登记=R57 §21+谓词文档
+  §10 增补+本节+tasks item-6。
+
+## §87 R58 步骤 11: 新鲜 Final Gate——冻结谓词重算 = **PASS**（三 blocking cells Failed→Satisfied）
+
+- 身份链: git archive e09ed97 上盒·源 sha **864/864 全等**·**冻结 bin
+  440c761b 复用==Step 10 登记值（案 b 口径·未重建）**·manifest 不变;
+  证据盒 step11-final-gate+**入库审计副本**（evidence/bmd-10.30.15.10/
+  ·md5 全过·盒=origin·非 CI; 同轮入库 Step 10 四跑）。
+- 案 b 三件全绿: run1 OBS N=30 dwell1000（**R56 失败窗同形**）EXIT=0·
+  30/30 全 Preserved·PE(0)·**六路 NM 独立计数全 0**·adv=0·P2b 签名
+  逐字（VM=首切前 PRE 对+其后 DD178）·#8 位点干净·#9 生命周期仍立;
+  run2 dual_input 10/10 首跑（L4 一行齐）; run3 hw 266/266（259+批准
+  增量 7 如实登记）; run3b 能力补证（mock 门控·R56 "∈259" 引用口径
+  修正）。
+- 逐格重算: **P1-pr_v/P2b-pr_v/P2c-1 Failed→Satisfied**·其余 blocking
+  维持·Gap 披露齐·P6b FieldProven → **冻结合取 = A2-8-04 Final Gate
+  = PASS（机械产出·判据零改动零豁免·验收终裁归验收层）**; A2-8-05 =
+  解锁待令不进入。工件零新类（MainContext 类内 0→1 与 Step 10 同形
+  ·OQ-P5 登记）。登记=R57 §21+§22+谓词文档 §10 增补+§11+04-探针
+  §17+tasks item-6/item-7 注+evidence 入库。

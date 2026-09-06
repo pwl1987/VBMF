@@ -1,0 +1,399 @@
+    Updating crates.io index
+     Locking 51 packages to latest compatible versions
+      Adding atomic_refcell v0.1.14
+      Adding cfg-expr v0.20.9
+      Adding equivalent v1.0.2
+      Adding futures-channel v0.3.34
+      Adding futures-executor v0.3.34
+      Adding futures-macro v0.3.34
+      Adding futures-sink v0.3.34
+      Adding gio-sys v0.20.10
+      Adding glib v0.20.12 (available: v0.22.9)
+      Adding glib-macros v0.20.12
+      Adding glib-sys v0.20.10
+      Adding gobject-sys v0.20.10
+      Adding gstreamer v0.23.7 (available: v0.25.3)
+      Adding gstreamer-app v0.23.5 (available: v0.25.2)
+      Adding gstreamer-app-sys v0.23.5
+      Adding gstreamer-base v0.23.6
+      Adding gstreamer-base-sys v0.23.6
+      Adding gstreamer-sys v0.23.6
+      Adding hashbrown v0.17.1
+      Adding heck v0.5.0
+      Adding indexmap v2.14.2
+      Adding itertools v0.14.0
+      Adding muldiv v1.0.1
+      Adding num-integer v0.1.47
+      Adding num-rational v0.4.2
+      Adding option-operations v0.5.0
+      Adding paste v1.0.15
+      Adding pkg-config v0.3.34
+      Adding proc-macro-crate v3.5.0
+      Adding serde_spanned v1.1.1
+      Adding system-deps v7.0.8
+      Adding target-lexicon v0.13.5
+      Adding thiserror v2.0.20
+      Adding thiserror-impl v2.0.20
+      Adding toml v1.1.5+spec-1.1.0
+      Adding toml_datetime v1.1.1+spec-1.1.0
+      Adding toml_edit v0.25.13+spec-1.1.0
+      Adding toml_parser v1.1.3+spec-1.1.0
+      Adding toml_writer v1.1.2+spec-1.1.0
+      Adding version-compare v0.2.1
+      Adding windows-sys v0.59.0
+      Adding windows-targets v0.52.6
+      Adding windows_aarch64_gnullvm v0.52.6
+      Adding windows_aarch64_msvc v0.52.6
+      Adding windows_i686_gnu v0.52.6
+      Adding windows_i686_gnullvm v0.52.6
+      Adding windows_i686_msvc v0.52.6
+      Adding windows_x86_64_gnu v0.52.6
+      Adding windows_x86_64_gnullvm v0.52.6
+      Adding windows_x86_64_msvc v0.52.6
+      Adding winnow v1.0.4
+   Compiling media-agent v0.1.0 (/home/lytv/media-agent-build/services/media-agent)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.34s
+     Running unittests src/lib.rs (target/debug/deps/media_agent-b010b5cc06662638)
+
+running 266 tests
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_05_program_arc_lifecycle_declared_boundary_release ... ok
+test audio::tests::audio_role_frozen_vocabulary_snapshot ... ok
+test audio::tests::audio_semantics_rt_01_provider_independent_same_media_same_stream ... ok
+test audio::tests::audio_semantics_rt_01_unknown_throughout_never_defaults_program ... ok
+test audio::tests::audio_semantics_rt_01_route_intent_has_no_pipeline_refs ... ok
+test clock::tests::clock_semantics_01_frozen_state_vocabulary_complete ... ok
+test clock::tests::clock_semantics_01_public_surface_has_no_decision_apis ... ok
+test custody::tests::custody_01_attribute_identity_correlation ... ok
+test custody::tests::custody_02_no_failure_snapshot_is_none_with_initial_masters ... ok
+test clock::tests::clock_semantics_01_unknown_domain_is_legal_and_fully_unknown ... ok
+test custody::tests::custody_03_shared_pipeline_failure_yields_failed ... ok
+test custody::tests::custody_05_cross_pipeline_fault_does_not_pollute_other_snapshot ... ok
+test custody::tests::custody_06_deterministic_and_c_prime_unreachable ... ok
+test custody::tests::custody_07_observations_from_events_extraction_rules ... ok
+test event_intake::tests::intake_01_sole_drain_owner_returns_batch_to_caller ... ok
+test event_intake::tests::intake_02_custody_accumulates_exactly_once_across_drivers ... ok
+test event_intake::tests::intake_04_driver_local_fold_partition_semantics_unchanged ... ok
+test events::tests::default_mapper_classifies_faults_and_drops_noise ... ok
+test event_intake::tests::intake_03_production_chain_identity_reaches_custody ... ok
+test events::tests::event_kind_matches_serde_tag ... ok
+test events::tests::default_mapper_identity_carrying_vs_identity_less ... ok
+test events::tests::fanout_dual_log_same_order_and_content ... ok
+test events::tests::fanout_drop_counters_independent_per_log ... ok
+test events::tests::event_roundtrips_through_serde ... ok
+test events::tests::log_bounded_drops_oldest_and_drains_fifo ... ok
+test events::tests::log_critical_never_evicted_by_observations_and_drops_counted ... ok
+test fixture::tests::default_fixture_is_template_without_hardcoded_topology ... ok
+test fixture::tests::expected_signal_deserializes_old_json_without_content_as_none ... ok
+test fixture::tests::fixture_roundtrips_through_json ... ok
+test gates::a204_obs::tests::av_delta_series_reads_pre_span_post ... ok
+test fixture::tests::resolve_finds_locked_input_as_sink ... ok
+test gates::a204_obs::tests::non_advancing_lists_only_negative_evidence ... ok
+test gates::a204_obs::tests::tally_counts_states_per_path_across_records ... ok
+test gates::dual_input::tests::mismatched_derivation_fails ... ok
+test gates::dual_input::tests::multiple_input_resources_fail_closed ... ok
+test gates::dual_input::tests::unique_input_resource_matching_port_derivation_passes ... ok
+test gates::dual_input::tests::zero_input_resource_fails ... ok
+test graph_intent::tests::deserializes_canonical_intent ... ok
+test health::tests::decision_events_are_authoritative ... ok
+test graph_intent::tests::roundtrips_through_json ... ok
+test health::tests::faults_derive_degraded_with_precedence ... ok
+test health::tests::recovered_with_no_sessions_falls_back_to_ready ... ok
+test health::tests::observation_bookkeeping_does_not_change_state ... ok
+test health::tests::reduce_is_pure_deterministic ... ok
+test health::tests::released_with_degraded_pending_keeps_degraded ... ok
+test health::tests::session_lifecycle_folds_to_ready_on_drain ... ok
+test health::tests::signal_verified_derives_capturing_selftest_path ... ok
+test hw_port_01::tests::fail_when_declared_runtime_opened_but_not_opened ... ok
+test hw_port_01::tests::fail_when_declared_signal_verified_but_not_locked ... ok
+test hw_port_01::tests::fail_when_no_closed_loop ... ok
+test hw_port_01::tests::fail_when_required_input_no_signal ... ok
+test hw_port_01::tests::pass_when_declared_signal_verified_and_locked ... ok
+test hw_port_01::tests::pass_when_required_input_locked ... ok
+test lease::tests::acquire_then_duplicate_fails ... ok
+test lease::tests::health_returns_active_only ... ok
+test lease::tests::release_removes ... ok
+test lease::tests::renew_extends_holder_lease_and_rejects_other_owner ... ok
+test normalize::tests::normalize_audio_presence_semantics ... ok
+test normalize::tests::normalize_input_is_pure_and_parse_failure_does_not_drop_observation ... ok
+test normalize::tests::normalize_rt_01_bmd_loopback_shape_matches_expected_canonical ... ok
+test normalize::tests::normalize_rt_01_missing_observed_unknown_not_fabricated ... ok
+test normalize::tests::normalize_descriptor_serde_roundtrip_and_no_vendor_fields ... ok
+test normalize::tests::normalize_rt_01_provider_independent_same_media_same_descriptor ... ok
+test pipeline::tests::declared_boundary_does_not_wash_backward_regression ... ok
+test pipeline::tests::declared_boundary_observation_sets_discontinuity_declared ... ok
+test pipeline::tests::equal_pts_keeps_valid_monotonic ... ok
+test pipeline::tests::first_frame_ok_requires_both_valid ... ok
+test pipeline::tests::first_video_pts_is_valid_monotonic ... ok
+test pipeline::tests::materialize_persistent_id_with_evidence_uses_canonical ... ok
+test pipeline::tests::materialize_persistent_id_without_evidence_rejected_both_modes ... ok
+test pipeline::tests::materialize_rejects_explicit_port_id_missing_in_registry_production ... ok
+test pipeline::tests::materialize_rejects_unresolved_identity_production ... ok
+test pipeline::tests::materialize_resolves_explicit_port_id_in_registry ... ok
+test pipeline::tests::media_rt_01_b_and_c_pass_semantics ... ok
+test pipeline::tests::media_rt_01_health_default_is_absence_not_pass ... ok
+test pipeline::tests::media_rt_01_pts_only_false_on_real_regression ... ok
+test pipeline::tests::media_rt_01_self_test_plan_is_canonical ... ok
+test pipeline::tests::non_monotonic_is_sticky ... ok
+test pipeline::tests::pipeline_rt_01_output_bitrate_env_passthrough ... ok
+test pipeline::tests::pipeline_rt_01_multi_device_only_first_plan_gets_outputs ... ok
+test pipeline::tests::pipeline_rt_01_output_launch_bitrate_injected ... ok
+test pipeline::tests::pipeline_rt_01_output_launch_empty_when_no_outputs ... ok
+test pipeline::tests::pipeline_rt_01_output_launch_hls_shape ... ok
+test pipeline::tests::pipeline_rt_01_output_launch_rtmp_shape ... ok
+test pipeline::tests::pipeline_rt_01_sink_appsink_stays_analysis ... ok
+test pipeline::tests::pipeline_rt_01_sink_kind_hls_materializes_with_dir ... ok
+test pipeline::tests::pipeline_rt_01_sink_kind_rtmp_materializes_with_url ... ok
+test pipeline::tests::pipeline_rt_01_sink_kind_vocabulary_snapshot ... ok
+test pipeline::tests::pipeline_rt_01_sink_target_missing_degrades_to_analysis ... ok
+test pipeline::tests::pipeline_rt_01_sink_unknown_kind_rejected ... ok
+test pipeline::tests::pts_state_starts_unknown ... ok
+test pipeline::tests::src_props_optical_uses_connection_optical_sdi ... ok
+test pipeline::tests::pipeline_rt_01_switch_mode_wire_compat_anchor ... ok
+test pipeline::tests::src_props_persistent_id_canonical_without_evidence_rejected ... ok
+test pipeline::tests::src_props_sdi_uses_connection_sdi ... ok
+test pipeline::tests::src_props_unknown_has_no_connection ... ok
+test pipeline::tests::video_audio_states_independent ... ok
+test pipeline::tests::video_regression_becomes_non_monotonic ... ok
+test pipeline::tests::timeline_policy_replaces_bare_bool_and_locks_wire ... ok
+test port::tests::build_distinct_connectors_do_not_collide ... ok
+test port::tests::build_duplex_mask_single_direction_manifest_ok ... ok
+test port::tests::build_duplicate_analog_port_identity_fail_closed ... ok
+test port::tests::build_duplicate_manifest_port_identity_fail_closed ... ok
+test port::tests::build_manifest_input_port_locked ... ok
+test port::tests::build_output_port_no_input_probe_is_unknown ... ok
+test port::tests::build_real_mask_capabilities_from_sdk_evidence ... ok
+test port::tests::build_synthetic_device_capabilities_stay_unknown ... ok
+test port::tests::build_sdi_direction_collision_manifest_fail_closed ... ok
+test port::tests::build_unspecified_connector_capabilities_unknown ... ok
+test port::tests::capability_value_distinguishes_absence_from_zero ... ok
+test port::tests::capability_value_probe_failed_distinct_from_unknown ... ok
+test port::tests::discover_ports_synthesizes_from_manifest_when_no_real_masks ... ok
+test port::tests::discovered_port_derives_port_id_only_for_known_ordinal ... ok
+test port::tests::no_signal_is_not_interpreted_as_non_input ... ok
+test port::tests::port_ordinal_unknown_has_no_stable_id ... ok
+test port::tests::validate_manifest_against_discovery_rejects_unknown_port ... ok
+test preflight::tests::preflight_fails_on_lease_conflict_and_resource_unavailable ... ok
+test preflight::tests::preflight_passes_on_clean_inputs_and_fail_on_unknown_device ... ok
+test preflight::tests::runtime_state_rt_01_d2_missing_resource_fails_not_warn ... ok
+test preflight::tests::runtime_state_rt_01_d5_binding_strength_checked ... ok
+test preflight::tests::runtime_state_rt_01_d4_port_level_precision ... ok
+test program::master_join::tests::program_rt_05_join_avsync_does_not_mutate_result ... ok
+test program::master_join::tests::program_rt_05_join_classification_input_and_invariants ... ok
+test program::master_join::tests::program_rt_05_join_eligibility_matrix ... ok
+test program::master_join::tests::program_rt_05_join_result_priority_matrix ... ok
+test program::master_join::tests::program_rt_05_join_result_vocabulary_lock ... ok
+test program::metadata_master::tests::program_rt_04_metadata_data_plane_single_value ... ok
+test program::metadata_master::tests::program_rt_04_metadata_fact_serde_and_key_set ... ok
+test program::metadata_master::tests::program_rt_04_metadata_join_declaration_vocabulary ... ok
+test program::metadata_master::tests::program_rt_04_metadata_master_orthogonal_dimensions ... ok
+test program::metadata_master::tests::program_rt_04_metadata_presence_vocabulary ... ok
+test program::metadata_master::tests::program_rt_04_metadata_master_serde_default_fail_closed ... ok
+test program::metadata_master::tests::program_rt_04_metadata_type_fail_closed ... ok
+test program::metadata_master::tests::program_rt_04_metadata_type_roundtrip_per_pair ... ok
+test program::metadata_master::tests::program_rt_04_metadata_type_vocabulary_lock ... ok
+test program::program_master::tests::program_rt_06_program_master_compose_is_pure ... ok
+test program::program_master::tests::program_rt_06_program_master_no_serde_default_and_default_semantics ... ok
+test program::program_master::tests::program_rt_06_program_master_result_roundtrip_carried ... ok
+test program::program_master::tests::program_rt_06_program_master_serde_top_keys ... ok
+test program_execution::six_path_tests::absence_is_not_false ... ok
+test program_execution::six_path_tests::bridge_program_paths_independent_and_epoch_passthrough ... ok
+test program_execution::six_path_tests::per_plane_independence_input ... ok
+test registry::tests::registry_fail_closed_gate_consistent_with_feature_set ... ok
+test preflight::tests::preflight_is_side_effect_free ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_fence_t_f1_queue_stragglers_dropped_until_both_confirmed_release ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_fence_contract_arm_release_both_planes ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_fence_t_f3_release_requires_both_planes_downstream_confirmation ... ok
+test resolver::tests::hw_ident_02_multiple_high_candidates_ambiguous ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_fence_armed_closes_m1_race_boundary_stays_clean ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_04_row_mapped_without_declaration_not_declared ... ok
+test resolver::tests::hw_ident_02_persistent_id_wins_over_device_handle ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_m1_control_no_straggler_boundary_stays_clean ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_m1_straggler_race_reproduces_program_nonmonotonic ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_04_row_mapped_monotonic_not_declared ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_fence_t_f2_straggler_across_release_boundary_never_reaches_arcs ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_03_anchor_declaration_excludes_branch_cadence ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_04_row_explicit_declaration_boundary_only ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_04_row_actual_rollback_non_monotonic ... ok
+test resolver::tests::hw_ident_02_topological_guess_medium_not_production ... ok
+test resolver::tests::hw_ident_02_unresolved_never_defaults_device_zero ... ok
+test resolver::tests::manifest_check_machine_identity_rejects_mismatch ... ok
+test resolver::tests::manifest_fails_closed_on_serial_crosscheck_mismatch ... ok
+test resolver::tests::manifest_fails_closed_when_declared_number_not_in_probe ... ok
+test resolver::tests::manifest_fails_closed_when_device_absent_from_manifest ... ok
+test resolver::tests::manifest_serial_crosscheck_passes_when_declared ... ok
+test resolver::tests::manifest_v1_device_level_still_ok ... ok
+test resolver::tests::manifest_v2_rejects_unknown_direction ... ok
+test resolver::tests::manifest_v2_requires_port_level_binding ... ok
+test resolver::tests::manifest_v2_with_valid_port_ok ... ok
+test resolver::tests::manifest_validate_ok_on_well_formed ... ok
+test resolver::tests::manifest_validate_rejects_duplicate_device_number ... ok
+test resolver::tests::manifest_validate_rejects_duplicate_handle ... ok
+test resolver::tests::manifest_validate_rejects_empty_machine_id ... ok
+test resolver::tests::manifest_verified_when_probe_opens_declared_number ... ok
+test resolver::tests::manifest_version_unparseable_rejected ... ok
+test resolver::tests::signal_probe_already_locked_returns_immediately ... ok
+test resource::tests::derive_from_discovery_skips_unknown_ordinal ... ok
+test resource::tests::fault_then_manual_recover ... ok
+test resource::tests::preflight_grants_available_matching_resource ... ok
+test resource::tests::preflight_rejects_missing_mismatched_or_busy ... ok
+test resource::tests::resolve_identity_rejects_ambiguity ... ok
+test resource::tests::resource_01_allocate_for_requires_matching_holder_and_release ... ok
+test resource::tests::resource_01_atomic_acquire_and_rollback ... ok
+test resource::tests::resource_01_expire_reservations_of_scoped_to_holder ... ok
+test resource::tests::resource_01_faulted_resource_rejects_without_fallback ... ok
+test resource::tests::state_machine_allows_white_listed_transitions ... ok
+test resource::tests::state_machine_rejects_illegal_transitions ... ok
+test signal::tests::active_when_high_mean ... ok
+test signal::tests::active_when_high_variance_even_low_mean ... ok
+test signal::tests::aggregate_combines_stats ... ok
+test signal::tests::black_when_low_mean_and_low_variance ... ok
+test signal::tests::evaluate_accepts_locked_when_expected_locked ... ok
+test signal::tests::evaluate_content_accepts_active_when_expected_active ... ok
+test signal::tests::evaluate_content_accepts_black_when_expected_black ... ok
+test signal::tests::evaluate_content_rejects_active_when_actual_black ... ok
+test signal::tests::evaluate_content_rejects_nosignal_state_fails_closed ... ok
+test signal::tests::evaluate_content_rejects_unknown_state_fails_closed ... ok
+test signal::tests::evaluate_content_rejects_unsupported_fails_closed ... ok
+test pipeline::tests::arch_backend_01_gstreamer_backend_implements_media_backend ... ok
+test signal::tests::evaluate_rejects_nosignal_when_expected_locked ... ok
+test signal::tests::evaluate_rejects_unsupported_fails_closed ... ok
+test signal::tests::fixture_signal_accepts_locked_active ... ok
+test signal::tests::fixture_signal_rejects_state_nosignal ... ok
+test signal::tests::fixture_signal_rejects_content_black_when_expected_active ... ok
+test signal::tests::fixture_signal_skips_content_when_none ... ok
+test signal::tests::verify_fixtures_accepts_locked_active ... ok
+test signal::tests::verify_fixtures_multiple_mixed ... ok
+test signal::tests::verify_fixtures_rejects_content_black ... ok
+test signal::tests::verify_fixtures_rejects_state_nosignal ... ok
+test supervisor::tests::backoff_grows_exponentially_and_caps ... ok
+test signal::tests::evaluate_rejects_probe_failed ... ok
+test supervisor::tests::circuit_breaker_trips_before_budget ... ok
+test signal::tests::fixture_signal_rejects_unsupported_fails_closed ... ok
+test signal::tests::unknown_with_no_samples ... ok
+test supervisor::tests::evt_int_rt_01_fault_trigger_echo_never_retriggers ... ok
+test supervisor::tests::evt_int_rt_02_identity_carried_fault_triggers_only_owning_device ... ok
+test supervisor::tests::ingest_normalizes_upstream_observation_via_mapper ... ok
+test supervisor::tests::r45_decision_input_evidence_recorded_actions_unchanged ... ok
+test supervisor::tests::escalate_emits_health_changed_to_manual_required ... ok
+test supervisor::tests::register_then_running ... ok
+test supervisor::tests::report_failure_emits_retryable_pipeline_fault ... ok
+test supervisor::tests::restart_until_budget_exhausted_then_escalate ... ok
+test supervisor::tests::unknown_handle_errors ... ok
+test supervisor::tests::should_retry_respects_max ... ok
+test supervisor::tests::recovery_resets_budget_and_circuit ... ok
+test timecode::tests::timecode_rt_01_discontinuous_recovered_are_observations_not_actions ... ok
+test timecode::tests::timecode_rt_01_frozen_vocabulary_snapshot ... ok
+test timecode::tests::timecode_rt_01_invalid_preserves_evidence_never_becomes_valid ... ok
+test timecode::tests::timecode_rt_01_unknown_absent_never_fabricate_value ... ok
+test transport::tests::transport_rt_01_command_id_mapping_deterministic ... ok
+test transport::tests::transport_rt_01_health_state_wire_casing_anchor ... ok
+test timecode::tests::timecode_rt_01_clock_isolation_no_decision_apis_no_cross_refs ... ok
+test timecode::tests::timecode_rt_01_vendor_independent_same_observation_same_timecode ... ok
+test transport::tests::transport_rt_01_hls_without_dir_503 ... ok
+test transport::tests::transport_rt_01_hls_unknown_extension_404 ... ok
+test transport::tests::transport_rt_01_map_command_request ... ok
+test transport::tests::transport_rt_01_hls_traversal_rejected ... ok
+test transport::tests::transport_rt_01_map_dispatch_four_exits ... ok
+test transport::tests::transport_rt_01_hls_serves_file_with_mime ... ok
+test transport::tests::transport_rt_01_static_other_paths_fall_through ... ok
+test transport::tests::transport_rt_01_parse_request_shapes ... ok
+test transport::tests::transport_rt_01_route_table ... ok
+test transport::tests::transport_rt_01_static_root_serves_console ... ok
+test transport::tests::transport_rt_01_static_root_wrong_method_405 ... ok
+test transport::tests::transport_rt_01_loopback_http ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.984: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.985: 
+Trying to dispose element a, but it is in PLAYING instead of the NULL state.
+You need to explicitly set elements to the NULL state before
+dropping the final reference, to allow them to clean up.
+This problem may also be caused by a refcounting bug in the
+application or some element.
+
+test adapters::gstreamer::controller::media_tap_tests::tap_rt_01_attach_partial_failure_rolls_back ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_paired_failure_compensated_rollback ... ok
+test adapters::gstreamer::controller::media_tap_tests::tap_rt_01_video_only_planes_and_unknown_pipeline ... ok
+test registry::tests::registry_rt_01_bundle_dual_view_same_controller ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_paired_failure_unrecoverable_marks_degraded ... ok
+test adapters::gstreamer::controller::media_tap_tests::tap_rt_01_recover_replays_attachments ... ok
+test adapters::gstreamer::controller::diagnostic_tests::diagnostic_rt_03_unknown_handle_fail_closed ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.992: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.992: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+test adapters::gstreamer::controller::media_tap_tests::tap_rt_01_analysis_form_attach_detach_cycle ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.993: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.993: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.993: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:27.993: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+test adapters::gstreamer::controller::diagnostic_tests::diagnostic_rt_01_stall_keeps_registration_and_recovers ... ok
+test resolver::tests::signal_probe_transient_false_then_true_locks_within_window ... ok
+test registry::tests::registry_rt_01_runtime_tap_lifecycle_on_same_controller ... ok
+test resolver::tests::signal_probe_false_entire_window_fails_closed_with_resampling ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:29.496: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:29.496: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:29.496: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:29.498: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+test registry::tests::registry_rt_01_full_integration_bridged_runtime ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_real_program_graph_switch ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:29.800: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:29.800: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_real_bridge_standby_b_failure_dual ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_02_timeline_full_chain_real_gstreamer ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_real_ba_roundtrip_paired ... ok
+test adapters::gstreamer::controller::diagnostic_tests::diagnostic_rt_02_stall_freezes_media_and_resumes_after_recover ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.102: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.102: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.397: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.397: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.402: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.402: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.403: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.403: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_real_bridge_multi_switch_state_consistency ... ok
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_gh_three_column_observation_evidence ... ok
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.803: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media_agent-b010b5cc06662638:1186869): GStreamer-CRITICAL **: 13:56:32.803: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+test adapters::gstreamer::switch_graph::tests::switch_graph_rt_01_real_bridge_cross_pipeline_media_path ... ok
+
+test result: ok. 266 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.86s
+
+     Running unittests src/bin/media-agent.rs (target/debug/deps/media_agent-b313445f5f0a4f04)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/gates.rs (target/debug/deps/media_agent_gates-3f43012e8c6a66c2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests media_agent
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

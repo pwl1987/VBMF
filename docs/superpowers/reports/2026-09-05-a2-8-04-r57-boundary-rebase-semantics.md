@@ -1251,3 +1251,145 @@ Desired/observed active/epoch/V-A continuity（dual_input L4 一行齐+
 obs tl_epoch 全保持）→ teardown（L5+Teardown+obs 卫生打印全绿）,
 盒矩阵基线齐平。A2-8-04 仍 🔴 FAIL/HOLD——Step 11 新鲜 Final Gate
 （冻结谓词）前不宣布 PASS; A2-8-05 不进入。
+
+## 21. R58 步骤 10 终裁登记: ✅ PASS / CLOSED（验收层全盘裁决, 2026-09-06）
+
+### 21.1 终裁要点
+
+- 验收层对 e09ed97 全盘裁决送达: **Step 10 = PASS / CLOSED**。裁决
+  标准 = Step 10 为 regression 而非 implementation step——四条件同时
+  成立: ① 生产源码未被修改（e09ed97 仅 docs 登记, 基线 6ab24a3, 盒上
+  四关键源文件 SHA 与基线一致——不存在执行中改代码绕过回归）;
+  ② 编译/API/测试零回归（盒矩阵 fmt/default 227/sim 227/mock 397/
+  gst 266/clippy×3 与基线齐平; contracts Fence 接口无 default
+  implementation 掩盖——实现缺失在编译/静态语义层暴露, 强于单个
+  integration test 绿）; ③ 控制面→Fence→数据面状态链零回归
+  （FencePair 单锁事务 V+A·Seqnum 身份匹配防假释放·Armed Drop 先于
+  first_mapped/PTS 证据推进——Step 6 cut-point 修复+Step 7 真机
+  replay+Step 10 全回归把该链闭合）; ④ 真机无反例（dual_input L4
+  状态机收敛一行齐·#8 精确 replay·#9 lifecycle·V/A 对称·NM=0·adv=0）。
+- 边界口径（终裁原话）: 验收层本轮 GitHub 连接器未成功返回 raw 文件
+  内容/commit API——代码裁决基于此前对当前分支实际源码的审计+e09ed97
+  登记+盒/真机执行记录, 不把"本轮工具重新抓取"冒充已读取事实; 真机
+  数字按"执行记录已登记"口径, 不称"此刻独立复跑所得"。
+- adv=Some(false) 误报定性获认可: 初判 1 例系 grep 命中 locator 行
+  自身字面量, 证据行实际=0; 澄清入登记（否则后续审计产生错误历史结论）。
+- 既有 artifact（gst_pad_unlink×4/跑·interlace 家族）不重新定性为
+  A2-8 新缺陷——继续作为已知债务保留, 不重开 implementation debt。
+- Mimosa advisory 口径（终裁原话入册）: "功能编译、测试、真机回归通过;
+  Mimosa AST 扫描能力不完整, 因此不构成全项目静态安全保证。"——不阻塞
+  Step 10（任务=regression 非 security certification）, 亦不得反向宣称
+  项目安全。
+
+### 21.2 状态表（终裁）
+
+| 项 | 裁决 |
+|---|---|
+| e09ed97 | ✅ docs-only registration |
+| Step 5.1 / 6 / 7 / 10 | ✅ CLOSED |
+| C 项 | ✅ CONFIRMED / REAL-HARDWARE-VALIDATED |
+| 生产源码回归 | ❌ 未发现 |
+| 新错误类 | 0 |
+| 真机 counterexample | 0 |
+| Mimosa | ⚠️ advisory·AST 不完整（口径如上, 不阻塞不宣称安全） |
+| A2-8-04 | 🔴 FAIL / HOLD（三 blocking cells 冻结门禁） |
+| A2-8-05 | ⛔ BLOCKED |
+| 下一执行单元 | Step 11 Fresh Final Gate |
+
+### 21.3 纪律重申与放行
+
+- **当前没有足够证据要求继续修改生产代码**（终裁第十三节）——特别不得
+  为使 Final Gate 变绿而提前修改: Fence predicate / NM 定义 /
+  ProgramEpoch 判据 / Desired-Observed 判据 / P1-P2b-P2c-1 gate
+  threshold / known-artifact 分类——否则"验证失败"与"代码改到通过"
+  混在一起, 违反 A2-8 冻结纪律。
+- Step 10 ≠ Final Gate: 5.1/6/7/10 连续 PASS **不推导** A2-8-04 PASS。
+- **🚦放行 Step 11——新鲜 Final Gate**: 冻结 predicates + 新鲜
+  evidence window 重算 P1-pr_v/P2b-pr_v/P2c-1; 不修改 predicate·
+  不降低 threshold·不新增 exemption; 仅两种合法结果——三项全 PASS→
+  A2-8-04 PASS·A2-8-05 解锁 / 任一 FAILED→FAIL·HOLD+定位 blocking
+  cell + 按 A 代码/B 环境硬件/C 已登记债分类。
+
+## 22. R58 步骤 11: 新鲜 Final Gate 执行记录（零代码轮, 2026-09-06）——冻结谓词重算
+
+### 22.1 身份链（P8）
+
+- 部署: git archive e09ed97 tar 通道上盒（byte-exact commit 内容·
+  排除 target/.git 等价口径的确定性加强）; 源 sha **864/864 文件
+  盒==archive==HEAD 全等**; BUILD_REV=e09ed975…。
+- **冻结 bin 复用**: gates bin md5=440c761b79457dd51f6dd49ca6aa5bb2 ==
+  Step 10 登记值逐字节（未重建——案 b "冻结 bin md5 逐字节可比" 口径,
+  R56 复用 7a0ed95c 同法）; manifest v5 7521d17e… 不变。
+- 证据盒 `~/a2-8-02i-evidence/2026-09-06-r58-step11-final-gate/`（五件套
+  +REV+bin/manifest md5+四跑日志及 md5+NM 抽取件[0 行·空文件亦证据]
+  +av_delta 全序列 n=180+stats）; **入库审计副本** `evidence/bmd-10.30.
+  15.10/a2-8-04-r58-step11-final-gate/`（md5sum -c 全过·盒上原件=
+  origin·本地验证口径非 CI——同轮入库 Step 10 四跑副本）。
+
+### 22.2 案 b 新鲜确认集（13:48-13:57 CST）
+
+- run1 **OBS N=30 dwell=1000ms（=R56 失败窗同形）**: EXIT=0·30/30 采集
+  完整·全 Preserved·tl_epoch=ProgramEpoch(0)×30·**六路 NM 行独立计数
+  全 0**（in_v/in_a/br_v/br_a/pr_v/pr_a 各 0——nm-extract 0 行·tally
+  无 NM 键）·adv=Some(false)=0（locator 明示·证据行 1080 格全 Some(true)）
+  ·adv=None=0·tally in/br VM=180×4·pr_v/pr_a DD=178+VM=2 对称·VM 恰为
+  首切前 PRE 对（switch#1 PRE A/B·行 35/36）其后全 DD=**P2b 签名逐字**
+  ·**#8 B→A 执行行 Preserved+PE(0)+v/a Continuous+DD·SPAN pr_v=DD
+  （R52/R56 闩锁位点干净）**·#9 PRE=DD→新边界 DD 生命周期仍立·
+  av_delta n=180 min 2.037/max 118.704/mean 51.124ms（P4 登记性·
+  R54/R56 振荡家族同形态·案 a 无阈值·无 5s 级等待）。
+- run2 **dual_input: ALL PASS 10/10（EXIT=0 首跑·无需重试）**——L1a-d/
+  L2a-b/L3 全 PASS; **L4: switch epoch=1·observed=B·completed·
+  switch_ok=true·timeline_ok=true·outcome=Preserved{ProgramEpoch(0)}·
+  程序面 DD·v/a Continuous/Continuous**（Authority/Desired/observed
+  active/epoch/V-A Gate 级一行齐·fence 在链）; L5 四 verdict; Teardown
+  全 PASS。
+- run3 **hw 矩阵 bmd,gstreamer: 266/266 EXIT=0**（冻结字面 259+R58
+  步骤 5/5.1 验收层批准测试增量 7——M1 复现×2+fence×2+确认式 Release
+  ×3; 计数差量如实登记·非谓词改动）; rt_04×4/rt_05（switch_graph_
+  rt_05_program_arc_lifecycle_declared_boundary_release）/fence 五测
+  全 ok。
+- run3b（窗口外补充件·P3 能力定向补证）: group_fold_rt_01_av_
+  divergence_detected **ok**——**口径修正**: 该测试 cfg(test,mock)
+  门控∈mock 397 套件非 bmd,gstreamer 集, R56 §15 表 "∈259" 引用不准
+  （本轮定向补证+如实登记）。
+- 错误面: run1 ERROR=0（区分大小写）·cutover 字串=0·pad_unlink×4·
+  collision×2·interlace×3·MainContext×1——零新类; vs R56 OBS 4/2/3/0
+  仅 MainContext 0→1 **已知类内计数漂移**（与 Step 10 run3 同形
+  4/2/3/1·OQ-P5 如实登记）; 分析过程一步 "ERROR:2" 系 grep -ci 命中
+  WARN 行 error= 字段, 区分大小写复核=0（与 §20.3 口径一致·如实登记）。
+
+### 22.3 逐格 verdict 重算（冻结谓词·词表 v2.1·窗口=22.2 三件+run3b 补证）
+
+| 格 | verdict（R56 → Step 11） |
+|---|---|
+| P1 in_v/in_a/br_v/br_a | Satisfied → Satisfied（各 VM=180·NM=0·充分性前置过: 每路 PRE 60/SPAN 60/POST 60 非 Unknown） |
+| P1 pr_a | Satisfied → Satisfied（NM=0·VM=2+DD=178 对称） |
+| **P1 pr_v** | **Failed → Satisfied**（**NM=0**·VM=2+DD=178·R53 语义后全新窗 30 切换·#8 位点干净） |
+| P2 核心 outcome↔continuity | Satisfied → Satisfied（30/30 Preserved·v/a Continuous×30·NewEpoch/FailClosed/Violated/TransitionFailed=0） |
+| P2a | Satisfied 记录性（in/br 180 行全 VM·无 DD 制造） |
+| **P2b pr_v face** | **Failed → Satisfied**（{首切前 PRE=VM 恰 2 行·行 35/36}∧{其后=DD 178 行}·pr_a face 同构） |
+| **P2c-1 可观测通道** | **Failed → Satisfied**（①程序面 NM==0 与 P1 pr 路交叉引用·不合并且同数字 ②Violated 观测==0·OBS 30/30 Preserved + dual_input L4 Authority outcome=Preserved 同检） |
+| P2c-2 | Gap 披露（Authority sink 缺失·Unproven·不阻塞·维持） |
+| P3 D1 | Satisfied → Satisfied（窗内 av_paired 分离观测=0[A/B 设备逐相位 av_delta 全等]·能力在证=run3b ok[口径修正见 22.2]+R46 活体背景） |
+| P4 D2 | Satisfied 登记性（min/max/mean=2.037/118.704/51.124ms·全序列入盒·案 a 无阈值） |
+| P5 starvation 六路 | Satisfied → Satisfied（Some(false)=0·None=0·SPAN 含被切离路推进） |
+| P6a | Satisfied → Satisfied（rt_05∈266 绿） |
+| P6b | FieldProven（R57 升级维持·本窗 #9 生命周期复证·不改写 Satisfied） |
+| P7 | Satisfied → Satisfied（dual_input 10/10 首跑 EXIT=0） |
+| P8 | Satisfied → Satisfied（22.1 身份链+工件零新类·MainContext 类内漂移如实登记） |
+| P9 | Gap 披露（stalled 硬编码/S5 caps=None/switch_mock 分歧/P2c-2·维持） |
+
+### 22.4 Gate 层固定合取与状态
+
+**全部 blocking 格 Satisfied ∧ Gap 格披露齐（owner/reason/scope 在册）
+∧ 增量格登记（P6b FieldProven 不改写 Satisfied）∧ P8 证据完整 →
+A2-8-04 Final Gate = PASS（冻结谓词机械产出）**。三 blocking cells
+（P1-pr_v/P2b-pr_v/P2c-1）由 R56 Failed → 本窗 Satisfied——驱动差异 =
+R58 Fence+Mock 交错+HOLD-1 修复后, **同一失败窗形态（N=30 dwell1000）
+NM 消失且 R53 基线签名完整**, 与 Step 7 #8 精确形态复现相互印证。
+
+- **A2-8-05 = 解锁待令·不进入**（item 7 仍为唯一入口·待用户明令）;
+  **Step 11 验收终裁归验收层**（PASS 为冻结合取的机械产出与登记·非
+  提前宣布; 本轮零代码零判据零豁免·首跑留证纪律未触发[无 FAIL 跑]
+  ·无重试）。

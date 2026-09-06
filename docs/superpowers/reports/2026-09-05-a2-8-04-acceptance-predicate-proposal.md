@@ -6,7 +6,9 @@ CORRECTIONS 四项必改 + R55.2 终裁补正（唯一必改: P2c 拆双通道, 
 为终裁登记（旧→新对照）; 未标记条款按提案原文冻结。冻结后 A2-8-04
 Gate 按 §4 证据窗执行; **R56 执行结果 = FAIL（§9）; R57 验收层终裁 =
 FAIL / HOLD FOR BOUNDARY-REBASE SEMANTICS ADJUDICATION + 词汇表
-v2.1 增补 FieldProven（§10）——冻结谓词本体零改动**。
+v2.1 增补 FieldProven（§10）——冻结谓词本体零改动**; **R58 Step 11
+重算结果 = PASS（§11·冻结谓词零改动·三 blocking cells Failed→
+Satisfied·验收终裁归验收层）**。
 
 授权来源: R54 交接（04-探针 §11.2 矩阵已填充至可交接状态）+ 用户 R54
 收口指令（"逐格定义 OQ-T5 acceptance predicates·严格 Evidence Matrix →
@@ -403,3 +405,46 @@ Gate = FAIL**。首败留证; 判据零改动; 后续路径（维持违例读法
   blocking 维持 Failed; Gate 复跑仍仅按冻结谓词于 R58 步骤 11 执行
   （前置: 步骤 6 Mock 交错+步骤 7 真机 #8 复现 NM 消失+生命周期
   仍立）; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。
+- **R58 步骤 10 终裁登记（验收层全盘裁决, e09ed97 docs-only）**:
+  Step 10 = **PASS / CLOSED**——regression 轮裁决标准四条件同时成立
+  （生产源码未改·编译/API/测试零回归基线齐平·控制面→Fence→数据面
+  状态链零回归·真机无反例）; adv 误报澄清获认可（grep 命中 locator
+  行字面量·证据行=0）; 既有 artifact 不重开（已知债务保留）; Mimosa
+  口径="功能编译、测试、真机回归通过; AST 扫描能力不完整, 不构成
+  全项目静态安全保证"（不阻塞·不宣称安全）。对本表影响: 无——三
+  blocking 维持 Failed; **Step 11 放行**（前置全部达成: 步骤 6+7+10）;
+  Gate 复跑按冻结谓词+案 b 窗执行, 不修改 predicate·不降低 threshold·
+  不新增 exemption; A2-8-04 verdict 至 Step 11 重算时方可改变;
+  A2-8-05 不进入。
+
+## §11 Gate 重算结果登记（R58 Step 11 新鲜 Final Gate, 2026-09-06）
+
+- **执行身份（P8）**: git archive e09ed97 上盒·源 sha **864/864 盒==
+  archive==HEAD 全等**; **冻结 bin md5 440c761b79457dd51f6dd49ca6aa5bb2
+  == Step 10 登记值（复用未重建——案 b 逐字节可比口径）**; manifest v5
+  7521d17e… 不变; 证据盒 2026-09-06-r58-step11-final-gate（+**入库
+  审计副本** evidence/bmd-10.30.15.10/a2-8-04-r58-step11-final-gate/
+  ·md5sum -c 全过·盒上原件=origin·非 CI 口径）。
+- **案 b 三件**: run1 OBS N=30 dwell1000（**=R56 失败窗同形**）EXIT=0·
+  30/30 全 Preserved·PE(0)×30·**六路 NM 行独立计数全 0**·adv=0·
+  **P2b 签名逐字**（VM 恰首切前 PRE 对 2 行+其后 DD 178）·**#8 位点
+  Preserved+PE(0)+V/A Continuous+DD**·#9 生命周期仍立; run2 dual_input
+  ALL PASS 10/10 首跑（L4 一行齐·Authority outcome=Preserved）; run3
+  hw 矩阵 **266/266**（冻结字面 259+R58 步骤 5/5.1 验收层批准测试增量
+  7·差量如实登记非谓词改动）; run3b=窗口外 P3 能力补证（group_fold_
+  rt_01_av_divergence_detected ok·**口径修正**: 该测试 cfg(test,mock)
+  门控∈mock 397 套件, R56 §15 "∈259" 引用不准——本轮定向补证）。
+- 工件: 零新类（pad_unlink 4/collision 2/interlace 3/MainContext 1;
+  vs R56 OBS 4/2/3/0 仅 MainContext 0→1 已知类内漂移·与 Step 10 run3
+  同形·OQ-P5 登记）。
+- **逐格重算: 三 blocking cells P1-pr_v/P2b-pr_v/P2c-1 = Failed →
+  Satisfied**（P1-pr_v: NM=0·R53 语义后全新窗; P2b: {首切前 PRE=VM
+  恰 2 行}∧{其后 DD}; P2c-1: ①程序面 NM==0 交叉引用 P1 不合并 ②
+  Violated==0+OBS 全 Preserved+dual_input L4 Authority 同检）; 其余
+  blocking 格全 Satisfied 维持; P2c-2/P9 Gap 披露维持; P6b FieldProven
+  维持。逐格明细表 = R57 报告 §22.3（镜像 R56 §15 形状）。
+- **Gate 层固定合取 = A2-8-04 Final Gate = PASS**（机械产出·判据零
+  改动·零豁免·无重试·首跑留证未触发）; **验收终裁归验收层**;
+  **A2-8-05 = 解锁待令·不进入**。驱动差异登记: R58 Fence+Mock 交错+
+  HOLD-1 修复后同一失败窗形态 NM 消失且签名完整——与 Step 7 #8 精确
+  复现相互印证。

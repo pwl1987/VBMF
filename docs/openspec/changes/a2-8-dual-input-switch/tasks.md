@@ -856,7 +856,7 @@
   六路 PTS before/after switch 无 rollback/discontinuity/divergence/
   starvation; Program Timeline Continuity / Timestamp Normalization 方案
   裁决与验证（observation only，无 Engine——方案设计裁决属 02/04）
-  `Contract: 03` | `Implementation: 待` | `Verification: 待` | `Gate: 待`
+  `Contract: 03` | `Implementation: 完成` | `Verification: 完成（R56 FAIL→R58 Step 11 冻结谓词重算·2026-09-06）` | `Gate: PASS（R58 Step 11 冻结合取·三 blocking cells Satisfied·待验收层终裁）`
   **[第四十九轮开启（A2-8-04 SoT 探针已交付:
   2026-09-05-a2-8-04-program-timeline-av-continuity-sot-probe.md, 零代码;
   R49 用户终裁"直接开 A2-8-04"授权）: 形态发现——"六路 PTS"=TimelineSample
@@ -1250,6 +1250,47 @@
   teardown 全局无回归; Step 11 新鲜 Final Gate（冻结谓词）待验收
   层对 Step 10 裁决后另启——届时才允许改判; A2-8-04 仍 FAIL/
   HOLD; A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 10 终裁: ✅ PASS / CLOSED（验收层全盘裁决
+  e09ed97）——regression 轮四条件同时成立（生产源码未改·编译/API/测试
+  零回归基线齐平·控制面→Fence→数据面状态链零回归·真机无反例）; adv
+  误报澄清获认可（grep 命中 locator 行字面量·证据行=0）; 既有 artifact
+  不重开为 A2-8 缺陷（已知债务保留）; Mimosa 口径="功能编译、测试、
+  真机回归通过; AST 扫描能力不完整, 不构成全项目静态安全保证"（不阻塞
+  ·不宣称安全）; Step 10≠Final Gate——5.1/6/7/10 连续 PASS 不推导
+  A2-8-04 PASS; 无足够证据要求继续改生产代码（禁为 Final Gate 变绿预改
+  predicate/NM 定义/ProgramEpoch 判据/Desired-Observed 判据/threshold/
+  artifact 分类）; 🚦放行 Step 11 新鲜 Final Gate（冻结谓词+案 b 新鲜
+  窗重算 P1-pr_v/P2b-pr_v/P2c-1·不修改 predicate·不降低 threshold·
+  不新增 exemption·双出口预定义）; A2-8-04 仍 FAIL/HOLD 至 Step 11
+  重算; A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 11: 新鲜 Final Gate 执行+冻结谓词重算（零
+  代码轮 2026-09-06·13:48-13:57 CST）——git archive e09ed97 上盒·源
+  sha 864/864 盒==archive==HEAD 全等·**冻结 bin md5 440c761b 复用==
+  Step 10 登记值（案 b 逐字节口径·未重建）**·manifest 7521d17e 不变;
+  案 b 三件: run1 OBS N=30 dwell1000（**R56 失败窗同形**）EXIT=0·30/30
+  全 Preserved·PE(0)×30·**六路 NM 行独立计数全 0**·adv=0·P2b 签名
+  逐字（VM 恰首切前 PRE 对 2 行+其后 DD178）·**#8 位点 Preserved+
+  PE(0)+V/A Continuous+DD**·#9 生命周期仍立·av_delta 2.037-118.704ms
+  （案 a 登记性无阈值）; run2 dual_input ALL PASS 10/10 首跑（L4 一行
+  齐·Authority outcome=Preserved）; run3 hw 矩阵 266/266（冻结字面
+  259+R58 步骤 5/5.1 批准增量 7·差量如实登记非谓词改动）; run3b=窗口
+  外 P3 能力补证（group_fold_rt_01_av_divergence_detected ok·**口径
+  修正: cfg(test,mock) 门控∈mock 397 套件——R56 "∈259" 引用不准**）;
+  逐格重算（冻结谓词·词表 v2.1·明细=R57 §22.3 表）= **三 blocking
+  cells P1-pr_v/P2b-pr_v/P2c-1 Failed→Satisfied**·其余 blocking 维持
+  ·P2c-2/P9 Gap 披露维持·P6b FieldProven 维持 → **Gate 层固定合取 =
+  A2-8-04 Final Gate = PASS（冻结合取机械产出·判据零改动零豁免·无
+  重试·首跑留证未触发）——验收终裁归验收层·非提前宣布**; A2-8-05 =
+  解锁待令·不进入; 工件零新类（pad_unlink 4/collision 2/interlace
+  3/MainContext 1——vs R56 OBS 仅 MainContext 0→1 已知类内漂移·与
+  Step 10 run3 同形·OQ-P5 登记）; 证据盒 2026-09-06-r58-step11-
+  final-gate（五件套+四跑 log md5+NM 抽取件[0 行]+av_delta 全序列
+  n=180+stats）+**入库审计副本** evidence/bmd-10.30.15.10/a2-8-04-
+  r58-step11-final-gate/（md5sum -c 全过·盒上原件=origin·本地验证
+  口径非 CI·同轮入库 Step 10 四跑副本+索引更新）]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`
+  **[R58 Step 11 注（2026-09-06）: A2-8-04 冻结合取 = PASS（三 blocking
+  cells Satisfied·待验收层终裁）——**A2-8-05 解锁待令·不进入**; 进入
+  与否归用户明令（item 7 仍为 A2-8 收口唯一入口）]**
