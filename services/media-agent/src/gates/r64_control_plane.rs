@@ -1358,7 +1358,10 @@ fn phase_matrix(failures: &mut Vec<String>, findings: &mut Vec<String>, w: &Gate
         c3x.detail
             .as_deref()
             .is_some_and(|d| !d.contains("FailClosed")),
-        format!("c3-next 不得再现 ①a FailClosed 遮蔽形态（R64 发现③）: {:?}", c3x.detail),
+        format!(
+            "c3-next 不得再现 ①a FailClosed 遮蔽形态（R64 发现③）: {:?}",
+            c3x.detail
+        ),
     );
     chk(
         failures,
