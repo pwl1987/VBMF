@@ -41,7 +41,9 @@ use media_agent::program_timeline::{ProgramEpoch, ProgramTimelinePlan};
 use media_agent::runtime_query::RuntimeQuery;
 use media_agent::session::{SessionId, SessionInput, SessionManager};
 use media_agent::switch_dispatch_plane::RuntimeSwitchPlane;
-use media_agent::switch_execution::{ExecutionGroup, SwitchError, SwitchExecutionPlan, SwitchIntent};
+use media_agent::switch_execution::{
+    ExecutionGroup, SwitchError, SwitchExecutionPlan, SwitchIntent,
+};
 use media_agent::transport::TransportContext;
 use uuid::Uuid;
 
@@ -126,7 +128,11 @@ fn session_mgr() -> Arc<SessionManager> {
         .into_iter()
         .map(|d| d.device)
         .collect();
-    let pid = PortIdentity::derive(&devices[0].device_id, ConnectorType::Sdi, PortOrdinal::Known(1));
+    let pid = PortIdentity::derive(
+        &devices[0].device_id,
+        ConnectorType::Sdi,
+        PortOrdinal::Known(1),
+    );
     let registry = PortRegistry {
         ports: vec![PortInfo {
             device_id: devices[0].device_id,
@@ -277,11 +283,7 @@ fn http(addr: SocketAddr, method: &str, path: &str, body: Option<&str>) -> (u16,
         .nth(1)
         .and_then(|s| s.parse::<u16>().ok())
         .unwrap_or(0);
-    let body_part = text
-        .split("\r\n\r\n")
-        .nth(1)
-        .unwrap_or("")
-        .to_string();
+    let body_part = text.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
     (status, body_part, dt)
 }
 
@@ -300,7 +302,14 @@ fn spawn_switch(
 ) -> std::thread::JoinHandle<(u16, String, Duration)> {
     let addr = srv.addr;
     let sid = srv.sid;
-    std::thread::spawn(move || http(addr, "POST", "/api/v1/commands", Some(&switch_body(&sid, cid, target))))
+    std::thread::spawn(move || {
+        http(
+            addr,
+            "POST",
+            "/api/v1/commands",
+            Some(&switch_body(&sid, cid, target)),
+        )
+    })
 }
 
 // ── B3 直测: 切换窗内 observe_execution 毫秒级回退已提交快照 ──────────
@@ -399,7 +408,10 @@ fn r63b_t2_runtime_snapshot_during_switch() {
     assert_eq!(status, 200);
     // 切换完成后: 新鲜读=B（恢复落定）。
     let (_, body2, _) = http(srv.addr, "GET", "/api/v1/runtime", None);
-    assert!(body2.contains(&format!("\"observed_active\":\"{}\"", srv.b)), "{body2}");
+    assert!(
+        body2.contains(&format!("\"observed_active\":\"{}\"", srv.b)),
+        "{body2}"
+    );
     println!("R63B-MATRIX t2 runtime_during={dt:?} snapshot_observed=a then=b");
     srv.runtime.teardown();
 }
@@ -506,7 +518,8 @@ fn r63b_t6_slow_reader_isolated() {
     let srv = server();
     // 停滞读者: 连接后只发部分请求（无空行终止头）, 挂住。
     let mut slow = TcpStream::connect(srv.addr).expect("slow connect");
-    slow.write_all(b"GET /health HTTP/1.1\r\nHost: t\r\n").unwrap();
+    slow.write_all(b"GET /health HTTP/1.1\r\nHost: t\r\n")
+        .unwrap();
     std::thread::sleep(Duration::from_millis(300));
     // 对照 R62: 单 accept 模型此处在慢读者超时前整管理面冻结（10.175s 实测）。
     let (status, body, dt) = http(srv.addr, "GET", "/health", None);
@@ -528,7 +541,9 @@ fn r63b_t7_sixteen_concurrent_runtime_queries() {
     let mut handles = Vec::new();
     for _ in 0..16 {
         let addr = srv.addr;
-        handles.push(std::thread::spawn(move || http(addr, "GET", "/api/v1/runtime", None)));
+        handles.push(std::thread::spawn(move || {
+            http(addr, "GET", "/api/v1/runtime", None)
+        }));
     }
     let mut worst = Duration::ZERO;
     for h in handles {
