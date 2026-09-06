@@ -1506,4 +1506,25 @@
   observed==target=数据满足批准语义）+watchdog_ticks 测量缺口（warn 日志级
   遮蔽 info 级 tick 与 teardown 行·非 watchdog 失败·下轮 info 级重测）——
   无一项指向系统缺陷·是否重测归裁决; 证据盒 r64-stability-30m 19 件 md5
-  盒=origin; 报告 §9 + 主账 §94 补行]**]
+  盒=origin; 报告 §9 + 主账 §94 补行]**
+
+  **[R65-A0 契约段（2026-09-07·commit 1·docs-only·基线 7e16fcc）: 用户
+  R65 裁决=三发现全 BLOCKING 开修复轮（P1 迟翻死锁+P2 恢复观测非确定必修·
+  P2 C3 遮蔽后置 B）·梯子 A0→A1→A2→B→R64-6'→（裁）Step15。契约=
+  2026-09-07-a2-8-05-r65-physical-cutover-recovery.md §2/§3 冻结:
+  ①机制更正——守卫 Drop 强释在源码层**已先于**恢复（:627-630 注释与 R64
+  登记措辞失准·真缺口=force_open 即返后物理翻转迟落窗内 :829 **单发**
+  observe 三跑三态）·修复=force_open 后 reconcile 前插**期望感知稳定
+  再观测协议**（复用 50ms/3 轮/5s 三常量零新时间语义·只读 observed_active
+  不喂时间线）; ②协议规则——executed=true 只接受连续 3 次==Some(to)·
+  稳定 from 不可信（迟翻伪稳定）·None 不可信·界尽→RecoveryRequired 诚实
+  终态; executed=false 普通稳定（from→abort·稳定 None→终态）·标志经
+  Inner 私有 bool（chain 顶复位+:690 Ok 后置真）; ③三态落定表——分叉态
+  Desired=A/Observed=A/Physical=B **从此不可构造**; ④生产触碰收敛
+  program_execution.rs 单文件（比授权面窄·落定两函数+complete_switch/
+  force_release/force_open/watchdog 全零改动）; ⑤R65-B 落点裁决记录=
+  **入口早卫兵**（⓪ 前 RecoveryRequired 直接 Permanent 拒收·PTS/时间线
+  零触碰·重基因 None 须选源违 absence≠false 登记为残留）——问答未获
+  答复按推荐冻结·计划批准即裁决; ⑥谓词 v2 四条冻结（threads 有界 ≤4/
+  逐命令 epoch+1/逐命令 observed==target/info 级 watchdog）=单独登记的
+  验收谓词修订非静默改脚本; ⑦Step15/17 本轮不启动·PR#30 不 merge]**]**]
