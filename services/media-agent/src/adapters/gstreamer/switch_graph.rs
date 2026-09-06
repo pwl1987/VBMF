@@ -29,14 +29,15 @@
 
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use gstreamer::prelude::*;
 use uuid::Uuid;
 
 use crate::contracts::switch::{
-    FrameBoundary, InputPts, PlaneExecutionFacts, ProgramExecutionObservation, ProgramObservation,
-    SwitchAnchors, SwitchExecuted, SwitchExecutionAdapter, TimelineExecutionFacts,
+    CutoverDrainEvidence, FrameBoundary, InputPts, PlaneDrainEvidence, PlaneExecutionFacts,
+    ProgramExecutionObservation, ProgramObservation, SwitchAnchors, SwitchExecuted,
+    SwitchExecutionAdapter, TimelineExecutionFacts,
 };
 use crate::pipeline::{PipelineHandle, PipelineHealth, PtsMonotonicity, NEXT_PIPELINE_ID};
 use crate::program::SwitchPolicy;
@@ -161,18 +162,23 @@ fn attach_plane_probes(
     plane: MediaPlane,
     handle: PipelineHandle,
     timeline: &Arc<Mutex<Option<TimelineExecutionState>>>,
-    fence: &Arc<Mutex<PlaneFence>>,
+    fences: &FencePair,
 ) -> Result<(), SwitchError> {
     let src = selector
         .static_pad("src")
         .ok_or_else(|| SwitchError::Backend("selector src pad 缺失".into()))?;
     // ⑤ EVENT probe。
     let slot = Arc::clone(timeline);
+    let fence_ev = fences.clone();
     src.add_probe(
         gstreamer::PadProbeType::EVENT_DOWNSTREAM,
         move |_pad, info| {
             if let Some(ev) = info.event() {
                 if ev.type_() == gstreamer::EventType::Segment {
+                    // R58 步骤5.1 世代身份捕获: Armed 期间首个 Segment=
+                    // 本次切换新世代 Segment（序号下传——下游确认按序号
+                    // 匹配, 陈旧 Segment 不可误确认; EVENT 不阻塞）。
+                    fence_ev.capture_segment(plane, ev.seqnum());
                     let mut guard = slot.lock().unwrap();
                     if let Some(t) = guard.as_mut() {
                         if t.executed {
@@ -188,16 +194,12 @@ fn attach_plane_probes(
     // `apply_declared_mapping`（可测纯状态函数）; 首枚映射缓冲（声明边界）
     // 同步通知程序平面健康弧（R53 生命周期——见 note_declared_boundary）。
     let slot = Arc::clone(timeline);
-    let fence = Arc::clone(fence);
+    let fences = fences.clone();
     src.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
         // ⓪ R58 cutover fence 门（BUFFER-only）: Armed 即弃——先于映射
         // （丢弃帧不消耗 first_mapped/不改写 PTS/不写弧; INV-F2 无复放）。
-        {
-            let mut f = fence.lock().unwrap();
-            if fence_should_discard(&f) {
-                f.discarded += 1;
-                return gstreamer::PadProbeReturn::Drop;
-            }
+        if fences.discard_if_armed(plane) {
+            return gstreamer::PadProbeReturn::Drop;
         }
         let pts = info.buffer().and_then(|b| b.pts()).map(|p| p.nseconds());
         let mut guard = slot.lock().unwrap();
@@ -326,7 +328,9 @@ enum FenceState {
     /// 拦截——BUFFER 一律丢弃（INV-F2: 旧世代在途与后续旧段数据按
     /// cutover-discard 处置, 无 flush/复放路径; 门先于映射——丢弃帧不
     /// 消耗 first_mapped、不改写 PTS、不写健康弧。Release 前到达的新世代
-    /// 帧亦弃: 首观测映射 ≥ 锚, 声明边界仍干净）。
+    /// 帧亦弃: 首观测映射 ≥ 锚, 声明边界仍干净）。**R58 步骤5.1**: Armed
+    /// 的解除=确认式 Release（双平面下游新世代 Segment 确认=queue 保序
+    /// 排空事实锚）; 兜底强释仅失败路径。
     Armed,
 }
 
@@ -347,25 +351,188 @@ impl PlaneFence {
     }
 }
 
-/// R58 步骤5: V+A 双面 fence 对（单字段承载——arm/release 双面同装同释,
-/// INV-F3 无单面窗口; build 期创建, 探针/消费门/执行契约共享）。
+/// R58 步骤5.1（终裁 §12）: 真正原子 FencePairState——**单锁**承载 V+A
+/// 全部 fence 状态。终裁 §5 指认的结构性缺口（0abde4d 两把独立 Mutex 顺序
+/// 加锁产生 Video=Armed/Audio=Open 微观窗口）在此被结构性消除: arm/确认/
+/// open 全在单临界区内双面同变。
 #[derive(Debug)]
+struct FencePairState {
+    video: PlaneFence,
+    audio: PlaneFence,
+    /// 下游新世代 Segment 确认（INV-F1 排空事实锚——per-plane;
+    /// Both-confirmed 是确认式 Release 的前置条件）。
+    video_ready: bool,
+    audio_ready: bool,
+    /// 本世代新 Segment 事件序号（selector src EVENT 探针 Armed 期捕获
+    /// ——世代身份; 下游探针按序号匹配, 陈旧 Segment 不可误确认。
+    /// `gstreamer::Seqnum`=GstEvent 序号本尊类型——Copy+PartialEq 即够,
+    /// 无 u32 转换面）。
+    video_segment_seq: Option<gstreamer::Seqnum>,
+    audio_segment_seq: Option<gstreamer::Seqnum>,
+    /// 世代计数（arm 递增——观测/证据面对账）。
+    generation: u64,
+}
+
+impl Default for FencePairState {
+    fn default() -> Self {
+        Self {
+            video: PlaneFence::new(),
+            audio: PlaneFence::new(),
+            video_ready: false,
+            audio_ready: false,
+            video_segment_seq: None,
+            audio_segment_seq: None,
+            generation: 0,
+        }
+    }
+}
+
+/// R58 步骤5.1: V+A 原子 fence 对（build 期创建; 探针/消费门/下游确认
+/// 探针/执行契约共享; Clone 供回调捕获）。
+#[derive(Debug, Clone)]
 struct FencePair {
-    video: Arc<Mutex<PlaneFence>>,
-    audio: Arc<Mutex<PlaneFence>>,
+    state: Arc<Mutex<FencePairState>>,
+    /// Both-confirmed 通知（下游 Segment 确认探针 notify → 编排线程阻塞
+    /// 等待——真实媒体事件驱动, 非轮询非时间猜测）。
+    drained: Arc<Condvar>,
 }
 
 impl FencePair {
     fn new() -> Self {
         Self {
-            video: Arc::new(Mutex::new(PlaneFence::new())),
-            audio: Arc::new(Mutex::new(PlaneFence::new())),
+            state: Arc::new(Mutex::new(FencePairState::default())),
+            drained: Arc::new(Condvar::new()),
         }
+    }
+
+    /// 原子 arm（单临界区 V+A 同装同清——返回世代号）。
+    fn arm(&self) -> u64 {
+        let mut s = self.state.lock().unwrap();
+        s.video = PlaneFence {
+            state: FenceState::Armed,
+            discarded: 0,
+        };
+        s.audio = PlaneFence {
+            state: FenceState::Armed,
+            discarded: 0,
+        };
+        s.video_ready = false;
+        s.audio_ready = false;
+        s.video_segment_seq = None;
+        s.audio_segment_seq = None;
+        s.generation += 1;
+        s.generation
+    }
+
+    /// fence 门（selector 出口 BUFFER 探针与 appsink 消费门共用同一语义
+    /// ——两个应用点一个裁决）: Armed → 计数+丢弃; Open → 放行。
+    fn discard_if_armed(&self, plane: MediaPlane) -> bool {
+        let mut s = self.state.lock().unwrap();
+        let f = match plane {
+            MediaPlane::Video => &mut s.video,
+            MediaPlane::Audio => &mut s.audio,
+        };
+        if fence_should_discard(f) {
+            f.discarded += 1;
+            return true;
+        }
+        false
+    }
+
+    /// 世代身份捕获（selector src EVENT 探针）: Armed 期间首个 Segment=
+    /// 本次切换的新世代 Segment（arm→switch 之间无 pad 翻转、无其它
+    /// Segment 源——结构性唯一; rt_02 真链在案: input-selector 翻转必推
+    /// Segment, segment_observed 事实链即其证明）。
+    fn capture_segment(&self, plane: MediaPlane, seq: gstreamer::Seqnum) {
+        let mut s = self.state.lock().unwrap();
+        match plane {
+            MediaPlane::Video => {
+                if s.video.state == FenceState::Armed && s.video_segment_seq.is_none() {
+                    s.video_segment_seq = Some(seq);
+                }
+            }
+            MediaPlane::Audio => {
+                if s.audio.state == FenceState::Armed && s.audio_segment_seq.is_none() {
+                    s.audio_segment_seq = Some(seq);
+                }
+            }
+        }
+    }
+
+    /// 下游确认（appsink sink pad EVENT 探针）: 按序号匹配本世代 Segment
+    /// ——queue 保序 ⇒ 该 Segment 到达=其入队前排队的全部 Arm 前旧世代
+    /// 缓冲已被消费门处置（INV-F1 排空事实锚——终裁 §10⑨/§11）。陈旧/
+    /// 异世代序号不匹配 → 忽略（不可误确认——T-F3 前置）。
+    fn confirm_segment(&self, plane: MediaPlane, seq: gstreamer::Seqnum) {
+        let mut s = self.state.lock().unwrap();
+        let matched = match plane {
+            MediaPlane::Video => {
+                if s.video.state == FenceState::Armed
+                    && !s.video_ready
+                    && s.video_segment_seq == Some(seq)
+                {
+                    s.video_ready = true;
+                    true
+                } else {
+                    false
+                }
+            }
+            MediaPlane::Audio => {
+                if s.audio.state == FenceState::Armed
+                    && !s.audio_ready
+                    && s.audio_segment_seq == Some(seq)
+                {
+                    s.audio_ready = true;
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+        if matched {
+            self.drained.notify_all();
+        }
+    }
+
+    /// 确认式 Release（INV-F1/F3 落点）: 阻塞等待 Both-confirmed 并在
+    /// **同一临界区**内原子 Open 双面（确认与释放零窗口）。返回
+    /// (generation, video_discarded, audio_discarded); Err=超时（fence
+    /// 保持 Armed——编排走 fail 路径, Drop 兜底强释; timeout 仅异常界,
+    /// 排空本身由 Segment 事件证实而非时钟推断）。
+    fn release_after_drain(&self, timeout: std::time::Duration) -> Result<(u64, u64, u64), ()> {
+        let mut s = self.state.lock().unwrap();
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            if s.video_ready && s.audio_ready {
+                let out = (s.generation, s.video.discarded, s.audio.discarded);
+                s.video.state = FenceState::Open;
+                s.audio.state = FenceState::Open;
+                return Ok(out);
+            }
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return Err(());
+            }
+            let (guard, _res) = self
+                .drained
+                .wait_timeout(s, deadline - now)
+                .expect("fence 状态锁中毒");
+            s = guard;
+        }
+    }
+
+    /// 兜底强释（仅失败路径——Drop bottom-line）: 无确认前提, 双面 Open
+    /// 恢复流面; 返回 (video_discarded, audio_discarded)。
+    fn force_open(&self) -> (u64, u64) {
+        let mut s = self.state.lock().unwrap();
+        let out = (s.video.discarded, s.audio.discarded);
+        s.video.state = FenceState::Open;
+        s.audio.state = FenceState::Open;
+        out
     }
 }
 
-/// fence 门（可测纯决策——selector 出口 BUFFER 探针与 appsink 消费门
-/// 共用同一语义, 两个应用点一个裁决）: Armed → 丢弃; Open → 放行。
+/// fence 门纯决策核（两个应用点一个裁决）: Armed → 丢弃; Open → 放行。
 fn fence_should_discard(f: &PlaneFence) -> bool {
     f.state == FenceState::Armed
 }
@@ -396,8 +563,9 @@ struct SwitchGraph {
     timeline: Arc<Mutex<Option<TimelineExecutionState>>>,
     /// C-TIMELINE-01 ①: 分支观察（selector sink pad 探针写入; 锚采样读）。
     branch_obs: Arc<Mutex<BranchObservations>>,
-    /// R58 步骤5: V+A 双面 cutover fence（探针层 Drop 与 appsink 消费门
-    /// 共享; Open=legacy 放行——INV-F1 在途处置/INV-F2 不可复放）。
+    /// R58 步骤5.1: V+A 原子 cutover fence（单锁双面; selector 探针层
+    /// Drop、appsink 消费门与下游 Segment 确认探针共享; Open=legacy 放行
+    /// ——INV-F1 排空确认/INV-F2 不可复放/INV-F3 barrier 非权威）。
     fences: FencePair,
 }
 
@@ -493,23 +661,20 @@ fn map_bool_err(e: glib::BoolError, what: &str) -> SwitchError {
 fn attach_program_video_sink(
     sink: &gstreamer_app::AppSink,
     handle: PipelineHandle,
-    fence: &Arc<Mutex<PlaneFence>>,
+    fences: &FencePair,
 ) {
-    let fence = Arc::clone(fence);
+    let fences = fences.clone();
     sink.set_callbacks(
         gstreamer_app::AppSinkCallbacks::builder()
             .new_sample(move |sink| {
                 let sample = sink.pull_sample().map_err(|_| gstreamer::FlowError::Eos)?;
                 let buf = sample.buffer().ok_or(gstreamer::FlowError::Error)?;
                 // ⓪ R58 cutover fence 消费门: Armed 期间到达=在途尾差——
-                // consumed-as-cutover-discard（INV-F1 在途处置按构造覆盖,
-                // 无时间等待; 不计帧数不写弧——非观测事实）。
-                {
-                    let mut f = fence.lock().unwrap();
-                    if fence_should_discard(&f) {
-                        f.discarded += 1;
-                        return Ok(gstreamer::FlowSuccess::Ok);
-                    }
+                // consumed-as-cutover-discard（INV-F1: Arm 前入队旧世代
+                // 缓冲在 Segment 排空锚到达前全部经此处置; 不计帧数不写弧
+                // ——非观测事实）。
+                if fences.discard_if_armed(MediaPlane::Video) {
+                    return Ok(gstreamer::FlowSuccess::Ok);
                 }
                 if let Some(h) = crate::pipeline_events::HEALTH_ARCS
                     .lock()
@@ -534,21 +699,17 @@ fn attach_program_video_sink(
 fn attach_program_audio_sink(
     sink: &gstreamer_app::AppSink,
     handle: PipelineHandle,
-    fence: &Arc<Mutex<PlaneFence>>,
+    fences: &FencePair,
 ) {
-    let fence = Arc::clone(fence);
+    let fences = fences.clone();
     sink.set_callbacks(
         gstreamer_app::AppSinkCallbacks::builder()
             .new_sample(move |sink| {
                 let sample = sink.pull_sample().map_err(|_| gstreamer::FlowError::Eos)?;
                 let buf = sample.buffer().ok_or(gstreamer::FlowError::Error)?;
                 // ⓪ R58 cutover fence 消费门（video 平面对称——INV-F3 双面）。
-                {
-                    let mut f = fence.lock().unwrap();
-                    if fence_should_discard(&f) {
-                        f.discarded += 1;
-                        return Ok(gstreamer::FlowSuccess::Ok);
-                    }
+                if fences.discard_if_armed(MediaPlane::Audio) {
+                    return Ok(gstreamer::FlowSuccess::Ok);
                 }
                 if let Some(h) = crate::pipeline_events::HEALTH_ARCS
                     .lock()
@@ -568,6 +729,34 @@ fn attach_program_audio_sink(
             })
             .build(),
     );
+}
+
+/// R58 步骤5.1（终裁 §10/§11）: 下游 Segment 确认探针——挂 appsink sink
+/// pad（queue 之后、消费之前; EVENT_DOWNSTREAM 纯观测**不阻塞 EVENT**）。
+/// 按序号匹配本世代 Segment → 双面 ready → notify 编排线程确认式 Release。
+/// queue 保序 ⇒ Segment 到达=Arm 前入队旧世代缓冲已全部被消费门处置
+/// （INV-F1 排空事实锚——等真实新世代 Segment 穿过 queue, 非时间猜测）。
+fn attach_drain_confirm_probe(
+    sink_el: &gstreamer::Element,
+    plane: MediaPlane,
+    fences: &FencePair,
+) -> Result<(), SwitchError> {
+    let pad = sink_el
+        .static_pad("sink")
+        .ok_or_else(|| SwitchError::Backend("appsink sink pad 缺失".into()))?;
+    let fences = fences.clone();
+    pad.add_probe(
+        gstreamer::PadProbeType::EVENT_DOWNSTREAM,
+        move |_pad, info| {
+            if let Some(ev) = info.event() {
+                if ev.type_() == gstreamer::EventType::Segment {
+                    fences.confirm_segment(plane, ev.seqnum());
+                }
+            }
+            gstreamer::PadProbeReturn::Ok
+        },
+    );
+    Ok(())
 }
 
 impl GStreamerSwitchAdapter {
@@ -613,7 +802,8 @@ impl GStreamerSwitchAdapter {
             .clone()
             .dynamic_cast::<gstreamer_app::AppSink>()
             .map_err(|e| SwitchError::Backend(format!("appsink cast: {e:?}")))?;
-        attach_program_video_sink(&v_appsink, handle, &fences.video);
+        attach_program_video_sink(&v_appsink, handle, fences);
+        attach_drain_confirm_probe(&v_sink_el, MediaPlane::Video, fences)?;
 
         let (vsrc_a, vsrc_b) = match mode {
             SwitchMaterialization::Simulation => {
@@ -657,7 +847,8 @@ impl GStreamerSwitchAdapter {
             .clone()
             .dynamic_cast::<gstreamer_app::AppSink>()
             .map_err(|e| SwitchError::Backend(format!("appsink cast: {e:?}")))?;
-        attach_program_audio_sink(&a_appsink, handle, &fences.audio);
+        attach_program_audio_sink(&a_appsink, handle, fences);
+        attach_drain_confirm_probe(&a_sink_el, MediaPlane::Audio, fences)?;
 
         let (asrc_a, asrc_b) = match mode {
             SwitchMaterialization::Simulation => {
@@ -727,20 +918,8 @@ impl GStreamerSwitchAdapter {
         // ④⑤⑥⑦: selector src 双探针（EVENT 自然段边界 + BUFFER 声明映射;
         // V/A 各一套——禁 audio=video 附属[第三十二轮 §八]）。handle 供
         // R53 声明边界通知程序平面健康弧。
-        attach_plane_probes(
-            &video_selector,
-            MediaPlane::Video,
-            handle,
-            timeline,
-            &fences.video,
-        )?;
-        attach_plane_probes(
-            &audio_selector,
-            MediaPlane::Audio,
-            handle,
-            timeline,
-            &fences.audio,
-        )?;
+        attach_plane_probes(&video_selector, MediaPlane::Video, handle, timeline, fences)?;
+        attach_plane_probes(&audio_selector, MediaPlane::Audio, handle, timeline, fences)?;
 
         video_selector
             .link(&v_queue)
@@ -1089,10 +1268,9 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         })
     }
 
-    /// R58 步骤5（执行契约）: V+A 双面 cutover fence Armed——barrier 非
-    /// 权威（INV-F3: Release 仅由编排于 switch 落点后驱动）; 确认=双面
-    /// Armed 返回（INV-F1 在途处置由 appsink 消费门按构造覆盖——无时间
-    /// 等待, 确定性非启发式; INV-F2 丢弃不可复放）。
+    /// R58 步骤5.1（执行契约）: V+A 原子 cutover fence Armed——单临界区
+    /// 双面同装（终裁 §5/§12; 无单面微观窗口）。barrier 非权威（INV-F3:
+    /// Release 仅由编排于 switch 落点后驱动; 失败路径走 force_release 兜底）。
     fn arm_cutover_fence(&self, graph: &PipelineHandle) -> Result<(), SwitchError> {
         let graphs = self.graphs.lock().unwrap();
         let g = graphs
@@ -1101,31 +1279,55 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         if !g.started {
             return Err(SwitchError::GraphNotRunning(*graph));
         }
-        *g.fences.video.lock().unwrap() = PlaneFence {
-            state: FenceState::Armed,
-            discarded: 0,
-        };
-        *g.fences.audio.lock().unwrap() = PlaneFence {
-            state: FenceState::Armed,
-            discarded: 0,
-        };
+        g.fences.arm();
         Ok(())
     }
 
-    /// R58 步骤5（执行契约）: 双面 Release（恢复放行——legacy 逐字节）。
-    /// 返回 cutover 丢弃帧计数（证据面——探针层+消费层合计; arm 清零,
-    /// 每次切换独立计数）。
-    fn release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
+    /// R58 步骤5.1（执行契约——INV-F1 确认闭环）: 确认式 Release——阻塞
+    /// 等待双平面下游新世代 Segment 确认（queue 保序排空事实锚; 非时间
+    /// 猜测, timeout 仅异常界）后原子 Open 双面。超时 → Err 且 fence 保持
+    /// Armed（fail-closed; 编排走 force_release 兜底——强释属失败处置）。
+    /// graphs 锁在等待前释放（阻塞期 observe 等并发入口不受阻）。
+    fn release_cutover_fence(
+        &self,
+        graph: &PipelineHandle,
+        timeout: std::time::Duration,
+    ) -> Result<CutoverDrainEvidence, SwitchError> {
+        let fences = {
+            let graphs = self.graphs.lock().unwrap();
+            let g = graphs
+                .get(graph)
+                .ok_or(SwitchError::GraphNotRunning(*graph))?;
+            g.fences.clone()
+        };
+        match fences.release_after_drain(timeout) {
+            Ok((generation, vd, ad)) => Ok(CutoverDrainEvidence {
+                generation,
+                video: PlaneDrainEvidence {
+                    segment_confirmed: true,
+                    discarded: vd,
+                },
+                audio: PlaneDrainEvidence {
+                    segment_confirmed: true,
+                    discarded: ad,
+                },
+            }),
+            Err(()) => Err(SwitchError::Backend(
+                "cutover drain 未确认（双平面下游 Segment 确认超时）——fence 保持 Armed, fail-closed（强释归失败处置）"
+                    .into(),
+            )),
+        }
+    }
+
+    /// R58 步骤5.1（执行契约）: 兜底强释（仅失败路径——守卫 Drop
+    /// bottom-line; 无确认前提恢复流面防饿死; 丢弃计数如实交回）。
+    fn force_release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
         let graphs = self.graphs.lock().unwrap();
         let g = graphs
             .get(graph)
             .ok_or(SwitchError::GraphNotRunning(*graph))?;
-        let mut vf = g.fences.video.lock().unwrap();
-        let mut af = g.fences.audio.lock().unwrap();
-        let discarded = vf.discarded + af.discarded;
-        vf.state = FenceState::Open;
-        af.state = FenceState::Open;
-        Ok(discarded)
+        let (vd, ad) = g.fences.force_open();
+        Ok(vd + ad)
     }
 
     fn timeline_execution_facts(&self, graph: &PipelineHandle) -> Option<TimelineExecutionFacts> {
@@ -1907,7 +2109,11 @@ mod tests {
                 Some(M1_SOURCE7),
             )
         };
-        assert_eq!(mapped7, Some((M1_ANCHOR_P, true)), "#7 首枚映射=S7+offset7=P");
+        assert_eq!(
+            mapped7,
+            Some((M1_ANCHOR_P, true)),
+            "#7 首枚映射=S7+offset7=P"
+        );
         rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
         {
             let h = rig.arc.lock().unwrap();
@@ -1938,11 +2144,20 @@ mod tests {
             "旧槽在 install 前继续映射旧源——窜帧 mapped=P+40ms"
         );
         assert_eq!(
-            rig.slot.lock().unwrap().as_ref().unwrap().video.continuation,
+            rig.slot
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .video
+                .continuation,
             MappedContinuation::Continuing,
             "#7 行不 Violated——违例只在程序健康弧（R56 pr_v 签名）"
         );
-        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P + M1_FRAME);
+        rig.arc
+            .lock()
+            .unwrap()
+            .observe_video_pts(M1_ANCHOR_P + M1_FRAME);
         {
             let h = rig.arc.lock().unwrap();
             assert_eq!(
@@ -1950,7 +2165,11 @@ mod tests {
                 PtsMonotonicity::ValidMonotonic,
                 "窜帧单调推进（无回退——基线被上抬）"
             );
-            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P + M1_FRAME), "基线被推进一帧");
+            assert_eq!(
+                h.video_last_pts,
+                Some(M1_ANCHOR_P + M1_FRAME),
+                "基线被推进一帧"
+            );
         }
 
         // T3-T5: install #8（真实整槽替换 :891——旧态让位不可达）+ executed/
@@ -2053,9 +2272,10 @@ mod tests {
 
     #[test]
     fn switch_graph_fence_contract_arm_release_both_planes() {
-        // R58 步骤5 执行契约: arm=V+A 双面 Armed（INV-F3——单调用双面同装,
-        // 无单面窗口; 未知 graph fail-closed）; release=双面 Open 恢复
-        // legacy 放行 + 丢弃计数如实交回。
+        // R58 步骤5.1 执行契约: arm=V+A 原子同装（单锁——终裁 §5/§12;
+        // 未知 graph fail-closed）; 确认式 Release=Both-confirmed 前置
+        // （未确认 → Err 且保持 Armed——T-F3 语义）+ 确认后原子 Open 双面
+        // + 世代/丢弃计数如实交回; 兜底强释幂等（失败面专用）。
         gstreamer::init().expect("gst init");
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
@@ -2063,39 +2283,79 @@ mod tests {
         let graph = r53_insert_graph(&adapter, 977_211, a, b, r53_timeline(b));
         let fence_states = |adapter: &GStreamerSwitchAdapter,
                             graph: PipelineHandle|
-         -> (FenceState, FenceState) {
+         -> (FenceState, FenceState, bool, bool) {
             let graphs = adapter.graphs.lock().unwrap();
             let g = graphs.get(&graph).unwrap();
-            let v = g.fences.video.lock().unwrap().state;
-            let a = g.fences.audio.lock().unwrap().state;
-            (v, a)
+            let s = g.fences.state.lock().unwrap();
+            (s.video.state, s.audio.state, s.video_ready, s.audio_ready)
         };
         assert_eq!(
             fence_states(&adapter, graph),
-            (FenceState::Open, FenceState::Open),
+            (FenceState::Open, FenceState::Open, false, false),
             "初始=放行（legacy 逐字节保持）"
         );
         adapter.arm_cutover_fence(&graph).expect("双面 Armed");
         assert_eq!(
             fence_states(&adapter, graph),
-            (FenceState::Armed, FenceState::Armed),
-            "INV-F3: V+A 同装——无单面窗口"
+            (FenceState::Armed, FenceState::Armed, false, false),
+            "INV-F3: V+A 原子同装（单临界区）"
         );
-        let discarded = adapter.release_cutover_fence(&graph).expect("Release");
-        assert_eq!(discarded, 0, "无 cutover 丢弃=0（计数如实）");
+        // T-F3 语义: 未确认 → Release Err 且双面保持 Armed（强释归失败
+        // 处置, 非确认放行）。
+        assert!(
+            adapter
+                .release_cutover_fence(&graph, std::time::Duration::ZERO)
+                .is_err(),
+            "未确认 Release fail-closed"
+        );
         assert_eq!(
             fence_states(&adapter, graph),
-            (FenceState::Open, FenceState::Open),
-            "Release=恢复放行"
+            (FenceState::Armed, FenceState::Armed, false, false),
+            "Err 后保持 Armed"
         );
+        // 双平面下游确认 → 确认式 Release（世代/confirmed 如实）。
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            assert_eq!(g.fences.state.lock().unwrap().generation, 1, "arm 世代计数");
+            // Seqnum::next()=进程内原子递增——两次取值互异即确定性
+            // （V/A 为两个独立 Segment 事件, 序号天然互异）。
+            let sv = gstreamer::Seqnum::next();
+            let sa = gstreamer::Seqnum::next();
+            g.fences.capture_segment(MediaPlane::Video, sv);
+            g.fences.capture_segment(MediaPlane::Audio, sa);
+            g.fences.confirm_segment(MediaPlane::Video, sv);
+            g.fences.confirm_segment(MediaPlane::Audio, sa);
+        }
+        let ev = adapter
+            .release_cutover_fence(&graph, std::time::Duration::from_secs(1))
+            .expect("Both-confirmed 确认式 Release");
+        assert_eq!(ev.generation, 1, "世代如实交回");
+        assert!(ev.video.segment_confirmed && ev.audio.segment_confirmed);
+        assert_eq!(ev.video.discarded, 0, "无 cutover 丢弃=0（计数如实）");
+        assert_eq!(ev.audio.discarded, 0);
+        assert_eq!(
+            fence_states(&adapter, graph),
+            (FenceState::Open, FenceState::Open, true, true),
+            "Release=恢复放行（ready 标志保留至下轮 arm 清零——证据面）"
+        );
+        // 兜底强释: 已 Open → 幂等零计数。
+        let forced = adapter.force_release_cutover_fence(&graph).expect("强释");
+        assert_eq!(forced, 0, "幂等强释");
         let stranger = PipelineHandle(977_299_999);
         assert!(
             adapter.arm_cutover_fence(&stranger).is_err(),
             "未知 graph arm fail-closed"
         );
         assert!(
-            adapter.release_cutover_fence(&stranger).is_err(),
+            adapter
+                .release_cutover_fence(&stranger, std::time::Duration::ZERO)
+                .is_err(),
             "未知 graph release fail-closed"
+        );
+        assert!(
+            adapter.force_release_cutover_fence(&stranger).is_err(),
+            "未知 graph 强释 fail-closed"
         );
     }
 
@@ -2138,17 +2398,17 @@ mod tests {
 
         // T3 竞态窗: 窜帧到达探针——门先于映射（drop-first: 不消耗
         // first_mapped/不改写 PTS/不写弧）; V+A 双面同门（INV-F3）。
+        // R58 步骤5.1: 直接驱动生产门裁决（discard_if_armed=真实回调
+        // 同一决策点——探针层与消费层共用）。
         {
             let graphs = rig.adapter.graphs.lock().unwrap();
             let g = graphs.get(&rig.graph).unwrap();
-            let mut vf = g.fences.video.lock().unwrap();
             assert!(
-                fence_should_discard(&vf),
+                g.fences.discard_if_armed(MediaPlane::Video),
                 "Armed → 探针层 Drop（INV-F2——旧世代数据不可复放, 无 flush 路径）"
             );
-            vf.discarded += 1; // 探针丢弃计数落点（真实回调路径在此置数）
             assert!(
-                fence_should_discard(&g.fences.audio.lock().unwrap()),
+                g.fences.discard_if_armed(MediaPlane::Audio),
                 "audio 面同门（INV-F3 双面——无 V 冻/A 推进窗口）"
             );
         }
@@ -2167,13 +2427,33 @@ mod tests {
         // 落点（INV-F3: executed 之后才允许 Release）。
         m1_install_8(&rig, a);
 
-        // T6: INV-F3 落点 Release——计数链 arm 清零→丢弃→release 交回。
-        let discarded = rig.adapter.release_cutover_fence(&rig.graph).expect("release");
-        assert_eq!(discarded, 1, "cutover 丢弃计数如实交回");
+        // T6: INV-F3 落点——世代身份捕获 + 双平面下游确认（queue 保序
+        // 排空锚）后确认式 Release; 计数链 arm 清零→处置→release 交回
+        // （R58 步骤5.1: Release 前置=Both-confirmed, T-F3 语义）。
         {
             let graphs = rig.adapter.graphs.lock().unwrap();
             let g = graphs.get(&rig.graph).unwrap();
-            assert!(!fence_should_discard(&g.fences.video.lock().unwrap()), "放行");
+            let sv = gstreamer::Seqnum::next();
+            let sa = gstreamer::Seqnum::next();
+            g.fences.capture_segment(MediaPlane::Video, sv);
+            g.fences.capture_segment(MediaPlane::Audio, sa);
+            g.fences.confirm_segment(MediaPlane::Video, sv);
+            g.fences.confirm_segment(MediaPlane::Audio, sa);
+        }
+        let ev = rig
+            .adapter
+            .release_cutover_fence(&rig.graph, std::time::Duration::from_secs(1))
+            .expect("确认式 release");
+        assert_eq!(ev.generation, 1, "世代如实交回");
+        assert_eq!(ev.video.discarded, 1, "video cutover 丢弃计数如实");
+        assert_eq!(ev.audio.discarded, 1, "audio cutover 丢弃计数如实");
+        {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            assert!(
+                !g.fences.discard_if_armed(MediaPlane::Video),
+                "放行（Open——后续到达按序必为新世代）"
+            );
         }
 
         // T7: 新世代首枚映射（门已放行）: S8→P（零间隙落旧锚）→ 干净声明
@@ -2202,6 +2482,303 @@ mod tests {
             .lock()
             .unwrap()
             .remove(&rig.graph);
+    }
+
+    #[test]
+    fn switch_graph_fence_t_f1_queue_stragglers_dropped_until_both_confirmed_release() {
+        // T-F1（终裁 §14）: queue 在途旧帧 → arm → executed 落点 → 旧帧经
+        // 消费门全部处置（不写弧——基线不动）→ 新世代 Segment 双面下游
+        // 确认（queue 保序排空锚——陈旧/异世代序号不误确认）→ 确认式
+        // Release → 新世代首帧才进入观测（干净 DD 边界——M1 协议级闭合）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let rig = m1_rig(977_221, a, b);
+
+        // T0: 前世代续流——基线 P（#7 首枚映射 + plain 写点）。
+        let mapped7 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#7 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE7),
+            )
+        };
+        assert_eq!(mapped7, Some((M1_ANCHOR_P, true)));
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+
+        // T1: arm（V+A 原子同装; 世代 g=1）。
+        rig.adapter.arm_cutover_fence(&rig.graph).expect("arm");
+
+        // T2: queue 在途旧帧浮出（Arm 前已过 selector——消费门处置;
+        // 其映射已在 Arm 前于 selector 探针施加, 此处只证处置点语义）。
+        assert!(
+            {
+                let graphs = rig.adapter.graphs.lock().unwrap();
+                let g = graphs.get(&rig.graph).unwrap();
+                g.fences.discard_if_armed(MediaPlane::Video)
+            },
+            "在途旧帧 → 消费门处置（consumed-as-cutover-discard）"
+        );
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(
+                h.video_last_pts,
+                Some(M1_ANCHOR_P),
+                "INV-F1: 在途旧帧被处置——程序观测基线不动"
+            );
+        }
+
+        // T3: executed 落点（install #8 + ④⑤置位）——Release 前置（INV-F3）。
+        m1_install_8(&rig, a);
+
+        // T4: 排空锚生命周期——selector 侧世代捕获; 下游按序号确认;
+        // 陈旧/异世代序号不误确认; 单面确认不满足 Both 前置。
+        // Seqnum::next()=进程内原子递增——三次取值互异即确定性。
+        let sv = gstreamer::Seqnum::next();
+        let sa = gstreamer::Seqnum::next();
+        let stale = gstreamer::Seqnum::next();
+        {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            g.fences.capture_segment(MediaPlane::Video, sv);
+            g.fences.capture_segment(MediaPlane::Audio, sa);
+            g.fences.confirm_segment(MediaPlane::Video, stale); // 序号不匹配——忽略
+            g.fences.confirm_segment(MediaPlane::Video, sv);
+            g.fences.confirm_segment(MediaPlane::Audio, sv); // ≠ audio 捕获——忽略
+        }
+        assert!(
+            rig.adapter
+                .release_cutover_fence(&rig.graph, std::time::Duration::ZERO)
+                .is_err(),
+            "仅 video 确认——Both-confirmed 未满足, Release 不得发生（T-F3 半边）"
+        );
+
+        // T5: audio 下游确认 → Both → 确认式 Release（确认与 Open 同临界区,
+        // 原子双面; 丢弃计数如实）。
+        {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            g.fences.confirm_segment(MediaPlane::Audio, sa);
+        }
+        let ev = rig
+            .adapter
+            .release_cutover_fence(&rig.graph, std::time::Duration::from_secs(1))
+            .expect("Both-confirmed 确认式 Release");
+        assert_eq!(ev.generation, 1);
+        assert!(ev.video.segment_confirmed && ev.audio.segment_confirmed);
+        assert_eq!(ev.video.discarded, 1, "cutover 丢弃计数如实");
+
+        // T6: 新世代首帧（门已放行）: S8→P（零间隙落旧锚）→ 干净声明边界
+        // → DD（对照: 无 fence 同位置=NonMonotonic——m1 红测在案）。
+        let first8 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#8 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE8),
+            )
+        };
+        assert_eq!(first8, Some((M1_ANCHOR_P, true)));
+        note_declared_boundary(rig.graph, MediaPlane::Video, M1_ANCHOR_P);
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+        {
+            let h = rig.arc.lock().unwrap();
+            assert_eq!(
+                h.video_pts_state,
+                PtsMonotonicity::DiscontinuityDeclared,
+                "T-F1 终断言: 排空锚+确认式 Release 下新世代首帧落干净边界——M1 协议级闭合"
+            );
+            assert_eq!(h.video_last_pts, Some(M1_ANCHOR_P));
+        }
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .remove(&rig.graph);
+    }
+
+    #[test]
+    fn switch_graph_fence_t_f2_straggler_across_release_boundary_never_reaches_arcs() {
+        // T-F2（终裁 §14）: 旧帧在 queue 中跨过 switch/executed 落点乃至
+        // 单面确认点——Both-Release 前消费门持续 Armed → 不得进入
+        // HEALTH_ARCS。0abde4d 的"Release 立即放行"缺口在此闭合为协议
+        // 断言: Release 仅发生于排空锚确认之后, 而排空锚之前的旧世代帧
+        // 按队列序必然已在 Armed 期内被处置（结构性不可复放）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let rig = m1_rig(977_222, a, b);
+        let ready = |rig: &M1Rig| -> (bool, bool) {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            let s = g.fences.state.lock().unwrap();
+            (s.video_ready, s.audio_ready)
+        };
+        let discard = |rig: &M1Rig| -> bool {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            g.fences.discard_if_armed(MediaPlane::Video)
+        };
+
+        // T0: 基线 P。
+        let mapped7 = {
+            let mut guard = rig.slot.lock().unwrap();
+            apply_declared_mapping(
+                guard.as_mut().expect("#7 在槽"),
+                MediaPlane::Video,
+                Some(M1_SOURCE7),
+            )
+        };
+        assert_eq!(mapped7, Some((M1_ANCHOR_P, true)));
+        rig.arc.lock().unwrap().observe_video_pts(M1_ANCHOR_P);
+
+        // T1: arm → executed 落点（旧帧仍在"queue"——跨边界在途）。
+        rig.adapter.arm_cutover_fence(&rig.graph).expect("arm");
+        m1_install_8(&rig, a);
+
+        // T2: 跨过 executed 边界的旧帧浮出 → 处置, 弧不动。
+        assert!(discard(&rig), "executed 后浮出的旧世代帧仍处置");
+        assert_eq!(
+            rig.arc.lock().unwrap().video_last_pts,
+            Some(M1_ANCHOR_P),
+            "跨边界旧帧不得进入程序观测基线"
+        );
+
+        // T3: video 单面确认——audio 未确认: 旧帧再浮出仍处置; Release
+        // 不得发生（单面确认 ≠ Both-confirmed）。
+        let sv = gstreamer::Seqnum::next();
+        let sa = gstreamer::Seqnum::next();
+        {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            g.fences.capture_segment(MediaPlane::Video, sv);
+            g.fences.capture_segment(MediaPlane::Audio, sa);
+            g.fences.confirm_segment(MediaPlane::Video, sv);
+        }
+        assert_eq!(ready(&rig), (true, false), "video ready 独立在案");
+        assert!(discard(&rig), "单面确认后仍 Armed——旧帧继续处置");
+        assert_eq!(rig.arc.lock().unwrap().video_last_pts, Some(M1_ANCHOR_P));
+        assert!(
+            rig.adapter
+                .release_cutover_fence(&rig.graph, std::time::Duration::ZERO)
+                .is_err(),
+            "单面确认 → Release 不得发生（T-F3 半边）"
+        );
+
+        // T4: audio 确认 → Both-confirmed → 确认式 Release → 门开。
+        {
+            let graphs = rig.adapter.graphs.lock().unwrap();
+            let g = graphs.get(&rig.graph).unwrap();
+            g.fences.confirm_segment(MediaPlane::Audio, sa);
+        }
+        let ev = rig
+            .adapter
+            .release_cutover_fence(&rig.graph, std::time::Duration::from_secs(1))
+            .expect("Both-confirmed Release");
+        assert_eq!(
+            ev.video.discarded, 2,
+            "跨边界旧帧处置计数如实（executed 后×1 + 单面确认后×1）"
+        );
+        assert!(
+            !discard(&rig),
+            "Release 后门开——排空锚在案, 按队列序迟到帧必为新世代"
+        );
+        crate::pipeline_events::HEALTH_ARCS
+            .lock()
+            .unwrap()
+            .remove(&rig.graph);
+    }
+
+    #[test]
+    fn switch_graph_fence_t_f3_release_requires_both_planes_downstream_confirmation() {
+        // T-F3（终裁 §14）: V/A 任一侧未完成 downstream confirmation →
+        // Both Release 不得发生; 陈旧/异世代 Segment 序号不可误确认
+        // （世代身份匹配）; 确认齐后 Release 原子双面开。
+        gstreamer::init().expect("gst init");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let adapter = GStreamerSwitchAdapter::default();
+        let graph = r53_insert_graph(&adapter, 977_223, a, b, r53_timeline(b));
+        let states = |adapter: &GStreamerSwitchAdapter,
+                      graph: PipelineHandle|
+         -> (FenceState, FenceState, bool, bool) {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            let s = g.fences.state.lock().unwrap();
+            (s.video.state, s.audio.state, s.video_ready, s.audio_ready)
+        };
+        adapter.arm_cutover_fence(&graph).expect("arm");
+        // 无任何确认 → Release Err, 双面保持 Armed。
+        assert!(
+            adapter
+                .release_cutover_fence(&graph, std::time::Duration::ZERO)
+                .is_err(),
+            "零确认 → Release 不得发生"
+        );
+        assert_eq!(
+            states(&adapter, graph),
+            (FenceState::Armed, FenceState::Armed, false, false)
+        );
+        // 陈旧 Segment（未捕获序号）→ 忽略, 不构成确认。
+        // Seqnum::next()=进程内原子递增——取值互异即确定性。
+        let stale = gstreamer::Seqnum::next();
+        let sv = gstreamer::Seqnum::next();
+        let sa = gstreamer::Seqnum::next();
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            g.fences.confirm_segment(MediaPlane::Video, stale);
+            g.fences.confirm_segment(MediaPlane::Audio, stale);
+        }
+        assert_eq!(
+            states(&adapter, graph),
+            (FenceState::Armed, FenceState::Armed, false, false),
+            "序号不匹配——不可误确认（世代身份）"
+        );
+        // 仅 video 捕获+确认 → 仍不得 Release（audio 面未确认）。
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            g.fences.capture_segment(MediaPlane::Video, sv);
+            g.fences.confirm_segment(MediaPlane::Video, sv);
+        }
+        assert!(
+            adapter
+                .release_cutover_fence(&graph, std::time::Duration::ZERO)
+                .is_err(),
+            "单面确认 → Release 不得发生"
+        );
+        assert_eq!(
+            states(&adapter, graph),
+            (FenceState::Armed, FenceState::Armed, true, false),
+            "video ready 独立在案——audio 未确认"
+        );
+        // audio 捕获但序号不匹配确认 → 忽略 → 仍不得 Release。
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            g.fences.capture_segment(MediaPlane::Audio, sa);
+            g.fences.confirm_segment(MediaPlane::Audio, sv);
+        }
+        assert!(
+            adapter
+                .release_cutover_fence(&graph, std::time::Duration::ZERO)
+                .is_err(),
+            "audio 序号不匹配 → 仍不得 Release"
+        );
+        // audio 按正确序号确认 → Both → 原子 Release 双面开。
+        {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            g.fences.confirm_segment(MediaPlane::Audio, sa);
+        }
+        let ev = adapter
+            .release_cutover_fence(&graph, std::time::Duration::from_secs(1))
+            .expect("Both-confirmed Release");
+        assert!(ev.video.segment_confirmed && ev.audio.segment_confirmed);
+        assert_eq!(
+            states(&adapter, graph),
+            (FenceState::Open, FenceState::Open, true, true),
+            "确认齐 → 原子双面 Open"
+        );
     }
 
     #[test]

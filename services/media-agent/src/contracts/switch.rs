@@ -38,6 +38,27 @@ pub struct SwitchExecuted {
     pub av_epoch: u64,
 }
 
+/// R58 步骤5.1: 单平面 cutover drain 确认证据（确认式 Release 的返回面
+/// ——INV-F1 queue in-flight drain 以真实下游 Segment 事件证实）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlaneDrainEvidence {
+    /// 下游新世代 Segment 已确认（queue 保序——该 Segment 到达=其入队前
+    /// 排队的全部 Arm 前旧世代缓冲已被消费门处置=排空事实锚）。
+    pub segment_confirmed: bool,
+    /// 该平面 cutover 丢弃帧计数（selector 探针层+appsink 消费层合计;
+    /// arm 清零, 每次切换独立计数）。
+    pub discarded: u64,
+}
+
+/// R58 步骤5.1: 双平面 cutover drain 确认证据（Both-confirmed 原子
+/// Release 的返回面; generation=fence arm 计数——观测/证据面对账用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CutoverDrainEvidence {
+    pub generation: u64,
+    pub video: PlaneDrainEvidence,
+    pub audio: PlaneDrainEvidence,
+}
+
 /// 单输入双平面 PTS 观测（六路 PTS 观测面中的输入四路; 复用
 /// `PtsMonotonicity` 三态——absence≠evidence）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -184,18 +205,35 @@ pub trait SwitchExecutionAdapter: Send + Sync {
         None
     }
 
-    /// R58 步骤5（INV-F1/F2/F3 编码进 Adapter 执行契约——执行层端口扩展,
+    /// R58 步骤5.1（INV-F1/F2/F3 编码进 Adapter 执行契约——执行层端口扩展,
     /// Domain 语义零变更; program_timeline/Gate 不触碰）: V+A 双面 cutover
-    /// fence Armed。**barrier=执行屏障, 非执行权威**（INV-F3: 永不自宣布
-    /// 切换完成——Release 仅由编排于 `switch` 落点后驱动; 失败路径同样
-    /// 解除以恢复流面, 切换错误如实上抛）。确认语义=双面 Armed 返回
-    /// （INV-F1 在途处置由消费门按构造覆盖——无时间等待, 确定性非启发式;
-    /// INV-F2 旧世代数据丢弃不可复放）。BUFFER-only（EVENT 微观序保持）。
+    /// fence Armed。**原子双面**: 单临界区 V+A 同装（终裁 §5/§12——两把
+    /// 独立锁顺序加锁的 Video=Armed/Audio=Open 微观窗口被结构性消除）。
+    /// **barrier=执行屏障, 非执行权威**（INV-F3: 永不自宣布切换完成——
+    /// Release 仅由编排于 `switch` 落点后驱动; 失败路径经
+    /// `force_release_cutover_fence` 兜底恢复流面, 切换错误如实上抛）。
+    /// BUFFER-only（EVENT 微观序保持——Segment 观测与世代身份捕获不受影响）。
     fn arm_cutover_fence(&self, graph: &PipelineHandle) -> Result<(), SwitchError>;
 
-    /// R58 步骤5: 双面 Release（恢复放行——legacy 逐字节）。返回 cutover
-    /// 丢弃帧计数（证据面; arm 清零——每次切换独立计数）。
-    fn release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError>;
+    /// R58 步骤5.1（INV-F1 确认闭环——终裁 §2/§4/§9/§10）: **确认式
+    /// Release**。阻塞等待双平面下游新世代 Segment 确认（Armed 期 selector
+    /// 侧捕获本次切换 Segment 事件序号; appsink 前下游探针按序号匹配——
+    /// queue 保序 ⇒ Segment 到达=Arm 前入队旧世代缓冲已被消费门全部处置
+    /// =排空事实锚; **真实媒体事件证据, 非时间猜测**——timeout 仅异常界）,
+    /// Both-confirmed 后与确认**同一临界区**原子 Open 双面。超时 → Err 且
+    /// fence 保持 Armed（fail-closed; 编排走 `force_release_cutover_fence`
+    /// 兜底——强释属失败处置, 非确认放行; T-F3: 任一面未确认 Both Release
+    /// 不得发生）。返回确认证据（世代/双面 confirmed+丢弃计数）。
+    fn release_cutover_fence(
+        &self,
+        graph: &PipelineHandle,
+        timeout: std::time::Duration,
+    ) -> Result<CutoverDrainEvidence, SwitchError>;
+
+    /// R58 步骤5.1: 兜底强释（**仅失败路径**——编排守卫 Drop bottom-line;
+    /// 无确认前提, 恢复流面防输出饿死; 返回丢弃计数）。确认式 Release 的
+    /// Both-confirmed 前置语义不受影响（成功路径从不经此——T-F3 在案）。
+    fn force_release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError>;
 
     /// Observed 平面读数（实际 active + 六路 PTS + 帧计数 + timeline 证据
     /// 行——C-TIMELINE-01 起经 `ProgramExecutionObservation` 单一组合面）。

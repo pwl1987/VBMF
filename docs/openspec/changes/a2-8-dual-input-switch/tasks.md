@@ -1128,6 +1128,24 @@
   本项未勾——步骤 6（Mock 交错模型）/7（真机 #8 复现 NM 消失+生命周期
   仍立）/10（全回归）/11（新鲜 Gate）待执行; A2-8-04 仍 FAIL/HOLD;
   A2-8-05 不进入]**
+- [ ] 6.x **[第五十八轮步骤 5 终裁复核+步骤 5.1（R58 unit 3, 代码轮）:
+  验收层对 0abde4d 反向审查=IMPLEMENTATION PARTIAL/HOLD——消费门仅
+  Armed 窗口有效·Release 不等 queue 排空=INV-F1/F2 未闭合（穿透路径
+  T0-T3 成立·我方"构造性覆盖"注册撤回）+FencePair 两把独立 Mutex 非
+  原子; 步骤 5.1 落地=①原子 FencePairState 单锁{双面 fence+ready+
+  Seqnum 世代序号+generation}②下游 Segment 确认（selector EVENT 探针
+  捕获 gstreamer::Seqnum+appsink sink pad 纯观测确认探针不阻塞
+  EVENT——queue 保序=排空事实锚·timeout 5s 仅异常界）③确认式
+  Release（release_cutover_fence 阻塞等 Both-confirmed 同临界区原子
+  Open+force_release 兜底强释仅失败路径——T-F3 成功路径强制; 守卫
+  defuse→confirm_and_release 于 Domain executed 标记后——终裁 §9 序;
+  端口无默认实现 4 实现方表态延续·Mock auto-confirm 建模如实披露）+
+  T-F1/F2/F3 三确定性测+既有契约/fence-M1 测升级; 盒最终全量矩阵全绿
+  fmt/default 227/sim 227/mock 393/**gst 266=259+2+2+3**/clippy×3
+  （逐轮如实: bmd 误配 SDK env+fmt 尘含 R53/R56 遗留清偿+Seqnum
+  E0308+needless_borrow×2 修复）; Domain/谓词/Gate/阈值零字节·三
+  blocking 维持 Failed; **步骤 6 ⏸️/7 ⏸️（终裁: 先 Fence 修正确定性
+  验证）**/10/11 待执行; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入]**
 - [ ] 7. A2-8-05 archive+CI+merge（A2-8 收口唯一入口; 01-04 任一完成不宣布
   CLOSED）
   `Contract: 04` | `Implementation: 待` | `Verification: CI+归档` | `Gate: 待`

@@ -16,8 +16,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use crate::contracts::switch::{
-    FrameBoundary, InputPts, PlaneExecutionFacts, ProgramExecutionObservation, ProgramObservation,
-    SwitchAnchors, SwitchExecuted, SwitchExecutionAdapter, TimelineExecutionFacts,
+    CutoverDrainEvidence, FrameBoundary, InputPts, PlaneDrainEvidence, PlaneExecutionFacts,
+    ProgramExecutionObservation, ProgramObservation, SwitchAnchors, SwitchExecuted,
+    SwitchExecutionAdapter, TimelineExecutionFacts,
 };
 use crate::pipeline::{PipelineHandle, PtsMonotonicity, NEXT_PIPELINE_ID};
 use crate::program::SwitchPolicy;
@@ -249,17 +250,41 @@ impl SwitchExecutionAdapter for MockSwitchExecutionAdapter {
         Ok(())
     }
 
-    /// R58 步骤5（执行契约 staging）: 双面 Release。Mock 无流面丢弃——
-    /// 计数恒 0（诚实: 状态记录面, 非仿真丢弃面）。
-    fn release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
+    /// R58 步骤5.1（执行契约 staging）: 确认式 Release。Mock 无真实
+    /// queue/流面——**排空确认按"立即可用"建模**（auto-confirm; 协议强制
+    /// [Both-confirmed 前置/世代序号匹配/超时 fail-closed] 由真适配器
+    /// switch_graph 确定性测试 T-F1/F2/F3 证明; Mock 交错协议表达=Step 6
+    /// 范围[终裁本轮暂停]）。丢弃计数恒 0（诚实: 状态记录面, 非仿真丢弃面）。
+    fn release_cutover_fence(
+        &self,
+        graph: &PipelineHandle,
+        _timeout: std::time::Duration,
+    ) -> Result<CutoverDrainEvidence, SwitchError> {
         let mut graphs = self.graphs.lock().unwrap();
         let g = graphs
             .get_mut(graph)
             .ok_or(SwitchError::GraphNotRunning(*graph))?;
-        debug_assert!(
-            g.cutover_fence_armed,
-            "fence release 未 arm——编排序破坏"
-        );
+        debug_assert!(g.cutover_fence_armed, "fence release 未 arm——编排序破坏");
+        g.cutover_fence_armed = false;
+        Ok(CutoverDrainEvidence {
+            generation: 0,
+            video: PlaneDrainEvidence {
+                segment_confirmed: true,
+                discarded: 0,
+            },
+            audio: PlaneDrainEvidence {
+                segment_confirmed: true,
+                discarded: 0,
+            },
+        })
+    }
+
+    /// R58 步骤5.1（执行契约 staging）: 兜底强释（无确认前提; 幂等）。
+    fn force_release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
+        let mut graphs = self.graphs.lock().unwrap();
+        let g = graphs
+            .get_mut(graph)
+            .ok_or(SwitchError::GraphNotRunning(*graph))?;
         g.cutover_fence_armed = false;
         Ok(0)
     }

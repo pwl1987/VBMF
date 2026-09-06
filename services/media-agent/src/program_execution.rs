@@ -21,7 +21,9 @@
 use std::sync::{Arc, Mutex};
 
 use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
-use crate::contracts::switch::{ProgramExecutionObservation, SwitchExecutionAdapter};
+use crate::contracts::switch::{
+    CutoverDrainEvidence, ProgramExecutionObservation, SwitchExecutionAdapter,
+};
 use crate::pipeline::PipelineHandle;
 use crate::program_timeline::{
     MediaPlane, TimelineAuthority, TimelineObservation, TimelinePhase, TransitionFailure,
@@ -643,13 +645,21 @@ impl ProgramExecutionRuntime {
                 return Err(e);
             }
         };
-        // INV-F3 落点: executed 已建立——Release 重开新世代流面（丢弃计数
-        // 为证据面, 编排当前不消费; ⑤-⑧/settle 依赖放行后的新世代观测）。
-        fence.defuse();
+        // ④ Domain 联动（executed 标记——终裁 §9 顺序: mark execution
+        // state → 等下游 cutover 证据 → Release）。
         inner
             .timeline
             .on_switch_executed(executed.av_epoch)
             .map_err(|e| SwitchError::Backend(format!("timeline ④ 联动 fail-closed: {e}")))?;
+        // INV-F1/F3 确认闭环（R58 步骤5.1——终裁 §2/§4/§9/§10）: 阻塞等待
+        // 双平面下游新世代 Segment 确认（queue 保序 ⇒ Segment 到达=Arm 前
+        // 入队旧世代缓冲已全部被消费门处置=排空事实锚; 真实媒体事件证据,
+        // 非时间猜测——timeout 仅异常界）后原子 Release 重开流面。超时 →
+        // Err 且 fence 保持 Armed → 守卫 Drop 强释恢复流面（强释属失败
+        // 处置, 非确认放行; 切换已执行而排空未证实=如实失败, 不伪装连续;
+        // 残留: Domain 停留 SwitchExecuted 相, 后续 declare InvalidPhase
+        // fail-closed——恢复归会话级故障面, 与 TransitionFailed 同层）。
+        fence.confirm_and_release(CUTOVER_DRAIN_CONFIRM_TIMEOUT)?;
         // ⑤⑥⑦⑧ 证据收集（poll adapter observe[驱动 Mock tick]+facts→Authority）。
         let evidence_deadline = std::time::Instant::now() + TIMELINE_EVIDENCE_TIMEOUT;
         loop {
@@ -753,6 +763,11 @@ const TIMELINE_EVIDENCE_TIMEOUT: std::time::Duration = std::time::Duration::from
 const TIMELINE_SETTLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const TIMELINE_SETTLE_ROUNDS: u32 = 3;
 
+/// R58 步骤5.1: cutover drain 确认异常界（**非时间假设**——正常排空为
+/// 毫秒级, 证据=下游 Segment 事件到达而非时钟流逝; 此界仅圈异常路径的
+/// 失败上抛时点, 与 TIMELINE_* 超时同族）。
+const CUTOVER_DRAIN_CONFIRM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 fn now_observed_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -824,10 +839,13 @@ pub struct ProgramSwitchReport {
     pub observation: TimelineObservation,
 }
 
-/// R58 步骤5: cutover fence 编排守卫——Drop 兜底 Release（①-④ 任意错误
-/// 路径必解除 barrier 恢复流面; 屏障不是权限, 不吞切换错误）; 成功路径在
-/// switch() executed 落点显式 `defuse()`（INV-F3: Release 仅由编排在
-/// executed 之后驱动——fence 永不自宣布完成）。
+/// R58 步骤5.1: cutover fence 编排守卫——Drop 兜底**强释**（①-④ 任意
+/// 错误路径必恢复流面; 屏障不是权限, 不吞切换错误; 强释无确认前提, 属
+/// 失败处置非确认放行）; 成功路径在 switch() executed 落点之后走
+/// `confirm_and_release`（INV-F1: 阻塞等待双平面下游新世代 Segment 确认
+/// ——queue 保序排空事实锚; INV-F3: Release 仅由编排在 executed 之后
+/// 驱动——fence 永不自宣布完成。超时 → Err 且 fence 保持 Armed → Drop
+/// 强释恢复流面, 错误如实上抛）。
 struct CutoverFenceGuard {
     switcher: Arc<dyn SwitchExecutionAdapter>,
     graph: PipelineHandle,
@@ -847,17 +865,22 @@ impl CutoverFenceGuard {
         })
     }
 
-    /// INV-F3 落点 Release（丢弃计数=证据面, 编排当前不消费——`let _`）。
-    fn defuse(mut self) {
-        self.armed = false;
-        let _ = self.switcher.release_cutover_fence(&self.graph);
+    /// INV-F1/F3 确认闭环落点（R58 步骤5.1——终裁 §9: 真实媒体事件证据,
+    /// 非时间猜测）: executed 之后阻塞等待 Both-confirmed 并原子 Release。
+    fn confirm_and_release(
+        mut self,
+        timeout: std::time::Duration,
+    ) -> Result<CutoverDrainEvidence, SwitchError> {
+        let r = self.switcher.release_cutover_fence(&self.graph, timeout);
+        self.armed = r.is_err(); // 成功=已 Open; 失败=保持 Armed → Drop 强释
+        r
     }
 }
 
 impl Drop for CutoverFenceGuard {
     fn drop(&mut self) {
         if self.armed {
-            let _ = self.switcher.release_cutover_fence(&self.graph);
+            let _ = self.switcher.force_release_cutover_fence(&self.graph);
         }
     }
 }
@@ -925,7 +948,14 @@ mod tests {
         fn arm_cutover_fence(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
             unreachable!("失败注入不用于 fence")
         }
-        fn release_cutover_fence(&self, _g: &PipelineHandle) -> Result<u64, SwitchError> {
+        fn release_cutover_fence(
+            &self,
+            _g: &PipelineHandle,
+            _timeout: std::time::Duration,
+        ) -> Result<CutoverDrainEvidence, SwitchError> {
+            unreachable!("失败注入不用于 fence")
+        }
+        fn force_release_cutover_fence(&self, _g: &PipelineHandle) -> Result<u64, SwitchError> {
             unreachable!("失败注入不用于 fence")
         }
     }
@@ -1320,8 +1350,15 @@ mod tests {
             fn arm_cutover_fence(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
                 self.0.arm_cutover_fence(g)
             }
-            fn release_cutover_fence(&self, g: &PipelineHandle) -> Result<u64, SwitchError> {
-                self.0.release_cutover_fence(g)
+            fn release_cutover_fence(
+                &self,
+                g: &PipelineHandle,
+                timeout: std::time::Duration,
+            ) -> Result<CutoverDrainEvidence, SwitchError> {
+                self.0.release_cutover_fence(g, timeout)
+            }
+            fn force_release_cutover_fence(&self, g: &PipelineHandle) -> Result<u64, SwitchError> {
+                self.0.force_release_cutover_fence(g)
             }
             fn observe(
                 &self,

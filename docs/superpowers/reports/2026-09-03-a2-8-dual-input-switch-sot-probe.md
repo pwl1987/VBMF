@@ -4328,3 +4328,49 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - 红线: Domain/谓词/Gate/阈值零字节; 三 blocking 维持 Failed; 首败
   留证; 步骤 6/7（真机 #8 复现 NM 消失+生命周期仍立）/10/11 待执行;
   A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入; 本地未推送（远端=dd263be）。
+
+## §79 R58 步骤 5 终裁复核（IMPLEMENTATION PARTIAL/HOLD）+ 步骤 5.1 落地
+
+- 验收层对 0abde4d 反向审查终裁 14 节逐项复核全相容: 消费门仅在
+  Armed 窗口有效、Release 不等 queue 排空 → **INV-F1/F2 未闭合**
+  （T0 旧帧入 queue→T2 switch+defuse→T3 浮出 Open 直写弧=穿透路径
+  成立）; **我方"INV-F1 构造性覆盖"注册正式撤回**; FencePair 两把
+  独立 Mutex 顺序加锁=结构性打包非原子（Video=Armed/Audio=Open 微观
+  窗口）→ INV-F3 严格并发语义不足; executed 权威序与 program
+  timeline 零触碰两项确认维持。
+- **步骤 5.1**（四文件, Domain 零触碰）: ①原子 FencePairState——
+  `Arc<Mutex<FencePairState>>` 单锁承载 {video,audio,video_ready,
+  audio_ready,video_segment_seq,audio_segment_seq,generation},
+  arm/确认/Open 单临界区双面同变; ②Downstream Segment Cutover
+  Confirmation——selector src EVENT 探针 Armed 期捕获本世代 Segment
+  的 `gstreamer::Seqnum`（arm→switch 间无其它 Segment 源=结构性唯一）
+  → appsink sink pad 新增 EVENT_DOWNSTREAM 纯观测确认探针（不阻塞
+  EVENT）按序号匹配→ready→Condvar notify; **queue 保序 ⇒ Segment
+  到达=Arm 前入队旧世代缓冲已全部被消费门处置=排空事实锚**（等真实
+  新世代 Segment 穿过 queue, 非时间猜测; timeout 5s 仅异常界）; ③
+  确认式 Release——`release_cutover_fence(graph, timeout)` 阻塞等待
+  Both-confirmed 后同一临界区原子 Open 双面, 返回
+  CutoverDrainEvidence{generation, video/audio{segment_confirmed,
+  discarded}}; 超时→Err 保持 Armed→守卫 Drop 走新增
+  `force_release_cutover_fence` 兜底强释（强释=失败处置非确认放行,
+  T-F3 只在成功路径强制）; 编排序 ⓪arm→①a-④switch→④ Domain
+  executed 标记→确认式 Release（终裁 §9 序）。端口双法仍无默认
+  实现（4 实现方编译期表态延续; Mock=auto-confirm 建模如实披露,
+  协议强制由真适配器 T-F1/F2/F3 证明, 交错模型=步骤 6 范围）。
+- **T-F1/F2/F3 三测全绿**（队列在途帧处置至 Both 确认/跨 executed
+  与单面确认边界的旧帧不进弧/Both-confirmed 前置+世代序号身份匹配）
+  + 既有契约测与 fence 闭合 M1 测升级（门走生产决策点 discard_if_
+  armed; T6=世代捕获+双面确认后确认式 Release）。
+- 盒（tar 通道）逐轮如实: run1 gst 误配 bmd 未导 SDK env+fmt 尘
+  （含 R53/R56 时代遗留, 顺带清偿）; run2 2×E0308 Seqnum 新类型→
+  类型本尊入状态; run3 gst 266/266 绿+clippy 2×needless_borrow→修;
+  **最终全量矩阵全绿: fmt/default 227/sim 227/mock 393/gst
+  266=259+2+2+3(T-F)/clippy×3 -D warnings**（clippy 升×3——
+  switch_graph 仅 gst 编译、switch_mock 仅 mock 编译, 三配置覆盖
+  全部新代码面）。
+- 红线: Domain/谓词/Gate/阈值零字节; 三 blocking 维持 Failed; **步骤
+  6 ⏸️/7 ⏸️（终裁: 先 Fence 修正确定性验证）**/10/11 待执行; A2-8-04
+  仍 FAIL/HOLD; A2-8-05 不进入; 残留登记=drain 确认超时路径 Domain
+  停留 SwitchExecuted 相（后续 declare InvalidPhase fail-closed,
+  恢复归会话级故障面）+confirm 等待期 inner 锁持有（正常 ms 级,
+  与既有 settle 轮询同类）。

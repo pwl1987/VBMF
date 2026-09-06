@@ -578,3 +578,179 @@ blocking 维持 Failed; 首败留证; 真机 #8 场景复现（步骤 7·NM 消�
 + #9 生命周期仍立）与 Mock 交错模型（步骤 6）待执行; Gate 复跑仅
 按冻结谓词于步骤 11 执行; A2-8-04 仍 FAIL/HOLD·A2-8-05 不进入;
 本地提交未推送（远端基线=dd263be）。
+
+## §14 R58 步骤 5 独立终裁复核 + 步骤 5.1 落地（Downstream Segment Cutover Confirmation + 真正原子 FencePair）
+
+### 14.1 终裁 14 节逐项复核（验收层对 0abde4d 反向审查——逐项确认）
+
+1. **当前真实链路（selector→queue→appsink→HEALTH_ARCS）**——属实。
+   链接序 `video_selector.link(&v_queue)`→`v_queue.link(&v_sink_el)`
+   （Bridged 直链/Simulation 经 capsfilter）; appsink 回调
+   `pull_sample()`→fence 消费门→`observe_video_pts()`（:501-528）——
+   消费门确实位于 queue 之后, 有能力处置 queue 既有帧。
+2. **Release 无 queue drain 等待**——属实。`fence.defuse()` 紧跟
+   `switch()` 成功返回（程序执行编排④落点后立即）; `release_cutover_
+   fence` 实际动作=双面 `state=Open`+返回累计丢弃计数, 无任何排空确认。
+3. **T0→T3 旧帧穿透路径**——属实成立: T0 旧 #7 buffer 已过 selector 入
+   queue → T1 arm → T2 switch+defuse（Fence=Open）→ T3 queue 残留 #7
+   → 消费门 Open → 不 discard → `HEALTH_ARCS.observe_video_pts()`——
+   旧世代帧重新进入 Program baseline, 正是 INV-F2 冻结要消灭的路径。
+4. **INV-F1 未闭合**——属实。0abde4d 把 F1 从"等待 queue 排空"改成了
+   "queue 后面的消费门在 Armed 时丢弃"——局部补救有效域仅 Armed 窗口;
+   "任何 Armed 期到达 appsink 的帧都 discard" ≠ "任何 queue in-flight
+   旧世代帧都 discard"（Release 后浮出者仍 PASS）。**我方注册撤回**:
+   0abde4d 提交信息与 §13 的"INV-F1 构造性覆盖（按构造, 无时间等待）"
+   声明错误——消费门不构成 barrier, 排空未被证明。
+5. **FencePair 结构性打包非原子**——属实。`FencePair{video: Arc<Mutex<
+   PlaneFence>>, audio: Arc<Mutex<PlaneFence>>}` 两把独立 Mutex; arm=
+   先 lock video 置 Armed 再 lock audio——存在 Video=Armed/Audio=Open
+   微观窗口; release 同序非原子。对 INV-F3（Both Confirmed/Both
+   Release）严格并发语义不足。
+6. **两层门无世代标记**——属实。selector 门与消费门均只读"当前是否
+   Armed", 无 buffer 世代身份; 这是 Fence 未升级为 generation-aware
+   barrier 的根因。修复路径=Segment 事件序号作为世代边界标记（非
+   per-buffer 标签——队列序承担世代划分, 见 14.2）。
+7. **executed 顺序正确**——确认。`g.active/g.av_epoch/t.executed` 全部
+   在 adapter `switch()` 内部落点(:956-962), fence 从不触碰执行态;
+   FenceGuard 只 arm/release——"Fence=execution barrier 非权威"在本轮
+   维持并继续成立, 无返工。
+8. **program_timeline.rs 不需要动**——维持。0abde4d 全部 fence 代码在
+   switch graph/程序执行编排/契约端口/mock 四处, Domain Authority
+   零触碰; 步骤 5.1 同律（本轮亦零触碰）。
+9. **Release 语义必须升级**——落实（14.2/14.3）: "switch success →
+   mark execution state → wait/observe downstream cutover evidence →
+   Both planes confirmed drained → release"; 等待=真实媒体事件证据
+   （下游 Segment 到达+Condvar 通知）, 非任何形式的时钟猜测。
+10. **Queue 后 Generation Barrier**——落实: appsink sink pad 新增
+    EVENT_DOWNSTREAM **纯观测确认探针**（不阻塞 EVENT——PadProbeReturn::
+    Ok 恒返）; 流程=①Arm V+A（原子）→②③④⑤⑥编排序不变→⑦selector
+    推新世代 Segment→⑧Segment 穿过 queue→⑨下游探针确认→此刻证明该
+    Segment 入队前排队的全部 Arm 前旧世代缓冲已被消费门处置（GStreamer
+    queue 保序）→⑩Both confirmed→⑪同一临界区原子 Release→⑫新世代
+    首帧才进入观测。
+11. **Segment 为确认点**——落实并已获既有绿测试实证: rt_02 真实
+    GStreamer 全链（真实 input-selector/真实流线程）多轮全绿, 而
+    `apply_declared_mapping` 门在 `segment_observed` 上——即 pad 翻转后
+    Segment 事件必经 selector src 探针（既有 segment_observed 事实链=
+    input-selector 翻转必推 Segment 的在案证明）。世代身份=**GstEvent
+    seqnum**: Armed 期 selector src EVENT 探针捕获首个 Segment 序号
+    （arm→switch 之间无 pad 翻转、无其它 Segment 源——结构性唯一）,
+    下游探针按序号匹配确认; 陈旧/异世代 Segment 序号不匹配即忽略
+    （不可误确认——T-F3 前置）。
+12. **真正原子 FencePairState**——落实: `Arc<Mutex<FencePairState>>`
+    单锁承载 `{video, audio, video_ready, audio_ready,
+    video_segment_seq, audio_segment_seq, generation}`（终裁 §12 形态
+    +世代序号捕获字段）; arm/confirm/Release 全在单临界区内双面同变;
+    Both-confirmed 等待经 Condvar（确认探针 notify → 编排线程阻塞等
+    待——事件驱动非轮询）; Release 与 Both-confirmed 观测**同一临界
+    区**完成（确认与释放零窗口）。
+13. **裁决表（Step 5 = IMPLEMENTATION PARTIAL / HOLD）**——接受。A2-8-04
+    维持 🔴 FAIL/HOLD（三 blocking Failed 未触碰）; 步骤 6 ⏸️ 暂停
+    （Mock 交错模型不进入）; 步骤 7 ⏸️ 先完成 Fence 修正后的确定性验证。
+14. **"最后一公里"**——接受。0abde4d=Fence 第一版生产实现（方向正确/
+    层级正确/两层门方向正确/executed 权威正确, 但 INV-F1/F2 未形成
+    可证明闭环）; 本轮=步骤 5.1 + T-F1/T-F2/T-F3。
+
+### 14.2 步骤 5.1 设计与实现（四文件, Domain 零触碰）
+
+- **契约端口（contracts switch 执行端口）**: `release_cutover_fence`
+  改签为**确认式 Release** `(graph, timeout) -> CutoverDrainEvidence`
+  （generation+双平面 `{segment_confirmed, discarded}`）; 新增
+  `force_release_cutover_fence`（**仅失败路径**兜底强释——无确认前提
+  恢复流面防饿死; 返回丢弃计数）。两法均无默认实现——4 实现方编译期
+  表态纪律延续（真实/Mock/两测试包装器同步更新）。arm 契约文档改写
+  （原子双面; 撤回"构造性覆盖"表述）。
+- **switch graph**: `FencePairState`（单锁, §14.1-12 字段）+
+  `FencePair{Arc<Mutex<FencePairState>>, Arc<Condvar>}`（Clone 供回调
+  捕获）; 方法族=`arm()`（原子双面同装同清, 返回世代号）/
+  `discard_if_armed(plane)`（门纯决策核 `fence_should_discard` 保持,
+  探针层+消费层共用）/`capture_segment(plane, seq)`（Armed 期首个
+  Segment=本世代——结构性唯一）/`confirm_segment(plane, seq)`（序号
+  匹配→ready→notify; 不匹配忽略）/`release_after_drain(timeout)`
+  （阻塞等 Both-confirmed, **同一临界区**原子 Open 双面, Err=超时且
+  保持 Armed）/`force_open()`。探针面: selector src EVENT 探针加世代
+  捕获（Armed 期首个 Segment）; BUFFER 门改走 `discard_if_armed`;
+  appsink 消费门 V/A 对称同改; **新增 `attach_drain_confirm_probe`**
+  （appsink sink pad, EVENT_DOWNSTREAM 纯观测, 按序号确认）。
+- **程序执行编排**: `CutoverFenceGuard.defuse` 升级为
+  `confirm_and_release(timeout)`——switch Ok→④ Domain executed 标记
+  （终裁 §9 顺序: mark execution state→等下游 cutover 证据→Release）
+  →阻塞等待 Both-confirmed→原子 Release。超时 → Err 且 fence 保持
+  Armed → 守卫 Drop 改走 `force_release`（强释=失败处置, 非确认放行;
+  T-F3 语义只在成功路径强制）。`CUTOVER_DRAIN_CONFIRM_TIMEOUT=5s`
+  （异常界非时间假设——正常排空毫秒级, 证据=Segment 到达非时钟流逝;
+  与 TIMELINE_* 超时同族）。graphs 锁在阻塞等待前释放（并发 observe
+  不受阻）。
+- **Mock**: release=auto-confirm 建模（Mock 无真实 queue/流面——排空
+  确认按"立即可用"; **披露**: 协议强制[Both-confirmed 前置/世代序号
+  匹配/超时 fail-closed]由真适配器 switch_graph 确定性测试 T-F1/F2/F3
+  证明; Mock 交错协议表达=步骤 6 范围, 本轮终裁暂停）+force_release
+  幂等; 编排序 debug_assert 保持。
+- **残留登记（超时路径语义）**: drain 确认超时 → Err 上抛且 Domain
+  停留 SwitchExecuted 相（后续 declare InvalidPhase fail-closed——
+  恢复归会话级故障面, 与 TransitionFailed 同层; 不新造 Transition
+  Failure 变体=program timeline 零触碰纪律优先）。编排线程在
+  confirm 等待期间持 inner 锁（正常 ms 级; 异常界 5s——与既有
+  settle/evidence 轮询同类阻塞面）。
+
+### 14.3 确定性测试（T-F1/T-F2/T-F3 + 既有 fence 测试升级）
+
+- **T-F1** `switch_graph_fence_t_f1_queue_stragglers_dropped_until_
+  both_confirmed_release`: queue 在途旧帧→arm→消费门处置（弧不动=
+  基线不推进）→install#8（executed 落点）→世代捕获+下游确认（陈旧/
+  异世代序号不误确认; 单面确认 Release 拒绝）→audio 确认→Both→
+  确认式 Release（世代/confirmed/丢弃计数如实）→新世代首帧 S8→P
+  →**干净声明边界 DD**——M1 在协议级闭合（对照无 fence 红测 NM 在案）。
+- **T-F2** `switch_graph_fence_t_f2_straggler_across_release_boundary_
+  never_reaches_arcs`: 旧帧在 queue 中跨过 executed 落点乃至单面确认
+  点——Both-Release 前消费门持续 Armed → 不进入 HEALTH_ARCS; 单面
+  确认后浮出仍处置; Release Err 保持 Armed; Both 后门开（按队列序迟到
+  帧必为新世代——排空锚在案）。**0abde4d 的"Release 立即放行"缺口在
+  此闭合为协议断言**。
+- **T-F3** `switch_graph_fence_t_f3_release_requires_both_planes_
+  downstream_confirmation`: 零确认→Release Err; 陈旧序号（未捕获）
+  忽略; 单面（video）确认→仍 Err（audio 未确认, ready 独立在案）;
+  audio 捕获后异序号确认→忽略; 正确序号确认→Both→原子双面 Open。
+  **世代身份=Seqnum 全程匹配验证**。
+- 既有 fence 契约测升级: arm 原子双面（单锁断言）+ 未确认 Release
+  Err 保持 Armed + 确认后 Release Ok（generation=1 如实）+ 兜底强释
+  幂等 + 未知 graph 三向 fail-closed; fence 闭合 M1 测升级: 门裁决走
+  生产决策点 `discard_if_armed`（探针层+消费层同源）, T6 改为世代
+  捕获+双面确认后确认式 Release（计数 v=1/a=1 如实）。
+- 测试世代序号= `gstreamer::Seqnum::next()`（进程内原子递增, 取值
+  互异即确定性; `Seqnum(pub(crate) NonZeroU32)` 无任意值构造——类型
+  本尊入状态字段, 消除 u32 转换面）。
+
+### 14.4 盒证据（tar 通道, 逐轮如实登记）
+
+- **run1**: default 227 ✓/sim 227 ✓/mock 393 ✓/clippy default ✓/clippy
+  mock ✓; gst 配置 build.rs DeckLink SDK 门 panic（本轮误用 `bmd`
+  特征且未导出 `DECKLINK_SDK_INCLUDE`——历史 gst 计数配置澄清）; fmt
+  --check FAIL。
+- **fmt 尘修复**: `cargo fmt` 于盒上 apply 后拉回——含本轮新代码格式
+  + **R53/R56 时代既有 fmt 尘**（m1 复现测长行, R58 步骤 5 矩阵未跑
+  fmt 所遗留）——如实登记: 非 5.1 引入, 顺带清偿。
+- **run2**: gst 配置 2×E0308——`ev.seqnum()` 在 gstreamer-rs 0.23.7
+  返回 `Seqnum` 新类型（`pub(crate) NonZeroU32`, 仅 `Seqnum::next()`
+  构造）非 u32 → 世代序号改用类型本尊 `Option<gstreamer::Seqnum>`
+  入状态字段（消除 u32 转换面; 测试以 `Seqnum::next()` 原子递进取
+  互异值=确定性）。default/sim/mock 配置不受影响（switch graph 模块
+  gstreamer-backend 门控, 该三配置不编译此文件）。
+- **run3**: gst test **266/266 全绿**（=259+2(m1)+2(fence)+3(T-F)——
+  rt_02 真实 GStreamer 全链含排空确认等待通过=input-selector 翻转必
+  推 Segment 且 Segment 穿越 queue 到达 appsink sink pad 探针的实机
+  证明）; clippy gst 2×needless_borrow（`&fences` 双重引用）→
+  调用点去 `&`。
+- **最终矩阵（最终源码树全量复跑）全绿**: fmt ✓·default 227/227·
+  sim 227/227·mock 393/393·**gst 266/266**·clippy×3（default/mock/
+  bmd,gstreamer）`--all-targets -D warnings` 全过（本轮 clippy 升
+  ×3——switch_graph 仅 gst 配置编译、switch_mock 仅 mock 配置编译,
+  双配置 clippy 才能覆盖全部新代码面）。
+
+### 14.5 边界与红线（维持+增量）
+
+- Domain（program timeline/Authority）/谓词/Gate/阈值零字节; 三
+  blocking 维持 Failed; 首败留证。
+- **步骤 6 ⏸️ / 步骤 7 ⏸️**（终裁指令——先完成 Fence 修正后的确定性
+  验证即本轮）; 步骤 10（全回归）/11（新鲜 Gate）待执行。
+- A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。
