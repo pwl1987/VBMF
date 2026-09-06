@@ -166,9 +166,48 @@ gate env"）; 重建后恢复（顺序纪律: hw bin 构建必须是最后一次
 gate-run.log（attempt2 规范 exit0）+ gate-run-attempt1.log（F4 场景错误全档）+ md5s.txt
 （盒=origin 逐字节一致）。gates bin md5 1e4f0372·manifest 7521d17e（钉扎吻合）。
 
-## 5. R65-B（commit3 填充）
+## 5. R65-B（commit 3）: 入口早卫兵 + 恢复触发面收口
 
-（占位——§3.5 早卫兵落地 + mock 测试 + gate C3 断言更新 + 真机 C3 复跑。）
+### 5.1 实现（A0 §3.5 裁决落名）
+
+- **早卫兵**: `switch_program_locked` 最顶部（⓪ fence 装甲之前）group.desired
+  == RecoveryRequired → 直接 `Err(SwitchError::RecoveryRequired)`（classify=
+  PermanentFailure）。①a PTS 喂入不再执行——R64 发现③ 的 ①a PTS 伪影遮蔽
+  （unknown 形态）从根上不可达; 不猜源、时间线零触碰。
+- **恢复触发面收口（B 执行中由回归测试暴露的真实语义缺口, 如实登记）**:
+  早卫兵拒收后外层 `result.is_err()` 仍触发 `recover_after_failed_switch` ——
+  组已不 Switching, 普通稳定观测读到真实值会把时间线"治愈"成
+  Stable{observed}+ProgramEpoch+1 而组仍停留 RecoveryRequired = **跨平面
+  分歧**（mock 回归测试首跑即抓到: 拒收后 tl_epoch 0→1）。修正 =
+  `SwitchError::RecoveryRequired` 的终态拒收**不是失败的尝试**, 不触发恢复
+  （落定时的恢复已完成）。该缺口在 R63-A 起即潜伏（①b 同臂拒收后恢复
+  同样会跑）, B 的早卫兵使其在干净观测下可达——回归测试钉住。
+- executed 标志复位移至早卫兵之前（拒收的 attempt 从未开始, 不携带上一轮
+  残留——纵深整饬, 与恢复跳过双保险）。
+
+### 5.2 测试
+
+- mock 新测试 `r65b_recovery_required_rejected_before_1a_pts_feed`: 落
+  RecoveryRequired 后布置 ①a 陷阱（regress_pts——若 ①a 执行必 FailClosed 成
+  Backend/unknown 形态）, 断言拒收仍是 `SwitchError::RecoveryRequired`
+  （证明 ⓪/①a 从未执行）+ 时间线零触碰（tl_epoch/源不变——同时钉住 5.1
+  的恢复跳过）+ 二次拒收逐字节同。**该测试首跑失败正是其价值**: 暴露
+  恢复触发面缺口（tl_epoch 被治愈 0→1）。
+- gate C3 断言收紧: 双形态容忍（permanent|unknown）→ **确定性单形态**
+  （classification==permanent + detail 含 recovery required + 不含
+  FailClosed; FailClosed 形态若现=回归信号如实 fail+finding）。
+
+### 5.3 盒矩阵 + 真机（commit 3 时点）
+
+- 矩阵: fmt 0（回传 md5 双侧一致）/ default 232 / simulation 232 /
+  mock **435**（434+1）/ hw 276 / clippy×3 全 0 / gates bin f7f7db7d
+  （hw 构建为最后一次——§4.2 坑纪律执行）。
+- 真机（gate-run-b.log·gates bin f7f7db7d）: **exit 0 failures=0**——
+  c3-next = **确定性 permanent + "switch recovery required"**（①a 遮蔽
+  形态真机同样消失）; c3-after-reject 六平面 OK（时间线诚实停留 tl=1
+  未被治愈）; F2×10 仍 10/10 确定性 + F4 落 Active(to)+NewEpoch(11) +
+  阶段一全绿——R65-A 零回归。证据 6 件 md5 盒=origin（header-b/gate-run-b
+  增量）。
 
 ## 6. 披露（A0 时点）
 

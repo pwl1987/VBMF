@@ -946,3 +946,59 @@ fn r65_never_settling_observation_bounds_out_to_recovery_required() {
     w.runtime.teardown();
     assert!(!w.runtime.is_active());
 }
+
+// ── R65-B 遮蔽消除: RecoveryRequired 终态的下一次切换在 ①a 之前被拒 ────────
+
+/// R64 发现③ 回归: C3 式失败（observed=None 落 RecoveryRequired）后, 下一次
+/// 切换若走旧路径会在 ①a 喂 on_program_pts——PTS 基线伪影可将其 FailClosed
+/// （unknown）遮蔽 RecoveryRequired 的 Permanent 拒收形态。早卫兵下: 即使
+/// regress_pts 已布置（①a 一旦执行必回跳 FailClosed）, 拒收仍是
+/// RecoveryRequired——证明 ⓪ fence 装甲 / ①a PTS 喂入从未执行。
+#[test]
+fn r65b_recovery_required_rejected_before_1a_pts_feed() {
+    let w = world();
+    // 落 RecoveryRequired: switch 真委托（fail_release）+ 再观测恒未知
+    // （executed=true + 稳定 None 不被信任 → 界尽 → 诚实终态）。
+    w.adapter.fail_release.store(true, Ordering::SeqCst);
+    w.adapter.suppress_observed.store(true, Ordering::SeqCst);
+    let err = w
+        .runtime
+        .switch_program(&intent(w.b))
+        .expect_err("F2+observed=None: 落 RecoveryRequired");
+    assert!(
+        matches!(&err, SwitchError::Backend(s) if s.contains("F2")),
+        "{err:?}"
+    );
+    let (desired, ..) = snap(&w);
+    assert_eq!(
+        desired,
+        SwitchDesired::RecoveryRequired { from: w.a, to: w.b }
+    );
+    // 布置 ①a 陷阱: 若早卫兵不存在, ①a 会 observe 到回退 PTS（Some(1)）并
+    // FailClosed 成 Backend（unknown）形态——R64 发现③ 的遮蔽路径。
+    w.adapter.fail_release.store(false, Ordering::SeqCst);
+    w.adapter.suppress_observed.store(false, Ordering::SeqCst);
+    w.adapter.regress_pts.store(true, Ordering::SeqCst);
+    let e1 = w
+        .runtime
+        .switch_program(&intent(w.a))
+        .expect_err("终态拒收");
+    w.adapter.regress_pts.store(false, Ordering::SeqCst);
+    assert!(
+        matches!(&e1, SwitchError::RecoveryRequired(_)),
+        "R65-B: 拒收必须是 RecoveryRequired（非 ①a FailClosed Backend 遮蔽）: {e1:?}"
+    );
+    // 时间线零触碰: 拒收后纪元/源与拒收前一致（诚实停留保持）。
+    let (tl_epoch, tl_source, _) = tl(&w);
+    assert_eq!(tl_epoch, ProgramEpoch(0), "时间线诚实停留（epoch 不动）");
+    assert_eq!(tl_source, Some(w.a));
+    // 确定性: 二次拒收逐字节同。
+    let e2 = w
+        .runtime
+        .switch_program(&intent(w.b))
+        .expect_err("终态拒收 2");
+    assert_eq!(format!("{e1:?}"), format!("{e2:?}"), "确定性拒收");
+    println!("R65B-MASKING-GONE reject=RecoveryRequired(before 1a) deterministic");
+    w.runtime.teardown();
+    assert!(!w.runtime.is_active());
+}

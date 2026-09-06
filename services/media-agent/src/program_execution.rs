@@ -630,7 +630,14 @@ impl ProgramExecutionRuntime {
             ));
         };
         let result = Self::switch_program_locked(inner, intent);
-        if result.is_err() {
+        if result.is_err()
+            // R65-B（契约 §3.5 补充——回归测试暴露）: 终态拒收
+            // （SwitchError::RecoveryRequired=入口早卫兵/①b 同臂）**不是
+            // 失败的尝试**——落定时的恢复已完成; 若再跑, 组已不 Switching,
+            // 普通稳定观测读到真实值会把时间线"治愈"成 Stable{observed}+
+            // epoch+1 而组仍停留 RecoveryRequired=跨平面分歧。跳过。
+            && !matches!(&result, Err(SwitchError::RecoveryRequired(_)))
+        {
             // R63-A 恢复契约（Observed 优先）: 任何失败后按再观测落定两平面
             // ——尽力恢复, 恢复自身失败只记录, 绝不吞/改原始错误。
             // R65-A 时序契约（2026-09-07 R65-A0 §2/§3.1——更正 R63 注释
@@ -658,8 +665,19 @@ impl ProgramExecutionRuntime {
         intent: &SwitchIntent,
     ) -> Result<ProgramSwitchReport, SwitchError> {
         // R65-A 契约 §3.2: 期望感知输入复位——本轮 attempt 的 executed 标志
-        // （switch() Ok 后置 true; 恢复稳定协议据此选择期望规则）。
+        // （switch() Ok 后置 true; 恢复稳定协议据此选择期望规则）。先于早
+        // 卫兵: 拒收的 attempt 从未开始, 标志不得携带上一轮残留。
         inner.switch_executed_in_attempt = false;
+        // R65-B 入口早卫兵（契约 §3.5·2026-09-07 R65-A0）: 组停留
+        // RecoveryRequired 终态时, 任何切换在 ⓪ fence 装甲 / ①a PTS 喂入
+        // 之前直接诚实拒收——Permanent 分类不被 ①a PTS FailClosed（unknown）
+        // 遮蔽（R64 发现③: C3 式 fence 周期可留 PTS 基线伪影 3/3 复现）。
+        // 不猜源、时间线零触碰; 唯一出口=会话级 teardown（R63-A 词表）。
+        if let recovery @ crate::switch_execution::SwitchDesired::RecoveryRequired { .. } =
+            inner.group.lock().unwrap().desired
+        {
+            return Err(SwitchError::RecoveryRequired(recovery));
+        }
         // ⓪ R58 cutover fence: V+A 双面 Armed——自此旧世代数据不再进入
         // Program 观测（INV-F1 在途处置按构造覆盖; INV-F3 双面同装;
         // 守卫 Drop 兜底 ①-④ 任意错误路径解除 barrier 恢复流面）。

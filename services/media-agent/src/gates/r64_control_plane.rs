@@ -1330,10 +1330,10 @@ fn phase_matrix(failures: &mut Vec<String>, findings: &mut Vec<String>, w: &Gate
         ps["observed_active"].as_str() == Some(b.to_string().as_str()),
         format!("c3 闩锁后 API observed=真实 B: {ps}"),
     );
-    // 新 id 再切: 拒收（状态机裁决, 不触硬件）。真机双形态在案: mock/契约形态
-    // =RecoveryRequired(permanent); attempt2 实测 =①a PTS 回跳 FailClosed
-    // (unknown)——C3 失败的 fence 周期留下 PTS 基线伪影(发现#3)。不变量:
-    // 命令被拒 + 零委托 + 状态不变。
+    // 新 id 再切: 拒收（状态机裁决, 不触硬件）。R65-B 入口早卫兵后**确定性
+    // 单形态**: permanent + recovery required（⓪ fence 装甲/①a PTS 喂入之前
+    // 拒收——R64 发现③ 的 ①a PTS 伪影遮蔽 [unknown 形态] 不得复现; 若现=
+    // 回归信号如实 fail+finding）。不变量: 命令被拒 + 零委托 + 状态不变。
     let calls_before = w.wrapper.switch_calls.load(Ordering::SeqCst);
     let c3x = post_switch(addr, uuid::Uuid::new_v4(), sid, a);
     let calls_after = w.wrapper.switch_calls.load(Ordering::SeqCst);
@@ -1343,19 +1343,22 @@ fn phase_matrix(failures: &mut Vec<String>, findings: &mut Vec<String>, w: &Gate
     );
     chk(
         failures,
-        c3x.jstatus == "executed"
-            && matches!(
-                c3x.classification.as_deref(),
-                Some("permanent") | Some("unknown")
-            ),
-        "c3-next 必须被拒收（permanent[recovery required] 或 unknown[①a FailClosed 形态]）".into(),
+        c3x.jstatus == "executed" && c3x.classification.as_deref() == Some("permanent"),
+        "c3-next 必须确定性 permanent（R65-B 早卫兵——不被 ①a FailClosed 遮蔽成 unknown）".into(),
     );
     chk(
         failures,
         c3x.detail
             .as_deref()
-            .is_some_and(|d| d.contains("recovery required") || d.contains("FailClosed")),
-        format!("c3-next 拒收形态在案: {:?}", c3x.detail),
+            .is_some_and(|d| d.contains("recovery required")),
+        format!("c3-next 拒收形态=recovery required: {:?}", c3x.detail),
+    );
+    chk(
+        failures,
+        c3x.detail
+            .as_deref()
+            .is_some_and(|d| !d.contains("FailClosed")),
+        format!("c3-next 不得再现 ①a FailClosed 遮蔽形态（R64 发现③）: {:?}", c3x.detail),
     );
     chk(
         failures,
@@ -1368,7 +1371,7 @@ fn phase_matrix(failures: &mut Vec<String>, findings: &mut Vec<String>, w: &Gate
         .is_some_and(|d| d.contains("FailClosed"))
     {
         findings.push(format!(
-            "c3-next 真机形态=①a PTS 回跳 FailClosed（发现#3: C3 失败的 fence 周期留下 PTS 基线伪影, RecoveryRequired 拒收形态被遮蔽——分类 unknown 非 permanent）: {:?}",
+            "c3-next 回归信号: ①a PTS 回跳 FailClosed 遮蔽形态再现（R64 发现③——R65-B 早卫兵后不得出现）: {:?}",
             c3x.detail
         ));
     }

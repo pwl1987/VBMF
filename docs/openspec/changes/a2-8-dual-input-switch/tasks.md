@@ -1548,4 +1548,21 @@
   工程坑: clippy manual_is_multiple_of+**R62 坑复发**（mock 测试腿在 hw bin
   构建后重建 debug bin 致 gates bin mock 化——hw bin 必须最后一次构建）;
   证据 r65-cutover-recovery 4 件 md5 盒=origin; **下一步 R65-B 早卫兵
-  （A0 §3.5 已裁）→R64-6' 30min（谓词 v2）→停等 Step15 裁决**]**]**]
+  （A0 §3.5 已裁）→R64-6' 30min（谓词 v2）→停等 Step15 裁决**]**
+
+  **[R65-B 早卫兵+恢复触发面收口段（2026-09-07·commit 3）: 早卫兵=
+  switch_program_locked ⓪ 前 group.desired==RecoveryRequired 直接
+  Err(RecoveryRequired)（Permanent）——①a PTS 喂入不再执行, R64 发现③
+  遮蔽形态从根不可达·不猜源·时间线零触碰; **回归测试暴露的真实语义缺口
+  一并收口**: 终态拒收后外层 result.is_err() 仍触发恢复→组不 Switching 下
+  普通稳定观测会把时间线"治愈"成 Stable{observed}+epoch+1 而组仍终态=
+  跨平面分歧（mock 测试 r65b_recovery_required_rejected_before_1a_pts_feed
+  首跑即抓到 tl_epoch 0→1·缺口 R63-A 起潜伏）——修正=RecoveryRequired
+  拒收不触发恢复+executed 标志复位先于卫兵; 盒矩阵: fmt0（回传 md5 一致）/
+  232/232/**435**（434+1）/276/clippy×3 全 0/gates bin f7f7db7d（hw 构建
+  最后一次）; 真机 gate-run-b exit0 failures=0——**c3-next=确定性
+  permanent+recovery required（①a 遮蔽真机同样消失）**·c3-after-reject
+  六平面 OK（tl 诚实停留未治愈）·F2×10 仍 10/10 确定性+F4 OK=R65-A
+  零回归; 证据 r65-cutover-recovery 增至 6 件 md5 盒=origin; 下一步=
+  R64-6' 30min 重跑（谓词 v2 四条·R65 后服务 bin 重建钉扎先行）→停等
+  Step15（2h/8h/24h）裁决]**
