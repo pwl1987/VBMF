@@ -13,20 +13,14 @@
 //!   编译期常量证据超时, R62 场景+恢复闭环, 全真实）/ STORM 并发综合+快照真值
 //!   / C3 observed=None（`observe()` 接缝注入, 如实披露: 真机管线运行中无法
 //!   自然产生 absent observed——恢复语义主证不变: 状态机拒绝猜测）→ teardown。
-//! - **阶段二（新鲜世界·KNOWN-FINDING 观察段）**: C2b `release_cutover_fence`
-//!   注入 Err（与真机 5s 确认超时同传播点）。三跑三态实测: **物理 cutover 在
-//!   release（屏障打开）时完成, 非在 switch()**; 恢复再观测发生在守卫 Drop
-//!   强释**之前**, 且屏障拆除窗内观测**非确定**——三跑三态:
-//!   L1（attempt1）observed=Some(from)→落 Active(from), 其后 force_open 迟到
-//!   翻转到 to → 静息分歧 + **死锁**（切 to 被适配器拒·切 from 被组平面拒·
-//!   唯一出口 teardown）; L2（attempt2）observed=None→落 RecoveryRequired 终态
-//!   （诚实停留, 双向探针 permanent 拒收, teardown 出口）; L3（attempt3）
-//!   observed=Some(to)→落 Active(to)（与物理恰好一致, from-探针作为合法切换
-//!   成功执行——自洽可服务）。共同缺陷 = 恢复落定的判据（observed）读于物理
-//!   翻转未落定窗内 → 落定可与物理终态不一致（L1 为最坏形态）。断言取跨分支
-//!   不变量（命令 Failed 不伪装成功/replay 原样/teardown 出口可用）以及按
-//!   实际落定分支的探针不变量; 分支形态记 findings（非伪装绿）, 归用户裁决
-//!   修复另裁。
+//! - **阶段二（新鲜世界·R65 确定性恢复段）**: C2b=F2 ×10 轮——`release_cutover_fence`
+//!   注入 Err（与真机 5s 确认超时同传播点）→ 命令 Failed(unknown) →
+//!   **期望感知稳定再观测**（R65-A 契约 2026-09-07: force_open 后物理翻转
+//!   迟落窗内单发观测不可信——R64 四跑三态 L1/L2/L3 在案; executed=true 只接受
+//!   连续 3 次 ==Some(to), 迟翻伪稳定 from 与 None 被拒, 界尽→RecoveryRequired
+//!   诚实终态）**确定性**落 Active(to) + ProgramEpoch+1+DD → 反向再切成功;
+//!   三态随机不得复现（否则如实 fail）。随后 F4 行（真翻转+真证据闭合+真
+//!   release+⑨ PTS 回注矛盾 FailClosed → 同判据）→ teardown 出口。
 //!
 //! 纪律（gates 惯例继承）:
 //! - Gate = 调用 Production Runtime, 绝不自造第二套; env 入口属 `bin/gates.rs`;
@@ -135,7 +129,7 @@ struct FaultControlWrapper {
     /// 已成功委托的 switch 次数（诊断行用）。
     switches_done: AtomicU32,
     /// `release_cutover_fence` 注入 Err（不委托; 与真机 5s 确认超时同传播点,
-    /// fence 保持 Armed → guard Drop 强释）。C2b（阶段二 KNOWN-FINDING 段）。
+    /// fence 保持 Armed → guard Drop 强释）。C2b（R65 阶段二确定性段）。
     fail_release: AtomicBool,
     /// `timeline_execution_facts` → None（真 5s 编译期常量证据超时窗——
     /// 硬件**已真实翻转**, 证据永不闭合）。C2。
@@ -143,6 +137,13 @@ struct FaultControlWrapper {
     /// `observe()` 的 `observed_active` 置 None（**接缝注入**——再观测未知,
     /// absence≠false, 恢复不得猜）。C3。
     suppress_observed: AtomicBool,
+    /// R65-F4: 第 N 次 `switch()` 已委托后（switches_done≥N）`observe()` 注入
+    /// program_video_pts 硬回退（Some(1)）——⑨ settle `on_program_pts` 矛盾
+    /// FailClosed 路径（真翻转+真证据闭合+真 release）。**阈值制是关键**:
+    /// 门控世界携带前置切换史, 布尔门（switches_done≥1）会让回注在 **①a**
+    /// 提前点火（= 0a pre-begin 形态, 首跑实测在案）——必须锚到本轮
+    /// switch 委托之后。0=off。
+    regress_pts_from: AtomicU32,
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
@@ -156,6 +157,7 @@ impl FaultControlWrapper {
             fail_release: AtomicBool::new(false),
             suppress_facts: AtomicBool::new(false),
             suppress_observed: AtomicBool::new(false),
+            regress_pts_from: AtomicU32::new(0),
         }
     }
 
@@ -167,6 +169,16 @@ impl FaultControlWrapper {
 
     fn clear_fail_switch(&self) {
         self.fail_switch_on.store(0, Ordering::SeqCst);
+    }
+
+    /// R65-F4: 在**下一次** switch 委托完成后激活 PTS 回注（⑨ 矛盾位点位）。
+    fn arm_regress_after_next_switch(&self) {
+        let next = self.switch_calls.load(Ordering::SeqCst) + 1;
+        self.regress_pts_from.store(next, Ordering::SeqCst);
+    }
+
+    fn clear_regress_pts(&self) {
+        self.regress_pts_from.store(0, Ordering::SeqCst);
     }
 }
 
@@ -252,6 +264,12 @@ impl SwitchExecutionAdapter for FaultControlWrapper {
         if self.suppress_observed.load(Ordering::SeqCst) {
             // C3 接缝注入: 再观测未知（absence≠false——恢复不得猜）。
             obs.program.observed_active = None;
+        }
+        let regress_from = self.regress_pts_from.load(Ordering::SeqCst);
+        if regress_from != 0 && self.switches_done.load(Ordering::SeqCst) >= regress_from {
+            // R65-F4: program_video_pts 硬回退（远小于真实 PTS 基准——
+            // ⑨ settle on_program_pts 矛盾 FailClosed）。
+            obs.program.program_video_pts = Some(1);
         }
         obs
     }
@@ -593,39 +611,6 @@ fn checkpoint(
     );
     for e in errs {
         failures.push(format!("sixplane[{label}]: {e}"));
-    }
-}
-
-/// 检查点（KNOWN-FINDING 变体·阶段二）: 同采集与打印, 矛盾计入 findings
-/// （在案事实, 不 gate exit——观察≠判据, R52 纪律）。
-#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn checkpoint_finding(
-    findings: &mut Vec<String>,
-    label: &str,
-    expect: &Quiescence,
-    rt: &Arc<ProgramExecutionRuntime>,
-    addr: SocketAddr,
-    last_command: Option<(String, Option<String>)>,
-) {
-    let s = collect_six_planes(rt, addr, last_command);
-    let errs = check_quiescent_consistency(&s, expect);
-    println!(
-        "R64-MATRIX sixplane [{label}] cmd={:?} desired={:?} observed={:?} sw_epoch(g/p/api)={:?}/{:?}/{:?} tl(epoch/src/api)={:?}/{:?}/{:?} api(status/present)=({}/{}) verdict={}",
-        s.command,
-        s.desired,
-        s.observed_active,
-        s.group_switch_epoch,
-        s.program_switch_epoch,
-        s.api_switch_epoch,
-        s.timeline_epoch,
-        s.timeline_source,
-        s.api_timeline_epoch,
-        s.api_status,
-        s.api_present,
-        if errs.is_empty() { "OK" } else { "KNOWN-FINDING" },
-    );
-    for e in errs {
-        findings.push(format!("sixplane[{label}]: {e}"));
     }
 }
 
@@ -1435,24 +1420,16 @@ fn phase_matrix(failures: &mut Vec<String>, findings: &mut Vec<String>, w: &Gate
     );
 }
 
-// ── 阶段二: KNOWN-FINDING 观察段（C2b release 失败——真机语义在案）────────
+// ── 阶段二: R65 确定性恢复段（C2b=F2 ×10 + F4 settle 矛盾）────────────────
 
-/// C2b 落定分支（三跑三态在案: attempt1=L1 / attempt2=L2 / attempt3=L3）。
+/// R65-A2（用户裁决: F2 真机回归 N≥10——三态随机不得复现）。每轮:
+/// 注入 release Err（真机 5s 确认超时同型传播点）→ 命令 Failed(unknown) →
+/// 期望感知稳定再观测**确定性**落 Active(to)（迟翻窗口内稳定 from 伪稳定被拒
+/// ——R64 四跑三态 L1/L2 不复现）→ ProgramEpoch+1+DD → 反向再切成功。
+/// 记账: 第 i 轮后 av=2i / g=2i / tl=i（失败轮委托 plan epoch=2i−1, 反向=2i）。
+/// 随后 F4（真翻转+真证据闭合+⑨ PTS 回注矛盾 FailClosed）同判据一遍 + teardown。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-enum C2bVariant {
-    /// observed=Some(from) → Active(from); force_open 迟到翻转到 to → 分歧+死锁。
-    L1From,
-    /// observed=None → RecoveryRequired 终态（诚实停留）。
-    L2Terminal,
-    /// observed=Some(to) → Active(to)（与物理恰好一致——自洽可服务）。
-    L3To,
-}
-
-/// 三跑三态实测并固化的真机语义——本段按**分支不变量**断言, 分支形态记 findings:
-/// 共同缺陷 = 恢复落定的判据（observed）读于 guard Drop 强释/物理翻转未落定
-/// 窗内 → 落定可与物理终态不一致（L1 最坏: 死锁, 唯一出口 teardown）。
-#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn phase_c2b_release_failure(
+fn phase2_c2b_f2_deterministic_loop(
     failures: &mut Vec<String>,
     findings: &mut Vec<String>,
     w: &GateWorld,
@@ -1460,157 +1437,233 @@ fn phase_c2b_release_failure(
     let (rt, addr, sid, a, b) = (&w.rt, w.addr, &w.sid, w.a, w.b);
     let cmd_last = |c: &Cmd| Some((c.jstatus.clone(), c.classification.clone()));
     println!(
-        "R64-MATRIX phase2(c2b KNOWN-FINDING) world A={a} B={b} sid={}",
+        "R64-MATRIX phase2(R65 F2×10 确定性) world A={a} B={b} sid={}",
         sid.0
     );
     checkpoint(failures, "p2-init", &Quiescence::Active(a), rt, addr, None);
 
-    w.wrapper.fail_release.store(true, Ordering::SeqCst);
-    let cid = uuid::Uuid::new_v4();
-    let c2b = post_switch(addr, cid, sid, b);
-    w.wrapper.fail_release.store(false, Ordering::SeqCst);
-    println!(
-        "R64-MATRIX c2b A→B(release Err·真机=5s 确认超时同型) status={} class={:?} detail={:?}",
-        c2b.jstatus, c2b.classification, c2b.detail
-    );
-    chk(
-        failures,
-        c2b.jstatus == "executed" && c2b.classification.as_deref() == Some("unknown"),
-        "c2b dispatch executed + unknown（命令 Failed 不伪装成功）".into(),
-    );
-    chk(
-        failures,
-        c2b.detail
-            .as_deref()
-            .is_some_and(|d| d.contains("R64-C2b 注入")),
-        format!("c2b detail 应含注入标记: {:?}", c2b.detail),
-    );
-    // 落定分支（三跑三态·非确定·在案记录）。
-    let desired_now = rt.group_arc().map(|g| g.lock().unwrap().desired);
-    let variant = match desired_now {
-        Some(SwitchDesired::ActiveInput(x)) if x == a => C2bVariant::L1From,
-        Some(SwitchDesired::RecoveryRequired { .. }) => C2bVariant::L2Terminal,
-        Some(SwitchDesired::ActiveInput(x)) if x == b => C2bVariant::L3To,
-        other => {
-            failures.push(format!("c2b 落定超出三跑三态在案形态: {other:?}"));
-            return;
+    let mut landed_to = 0u32;
+    let mut other_shapes: Vec<String> = Vec::new();
+    for i in 1u64..=10 {
+        w.wrapper.fail_release.store(true, Ordering::SeqCst);
+        let cid = uuid::Uuid::new_v4();
+        let t0 = Instant::now();
+        let c = post_switch(addr, cid, sid, b);
+        let elapsed = t0.elapsed();
+        w.wrapper.fail_release.store(false, Ordering::SeqCst);
+        println!(
+            "R64-MATRIX c2b[{i}] A→B(release Err) elapsed={elapsed:?} status={} class={:?} detail={:?}",
+            c.jstatus, c.classification, c.detail
+        );
+        chk(
+            failures,
+            c.status == 200,
+            format!("c2b[{i}] http={}", c.status),
+        );
+        chk(
+            failures,
+            c.jstatus == "executed" && c.classification.as_deref() == Some("unknown"),
+            format!("c2b[{i}] dispatch executed + unknown（命令 Failed 不伪装成功）"),
+        );
+        chk(
+            failures,
+            c.detail
+                .as_deref()
+                .is_some_and(|d| d.contains("R64-C2b 注入")),
+            format!("c2b[{i}] detail 应含注入标记: {:?}", c.detail),
+        );
+        // R65 确定性落定: Active(to=B)——唯一合法形态（期望感知协议拒绝迟翻
+        // 伪稳定 from; 界尽/稳定 None → RecoveryRequired 诚实终态, 若现=违
+        // 契约如实 fail——R64 L1/L2 三态随机不得复现）。
+        let desired_now = rt.group_arc().map(|g| g.lock().unwrap().desired);
+        match desired_now {
+            Some(SwitchDesired::ActiveInput(x)) if x == b => landed_to += 1,
+            other => {
+                other_shapes.push(format!("round{i}={other:?}"));
+                failures.push(format!(
+                    "c2b[{i}] R65 后落定必须确定性 Active(to)——三态随机不得复现: {other:?}"
+                ));
+            }
         }
-    };
-    let variant_name = match variant {
-        C2bVariant::L1From => "L1 Active(from)（attempt1 形态——分歧+死锁）",
-        C2bVariant::L2Terminal => "L2 RecoveryRequired 终态（attempt2 形态——诚实停留）",
-        C2bVariant::L3To => "L3 Active(to)（attempt3 形态——与物理恰好一致, 自洽可服务）",
-    };
-    findings.push(format!(
-        "c2b 落定分支={variant_name}；三跑三态=恢复观测读于屏障拆除/物理翻转未落定窗内（非确定）——修复另裁"
-    ));
-    checkpoint_finding(
-        findings,
-        "c2b-landed",
+        let (_, ps) = api_program_switch(addr);
+        chk(
+            failures,
+            ps["switch_epoch"].as_u64() == Some(2 * i - 1),
+            format!(
+                "c2b[{i}] av={}（失败轮委托 plan epoch 2i−1）: {ps}",
+                2 * i - 1
+            ),
+        );
+        chk(
+            failures,
+            ps["timeline"]["program_epoch"].as_u64() == Some(i),
+            format!("c2b[{i}] tl={}（每轮 NewEpoch 落定）: {ps}", i),
+        );
+        chk(
+            failures,
+            ps["timeline"]["discontinuity_state"].as_str() == Some("discontinuity_declared"),
+            format!("c2b[{i}] DD 边界事实: {ps}"),
+        );
+        if i == 1 {
+            // 同 id replay 原样 + 落定六平面检查点（仅首轮——其余轮由逐项断言覆盖）。
+            let cr = post_switch(addr, cid, sid, b);
+            chk(
+                failures,
+                cr.jstatus == "replayed" && cr.detail == c.detail,
+                "c2b[1]-replay 原样".into(),
+            );
+            checkpoint(
+                failures,
+                "c2b1-landed",
+                &Quiescence::Active(b),
+                rt,
+                addr,
+                Some((c.jstatus.clone(), c.classification.clone())),
+            );
+        }
+        // 反向再切: B→A 真实成功（Preserved·新纪元连续——恢复后合法再切换）。
+        let rn = post_switch(addr, uuid::Uuid::new_v4(), sid, a);
+        println!(
+            "R64-MATRIX c2b[{i}] B→A(反向) status={} class={:?} detail={:?}",
+            rn.jstatus, rn.classification, rn.detail
+        );
+        chk(
+            failures,
+            rn.jstatus == "executed"
+                && rn
+                    .detail
+                    .as_deref()
+                    .is_some_and(|d| d.contains("outcome=preserved")),
+            format!("c2b[{i}] 反向再切期望 preserved: {:?}", rn.detail),
+        );
+        chk(
+            failures,
+            rn.detail
+                .as_deref()
+                .is_some_and(|d| d.contains(&format!("timeline_epoch={i}"))),
+            format!("c2b[{i}] 反向在新纪元 {}: {:?}", i, rn.detail),
+        );
+        let (_, ps) = api_program_switch(addr);
+        chk(
+            failures,
+            ps["switch_epoch"].as_u64() == Some(2 * i),
+            format!("c2b[{i}] 反向后 av={}: {ps}", 2 * i),
+        );
+        chk(
+            failures,
+            ps["timeline"]["video_continuity"].as_str() == Some("continuous"),
+            format!("c2b[{i}] R53 签名 re-proved continuous: {ps}"),
+        );
+    }
+    checkpoint(
+        failures,
+        "c2b10-after",
         &Quiescence::Active(a),
         rt,
         addr,
-        cmd_last(&c2b),
+        None,
     );
     let (_, ps) = api_program_switch(addr);
     chk(
         failures,
-        ps["switch_epoch"].as_u64() == Some(1),
-        format!("c2b av=1（switch 已委托——跨分支不变量）: {ps}"),
+        ps["switch_epoch"].as_u64() == Some(20),
+        format!("c2b 10 轮后 av=20: {ps}"),
     );
-    // 同 id replay 原样。
-    let c2br = post_switch(addr, cid, sid, b);
     chk(
         failures,
-        c2br.jstatus == "replayed" && c2br.detail == c2b.detail,
-        "c2b-replay 原样".into(),
+        ps["timeline"]["program_epoch"].as_u64() == Some(10),
+        "c2b 10 轮后 tl=10".into(),
     );
-    // 守卫 Drop 强释后的物理终局 → 静息分歧记录（L1）/一致（L3）/终态（L2）。
-    sleep(1);
-    checkpoint_finding(
-        findings,
-        "c2b-postdrop",
-        &Quiescence::Active(a),
+    findings.push(format!(
+        "c2b F2×10 确定性: landed_to={landed_to}/10 other={other_shapes:?}（R64 四跑三态 L1/L2/L3 在案——R65 后不得复现）"
+    ));
+
+    // ── F4 settle 矛盾（真翻转+真证据闭合+真 release+⑨ PTS 回注 FailClosed）──
+    // 记账: av 21（失败轮）→ 22（反向）, tl 10→11。回注锚定本轮 switch 委托后
+    // （阈值制——避免 ①a 提前点火成 0a pre-begin 形态, 首跑实测教训在案）。
+    w.wrapper.arm_regress_after_next_switch();
+    let cid_f4 = uuid::Uuid::new_v4();
+    let c4 = post_switch(addr, cid_f4, sid, b);
+    w.wrapper.clear_regress_pts();
+    println!(
+        "R64-MATRIX f4 A→B(⑨ PTS 回注矛盾) status={} class={:?} detail={:?}",
+        c4.jstatus, c4.classification, c4.detail
+    );
+    chk(
+        failures,
+        c4.jstatus == "executed" && c4.classification.as_deref() == Some("unknown"),
+        "f4 dispatch executed + unknown".into(),
+    );
+    chk(
+        failures,
+        c4.detail
+            .as_deref()
+            .is_some_and(|d| d.contains("backward jump")),
+        format!(
+            "f4 detail 应含 backward jump（⑨ settle 矛盾）: {:?}",
+            c4.detail
+        ),
+    );
+    // 确定性落定: executed=true → 稳定 Some(to) → Active(B) + NewEpoch(11)。
+    let desired_now = rt.group_arc().map(|g| g.lock().unwrap().desired);
+    chk(
+        failures,
+        matches!(desired_now, Some(SwitchDesired::ActiveInput(x)) if x == b),
+        format!("f4 恢复落定必须 Active(to): {desired_now:?}"),
+    );
+    checkpoint(
+        failures,
+        "f4-landed",
+        &Quiescence::Active(b),
         rt,
         addr,
-        cmd_last(&c2b),
+        Some((c4.jstatus.clone(), c4.classification.clone())),
     );
-    // 双向探针——按分支断言不变量。
-    let calls_before = w.wrapper.switch_calls.load(Ordering::SeqCst);
-    let d1 = post_switch(addr, uuid::Uuid::new_v4(), sid, b);
-    let d2 = post_switch(addr, uuid::Uuid::new_v4(), sid, a);
-    let calls_after = w.wrapper.switch_calls.load(Ordering::SeqCst);
-    println!(
-        "R64-MATRIX c2b-deadprobe→to(B) status={} class={:?} detail={:?}",
-        d1.jstatus, d1.classification, d1.detail
+    let (_, ps) = api_program_switch(addr);
+    chk(
+        failures,
+        ps["switch_epoch"].as_u64() == Some(21),
+        format!("f4 av=21: {ps}"),
     );
-    println!(
-        "R64-MATRIX c2b-deadprobe→from(A) status={} class={:?} detail={:?}",
-        d2.jstatus, d2.classification, d2.detail
+    chk(
+        failures,
+        ps["timeline"]["program_epoch"].as_u64() == Some(11),
+        "f4 tl=11（NewEpoch 落定）".into(),
     );
-    findings.push(format!(
-        "c2b-deadprobe→to: class={:?} detail={:?}",
-        d1.classification, d1.detail
-    ));
-    findings.push(format!(
-        "c2b-deadprobe→from: class={:?} detail={:?}",
-        d2.classification, d2.detail
-    ));
-    match variant {
-        C2bVariant::L1From | C2bVariant::L2Terminal => {
-            // 死锁/终态: 双向均 permanent 拒收且零委托（切换通道不可用, 在案）。
-            for (name, d) in [("→to", &d1), ("→from", &d2)] {
-                chk(
-                    failures,
-                    d.jstatus == "executed" && d.classification.as_deref() == Some("permanent"),
-                    format!("c2b[{variant_name}] probe{name} 必须 permanent 拒收"),
-                );
-            }
-            chk(
-                failures,
-                calls_before == calls_after,
-                "c2b 探针零委托（switch_calls 不变）".into(),
-            );
-        }
-        C2bVariant::L3To => {
-            // 自洽: →to 已激活拒收（零委托）; →from 为合法切换应成功执行。
-            chk(
-                failures,
-                d1.jstatus == "executed" && d1.classification.as_deref() == Some("permanent"),
-                "c2b[L3] probe→to 必须 permanent 拒收（already-active）".into(),
-            );
-            chk(
-                failures,
-                d2.jstatus == "executed"
-                    && d2
-                        .detail
-                        .as_deref()
-                        .is_some_and(|d| d.contains("outcome=preserved")),
-                format!("c2b[L3] probe→from 应作为合法切换成功执行: {:?}", d2.detail),
-            );
-            chk(
-                failures,
-                calls_after == calls_before + 1,
-                "c2b[L3] 恰一次新委托（probe→from）".into(),
-            );
-        }
-    }
+    // 同 id replay 原样。
+    let c4r = post_switch(addr, cid_f4, sid, b);
+    chk(
+        failures,
+        c4r.jstatus == "replayed" && c4r.detail == c4.detail,
+        "f4-replay 原样".into(),
+    );
+    // 反向再切成功（av=22）。
+    let r4 = post_switch(addr, uuid::Uuid::new_v4(), sid, a);
+    chk(
+        failures,
+        r4.jstatus == "executed"
+            && r4
+                .detail
+                .as_deref()
+                .is_some_and(|d| d.contains("outcome=preserved")),
+        format!("f4 反向再切期望 preserved: {:?}", r4.detail),
+    );
     // 唯一兜底出口: stop_session teardown（此路径必须可用——gate exit 判据）。
     let cstop = post_stop(addr, uuid::Uuid::new_v4(), sid);
     println!(
-        "R64-MATRIX c2b-stop status={} class={:?} detail={:?}",
+        "R64-MATRIX phase2-stop status={} class={:?} detail={:?}",
         cstop.jstatus, cstop.classification, cstop.detail
     );
     chk(
         failures,
         cstop.jstatus == "executed",
-        "c2b stop_session executed（兜底出口可用）".into(),
+        "phase2 stop_session executed（兜底出口可用）".into(),
     );
     sleep(2);
     chk(
         failures,
         !rt.is_active(),
-        "c2b teardown 后 is_active=false".into(),
+        "phase2 teardown 后 is_active=false".into(),
     );
     checkpoint(
         failures,
@@ -1648,7 +1701,7 @@ pub fn run(
          （真机管线运行中无法自然产生 absent observed）——恢复语义主证不变: 状态机拒绝猜测"
     );
     println!(
-        "披露: C2b=真机 5s 确认超时同型注入, 其真机语义（迟到翻转+死锁）按 KNOWN-FINDING 在案记录——归用户裁决, 修复另裁"
+        "披露: C2b=R65 阶段二确定性段（F2×10——期望感知稳定再观测协议在案; R64 四跑三态不得复现）+ F4 settle 矛盾行"
     );
     println!(
         "披露: watchdog 未接线（a204_obs 先例·矩阵确定性; watchdog-in-loop 由 30min 真服务基线覆盖）"
@@ -1673,7 +1726,7 @@ pub fn run(
     );
     phase_matrix(&mut failures, &mut findings, &w1);
 
-    // 阶段二: 新鲜世界 KNOWN-FINDING 观察段（C2b）。
+    // 阶段二: 新鲜世界 R65 确定性段（C2b=F2×10 + F4）。
     let w2 = build_gate_world(
         cfg,
         devices,
@@ -1684,7 +1737,7 @@ pub fn run(
         event_sink,
         projection_log,
     );
-    phase_c2b_release_failure(&mut failures, &mut findings, &w2);
+    phase2_c2b_f2_deterministic_loop(&mut failures, &mut findings, &w2);
 
     println!(
         "R64-MATRIX summary phase1_switches_delegated={} phase2_switches_delegated={} findings={} failures={}",

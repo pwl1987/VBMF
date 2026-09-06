@@ -4870,3 +4870,42 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   +60·readbacks 60/60 observed==target）/watchdog_ticks=测量缺口
   （RUST_LOG=warn 遮蔽 info 级 tick 与 teardown 行——非 watchdog 失败·
   下轮 info 级重测）。证据盒 r64-stability-30m 19 件 md5 盒=origin。
+
+## §95 R65-A: 物理 Cutover / Recovery 时序修复（P1/P2 修复轮·A0 契约+A1 实现+A2 真机·2026-09-07）
+
+- 用户 R65 裁决=R64 三发现全 BLOCKING 开修复轮（梯子 A0→A1→A2→B→R64-6'→裁→
+  Step15）; 基线 7e16fcc。
+- **A0 机制更正（commit 82834fd·docs-only）**: 三路勘探+本人核验实证——守卫
+  Drop（force_open 调用）在源码层**已先于**恢复（:627-630 注释"恢复先于 Drop"
+  失准·R64 登记措辞随更正）; 真缺口=force_open 即返后物理翻转迟落窗内
+  recover :829 **单发** observe 三跑三态。修复=期望感知稳定再观测协议
+  （复用 50ms/3 轮/5s 三常量零新时间语义·只读 observed_active 不喂时间线）:
+  executed=true 只接受连续 3 次==Some(to)（迟翻伪稳定 from/None 拒绝·界尽→
+  RecoveryRequired 诚实终态）; executed=false 普通稳定（from→abort·稳定 None→
+  终态）; 标志经 Inner 私有 bool（chain 顶复位+switch() Ok 后置真）。
+  **分叉态 Desired=A/Observed=A/Physical=B 从此不可构造**。
+- **A1 实现（commit 2·生产触碰收敛 program_execution.rs 单文件——比授权面
+  更窄: reconcile 两函数/complete_switch/force_release/force_open/watchdog
+  语义零改动, 病灶在观测时机非落定逻辑）**: settle 协议三件（observe_active_
+  settled/SettleStreak/settle_accepts 纯决策核）+ 纯单测 ×3; mock 侧 P1 迟翻
+  **首次可表达**（包装器 force_release 后前 6 次 observe 滞报旧源——无期望
+  规则必落 Active(from)=R64 L1 死锁形态·有则必落 Active(to)）+ 界尽诚实终态
+  测试（真值/None 振荡→5s 界尽→RecoveryRequired+Permanent 确定性）; gate
+  阶段二重写=三变体容忍→**F2×10 确定性断言**+F4 行（regress_pts_from 阈值制）。
+- **盒矩阵（终态）**: fmt 0（产物回传 md5 双侧一致）/default **232**（229+3）/
+  simulation **232**/mock **434**（414+9+11）/hw **276**（273+3）/gates bin
+  hw exit0（md5 1e4f0372）/clippy×3 全 0。工程坑两笔: clippy
+  manual_is_multiple_of; **R62 坑复发**——mock 测试腿在 hw bin 构建后重建
+  debug bin 致 gates bin mock 化（hw bin 构建必须是最后一次构建）。
+- **A2 真机（attempt2 规范 run exit 0·failures=0）**: **F2×10 确定性 10/10
+  落 Active(to)——R64 四跑三态零复现**（每轮 av=2i/tl=i 记账精确·六平面全
+  OK·replay 原样·失败切换全程 100-152ms）; F4 ⑨ 回注矛盾→确定性落
+  Active(to)+NewEpoch(11)+av=21→反向 preserved（av=22）→teardown; 阶段一
+  C0/C1/C2=F3（真 5.12s 证据超时闭环）/STORM/C3（本次 c3-next=permanent
+  recovery-required 干净形态·拒收零委托）全绿。attempt1 如实归档: F4 首版
+  布尔旋钮在 ①a 提前点火=0a pre-begin 形态（gate 场景设计错误·产品零改动·
+  7 断言 fail·阈值制修复）。证据盒 r65-cutover-recovery 4 件 md5 盒=origin。
+- 登记=报告 2026-09-07-a2-8-05-r65-physical-cutover-recovery.md §1-§4+tasks
+  item-7 R65-A 段+EVIDENCE-INDEX+本节。
+- 下一步: R65-B（入口早卫兵——A0 §3.5 已裁）→R64-6' 30min（谓词 v2）→停,
+  等用户裁 Step 15（2h/8h/24h）。

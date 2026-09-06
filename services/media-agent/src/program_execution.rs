@@ -392,6 +392,12 @@ struct Inner {
     /// 归 ExecutionGroup, program_epoch/segment 归本 Authority——经
     /// SwitchExecutionPlan/SwitchExecuted 关联, 各自拥有自己的状态）。
     timeline: TimelineAuthority,
+    /// R65-A 契约 §3.2（2026-09-07 R65-A0）: 本轮切换尝试中
+    /// `adapter.switch()` 是否已返回 Ok（=翻转已执行、必落）。chain 顶复位
+    /// false; switch() Ok 后置 true——恢复稳定再观测的**期望感知**输入
+    /// （不经错误字符串/不经相位推断——on_switch_executed 失败路径的
+    /// 硬件事实只有 switch() 位点持有）。
+    switch_executed_in_attempt: bool,
 }
 
 /// Program Execution Runtime（组合根装配后为 program 资源唯一 owner）。
@@ -493,6 +499,7 @@ impl ProgramExecutionRuntime {
                             tap_port,
                             watchdog_stop: None,
                             timeline,
+                            switch_executed_in_attempt: false,
                         })),
                         published: Mutex::new(Some(initial)),
                     })
@@ -625,9 +632,14 @@ impl ProgramExecutionRuntime {
         let result = Self::switch_program_locked(inner, intent);
         if result.is_err() {
             // R63-A 恢复契约（Observed 优先）: 任何失败后按再观测落定两平面
-            // ——尽力恢复, 恢复自身失败只记录, 绝不吞/改原始错误。fence 守卫
-            // 在本函数返回时 Drop 兜底解除; 恢复先于 Drop, 经 adapter observe
-            // 与 watchdog 同通路（不取 inner 锁——无自锁）。
+            // ——尽力恢复, 恢复自身失败只记录, 绝不吞/改原始错误。
+            // R65-A 时序契约（2026-09-07 R65-A0 §2/§3.1——更正 R63 注释
+            // "恢复先于 Drop"的失准措辞）: fence 守卫 Drop 强释在
+            // switch_program_locked 返回时已完成（release-Err 时更在
+            // confirm_and_release 帧内）——恢复经 adapter observe 与
+            // watchdog 同通路（不取 inner 锁——无自锁）, 且观测取自
+            // force_open 之后的**物理稳定再观测**协议（迟翻窗口内单发
+            // 观测不可信——R64 发现①②三跑三态在案）。
             recover_after_failed_switch(inner);
         }
         // R63-B3: 出口发布（成败与恢复后各一次）——切换结束后首个查询即见
@@ -645,6 +657,9 @@ impl ProgramExecutionRuntime {
         inner: &mut Inner,
         intent: &SwitchIntent,
     ) -> Result<ProgramSwitchReport, SwitchError> {
+        // R65-A 契约 §3.2: 期望感知输入复位——本轮 attempt 的 executed 标志
+        // （switch() Ok 后置 true; 恢复稳定协议据此选择期望规则）。
+        inner.switch_executed_in_attempt = false;
         // ⓪ R58 cutover fence: V+A 双面 Armed——自此旧世代数据不再进入
         // Program 观测（INV-F1 在途处置按构造覆盖; INV-F3 双面同装;
         // 守卫 Drop 兜底 ①-④ 任意错误路径解除 barrier 恢复流面）。
@@ -688,6 +703,10 @@ impl ProgramExecutionRuntime {
         // R63-A: 状态恢复统一交外层包装按再观测落定（Observed 优先——
         // adapter Err ≠ 翻转未发生, 不再盲 abort）。
         let executed = inner.switcher.switch(&inner.graph, &execution_plan)?;
+        // R65-A 契约 §3.2: 翻转已执行（必落）——即使后续 ④联动/release/
+        // 证据/settle 失败, 物理终态=to; 恢复稳定协议据此只接受稳定
+        // Some(to)（迟翻窗口内稳定 from=伪稳定, 拒绝）。
+        inner.switch_executed_in_attempt = true;
         // ④ Domain 联动（executed 标记——终裁 §9 顺序: mark execution
         // state → 等下游 cutover 证据 → Release）。
         inner
@@ -816,8 +835,11 @@ impl ProgramExecutionRuntime {
     }
 }
 
-/// R63-A: 失败后恢复落定（Observed 优先——契约 2026-09-06 R63-A0）。
-/// 再观测经 adapter observe（与 watchdog 同通路, 不取 inner 锁）; 组平面
+/// R63-A: 失败后恢复落定（Observed 优先——契约 2026-09-06 R63-A0;
+/// R65-A 时序契约 2026-09-07 R65-A0 §3）。再观测经 adapter observe（与
+/// watchdog 同通路, 不取 inner 锁）, 且取自 fence 守卫 Drop 强释之后的
+/// **物理稳定再观测**协议（迟翻窗口内单发观测三跑三态在案——R64 发现①②;
+/// 已执行翻转只接受稳定 Some(to), 分叉态不可构造）; 组平面
 /// 仅当停留 Switching 才 `reconcile_switch`（pre-begin 失败组未动）; 时间线
 /// 按相位分流: 未翻转（SwitchRequested 且 observed≠to）→ 既有
 /// `abort_transition`（epoch/世代不变）; 已执行/已闩（SwitchExecuted/
@@ -826,7 +848,17 @@ impl ProgramExecutionRuntime {
 /// observed 未知→诚实停留, 恢复归会话级故障面）。恢复失败只记录——尽力
 /// 恢复, 不改变原始错误的上抛。
 fn recover_after_failed_switch(inner: &mut Inner) {
-    let observed = inner.switcher.observe(&inner.graph).program.observed_active;
+    // R65-A §3.2 期望感知输入: executed 标志（本轮 switch() 是否已 Ok）
+    // + 本轮 attempt 的 (from, to)（组停留 Switching 时）。
+    let executed = inner.switch_executed_in_attempt;
+    let attempt = {
+        let g = inner.group.lock().unwrap();
+        match g.desired {
+            crate::switch_execution::SwitchDesired::Switching { from, to } => Some((from, to)),
+            _ => None,
+        }
+    };
+    let observed = observe_active_settled(inner, executed, attempt);
     let mut group_landed: Option<Result<crate::switch_execution::SwitchDesired, SwitchError>> =
         None;
     {
@@ -861,6 +893,78 @@ fn recover_after_failed_switch(inner: &mut Inner) {
         timeline = ?timeline_landed,
         "R63-A 切换失败后恢复落定（Observed 优先）"
     );
+}
+
+/// R65-A 契约 §3.2（2026-09-07 R65-A0）: 期望感知稳定再观测——`force_open`
+/// 即返后物理翻转迟落窗内单发观测不可信（R64 三跑三态: L1 落 Active(from)+
+/// 迟翻分歧死锁 / L2 None 终态 / L3 Some(to) 自洽）。协议只读
+/// `observed_active`（**不喂时间线**——纯观测稳定器, 非第二套时间语义）,
+/// 复用 ⑨ settle 同族常量（节奏/轮数/界）:
+/// - executed=true（本轮 `adapter.switch()` 已 Ok——翻转已执行、必落）:
+///   只接受连续 `TIMELINE_SETTLE_ROUNDS` 次 == Some(to)。稳定 from=迟翻
+///   伪稳定、None=V/A 分歧瞬态或真未知——均继续轮询; 界尽仍无 → None
+///   （未知——落 RecoveryRequired 诚实终态, absence≠false）。
+/// - executed=false / 组不在 Switching（未执行或同步回滚, 当前值即终态）:
+///   普通稳定——任意连续同值即返回（from→abort 语义; 稳定 None→终态）;
+///   界尽（振荡不敛）→ None。
+fn observe_active_settled(
+    inner: &Inner,
+    executed: bool,
+    attempt: Option<(uuid::Uuid, uuid::Uuid)>,
+) -> Option<uuid::Uuid> {
+    let expect_to = if executed {
+        attempt.map(|(_, to)| to)
+    } else {
+        None
+    };
+    let deadline = std::time::Instant::now() + TIMELINE_SETTLE_TIMEOUT;
+    let mut streak_state = SettleStreak::default();
+    loop {
+        let cur = inner.switcher.observe(&inner.graph).program.observed_active;
+        let streak = streak_state.feed(cur);
+        if settle_accepts(cur, streak, expect_to) {
+            return cur;
+        }
+        if std::time::Instant::now() >= deadline {
+            // 界尽: 已执行未获稳定 to / 未执行亦不敛 → 未知（不猜）。
+            return None;
+        }
+        std::thread::sleep(TIMELINE_POLL_INTERVAL);
+    }
+}
+
+/// 稳定计数器（连续同值——None 亦为一值: absence≠false 语义下**稳定缺席**
+/// 是可判定的终态输入, 与"瞬态缺席"由连续性区分）。
+#[derive(Default)]
+struct SettleStreak {
+    streak: u32,
+    last: Option<Option<uuid::Uuid>>,
+}
+
+impl SettleStreak {
+    fn feed(&mut self, cur: Option<uuid::Uuid>) -> u32 {
+        if self.last == Some(cur) {
+            self.streak += 1;
+        } else {
+            self.streak = 1;
+            self.last = Some(cur);
+        }
+        self.streak
+    }
+}
+
+/// 落定接受判据（纯决策核——单测钉住三面: 稳定落定/期望拒绝/轮数门槛）。
+/// expect_to=Some(to): 只接受稳定 Some(to)（迟翻伪稳定 from 与稳定 None 均
+/// 拒绝——R64 L1 死锁根因）; expect_to=None: 普通稳定（任意连续
+/// `TIMELINE_SETTLE_ROUNDS` 同值即落, 含稳定 None）。
+fn settle_accepts(cur: Option<uuid::Uuid>, streak: u32, expect_to: Option<uuid::Uuid>) -> bool {
+    if streak < TIMELINE_SETTLE_ROUNDS {
+        return false;
+    }
+    match expect_to {
+        Some(to) => cur == Some(to),
+        None => true,
+    }
 }
 
 /// C-TIMELINE-01 轮询参数（观察层节流——非时间线语义; 常量不 IO 等待媒体）。
@@ -1701,5 +1805,57 @@ mod six_path_tests {
         assert_eq!(e.switch_epoch, 1);
         assert_eq!(e.phase, EvidencePhase::PostSwitch);
         assert_eq!(e.program_av_delta_ns, Some(900));
+    }
+}
+
+/// R65-A §3.2 纯决策核单测（无 mock 门——随 default 腿运行; 稳定计数/
+/// 接受判据/期望拒绝三面钉住契约）。
+#[cfg(test)]
+mod r65_settle_tests {
+    use super::*;
+
+    #[test]
+    fn streak_counts_consecutive_identical_and_resets_on_change() {
+        let mut s = SettleStreak::default();
+        let id = uuid::Uuid::new_v4();
+        assert_eq!(s.feed(Some(id)), 1);
+        assert_eq!(s.feed(Some(id)), 2);
+        assert_eq!(s.feed(Some(id)), 3);
+        // 变值（含 None<->Some 切换）复位——absence 亦为一值
+        assert_eq!(s.feed(None), 1);
+        assert_eq!(s.feed(None), 2);
+        assert_eq!(s.feed(Some(id)), 1);
+        assert_eq!(s.feed(None), 1);
+    }
+
+    #[test]
+    fn acceptance_plain_mode_takes_any_stable_value_at_rounds() {
+        let id = uuid::Uuid::new_v4();
+        assert!(!settle_accepts(Some(id), TIMELINE_SETTLE_ROUNDS - 1, None));
+        assert!(settle_accepts(Some(id), TIMELINE_SETTLE_ROUNDS, None));
+        // 稳定缺席 = 可判定终态输入（→ RecoveryRequired 语义臂）
+        assert!(settle_accepts(None, TIMELINE_SETTLE_ROUNDS, None));
+    }
+
+    #[test]
+    fn acceptance_expectation_mode_rejects_pseudo_stable_from() {
+        let from = uuid::Uuid::new_v4();
+        let to = uuid::Uuid::new_v4();
+        // 迟翻伪稳定: 稳定 from 无论多少轮都不接受（R64 L1 死锁根因）
+        assert!(!settle_accepts(
+            Some(from),
+            TIMELINE_SETTLE_ROUNDS,
+            Some(to)
+        ));
+        assert!(!settle_accepts(Some(from), 99, Some(to)));
+        // 稳定 None 同样不接受（V/A 分歧瞬态或真未知）
+        assert!(!settle_accepts(None, TIMELINE_SETTLE_ROUNDS, Some(to)));
+        // 稳定 to 才接受（且须达轮数门槛）
+        assert!(!settle_accepts(
+            Some(to),
+            TIMELINE_SETTLE_ROUNDS - 1,
+            Some(to)
+        ));
+        assert!(settle_accepts(Some(to), TIMELINE_SETTLE_ROUNDS, Some(to)));
     }
 }

@@ -1527,4 +1527,25 @@
   零触碰·重基因 None 须选源违 absence≠false 登记为残留）——问答未获
   答复按推荐冻结·计划批准即裁决; ⑥谓词 v2 四条冻结（threads 有界 ≤4/
   逐命令 epoch+1/逐命令 observed==target/info 级 watchdog）=单独登记的
-  验收谓词修订非静默改脚本; ⑦Step15/17 本轮不启动·PR#30 不 merge]**]**]
+  验收谓词修订非静默改脚本; ⑦Step15/17 本轮不启动·PR#30 不 merge]**
+
+  **[R65-A1+A2 实现与真机段（2026-09-07·commit 2）: A0 契约全量兑现——生产
+  触碰收敛 program_execution.rs 单文件（settle 协议三件+Inner executed 标志+
+  纯单测×3+失准注释更正; reconcile 两函数/complete_switch/force_release/
+  force_open/watchdog 语义零改动）; mock 侧 P1 迟翻**首次可表达**（force_
+  release 后前 6 次 observe 滞报旧源——无期望规则必落 Active(from)=L1 死锁
+  形态·有则必落 Active(to)·确定性回归）+界尽诚实终态测试（振荡→5s 界→
+  RecoveryRequired+Permanent 确定性两次同）; gate 阶段二重写=三变体容忍→
+  **F2×10 确定性**+F4 行（regress_pts_from 阈值制锚定本轮 switch 委托后）;
+  盒矩阵终态全绿: fmt0（回传 md5 双侧一致）/232/232/**434**（414+9+11）/
+  **276**（273+3）/gates bin 1e4f0372/clippy×3 全 0; **真机 attempt2 规范
+  exit0 failures=0**: F2×10 **10/10 确定性落 Active(to)——R64 四跑三态零
+  复现**（av=2i/tl=i 逐轮精确·六平面全 OK·replay 原样·失败切换全程
+  100-152ms）+F4 ⑨ 回注→确定性落 to+NewEpoch(11)+反向 preserved+teardown+
+  阶段一 C0/C1/C2=F3（真 5.12s 超时闭环）/STORM/C3（c3-next 本次=permanent
+  recovery-required 干净形态）全绿; attempt1 如实归档=F4 首版布尔旋钮在 ①a
+  提前点火成 0a pre-begin 形态（gate 场景设计错误·产品零改动·阈值制修复）;
+  工程坑: clippy manual_is_multiple_of+**R62 坑复发**（mock 测试腿在 hw bin
+  构建后重建 debug bin 致 gates bin mock 化——hw bin 必须最后一次构建）;
+  证据 r65-cutover-recovery 4 件 md5 盒=origin; **下一步 R65-B 早卫兵
+  （A0 §3.5 已裁）→R64-6' 30min（谓词 v2）→停等 Step15 裁决**]**]**]

@@ -23,7 +23,12 @@
 //!   段唯一 Err 源即 on_program_pts 矛盾, adapter observe 无 Err 通道）;
 //! - degraded: `observe()` 的 observed_active 置 None（再观测未知 → 不猜）;
 //! - 0a: 首次正常切换后 `observe()` 注入 pts 回退（①a 稳态闩锁——组未动而
-//!   timeline 卡 TransitionFailed 的第三闩锁位点, R62 矩阵未列）。
+//!   timeline 卡 TransitionFailed 的第三闩锁位点, R62 矩阵未列）;
+//! - R65 迟翻: `force_release` 被调（守卫 Drop 强释）后 observe 前
+//!   `LATE_FLIP_LAG` 次仍报旧源 from（模拟真机 force_open 即返、物理 pad
+//!   翻转迟落窗——R64 发现① P1 形态, mock 侧首次可表达）;
+//! - R65 界尽: switch 成功后 observed_active 在真值与 None 间逐次振荡
+//!   （永不连续稳定 → 恢复界尽 → RecoveryRequired 诚实终态）。
 //!
 //! 边界（如实）:
 //! - 五个编排超时为编译期常量（无 env/配置旋钮）, F2 以即时 Err 注入
@@ -82,6 +87,10 @@ fn dual_group(session_id: SessionId, a: Uuid, b: Uuid) -> ExecutionGroup {
     .unwrap()
 }
 
+/// R65 迟翻回归: force_release 后 observe 前 K 次仍报旧源（> 稳定轮数 3——
+/// 无期望规则必伪稳定落 Active(from), 即 R64 L1 死锁形态）。
+const LATE_FLIP_LAG: u32 = 6;
+
 /// 故障注入适配器: 全方法委托 mock, 按 flag 在指定调用点注入失败。
 struct FaultProbeAdapter {
     inner: MockSwitchExecutionAdapter,
@@ -101,6 +110,14 @@ struct FaultProbeAdapter {
     regress_pts: AtomicBool,
     /// degraded: observe() 的 observed_active 置 None（再观测未知）。
     suppress_observed: AtomicBool,
+    /// R65 迟翻: force_release 后前 `LATE_FLIP_LAG` 次 observe 仍报旧源。
+    late_flip: AtomicBool,
+    force_releases: AtomicU32,
+    post_force_observes: AtomicU32,
+    last_from: Mutex<Option<Uuid>>,
+    /// R65 界尽: switch 成功后 observed_active 真值/None 逐次振荡。
+    oscillate_observed: AtomicBool,
+    observe_calls: AtomicU32,
 }
 
 impl FaultProbeAdapter {
@@ -116,6 +133,12 @@ impl FaultProbeAdapter {
             suppress_facts: AtomicBool::new(false),
             regress_pts: AtomicBool::new(false),
             suppress_observed: AtomicBool::new(false),
+            late_flip: AtomicBool::new(false),
+            force_releases: AtomicU32::new(0),
+            post_force_observes: AtomicU32::new(0),
+            last_from: Mutex::new(None),
+            oscillate_observed: AtomicBool::new(false),
+            observe_calls: AtomicU32::new(0),
         }
     }
 }
@@ -141,6 +164,10 @@ impl SwitchExecutionAdapter for FaultProbeAdapter {
         }
         let r = self.inner.switch(graph, plan)?;
         self.switches_done.fetch_add(1, Ordering::SeqCst);
+        if self.late_flip.load(Ordering::SeqCst) {
+            // R65 迟翻模拟需要本轮 plan 的 from（强释后 observe 滞报旧源）。
+            *self.last_from.lock().unwrap() = Some(plan.from);
+        }
         Ok(r)
     }
     fn install_timeline_transition(
@@ -191,6 +218,10 @@ impl SwitchExecutionAdapter for FaultProbeAdapter {
         self.inner.release_cutover_fence(graph, timeout)
     }
     fn force_release_cutover_fence(&self, graph: &PipelineHandle) -> Result<u64, SwitchError> {
+        // R65 迟翻模拟锚点: 守卫 Drop 强释（force_open 同位点）后开始计
+        // post-release observe 次数——前 LATE_FLIP_LAG 次滞报旧源。
+        self.force_releases.fetch_add(1, Ordering::SeqCst);
+        self.post_force_observes.store(0, Ordering::SeqCst);
         self.inner.force_release_cutover_fence(graph)
     }
     fn observe(&self, graph: &PipelineHandle) -> ProgramExecutionObservation {
@@ -204,6 +235,28 @@ impl SwitchExecutionAdapter for FaultProbeAdapter {
         if self.suppress_observed.load(Ordering::SeqCst) {
             // degraded: 再观测未知（absence≠false——恢复不得猜）。
             obs.program.observed_active = None;
+        }
+        // R65 迟翻窗口模拟: force_release（守卫 Drop 强释）后前 LAG 次 observe
+        // 仍报旧源——真机 pad 翻转迟落的事实形态（R64 发现① P1）。
+        if self.late_flip.load(Ordering::SeqCst)
+            && self.switches_done.load(Ordering::SeqCst) >= 1
+            && self.force_releases.load(Ordering::SeqCst) >= 1
+        {
+            let n = self.post_force_observes.fetch_add(1, Ordering::SeqCst) + 1;
+            if n <= LATE_FLIP_LAG {
+                if let Some(from) = *self.last_from.lock().unwrap() {
+                    obs.program.observed_active = Some(from);
+                }
+            }
+        }
+        // R65 振荡模拟: 真值与 None 逐次交替（永不连续稳定——界尽路径）。
+        if self.oscillate_observed.load(Ordering::SeqCst)
+            && self.switches_done.load(Ordering::SeqCst) >= 1
+        {
+            let n = self.observe_calls.fetch_add(1, Ordering::SeqCst) + 1;
+            if n.is_multiple_of(2) {
+                obs.program.observed_active = None;
+            }
         }
         obs
     }
@@ -779,4 +832,117 @@ fn r63_replay_after_recovery_returns_original_outcome() {
     assert_eq!(ok.status, CommandStatus::Executed, "恢复后 B→A 真实成功");
     println!("R63-MATRIX replay(original=Failed) == replayed(byte-identical); new-id=Executed");
     w.runtime.teardown();
+}
+
+// ── R65 P1 迟翻回归: force_open 后物理翻转迟落窗内, 恢复不得落旧源 ────────
+
+/// R64 发现① 的 mock 侧首次可表达形态: release 确认失败 + 守卫 Drop 强释后
+/// observe 前 `LATE_FLIP_LAG`(=6>3) 次仍报旧源 from（迟翻伪稳定）, 之后报
+/// 真值 to。**无期望规则必落 Active(from)+迟翻分歧死锁（R64 L1）; 有期望
+/// 规则必落 Active(to)**——确定性回归。
+#[test]
+fn r65_late_flip_after_force_release_lands_to_not_from() {
+    let w = world();
+    w.adapter.late_flip.store(true, Ordering::SeqCst);
+    w.adapter.fail_release.store(true, Ordering::SeqCst);
+    let err = w
+        .runtime
+        .switch_program(&intent(w.b))
+        .expect_err("F2 注入: 排空确认失败");
+    assert!(
+        matches!(&err, SwitchError::Backend(s) if s.contains("F2")),
+        "{err:?}"
+    );
+    w.adapter.late_flip.store(false, Ordering::SeqCst);
+    // P1 回归主断言: 期望感知稳定协议拒绝迟翻伪稳定 from（连续 6 次>3）→
+    // 落 Active(to)——分叉态 Desired=A/Observed=A/Physical=B 不可构造。
+    let (desired, epoch, observed, active) = snap(&w);
+    assert_eq!(
+        desired,
+        SwitchDesired::ActiveInput(w.b),
+        "R65: 迟翻窗口内稳定 from 不可信——必须落 Active(to)"
+    );
+    assert_eq!(epoch, 1);
+    assert_eq!(observed, Some(w.b), "滞报窗后真值 to");
+    assert!(active);
+    let (tl_epoch, tl_source, disc) = tl(&w);
+    assert_eq!(tl_epoch, ProgramEpoch(1), "已执行→NewEpoch 落定");
+    assert_eq!(tl_source, Some(w.b));
+    assert!(disc.contains("DiscontinuityDeclared"), "{disc}");
+    row("R65-LF", &err, &desired, epoch, observed, active);
+    // 恢复后反向再切立即合法。
+    w.adapter.fail_release.store(false, Ordering::SeqCst);
+    let report = w
+        .runtime
+        .switch_program(&intent(w.a))
+        .expect("R65: 恢复后 B→A 应成功");
+    assert!(matches!(
+        report.outcome,
+        media_agent::program_timeline::TransitionOutcome::Preserved { .. }
+    ));
+    let (desired, epoch, observed, _) = snap(&w);
+    assert_eq!(desired, SwitchDesired::ActiveInput(w.a));
+    assert_eq!(epoch, 2);
+    assert_eq!(observed, Some(w.a));
+    println!("R65-MATRIX late-flip lands=Active(to) next=Preserved epoch=2 tl_epoch=1");
+    w.runtime.teardown();
+}
+
+// ── R65 界尽诚实终态: 观测永不稳定 → RecoveryRequired（absence≠false）────
+
+/// executed=true 但 observed_active 真值/None 逐次振荡（永不连续 3 同值）→
+/// 恢复走满 `TIMELINE_SETTLE_TIMEOUT` 界 → 视为未知 → RecoveryRequired 诚实
+/// 终态（不猜 from/to）; 下次切换 Permanent 拒收（两次逐字节同=确定性）。
+#[test]
+fn r65_never_settling_observation_bounds_out_to_recovery_required() {
+    let w = world();
+    w.adapter.oscillate_observed.store(true, Ordering::SeqCst);
+    w.adapter.fail_release.store(true, Ordering::SeqCst);
+    let t0 = Instant::now();
+    let err = w
+        .runtime
+        .switch_program(&intent(w.b))
+        .expect_err("F2 注入: 排空确认失败");
+    let elapsed = t0.elapsed();
+    assert!(
+        matches!(&err, SwitchError::Backend(s) if s.contains("F2")),
+        "{err:?}"
+    );
+    assert!(
+        elapsed >= Duration::from_millis(4_900),
+        "R65: 不敛观测走满 TIMELINE_SETTLE_TIMEOUT(5s) 界: {elapsed:?}"
+    );
+    assert!(
+        elapsed < Duration::from_secs(8),
+        "R65: 界外不得有额外等待: {elapsed:?}"
+    );
+    w.adapter.oscillate_observed.store(false, Ordering::SeqCst);
+    // 界尽 → 未知 → RecoveryRequired 终态（不猜）; 时间线诚实停留。
+    let (desired, epoch, _observed, active) = snap(&w);
+    assert_eq!(
+        desired,
+        SwitchDesired::RecoveryRequired { from: w.a, to: w.b },
+        "R65: 界尽=观测未知——RecoveryRequired 终态"
+    );
+    assert_eq!(epoch, 1);
+    assert!(active);
+    let (tl_epoch, tl_source, _) = tl(&w);
+    assert_eq!(tl_epoch, ProgramEpoch(0), "时间线诚实停留（epoch 不动）");
+    assert_eq!(tl_source, Some(w.a));
+    row("R65-EX", &err, &desired, epoch, None, active);
+    // 下一次切换: RecoveryRequired 拒收（两次逐字节同——确定性; 分类面在
+    // dispatch 单测, 此处钉运行时错误形态）。
+    let e1 = w
+        .runtime
+        .switch_program(&intent(w.a))
+        .expect_err("终态拒收 1");
+    let e2 = w
+        .runtime
+        .switch_program(&intent(w.b))
+        .expect_err("终态拒收 2");
+    assert!(matches!(&e1, SwitchError::RecoveryRequired(_)), "{e1:?}");
+    assert_eq!(format!("{e1:?}"), format!("{e2:?}"), "确定性拒收");
+    println!("R65-MATRIX bound-exhaust lands=RecoveryRequired next=Permanent(deterministic)");
+    w.runtime.teardown();
+    assert!(!w.runtime.is_active());
 }

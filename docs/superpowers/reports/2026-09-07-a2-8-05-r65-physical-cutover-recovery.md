@@ -124,10 +124,47 @@ observed=None 时重基必须为 `Stable{source}` 选源（from 或 to）——�
 | watchdog_ticks | 递增（warn 级测不到） | **RUST_LOG=info 运行**，tick/teardown 行可测且递增 |
 | RSS/fd/drops/critical | — | 原样冻结（上轮全 PASS） |
 
-## 4. A1 实现 + A2 真机（commit2 填充）
+## 4. A1 实现 + A2 真机（commit 2）
 
-（占位——commit2 落地后回填：diff 清单、mock 矩阵结果 431、F2×10/F3/F4
-真机结果、epoch 记账核对、证据清单。）
+### 4.1 diff 清单（生产 1 文件 + 测试脚手架 2 文件）
+
+| 文件 | 改动 | 性质 |
+|---|---|---|
+| src/program_execution.rs | Inner 私有字段 `switch_executed_in_attempt`（chain 顶复位/switch() Ok 后置真）+ `observe_active_settled`（⑨ 同型 streak+deadline+sleep 循环, 期望规则 §3.2, 只读 observed_active 不喂时间线）+ `SettleStreak`/`settle_accepts` 纯决策核 + `recover_after_failed_switch` 单发观测替换 + :627-630 失准注释更正 + `r65_settle_tests` 纯单测 ×3 | **生产唯一触碰** |
+| tests/switch_fault_probe.rs | FaultProbeAdapter 增迟翻/振荡两旋钮（`late_flip`=force_release 后前 6 次 observe 滞报旧源·`oscillate_observed`=真值/None 逐次交替）+ 新测试 ×2 | 测试脚手架 |
+| src/gates/r64_control_plane.rs | 阶段二重写: 三变体容忍 C2b → `phase2_c2b_f2_deterministic_loop`（F2×10 确定性 + 反向再切 + 精确记账断言）+ F4 行（`regress_pts_from` **阈值制**旋钮——锚定本轮 switch 委托后, 避免 ①a 提前点火）+ `checkpoint_finding` 删除（无调用点） | 测试脚手架（gate） |
+
+### 4.2 盒矩阵（最终代码态）
+
+fmt 0（产物 scp 回·md5 双侧一致）/ default **232**（229+3 纯单测）/ simulation **232** /
+mock **434**（414+9+11=旧 9+新 2+纯 3）/ hw **276**（273+3）/ gates bin hw 构建成功
+（md5 1e4f0372）/ clippy ×3（default/mock/hw）全 0。工程坑两笔如实登记:
+① clippy `manual_is_multiple_of`（`n % 2 == 0`→`is_multiple_of(2)`）; ② **R62 坑复发**——
+`cargo test --features mock` 会以 mock 特性重建 debug bin, 在显式 hw 构建**之后**跑了
+mock 腿复跑导致 gates bin mock 化（provider=mock + r64 派发块被编译掉→"未命中任何
+gate env"）; 重建后恢复（顺序纪律: hw bin 构建必须是最后一次构建）。
+
+### 4.3 A2 真机（gates bin `VBMF_A2_8_R64_CP=1`, attempt2 规范 run exit 0）
+
+- **F2×10 确定性: 10/10 落 Active(to)**——R64 四跑三态（L1 死锁/L2 终态/L3 自洽）
+  **零复现**; 每轮记账精确: 失败轮委托 plan epoch=2i−1 / 反向=2i / tl=i, 10 轮后
+  av=20·tl=10; 六平面检查点全 OK; 同 id replay 原样; 失败切换全程 ~100-152ms
+  （force_open 后物理翻转快速落定, 期望协议 ~3×50ms 收敛）。
+- **F4 行**: ⑨ 回注矛盾（observed 1 vs 真实基线 ~10.3e9）→ FailClosed → 确定性落
+  Active(to) + NewEpoch(11) + av=21 → 反向再切 preserved（av=22）→ teardown OK。
+- 阶段一回归全绿: C0/C1（replay+retry av 直跳 4）/C2=F3（真 5.12s 证据超时→落 A+
+  tl=1+DD→反向 preserved）/STORM（窗内快照=旧已提交·无未来时间戳）/C3（RecoveryRequired
+  终态→c3-next 本次=permanent recovery-required 干净形态·拒收零委托·teardown 诚实缺席）。
+- **attempt1（如实归档）**: F4 首版旋钮为布尔门（switches_done≥1）——gate 世界携带
+  20 次前置切换史, 回注在 ①a 提前点火=0a pre-begin 形态（落 Active(from)+abort 语义,
+  链完全自洽）→ 7 项断言 fail; 修复=阈值制锚定本轮 switch 委托后。**产品代码零改动**
+  ——纯 gate 场景设计错误, attempt1.log 全量存档。
+
+### 4.4 证据
+
+`evidence/bmd-10.30.15.10/r65-cutover-recovery/`: header.txt（时间/bin+manifest md5/env）+
+gate-run.log（attempt2 规范 exit0）+ gate-run-attempt1.log（F4 场景错误全档）+ md5s.txt
+（盒=origin 逐字节一致）。gates bin md5 1e4f0372·manifest 7521d17e（钉扎吻合）。
 
 ## 5. R65-B（commit3 填充）
 
