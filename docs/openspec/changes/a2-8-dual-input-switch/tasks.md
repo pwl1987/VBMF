@@ -1357,3 +1357,23 @@
   裁决; 矩阵全绿 fmt/229/229/405+6/268/clippy×3; 证据盒
   r62-cp-safety-probe 入库 md5 全过——报告=2026-09-06-a2-8-05-r62-
   control-plane-safety-probe.md + 主账 §91]**
+
+  **[R63-A0 恢复契约段（2026-09-06·契约先行·本 commit 先于代码 commit）:
+  用户 R63 裁决=修复架构轮开启——两个实证问题各开独立 change·先 A（域
+  状态机恢复）再 B（Transport 并发·std-only·禁 async 框架）·R64 全矩阵→
+  Step 15 长稳→Step 17 RC 顺序冻结; **恢复 SoT: Observed 优先, Desired 由
+  reconciliation 推进; observation ≠ intent; absence ≠ false（observed=None
+  不猜 A/B）**; 三类落定: ①翻转未生效失败→Desired 回 Active(from)+Timeline
+  回 Stable{from}（abort 语义·epoch/世代不变）; ②已执行但证据/落定失败→
+  命令 outcome 保持 Failed（不伪装成功）+两平面 reconcile 落 Active(observed)
+  +Stable{observed}·ProgramEpoch+1·新段以 observed 恒等锚重开·
+  DiscontinuityDeclared·PTS 基线清空（不伪造连续性）; ③observed=None/组外
+  →新词表 SwitchDesired::RecoveryRequired{from,to} 终态（不猜）·下次切换
+  Permanent 拒收·自动恢复不在本轮（恢复=会话级 teardown）; replay: 同
+  command_id 重放≡原始 outcome 逐字节（恢复只动状态平面·不改写已记录
+  应答）; 红线: complete_switch（observed==to 才落定）/force_release 语义
+  禁改·watchdog 不改（新变体→consistent=false 如实上报不动作·单测钉住）·
+  R53 闩锁纪律不破坏（reconcile=显式恢复转移·干净边界重开段基准·违例
+  历史入 immutable 段史不洗）; switch_epoch 在 begin 已消费·reconcile 不再
+  变更——契约全文=2026-09-06-a2-8-05-r63-a-switch-failure-recovery.md §2
+  （随用户计划批准即锁）]**
