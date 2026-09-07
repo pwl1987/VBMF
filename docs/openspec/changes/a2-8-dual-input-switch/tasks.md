@@ -1611,3 +1611,15 @@
   r64-stability-8h（21 件）+r64-stability-8h-gate（3 件）md5 盒=origin·独立
   解析器同 verdict; 登记主账 §96+EVIDENCE-INDEX 两行; **按停点规则整梯
   停止: 24h rung 未启动——Step 15 = 2h PASS + 8h FAIL 停等用户裁决]**
+
+  **[Step15 段·part 3（2026-09-07·S15-E01 RCA·只读）: 用户裁决=维持 8h
+  FAIL（不可改 PASS）·24h 不启动·生产+阈值双冻结·cycle 908 升格独立事件
+  S15-E01（spontaneous recovery event）·指令只读 RCA; **RCA 结论（报告
+  2026-09-07-s15-e01-video-evidence-timeout-rca.md）: 不是 Video PTS 迟到
+  ——⑤ segment_observed 旗门控读-竞争窗错过已到达事件**（fence 无条件
+  捕获+下游 seqnum 确认成功 vs 同探针 executed 门控旗未置=同一事件双消费者
+  分裂铁锚; 事件命中于 adapter switch() 的 video 翻转→executed=true 窗口;
+  pending=[Video] 与 video 先翻暴露窗最长精确吻合; 工件层六面全正常; mock
+  零复现=证据推进轮询驱动天然后置）; 定性=簿记层真实微观竞争（非媒体/
+  硬件/deadline 层·1/1320·FailClosed→恢复→NewEpoch 完整吸收）; 修复三
+  候选登记未实施（另裁）]**

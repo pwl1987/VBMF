@@ -4981,3 +4981,24 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   r64-stability-8h-gate（3 件）md5 盒=origin; 独立 reanalyze-long.py 对同一
   产物重析=同 verdict。**梯子停止: 24h rung 未启动——Step 15 = 2h PASS +
   8h FAIL 停等用户裁决**。
+- **用户裁决（8h 后）**: 维持 8h FAIL 原判（不可改 PASS·十谓词冻结字面）；
+  24h 不启动；生产代码+阈值双冻结；cycle 908 升格独立事件 **S15-E01**
+  （spontaneous recovery event——比 960/960 PASS 更有价值：恢复语义首次
+  真机自发触发实证）；指令=只读 RCA（目的非改判，是判定「可接受偶发边界
+  vs 真实稳定性缺陷」；关键问题=Video PTS 真迟到还是 collector 没看到
+  已存在的数据）。
+- **S15-E01 RCA 完成（只读·报告 2026-09-07-s15-e01-video-evidence-timeout-rca.md）**:
+  判定=**后者**——数据按时在场，⑤ 旗门控的读-竞争窗错过已到达事件。
+  推理链全锚: 帧满速（dv=1011/34s 与标称吻合）+输入弧 advancing 全程+
+  PTS 基线推进正常（工件层六面全正常·svc.log 8h 唯一运行期 WARN 即恢复行）；
+  fence `capture_segment` **无条件**捕获了 Video 新世代 Segment（rt_02 登记
+  前提: arm→翻转无其它 Segment 源）且 `release_after_drain` 双面 seqnum 确认
+  成功返回（cycle 908 收到证据超时错而非 fence 错=drain 确认成功铁锚）→
+  同一 EVENT 探针回调里 executed 门控的时间线旗未置 → 事件命中于
+  **video 翻转→`t.executed=true`** 窗口（adapter switch() 次序 :1123-1147·
+  video 先翻暴露窗最长=与 pending=[Video] 精确吻合·audio 后翻已过窗）；
+  map_pts 纯加法无拒绝路径（排除越界拒）；mock 零复现=轮询驱动证据推进
+  天然后置 executed（结构性缺席）。定性=**真实可指认的簿记层微观竞争**
+  （非媒体/硬件/deadline/调度层；1/1320 触发·FailClosed→R63-A 恢复→
+  NewEpoch 诚实再基准完整吸收·零停摆零污染）。修复方向三候选登记未实施
+  （executed 前移/⑤ 无条件闩锁/seqnum 暂存回放——另裁·生产冻结维持）。
