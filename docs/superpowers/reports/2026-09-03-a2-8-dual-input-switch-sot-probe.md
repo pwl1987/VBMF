@@ -4956,3 +4956,28 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   （21 件）+ r64-stability-2h-gate（3 件）全件 md5 盒=origin；独立
   reanalyze-long.py 对同一产物重析=同 verdict。
 - 2h PASS → 按步进规则自动启动 8h rung（960 周期·同构流程）。
+- **8h rung（960 周期·09:29-17:33 盒钟）VERDICT FAIL（9/10）——整梯按停点
+  规则停止, 不启动 24h, 等用户裁决**: 开场 gate exit0（failures=0·findings=1
+  =F2×10 确定性 10/10 数据行）。soak（bin 2b5aa760·manifest 7521d17e）其余
+  九项全过: threads spread=2（29-31）/fd 14→14/RSS 首/末 1/3 1249.4→1277.2MB
+  （+27.8MB/8h 无单调爬升·50MB 界内）/**epoch 1→960 逐命令恰 +1**/
+  **observed==target 960/960**/frames v 25→829254·a 34→1105503 严格递增/
+  drops 恒 0/**watchdog 1379→2764**/events 480 采样 critical=0; 数据行:
+  replay 192/192 原样·**13659 查询零非-200**·teardown 完成行=1·服务干净退出。
+  **唯一 FAIL 谓词 = switches_all_executed_preserved 959/960——cycle 908
+  （08:29:01Z·运行 7h34m 处）一条切换响应 executed+classification=unknown+
+  detail「timeline 证据超时 FailClosed: timeline evidence insufficient
+  (pending planes: [Video])」**。完整事件链（只读取证·证据零改动）: 视频面
+  PTS 证据窗**自发**超时 → 响应诚实报 unknown（不伪装成功）→ svc.log 全窗
+  唯一关键行 WARN 08:29:01.557Z「**R63-A 切换失败后恢复落定（Observed 优先）**
+  observed_active=Some(to)·timeline=NewEpoch{ProgramEpoch(1)·SourceSegment(to)}」
+  ——R63-A/R65 恢复路径的**真实自发执行** → 回读 observed==target·sw_epoch 仍
+  +1·tl_ep 0→1·seg=909·discontinuity_declared·v_cont=declared_discontinuity
+  诚实再基准 → 后续 52 周期（909-960）全 executed+preserved·tl_ep=1 保持·
+  零死锁零发散。定性（归裁决）: 全程序**首次自发**（非注入）真机证据超时——
+  全部稳定基线运行（30m v1/v2+2h+8h=1320 次切换）唯一一例（1/960≈0.1%）;
+  R64 gate C2 的 5.02s 超时为注入形态, 本例为其自发对应; 系统行为与 R65/
+  R63-A 设计语义完全一致。证据 r64-stability-8h（21 件）+
+  r64-stability-8h-gate（3 件）md5 盒=origin; 独立 reanalyze-long.py 对同一
+  产物重析=同 verdict。**梯子停止: 24h rung 未启动——Step 15 = 2h PASS +
+  8h FAIL 停等用户裁决**。

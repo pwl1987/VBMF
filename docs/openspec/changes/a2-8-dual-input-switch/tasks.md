@@ -1595,3 +1595,19 @@
   gates bin f7f7db7d 强制重编同哈希）；证据 r64-stability-2h（21 件）+
   r64-stability-2h-gate（3 件）md5 盒=origin；登记主账 §96+EVIDENCE-INDEX
   两行；PASS 自动续步 → 8h rung（960 周期）启动]**
+
+  **[Step15 段·part 2（2026-09-07·8h rung）: 开场 gate exit0 failures=0
+  （「错误后恢复切换」·F2×10 10/10）; **8h soak VERDICT FAIL（9/10）按原样
+  交付——唯一 FAIL=switches_all_executed_preserved 959/960**: cycle 908
+  （运行 7h34m 处）视频面 PTS 证据窗**自发**超时→响应诚实 executed+unknown
+  「timeline 证据超时 FailClosed (pending planes:[Video])」→svc.log 单行
+  WARN=**R63-A 恢复路径真实自发执行（Observed 优先落定 to·NewEpoch(1)+
+  SourceSegment(to)）**→tl_ep 0→1+seg 909+DD 诚实再基准→后续 52 周期全
+  executed+preserved·零死锁零发散·teardown 干净; 其余九项全过（epoch 1→960
+  逐命令恰 +1·observed==target 960/960·RSS +27.8MB 无爬升·watchdog
+  1379→2764·replay 192/192 原样·13659 查询零非-200）**——全程序首次自发
+  （非注入）证据超时（1320 次稳定基线切换唯一一例≈0.1%）·R64 gate C2 注入
+  形态的自发对应·系统行为符合 R65/R63-A 设计·定性归用户裁决; 证据
+  r64-stability-8h（21 件）+r64-stability-8h-gate（3 件）md5 盒=origin·独立
+  解析器同 verdict; 登记主账 §96+EVIDENCE-INDEX 两行; **按停点规则整梯
+  停止: 24h rung 未启动——Step 15 = 2h PASS + 8h FAIL 停等用户裁决]**
