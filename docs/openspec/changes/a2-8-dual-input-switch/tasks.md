@@ -1582,3 +1582,16 @@
   修正入库; 证据 r64-stability-30m-v2 22 件 md5 盒=origin; **R65 全链
   完成（A0→A1→A2→B→R64-6'·四 commit 82834fd/b5a54b0/4250e79/本提交）
   ——停, 等用户裁 Step 15（2h→8h→24h）→Step 17→链末收口]**
+
+  **[Step15 段·part 1（2026-09-07·Step15-0 782e290+2h rung）: 用户终裁进入
+  Step 15（R65/R65-CI CLOSED·CI 7/7·PR #30 OPEN·生产九文件冻结）——探针
+  参数化推广（r64-stability-long.sh + reanalyze-long.py·十谓词 v2 阈值逐字
+  不放宽·30m 工件字节不动）+ 盒源码 md5=26e6cde 同态核验 + 真机 smoke
+  CYCLES=6 = PASS 10/10（内嵌/独立解析器交叉复核一致）+ CI success；
+  **2h rung VERDICT PASS 10/10**（240 周期: epoch 1→240 逐命令恰 +1·
+  240/240 executed+preserved·observed==target 240/240·RSS +1.1MB 无爬升·
+  watchdog 343→691·replay 48/48 原样·3415 查询零非-200·teardown 完成）+
+  开场 gate exit0 failures=0（「错误后恢复切换」R62 用户令·F2×10 10/10·
+  gates bin f7f7db7d 强制重编同哈希）；证据 r64-stability-2h（21 件）+
+  r64-stability-2h-gate（3 件）md5 盒=origin；登记主账 §96+EVIDENCE-INDEX
+  两行；PASS 自动续步 → 8h rung（960 周期）启动]**

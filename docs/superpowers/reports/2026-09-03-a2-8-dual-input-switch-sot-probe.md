@@ -4930,3 +4930,29 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   =10/10; 首跑保留 summary-parserbug.txt。证据 r64-stability-30m-v2
   22 件 md5 盒=origin。
 - R65 全链完成（A0→A1→A2→B→R64-6'）: 停, 等用户裁 Step 15（2h/8h/24h）。
+
+## §96 Step 15: 长稳验收 2h→8h→24h（真服务无注入 soak + 每步开场 r64 gate·2026-09-07）
+
+- 用户终裁进入 Step 15（R65/R65-CI CLOSED·CI 7/7 run 34064040960·PR #30
+  OPEN 未合并）；生产九文件冻结。步进=PASS 自动续步·FAIL/异常整梯即停报
+  （计划批准默认）；「错误后恢复切换」场景（R62 登记）=每步开场真机 r64
+  控制面 gate 一轮落实（FaultControlWrapper·生产零触碰·与 soak 分目录取证）。
+- **载体=冻结 30min 骨架参数化推广**（Step15-0 commit 782e290·CI success）:
+  r64-probe/r64-stability-long.sh（env CYCLES/DWELL/REPLAY_EVERY/TAG·默认
+  复现 30m 形态）+ reanalyze-long.py（expected_cycles 第 4 参·谓词 4/5/6 的
+  60→N）——已登记 30m 工件字节不动·**十谓词 v2 阈值逐字不随时长放宽**。
+  盒源码三文件（R65 链全部改动）md5=26e6cde 同态核验；真机 smoke
+  CYCLES=6 DWELL=1 = PASS 10/10 EXIT=0（内嵌与独立解析器对同一产物交叉
+  复核一致·smoke 证据按计划弃置）。
+- **2h rung（240 周期×~30s·07:10:59-09:13 盒钟）VERDICT PASS 10/10**:
+  开场 gate exit0（failures=0·findings=1=F2×10 确定性 10/10 数据行；gates
+  bin f7f7db7d——touch 强制重编同哈希=26e6cde 纯空白改动产出同一二进制的
+  证明）。soak（bin 2b5aa760=R64-6' 同源·manifest 7521d17e）: threads
+  spread=2（29-31）/fd 14→14/**RSS 1237.6→1238.7MB（2h 仅 +1.1MB·无爬升）**/
+  **epoch 1→240 逐命令恰 +1**/**240/240 executed+preserved**/**observed==target
+  240/240**/frames v 28→206653·a 38→275500 严格递增/drops 恒 0/**watchdog
+  343→691**/events 120 采样 critical=0；数据行: replay 48/48 原样·**3415
+  查询零非-200**·teardown 完成行=1·服务干净退出。证据 r64-stability-2h
+  （21 件）+ r64-stability-2h-gate（3 件）全件 md5 盒=origin；独立
+  reanalyze-long.py 对同一产物重析=同 verdict。
+- 2h PASS → 按步进规则自动启动 8h rung（960 周期·同构流程）。
