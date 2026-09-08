@@ -121,7 +121,7 @@ fn now_ms() -> u64 {
 /// trait 方法全委托（R53 correctness face 零触碰）; 旋钮按场景前置位/后清除,
 /// 不置位时行为与裸真实适配器逐字节等价。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-struct FaultControlWrapper {
+pub(crate) struct FaultControlWrapper {
     inner: Arc<dyn SwitchExecutionAdapter>,
     /// 第 N 次 `switch` 调用注入 Err（**不委托**——硬件未动; 0=off）。C1/C3。
     fail_switch_on: AtomicU32,
@@ -144,11 +144,23 @@ struct FaultControlWrapper {
     /// 提前点火（= 0a pre-begin 形态, 首跑实测在案）——必须锚到本轮
     /// switch 委托之后。0=off。
     regress_pts_from: AtomicU32,
+    /// S15-E01 竞争窗注入: 下一次 `switch()` 委托**前**经 seam 强制投递
+    /// pre-executed 新世代 Segment 事实（默认 off; 一次性消费——swap 取走
+    /// 即复位）。修复③裁决 2026-09-08。
+    pre_switch_segment_video: AtomicBool,
+    /// S15-E01 已注入次数（场景对账行）。
+    segment_injections: AtomicU32,
+    /// S15-E01 seam 落点: 具体适配器（注入需 crate 内接缝——trait 面无此
+    /// 面; None=未配置则注入 fail-closed）。
+    concrete: Option<Arc<crate::adapters::gstreamer::GStreamerSwitchAdapter>>,
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 impl FaultControlWrapper {
-    fn wrap(inner: Arc<dyn SwitchExecutionAdapter>) -> Self {
+    fn wrap(
+        inner: Arc<dyn SwitchExecutionAdapter>,
+        concrete: Option<Arc<crate::adapters::gstreamer::GStreamerSwitchAdapter>>,
+    ) -> Self {
         Self {
             inner,
             fail_switch_on: AtomicU32::new(0),
@@ -158,6 +170,9 @@ impl FaultControlWrapper {
             suppress_facts: AtomicBool::new(false),
             suppress_observed: AtomicBool::new(false),
             regress_pts_from: AtomicU32::new(0),
+            pre_switch_segment_video: AtomicBool::new(false),
+            segment_injections: AtomicU32::new(0),
+            concrete,
         }
     }
 
@@ -179,6 +194,17 @@ impl FaultControlWrapper {
 
     fn clear_regress_pts(&self) {
         self.regress_pts_from.store(0, Ordering::SeqCst);
+    }
+
+    /// S15-E01: 武装下一次 switch 委托前的竞争窗注入（一次性——
+    /// switch() 入口 swap 取走即复位; 与 fail_release 同 arm/clear 语义）。
+    pub(crate) fn arm_pre_switch_segment(&self) {
+        self.pre_switch_segment_video.store(true, Ordering::SeqCst);
+    }
+
+    /// S15-E01: 已注入次数（场景对账行）。
+    pub(crate) fn segment_injections(&self) -> u32 {
+        self.segment_injections.load(Ordering::SeqCst)
     }
 }
 
@@ -204,6 +230,24 @@ impl SwitchExecutionAdapter for FaultControlWrapper {
             return Err(SwitchError::Backend(format!(
                 "R64-C1/C3 注入: adapter switch 失败（第 {n} 次调用——未委托, 硬件未动）"
             )));
+        }
+        // S15-E01 竞争窗注入（委托前——此刻编排已完成 arm+install, 故
+        // fence Armed/timeline installed/executed=false 恰为竞争窗入口）:
+        // 强制 "新世代 Segment 先于 executed=true 到达"。一次性消费;
+        // 注入失败=fail-closed（不静默降级为无注入跑——那会假绿）。
+        if self.pre_switch_segment_video.swap(false, Ordering::SeqCst) {
+            match self
+                .concrete
+                .as_ref()
+                .ok_or_else(|| SwitchError::Backend("S15E01 注入前置失败: 未持具体适配器".into()))
+                .and_then(|c| {
+                    c.inject_pre_executed_segment(graph, crate::program_timeline::MediaPlane::Video)
+                }) {
+                Ok(()) => {
+                    self.segment_injections.fetch_add(1, Ordering::SeqCst);
+                }
+                Err(e) => return Err(e),
+            }
         }
         let r = self.inner.switch(graph, plan)?;
         self.switches_done.fetch_add(1, Ordering::SeqCst);
@@ -306,7 +350,7 @@ struct SixPlaneSnapshot {
 
 /// 静息点期望（场景给出——checker 只判矛盾, 不猜状态）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-enum Quiescence {
+pub(crate) enum Quiescence {
     Active(uuid::Uuid),
     /// 终态闩锁: 观测面**不与 desired 作等值约束**（闩锁后观测可恢复——设计
     /// 语义: 状态机拒绝猜测, 仅 teardown 解锁）; 下一切换必须 Permanent 拒收。
@@ -417,7 +461,7 @@ fn check_quiescent_consistency(s: &SixPlaneSnapshot, q: &Quiescence) -> Vec<Stri
 
 /// 断言收集（fail-closed: 全量收集后统一 exit, 不中断采集）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn chk(failures: &mut Vec<String>, cond: bool, msg: String) {
+pub(crate) fn chk(failures: &mut Vec<String>, cond: bool, msg: String) {
     if !cond {
         failures.push(msg);
     }
@@ -476,11 +520,11 @@ fn http_req(
 
 /// 命令 POST 结果（①②平面数据: dispatch status + classification + detail）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-struct Cmd {
-    status: u16,
-    jstatus: String,
-    classification: Option<String>,
-    detail: Option<String>,
+pub(crate) struct Cmd {
+    pub(crate) status: u16,
+    pub(crate) jstatus: String,
+    pub(crate) classification: Option<String>,
+    pub(crate) detail: Option<String>,
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
@@ -496,7 +540,12 @@ fn parse_cmd(status: u16, body: String) -> Cmd {
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn post_switch(addr: SocketAddr, cid: uuid::Uuid, sid: &SessionId, target: uuid::Uuid) -> Cmd {
+pub(crate) fn post_switch(
+    addr: SocketAddr,
+    cid: uuid::Uuid,
+    sid: &SessionId,
+    target: uuid::Uuid,
+) -> Cmd {
     let body = format!(
         "{{\"command_id\":\"{cid}\",\"kind\":\"switch_program\",\"target\":{{\"target_type\":\"switch_program\",\"session_id\":\"{}\",\"target_device\":\"{target}\"}},\"requested_by\":\"r64-gate\"}}",
         sid.0
@@ -512,7 +561,7 @@ fn post_switch(addr: SocketAddr, cid: uuid::Uuid, sid: &SessionId, target: uuid:
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn post_stop(addr: SocketAddr, cid: uuid::Uuid, sid: &SessionId) -> Cmd {
+pub(crate) fn post_stop(addr: SocketAddr, cid: uuid::Uuid, sid: &SessionId) -> Cmd {
     let body = format!(
         "{{\"command_id\":\"{cid}\",\"kind\":\"stop_session\",\"target\":{{\"target_type\":\"session_by_id\",\"session_id\":\"{}\"}},\"requested_by\":\"r64-gate\"}}",
         sid.0
@@ -529,7 +578,7 @@ fn post_stop(addr: SocketAddr, cid: uuid::Uuid, sid: &SessionId) -> Cmd {
 
 /// /runtime 的 program_switch 块（缺席=Value::Null）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn api_program_switch(addr: SocketAddr) -> (u16, serde_json::Value) {
+pub(crate) fn api_program_switch(addr: SocketAddr) -> (u16, serde_json::Value) {
     let (s, b, _) = http_req(
         addr,
         "GET",
@@ -584,7 +633,7 @@ fn collect_six_planes(
 
 /// 检查点: 采集 + 判定 + R64-MATRIX 行打印（矛盾计入 failures——判据段）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-fn checkpoint(
+pub(crate) fn checkpoint(
     failures: &mut Vec<String>,
     label: &str,
     expect: &Quiescence,
@@ -618,21 +667,21 @@ fn checkpoint(
 
 /// 一个干净世界: 真实双输入 Session + 注入 wrapper runtime + 真控制面服务。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-struct GateWorld {
+pub(crate) struct GateWorld {
     #[allow(dead_code)]
     mgr: Arc<crate::session::SessionManager>,
-    rt: Arc<ProgramExecutionRuntime>,
-    wrapper: Arc<FaultControlWrapper>,
-    sid: SessionId,
-    a: uuid::Uuid,
-    b: uuid::Uuid,
-    addr: SocketAddr,
+    pub(crate) rt: Arc<ProgramExecutionRuntime>,
+    pub(crate) wrapper: Arc<FaultControlWrapper>,
+    pub(crate) sid: SessionId,
+    pub(crate) a: uuid::Uuid,
+    pub(crate) b: uuid::Uuid,
+    pub(crate) addr: SocketAddr,
 }
 
 /// 构造失败 = fail-closed exit(2)（前置非判据——a204_obs 同纪律）。
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 #[allow(clippy::too_many_arguments)]
-fn build_gate_world(
+pub(crate) fn build_gate_world(
     cfg: &Config,
     devices: &[DeviceInfo],
     discovered: &[DiscoveredDevice],
@@ -777,10 +826,14 @@ fn build_gate_world(
             std::process::exit(2);
         }
     };
-    // R64-1 核心: 真实 bridged 适配器 + gate 私有注入 wrapper（旋钮默认 off）。
-    let real_switcher: Arc<dyn SwitchExecutionAdapter> =
-        Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged());
-    let wrapper = Arc::new(FaultControlWrapper::wrap(real_switcher));
+    // R64-1 核心: 真实 bridged 适配器 + gate 私有注入 wrapper（旋钮默认 off;
+    // concrete 同源克隆供 S15-E01 seam——trait 面无注入面）。
+    let real_concrete = Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged());
+    let real_switcher: Arc<dyn SwitchExecutionAdapter> = real_concrete.clone();
+    let wrapper = Arc::new(FaultControlWrapper::wrap(
+        real_switcher,
+        Some(real_concrete),
+    ));
     let tap_wirings: Vec<TapWiring> = started_inputs
         .iter()
         .map(crate::program_execution::TapWiring::for_input)

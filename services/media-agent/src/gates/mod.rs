@@ -15,4 +15,5 @@ pub mod loopback;
 pub mod r64_control_plane;
 pub mod registry;
 pub mod resolver;
+pub mod s15e01_race;
 pub mod session_lifecycle;

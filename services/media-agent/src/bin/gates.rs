@@ -5,6 +5,7 @@
 //!   VBMF_A2_8_DUAL_INPUT（A2-8-02-I 五层 Gate, 第十八轮 §十/§十五）/
 //!   VBMF_A2_8_04_OBS（A2-8-04 多场景六路观测, R52——observation only）/
 //!   VBMF_A2_8_R64_CP（R64 真服务恢复矩阵——real Control Plane + test-controlled adapter）/
+//!   VBMF_A2_8_S15E01_RACE（S15-E01 竞争窗确定性复现——修复③真机判据）/
 //!   VBMF_REGISTRY_ONLY
 //! Gate 逻辑在 lib `gates/` 模块族（逐字节迁自 main.rs, 行为零变）。
 //!
@@ -97,6 +98,21 @@ fn main() {
         &_world.projection_log,
     );
 
+    // S15-E01（修复③裁决 2026-09-08）: ⑤ executed 门控竞争窗确定性复现
+    // ——强制 pre-executed Segment 经真实 collector 计入（真机层判据;
+    // 确定性层=switch_graph 内联四锁）。
+    #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+    media_agent::gates::s15e01_race::run(
+        &_world.config,
+        &_world.devices,
+        &_world.discovered,
+        &_world.lease_manager,
+        &_world.supervisor,
+        &_world.agent_state,
+        &_world.event_sink,
+        &_world.projection_log,
+    );
+
     // REGISTRY_ONLY 置底（原 main 中该探针在 supervisor 之后; 未命中任何 gate 时
     // 本 bin 无事可做——显式提示后退出, 绝不进入生产 runtime 循环）。
     #[cfg(feature = "hardware-test")]
@@ -105,7 +121,8 @@ fn main() {
     eprintln!(
         "media-agent-gates: 未命中任何 gate env \
          (VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE / \
-         VBMF_A2_8_DUAL_INPUT / VBMF_A2_8_04_OBS / VBMF_A2_8_R64_CP / VBMF_REGISTRY_ONLY)"
+         VBMF_A2_8_DUAL_INPUT / VBMF_A2_8_04_OBS / VBMF_A2_8_R64_CP / \
+         VBMF_A2_8_S15E01_RACE / VBMF_REGISTRY_ONLY)"
     );
     std::process::exit(2);
 }

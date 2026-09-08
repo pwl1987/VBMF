@@ -69,6 +69,12 @@ struct PlaneTimelineExec {
     /// ⑤ Segment(target) 事件已在该平面 selector 出口观测（声明驱动身份:
     /// 翻转后该平面首个 Segment 即 target 段——F2; 禁 active-pad readback）。
     segment_observed: bool,
+    /// S15-E01 修复③: executed 门控竞争窗（video 翻转→executed 置位,
+    /// cycle 908 首证）内先到的新世代 Segment seqnum 暂存——**首个**
+    /// （与 fence first-while-Armed 同源配对）; switch() 提交点按 fence
+    /// 世代锚回放判定, 无锚/不匹配即丢弃（fail-closed 保持）。install
+    /// 整槽替换 = 按声明段世代重置。
+    pre_executed_segment: Option<gstreamer::Seqnum>,
     /// ⑥⑦ 首枚 target 缓冲（source 原值, mapped=声明映射施加后）。
     first_mapped: Option<(u64, u64)>,
     /// 最近观测（source, mapped）——持续证据。
@@ -167,7 +173,7 @@ fn attach_plane_probes(
     let src = selector
         .static_pad("src")
         .ok_or_else(|| SwitchError::Backend("selector src pad 缺失".into()))?;
-    // ⑤ EVENT probe。
+    // ⑤ EVENT probe（核心在 `on_selector_segment_event`——S15-E01 抽出可测）。
     let slot = Arc::clone(timeline);
     let fence_ev = fences.clone();
     src.add_probe(
@@ -175,16 +181,7 @@ fn attach_plane_probes(
         move |_pad, info| {
             if let Some(ev) = info.event() {
                 if ev.type_() == gstreamer::EventType::Segment {
-                    // R58 步骤5.1 世代身份捕获: Armed 期间首个 Segment=
-                    // 本次切换新世代 Segment（序号下传——下游确认按序号
-                    // 匹配, 陈旧 Segment 不可误确认; EVENT 不阻塞）。
-                    fence_ev.capture_segment(plane, ev.seqnum());
-                    let mut guard = slot.lock().unwrap();
-                    if let Some(t) = guard.as_mut() {
-                        if t.executed {
-                            t.plane_mut(plane).segment_observed = true;
-                        }
-                    }
+                    on_selector_segment_event(&fence_ev, &slot, plane, ev.seqnum());
                 }
             }
             gstreamer::PadProbeReturn::Ok
@@ -219,6 +216,55 @@ fn attach_plane_probes(
         gstreamer::PadProbeReturn::Ok
     });
     Ok(())
+}
+
+/// ⑤ EVENT 探针核心（S15-E01 抽出可测）: 一枚到达 selector 出口的
+/// Segment 事实的双消费者落点——
+/// ① fence 世代身份捕获（无条件; R58 步骤5.1: Armed 期间首个 Segment=
+/// 本次切换新世代 Segment, 序号下传——下游确认按序号匹配, 陈旧 Segment
+/// 不可误确认）;
+/// ② timeline ⑤ 记账: `executed` 已置位 → 直接观测; **先到**（executed
+/// 门控竞争窗——cycle 908 首证）→ 暂存**首个** seqnum（与 fence
+/// first-while-Armed 同源配对）, `switch()` 提交点回放判定（世代归属以
+/// fence 捕获为准绳, 无锚/不匹配即丢弃 fail-closed——真缺证据场景
+/// `EvidenceInsufficient` 保护保持）。
+fn on_selector_segment_event(
+    fences: &FencePair,
+    timeline: &Arc<Mutex<Option<TimelineExecutionState>>>,
+    plane: MediaPlane,
+    seq: gstreamer::Seqnum,
+) {
+    fences.capture_segment(plane, seq);
+    let mut guard = timeline.lock().unwrap();
+    if let Some(t) = guard.as_mut() {
+        if t.executed {
+            t.plane_mut(plane).segment_observed = true;
+        } else {
+            let p = t.plane_mut(plane);
+            if p.pre_executed_segment.is_none() {
+                p.pre_executed_segment = Some(seq);
+            }
+        }
+    }
+}
+
+/// S15-E01 修复③: switch() 提交点回放——暂存的先到 Segment 事实按 fence
+/// 世代锚判定计入（`t.executed` 置位后同临界区调用; 两锁不嵌套纪律:
+/// fence 序号已在锁外 copy-out）。无锚/不匹配 → 丢弃（fail-closed 保持）。
+fn replay_pre_executed_segments(
+    t: &mut TimelineExecutionState,
+    fence_seqs: (Option<gstreamer::Seqnum>, Option<gstreamer::Seqnum>),
+) {
+    for (plane, anchor) in [
+        (MediaPlane::Video, fence_seqs.0),
+        (MediaPlane::Audio, fence_seqs.1),
+    ] {
+        if let Some(stashed) = t.plane_mut(plane).pre_executed_segment.take() {
+            if anchor == Some(stashed) {
+                t.plane_mut(plane).segment_observed = true;
+            }
+        }
+    }
 }
 
 /// ⑥⑦ 探针核心（R53 抽出可测）: 对一枚到达 selector 出口的缓冲施加声明
@@ -459,6 +505,13 @@ impl FencePair {
         }
     }
 
+    /// S15-E01 修复③: 世代锚读取（copy-out——`Seqnum` Copy; 两锁不嵌套
+    /// 纪律: 调用方在 timeline 临界区**外**短锁取值后释放）。
+    fn captured_segment_seqnums(&self) -> (Option<gstreamer::Seqnum>, Option<gstreamer::Seqnum>) {
+        let s = self.state.lock().unwrap();
+        (s.video_segment_seq, s.audio_segment_seq)
+    }
+
     /// 下游确认（appsink sink pad EVENT 探针）: 按序号匹配本世代 Segment
     /// ——queue 保序 ⇒ 该 Segment 到达=其入队前排队的全部 Arm 前旧世代
     /// 缓冲已被消费门处置（INV-F1 排空事实锚——终裁 §10⑨/§11）。陈旧/
@@ -642,6 +695,34 @@ impl GStreamerSwitchAdapter {
             mode: SwitchMaterialization::Bridged,
             ..Self::default()
         }
+    }
+
+    /// S15-E01 gate 注入接缝（**仅 gates 消费——生产路径不可达**;
+    /// 确定性层=内联 S15-E01 四锁直接驱动 `on_selector_segment_event`）:
+    /// 强制 "新世代 Segment 先于 `executed=true` 到达" 竞争窗——与真实
+    /// EVENT 探针同一生产函数（fence capture + ⑤ 暂存）, 并以同一 seqnum
+    /// 配对驱动下游确认落点（= 事件真实穿透两探针的净效果; 零媒体流
+    /// 扰动——不向 pad 投递事件, appsink 不收伪 Segment）。调用时机 =
+    /// 编排 install→switch 间隙（fence 已 Armed、timeline 已 install、
+    /// executed=false）——真机自然命中 ~0.1%/switch（cycle 908 首证）,
+    /// 本接缝把概率事件变成确定性事实。
+    #[cfg(any(test, feature = "bmd-provider"))]
+    pub(crate) fn inject_pre_executed_segment(
+        &self,
+        graph: &PipelineHandle,
+        plane: MediaPlane,
+    ) -> Result<(), SwitchError> {
+        let (fences, timeline) = {
+            let graphs = self.graphs.lock().unwrap();
+            let g = graphs
+                .get(graph)
+                .ok_or(SwitchError::GraphNotRunning(*graph))?;
+            (g.fences.clone(), g.timeline.clone())
+        };
+        let seq = gstreamer::Seqnum::next();
+        on_selector_segment_event(&fences, &timeline, plane, seq);
+        fences.confirm_segment(plane, seq);
+        Ok(())
     }
 }
 
@@ -1143,8 +1224,16 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         g.av_epoch = plan.epoch;
         // C-TIMELINE-01 ④: 标记执行（TimelineExecutionState 只记执行事实——
         // **不产生 ProgramEpoch**[第三十二轮 §十三禁做; epoch 归 Domain]）。
+        // S15-E01 修复③: 提交点回放——executed 门控竞争窗（video 翻转→
+        // executed 置位; cycle 908 首证, ~1ms×30fps≈0.1%/switch）内先到的
+        // 新世代 Segment 事实在此计入。世代归属以 fence 捕获 seqnum 为准绳
+        // （与下游 drain 确认同一信任锚——rt_02 结构唯一前提, 零新增信任
+        // 假设）; 无锚/不匹配 → 丢弃 fail-closed（真缺证据仍走
+        // EvidenceInsufficient）。fence 序号先短锁 copy-out（两锁不嵌套）。
+        let fence_seqs = g.fences.captured_segment_seqnums();
         if let Some(t) = g.timeline.lock().unwrap().as_mut() {
             t.executed = true;
+            replay_pre_executed_segments(t, fence_seqs);
         }
         Ok(SwitchExecuted {
             boundary: FrameBoundary::FrameAligned,
@@ -1199,6 +1288,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             video: PlaneTimelineExec {
                 segment: plan.video,
                 segment_observed: false,
+                pre_executed_segment: None,
                 first_mapped: None,
                 last_observed: None,
                 continuation: MappedContinuation::Boundary,
@@ -1206,6 +1296,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             audio: PlaneTimelineExec {
                 segment: plan.audio,
                 segment_observed: false,
+                pre_executed_segment: None,
                 first_mapped: None,
                 last_observed: None,
                 continuation: MappedContinuation::Boundary,
@@ -1743,6 +1834,7 @@ mod tests {
         let plane = || PlaneTimelineExec {
             segment: seg,
             segment_observed: true,
+            pre_executed_segment: None,
             first_mapped: None,
             last_observed: None,
             continuation: MappedContinuation::Boundary,
@@ -1963,6 +2055,211 @@ mod tests {
             .remove(&handle);
     }
 
+    // ── S15-E01（Step 15 8h cycle 908; 裁决 2026-09-08 修复③）: ⑤ executed
+    // 门控竞争窗四锁 ── 判据（用户新增）: 强制 Segment 先于 executed=true
+    // 到达——必须被计入、不得卡 AwaitSegmentEvent; 世代归属以 fence 捕获
+    // 为准绳; fail-closed 对真缺证据保持。真机层=gates s15e01_race
+    // （VBMF_A2_8_S15E01_RACE——wrapper 委托前接缝注入, 穿真实 collector）。
+
+    /// S15-E01 rig: arm→install（executed=false）就绪图 + 槽/fence Arc 取出。
+    /// 与 r53 纯状态图差异: switch() 需真实 selector sink pad——按生产
+    /// `sink_%u` 模板请求两枚（自 0 顺序编号）, 翻转路径真实元素属性。
+    fn s15e01_rig(
+        adapter: &GStreamerSwitchAdapter,
+        handle: u64,
+        a: Uuid,
+        b: Uuid,
+    ) -> (
+        PipelineHandle,
+        FencePair,
+        Arc<Mutex<Option<TimelineExecutionState>>>,
+    ) {
+        gstreamer::init().expect("gst init");
+        let graph = r53_insert_graph(adapter, handle, a, b, r53_timeline(a));
+        {
+            let mut graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get_mut(&graph).unwrap();
+            for sel in [&g.video_selector, &g.audio_selector] {
+                for _ in 0..2 {
+                    sel.request_pad_simple("sink_%u")
+                        .expect("请求 selector sink pad（set_active 前置）");
+                }
+            }
+        }
+        let seg =
+            SourceSegment::identity(b, ProgramEpoch(0), crate::program_timeline::SegmentId(1));
+        adapter
+            .install_timeline_transition(
+                &graph,
+                &ProgramTimelinePlan {
+                    target: b,
+                    switch_epoch: 1,
+                    video: seg,
+                    audio: seg,
+                },
+            )
+            .expect("install（executed=false 起步）");
+        let (fences, slot) = {
+            let graphs = adapter.graphs.lock().unwrap();
+            let g = graphs.get(&graph).unwrap();
+            (g.fences.clone(), g.timeline.clone())
+        };
+        (graph, fences, slot)
+    }
+
+    #[test]
+    fn switch_graph_s15e01_pre_executed_segment_stash_replayed_on_commit() {
+        // 锁A（核心红绿）: arm→install→Segment 经 EVENT 探针生产函数先到
+        // （fence capture+⑤暂存）→switch() 提交→回放计入 segment_observed
+        // （修复前恒 false=cycle 908 竞争窗指纹）→后续 PTS 缓冲映射入段
+        // （⑥⑦ 闭链——不卡 AwaitSegmentEvent/AwaitFirstMapped）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let adapter = GStreamerSwitchAdapter::default();
+        let (graph, fences, slot) = s15e01_rig(&adapter, 977_301, a, b);
+        fences.arm();
+        let seq = gstreamer::Seqnum::next();
+        on_selector_segment_event(&fences, &slot, MediaPlane::Video, seq);
+        {
+            let guard = slot.lock().unwrap();
+            let t = guard.as_ref().expect("槽在");
+            assert_eq!(t.video.pre_executed_segment, Some(seq), "先到事实暂存在案");
+            assert!(!t.video.segment_observed, "executed 前不得计入");
+        }
+        let exec = SwitchExecutionPlan {
+            from: a,
+            target: b,
+            policy: SwitchPolicy::FrameSwitch,
+            epoch: 1,
+        };
+        adapter.switch(&graph, &exec).expect("切换执行");
+        let facts = adapter
+            .timeline_execution_facts(&graph)
+            .expect("facts（已执行）");
+        assert!(
+            facts.video.segment_observed,
+            "提交点回放必须计入先到 Segment（S15-E01）"
+        );
+        assert_eq!(facts.video.first_mapped, None, "⑥ 尚未发生（诚实缺席）");
+        assert!(!facts.audio.segment_observed, "audio 无事实=不计入（对照）");
+        {
+            let mut guard = slot.lock().unwrap();
+            let t = guard.as_mut().expect("槽在");
+            assert_eq!(t.video.pre_executed_segment, None, "暂存消费后清零");
+            let (mapped, first) = apply_declared_mapping(t, MediaPlane::Video, Some(1_000_000_000))
+                .expect("映射入段（恒等段）");
+            assert!(first, "首枚映射=声明边界");
+            assert_eq!(mapped, 1_000_000_000);
+            assert_eq!(
+                apply_declared_mapping(t, MediaPlane::Audio, Some(1_000_000_000)),
+                None,
+                "audio ⑤ 未观测=透传（fail-closed 保持）"
+            );
+        }
+    }
+
+    #[test]
+    fn switch_graph_s15e01_stash_generation_mismatch_dropped_fail_closed() {
+        // 锁B: 暂存 seqnum ≠ fence 世代锚（窗内两 Segment——rt_02 前提违反
+        // 形态）→ 回放丢弃, ⑤ 不计入——EvidenceInsufficient 保护不得削弱。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let adapter = GStreamerSwitchAdapter::default();
+        let (graph, fences, slot) = s15e01_rig(&adapter, 977_302, a, b);
+        fences.arm();
+        let anchor = gstreamer::Seqnum::next();
+        fences.capture_segment(MediaPlane::Video, anchor); // fence 锚=anchor
+        let stray = gstreamer::Seqnum::next();
+        on_selector_segment_event(&fences, &slot, MediaPlane::Video, stray);
+        {
+            let guard = slot.lock().unwrap();
+            let t = guard.as_ref().expect("槽在");
+            assert_eq!(t.video.pre_executed_segment, Some(stray));
+        }
+        let exec = SwitchExecutionPlan {
+            from: a,
+            target: b,
+            policy: SwitchPolicy::FrameSwitch,
+            epoch: 1,
+        };
+        adapter.switch(&graph, &exec).expect("切换执行");
+        let facts = adapter
+            .timeline_execution_facts(&graph)
+            .expect("facts（已执行）");
+        assert!(
+            !facts.video.segment_observed,
+            "世代不匹配不得计入（fail-closed）"
+        );
+        let guard = slot.lock().unwrap();
+        let t = guard.as_ref().expect("槽在");
+        assert_eq!(
+            t.video.pre_executed_segment, None,
+            "丢弃即消费（不跨代携带）"
+        );
+    }
+
+    #[test]
+    fn switch_graph_s15e01_stash_without_fence_anchor_dropped() {
+        // 锁C: fence 无世代锚（未 arm 的 switch 合法路径）→ 暂存丢弃不计入
+        // ——无世代归属事实不得冒充新世代证据。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let adapter = GStreamerSwitchAdapter::default();
+        let (graph, fences, slot) = s15e01_rig(&adapter, 977_303, a, b);
+        // 不 arm（capture 落空——锚 None）。
+        let seq = gstreamer::Seqnum::next();
+        on_selector_segment_event(&fences, &slot, MediaPlane::Video, seq);
+        let exec = SwitchExecutionPlan {
+            from: a,
+            target: b,
+            policy: SwitchPolicy::FrameSwitch,
+            epoch: 1,
+        };
+        adapter.switch(&graph, &exec).expect("切换执行");
+        let facts = adapter
+            .timeline_execution_facts(&graph)
+            .expect("facts（已执行）");
+        assert!(!facts.video.segment_observed, "无锚不得计入（fail-closed）");
+        let guard = slot.lock().unwrap();
+        let t = guard.as_ref().expect("槽在");
+        assert_eq!(t.video.pre_executed_segment, None, "丢弃即消费");
+    }
+
+    #[test]
+    fn switch_graph_s15e01_stash_reset_by_next_install() {
+        // 锁D: 暂存生命周期=声明段作用域——install 整槽替换即归零（跨代不
+        // 携带; 失败/回滚路径 executed 恒 false, 下一 install 自然重置）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let adapter = GStreamerSwitchAdapter::default();
+        let (graph, fences, slot) = s15e01_rig(&adapter, 977_304, a, b);
+        fences.arm();
+        let seq = gstreamer::Seqnum::next();
+        on_selector_segment_event(&fences, &slot, MediaPlane::Video, seq);
+        {
+            let guard = slot.lock().unwrap();
+            let t = guard.as_ref().expect("槽在");
+            assert_eq!(t.video.pre_executed_segment, Some(seq), "暂存在案");
+        }
+        let seg2 =
+            SourceSegment::identity(b, ProgramEpoch(0), crate::program_timeline::SegmentId(2));
+        adapter
+            .install_timeline_transition(
+                &graph,
+                &ProgramTimelinePlan {
+                    target: b,
+                    switch_epoch: 2,
+                    video: seg2,
+                    audio: seg2,
+                },
+            )
+            .expect("install #2");
+        let guard = slot.lock().unwrap();
+        let t = guard.as_ref().expect("新槽在");
+        assert_eq!(t.video.pre_executed_segment, None, "整槽替换=暂存归零");
+        assert!(!t.executed, "新声明段 executed 重置");
+    }
+
     // ── R58（A2-8-04 步骤 4, R58-Design 终裁 §7/§11）: M1 边界竞态确定性
     // 复现 ── 机制（R57 终裁恢复, R58-Design §1 确认）: [锚采样→install]
     // 竞态窗内旧段（仍持槽、executed=true, :891 唯一写点=整槽替换无隐藏
@@ -2019,6 +2316,7 @@ mod tests {
         let plane7 = || PlaneTimelineExec {
             segment: seg7,
             segment_observed: true,
+            pre_executed_segment: None,
             first_mapped: None,
             last_observed: None,
             continuation: MappedContinuation::Boundary,
