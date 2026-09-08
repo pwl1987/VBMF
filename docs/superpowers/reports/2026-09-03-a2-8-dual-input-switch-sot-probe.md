@@ -5002,3 +5002,46 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   （非媒体/硬件/deadline/调度层；1/1320 触发·FailClosed→R63-A 恢复→
   NewEpoch 诚实再基准完整吸收·零停摆零污染）。修复方向三候选登记未实施
   （executed 前移/⑤ 无条件闩锁/seqnum 暂存回放——另裁·生产冻结维持）。
+- **用户裁决（RCA 后·2026-09-08）**: 修复候选=**③「seqnum 暂存+回放」**
+  （①②否——最完整保留现语义: 事件可先到、后完成执行提交; 世代归属以
+  seqnum/世代锚校验; 不以状态发布顺序调整制造新时序耦合; 不混旧/新世代
+  Segment; FailClosed 对真缺证据保持）。闭环冻结=**修复→定向回归→真机
+  gate→8h 重跑**（8h 必须重新 10/10 才有资格 24h·不豁免）。新增回归判据=
+  **强制 Segment 到达发生在 executed=true 之前的竞争窗——必须最终被
+  timeline collector 计入、不得永久卡 AwaitSegmentEvent**（deterministic+
+  真机两层证据）。24h 四条件=定向测试 PASS+真机 gate PASS+8h 重跑 10/10+
+  RCA 事件闭环登记（满足即启动·不降阈不改十谓词）。顺序链=修复→8h 重验
+  →24h→Step 15 完成→P2 收口→Step 17。**旧 8h FAIL 证据绝对保留**（重跑
+  入新目录 r64-stability-8h-rerun·目标审计链=2h PASS→8h FAIL(S15-E01)→
+  RCA→fix→8h rerun PASS→24h）。
+- **S15-E01 fix3 实施（unit 1·commit d5bc130）**: 解冻面=switch graph 单
+  生产文件+gates 测试侧（wrapper 旋钮/新场景/分发接线——R65 其余冻结文件
+  零触碰）。机制: EVENT 探针体抽具名生产函数（真实闭包与测试/gate 共用
+  同一函数）——fence capture 无条件保持+executed 前先到 Segment **首个**
+  seqnum 暂存（per-plane·与 fence first-while-Armed 同源配对）; switch()
+  提交点在同一 timeline 临界区回放: 暂存==fence 捕获锚 →
+  segment_observed=true; 无锚/不匹配 → 丢弃 fail-closed
+  （EvidenceInsufficient 保护保持·两锁不嵌套纪律保持·fence 序号锁外
+  copy-out）。install 整槽替换=暂存按声明段世代重置; audio 同窗竞态天然
+  同覆盖; 失败/回滚路径 executed 恒 false 无泄漏面。
+- **定向回归（两层判据全绿·2026-09-08）**: R0 确定性四锁（盒 hw 矩阵
+  276→280·default 232/mock 435=R65 基线不变）: 锁A 竞争窗计入（先到→
+  提交回放→facts segment_observed=true→⑥⑦ 映射入段不卡
+  AwaitSegmentEvent·audio 对照不计入）/锁B 世代不匹配丢弃/锁C 无锚丢弃/
+  锁D install 重置。R1 真机强制复现（新 gate env VBMF_A2_8_S15E01_RACE·
+  wrapper switch 委托**前**一次性注入——此刻 fence Armed+timeline
+  installed+executed=false 恰为竞争窗入口·**确定性强制非概率轰击**; seam=
+  同一生产函数 capture+暂存并以同 seqnum 配对驱动下游确认=事件真实穿透
+  两探针的净效果·零媒体流扰动）×10 交替+对照轮: **11/11 outcome=preserved
+  ·单轮 ~152-158ms（远低 5s 证据窗——无超时无恢复）·av 1→11 恰 +1·
+  program_epoch 保持 0（无 FailClosed→NewEpoch rebase=竞争窗被修复吸收的
+  直接证明）·segment_id 1→11·每轮 DD·六平面检查点 init/after-races/
+  teardown 全 OK·注入计数对账 10/10**。run1 EXIT=2 如实在案: 场景断言
+  初版误抄 F2 失败轮账本（program_epoch 逐轮 +1）——成功切换正确语义=
+  epoch 保持 0+segment_id 前进（2h/8h 浸泡同口径 ProgramEpoch(0) held）;
+  核心判据（preserved×11/av 推进/DD/无超时）run1 即全绿·修正断言后 run2
+  EXIT=0。既有冻结 gate 复跑=修复零扰动证明: R64 CP gate exit0
+  （failures=0·F2×10 landed_to=10/10 保持）+ dual_input ALL PASS 10/10
+  （L0→L5+Teardown）。盒矩阵: fmt ✓/clippy --all-targets -D warnings ×3
+  组合 0。gates bin 51ce1477。证据 s15e01-race+s15e01-fix-r64cp-gate+
+  s15e01-fix-dual-input-gate（全件 md5 盒=origin）。

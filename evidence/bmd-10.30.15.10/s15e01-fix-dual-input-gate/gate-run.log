@@ -1,0 +1,89 @@
+[2m2026-09-08T03:46:58.792788Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"gstreamer" [3mmode[0m[2m=[0m"diagnostic"
+[2m2026-09-08T03:46:58.797870Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-08T03:46:58.798006Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-08T03:46:58.798045Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-08T03:46:58.798070Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-08T03:46:58.798095Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-08T03:46:58.798131Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-08T03:46:58.798167Z[0m [32m INFO[0m [2mmedia_agent_gates[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+=== A2-8 Dual Input Gate: L1→L5 真机五层验收开始 ===
+[2m2026-09-08T03:47:03.030621Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-08T03:47:03.030800Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+=== A2-8 L1 端口证据（一一对应, H4）===
+  4fa33dcb-5f76-5f76-aea8-330df7ada03e: handle=Some("46:00000000:002e4500") port_id=Some(e43d8f5a-94f5-5c67-8ed3-cddee15df04a) conn=Sdi ordinal=Known(1) dir=Input cap.input=Supported(true) cap.audio=Supported(true)(video-推导) dn=Some(0) signal=Some(true) prod_binding=true
+  6ede00d0-baf4-573f-a0dd-4a503bf7f766: handle=Some("46:00000000:002e4400") port_id=Some(f0f53b80-eefd-58f7-ac92-356e8a1bbe89) conn=Sdi ordinal=Known(1) dir=Input cap.input=Supported(true) cap.audio=Supported(true)(video-推导) dn=Some(1) signal=Some(true) prod_binding=true
+=== A2-8 L1a Identity/Binding: PASS === devices=[4fa33dcb-5f76-5f76-aea8-330df7ada03e, 6ede00d0-baf4-573f-a0dd-4a503bf7f766] bindings=2/2 production_grade
+=== A2-8 L1b Capability(SDK mask): PASS === 4fa33dcb-5f76-5f76-aea8-330df7ada03e/Sdi/input=Supported(true) audio_input=Supported(true)(video-推导工程事实) | 6ede00d0-baf4-573f-a0dd-4a503bf7f766/Sdi/input=Supported(true) audio_input=Supported(true)(video-推导工程事实)
+=== A2-8 L1c Signal Locked: PASS === 4fa33dcb-5f76-5f76-aea8-330df7ada03e/dn=Some(0)/signal=Some(true) | 6ede00d0-baf4-573f-a0dd-4a503bf7f766/dn=Some(1)/signal=Some(true)
+=== A2-8 L1d Port↔Resource closure: PASS === 4fa33dcb-5f76-5f76-aea8-330df7ada03e: manifest_port=Some(e43d8f5a-94f5-5c67-8ed3-cddee15df04a) 唯一InputResource+ID对应=true | 6ede00d0-baf4-573f-a0dd-4a503bf7f766: manifest_port=Some(f0f53b80-eefd-58f7-ac92-356e8a1bbe89) 唯一InputResource+ID对应=true
+[2m2026-09-08T03:47:03.249890Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+=== A2-8 L2a Session dual-input: PASS === session=56b3f84b-3a01-44f3-b1be-6174df5c7993 started_inputs=2 port_id=manifest port 已携带（H3: materialize 精确定位, 非 None 回退首端口）
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:03.601: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:03.602: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:03.605: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:03.605: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:03.605: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:03.605: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:04.177: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:04.177: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:04.177: gst_video_converter_free: assertion 'convert != NULL' failed
+=== A2-8 L2b MediaTap/Bridge wired: PASS === tap-4fa33dcb-5f76-5f76-aea8-330df7ada03e: frames=Some(79) | tap-6ede00d0-baf4-573f-a0dd-4a503bf7f766: frames=Some(78)
+=== A2-8 L3 Program output advancing: PASS === video_frames 120→210 audio_frames 160→280 pts v=Some(6970111694)/a=Some(6977048329) state v=ValidMonotonic
+=== A2-8 L4 三列 PTS 证据（pre-switch; 只测量）===
+  [pre A] 4fa33dcb-5f76-5f76-aea8-330df7ada03e in(v/a)=Some(6863112778)/Some(6863125000) bridge(v/a)=Some(6903107399)/Some(7023125000) prog(v/a)=Some(6970111694)/Some(6977048329) states in=ValidMonotonic/ValidMonotonic bridge=ValidMonotonic/ValidMonotonic prog=ValidMonotonic/ValidMonotonic alive=true
+  [pre B] 6ede00d0-baf4-573f-a0dd-4a503bf7f766 in(v/a)=Some(6868888079)/Some(6868770833) bridge(v/a)=Some(6908888714)/Some(6988770833) prog(v/a)=Some(6970111694)/Some(6977048329) states in=ValidMonotonic/ValidMonotonic bridge=ValidMonotonic/ValidMonotonic prog=ValidMonotonic/ValidMonotonic alive=true
+=== A2-8-04 六路逐平面取证（observation only·不判定·无阈值）===
+  [PRE A] dev=4fa33dcb-5f76-5f76-aea8-330df7ada03e phase=PreSwitch epoch=0 av_delta=Some(6936635)ns | in_v(pts=Some(9863125451) st=ValidMonotonic fr=Some(226) adv=Some(true)) in_a(pts=Some(9863125000) st=ValidMonotonic fr=Some(226) adv=Some(true)) br_v(pts=Some(9903125474) st=ValidMonotonic fr=Some(227) adv=Some(true)) br_a(pts=Some(10023125000) st=ValidMonotonic fr=Some(230) adv=Some(true)) pr_v(pts=Some(9970111694) st=ValidMonotonic fr=Some(300) adv=Some(true)) pr_a(pts=Some(9977048329) st=ValidMonotonic fr=Some(400) adv=Some(true))
+  [PRE B] dev=6ede00d0-baf4-573f-a0dd-4a503bf7f766 phase=PreSwitch epoch=0 av_delta=Some(6936635)ns | in_v(pts=Some(9868911945) st=ValidMonotonic fr=Some(225) adv=Some(true)) in_a(pts=Some(9868770833) st=ValidMonotonic fr=Some(225) adv=Some(true)) br_v(pts=Some(9908912310) st=ValidMonotonic fr=Some(226) adv=Some(true)) br_a(pts=Some(9988770833) st=ValidMonotonic fr=Some(228) adv=Some(true)) pr_v(pts=Some(9970111694) st=ValidMonotonic fr=Some(300) adv=Some(true)) pr_a(pts=Some(9977048329) st=ValidMonotonic fr=Some(400) adv=Some(true))
+=== A2-8 L4 三列 PTS 证据（post-switch; 只测量）===
+  [post A] 4fa33dcb-5f76-5f76-aea8-330df7ada03e in(v/a)=Some(14023107309)/Some(14023125000) bridge(v/a)=Some(14063107199)/Some(14143125000) prog(v/a)=Some(14170111694)/Some(14152048329) states in=ValidMonotonic/ValidMonotonic bridge=ValidMonotonic/ValidMonotonic prog=DiscontinuityDeclared/DiscontinuityDeclared alive=true
+  [post B] 6ede00d0-baf4-573f-a0dd-4a503bf7f766 in(v/a)=Some(14028952918)/Some(14028770833) bridge(v/a)=Some(14068953304)/Some(14148770833) prog(v/a)=Some(14170111694)/Some(14152048329) states in=ValidMonotonic/ValidMonotonic bridge=ValidMonotonic/ValidMonotonic prog=DiscontinuityDeclared/DiscontinuityDeclared alive=true
+  [SPAN A] dev=4fa33dcb-5f76-5f76-aea8-330df7ada03e phase=PostSwitch epoch=1 av_delta=Some(18063365)ns | in_v(pts=Some(14023107309) st=ValidMonotonic fr=Some(330) adv=Some(true)) in_a(pts=Some(14023125000) st=ValidMonotonic fr=Some(330) adv=Some(true)) br_v(pts=Some(14063107199) st=ValidMonotonic fr=Some(331) adv=Some(true)) br_a(pts=Some(14143125000) st=ValidMonotonic fr=Some(333) adv=Some(true)) pr_v(pts=Some(14170111694) st=DiscontinuityDeclared fr=Some(426) adv=Some(true)) pr_a(pts=Some(14152048329) st=DiscontinuityDeclared fr=Some(567) adv=Some(true))
+  [SPAN B] dev=6ede00d0-baf4-573f-a0dd-4a503bf7f766 phase=PostSwitch epoch=1 av_delta=Some(18063365)ns | in_v(pts=Some(14028952918) st=ValidMonotonic fr=Some(329) adv=Some(true)) in_a(pts=Some(14028770833) st=ValidMonotonic fr=Some(329) adv=Some(true)) br_v(pts=Some(14068953304) st=ValidMonotonic fr=Some(330) adv=Some(true)) br_a(pts=Some(14148770833) st=ValidMonotonic fr=Some(332) adv=Some(true)) pr_v(pts=Some(14170111694) st=DiscontinuityDeclared fr=Some(426) adv=Some(true)) pr_a(pts=Some(14152048329) st=DiscontinuityDeclared fr=Some(567) adv=Some(true))
+  [POST A] dev=4fa33dcb-5f76-5f76-aea8-330df7ada03e phase=PostSwitch epoch=1 av_delta=Some(18063365)ns | in_v(pts=Some(17023120783) st=ValidMonotonic fr=Some(405) adv=Some(true)) in_a(pts=Some(17023125000) st=ValidMonotonic fr=Some(405) adv=Some(true)) br_v(pts=Some(17063120735) st=ValidMonotonic fr=Some(406) adv=Some(true)) br_a(pts=Some(17143125000) st=ValidMonotonic fr=Some(408) adv=Some(true)) pr_v(pts=Some(17170111694) st=DiscontinuityDeclared fr=Some(516) adv=Some(true)) pr_a(pts=Some(17152048329) st=DiscontinuityDeclared fr=Some(687) adv=Some(true))
+  [POST B] dev=6ede00d0-baf4-573f-a0dd-4a503bf7f766 phase=PostSwitch epoch=1 av_delta=Some(18063365)ns | in_v(pts=Some(17029025762) st=ValidMonotonic fr=Some(404) adv=Some(true)) in_a(pts=Some(17028770833) st=ValidMonotonic fr=Some(404) adv=Some(true)) br_v(pts=Some(17069026391) st=ValidMonotonic fr=Some(405) adv=Some(true)) br_a(pts=Some(17148770833) st=ValidMonotonic fr=Some(407) adv=Some(true)) pr_v(pts=Some(17170111694) st=DiscontinuityDeclared fr=Some(516) adv=Some(true)) pr_a(pts=Some(17152048329) st=DiscontinuityDeclared fr=Some(687) adv=Some(true))
+=== A2-8 L4 Timing/switch+timeline(A→B): PASS === switch epoch=1 observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) completed=true prog_v=Some(14170111694) state=DiscontinuityDeclared switch_ok=true | timeline_ok=true outcome=Preserved { epoch: ProgramEpoch(0), mapped: TimelineMapped { program_epoch: ProgramEpoch(0), source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, segment_id: SegmentId(1), mapping: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(0), segment_id: SegmentId(1), source_start_pts: 9937128555, program_start_pts: 9970111694, offset: 32983139 }, evidence: TimelineTransitionEvidence { declared_segment: SegmentId(1), observed_segment: SegmentId(1), program_epoch: ProgramEpoch(0), source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, source_pts: 9970461888, mapped_program_pts: 10003445027, mapping_offset: 32983139, video_continuity: Continuous, audio_continuity: Continuous, discontinuity_state: DiscontinuityDeclared, undeclared_backward_jump: None } } } epoch=ProgramEpoch(0) seg=Some(SegmentId(1)) src_pts=Some(9970461888) mapped=Some(10170111694) offset=Some(32983139) v/a=Continuous/Continuous disc=DiscontinuityDeclared
+[2m2026-09-08T03:47:29.320162Z[0m [32m INFO[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m A2-8-02-D recover: tap 簿记重放成功 (新管线) [3mhandle[0m[2m=[0m1 [3mchannel[0m[2m=[0mtap-4fa33dcb-5f76-5f76-aea8-330df7ada03e
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:29.630: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:29.630: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:29.630: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:29.809: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:29.809: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:29.809: gst_video_converter_free: assertion 'convert != NULL' failed
+[2m2026-09-08T03:47:48.026882Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+[2m2026-09-08T03:47:48.047014Z[0m [32m INFO[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m A2-8-02-D recover: tap 簿记重放成功 (新管线) [3mhandle[0m[2m=[0m2 [3mchannel[0m[2m=[0mtap-6ede00d0-baf4-573f-a0dd-4a503bf7f766
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:48.365: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:48.365: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433807): GStreamer-Video-CRITICAL **: 11:47:48.365: gst_video_converter_free: assertion 'convert != NULL' failed
+=== A2-8 L5 Failure isolation/recover: PASS === A-fail→B-alive=true (inputA_advancing=false bridgeB_alive=true program_advancing=true) | recover-A→桥复流=true (recovered=true bridgeA_alive=true degraded=false) | B-fail→A-alive=true (bridgeB_alive=false bridgeA_alive=true) | 故障域归因完整=true (A行=None B行=Input; B故障归Input·A无越域归因·Program输出=非权威证据[inter合成帧语义·advancing=true v 1232->1322 a 1642->1762])
+=== A2-8 L5 Supervisor 角色: recovery decision 非 switch executor——切换经 SwitchExecutionAdapter 直驱, Supervisor 未持有 switch 面（wiring 事实）===
+
+(media-agent-gates:1433807): GStreamer-CRITICAL **: 11:47:51.048: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1433807): GStreamer-CRITICAL **: 11:47:51.048: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1433807): GStreamer-CRITICAL **: 11:47:51.049: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1433807): GStreamer-CRITICAL **: 11:47:51.049: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+[2m2026-09-08T03:47:51.049396Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0m56b3f84b-3a01-44f3-b1be-6174df5c7993 [3mgraph[0m[2m=[0m3
+=== A2-8 Teardown 停止链: PASS === session_stop=true program_runtime_inactive=true phase_released=true (Program Stop→Tap Detach→Input Stop→Release)
+=== A2-8 Dual Input Gate: ALL PASS (10/10 verdicts; 全链完成 L0→L5+Teardown) ===
+EXIT=0

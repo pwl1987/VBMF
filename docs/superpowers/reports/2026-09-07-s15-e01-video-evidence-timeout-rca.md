@@ -109,3 +109,30 @@
 ## §7 状态（按用户裁决表冻结）
 
 2h PASS 10/10 ｜ 8h FAIL 9/10（不可改 PASS）｜ S15-E01 登记为本报告 ｜ 24h 未启动 ｜ 生产代码冻结 ｜ 阈值冻结 ｜ Step 17 未进入 ｜ PR #30 OPEN。
+
+## §8 修复闭环附录（2026-09-08 追加·§0-§7 原文零改写·历史时点快照保持）
+
+- 用户裁决: 候选 **③「seqnum 暂存+回放」** 入选（①executed 前移②无条件闩锁否）;
+  闭环=修复→定向回归→真机 gate→8h 重跑（必须 10/10 才有资格 24h）; 24h 启动
+  四条件另冻（定向测试+真机 gate+8h 10/10+本事件闭环登记）; 旧 8h FAIL 证据
+  绝对保留——重跑入新目录 r64-stability-8h-rerun, 不覆盖不改写。
+- 实施（commit d5bc130·解冻面=switch graph 单生产文件+gates 测试侧·R65 其余
+  冻结文件零触碰）: §6.3 落地——EVENT 探针体抽具名生产函数; executed 前先到
+  Segment 首个 seqnum 暂存（per-plane·与 fence first-while-Armed 同源配对）;
+  switch() 提交点同 timeline 临界区回放, 世代归属以 fence 捕获锚为准（与下游
+  drain 确认同一信任锚·rt_02 结构唯一前提·零新增信任假设）; 无锚/不匹配丢弃
+  fail-closed（§5 的 FailClosed→恢复语义对真缺证据场景原样保持）; install
+  整槽替换=暂存按声明段世代重置; audio 同窗天然同覆盖。
+- 定向回归（2026-09-08 全绿）: 确定性四锁（盒 hw 矩阵 276→280·default/mock
+  基线不变）+ 真机强制复现场景 VBMF_A2_8_S15E01_RACE（wrapper switch 委托前
+  一次性注入=竞争窗入口确定性强制·非概率轰击）: 对照+注入 ×10 共 11/11
+  outcome=preserved·~152-158ms/轮·program_epoch 保持 0（无 rebase）·
+  segment_id 1→11·每轮 DD——「必须被 collector 计入、不得卡
+  AwaitSegmentEvent」判据真机层闭合。run1 EXIT=2=场景断言账本口径初版误抄
+  F2 失败轮（核心判据 run1 即全绿）; run2 EXIT=0。既有 R64 CP gate（F2×10
+  10/10）与 dual_input（10/10）复跑全绿=修复零扰动。证据
+  evidence/bmd-10.30.15.10/s15e01-race/ + s15e01-fix-r64cp-gate/ +
+  s15e01-fix-dual-input-gate/。
+- 8h 重跑与 24h: 见主账 §96 后续 bullets（r64-stability-8h-rerun; 24h 四
+  条件）——本报告只登记到修复闭环; §7 冻结表为裁决时点快照, 后续状态以
+  主账为准。

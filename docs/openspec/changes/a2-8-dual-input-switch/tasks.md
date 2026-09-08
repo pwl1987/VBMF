@@ -1623,3 +1623,19 @@
   零复现=证据推进轮询驱动天然后置）; 定性=簿记层真实微观竞争（非媒体/
   硬件/deadline 层·1/1320·FailClosed→恢复→NewEpoch 完整吸收）; 修复三
   候选登记未实施（另裁）]**
+
+  **[Step15 段·part 4（2026-09-08·S15-E01 fix3 实施+定向回归）: 用户裁决
+  修复候选=③「seqnum 暂存+回放」; 实施 commit d5bc130（解冻面=switch graph
+  单生产文件+gates 测试侧·R65 其余冻结文件零触碰）: EVENT 探针抽具名生产
+  函数·executed 前先到 Segment 首个 seqnum 暂存 per-plane·switch() 提交点
+  同临界区回放（世代归属以 fence 捕获锚为准·无锚/不匹配丢弃
+  fail-closed·EvidenceInsufficient 保持）+ 四锁（计入/世代不匹配丢弃/无锚
+  丢弃/install 重置——盒 hw 矩阵 276→280·default 232/mock 435 基线不变·
+  clippy×3 -D warnings 0）; **真机强制竞争窗场景 VBMF_A2_8_S15E01_RACE
+  （wrapper 委托前一次性注入=确定性强制非概率轰击·seam 同生产函数+同
+  seqnum 配对下游确认零媒体扰动）: 11/11 preserved·~152-158ms/轮·
+  program_epoch 保持 0 无 rebase·segment_id 1→11·DD·六平面检查点全 OK·
+  run2 EXIT=0（run1 断言口径修正如实登记——核心判据 run1 即全绿）**;
+  既有 R64 CP gate（F2×10 10/10）+dual_input（10/10）复跑全绿; 证据
+  s15e01-race/s15e01-fix-r64cp-gate/s15e01-fix-dual-input-gate md5 盒=origin;
+  登记 主账 §96+RCA §8+EVIDENCE-INDEX 三行]**
