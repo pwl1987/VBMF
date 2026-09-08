@@ -1639,3 +1639,14 @@
   既有 R64 CP gate（F2×10 10/10）+dual_input（10/10）复跑全绿; 证据
   s15e01-race/s15e01-fix-r64cp-gate/s15e01-fix-dual-input-gate md5 盒=origin;
   登记 主账 §96+RCA §8+EVIDENCE-INDEX 三行]**
+
+  **[Step15 段·part 5（2026-09-08·8h 重跑 rung·fix3 后）: **VERDICT PASS
+  （10/10）——首轮 8h FAIL 唯一败项 switches_all_executed_preserved 在修复后
+  全量通过（960/960·cycle 908 竞争窗零复发·tl_ep=0 全程保持无 rebase）**;
+  开场 gate exit0; 其余九项全过（epoch 1→960 恰+1·observed==target
+  960/960·RSS +27.4MB 无爬升·watchdog 1379→2764·replay 192/192·teardown
+  干净）; 独立 reanalyze-long.py（expected_cycles=960）同 verdict; 证据
+  r64-stability-8h-rerun（21 件）+rerun-gate（2 件）md5 盒=origin; **旧 8h
+  FAIL 证据原样保留（新 rung 不覆盖）**; **24h 四条件核验全部成立（①定向
+  测试②真机 gate③8h 10/10④RCA 闭环登记）→ 按裁决启动 24h rung
+  （CYCLES=2880）]**]**
