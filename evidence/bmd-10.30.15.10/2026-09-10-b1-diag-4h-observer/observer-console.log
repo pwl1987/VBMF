@@ -1,0 +1,6 @@
+2026-09-10T01:19:29+08:00 target pid=1811469 ev=/home/lytv/a2-8-02i-evidence/2026-09-10-b1-diag-4h
+2026-09-10T01:19:29+08:00 topology start OK
+2026-09-10T01:19:29+08:00 T0=1788974369 domain=[1811469] interval=30s lite=10s nominal=14500s
+2026-09-10T03:19:29+08:00 topology mid OK
+2026-09-10T05:09:58+08:00 topology end OK(stop 触发)
+2026-09-10T05:10:02+08:00 observer 生命周期结束 status=COMPLETE code=0 terminal=gone coverage=95% gap_max=0s main=462 lite=1381

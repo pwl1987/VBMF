@@ -1664,3 +1664,19 @@
   证据 r64-stability-24h（21 件）+24h-gate（2 件）md5 盒=origin; 登记主账
   §96+EVIDENCE-INDEX 两行; **Step 15 = 2h PASS + 8h FAIL→fix3→8h rerun
   PASS + 24h FAIL——停等用户裁决]**]**
+
+  **[Step15 段·part 7（2026-09-09/10·24h FAIL 后 RSS RCA B0+B1-DIAG·用户
+  三刀框架逐刀指挥）: B0 只读审计=已有证据无任何内存构成维度（runner 仅采
+  VmRSS/fd/Threads·B1 前置成立）·Evidence-01 关闭（+86.6MB=数据事实）;
+  B1-DIAG 4h 外部只读构成诊断（非 rung·无 verdict）——b1-observer.sh 入库
+  667e9ff（生命周期状态机/domain T0 冻结/topology 三次全量快照/procfs-only
+  红线·本地两场景模拟过）·真机 workload Step15 同构（CYCLES=480·bin 重建
+  f52b0161==24h 同一二进制）·observer COMPLETE/exit 0（children=0·覆盖
+  95%·零错误）; **classification=ANON_GROWTH**: +11.2MB 全落 RssAnon
+  （Private_Dirty/Anonymous 同量）·**离散周期事件模式（4h 仅一次 +11.0MB
+  跳变@03:18 盒钟·两个 5.5MB 子步相隔 10s·其余精确平台）·与切换次数无线性
+  （R²=0.04）**·topology: [heap] 3.4→4.0MB 不动·增量全在 anon rw-p 私有
+  映射·mid→end 零变化; ~2h 周期×11MB/事件与 24h 斜率 5.626MB/h 精确吻合
+  （24h +86.6MB≈同类事件累积）; 措辞冻结: 解释性证据·不改判 rss_bounded
+  FAIL·不重评 S15-E01; 证据 b1-diag-4h（21）+-observer（11）+analysis
+  （四图+表）md5 盒=origin; 登记主账 §96+EVIDENCE-INDEX 三行]**
