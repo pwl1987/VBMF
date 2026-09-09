@@ -1,0 +1,5 @@
+date=2026-09-08T19:45:19+08:00
+bin_md5=c39d91a34b981731ca4ab73461741ddf
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+env=VBMF_A2_8_R64_CP=1,DIAG,INPUTS=2
+note=Step15 24h rung opening gate (post S15-E01 fix3 + 8h rerun 10/10; 24h entry four conditions verified)

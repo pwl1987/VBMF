@@ -1650,3 +1650,17 @@
   FAIL 证据原样保留（新 rung 不覆盖）**; **24h 四条件核验全部成立（①定向
   测试②真机 gate③8h 10/10④RCA 闭环登记）→ 按裁决启动 24h rung
   （CYCLES=2880）]**]**
+
+  **[Step15 段·part 6（2026-09-09·24h rung·fix3 后）: **VERDICT FAIL
+  （9/10）——唯一败项=rss_bounded（首/末 1/3 均值 +86.6MB·阈值 +50MB）,
+  按停点规则整梯停止等裁决**; 切换面全绿: switches 2880/2880
+  executed+preserved（S15-E01 修复 24h 零复发·修复后累计 4080 次切换零
+  事件）·epoch 1→2880 恰+1·observed==target 2880/2880·tl_ep=0 全程保持·
+  frames 严格递增·drops 0·watchdog 4143→8291·events 1440 采样 critical=0·
+  threads spread=2·fd 14→14·replay 576/576·teardown 干净; RSS 形态（只读
+  报告用）: 十分位近似线性缓增 ~5MB/h 无平台化（末 5h 仍 +25.3MB·峰值
+  1368.9MB@cycle 2868）·与 8h rerun 同斜率（8h 未越界 24h 越界·2h 显著
+  平）·归因未做归裁决; 独立 reanalyze（expected_cycles=2880）同 verdict;
+  证据 r64-stability-24h（21 件）+24h-gate（2 件）md5 盒=origin; 登记主账
+  §96+EVIDENCE-INDEX 两行; **Step 15 = 2h PASS + 8h FAIL→fix3→8h rerun
+  PASS + 24h FAIL——停等用户裁决]**]**
