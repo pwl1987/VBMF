@@ -1,0 +1,36 @@
+{
+  "manifest_version": "2",
+  "machine_id": "10.30.15.10-lytv",
+  "generated_by": "ops",
+  "generated_at": "2026-08-27",
+  "bmd_sdk_version": null,
+  "gst_decklink_plugin_version": null,
+  "gst_runtime_version": null,
+  "notes": "HOST_SPECIFIC / OBSERVED: 当前 10.30.15.10 测试机. 非 VBMF 固定拓扑, 不得进入架构事实. bmd_device_handle 为真实 BMD DeviceHandle (SDK 枚举). device-number 仅运行时地址, 由 Resolver/Manifest 解析, 绝不写死语义. v2 = port-aware binding.",
+  "bindings": [
+    {
+      "label": "SDI-IN-1",
+      "bmd_device_handle": "46:00000000:002e4500",
+      "gst_device_number": 1,
+      "expected_hw_serial_number": null,
+      "expected_model": null,
+      "port": { "connector": "sdi", "ordinal": 1, "direction": "input", "required": true }
+    },
+    {
+      "label": "SDI-IN-2",
+      "bmd_device_handle": "46:00000000:002e4400",
+      "gst_device_number": 2,
+      "expected_hw_serial_number": null,
+      "expected_model": null,
+      "port": { "connector": "sdi", "ordinal": 2, "direction": "input", "required": false }
+    },
+    {
+      "label": "MINI-MON-OUT-1",
+      "bmd_device_handle": "83:1a66443b:00000000",
+      "gst_device_number": 0,
+      "expected_hw_serial_number": null,
+      "expected_model": null,
+      "port": { "connector": "sdi", "ordinal": 1, "direction": "output", "required": false }
+    }
+  ]
+}
