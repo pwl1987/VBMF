@@ -1713,3 +1713,26 @@
   落两不同预留 ⇒ 两线程各一次 ~5.5MB 级分配（O2 直接输入）; 不改判 rss_bounded FAIL;
   证据 c2o1-2p5h（21）+-observer（101）+analysis 镜像 122 件 md5 盒=origin; 登记主账
   §96 C2-O1 段+EVIDENCE-INDEX 三行]**
+
+  **[Step15 段·part 10（2026-09-10·C2-O1 模型修订+C2-O2 设计注册·用户 v3.1 终裁
+  PASS/FREEZE+PASS/REGISTER·O2 执行 NOT AUTHORIZED·零新采集对 122 件既有证据机判
+  重析）: 两级身份 address_extent≠reservation_envelope（四证共认·adjacency 不单独
+  决定身份——R2 处 832MiB 连续链 over-merge 由 64MiB 窗口四证化解·resolved 86/87
+  全 True）; 状态机新增 RESERVATION-EXTENSION（·BOUNDARY-MIGRATION/·ENVELOPE-
+  INTRODUCTION≠arena creation）后即冻结; **O1 FINAL 升格链**: ANON_GROWTH→NO
+  UNIQUE BUSINESS ATTRIBUTION→STATIC→MORPHOLOGY-REFINED（裁决事件非终态）→
+  **RESERVATION-EXTENSION·BOUNDARY-MIGRATION**; c2rules 四句总原则+实验纪律永久句
+  冻结; fixtures A/B/C/D 全绿（D=重划反回归·不得 REFUTED）; **E01/E02 机判均=
+  BOUNDARY-MIGRATION**（E→R 双层归因 R1/R2·conservation +0·ΣΔAnon==ΔRssAnon==
+  VmData(win) 三方逐kB全等簇 11216）; 轨迹精确定位: 恒定平台 run38→7081（7043s）·
+  前奏 +40 落 (7081,7141]/+44 落 (7165,7201] 各早于大扩展 ≤60s/≤36s; pend 5796/
+  5632 vs win 5584/5588 口径差披露; trigger_latency 区间登记; 已证明/未证明+
+  Evidence class 表+O2 裁决矩阵控制表注册; **C2-O2 设计注册**: O2-A=ALLOCATOR-
+  STRUCTURALLY-COMPATIBLE 语义（非 runtime arena identification·解释纪律禁
+  "this is glibc arena X"）+Entry=existing O1 evidence satisfied no execution
+  implied; O2-B=activity-correlated TID set（不答 ownership·2s 不加快·state 辅助·
+  红线扩围清单待批 task/<tid> stat+ldd --version）; O2-A/B STOP 条件; O3 因果链
+  硬门+O4 三态五问注册; 分析器文件化被 Mimosa 三拦→B1 先例会话内联分段执行·机器表
+  （c2o1-envelope-tables+reservation-closure·v1 superseded-by）入库; 冻结维持
+  rss_bounded FAIL/阈值/生产/PR #30; 登记主账 §96 新段+EVIDENCE-INDEX 行更新]**
+

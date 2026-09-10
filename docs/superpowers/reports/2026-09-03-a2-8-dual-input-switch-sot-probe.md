@@ -5137,3 +5137,55 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   后台管道挂起 → 后续一律 </dev/null; MSYS md5sum 二进制星号致清单假差异 → 剥星号
   归一化比对; 本地 python3 缺失用 python(3.14)。措辞冻结遵守: 不改判 rss_bounded
   FAIL·不重评 S15-E01·诊断性质非 rung。
+- **C2-O1 模型修订 + C2-O2 设计注册（2026-09-10·用户 v3→v3.1 两轮刀口前审终裁:
+  O1 修订 PASS/FREEZE·O2 设计 PASS/REGISTER·**O2 执行 NOT AUTHORIZED**·零新采集
+  零盒操作·122 件既有镜像证据重析）**: P0×6 全落地——**两级身份** address_extent
+  （邻接分组）≠ reservation_envelope（四证共认: stable base/end+跨快照持续+
+  RW/PROT_NONE 守恒+权限迁移连续性·**adjacency 单独不决定身份**）——重析实证其必要:
+  R2 位于 832MiB 连续匿名链 0x71300c000000-0x713040000000 内·over-merge 由 64MiB
+  窗口四证化解（R1/R2 窗口 resolved 86/87·coverage/continuity/boundaries 全 True·
+  唯一未解析=创建前 start@3）; mapping_key/reservation_key 分离+VMA transformation
+  graph（appear/disappear/split/merge/repartition·1→N/N→1/N→M）; 守恒四指标
+  （envelope/rw/pn/conservation_error·64kB=observational tolerance·来源披露·不新增
+  分级阈值·supporting only）; **状态机新增 RESERVATION-EXTENSION（·BOUNDARY-
+  MIGRATION / ·ENVELOPE-INTRODUCTION=allocator-structure clue·≠arena creation）后
+  即冻结**（不再新增状态·O3 不加第七级·不设 O5）; O1 FINAL 升格链注册:
+  ANON_GROWTH→NO UNIQUE BUSINESS ATTRIBUTION→STATIC→MORPHOLOGY-REFINED（裁决
+  事件·非终态词）→**RESERVATION-EXTENSION·BOUNDARY-MIGRATION**（当前对象层状态）。
+  **c2rules 四句总原则冻结**: ①每层只证本层对象不跨层升级 ②Supporting evidence
+  不得自动升级为本层事实 ③相关性不得自动升级为因果性 ④为获得期望结论不得反向扩大
+  实验强度或修改生产系统; +实验纪律永久句「不得为获得线程归因而缩小采样间隔、延长
+  实验或修改生产程序」。**机判重析（fixtures A/B/C/D 预验证全绿·D=同 envelope 重划
+  形态必须 BOUNDARY-MIGRATION·不得 REFUTED 的反回归）**: E01(trig-4)@7150 与
+  E02(trig-5)@7204 均=**RESERVATION-EXTENSION·BOUNDARY-MIGRATION**（E→R 双层归因:
+  E01→R1[0x713004000000] rw 22628→28212(+5584)·PN −5584·conservation +0;
+  E02→R2[0x713010000000] rw 22652→28240(+5588)·PN −5588·conservation +0）;
+  **簇对账升级三方逐kB全等: dRssAnon=+11216 == dVmData=+11216 == Σ窗口扩展
+  (5584+5632)**（R2 窗口自含 +44 前奏·chain 余量 0）; **轨迹表新定位**: 平台
+  22588/22608 精确恒定 run38→7081（7043s）→R1 前奏 +40 落 (7081,7141]→R1+5584 落
+  (7141,7150]→R2 前奏 +44 落 (7165,7201]→R2+5588 落 (7203,7204]→恒定至 run 末
+  ——**前奏各自早于大扩展 ≤60s/≤36s**·R1 热身含 +5588 量子同族步（supporting only）;
+  口径差披露: 触发器累计 pend 5796/5632 vs 事件窗 5584/5588（阶梯取窗口径）;
+  trigger_latency 区间登记（E01 (7148,7150]·E02 (7202,7204]·非点估计）; quantum_pages
+  1396/1397 + 跨 run 对齐表（7132/7142/7150 ±18s）均 supporting only。**已证明/未证明
+  +Evidence class 表**（Direct/Direct-structural/Structural/Forbidden-runtime/
+  Correlational/O3/O4）与 **O2 裁决矩阵控制表**注册为 C2 核心控制表。
+  **C2-O2 设计注册（NOT AUTHORIZED·entry satisfied ≠ 执行授权）**: O2-A=reservation→
+  allocator-family structural compatibility（verdict=ALLOCATOR-STRUCTURALLY-
+  COMPATIBLE / -INCOMPATIBLE / INCONCLUSIVE·非 runtime arena identification·四判据
+  +证据表+解释纪律——可写 "morphology is consistent with glibc allocator reservation
+  behavior"·不得写 "this is glibc arena X"·thread/arena/core counts 仅 sanity context）;
+  O2-A Entry Condition=由既有 O1 证据核验满足（**satisfied by existing O1 evidence;
+  no O2 execution implied**）; O2-B=activity-correlated TID set（不答 ownership;
+  c2o2-observer=c2o1-observer v2.1 全契约+per-tid {comm,stat} 采样**保持 2s 不加快**·
+  state=辅助 supporting only+触发全线程快照+tid 生命周期 diff; **红线扩围清单明示待批**:
+  task/<tid> comm→{comm,stat}+一次性 ldd --version; thread_activity_visibility=
+  {VISIBLE/AMBIGUOUS/INVISIBLE} 报告字段非 verdict）; **O2-A/B STOP**: INCOMPATIBLE→
+  不做 thread 归因停等重裁; INCONCLUSIVE(granularity)→停·不得扩实验→O3 替代证据另裁;
+  O3 因果链硬门逐字+O4 三态五问（含「增长的 committed pages 是否在后续 allocation
+  中被重新命中」）注册。工程坑: 分析器文件化被 Mimosa 三拦（Write 路径污点误报×2+
+  Bash 绕扫描拦截）→ 按 B1 先例会话内联分段执行（heredoc ~10KB 截断坑复现→分段+
+  运行时 JSON 传态·Windows python '/tmp' 解析到当前盘根坑）·审计载体=会话执行记录·
+  **机器表 c2o1-envelope-tables.txt+c2o1-reservation-closure.txt 入库**（v1
+  mapping-closure 原样保留 superseded-by）。冻结维持: rss_bounded FAIL/+50MB/十谓词/
+  生产代码/PR #30 不 merge/禁入清单全继承。**停等 C2-O2 执行裁决**。
