@@ -5189,3 +5189,27 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   **机器表 c2o1-envelope-tables.txt+c2o1-reservation-closure.txt 入库**（v1
   mapping-closure 原样保留 superseded-by）。冻结维持: rss_bounded FAIL/+50MB/十谓词/
   生产代码/PR #30 不 merge/禁入清单全继承。**停等 C2-O2 执行裁决**。
+- **C2-O2 执行（2026-09-10·用户裁决「授权」含红线扩围批复 task/<tid> comm→{comm,stat}+一次性
+  ldd --version·O2-A 零新增采集→O2-B 真机上盒·非 rung）**: **O2-A=ALLOCATOR-
+  STRUCTURALLY-COMPATIBLE**——40 个 64MiB 对齐·精确 64MiB 保留形态窗口（rw 头+PN 尾全覆盖
+  结构）四普查点计数恒定·832MiB 连续链分解 **13/13 全合规**·[heap] 与事件零相关（全程 +660kB
+  ≈事件量 5.9%）·libc=glibc 上下文（Rust 默认分配器·无自定义 GlobalAlloc）——表述纪律执行:
+  "morphology is consistent with glibc allocator reservation behavior"·不写 arena X·
+  thread/arena/core counts 仅 sanity。**O2-B**: c2o2-observer（c2o1 v2.1 全契约+per-tid
+  {comm,stat} 2s 采样**保持不加快**+触发全线程快照+tid 生命周期 diff+libc 钉扎）——本地 fixtures
+  四轮全链绿·**两真缺陷修复于部署前**（per-tid stat 路径缺 task/ 段·生命周期尾空格 flap）·
+  工程坑: 被杀任务子进程残留致双写者（加入单写者断言）·MSYS CLK_TCK=1000 vs 盒 100 数据侧缩放。
+  真机（13:18-15:54 盒钟·bin f52b0161==冻结·runner 机械 PASS 10/10 informational·315/315 切换）:
+  observer **COMPLETE/exit 0**（tid_stat_err 0·born/gone 0·internal_errors 0·**libc 钉扎
+  =glibc 2.43**）·镜像 **120 件 md5 盒=origin**（17 组休眠期相邻快照字节相同=静止形态互证）。
+  **事件准点复现: E1@run_rel 7149/E2@7200（win==VmData==+5588 逐kB·VmSize 0·conservation +0·
+  冻结阶梯机判均 RESERVATION-EXTENSION·BOUNDARY-MIGRATION）**——跨 run 家族 7132/7142/7150/
+  7149 range 18s·**census=40 窗口跨 ASLR 全新基址复现**（E1/E2→0x732284000000/0x732280000000
+  恰相邻 64MiB·头部 22.6MB 类=O1 R1/R2 同型）。**thread_activity_visibility E1/E2=AMBIGUOUS**
+  （41847 行活动序列: decklinkvideosr×2 恒忙 ~240ms/2s 主导活动面但 ev==base_max **无事件独特
+  激活**·5.5MB 触页 CPU 为 ms 级低于 10ms tick 粒度地板·线程集 29/29/29 tid→comm 全等零漂移）
+  ——**STOP 纪律执行: 未缩小采样间隔·未延长实验·未改生产程序**。O2-B 结论（注册语义内）:
+  activity-correlated TID set 交付（恒忙面语境·非因果指认）; arena owner↔tid 未答（需 registry
+  证据·维持禁入）; causal thread 未答（O3 职责）。**O2 闭合→停等 O3 裁决**（O2-B 未收窄到因果
+  线程 ⇒ O3 需替代证据设计而非加强采样·六环硬门维持）。冻结维持: rss_bounded FAIL/+50MB/
+  十谓词/生产/PR #30。

@@ -1736,3 +1736,17 @@
   （c2o1-envelope-tables+reservation-closure·v1 superseded-by）入库; 冻结维持
   rss_bounded FAIL/阈值/生产/PR #30; 登记主账 §96 新段+EVIDENCE-INDEX 行更新]**
 
+  **[Step15 段·part 11（2026-09-10·C2-O2 执行·用户「授权」含红线扩围批复·O2-A 零新增采集→
+  O2-B 真机·非 rung）: **O2-A=ALLOCATOR-STRUCTURALLY-COMPATIBLE**（40 保留形态窗口四普查点
+  恒定+832MiB 链 13/13+[heap] 事件零相关+glibc 上下文·表述纪律禁 arena X·counts 仅 sanity）;
+  **O2-B 真机**: observer COMPLETE/exit 0（per-tid {comm,stat} 2s 不加快·tid_stat_err 0·
+  born/gone 0·**libc 钉扎 glibc 2.43**）·bin f52b0161==冻结·fixtures 四轮绿两真缺陷修复于
+  部署前（task 路径段+尾空格 flap）·镜像 120 件 md5 盒=origin; **E1@7149/E2@7200 准点复现**
+  （win==VmData==+5588 逐kB·机判均 BOUNDARY-MIGRATION·ASLR 全新基址 0x732284000000/
+  0x732280000000 相邻 64MiB·census=40 复现·跨 run 家族 range 18s）; **visibility E1/E2=
+  AMBIGUOUS**（decklinkvideosr×2 恒忙面 ev==base_max 无事件独特激活·触页 CPU 低于 10ms 地板·
+  线程集 29/29/29 零漂移·STOP 纪律执行未加速）; active≠causal·ownership/因果未答=O3 职责;
+  **O2 闭合→停等 O3 裁决**（O3 替代证据设计·六环硬门维持）; 冻结维持 rss_bounded FAIL/阈值/
+  生产/PR #30; 登记主账 §96 新段+EVIDENCE-INDEX 三行+commit ①8631dc7②]**
+
+

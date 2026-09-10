@@ -1,0 +1,60 @@
+== T-A EVENTS (run_rel primary) ==
+E1 run=7149 step=+5588kB win(PRE@7144->TRIG@7149)=+5588kB PRE=win-7144 pend=+5740kB
+E2 run=7200 step=+5588kB win(PRE@7190->TRIG@7200)=+5588kB PRE=base-7190 pend=+5624kB
+
+== ENVELOPE ATTRIBUTION (discovered windows, ASLR-fresh run) ==
+E1 PRE=win-7144@7144 TRIG=trig-1@7149 ev(win)=5588kB
+  ENV-WIN 732284000000 rw 22620->28208 (+5588) pn 42916->37328 (-5588) conservation=+0
+  metrics env_grow=5588 cons_err=0 new_out_rss=0 new_env_rss=0 heap_d=0 vmsize_d=+0 vmdata_d=+5588
+  recon dRssAnon(win)=+5588 vs sumDAnon=+5588 gap +0
+  VERDICT(E1)=RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+
+E2 PRE=base-7190@7190 TRIG=trig-2@7200 ev(win)=5588kB
+  ENV-WIN 732280000000 rw 22644->28232 (+5588) pn 42892->37304 (-5588) conservation=+0
+  metrics env_grow=5588 cons_err=0 new_out_rss=0 new_env_rss=0 heap_d=0 vmsize_d=+0 vmdata_d=+5588
+  recon dRssAnon(win)=+5588 vs sumDAnon=+5588 gap +0
+  VERDICT(E2)=RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+
+census@win-7144 reservation-form 64MiB windows=40 (O1 run was 40)
+
+== TID ACTIVITY ALIGNMENT (O2-B core; 2s cadence kept; utime/stime ticks clk_tck=100 -> 1 tick = 10ms) ==
+tid_rows=41847 tids=29 ticks_per_tid~1443 born/gone=0(窗口内线程零漂移) stat_err=0
+
+EVENT E1(win 0x732284000000) window=(7147,7149]+2s visibility=AMBIGUOUS
+  note: top tids ev==base_max (decklinkvideosr pair constant-busy ~24 ticks/2s; NO event-unique activation above own baseline; 10ms tick floor)
+  tid=2011264  decklinkvideosr    ev_ticks=24   (~240ms) base_max=24   base_avg=16.02 at=7150.0
+  tid=2011265  decklinkvideosr    ev_ticks=22   (~220ms) base_max=24   base_avg=16.25 at=7150.0
+  tid=2011258  queue0:src         ev_ticks=2    (~20ms) base_max=2    base_avg=0.49 at=7150.0
+  tid=2011267  program-video-q    ev_ticks=2    (~20ms) base_max=4    base_avg=0.88 at=7151.0
+  tid=2011200  decklinkaudiosr    ev_ticks=1    (~10ms) base_max=2    base_avg=0.72 at=7150.0
+  tid=2011205  queue1:src         ev_ticks=1    (~10ms) base_max=2    base_avg=0.58 at=7150.0
+  tid=2011253  media-agent        ev_ticks=1    (~10ms) base_max=1    base_avg=0.07 at=7153.0
+  tid=2011259  decklinkvideosr    ev_ticks=1    (~10ms) base_max=2    base_avg=0.70 at=7150.0
+
+EVENT E2(win 0x732280000000) window=(7198,7200]+2s visibility=AMBIGUOUS
+  note: same shape as E1; no thread above own baseline at event tick
+  tid=2011264  decklinkvideosr    ev_ticks=24   (~240ms) base_max=24   base_avg=16.02 at=7201.0
+  tid=2011265  decklinkvideosr    ev_ticks=23   (~230ms) base_max=24   base_avg=16.25 at=7201.0
+  tid=2011258  queue0:src         ev_ticks=2    (~20ms) base_max=2    base_avg=0.49 at=7201.0
+  tid=2011268  program-asrc-a:    ev_ticks=2    (~20ms) base_max=2    base_avg=0.81 at=7204.0
+  tid=2011200  decklinkaudiosr    ev_ticks=1    (~10ms) base_max=2    base_avg=0.72 at=7201.0
+  tid=2011205  queue1:src         ev_ticks=1    (~10ms) base_max=2    base_avg=0.58 at=7202.0
+  tid=2011259  decklinkvideosr    ev_ticks=1    (~10ms) base_max=2    base_avg=0.70 at=7201.0
+  tid=2011260  queue3:src         ev_ticks=1    (~10ms) base_max=2    base_avg=0.43 at=7201.0
+
+== THREAD SET STABILITY ==
+start=29 tids; trig-1=29; trig-2=29; set-equal(start,trig-1)=True; set-equal(start,trig-2)=True
+comm-only sets: start==trig-1==trig-2 (29 tids, identical tid->comm map, zero drift)
+
+== VERDICTS (O2-B registered semantics) ==
+E1/E2 envelope verdicts = RESERVATION-EXTENSION.BOUNDARY-MIGRATION (frozen ladder, machine-emitted)
+thread_activity_visibility: E1=AMBIGUOUS E2=AMBIGUOUS (report field, not verdict enum)
+O2-B answers: activity-correlated TID set only; active TID != causal TID; arena ownership NOT answered.
+
+== CROSS-RUN FIRST-EVENT ALIGNMENT (supporting only) ==
+B1 7132 / 24h 7142 / C2-O1 7150 / C2-O2 7149 : range 18s; quantum this run 5588+5588 (band ~5.4-5.7MiB)
+census reservation-form windows = 40 at PRE-E1 (O1 run also 40; ASLR-fresh bases)
+
+== DISCLOSURES ==
+smaps sequential non-atomic; 64MiB alignment = structural clue only; VmData = address-space evidence not arena bytes;
+2s cadence kept (no acceleration per frozen discipline); if visibility=INVISIBLE -> granularity boundary honored, not escalated.
