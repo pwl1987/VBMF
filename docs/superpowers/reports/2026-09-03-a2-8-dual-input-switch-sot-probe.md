@@ -5213,3 +5213,30 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   证据·维持禁入）; causal thread 未答（O3 职责）。**O2 闭合→停等 O3 裁决**（O2-B 未收窄到因果
   线程 ⇒ O3 需替代证据设计而非加强采样·六环硬门维持）。冻结维持: rss_bounded FAIL/+50MB/
   十谓词/生产/PR #30。
+
+- **C2-O3-0 静态 candidate inventory+O3 设计注册（2026-09-10·用户三轮裁决 v2/v3 冻结·
+  零盒操作·零新采集·零生产代码改动）: 判定 COMPLETE（=inventory 完成·非 root cause
+  complete）**。三轴清点（周期/量级/对称·生产源码 file:line 重核 12 处全一致）+
+  三层候选分层: **A Rust 显式 retention=量级证伪**（V3 定量: 24h 唯一命令 2304×
+  容器上界 ≤1.59MB vs ≥86.6MB·差两数量级）; **B Rust→native allocation pressure=
+  有 morphology-compatible 路径未证**（make_mut 逐帧深拷贝=allocator-behavior
+  candidate / ring3-compatible candidate·永不 root cause·后三段全部待 O3-1 验证）;
+  **C GStreamer/native 内部状态=仅待验证假设**（~7100s 触发关系尚未由 allocation-path
+  evidence 建立·三行式逐字）。**V1: recover 候选 EXCLUDED-by-existing-evidence**
+  （四 run svc.log 11,703 行 recover/fault/supervisor 零命中+O2-B born=0 双轴反证——
+  退避 10-54s 间隔同构为巧合收敛）。**V2: 首事件四 run 全锁 cycle 249**（runner_rel
+  7142-7143s·计数坐标稳定→计数型类加权·但已注册计数候选成员级全证伪: fresh-command
+  坐标≈199≠幂次 128/256·N=256 预测 9168s≠实测 7143s·24h 簇距 246±9 cycle 恒定非几何;
+  候选空间转向非显式计数/状态累积路径·**不据此直接判定 native/allocator**）; 附带:
+  四 run 启动 cycle 3 同量级 +5.46MB 温启量子·24h 簇质量时变（c1970 处 12 步 +65.9MB）。
+  无 Rust 干净周期/量级候选——~7100s 触发器静态不可见·以"静态清点边界"披露。**O3 设计
+  注册（执行停等独立授权）**: 六环硬门逐字+c2rules 四句+解释纪律; **E2 判读四行表冻结**
+  （单输入同时改变并发度/buffer 生命周期/allocator pressure ⇒ E2 最多=候选空间分叉证据·
+  永不直接升级因果; 单输入事件消失≠"双输入路径导致泄漏"·异常运行=INCONCLUSIVE）+
+  E2 单一问题句（双输入/双实例是否必要前提）+ E2 形态（VBMF_DIAG_INPUTS=1 config-only·
+  单输入路径逐字节保持·program graph 不构建·bin f52b0161/runner/十谓词/+50MB 全不变·
+  2.5h·不因结果不漂亮延长实验）; FIX 原则预注册 A 复用>B 上限（禁机械 reserve(6MB)）>
+  C 真释放>D pool 回收·malloc_trim 永不入产; 验收预冻结 FIX→smoke→2h→8h→24h+谓词
+  10/10+阈值不变+RCA 诊断字段 diagnostic-only。状态链: O1 PASS→O2-A COMPATIBLE→O2-B
+  AMBIGUOUS→**O3-0 COMPLETE→registered→STOP→[独立授权]→O3-1/E2**。证据
+  c2o3-analysis 两件（本地生成）; 登记本 bullet+EVIDENCE-INDEX 一行+tasks part 12。

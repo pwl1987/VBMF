@@ -1750,3 +1750,25 @@
   生产/PR #30; 登记主账 §96 新段+EVIDENCE-INDEX 三行+commit ①8631dc7②]**
 
 
+
+  **[Step15 段·part 12（2026-09-10·C2-O3-0 静态 candidate inventory+O3 设计注册·
+  用户三轮裁决 v2/v3 冻结·零盒操作零新采集零生产代码改动）: 判定 **COMPLETE
+  （=inventory 完成·非 root cause complete）**——三轴清点（周期/量级/对称·file:line
+  重核 12 处全一致）+三层候选分层: A Rust 显式 retention=**量级证伪**（V3: 24h 唯一
+  命令 2304·容器上界 ≤1.59MB vs ≥86.6MB 差两数量级）/ B Rust→native allocation
+  pressure=有 morphology-compatible 路径未证（make_mut=allocator-behavior candidate /
+  ring3-compatible candidate·后三段待 O3-1 验证·永不 root cause）/ C GStreamer/native
+  内部状态=仅待验证假设（三行式逐字）; **V1 recover 候选 EXCLUDED**（四 run svc.log
+  11,703 行 fault/recover 零命中+O2-B born=0 双轴反证）; **V2 首事件四 run 全锁
+  cycle 249**（计数坐标稳定→类加权·已注册计数候选成员级全证伪: fresh≈199≠128/256
+  幂次·簇距 246±9 恒定非几何→候选空间转向非显式计数/状态累积·不跳机制层）; 附带:
+  四 run cycle 3 同量级 +5.46MB 温启量子·24h 簇质量时变; 无 Rust 干净周期/量级候选
+  （~7100s 触发器静态不可见·"静态清点边界"披露）; O3 设计注册执行停等独立授权:
+  六环硬门逐字+c2rules+解释纪律+**E2 判读四行表冻结**（分叉证据非因果·消失≠
+  "双输入路径导致泄漏"·异常=INCONCLUSIVE）+E2 单一问题句+VBMF_DIAG_INPUTS=1
+  config-only 形态（单输入路径逐字节保持·program graph 不构建·bin/runner/十谓词/
+  +50MB 全不变·2.5h·不因结果不漂亮延长）+FIX 原则 A 复用>B 上限>C 真释放>D pool
+  回收（malloc_trim 永不入产）+验收预冻结 smoke→2h→8h→24h·阈值不变·RCA 诊断字段
+  diagnostic-only; 状态链 O1 PASS→O2-A COMPATIBLE→O2-B AMBIGUOUS→O3-0 COMPLETE→
+  registered→**STOP 停等 O3-1/E2 独立裁决**; 证据 c2o3-analysis 两件本地生成; 登记
+  主账 §96 新段+EVIDENCE-INDEX 一行]**
