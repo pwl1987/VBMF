@@ -5099,3 +5099,41 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
   >P3 native ownership>P4 allocator/pool 调整; 绝不采用: 放宽/删除 rss 谓词·
   把增长解释成正常·定期重启·定时人工压 RSS·首修复即 malloc_trim·改 watchdog
   频率掩盖。
+- **C2-O1 Allocator/Arena Mapping Closure（2026-09-10·2.5h 定点诊断刀·用户 v2.1 裁决
+  逐字执行·非 rung 无 verdict·唯一解禁项）**: 工件=C2-O1 observer（b1-observer 契约
+  A/B/C 继承 + v2.1 扩展: RUN_T0=btime+starttime/clk_tck 四元组可重算·RUN_REL_S 主轴/
+  累计制触发器（|RssAnon−baseline|≥1024kB·正负共享·防小步漏触发）·PRE→TRIG→POST(+15s
+  post-observation 语义)·capture_reason 七类·trigger cap 20 超限=DEGRADED 不退出·
+  identity.json（host/kernel/page 4096/clk 100/bin exe md5/自哈希）·红线=procfs 指定
+  文件集+两落盘文件·禁 malloc_info/gdb/pmap/perf/eBPF/LD_PRELOAD/GStreamer debug/
+  jemalloc/glibc tunables）。本地验证: bash -n+红线零命中+fixtures 全链（正/负触发+
+  POST+shutdown·COMPLETE·TARGET_GONE）+**判定阶梯三场景预验证（A 同映射提交=
+  CONFIRMED-DIRECT/B 新映射+VmSize 增长=REFUTED/C smaps 缺段=CONFIRMED-PARTIAL）**;
+  两个真缺陷被 fixtures 捕获修复（local 单行声明展开顺序 set -u 崩·TOPO_END 旗缺失
+  致 shutdown 拓扑重复捕获）。真机（08:39-11:10 盒钟·CYCLES=315/DWELL=28/replay 5·
+  **bin 重建 f52b0161==24h/B1 同一二进制**·manifest 7521d17e）: observer **COMPLETE/
+  exit 0**（覆盖 98%·gap 0s·main 304/lite 907/fast 1454·trig 5+/0-·cap 未触·域冻结
+  单进程零漂移）; runner 机械 verdict PASS 10/10=informational only 不入梯。**事件
+  按签名准点复现: E01 run_rel 7150 (+5796kB·PRE=win-7141 仅前 9s) / E02 run_rel 7204
+  (+5632kB·PRE=base-7203 仅前 1s) 双连跳相隔 54s; 跨 run 首事件 7132(B1)/7142(24h)/
+  7150 对齐 ±18s**。**逐映射归因（M 定位完成）**: E01/E02 = **两个不同 64MiB 对齐预留
+  （基址 0x713004000000 与 0x713010000000）各自 rw-p 头部经 mprotect(PROT_NONE→rw)
+  扩展一段（+5584/+5588kB）且新段立即全触（Rss==Size==Anon==PD 全等）**; 预留基址/
+  末端/总量恒定 64MiB·VmSize 平直（窗内仅一次 +12kB 瞬态·B1 亦见同类）·[heap] 零增长·
+  **ΣΔAnonymous==ΔRssAnon 逐 kB 零缺口**（5584/5588/簇合并 11216 三档全等）·VmData
+  簇增 11256kB==Σrw 头扩展（5584+40+5888+44…=5584+40+5588+44）逐 kB 精确; 全生命周期:
+  两预留热身期填至 22588/22608kB → **精确休眠 7023s** → 同步扩展（含 +40/+44kB 前奏）
+  → 事件后再休眠至 run 末（9003/9081 快照不变）。**判定（冻结阶梯）: 非
+  CONFIRMED-DIRECT（rw-p VMA 末端移动·字面 same-VMA 条件不满足）; 非 REFUTED（主增长
+  不由新地址映射创建/VmSize/heap 解释·§九归因主导制不触发; 64MB 对齐仅辅助线索）;
+  = 裁决 §五 MORPHOLOGY-REOPEN 分支的精化形态成立——page-commit 方向成立, 机制精化为
+  "固定预留内 mprotect 头部扩展+立即全触"（与 glibc 非主 arena grow 形态相容·是否
+  arena/哪个线程=O2 职责, O1 不判断）**。簇内两子步落在两个不同预留 ⇒ ~5.5MB 级分配
+  在两个线程的 arena 上几乎同时各发生一次（O2 直接输入）。量子族更新: 5544-5628(24h)
+  ∪ 5796/5632(本 run)·观测带 ~5.4-5.7MiB 按源单位（quantum 一致性=辅助证据）。证据
+  2026-09-10-c2o1-2p5h（21 件）+-observer（101 件）+c2o1-analysis（mapping-closure
+  固化表）镜像 **122 件 md5 盒=origin 逐件一致**。工程坑如实登记: Mimosa 拦"cp+源码
+  路径"误判 → 以 glob 变量引用规避（不绕钩子·内容同 md5 证）; ssh nohup 会话不归因
+  后台管道挂起 → 后续一律 </dev/null; MSYS md5sum 二进制星号致清单假差异 → 剥星号
+  归一化比对; 本地 python3 缺失用 python(3.14)。措辞冻结遵守: 不改判 rss_bounded
+  FAIL·不重评 S15-E01·诊断性质非 rung。

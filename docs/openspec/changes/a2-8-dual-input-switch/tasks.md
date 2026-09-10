@@ -1698,3 +1698,18 @@
   OPEN）; 裁决冻结: 两线纪律+Gate 序列 C2-O1→O2→O3→O4→FIX→回归→24h+修复
   优先级 P0-P4+绝不采用清单（禁放宽谓词/定期重启/人工压 RSS/首修复即
   malloc_trim/改 watchdog 频率）; 登记主账 §96 C 线段]**
+
+  **[Step15 段·part 9（2026-09-10·C2-O1 mapping-closure 定点诊断刀·2.5h·v2.1 裁决
+  逐字执行·非 rung）: observer COMPLETE/exit0（双时间轴 RUN_REL_S 主轴·累计制触发器·
+  PRE→TRIG→POST·capture_reason 七类·identity 四元组·红线 procfs-only·本地 fixtures
+  含阶梯三场景 A=DIRECT/B=REFUTED/C=PARTIAL 预验证+两真缺陷修复）; bin f52b0161==
+  24h 同一; **E01/E02 准点复现**（run_rel 7150/7204·+5796/+5632kB·跨 run 首事件
+  7132/7142/7150 ±18s）; **M1/M2 定位完成**=两个不同 64MiB 对齐预留（0x713004000000/
+  0x713010000000）rw 头 mprotect(PROT_NONE→rw) 扩展+5584/+5588kB 且立即全触; ΣΔAnon==
+  ΔRssAnon 逐 kB 零缺口·VmSize/[heap] 平直·VmData==Σ头扩展精确·两预留热身后精确休眠
+  7023s 再同步扩展; 判定=**MORPHOLOGY-REFINED**（非 DIRECT: VMA 末端移动; 非 REFUTED:
+  无新地址/VmSize/heap·归因主导制; =§五 MORPHOLOGY-REOPEN 分支精化成立·page-commit
+  方向成立）; O1 只证 mapping 不证 arena——M 是否 arena/哪个线程=**C2-O2 待裁**; 两子步
+  落两不同预留 ⇒ 两线程各一次 ~5.5MB 级分配（O2 直接输入）; 不改判 rss_bounded FAIL;
+  证据 c2o1-2p5h（21）+-observer（101）+analysis 镜像 122 件 md5 盒=origin; 登记主账
+  §96 C2-O1 段+EVIDENCE-INDEX 三行]**
