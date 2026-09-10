@@ -5048,3 +5048,54 @@ fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_
 - **Step15-8h 重跑 rung（fix3 后·960 周期·11:57-19:37 盒钟·2026-09-08）VERDICT PASS（10/10）——首轮 8h FAIL 的唯一失败谓词在修复后全量通过**: 开场 gate exit0（failures=0·F2×10 确定性 10/10 数据行）。soak（bin f52b0161=fix3 后新二进制·manifest 7521d17e）: threads spread=2（29-31）/fd 14→14/RSS 首/末 1/3 1248.9→1276.3MB（+27.4MB/8h 无单调爬升·50MB 界内）/**epoch 1→960 逐命令恰 +1**/**switches_all_executed_preserved 960/960（首轮 959/960 的唯一败项——cycle 908 竞争窗已被 fix3 吸收, 960 次真机切换零复发）**/**observed==target 960/960**/frames v 28→829125·a 37→1105347 严格递增/drops 恒 0/**watchdog 1379→2764**/events 480 采样 critical=0; 数据行: replay 192/192 原样·teardown 完成行=1·服务干净退出·tl_ep=0 全程保持（ProgramEpoch(0) held——无 FailClosed/无 rebase）。独立 reanalyze-long.py（expected_cycles=960）对同一产物重析=同 verdict。证据 r64-stability-8h-rerun（21 件）+r64-stability-8h-rerun-gate（2 件）全件 md5 盒=origin; **旧 8h FAIL 证据 r64-stability-8h/ 原样保留（本 rung 为新验证 rung, 不覆盖不改写）**。**24h 启动四条件此刻核验: ①定向测试 PASS（四锁 hw 280+盒矩阵）②真机 gate PASS（S15E01-RACE EXIT=0+R64 CP exit0+dual_input 10/10）③8h 重跑 10/10（本条）④RCA 事件闭环登记（RCA §8 附录+本账四 bullets）——四条件全部成立 → 按裁决启动 24h rung（CYCLES=2880）**。
 - **Step15-24h rung（fix3 后·2880 周期·19:46 次日~20:12 盒钟·2026-09-08/09）VERDICT FAIL（9/10）——唯一败项=rss_bounded, 按停点规则整梯停止**: 开场 gate exit0（failures=0·F2×10 确定性 10/10 数据行）。soak（bin f52b0161=fix3 后·manifest 7521d17e）: **切换面全绿——switches_all_executed_preserved 2880/2880（S15-E01 修复经 24h/2880 次真机切换零复发; 修复后累计 2h+8h+24h=4080 次切换零事件）·epoch 1→2880 逐命令恰 +1·observed==target 2880/2880·tl_ep=0 全程保持（无 FailClosed/无 rebase）·frames v 26→2489044·a 35→3318327 严格递增·drops 恒 0·watchdog 4143→8291·events 1440 采样 critical=0·threads spread=2（29-31）·fd 14→14·replay 576/576 原样·teardown 完成行=1·服务干净退出**。**唯一 FAIL 谓词=rss_bounded: 首/末 1/3 均值 1262.4→1349.0MB（+86.6MB·阈值 +50MB·monotonic=False）**。只读形态事实（报告用·非调查）: 十分位均值 1247.5/1260.6/1273.3/1286.1/1301.9/1312.2/1325.6/1338.6/1351.3/1363.9MB——**第 2-10 位近似线性缓增 ~5MB/h·无平台化**（末 5h 仍 +25.3MB·峰值 1368.9MB 在 cycle 2868 贴近终点·首样本含启动谷 1118.8MB）; 与 8h rerun +27.4MB/（首末 1/3 跨 ~5.3h）≈5.2MB/h 同斜率——即同一缓增在 8h 未越 50MB 界·24h 越界; 2h +1.1MB 显著平于该斜率（早期相位平·~2h 后进入 ~5MB/h 段——形态学如上, 归因未做·归裁决）。独立 reanalyze-long.py（expected_cycles=2880）同 verdict。证据 r64-stability-24h（21 件）+r64-stability-24h-gate（2 件）全件 md5 盒=origin。**梯子停止: Step 15 = 2h PASS + 8h FAIL(S15-E01→fix3→8h rerun PASS) + 24h FAIL(rss_bounded)——等用户裁决（缓增归因 RCA/阈值再裁/其他均另裁·观察≠判据）**。
 - **RSS RCA B0+B1-DIAG（2026-09-09/10·用户三刀框架 A→B→C 逐刀指挥·禁重跑/改谓词/改生产/加 instrumentation/清证据）**: **B0（只读）**=已有 21+2 件证据**无任何内存构成维度**（runner 仅采 VmRSS/fd/Threads·svc.log 内存词族 0 命中·events 词表仅 7 种启动事件后全空·runtime 投影无内存字段且缺 AFTER 快照·9 条 GST CRITICAL 全在启动期）→ B1 前置成立; **Evidence-01 同轮关闭**（+86.6MB=数据事实·独立重算与 verdict 逐位对齐·内核 VmRSS 单进程零缺口）。**B1-DIAG（4h 外部只读构成诊断·非 Step15 rung·无 verdict）**: 裁决 4 收紧+3 机械调整+硬红线全落地——b1-observer.sh 入库（667e9ff·部署 md5 盒=源=repo HEAD 05b4670e）; 生命周期状态机（0=COMPLETE/3=TARGET_GONE/4=PARTIAL/10=OBSERVER_ERROR·meta.json 为准）+domain T0 冻结（运行期新 child 只记事件不入域）+topology 三次全量快照（不截断·单点失败如实 ERROR）+红线（live 源仅 procfs+两份落盘文件·零网络零业务端点）; 本地 bash -n+红线 grep 零命中+两场景 fixtures 模拟（COMPLETE/PARTIAL）+local 同句交叉引用 bug 修复。真机执行（01:19 盒钟·workload DWELL=28/CYCLES=480/replay 5=Step15 同构·**bin 重建 f52b0161==24h 同一二进制**·manifest 7521d17e）: **observer 终态 COMPLETE/exit 0**（覆盖 95%·gap_max 0s·零内部错误·零 rollup 失败·domain=[1811469] 单进程 children=0 零漂移）·runner 机械 verdict PASS 10/10=informational only。**离线分析（三轴对齐 observer↔samples↔watchdog·480/480 周期匹配）= classification ANON_GROWTH**: 构成分解（稳态窗三分位）VmRSS +11.2MB=**100% RssAnon**（RssFile 恒 16.1MB·RssShmem 0·Private_Dirty=Anonymous=Pss_Anon 同涨同量=私有脏匿名页）; **增长模式=离散周期事件——4h 稳态窗仅一次 +11.0MB 跳变（03:18:25/03:18:35 盒钟·两个 5.5MB 子步相隔 10s）·其余时间精确平台（unique 值仅 6 个）**; **与切换次数无线性（R²(sw_epoch)=0.0417）**; 逐小时形态=24h 锯齿同机制（~2h 周期步进的小时桶化）; **topology 三点: [heap] 3.4→4.0MB 基本不动（glibc 主堆非增长点）·全部增量在 anon rw-p 私有映射（60.4MB×~20 大块=采集 buffer 池形态·热身后稳定）·mid(03:19:29)→end Rss 零变化（-0.0MB）·file/libs/dev/shmem 全程平稳**; 事件映射粒度归因受 start 快照先于热身完成限制（如实披露）; 跨 run 一致性: ~2h 周期 × 11MB/事件 与 24h 斜率 5.626MB/h 精确吻合（8h +27.4≈2-3 事件·2h +1.1≈0 事件）→ **24h +86.6MB ≈ 同类 ~2h 周期事件的累积**。措辞冻结遵守: 对既有 24h RSS 增长提供解释性证据·**不改判 rss_bounded FAIL**·不重评 S15-E01·无 verdict 无 PASS/FAIL。证据 2026-09-10-b1-diag-4h（21 件）+-observer（11 件·3×topology 全量 160-223KB）+b1-diag-4h-analysis（四图+composition-table·本地派生产物）镜像 32 件 md5 盒=origin。工程坑: 分析脚本文件化被 Mimosa 拦 3 次（变量路径污点误报·内容无穿越）→ 以会话执行记录为审计载体如实登记; smaps 头解析须 split 法（正则捕获组会把单 token 路径吃错列）; svc.log tick 行须先剥 ANSI 转义; 本地 heredoc 超 ~10KB 会被截断须分段; pip install --user matplotlib 3.11.1（本地图表工具·不触运行时）。
+- **RSS RCA C 线两刀（2026-09-09/10·C1 业务时间对齐 + C2 静态代码审计·均
+  stdout-only 只读·零新实验/零代码改动/零阈值改动·24h+B1 证据域内）**:
+  **C1 FINAL: NO UNIQUE BUSINESS ATTRIBUTION**——四层跳变检测（raw Δ>0 事实层
+  →噪声刻画→512/1024/2048KB 敏感档→C1-F1 复合: 正向步 ≤90s 合并·回落
+  >256KB 断开·子步签名永不塌缩）: 稳态窗 **29 个 strong 复合事件/10 簇**
+  （簇间隔 7057/7028/7086/6970/7576/6711/7142/14372(双缺口)/7172s·剔双缺口
+  均值 **7092.8s σ226s CV0.032**）; **量子步直方图=5544/5548/5584/5588/5592/
+  5620/5624/5628KB 八值**（4KB 页级差·31 步全落带内）; 全 run 仅 **8 个负步**
+  （同量子·集中 C07 11:53-13:19 爆发簇=偶发释放形态·非纯泄漏亦非每周期释放）;
+  周期性 N=29 与 N=10 双层均 REPEATED_PATTERN; **三时钟退化**（wall/cycle/tick
+  R² 全 0.99131·RMS ~2097s）→ INSUFFICIENT; mod5 均匀（replay 锁相否）; **首
+  量子事件距启动 24h=7142s vs B1=7132s 跨 run 对齐 ±10s**; B1 03:18 双子步在
+  lite.csv 精确复现（+5588kB×2 相隔 10s·main.csv 30s 粒度并档 +10.9MB）;
+  **29 事件窗 + 3 机械对照窗（同长·无复合跳·远离候选）八业务流逐字段不可区分**
+  （events/非wd 日志/batch/custody/advancing/domain/readback/switch/latency 异常
+  全 0/29 且 0/3; replay 与 watchdog tick=case-B 全程共现无特异性被否证）→
+  DIRECT 无·最小共同业务指纹=∅·完整性闸门 29/29 COMPLETE; **三问=Q1 YES（稳定
+  重复量子化形态）/Q2 NO（无稳定业务共同指纹）/Q3 NO（无唯一映射）→ C1-F4
+  分流: 匿名映射/native/allocator/buffer-pool 二阶段方向（待解禁）**。R² 口径
+  澄清: B1 期 0.0417=平台窗（剔跳变）定义; 全程 0.6697/稳态 0.7547 为单调
+  阶梯 vs 单调 epoch 时间趋势伪影（0.75≈步进中点数学期望）——两口径并行无矛盾。
+  **C2 static（repo 只读·Path E→A→B→C→D·生产代码零改动）: 第一方无命中**——
+  600-7500s 常量仅 main 驻留 park 3600s（醒后零动作零分配）; 无 7100s 定时器/
+  无「到 N 即动作」计数阈值/无 wall-clock 维护任务; 248×28.8s=7142.4s 与首事件
+  数值重合但 Rust 每 cycle 持久分配 ≤数百字节（量级差 1-2 个数量级·且后续簇间隔
+  σ226s≈7.8 cycle 远超计数锁可达抖动→**周期为涌现（填充×阈值）非计数/定时**）;
+  无界容器四项（幂等表/段史/custody failures/Released 会话滞留）合计 ≤~120B/s
+  vs 观测净 1548B/s（**差 13-77×**）且前三者从不释放与 C07 负跳不符; 无
+  vec![0u8;N]/Box 大数组/zeroed/mmap 系/malloc 封装/BytesMut/自定义 GlobalAlloc;
+  数值常量 [5.0M,6.1M] 生产区 0 命中; GStreamer 零显式池/容量配置（appsink
+  即取即释·queue 全默认·唯一显式 caps=program 面 320×240@25·输入面自动协商
+  未落日志=缺口）; B1 全程 0 次 recover/teardown·480 切换全为 active-pad 翻转。
+  **C2 形态反转级新事实（B1 拓扑三快照逐字节复核）**: 双连跳=t+7136/t+7146 各
+  +5588kB（5,722,112B·恰为 5588 档）·**VmSize 全程恒 2,888,904kB（净新增地址
+  空间=0）**·VmData +11,176kB 与 RssAnon 增量逐 kB 相等·[heap] 两小时仅
+  +675,840B（事件量的 5.9%）·Size∈[5.4M,5.7M] 映射三快照均 0·无 ~11MB 映射
+  → (a)2×新映射 (b)1×11MB (c)[heap] 增长全被字节级排除·**(d) 既有预留区内
+  新触页=唯一自洽形态**（64MB 对齐 Size 大 Rss 低预留区=glibc arena 形态·降级
+  为辅助线索不作为证明）·逐映射最终归属因缺事件前快照 OPEN（如实披露）。
+  **用户裁决冻结（2026-09-09）**: 两线纪律（A2-8 功能线与 Step15 RCA 线不互相
+  污染·禁因内存改 SwitchExecution/ExecutionGroup/TimelineAuthority/
+  ProgramTimeline/SessionManager/Supervisor/MediaBackend/PipelinePlan/
+  rss_bounded 谓词）; C2「第一方排除」语义收窄=**未发现显式 5.5MB 分配点与
+  7100s 定时器**（Rust 高频小分配→arena→page commit 路径未排除·mgr.tick/
+  lease/session 快照链仍在嫌疑面）; Gate 序列 **C2-O1(mapping closure)→
+  O2(arena/thread)→O3(call-chain·仅 O2 指向 arena 后审高频面)→O4(lifecycle
+  三态: 真泄漏/allocator retention/fragmentation)→C2-FIX(仅 O4 闭合后)→回归
+  →24h 复验**; 修复优先级 P0 消除不必要长期 retention>P1 降 churn>P2 复用容器
+  >P3 native ownership>P4 allocator/pool 调整; 绝不采用: 放宽/删除 rss 谓词·
+  把增长解释成正常·定期重启·定时人工压 RSS·首修复即 malloc_trim·改 watchdog
+  频率掩盖。
