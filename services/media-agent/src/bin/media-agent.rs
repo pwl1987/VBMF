@@ -36,7 +36,7 @@ fn main() {
     let discovered = &world.discovered;
     let projection_log = &world.projection_log;
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
-    let internal_log = &world.internal_log;
+    let event_intake = &world.event_intake;
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
     let event_sink = &world.event_sink;
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
@@ -70,6 +70,16 @@ fn main() {
     // 该赋值被 cfg 移除 → `unused_mut` 属预期, 显式 allow (clippy -D 门禁)。
     #[allow(unused_mut)]
     let mut api_mgr: Option<std::sync::Arc<media_agent::session::SessionManager>> = None;
+
+    // v0.2 Control Plane（R60 六点裁决）: SwitchProgram 执行/回读平面——同一
+    // `RuntimeSwitchPlane` Arc 分别进 CommandIdempotency（命令通道·dispatch
+    // trait）与 TransportContext（查询通道·readback trait）, 类型级隔离。
+    // 仅诊断双输入分支装配; Production/单输入/非 gstreamer 构建保持 None
+    // （命令面 Rejected·查询块诚实缺席——0.7C-8 503 契约语义不变）。
+    #[allow(unused_mut)]
+    let mut switch_plane: Option<
+        std::sync::Arc<media_agent::switch_dispatch_plane::RuntimeSwitchPlane>,
+    > = None;
 
     // Gate 2.6 (CAP-01) — 关键边界澄清 (Phase 0.6 锁死):
     //   * `decklink::start_capture` (IDeckLinkInput) = SDK 能力 / 诊断探针
@@ -111,7 +121,7 @@ fn main() {
                             lm.clone(),
                             agent_state.clone(),
                             event_sink.clone(),
-                            internal_log.clone(),
+                            event_intake.clone(),
                         );
                     }
                     Err(e) => tracing::error!(error = %e, "MEDIA-RT-01 self-test 启动失败"),
@@ -259,6 +269,62 @@ fn main() {
             #[cfg(not(feature = "gstreamer-backend"))]
             let _registry: Option<media_agent::port::PortRegistry> = None;
 
+            // 02-I P0-1（第十六轮 §二/§十五第一刀）: 生产组合根——
+            // PortRegistry→ResourceRegistry→bundle→SessionManager 为两种模式
+            // **共同**组合根（构造≠运行媒体: bootstrap 只构造依赖红线保持;
+            // Production 仍不自行启动任何管线——等待 Control Plane 显式
+            // Intent, P1-3 不变）。此前 SessionManager 仅在 diagnostic
+            // auto-start 分支构造, Production 模式 PortRegistry 无消费者。
+            #[cfg(feature = "gstreamer-backend")]
+            let composition = {
+                // P0-7A: 生命周期由 SessionManager 唯一拥有 (RUNTIME_SESSION_MODEL §4.1) —
+                // create = Preflight→Reserve→建档→Lease→Binding verify (失败逆序回滚零孤儿);
+                // start = materialize→instantiate→Allocate→Backend.start→Running。
+                let resources = media_agent::resource::SharedResourceRegistry::new(
+                    registry
+                        .as_ref()
+                        .map(|reg| {
+                            media_agent::resource::ResourceRegistry::derive_from_discovery(reg)
+                        })
+                        .unwrap_or_default(),
+                );
+                // A2-8-02-F-02（第十轮终裁）: 组合根经 **bundle** 取同源双
+                // view（backend→SessionManager; media_tap→Program 装配）——
+                // 全仓库唯一 controller 构造路径, 禁二次构造。
+                let adapter_bundle =
+                    media_agent::registry::AdapterRegistry::build_media_adapter_bundle()
+                        .unwrap_or_else(|e| {
+                            eprintln!("adapter feature 冲突 (fail-closed): {e}");
+                            std::process::exit(2);
+                        });
+                let ctrl: std::sync::Arc<dyn MediaBackend> = adapter_bundle.backend;
+                let media_tap_port: Option<
+                    std::sync::Arc<dyn media_agent::contracts::media_tap::MediaTapPort>,
+                > = adapter_bundle.media_tap;
+                // 03-01-E（R45）: 桥观测 view 同源留存（组 watchdog 域分类的
+                // 桥 liveness 证据源——bundle 第三 trait view, 同一 concrete
+                // controller; 不构成第二 ownership 面）。
+                let bridge_observation: Option<
+                    std::sync::Arc<dyn media_agent::contracts::media_tap::BridgeObservationPort>,
+                > = adapter_bundle.bridge_observation;
+                // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
+                // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
+                let mgr: std::sync::Arc<media_agent::session::SessionManager> =
+                    std::sync::Arc::new(media_agent::session::SessionManager::new(
+                        resources,
+                        lm.clone(),
+                        sup.clone(),
+                        ctrl.clone(),
+                        std::sync::Arc::new(devices.clone()),
+                        std::sync::Arc::new(bindings.clone()),
+                        registry.clone(),
+                        mode,
+                        media_agent::session::SessionTuning::default(),
+                        event_sink.clone(),
+                    ));
+                (mgr, ctrl, media_tap_port, bridge_observation)
+            };
+
             // 生产启动语义 (用户 §七 P1-3): 仅 diagnostic (或 self-test) 自动从绑定创建并启动 media pipeline;
             // Production **绝不**自行取 first device 制造 GraphRuntimeIntent —— 必须等待 Control Plane
             // 显式 StartPipeline Intent. (rpc.rs 当前 No transport yet, 故 Production 在此 idle:
@@ -348,38 +414,12 @@ fn main() {
 
                 #[cfg(feature = "gstreamer-backend")]
                 {
-                    // P0-7A: 生命周期由 SessionManager 唯一拥有 (RUNTIME_SESSION_MODEL §4.1) —
-                    // create = Preflight→Reserve→建档→Lease→Binding verify (失败逆序回滚零孤儿);
-                    // start = materialize→instantiate→Allocate→Backend.start→Running。
-                    let resources = media_agent::resource::SharedResourceRegistry::new(
-                        registry
-                            .as_ref()
-                            .map(|reg| {
-                                media_agent::resource::ResourceRegistry::derive_from_discovery(reg)
-                            })
-                            .unwrap_or_default(),
-                    );
-                    let ctrl: std::sync::Arc<dyn MediaBackend> =
-                        media_agent::registry::AdapterRegistry::build_media_backend()
-                            .unwrap_or_else(|e| {
-                                eprintln!("adapter feature 冲突 (fail-closed): {e}");
-                                std::process::exit(2);
-                            });
-                    // P0.7C-8: Arc 化 (tick 线程 + transport 上下文共享; 原 mgr 被 tick 线程 move,
-                    // 共享须 Arc; 既有 mgr.xxx() 调用经 Arc 透传, 零语义变化)。
-                    let mgr: std::sync::Arc<media_agent::session::SessionManager> =
-                        std::sync::Arc::new(media_agent::session::SessionManager::new(
-                            resources,
-                            lm.clone(),
-                            sup.clone(),
-                            ctrl.clone(),
-                            std::sync::Arc::new(devices.clone()),
-                            std::sync::Arc::new(bindings.clone()),
-                            registry.clone(),
-                            mode,
-                            media_agent::session::SessionTuning::default(),
-                            event_sink.clone(),
-                        ));
+                    // 02-I P0-1: 共同组合根产物（上移块——生产/诊断同源构造,
+                    // 此处仅 clone 接线, 构造细节见上）。
+                    let mgr = composition.0.clone();
+                    let ctrl = composition.1.clone();
+                    let media_tap_port = composition.2.clone();
+                    let bridge_observation_port = composition.3.clone();
                     api_mgr = Some(mgr.clone());
                     let dev_uuid = Uuid::parse_str(&first_id).unwrap_or(Uuid::nil());
                     // bootstrap 占位租约让位: 真实会话租约接管排他性 (P0-7A)。
@@ -400,17 +440,133 @@ fn main() {
                                 *agent_state.lock().unwrap() =
                                     media_agent::health::AgentState::Capturing;
                                 // watchdog 继续 Supervise pipeline (recover 前重验 lease 不变量保留)。
-                                if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
-                                    spawn_ingest_watchdog(
-                                        ctrl,
-                                        h,
-                                        dev_uuid,
-                                        sup.clone(),
-                                        lm.clone(),
-                                        agent_state.clone(),
-                                        event_sink.clone(),
-                                        internal_log.clone(),
-                                    );
+                                // A2-8-02-E: 双输入诊断会话 → ProgramExecutionRuntime 接线
+                                // （组合根装配; program 执行资源唯一 owner=creator=destroyer;
+                                // SessionManager 只见抽象 SessionStopHook, 不理解 GStreamer）。
+                                // 停止序经 hook: Program Stop→Tap Detach→Input Stop→Release。
+                                // 单输入路径逐字节保持。
+                                // **创建失败=会话整体回滚**（第七轮终裁场景②: program 部分
+                                // 资源由 runtime 清理, input/lease/resource 走 SessionManager
+                                // 既有回滚）——不再回落单输入 watchdog（双输入 Program 会话
+                                // 半残即不诚实）。
+                                let started_inputs: Vec<media_agent::session::SessionInput> =
+                                    mgr.status(&sid).map(|s| s.inputs).unwrap_or_default();
+                                let mut group_wired = false;
+                                if started_inputs.len() == 2 {
+                                    let initial_active = started_inputs[0].device_id;
+                                    let runtime = media_agent::switch_execution::ExecutionGroup::new(
+                                        sid,
+                                        started_inputs.clone(),
+                                        initial_active,
+                                    )
+                                    .and_then(|group| {
+                                        // A2-8-02-F-03/04: **Bridged 形态**——
+                                        // inter 系跨管线桥（intervideosrc/
+                                        // interaudiosrc 消费 MediaTap channel）,
+                                        // Program Graph 真实消费双输入媒体面。
+                                        let switcher: std::sync::Arc<
+                                            dyn media_agent::contracts::switch::SwitchExecutionAdapter,
+                                        > = std::sync::Arc::new(
+                                            media_agent::adapters::gstreamer::GStreamerSwitchAdapter::bridged(),
+                                        );
+                                        // F-02: tap 接线经 tap_channel 唯一约定
+                                        // （DeviceId→bridge address 非新 identity;
+                                        // attach 随 create·detach 随 Session 停止链）。
+                                        let tap_wirings: Vec<
+                                            media_agent::program_execution::TapWiring,
+                                        > = started_inputs
+                                            .iter()
+                                            .map(media_agent::program_execution::TapWiring::for_input)
+                                            .collect();
+                                        media_agent::program_execution::ProgramExecutionRuntime::create(
+                                            sid,
+                                            group,
+                                            switcher,
+                                            media_tap_port.clone(),
+                                            tap_wirings,
+                                        )
+                                    });
+                                    match runtime {
+                                        Ok(runtime) => {
+                                            let graph = runtime.graph_handle().expect("active");
+                                            let group_arc = runtime.group_arc().expect("active");
+                                            let switcher_arc =
+                                                runtime.switcher_arc().expect("active");
+                                            let stop_flag =
+                                                media_agent::watchdog::spawn_execution_group_watchdog(
+                                                    ctrl.clone(),
+                                                    switcher_arc,
+                                                    started_inputs
+                                                        .iter()
+                                                        .map(|i| (i.device_id, i.handle))
+                                                        .collect(),
+                                                    graph,
+                                                    group_arc,
+                                                    sup.clone(),
+                                                    lm.clone(),
+                                                    agent_state.clone(),
+                                                    event_sink.clone(),
+                                                    event_intake.clone(),
+                                                    // 03-01-E（R45）: 桥观测 view 注入
+                                                    // （组 watchdog 域分类桥列证据源;
+                                                    // None=无桥证据 → 不分类）。
+                                                    bridge_observation_port.clone(),
+                                                );
+                                            runtime.set_watchdog_stop(stop_flag);
+                                            tracing::info!(
+                                                graph_handle = graph.0,
+                                                initial_active = %initial_active,
+                                                "A2-8-02-E Execution Group 就绪: ProgramExecutionRuntime 接管 (program 资源唯一 owner), MultiInputWatchdog 四观测面启动, Session 停止链经 hook 接 teardown [v1 topology=测试源仿真; 真机 SDI inter 系+MediaTap=A2-8-02-F]"
+                                            );
+                                            // 生命周期接线: Session 停止 → hook → teardown
+                                            // （Session-scoped 注册——第八轮 P0: 多会话互不覆盖）。
+                                            // v0.2: Arc 化 runtime——hook 注册表与 Control
+                                            // Plane 共享同一执行体（原 :513 整体 move 不留
+                                            // 句柄, R60 探针 §2.6; clone 先于 move）。
+                                            let runtime_arc = std::sync::Arc::new(runtime);
+                                            switch_plane = Some(
+                                                std::sync::Arc::new(
+                                                    media_agent::switch_dispatch_plane::RuntimeSwitchPlane::new(
+                                                        sid,
+                                                        runtime_arc.clone(),
+                                                    ),
+                                                ),
+                                            );
+                                            mgr.register_stop_hook(&sid, runtime_arc);
+                                            group_wired = true;
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(
+                                                error = ?e,
+                                                session = %sid,
+                                                "A2-8-02-E program runtime 创建失败 (部分资源已清理): 回滚整个会话 (input/lease/resource 走 SessionManager 既有回滚)"
+                                            );
+                                            let _ = mgr.stop(&sid);
+                                            *agent_state.lock().unwrap() =
+                                                media_agent::health::AgentState::Degraded;
+                                        }
+                                    }
+                                }
+                                if !group_wired
+                                    && mgr.status(&sid).is_some_and(|s| {
+                                        !matches!(
+                                            s.phase,
+                                            media_agent::session::SessionPhase::Released
+                                        )
+                                    })
+                                {
+                                    if let Some(h) = mgr.status(&sid).and_then(|s| s.pipeline) {
+                                        spawn_ingest_watchdog(
+                                            ctrl,
+                                            h,
+                                            dev_uuid,
+                                            sup.clone(),
+                                            lm.clone(),
+                                            agent_state.clone(),
+                                            event_sink.clone(),
+                                            event_intake.clone(),
+                                        );
+                                    }
                                 }
                                 // tick 驱动 lease 续期/预留过期 (无后台定时器, 借常驻线程节拍)。
                                 std::thread::spawn(move || loop {
@@ -440,15 +596,29 @@ fn main() {
                 }
             } else {
                 // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
-                tracing::info!(
-                    "production runtime ready: manifest 已校验, 等待 Control Plane 显式 StartPipeline Intent (不自动启动 media pipeline; RPC transport 待接, 见 rpc.rs)"
-                );
+                #[cfg(feature = "gstreamer-backend")]
+                {
+                    // 02-I P0-1: 生产组合根就绪——SessionManager 已构造（PortRegistry
+                    // 一等消费: registry→ResourceRegistry→preflight）; mgr 常驻（tick
+                    // 线程持有——lease 房务, 零媒体启动）; 查询/命令面仍不暴露
+                    // （0.7C-8 生产 503 契约保持, 待 Control Plane transport 接线）。
+                    let (mgr, _ctrl, _media_tap_port, _bridge_observation) = composition;
+                    tracing::info!(
+                        "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 等待 Control Plane 显式 StartPipeline Intent (RPC transport 待接, 见 rpc.rs)"
+                    );
+                    std::thread::spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        mgr.tick();
+                    });
+                }
+                tracing::info!("production runtime ready: manifest 已校验, 不自动启动任何媒体管线");
                 *agent_state.lock().unwrap() = media_agent::health::AgentState::Ready;
             }
         }
     }
 
-    // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径无 mgr → 503 契约诚实;
+    // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径 mgr 仅组合不暴露
+    // 查询面 → 503 契约保持诚实——0.7C-8 语义不变, 02-I P0-1 只补组合根构造);
     // events/agent_state/device_count 全路径可用)。/health 响应体经 transport::route 保持
     // 逐字段不变 (回归锚点)。
     let transport_ctx = media_agent::transport::TransportContext {
@@ -459,10 +629,20 @@ fn main() {
             .as_ref()
             .map(|m| std::sync::Arc::new(media_agent::runtime_query::RuntimeQuery::new(m.clone()))),
         idem: api_mgr.as_ref().map(|m| {
-            std::sync::Arc::new(media_agent::idempotency::CommandIdempotency::new(m.clone()))
+            // v0.2: 双输入执行平面在位时附带切换命令通道; 否则 SwitchProgram
+            // 命令按不可用拒绝（command::dispatch None 臂）。
+            let idem = media_agent::idempotency::CommandIdempotency::new(m.clone());
+            match &switch_plane {
+                Some(plane) => std::sync::Arc::new(idem.with_switch_plane(plane.clone())),
+                None => std::sync::Arc::new(idem),
+            }
         }),
         // P1b: 静态文件面 /hls/* 目录（A 方案; 诊断输出配置接线, 生产/未配置 None ⇒ 503）。
         hls_dir: media_agent::config::PrototypeOutputConfig::from_env().hls_dir,
+        // v0.2: program_switch 事实回读（Query Plane 通道; None ⇒ 投影块缺席）。
+        switch_readback: switch_plane.map(|p| {
+            p as std::sync::Arc<dyn media_agent::switch_dispatch_plane::SwitchReadbackPlane>
+        }),
     };
 
     std::thread::spawn({
@@ -472,13 +652,8 @@ fn main() {
         move || match std::net::TcpListener::bind(&_cfg.health_bind) {
             Ok(listener) => {
                 tracing::info!(bind = %_cfg.health_bind, "health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二)");
-                for s in listener.incoming().flatten() {
-                    // P1b: socket 超时（review Important#4）——串行 accept 循环下防单个
-                    // 停滞读者/空闲连接永久占住唯一 listener（原型级加固; 正式化记档 §7）。
-                    let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(10)));
-                    let _ = s.set_write_timeout(Some(std::time::Duration::from_secs(30)));
-                    media_agent::transport::serve_connection(s, &transport_ctx);
-                }
+                // R63-B1: per-connection std thread（连接并发≠切换并发·B0 契约）。
+                media_agent::transport::serve_forever(listener, transport_ctx);
             }
             Err(e) => tracing::error!(error = %e, "health bind failed"),
         }

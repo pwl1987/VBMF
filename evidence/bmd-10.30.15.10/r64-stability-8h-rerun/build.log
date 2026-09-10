@@ -1,0 +1,5 @@
+== BMD local build: features=bmd,gstreamer ==
+   DECKLINK_SDK_INCLUDE=/home/lytv/decklink-sdk-include
+   LIBCLANG_PATH=/usr/lib/llvm-21/lib
+   Compiling media-agent v0.1.0 (/home/lytv/media-agent-build/services/media-agent)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.37s

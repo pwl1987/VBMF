@@ -1,0 +1,93 @@
+=== R64 Control Plane / Switch Recovery 综合验收（real Control Plane + test-controlled adapter）===
+披露: C1/C2/C2b=真实硬件行为（注入仅在适配器调用点）; C3 observed=None 为接缝注入（真机管线运行中无法自然产生 absent observed）——恢复语义主证不变: 状态机拒绝猜测
+披露: watchdog 未接线（a204_obs 先例·矩阵确定性; watchdog-in-loop 由 30min 真服务基线覆盖）
+epoch 口径: group.switch_epoch=begin 即消费（尝试数）; ProgramObservation.switch_epoch=av_epoch（实际翻转数）——失败后合法分叉
+[2m2026-09-06T13:19:18.850974Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-06T13:19:18.851129Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+[2m2026-09-06T13:19:19.142708Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:19.479: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:19.479: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:19.479: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:19.479: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:19.479: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:19.479: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:20.120: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:20.120: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1246953): GStreamer-Video-CRITICAL **: 21:19:20.120: gst_video_converter_free: assertion 'convert != NULL' failed
+R64-MATRIX world A=A B=B sid=1586ffbf-3760-4f11-b093-34ed5235cb11 bind=127.0.0.1:41055
+R64-MATRIX sixplane [init] cmd=None desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(0)/Some(0)/Some(0) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c0a A→B status=executed class=None detail=Some("switch executed: av_epoch=1 outcome=preserved timeline_epoch=0")
+R64-MATRIX c0b B→A status=executed class=None detail=Some("switch executed: av_epoch=2 outcome=preserved timeline_epoch=0")
+R64-MATRIX sixplane [c0-after] cmd=Some(("executed", None)) desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(2)/Some(2)/Some(2) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T13:19:26.527128Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e))) [3mtimeline[0m[2m=[0mSome(Ok(None))
+R64-MATRIX c1 A→B(注入 pre-flip Err) status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C1/C3 注入: adapter switch 失败（第 3 次调用——未委托, 硬件未动）")
+R64-MATRIX sixplane [c1-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(3)/Some(2)/Some(2) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c1-replay status=replayed class=Some("unknown") detail=Some("switch execution backend error: R64-C1/C3 注入: adapter switch 失败（第 3 次调用——未委托, 硬件未动）")
+R64-MATRIX c1-retry(A→B 新 id) status=executed class=None detail=Some("switch executed: av_epoch=4 outcome=preserved timeline_epoch=0")
+R64-MATRIX sixplane [c1-after-retry] cmd=Some(("executed", None)) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(4)/Some(4)/Some(4) tl(epoch/src/api)=Some(0)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(0) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T13:19:31.706558Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(1), video: SourceSegment { source_id: 4fa33dcb-5f76-5f76-aea8-330df7ada03e, program_epoch: ProgramEpoch(1), segment_id: SegmentId(6), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 4fa33dcb-5f76-5f76-aea8-330df7ada03e, program_epoch: ProgramEpoch(1), segment_id: SegmentId(6), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2 B→A(硬件真翻转+证据抑制) elapsed=5.021873062s status=executed class=Some("unknown") detail=Some("switch execution backend error: timeline 证据超时 FailClosed: timeline evidence insufficient (pending planes: [Video, Audio])")
+R64-MATRIX sixplane [c2-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(5)/Some(5)/Some(5) tl(epoch/src/api)=Some(1)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(1) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c2-replay status=replayed class=Some("unknown") detail=Some("switch execution backend error: timeline 证据超时 FailClosed: timeline evidence insufficient (pending planes: [Video, Audio])")
+R64-MATRIX c2-next(A→B) status=executed class=None detail=Some("switch executed: av_epoch=6 outcome=preserved timeline_epoch=1")
+R64-MATRIX sixplane [c2-after-next] cmd=Some(("executed", None)) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(6)/Some(6)/Some(6) tl(epoch/src/api)=Some(1)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(1) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T13:19:31.880305Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(2), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(2), segment_id: SegmentId(9), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(2), segment_id: SegmentId(9), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b B→A(release Err·guard Drop 强释) status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX sixplane [c2b-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(7)/Some(7)/Some(7) tl(epoch/src/api)=Some(2)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(2) api(status/present)=(200/true) verdict=FAIL
+[2m2026-09-06T13:19:31.886069Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mNone [3mtimeline[0m[2m=[0mNone
+R64-MATRIX sixplane [c2b-after-next] cmd=Some(("executed", Some("permanent"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(7)/Some(7)/Some(7) tl(epoch/src/api)=Some(2)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(2) api(status/present)=(200/true) verdict=FAIL
+R64-MATRIX storm 开始（B→A 后台 + 并发查询 + 同 id replay + 异 id 排队）
+[2m2026-09-06T13:19:31.888877Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mNone [3mtimeline[0m[2m=[0mNone
+[2m2026-09-06T13:19:32.391304Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mNone [3mtimeline[0m[2m=[0mNone
+R64-MATRIX storm first=executed class=Some("permanent") | replay=replayed | queued=executed class=Some("permanent")
+R64-MATRIX storm 真值序列 1 样本: epoch8(窗内=B)→9(A)→10(B) 演进=快照只读已提交事实
+R64-MATRIX sixplane [storm-after] cmd=Some(("executed", Some("permanent"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(7)/Some(7)/Some(7) tl(epoch/src/api)=Some(2)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(2) api(status/present)=(200/true) verdict=FAIL
+[2m2026-09-06T13:19:32.595452Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mNone [3mgroup[0m[2m=[0mNone [3mtimeline[0m[2m=[0mNone
+R64-MATRIX c3 B→A(注入 pre-flip Err + observed=None) status=executed class=Some("permanent") detail=Some("target 4fa33dcb-5f76-5f76-aea8-330df7ada03e is already the active source")
+R64-MATRIX sixplane [c3-landed] cmd=Some(("executed", Some("permanent"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(7)/Some(7)/Some(7) tl(epoch/src/api)=Some(2)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(2) api(status/present)=(200/true) verdict=FAIL
+[2m2026-09-06T13:19:32.599223Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mNone [3mtimeline[0m[2m=[0mNone
+R64-MATRIX c3-next(新 id) status=executed class=Some("permanent") detail=Some("target 4fa33dcb-5f76-5f76-aea8-330df7ada03e is already the active source")
+R64-MATRIX sixplane [c3-after-reject] cmd=Some(("executed", Some("permanent"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(7)/Some(7)/Some(7) tl(epoch/src/api)=Some(2)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(2) api(status/present)=(200/true) verdict=FAIL
+
+(media-agent-gates:1246953): GStreamer-CRITICAL **: 21:19:32.603: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1246953): GStreamer-CRITICAL **: 21:19:32.604: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1246953): GStreamer-CRITICAL **: 21:19:32.604: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1246953): GStreamer-CRITICAL **: 21:19:32.604: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+R64-MATRIX c3-stop status=executed class=None detail=None
+R64-MATRIX sixplane [teardown] cmd=Some(("executed", None)) desired=None observed=None sw_epoch(g/p/api)=None/None/None tl(epoch/src/api)=None/None/None api(status/present)=(200/false) verdict=OK
+R64-MATRIX summary switches_delegated=6 switches_injected_failed=3(c1/c2-release-window/c2b)+1(c3) rejected=1 replay_checked=4 checkpoints=10 failures=22
+R64-MATRIX verdict FAIL（22 项断言失败——fail-closed exit 2）:
+  FAIL: c1 av_epoch=3（install 已推进·switch 未翻转）
+  FAIL: sixplane[c2b-landed]: Authority source(Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) != adapter observed(Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e))——静息点双源矛盾
+  FAIL: sixplane[c2b-landed]: desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) 期望 ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)
+  FAIL: sixplane[c2b-landed]: timeline source=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) 期望 Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)
+  FAIL: c2b-next preserved@epoch2: Some("target 6ede00d0-baf4-573f-a0dd-4a503bf7f766 is already the active source")
+  FAIL: sixplane[c2b-after-next]: Authority source(Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) != adapter observed(Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e))——静息点双源矛盾
+  FAIL: sixplane[c2b-after-next]: observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) 期望 Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)
+  FAIL: sixplane[c2b-after-next]: API observed=Some("4fa33dcb-5f76-5f76-aea8-330df7ada03e") 期望 6ede00d0-baf4-573f-a0dd-4a503bf7f766
+  FAIL: storm first 期望 preserved: Some("target 4fa33dcb-5f76-5f76-aea8-330df7ada03e is already the active source")
+  FAIL: storm queued 期望串行后执行: Some("target 6ede00d0-baf4-573f-a0dd-4a503bf7f766 is already the active source")
+  FAIL: sixplane[storm-after]: Authority source(Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) != adapter observed(Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e))——静息点双源矛盾
+  FAIL: sixplane[storm-after]: observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) 期望 Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)
+  FAIL: sixplane[storm-after]: API observed=Some("4fa33dcb-5f76-5f76-aea8-330df7ada03e") 期望 6ede00d0-baf4-573f-a0dd-4a503bf7f766
+  FAIL: storm av_epoch=10: {"audio_active":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","observed_active":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","program_audio_frames":540,"program_audio_pts_state":"discontinuity_declared","program_video_frames":405,"program_video_pts_state":"discontinuity_declared","session_id":"1586ffbf-3760-4f11-b093-34ed5235cb11","switch_epoch":7,"timeline":{"audio_continuity":"declared_discontinuity","discontinuity_state":"discontinuity_declared","observed_at_ms":1788700772592,"program_epoch":2,"segment_id":9,"source_id":"6ede00d0-baf4-573f-a0dd-4a503bf7f766","video_continuity":"declared_discontinuity"},"video_active":"4fa33dcb-5f76-5f76-aea8-330df7ada03e"}
+  FAIL: storm 后连续 GET epoch 不变（查询只读）
+  FAIL: c3 dispatch executed + unknown
+  FAIL: sixplane[c3-landed]: Authority source(Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) != adapter observed(Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e))——静息点双源矛盾
+  FAIL: sixplane[c3-landed]: desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) 期望 RecoveryRequired{from:6ede00d0-baf4-573f-a0dd-4a503bf7f766, to:4fa33dcb-5f76-5f76-aea8-330df7ada03e}（终态闩锁, 不自动恢复）
+  FAIL: c3 闩锁后 API observed=真实 B: {"audio_active":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","observed_active":"4fa33dcb-5f76-5f76-aea8-330df7ada03e","program_audio_frames":540,"program_audio_pts_state":"discontinuity_declared","program_video_frames":405,"program_video_pts_state":"discontinuity_declared","session_id":"1586ffbf-3760-4f11-b093-34ed5235cb11","switch_epoch":7,"timeline":{"audio_continuity":"declared_discontinuity","discontinuity_state":"discontinuity_declared","observed_at_ms":1788700772597,"program_epoch":2,"segment_id":9,"source_id":"6ede00d0-baf4-573f-a0dd-4a503bf7f766","video_continuity":"declared_discontinuity"},"video_active":"4fa33dcb-5f76-5f76-aea8-330df7ada03e"}
+  FAIL: c3-next detail 应含 recovery required: Some("target 4fa33dcb-5f76-5f76-aea8-330df7ada03e is already the active source")
+  FAIL: sixplane[c3-after-reject]: Authority source(Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) != adapter observed(Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e))——静息点双源矛盾
+  FAIL: sixplane[c3-after-reject]: desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) 期望 RecoveryRequired{from:6ede00d0-baf4-573f-a0dd-4a503bf7f766, to:4fa33dcb-5f76-5f76-aea8-330df7ada03e}（终态闩锁, 不自动恢复）

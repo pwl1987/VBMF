@@ -20,7 +20,9 @@ use uuid::Uuid;
 use crate::graph_intent::GraphRuntimeIntent;
 use crate::session::{SessionId, SessionManager};
 
-/// 命令词表 — **封闭枚举**（三命令; 新命令须过架构评审并显式更新词表快照测试）。
+/// 命令词表 — **封闭枚举**（四命令; 新命令须过架构评审并显式更新词表快照测试。
+/// v0.2（R60 探针 + 用户六点裁决）: `SwitchProgram` 为第 4 正式命令——执行
+/// 委托 `SwitchDispatchPlane`（非 SessionManager）, 见 switch_dispatch_plane）。
 /// 同后缀 Session 是有意的命令域命名 (allow: 终审冻结的命令词汇表)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -29,6 +31,7 @@ pub enum CommandKind {
     StartSession,
     StopSession,
     ReleaseSession,
+    SwitchProgram,
 }
 
 /// 命令 ID（幂等键占位: D9 幂等语义属下一 change）。
@@ -43,6 +46,12 @@ pub enum CommandTarget {
     Session { intent: GraphRuntimeIntent },
     /// StopSession/ReleaseSession 用。
     SessionById { session_id: SessionId },
+    /// SwitchProgram 用（v0.2·R60 裁决②）: 目标会话 + 目标输入设备。
+    /// policy 固定 FrameSwitch（未真机验证的 Packet/Master 不入 wire 面）。
+    SwitchProgram {
+        session_id: SessionId,
+        target_device: uuid::Uuid,
+    },
 }
 
 /// 命令信封 — **零执行字段**（serde 反向断言禁 gst/pipeline/device_number 等）。
@@ -129,13 +138,44 @@ pub fn validate(env: &CommandEnvelope) -> Result<(), CommandRejection> {
             code: "kind_target_mismatch".into(),
             detail: "StopSession/ReleaseSession 需要 SessionById 目标".into(),
         }),
+        (
+            CommandKind::SwitchProgram,
+            CommandTarget::SwitchProgram {
+                session_id,
+                target_device,
+            },
+        ) => {
+            if session_id.0 == Uuid::nil() {
+                return Err(CommandRejection {
+                    code: "nil_session_id".into(),
+                    detail: "session_id 不得为 nil UUID".into(),
+                });
+            }
+            if *target_device == Uuid::nil() {
+                return Err(CommandRejection {
+                    code: "nil_target_device".into(),
+                    detail: "target_device 不得为 nil UUID".into(),
+                });
+            }
+            Ok(())
+        }
+        (CommandKind::SwitchProgram, _) => Err(CommandRejection {
+            code: "kind_target_mismatch".into(),
+            detail: "SwitchProgram 需要 SwitchProgram{session_id, target_device} 目标".into(),
+        }),
     }
 }
 
 /// **Command → Runtime lifecycle boundary（薄映射, 非 Executor）**——
-/// match 三臂各调 SessionManager 公共 API; 无循环/插件/注册/总线。
-/// 验证拒绝不触 Runtime; 执行期错误由 SessionManager 既有回滚语义处理。
-pub fn dispatch(mgr: &SessionManager, env: &CommandEnvelope) -> CommandOutcome {
+/// 会话三命令各调 SessionManager 公共 API; SwitchProgram（v0.2）经
+/// `SwitchDispatchPlane` 委托（执行体=ProgramExecutionRuntime, 非
+/// SessionManager——R60 探针 §2.1/§2.6）。无循环/插件/注册/总线。
+/// 验证拒绝不触 Runtime; 执行期错误由各执行体既有回滚/失败语义处理。
+pub fn dispatch(
+    mgr: &SessionManager,
+    switch_plane: Option<&dyn crate::switch_dispatch_plane::SwitchDispatchPlane>,
+    env: &CommandEnvelope,
+) -> CommandOutcome {
     use crate::error_model::ErrorClassification;
     let outcome = |status: CommandStatus,
                    detail: Option<String>,
@@ -191,6 +231,27 @@ pub fn dispatch(mgr: &SessionManager, env: &CommandEnvelope) -> CommandOutcome {
                 ),
             }
         }
+        // v0.2（R60 裁决①）: 切换命令经专用执行平面——SessionManager 不持有
+        // ProgramExecutionRuntime（探针 §2.6）。平面未装配（单输入会话/
+        // Production 组合根未接线）→ Rejected 未触媒体 Runtime（诚实拒绝,
+        // 非 Failed——与 0.7C-8 "查询/命令面 503 契约" 同语义层）。
+        (
+            CommandKind::SwitchProgram,
+            CommandTarget::SwitchProgram {
+                session_id,
+                target_device,
+            },
+        ) => match switch_plane {
+            None => outcome(
+                CommandStatus::Rejected,
+                Some(
+                    "switch_plane_unavailable: 无活跃双输入执行平面（v0.2 单会话形态; Production 503 契约维持）"
+                        .into(),
+                ),
+                Some(ErrorClassification::Rejected),
+            ),
+            Some(plane) => plane.switch(env.command_id, *session_id, *target_device),
+        },
         // validate 已保证形状匹配; 此臂不可达。
         _ => outcome(
             CommandStatus::Rejected,
@@ -303,7 +364,8 @@ mod tests {
 
     #[test]
     fn command_rt_01_vocabulary_snapshot() {
-        // 词表快照 (封闭三命令; 新命令须过架构评审并显式更新本断言)。
+        // 词表快照 (封闭四命令; 新命令须过架构评审并显式更新本断言。
+        // v0.2: switch_program 经 R60 探针 §7 六点裁决 + 用户终裁加入)。
         assert_eq!(
             serde_json::to_string(&CommandKind::StartSession).unwrap(),
             "\"start_session\""
@@ -315,6 +377,10 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&CommandKind::ReleaseSession).unwrap(),
             "\"release_session\""
+        );
+        assert_eq!(
+            serde_json::to_string(&CommandKind::SwitchProgram).unwrap(),
+            "\"switch_program\""
         );
     }
 
@@ -391,12 +457,12 @@ mod tests {
         // Rejected: 验证拒绝不触 Runtime (会话表空)。
         let mut bad = start_env();
         bad.requested_by = String::new();
-        let out = dispatch(&mgr, &bad);
+        let out = dispatch(&mgr, None, &bad);
         assert_eq!(out.status, CommandStatus::Rejected);
         assert!(mgr.list().is_empty(), "Rejected 不得触 Runtime");
         // Executed: Start → 会话 Running (经 mgr 状态可见)。
         let env = start_env();
-        let out = dispatch(&mgr, &env);
+        let out = dispatch(&mgr, None, &env);
         assert_eq!(
             out.status,
             CommandStatus::Executed,
@@ -413,7 +479,7 @@ mod tests {
             issued_at_ms: 0,
             requested_by: "t".into(),
         };
-        assert_eq!(dispatch(&mgr, &stop).status, CommandStatus::Executed);
+        assert_eq!(dispatch(&mgr, None, &stop).status, CommandStatus::Executed);
         assert_eq!(mgr.status(&sid).unwrap().state, SessionState::Released);
         // Failed: Stop 不存在的会话。
         let ghost = CommandEnvelope {
@@ -425,7 +491,7 @@ mod tests {
             issued_at_ms: 0,
             requested_by: "t".into(),
         };
-        let out = dispatch(&mgr, &ghost);
+        let out = dispatch(&mgr, None, &ghost);
         assert_eq!(out.status, CommandStatus::Failed);
         // Release → Executed + 会话移除。
         let release = CommandEnvelope {
@@ -435,8 +501,98 @@ mod tests {
             issued_at_ms: 0,
             requested_by: "t".into(),
         };
-        assert_eq!(dispatch(&mgr, &release).status, CommandStatus::Executed);
+        assert_eq!(
+            dispatch(&mgr, None, &release).status,
+            CommandStatus::Executed
+        );
         assert!(mgr.status(&sid).is_none());
+    }
+
+    #[test]
+    fn command_rt_01_switch_program_validate_paths() {
+        // v0.2 第四命令形状校验: 通过/失配/nil 双字段。
+        let sid = SessionId(Uuid::new_v4());
+        let dev = Uuid::new_v4();
+        let ok = CommandEnvelope {
+            command_id: CommandId(Uuid::new_v4()),
+            kind: CommandKind::SwitchProgram,
+            target: CommandTarget::SwitchProgram {
+                session_id: sid,
+                target_device: dev,
+            },
+            issued_at_ms: 0,
+            requested_by: "t".into(),
+        };
+        assert!(validate(&ok).is_ok());
+        // kind_target_mismatch: SessionById 目标配 SwitchProgram kind。
+        let mut mismatched = ok.clone();
+        mismatched.target = CommandTarget::SessionById { session_id: sid };
+        assert_eq!(
+            validate(&mismatched).unwrap_err().code,
+            "kind_target_mismatch"
+        );
+        // nil_session_id / nil_target_device。
+        let mut nil_sid = ok.clone();
+        nil_sid.target = CommandTarget::SwitchProgram {
+            session_id: SessionId(Uuid::nil()),
+            target_device: dev,
+        };
+        assert_eq!(validate(&nil_sid).unwrap_err().code, "nil_session_id");
+        let mut nil_dev = ok;
+        nil_dev.target = CommandTarget::SwitchProgram {
+            session_id: sid,
+            target_device: Uuid::nil(),
+        };
+        assert_eq!(validate(&nil_dev).unwrap_err().code, "nil_target_device");
+    }
+
+    #[test]
+    fn command_rt_01_switch_program_dispatch_paths() {
+        use crate::switch_dispatch_plane::test_support::FakeSwitchPlane;
+        use crate::switch_execution::SwitchError;
+
+        let mgr = world();
+        let sid = SessionId(Uuid::new_v4());
+        let dev = Uuid::new_v4();
+        let env = CommandEnvelope {
+            command_id: CommandId(Uuid::new_v4()),
+            kind: CommandKind::SwitchProgram,
+            target: CommandTarget::SwitchProgram {
+                session_id: sid,
+                target_device: dev,
+            },
+            issued_at_ms: 0,
+            requested_by: "t".into(),
+        };
+        // 平面未装配 → Rejected（未触媒体 Runtime; 与 503 契约同语义层）。
+        let out = dispatch(&mgr, None, &env);
+        assert_eq!(out.status, CommandStatus::Rejected);
+        assert!(out
+            .detail
+            .as_deref()
+            .unwrap()
+            .contains("switch_plane_unavailable"));
+        // 平面在位 + 会话匹配 → Executed（委托 Fake 平面）。
+        let plane = FakeSwitchPlane::new(sid);
+        let out = dispatch(&mgr, Some(&plane), &env);
+        assert_eq!(out.status, CommandStatus::Executed);
+        assert_eq!(plane.calls.lock().unwrap().as_slice(), &[(sid, dev)]);
+        // 会话不匹配 → Failed + PermanentFailure（平面语义裁决）。
+        let other = FakeSwitchPlane::new(SessionId(Uuid::new_v4()));
+        let out = dispatch(&mgr, Some(&other), &env);
+        assert_eq!(out.status, CommandStatus::Failed);
+        assert_eq!(
+            out.classification,
+            Some(crate::error_model::ErrorClassification::PermanentFailure)
+        );
+        // 平面执行失败 → Failed + classify_switch_error（Backend → Unknown）。
+        let failing = FakeSwitchPlane::failing(sid, SwitchError::Backend("boom".into()));
+        let out = dispatch(&mgr, Some(&failing), &env);
+        assert_eq!(out.status, CommandStatus::Failed);
+        assert_eq!(
+            out.classification,
+            Some(crate::error_model::ErrorClassification::Unknown)
+        );
     }
 
     #[test]

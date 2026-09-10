@@ -1,0 +1,5 @@
+date=2026-09-07T09:13:28+08:00
+bin_md5=2b5aa7601fab1adf272e145dd7d90faa
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+cycles=960 dwell=28s cycle_period=~30s duration_approx=28800s replay_every=5 midpoint_cycle=480 tag=r64-stability-8h
+predicate=v2 (R65 adjudication 2026-09-07: threads bounded<=4 / per-command epoch+1 / per-command observed==target / RUST_LOG=info watchdog) — thresholds verbatim, not relaxed for duration

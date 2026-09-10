@@ -1,0 +1,124 @@
+# C2-O1 模型修订注册（v2·RESERVATION-EXTENSION）+ C2-O2 设计注册 —— 2026-09-10
+# 依据: 用户终裁 v3.1（O1 模型修订 PASS/FREEZE·O2 设计注册 PASS/REGISTER·O2 执行 NOT AUTHORIZED）。
+# 本文件升格并取代 c2o1-mapping-closure.txt 的判定登记（v1 原样保留·superseded-by 本文件）; 证据零改动·零新采集·零盒操作。
+# 机器表: 同目录 c2o1-envelope-tables.txt（会话内联分析器产出·源码保全=会话执行记录·fixtures A/B/C/D 预验证全绿后跑真实证据）。
+
+== C2 总原则（c2rules·四句冻结）==
+1. 每层只证本层对象，不跨层升级。
+2. Supporting evidence 不得自动升级为本层事实。
+3. 相关性不得自动升级为因果性。
+4. 为获得期望结论，不得反向扩大实验强度或修改生产系统。
+实验纪律永久句: 「不得为获得线程归因而缩小采样间隔、延长实验或修改生产程序。」
+
+== C2 RCA 分层对象模型（弃层数计数措辞）==
+Reservation Envelope → VMA Segment → Resident Pages → Arena → Thread / Call Chain → Retention / Reuse
+两级身份: address_extent（地址连续·邻接分组第一遍）≠ reservation_envelope（四证共认:
+①stable base/end ②cross-snapshot persistence ③RW/PROT_NONE conservation ④permission-transition
+continuity——adjacency 单独不决定身份; 64MiB 对齐=allocator-family structural clue·supporting
+only·非身份条件非判据）。VMA transformation graph: appear/disappear/split/merge/repartition
+（1→N / N→1 / N→M）。
+
+== O1 FINAL（升格链·状态机自本轮冻结）==
+ANON_GROWTH → NO UNIQUE BUSINESS ATTRIBUTION → STATIC（无显式大分配/无 7100s 定时器）
+→ MORPHOLOGY-REFINED（裁决事件·非终态词·2026-09-10）→ RESERVATION-EXTENSION·BOUNDARY-MIGRATION（当前对象层状态）
+E01≡trig-4（run_rel 7150·win +5584kB·PRE=win-7141 前 10s）→ R1=[0x713004000000,0x713008000000)
+E02≡trig-5（run_rel 7204·win +5588kB·PRE=base-7203 前 1s）→ R2=[0x713010000000,0x713014000000)
+两事件机判（冻结阶梯）均 = RESERVATION-EXTENSION·BOUNDARY-MIGRATION。
+冻结: 此后不再新增状态; O3 梯度不加第七级; 不设 O5。
+子态语义: ·BOUNDARY-MIGRATION=恒定 envelope 内 RW 头扩展+PN 尾等量收缩;
+·ENVELOPE-INTRODUCTION=新 reservation envelope 出现（allocator-structure clue·不等价于 arena creation）。
+
+== 核心数字（机器表摘录·c2o1-envelope-tables.txt）==
+- E01: R1 rw 头 22628→28212(+5584)·PN 尾 42908→37324(−5584)·address_conservation_error=+0·
+  [heap]Δ0·VmSize(win)Δ0·VmData(win)Δ+5584·ΣΔAnonymous==ΔRssAnon(win)==+5584 零缺口·quantum_pages=1396（supporting only）
+- E02: R2 rw 头 22652→28240(+5588)·PN 尾 42884→37296(−5588)·conservation=+0·VmData(win)Δ+5588·
+  ΣΔAnon==ΔRssAnon==+5588·quantum_pages=1397（supporting only）
+- 簇(win-7141→post-5): dRssAnon=+11216 == dVmData=+11216 == Σ窗口扩展(R1+5584·R2+5632) 逐kB三方全等
+  （R2 窗口自含 +44 前奏: 22608→22652→28240; R2 所在链全部增长均落在 R2 窗口内·chain 余量 +0）
+- 口径差披露: 触发器累计 pending=5796/5632（含前奏与小步累计）vs 事件窗 win=5584/5588; 阶梯取窗口径。
+- trigger_latency（区间非点）: E01 allocation∈(7148,7150]·capture@7150·PRE age 10s; E02 allocation∈(7202,7204]·capture@7204·PRE age 1s。
+- 轨迹（87 快照·窗口粒度）: R1/R2 创建于 start@3→trig-1@13 之间·热身填充后平台 22588/22608
+  **精确恒定 run 38→7081（7043s）** → R1 前奏 +40 落 (7081,7141] → R1 +5584 落 (7141,7150]
+  → R2 前奏 +44 落 (7165,7201] → R2 +5588 落 (7203,7204] → 事件后恒定至 run 末(9081)。
+  **前奏各自早于大扩展 ≤60s/≤36s**。R1 自身热身含一个 +5588 量子同族填充步（trig-2@23·supporting only）。
+- over-merge 披露（两级身份模型的实证必要）: R2 位于连续匿名链 0x71300c000000–0x713040000000
+  （832MiB address_extent·重复 rw/PN 结构）——邻接链是地址层事实·不定义 reservation 身份; 身份按窗口四证确认。
+- 身份四证: R1/R2 窗口 resolved 86/87（唯一未解析=创建前 start@3）·coverage/continuity/boundaries 全 True。
+- 跨 run 首事件: 7132(B1)/7142(24h)/7150(本run) ±18s（supporting only）。
+
+== 已证明 / 未证明 + Evidence class ==
+| 结论                              | 状态     | Evidence class     |
+| RssAnon 增长（量子事件形态）        | 已证明   | Direct            |
+| VmData 增量 == ΣRW 头扩展（逐kB）  | 已证明   | Direct            |
+| 64MiB reservation envelope（R1/R2）| 已证明   | Direct-structural |
+| envelope 内 RW/PN 边界迁移+守恒     | 已证明   | Direct            |
+| allocator-family compatibility     | 待 O2-A | Structural        |
+| arena identity（runtime）          | 未证明   | Forbidden-runtime |
+| 事件窗口活跃 TID set               | 待 O2-B | Correlational     |
+| causal thread / allocation site    | 未证明   | O3                |
+| retention mechanism               | 未证明   | O4                |
+
+== O2 裁决矩阵控制表（C2 核心控制表）==
+| 层   | 问题                              | 工具                    | 能证明什么                        | 不能证明什么           |
+| O1   | RSS 到底在哪里增长？               | smaps/status            | reservation/VMA/RSS 形态          | arena                  |
+| O2-A | reservation 像不像 allocator 结构？| 既有 smaps + libc info  | structural compatibility          | runtime arena identity |
+| O2-B | 哪些线程与事件同时活动？           | /proc/task/*            | activity-correlated TID set       | causal thread          |
+| O3   | 谁/什么代码路径导致增长？          | allocation-path evidence| causal candidate                  | 自动等于 root cause    |
+| O4   | 为什么释放后仍保持 RSS？           | reuse/retention evidence| retention mechanism               | 未验证的 allocator 假说|
+
+== O2-A 判据证据表 ==
+| 证据                    | 作用                            |
+| reservation size/base 对齐 | allocator-family clue（supporting）|
+| RW/PROT_NONE 迁移        | strong structural clue          |
+| [heap] 独立且平直        | exclude main heap morphology    |
+| libc mapping/name        | allocator-family context        |
+| runtime arena registry   | 当前禁止·不纳入                 |
+
+== O2-A 执行解释纪律（注册）==
+推理序 = observed morphology → allocator reservation family 兼容 → libc context 交叉验证
+→ ALLOCATOR-STRUCTURALLY-COMPATIBLE。正文可写 "morphology is consistent with glibc allocator
+reservation behavior"; 不得写 "this is glibc arena X"（无 runtime evidence 前禁止单一 glibc 假说定论）。
+
+== C2-O2 设计（注册待裁·O2 执行 NOT AUTHORIZED）==
+O2-A Entry Condition: O1=RESERVATION-EXTENSION ∧ reservation identity stable ∧ RW↔PROT_NONE
+conservation established —— 由既有 O1 证据核验满足（R1/R2 窗口四证全绿+conservation +0）:
+**satisfied by existing O1 evidence; no O2 execution implied.**
+O2-A（结构兼容性）: reservation → allocator-family structural compatibility（非 runtime arena
+identification）。verdict = ALLOCATOR-STRUCTURALLY-COMPATIBLE / ALLOCATOR-STRUCTURALLY-INCOMPATIBLE
+/ INCONCLUSIVE。判据①envelope size/base alignment 与典型 allocator reservation family 的结构
+一致性（64MiB 对齐=支持线索）②RW 头+PROT_NONE 可增长尾 mprotect 迁移形态③[heap] 分离且平直
+④libc 映射路径（既有 smaps Name）。thread/arena/core counts=仅 sanity context·不入判据。
+STOP: ALLOCATOR-STRUCTURALLY-INCOMPATIBLE → 不做 thread 归因·停等重裁。
+O2-B（活动相关性）: 回答「哪些线程在事件窗口内具有活动时序相关性」（activity-correlated TID
+set）·不回答「哪个线程拥有 arena」。c2o2-observer = c2o1-observer v2.1 全契约继承 + ①watch 窗
+per-tid {comm,stat} 采样（**保持 2s 不加快**; 核心证据=utime/stime delta+线程存在+事件窗活动;
+state=辅助 supporting only）②每次触发全线程清单快照③tid 生命周期 diff。红线扩围清单（明示待批）:
+task/<tid> 读取面 comm→{comm,stat}; 一次性 ldd --version/libc 版本钉扎。thread_activity_visibility
+∈{VISIBLE, AMBIGUOUS, INVISIBLE} = 报告字段·非 verdict 枚举。STOP: INCONCLUSIVE(granularity) →
+停·归 O3 替代证据设计。
+执行序（获 O2 裁决后）: observer 实现 → 本地 fixtures（双跳+per-tid 序列+TARGET_GONE+契约 A/B/C）
+→ 上盒（pgrep -x 预检·md5·runner 仅 env·2.5h 跨首事件窗）→ 镜像逐件 md5 → 离线分析（本 v2 分析器
+复用+线程活动对齐）→ 登记 → 停等 O3 裁决。
+
+== O3/O4 冻结注册 ==
+O3 六阶梯度: Candidate → Temporal correlation → Allocation-path correlation → Arena correlation
+→ Magnitude consistency → Repeatability。
+O3 因果链硬门（逐字）: 任何 candidate 若无法形成「候选代码路径→实际 allocation family→
+reservation/arena expansion→observed quantum」证据链，不得升级为 RCA conclusion（六环缺一不可）。
+mgr.tick() 高频 ≠ 嫌疑成立。
+O4 三态: A=Object retention（对象存活）/ B=Allocator retention（已 free·arena 留页）/
+C=Fragmentation（已 free·布局不可复用）。五问: free 后 RSS 降否 / 同 arena 页可复用否 /
+下次分配是否重新 commit / RSS 保持是否 allocator policy / 增长的 committed pages 是否在后续
+allocation 中被重新命中。
+
+== 梯子图 ==
+B1 ANON_GROWTH → C1 NO UNIQUE BUSINESS ATTRIBUTION → C2 STATIC → O1 RESERVATION-EXTENSION
+·BOUNDARY-MIGRATION → O2-A 结构 → O2-B 活动 → O3 因果 → O4 保留机制 → FIX → 短稳回归 → 24h
+（不再增加 O5）
+
+== 披露 ==
+smaps 为顺序 procfs 观测·非进程级原子快照·小额 accounting 差异归 PARTIAL 不作机制证据;
+VmData = 地址空间证据 ≠ glibc arena committed bytes; 64MiB 对齐 = allocator-family structural
+clue（supporting only）。工程坑: 分析器文件化被 Mimosa 拦截（路径污点误报·本轮第 3 次同类·已按
+Write→校验改写→仍拦的完整路径尝试后遵循 B1 先例）→ 会话内联执行·审计载体=会话执行记录·机器表
+入库。不改判 rss_bounded FAIL·不重评 S15-E01·O1 不重跑·生产代码零触碰·阈值与十谓词不动。

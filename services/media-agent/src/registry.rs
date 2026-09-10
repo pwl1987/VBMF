@@ -138,20 +138,75 @@ impl AdapterRegistry {
         Ok(provider)
     }
 
-    /// 选择并构造 `MediaBackend`。仅在 `bmd-provider,gstreamer-backend` 下编译
-    /// (与 C2c 接线一致: 真机盒需 `--features bmd-provider,gstreamer-backend`)。
+    /// 选择并构造 `MediaBackend`（**单 view 委托面**）。仅在
+    /// `bmd-provider,gstreamer-backend` 下编译。
     ///
-    /// 优先级(高→低): `mock` > `gstreamer-backend`。**P0-4**: 生产 fail-closed 见上。
+    /// A2-8-02-F-02（第十轮终裁）: 本函数**不再独立构造** concrete
+    /// controller——委托 `build_media_adapter_bundle()` 取 backend view
+    /// （全仓库唯一 controller 构造路径= bundle; 旧双路径已封死, 不得
+    /// 恢复独立 `Arc::new(GStreamerPipelineController)`——那会制造第二
+    /// instances ownership 表）。仅需 backend 的调用方（gates/自检）经
+    /// 此面; 组合根程序装配直接用 bundle。
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
     pub fn build_media_backend() -> Result<Arc<dyn MediaBackend>, String> {
+        Ok(Self::build_media_adapter_bundle()?.backend)
+    }
+
+    /// A2-8-02-F-01（第九轮终裁）: 同源 runtime adapter bundle——
+    /// **同一 concrete `GStreamerPipelineController` 的双 trait view**
+    /// （`MediaBackend` + `MediaTapPort` 指向同一对象; 禁二次构造——两个
+    /// controller 即两个 instances ownership 表, tap attach 将得
+    /// UnknownPipeline）。组合根经此取得双 view; SessionManager 仍只见
+    /// `MediaBackend`（Session 抽象边界不破）。
+    #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+    pub fn build_media_adapter_bundle() -> Result<MediaAdapterBundle, String> {
         ensure_adapter_selection_safe()?;
         #[cfg(feature = "mock")]
-        let backend: Arc<dyn MediaBackend> = Arc::new(crate::adapters::mock::MockBackend);
+        {
+            // Mock 世界无共享 instances 表——独立实例语义等价; 桥观测与
+            // tap 同实例（MockMediaTapPort 双 trait 实现）。
+            let tap = Arc::new(crate::adapters::mock::MockMediaTapPort::new());
+            Ok(MediaAdapterBundle {
+                backend: Arc::new(crate::adapters::mock::MockBackend),
+                media_tap: Some(tap.clone()),
+                bridge_observation: Some(tap),
+                // 第三十四轮终裁: Mock 不假装拥有真实 controller registry
+                // （Mock stop/recover 为 no-op——无注入面语义, 诚实缺席）。
+                diagnostic: None,
+            })
+        }
         #[cfg(all(not(feature = "mock"), feature = "gstreamer-backend"))]
-        let backend: Arc<dyn MediaBackend> =
-            Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
-        Ok(backend)
+        {
+            // 单次构造 concrete controller → 各 view clone 各自 coerce——
+            // 全部 trait object 同源同一对象（结构保证 + 行为证明见
+            // registry_rt_01_bundle_dual_view_same_controller）。
+            let controller =
+                Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+            Ok(MediaAdapterBundle {
+                backend: controller.clone(),
+                media_tap: Some(controller.clone()),
+                bridge_observation: Some(controller.clone()),
+                // A2-8-02-I 第三十四轮: 第四 view——Diagnostic Runtime Fault
+                // Injection（仅诊断消费; 同源同一 controller, 不构成第二
+                // ownership 面）。生产路径零消费。
+                diagnostic: Some(controller),
+            })
+        }
     }
+}
+
+/// A2-8-02-F-01: 同源 adapter bundle（backend + media tap 双 trait view）。
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+pub struct MediaAdapterBundle {
+    pub backend: Arc<dyn MediaBackend>,
+    pub media_tap: Option<Arc<dyn crate::contracts::media_tap::MediaTapPort>>,
+    /// A2-8-02-G/H: 桥观测 view（第三 trait view——同源同一 concrete
+    /// controller; pad probe 实测, 与 tap 簿记分层）。
+    pub bridge_observation: Option<Arc<dyn crate::contracts::media_tap::BridgeObservationPort>>,
+    /// A2-8-02-I 第三十四轮: 诊断故障注入 view（第四 trait view——同源
+    /// 同一 concrete controller; **仅诊断消费**（Gate L5）, 生产路径零
+    /// 消费, 禁入 MediaBackend 冻结 SPI。Mock 分支=None 诚实缺席）。
+    pub diagnostic: Option<Arc<dyn crate::contracts::diagnostic::DiagnosticFaultInjection>>,
 }
 
 #[cfg(test)]
@@ -170,5 +225,202 @@ mod tests {
                 }
             }
         }
+    }
+
+    // A2-8-02-F-01 同源双 view **行为证明**（盒上 bmd+gstreamer 非 mock）:
+    // 经 backend view 实例化的 handle, 经 tap view attach 成功——若为两个
+    // controller（二次构造）, instances 表分裂 → UnknownPipeline（反证）。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn registry_rt_01_bundle_dual_view_same_controller() {
+        use crate::contracts::media_tap::{MediaTapRequest, TapPlanes};
+        use crate::pipeline::PipelinePlan;
+
+        let bundle = AdapterRegistry::build_media_adapter_bundle().expect("bundle 构造");
+        let tap = bundle.media_tap.expect("tap view 在");
+        let h = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("物化");
+        bundle.backend.start(&h).expect("启动");
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "bundle-proof".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("同源双 view: tap 可见 backend 实例化的 handle（分裂即 UnknownPipeline）");
+        assert_eq!(tap.tap_attachments(&h).len(), 1, "簿记在（同一 ownership）");
+        let _ = bundle.backend.stop(&h);
+    }
+
+    // A2-8-02-F-02: **真接 MediaTap 的 Runtime 生命周期**（盒上真实
+    // GStreamer）——bundle 双 view → 双输入管线 → Runtime::create 真挂
+    // tap（簿记在真实管线上）→ teardown 真摘（簿记清空）。channel=
+    // device_id 派生桥接地址。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn registry_rt_01_runtime_tap_lifecycle_on_same_controller() {
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::{ProgramExecutionRuntime, TapWiring};
+        use crate::session::{SessionId, SessionInput};
+        use crate::switch_execution::ExecutionGroup;
+        use uuid::Uuid;
+
+        let bundle = AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("管线 A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("管线 B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let group = ExecutionGroup::new(
+            sid,
+            vec![
+                SessionInput {
+                    device_id: a,
+                    handle: h1,
+                },
+                SessionInput {
+                    device_id: b,
+                    handle: h2,
+                },
+            ],
+            a,
+        )
+        .expect("组");
+        let switcher =
+            std::sync::Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::default());
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            group,
+            switcher,
+            Some(tap.clone()),
+            vec![
+                TapWiring {
+                    input: h1,
+                    channel: crate::program_execution::tap_channel(a),
+                },
+                TapWiring {
+                    input: h2,
+                    channel: crate::program_execution::tap_channel(b),
+                },
+            ],
+        )
+        .expect("Runtime 真接 tap 创建");
+        assert!(runtime.is_active());
+        assert_eq!(tap.tap_attachments(&h1).len(), 1, "A 管线 tap 真挂");
+        assert_eq!(tap.tap_attachments(&h2).len(), 1, "B 管线 tap 真挂");
+
+        runtime.teardown();
+        assert!(!runtime.is_active());
+        assert!(tap.tap_attachments(&h1).is_empty(), "teardown 真摘 A");
+        assert!(tap.tap_attachments(&h2).is_empty(), "teardown 真摘 B");
+        let _ = bundle.backend.stop(&h1);
+        let _ = bundle.backend.stop(&h2);
+    }
+
+    // A2-8-02-F-04 Evidence Patch §12.4（第十二轮）: **Runtime→Bridged 一体
+    // 路径**——bundle→SessionInput→TapWiring::for_input→
+    // ProgramExecutionRuntime::create[bridged switcher]→真实媒体→teardown
+    // 全链一体（此前 create 与 bridged 分别被证, 缺一体化证据）。
+    #[cfg(all(
+        feature = "bmd-provider",
+        feature = "gstreamer-backend",
+        not(feature = "mock")
+    ))]
+    #[test]
+    fn registry_rt_01_full_integration_bridged_runtime() {
+        use crate::contracts::switch::SwitchExecutionAdapter;
+        use crate::pipeline::PipelinePlan;
+        use crate::program_execution::{ProgramExecutionRuntime, TapWiring};
+        use crate::session::{SessionId, SessionInput};
+        use crate::switch_execution::ExecutionGroup;
+        use uuid::Uuid;
+
+        let bundle = AdapterRegistry::build_media_adapter_bundle().expect("bundle");
+        let tap = bundle.media_tap.clone().expect("tap view");
+        let h1 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("A");
+        let h2 = bundle
+            .backend
+            .instantiate(&PipelinePlan::self_test())
+            .expect("B");
+        bundle.backend.start(&h1).expect("启动 A");
+        bundle.backend.start(&h2).expect("启动 B");
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let inputs = vec![
+            SessionInput {
+                device_id: a,
+                handle: h1,
+            },
+            SessionInput {
+                device_id: b,
+                handle: h2,
+            },
+        ];
+        // 与生产组合根同一构造: bridged switcher + TapWiring::for_input。
+        let switcher =
+            std::sync::Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged());
+        let switcher_view = switcher.clone();
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            ExecutionGroup::new(sid, inputs.clone(), a).expect("组"),
+            switcher,
+            Some(tap.clone()),
+            inputs.iter().map(TapWiring::for_input).collect(),
+        )
+        .expect("Runtime 一体创建[bridged]");
+        assert!(runtime.is_active());
+        assert_eq!(
+            tap.tap_attachments(&h1).len() + tap.tap_attachments(&h2).len(),
+            2
+        );
+
+        // 真实媒体经全链到达 program 出口。
+        let graph = runtime.graph_handle().expect("graph");
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        // C-TIMELINE-01: observe() 组合面机械适配（.program 取既有平面）。
+        let obs = switcher_view.observe(&graph).program;
+        assert_eq!(obs.observed_active, Some(a), "初始 active=A");
+        assert!(obs.program_video_frames > 0, "program video 真实到达");
+        assert!(obs.program_audio_frames > 0, "program audio 真实到达");
+
+        // teardown（Runtime 唯一 owner）: program 停 + tap 全摘。
+        runtime.teardown();
+        assert!(!runtime.is_active());
+        assert!(tap.tap_attachments(&h1).is_empty(), "teardown 真摘 A");
+        assert!(tap.tap_attachments(&h2).is_empty(), "teardown 真摘 B");
+        assert!(
+            switcher_view
+                .observe(&graph)
+                .program
+                .observed_active
+                .is_none(),
+            "program 停（observe 归零）"
+        );
+        let _ = bundle.backend.stop(&h1);
+        let _ = bundle.backend.stop(&h2);
     }
 }

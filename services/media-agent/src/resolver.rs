@@ -18,6 +18,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+/// A2-8-C1: SDI signal 检测器在设备打开后需 ~1-3s 才锁定 (现场实测 false→false→true 转换),
+/// 单次瞬时采样会把 "尚未锁定" 误读为 "无信号". 观察窗自 PLAYING 起算, 窗口内重复采样,
+/// 锁定即提前结束, 耗尽仍 false → `Some(false)` fail-closed. 3000ms 是当前 A2-8 验收
+/// 策略值而非永久冻结; 未来设备矩阵出现更长锁定时间时凭新硬件证据另行调整.
+const PROBE_SIGNAL_WINDOW: std::time::Duration = std::time::Duration::from_millis(3000);
+/// A2-8-C1: signal 观察窗内的重采样间隔.
+const PROBE_SIGNAL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// GStreamer 探测到的 DeckLink 实例 (经由直接创建 `decklinkvideosrc` 实例, READY 态读取只读属性).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GStreamerDeviceProbe {
@@ -228,6 +236,8 @@ fn probe_one_device_number(
     // 对 live source, 设备打开失败 (卡不存在/被占用/硬件错误) 通常以异步 Error message 送达 bus,
     // 故这里既看同步返回值也 drain bus.
     let playing = pipeline.set_state(gstreamer::State::Playing);
+    // A2-8-C1: signal 观察窗自 PLAYING 起算 (检测器锁定实测 1-3s), 窗口覆盖下方错误上报宽限.
+    let signal_window_deadline = std::time::Instant::now() + PROBE_SIGNAL_WINDOW;
     // 少量延时兜底 live source 异步 preroll/错误上报, 确保设备已打开或错误已入队.
     std::thread::sleep(std::time::Duration::from_millis(300));
     let err_msg: Option<String> = match playing {
@@ -254,9 +264,15 @@ fn probe_one_device_number(
             None
         }
     });
-    let signal = el
-        .find_property("signal")
-        .map(|_| el.property::<bool>("signal"));
+    let signal = if el.find_property("signal").is_some() {
+        Some(poll_signal_until_locked(
+            || el.property::<bool>("signal"),
+            signal_window_deadline,
+            PROBE_SIGNAL_INTERVAL,
+        ))
+    } else {
+        None
+    };
     let model = el
         .find_property("model")
         .and_then(|_| non_empty(el.property::<Option<String>>("model").unwrap_or_default()));
@@ -349,6 +365,25 @@ pub fn probe_gstreamer_devices(_max: usize, _require_identity: bool) -> GstProbe
     GstProbeOutcome::Unavailable(
         "gstreamer feature 未启用; 非 gstreamer 构建不物化运行时地址".to_string(),
     )
+}
+
+/// A2-8-C1: signal 观察窗决策核 — 在 deadline 前重复采样, 锁定 (true) 即提前返回;
+/// 窗口耗尽仍 false 则返回 false (fail-closed). 语义仍是 "最终信号状态", 非 runtime
+/// health. 抽样器注入, 便于用假序列在无 GStreamer 构建下锁死窗口语义.
+fn poll_signal_until_locked(
+    mut sample: impl FnMut() -> bool,
+    deadline: std::time::Instant,
+    interval: std::time::Duration,
+) -> bool {
+    loop {
+        if sample() {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(interval);
+    }
 }
 
 /// 从 SDK `DeviceHandle` 提取 `TopologicalID` 末段 (`:` 分隔最后一段) 作猜测键.
@@ -1327,5 +1362,53 @@ mod tests {
         // MEDIUM 不进入生产绑定 → resolve_strict 拒绝.
         assert!(collect_bindings(&devices, &probes).is_empty());
         assert!(resolve_strict(&devices, &probes, &[devices[0].device.device_id]).is_err());
+    }
+
+    // ---- A2-8-C1: signal 观察窗语义 (probe 瞬时采样 → 窗口重复采样) ----
+
+    #[test]
+    fn signal_probe_transient_false_then_true_locks_within_window() {
+        // 现场实测形态: 检测器锁定前采到 false, false, 窗口内转 true → 最终判定 true
+        // (瞬时快照会把前两次 false 误读为 "无信号").
+        let mut seq = vec![false, false, true];
+        let sample = || seq.remove(0);
+        let locked = poll_signal_until_locked(
+            sample,
+            std::time::Instant::now() + std::time::Duration::from_millis(500),
+            std::time::Duration::from_millis(50),
+        );
+        assert!(locked);
+    }
+
+    #[test]
+    fn signal_probe_false_entire_window_fails_closed_with_resampling() {
+        // 全窗 false → fail-closed 返回 false; 且窗口内确有重采样 (非单次快照).
+        let mut calls = 0usize;
+        let locked = poll_signal_until_locked(
+            || {
+                calls += 1;
+                false
+            },
+            std::time::Instant::now() + std::time::Duration::from_millis(250),
+            std::time::Duration::from_millis(100),
+        );
+        assert!(!locked);
+        assert!(calls >= 2);
+    }
+
+    #[test]
+    fn signal_probe_already_locked_returns_immediately() {
+        // 首采即 true → 锁定即提前结束, 不烧窗口 (恰一次采样).
+        let mut calls = 0usize;
+        let locked = poll_signal_until_locked(
+            || {
+                calls += 1;
+                true
+            },
+            std::time::Instant::now() + std::time::Duration::from_millis(250),
+            std::time::Duration::from_millis(100),
+        );
+        assert!(locked);
+        assert_eq!(calls, 1);
     }
 }

@@ -274,7 +274,7 @@ mod tests {
             })
             .expect("create");
         sup.lock().unwrap().register(sid.0);
-        let _ = sup.lock().unwrap().report_failure(&sid.0);
+        let _ = sup.lock().unwrap().report_failure(&sid.0, None, None);
         let _ = mgr.start(&sid);
         let drained = log.drain();
         let kinds: Vec<&str> = drained.iter().map(|e| e.kind()).collect();

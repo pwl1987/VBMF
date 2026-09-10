@@ -1,0 +1,41 @@
+C2-O2-A STRUCTURAL COMPATIBILITY VERDICT —— 2026-09-10
+授权: 用户裁决「授权」（含红线扩围清单批复: task/<tid> 读取面 comm→{comm,stat}·一次性 ldd --version）。
+数据源: 既有 C2-O1 证据（2026-09-10-c2o1-2p5h-observer·87 快照·md5 盒=origin 已于 92e50df 验证）——零新增采集。
+边界: O2-A 只回答 reservation 与 allocator reservation family 的结构兼容性;
+不建立 runtime arena identity（malloc_info 维持禁入）; active/owner/causal thread 均非本层问题。
+
+== 判据评估（注册的四判据）==
+① reservation size/base alignment 结构一致性（64MiB 对齐=支持线索·非判据本体）:
+   全地址空间普查（rw 头起于基址 + PROT_NONE 尾终于 base+64MiB + 全覆盖·四普查点
+   trig-1/win-7141/post-5/end）: **40 个 64MiB 对齐·精确 64MiB 保留形态窗口·四点计数恒定 40**。
+   头部规模分布: ~60.4MB 级 17 个（61,696-62,008kB·与 B1「60.4MB×~20 大块=采集 buffer 池」吻合）·
+   ~44.7MB 级 3 个·132kB 最小头 12 个（已创建几乎未用）·杂项 6 个（220-7,472kB）·
+   **事件对 R1(713004000000)/R2(713010000000) 头部 22.6MB 为 20-30MB 类仅有的两个**。
+   R2 所在 832MiB 连续链分解: **13/13 相邻 64MiB 窗口全部保留形态合规**（over-merge 链=13 个并列预留）。
+② RW 头 + PROT_NONE 可增长尾 mprotect 迁移形态（strong structural clue）:
+   E01/E02 已证（v2 机判 RESERVATION-EXTENSION·BOUNDARY-MIGRATION·conservation +0·
+   VmSize 平直·新段立即全触）——头部经保护位迁移增长且 PN 尾等量让位。
+③ [heap] 分离且平直（exclude main heap morphology）:
+   [heap] 与两事件零相关（事件窗 Δ=0）; 全程 Size 3,464→4,124kB（+660kB≈单事件量 5.9%·
+   与 C2 静态容器累积率同量级）——主堆形态不构成事件解释。
+④ libc 映射路径（allocator-family context）:
+   /usr/lib/x86_64-linux-gnu/libc.so.6（r--p/r-xp/rw-p 三段）+ libglib-2.0.so.0.8800.0 +
+   ld-linux-x86-64.so.2——GNU/glibc 用户态; C2 静态审计已证无自定义 GlobalAlloc/无 malloc
+   封装（Rust 默认→系统分配器族）。精确 glibc 版本号钉扎=O2-B 上盒时一次性 ldd --version（已批复）。
+
+sanity context（非判据·不入 verdict）: 线程数恒 29（fastlite Threads 列）vs 40 个预留形态窗口
+vs glibc arena 上限 8×cores——数量关系合理，仅作语境，按注册不参与判定。
+
+== VERDICT ==
+**ALLOCATOR-STRUCTURALLY-COMPATIBLE**
+表述纪律（注册原文执行）: morphology is consistent with glibc allocator reservation behavior
+（64MiB 对齐保留包络 + 已提交 RW 头 + PROT_NONE 保留尾 + 头部保护位迁移增长）。
+不写 "this is glibc arena X"（runtime arena identity 未建立）; arena↔thread 归属 = O2-B 职责。
+
+== O2-A STOP 检查 ==
+非 ALLOCATOR-STRUCTURALLY-INCOMPATIBLE → 不触发 STOP → 按同一授权进入 O2-B（activity-correlation）。
+
+== 披露 ==
+smaps 为顺序 procfs 观测非原子快照; 本普查为形态普查非 arena registry;
+64MiB 对齐全篇仅作 structural clue（supporting only）; Evidence non-escalation:
+本层结论不得在下游被引用为 runtime arena 事实。

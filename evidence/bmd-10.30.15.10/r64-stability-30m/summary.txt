@@ -1,0 +1,10 @@
+FAIL threads_constant min=29 max=31
+PASS fd_bounded first3_avg=14.0 last3_avg=14.0
+PASS rss_bounded first_third=1226.8MB last_third=1239.0MB monotonic=False
+FAIL switch_epoch_plus60 start=1 end=60
+FAIL observed_tracks first=6ede00d0 last=4fa33dcb
+PASS frames_advancing v:24->51033 a:33->68033
+PASS drops_zero 
+FAIL watchdog_ticks_advancing mid=0 end=0
+PASS events_no_critical samples=30
+VERDICT FAIL (5/9 predicates)

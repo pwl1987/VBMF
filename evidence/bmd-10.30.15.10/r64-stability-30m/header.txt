@@ -1,0 +1,4 @@
+date=2026-09-06T21:56:27+08:00
+bin_md5=e08978e1897dda6960ecc9234eb50aa7
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+duration=1800s cycles=60 cycle_period=30s replay_every=5

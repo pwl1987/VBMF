@@ -1,0 +1,13 @@
+name: VBMF Media-Agent A2-8 Normal-Use Preview v0.1 (Engineering Preview, zero-code form)
+date: 2026-09-06
+repo_rev: 4b473b3ce20af284113a95b7b19c964980356ee4 (branch comet/a2-8-dual-input-switch, remote=local verified R58 unit 9)
+source_baseline: e09ed97 (services/ byte-identical to repo_rev; core four-file SHA256 anchored in R57 report sec 24.1)
+binary: media-agent (debug, features=bmd,gstreamer)
+binary_md5: 6a0fa22464f37a4e23c737e1b247e0e0
+manifest: a2-8-02i-v5.manifest.json
+manifest_md5: 7521d17e7fd02e50eb2b0a84374a43dd
+build_host: lytv@10.30.15.10 (~/media-agent-build/services/media-agent, bash scripts/build-bmd.sh --bin media-agent)
+form: diagnostic auto-start dual-input (MEDIA_AGENT_MODE=diagnostic + VBMF_DIAG_INPUTS=2 + manifest)
+gate_status: A2-8-04 Final Gate = PASS / CLOSED (R59 acceptance adjudication 2026-09-06, R57 sec 23)
+known_limitations: no A<->B switch trigger and no switch state readback (gap 1/2, v0.2 control-plane round); no signal handling (process stop = kill); no --version line (IDENTITY substitutes); stdout logs only (redirect to file); program output = observation plane + input-pipeline materialization (not merged)
+audit_report: docs/superpowers/reports/2026-09-06-a2-8-05-normal-use-startup-entry-audit.md

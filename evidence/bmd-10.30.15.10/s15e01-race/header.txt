@@ -1,0 +1,5 @@
+date=2026-09-08T11:45:09+08:00
+bin_md5=816d2dde052a3253049475f9a70b0f75
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+env=VBMF_A2_8_S15E01_RACE=1,DIAG,INPUTS=2
+note=run1 assertions corrected (program_epoch held-0 semantics; core criteria green from run1); this is run2

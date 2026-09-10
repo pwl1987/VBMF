@@ -137,6 +137,153 @@ impl MediaBackend for MockBackend {
     }
 }
 
+/// A2-8-02: Mock MediaTap——确定性簿记实现（attach/detach/查询,
+/// 供 02-D recover 重放逻辑的契约级验证）。
+#[derive(Default)]
+pub struct MockMediaTapPort {
+    taps: std::sync::Mutex<
+        std::collections::HashMap<
+            PipelineHandle,
+            Vec<crate::contracts::media_tap::MediaTapAttachment>,
+        >,
+    >,
+    /// A2-8-02-G/H: 桥观测仿真 tick（每次查询推进——确定性递增流）。
+    bridge_tick: std::sync::atomic::AtomicU64,
+    /// G/H-1: 桥停滞注入集合（liveness 测试钩子）。
+    bridge_stalled: std::sync::Mutex<std::collections::HashSet<String>>,
+}
+
+impl MockMediaTapPort {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// A2-8-02-G/H: Mock 桥观测——确定性仿真（每次查询 tick+1: 帧计数/
+/// PTS 递增/ValidMonotonic——attached channel 各一行; 摘除即无行）。
+impl crate::contracts::media_tap::BridgeObservationPort for MockMediaTapPort {
+    fn bridge_observations(
+        &self,
+        handle: &PipelineHandle,
+    ) -> Vec<crate::contracts::media_tap::BridgeObservation> {
+        use crate::contracts::media_tap::BridgeObservation;
+        use crate::pipeline::PtsMonotonicity;
+        let tick = self
+            .bridge_tick
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            + 1;
+        let taps = self.taps.lock().unwrap();
+        taps.get(handle)
+            .map(|rows| {
+                rows.iter()
+                    .map(|a| BridgeObservation {
+                        channel: a.channel.clone(),
+                        video_last_pts: Some(1000 + tick * 40),
+                        audio_last_pts: Some(800 + tick * 20),
+                        video_pts_state: PtsMonotonicity::ValidMonotonic,
+                        audio_pts_state: PtsMonotonicity::ValidMonotonic,
+                        video_frames: tick * 25,
+                        audio_frames: tick * 50,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// G/H-1: Mock liveness——attached 即视为窗口内流通（观察时钟仿真:
+    /// last_observed=now; 独立 stall 注入见 `bridge_stall`）。
+    fn bridge_liveness(
+        &self,
+        handle: &PipelineHandle,
+        _window_ms: u64,
+    ) -> Vec<crate::contracts::media_tap::BridgeChannelLiveness> {
+        use crate::contracts::media_tap::BridgeChannelLiveness;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let taps = self.taps.lock().unwrap();
+        let stalled = self.bridge_stalled.lock().unwrap();
+        taps.get(handle)
+            .map(|rows| {
+                rows.iter()
+                    .map(|a| BridgeChannelLiveness {
+                        channel: a.channel.clone(),
+                        frames: 100,
+                        last_observed_at_ms: Some(if stalled.contains(&a.channel) {
+                            now_ms.saturating_sub(10_000) // 远超任何窗口
+                        } else {
+                            now_ms
+                        }),
+                        alive_in_window: !stalled.contains(&a.channel),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
+impl MockMediaTapPort {
+    /// G/H-1 测试钩子: 注入桥停滞（liveness 窗口外——当前断流仿真）。
+    pub fn bridge_stall(&self, handle: &PipelineHandle, channel: &str) {
+        let _ = handle;
+        self.bridge_stalled
+            .lock()
+            .unwrap()
+            .insert(channel.to_string());
+    }
+}
+
+impl crate::contracts::media_tap::MediaTapPort for MockMediaTapPort {
+    fn attach_media_tap(
+        &self,
+        handle: &PipelineHandle,
+        req: &crate::contracts::media_tap::MediaTapRequest,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::{MediaTapAttachment, TapError};
+        let mut taps = self.taps.lock().unwrap();
+        let rows = taps.entry(*handle).or_default();
+        if rows.iter().any(|a| a.channel == req.channel) {
+            return Err(TapError::AlreadyAttached(req.channel.clone()));
+        }
+        rows.push(MediaTapAttachment {
+            channel: req.channel.clone(),
+            planes: req.planes,
+        });
+        Ok(())
+    }
+
+    fn detach_media_tap(
+        &self,
+        handle: &PipelineHandle,
+        channel: &str,
+    ) -> Result<(), crate::contracts::media_tap::TapError> {
+        use crate::contracts::media_tap::TapError;
+        let mut taps = self.taps.lock().unwrap();
+        let rows = taps
+            .get_mut(handle)
+            .ok_or(TapError::NotAttached(channel.into()))?;
+        let before = rows.len();
+        rows.retain(|a| a.channel != channel);
+        if rows.len() == before {
+            return Err(TapError::NotAttached(channel.into()));
+        }
+        Ok(())
+    }
+
+    fn tap_attachments(
+        &self,
+        handle: &PipelineHandle,
+    ) -> Vec<crate::contracts::media_tap::MediaTapAttachment> {
+        self.taps
+            .lock()
+            .unwrap()
+            .get(handle)
+            .cloned()
+            .unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,5 +321,120 @@ mod tests {
         backend.recover(&handle).expect("recover 应成功");
         backend.stop(&handle).expect("stop 应成功");
         assert!(backend.observe(&handle).is_empty());
+    }
+
+    #[test]
+    fn media_tap_rt_01_attach_records_bookkeeping() {
+        // 02-B: attach → 簿记唯一事实源（恰一行, channel/planes 保真）。
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_242);
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-a-raw".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach 应成功");
+        assert_eq!(
+            tap.tap_attachments(&h),
+            vec![crate::contracts::media_tap::MediaTapAttachment {
+                channel: "dev-a-raw".into(),
+                planes: TapPlanes::Both,
+            }],
+            "簿记恰一行且保真"
+        );
+        assert!(
+            tap.tap_attachments(&PipelineHandle(1)).is_empty(),
+            "无关管线零簿记"
+        );
+    }
+
+    #[test]
+    fn media_tap_rt_01_double_attach_fail_closed() {
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapError, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_243);
+        let req = MediaTapRequest {
+            channel: "dev-b-raw".into(),
+            planes: TapPlanes::Video,
+        };
+        tap.attach_media_tap(&h, &req).expect("首次 attach");
+        assert_eq!(
+            tap.attach_media_tap(&h, &req),
+            Err(TapError::AlreadyAttached("dev-b-raw".into())),
+            "同 channel 重复 attach fail-closed（不静默重定义）"
+        );
+        // 不同 channel 可并存（双平面分列属合法簿记形态）。
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-b-raw-audio".into(),
+                planes: TapPlanes::Audio,
+            },
+        )
+        .expect("异 channel 并存");
+        assert_eq!(tap.tap_attachments(&h).len(), 2);
+    }
+
+    #[test]
+    fn media_tap_rt_01_detach_removes_and_unknown_rejected() {
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapError, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_244);
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-c-raw".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach");
+        tap.detach_media_tap(&h, "dev-c-raw").expect("detach");
+        assert!(tap.tap_attachments(&h).is_empty(), "摘除后簿记清空");
+        assert_eq!(
+            tap.detach_media_tap(&h, "dev-c-raw"),
+            Err(TapError::NotAttached("dev-c-raw".into())),
+            "重复 detach 拒收"
+        );
+    }
+
+    #[test]
+    fn media_tap_rt_01_bookkeeping_is_replay_source() {
+        // 02-D 契约级预演（C2 裁定形式）: 簿记=恢复重放唯一事实源——
+        // 模拟 recover 丢失 tap（detach 全部）后, 仅凭 tap_attachments()
+        // 快照重放 attach → 能力恢复。recover 内"裸调 attach"禁令的
+        // 替代路径即此: 簿记驱动重放。
+        use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
+        let tap = MockMediaTapPort::new();
+        let h = PipelineHandle(424_245);
+        tap.attach_media_tap(
+            &h,
+            &MediaTapRequest {
+                channel: "dev-d-raw".into(),
+                planes: TapPlanes::Both,
+            },
+        )
+        .expect("attach");
+        // 快照（恢复前唯一可得事实）。
+        let snapshot = tap.tap_attachments(&h);
+        // 模拟 recover: 管线重建, tap 全失。
+        for a in &snapshot {
+            tap.detach_media_tap(&h, &a.channel).expect("模拟丢失");
+        }
+        assert!(tap.tap_attachments(&h).is_empty());
+        // 仅凭快照重放（02-D controller 恢复钩的契约依据）。
+        for a in &snapshot {
+            tap.attach_media_tap(
+                &h,
+                &MediaTapRequest {
+                    channel: a.channel.clone(),
+                    planes: a.planes,
+                },
+            )
+            .expect("簿记重放 attach");
+        }
+        assert_eq!(tap.tap_attachments(&h), snapshot, "重放后簿记等值恢复");
     }
 }

@@ -1,0 +1,46 @@
+== B1-DIAG 离线分析 ==
+主序列样本 462（预热截断于第 2 个, VmRSS=1223MB）
+全序列 VmRSS min/max: 409.5/1250.9 MB; 稳态窗 unique 值: [1223.4, 1239.7, 1239.8, 1239.9, 1250.8, 1250.9]
+
+== 构成分解（稳态窗·三分位均值 + LSQ 斜率）==
+component          first3      mid3     last3    delta    MB/h      R2  share%
+VmRSS              1239.6    1244.8    1250.9    +11.2  +4.394  0.7503     100
+RssAnon            1223.5    1228.7    1234.8    +11.2  +4.394  0.7503     100
+RssFile              16.1      16.1      16.1     +0.0  +0.000  1.0000       0
+RssShmem              0.0       0.0       0.0     +0.0  +0.000  1.0000       0
+Pss                1230.9    1236.0    1242.1    +11.2  +4.394  0.7503     100
+Pss_Anon           1223.5    1228.7    1234.8    +11.2  +4.394  0.7503     100
+Pss_File              7.3       7.3       7.3     -0.0  -0.000  0.0001      -0
+Private_Dirty      1223.5    1228.7    1234.8    +11.2  +4.394  0.7503     100
+Anonymous          1223.5    1228.7    1234.8    +11.2  +4.394  0.7503     100
+VmSize             2821.2    2821.2    2820.8     -0.4  -0.229  0.0065      -4
+VmData             1456.2    1461.3    1466.9    +10.7  +4.128  0.5300      95
+VmPeak             2885.2    2885.2    2885.2     +0.0  +0.000  1.0000       0
+
+== 业务对齐（480/480 周期就近 ≤30s）==
+VmRSS vs sw_epoch: +58.1 KB/切换, R2=0.0417（低线性=与切换次数基本无关）
+覆盖 sw_epoch 1..480（479 次）, VmRSS 409.5→1250.9 MB
+逐小时: h0: anon=1223.5 file=16.1 | h1: anon=1224.0 file=16.1 | h2: anon=1234.7 file=16.1 | h3: anon=1234.8 file=16.1
+
+== 轻序列步进(10s·稳态窗·>2MB) == 上行 4 个(合计 +32.7MB), 下行 0 个(合计 +0.0MB)
+  t++0.000h (01:19:59)  +5.5MB
+  t++0.003h (01:20:09)  +16.2MB
+  t++1.974h (03:18:25)  +5.5MB
+  t++1.977h (03:18:35)  +5.5MB
+
+watchdog 轴: 1382 条 tick 行, 0→27620
+
+== classification ==
+VmRSS d=+11.2MB | RssAnon d=+11.2MB (100%) | RssFile d=+0.0MB (0%) | Pss d=+11.2MB
+classification = ANON_GROWTH
+事件签名: 4h 稳态窗仅一次 +11.0MB 跳变(t+1.97h, 两个 5.5MB 子步相隔 10s)·全部落在 RssAnon/Private_Dirty/Anonymous
+（解释性诊断·非验收·不改判 24h rss_bounded FAIL）
+
+== topology 三点 diff（解析修正版·全量 smaps）==
+[start 01:19:29] 207 映射 Rss 404.0MB: anon 42/385.0 + lib 151/11.9 + file 9/3.9 + heap 1/3.2 + stack 1 + dev 3
+[mid 03:19:29] 294 映射 Rss 1250.8MB: anon 115/1230.0 + lib 161/13.1 + file 13/3.9 + heap 1/3.9 + stack 1 + dev 3
+[end 05:09:58] 290 映射 Rss 1250.8MB: anon 111/1229.9 + lib 161/13.1 + file 13/3.9 + heap 1/3.9 + stack 1 + dev 3
+diff: start->mid: anon +73 块/+2122MB VA/+844.9MB Rss（含起流 buffer 池~20x60.4MB 大块）; mid->end: Rss 零变化(-0.0)·块数-4
+[heap] 3.4MB->4.0MB->4.0MB（dSize +0.6MB）——glibc 主堆基本不动
+file/libs/dev/shmem 全程平稳; 大映射=60.4MB 级 anon rw-p（采集 buffer 池形态）
+事件映射粒度归因受 start 先于热身完成限制（如实披露）; mid 恰在 03:18 事件后 1 分钟

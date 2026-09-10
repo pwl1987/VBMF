@@ -1,0 +1,33 @@
+VBMF Media-Agent A2-8 Normal-Use Preview v0.1 — 盒上冒烟执行摘要（2026-09-06）
+形态: MEDIA_AGENT_MODE=diagnostic + VBMF_DIAG_INPUTS=2 + manifest v5 + RUST_LOG=info
+口径: *.log 为盒上原件; 本文件与 exit.txt 中的端点响应值为运行时操作员终端捕获值（非二次抓取）。
+
+[run1] pid=1189973 · 14:59-15:01 CST
+- /health: {"active_pipelines":3,"clock_lost_events":0,"devices":3,"dropped_bus_events":0,"state":"Capturing"}
+- /api/v1/runtime (要点): manifest verified 绑定双 SDI (4fa33dcb-5f76-5f76-aea8-330df7ada03e / 6ede00d0-baf4-573f-a0dd-4a503bf7f766);
+  sessions[0] id=session-68a164a13db840b79a705fcf6962a861 state=running phase=running inputs=2; resources allocated×2; observation_revision=1
+- /api/v1/events/projection: total=15 (identity_resolved:2 lease_granted:2 resource_allocated:2 session_created:1
+  session_state_changed:6 signal_verified:1 source_materialized:1) has_critical=false
+  (注: 带 ?limit=8 查询串返回 {"error":"not_found"} — 路由不认查询参数, 非缺陷)
+- watchdog 活体行: 4 行 (tick 20/40/60/80 · ~10s 间隔) program_advancing=Some(true) · 两路 observed/advancing/bridge 全 true
+- stop_session: 失败(400) — 打包脚本缺陷: 会话 id 用了展示形 "session-<32hex>", CommandById 须 canonical UUID;
+  形状层拒绝未触 Runtime(与设计一致·无日志行); 进程 kill 停止
+- run1 定性: 启动/发现/双输入起流/回读全过; 停止链未走到; 脚本修正后 run2 重跑(run1 留证)
+
+[run2] pid=1190499 · 15:02-15:03 CST（修正版 stop 脚本·canonical UUID 规范化）
+- /health: 同 run1 形态全绿 (Capturing·devices=3·active_pipelines=3·零 dropped/clock_lost)
+- watchdog 活体行: 2 行 · 两路 advancing=true
+- /api/v1/events/projection: total=15 同谱 (session 94531b4c-0ff0-4c81-b3ab-a05235fccce4 running · has_critical=false)
+- stop_session: {"command_id":"62904f9d-644d-51a5-a926-c8ce90fe8ce9","status":{"status":"executed"},"kind":"stop_session"} (canonical UUID 94531b4c-0ff0-4c81-b3ab-a05235fccce4)
+- teardown 日志链 (run2 log 盒上原件): "A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） session=94531b4c… graph=3"
+  + "A2-8-02-E group watchdog: 停止旗置位, 观测线程退出"
+- 进程: pgrep -x media-agent = 空 (PROC-DEAD)
+
+[工件登记]
+- gst_pad_unlink assertion ×3 @teardown(run2) — 既有已知类(gates 轮 4/跑 同族), 非新类
+- gst_video_converter_free assertion ×1 @startup(run1) — GStreamer 已知类启动工件, 非致命
+- ERROR(大小写敏感)=0 两跑
+
+[结论] v0.1 冒烟验收线全过(run2): 进程起+身份 → 双路 BMD 发现 → 双输入 program graph 起流(两路 advancing)
+→ /health 200 → runtime inputs=2 → events 非空 → stop_session executed+teardown 链 → 进程死亡。
+已知限制见 IDENTITY/README(无切换入口/无回读端点/无信号处理/无版本行)。

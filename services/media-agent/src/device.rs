@@ -35,6 +35,9 @@ pub enum IdentityStrength {
     PersistentId,
     /// Provider 本地绑定引用 (当前主机 best-available identity, 非永久稳定).
     DeviceHandle,
+    /// 硬件序列号证据 (无 DeviceHandle 时的 best-available; 02-I P1-2: 此前
+    /// 误与 DeviceHandle 合并判定——serial 是独立证据源, 档位不可混同).
+    Serial,
     /// Provider 本地拓扑标识 (拓扑敏感, 重启/拓扑变化会漂移).
     TopologicalId,
     /// 纯 SDK/文件系统枚举 (无稳定硬件身份; 仅 CI/诊断).

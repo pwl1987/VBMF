@@ -1,0 +1,38 @@
+[2m2026-09-06T13:56:31.956526Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m2 [3merror[0m[2m=[0mStateFailed: device-number 2: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T13:56:31.956629Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m3 [3merror[0m[2m=[0mStateFailed: device-number 3: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T13:56:31.956655Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m4 [3merror[0m[2m=[0mStateFailed: device-number 4: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T13:56:31.956676Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m5 [3merror[0m[2m=[0mStateFailed: device-number 5: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T13:56:31.956696Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m6 [3merror[0m[2m=[0mStateFailed: device-number 6: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T13:56:31.956716Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m7 [3merror[0m[2m=[0mStateFailed: device-number 7: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-06T13:56:31.957103Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-06T13:56:31.957148Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+WARN: sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-06T13:56:31.957573Z[0m [33m WARN[0m [2mmedia_agent::pipeline[0m[2m:[0m sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-06T13:56:31.957614Z[0m [33m WARN[0m [2mmedia_agent::pipeline[0m[2m:[0m sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-06T13:56:32.169063Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:32.529: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:32.530: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:32.533: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:32.533: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:32.533: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:32.533: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:33.027: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:33.027: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:1257457): GStreamer-Video-CRITICAL **: 21:56:33.027: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent:1257457): GStreamer-CRITICAL **: 22:25:21.395: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:1257457): GStreamer-CRITICAL **: 22:25:21.395: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:1257457): GStreamer-CRITICAL **: 22:25:21.396: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:1257457): GStreamer-CRITICAL **: 22:25:21.396: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed

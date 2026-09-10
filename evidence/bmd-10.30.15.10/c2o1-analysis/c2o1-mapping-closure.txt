@@ -1,0 +1,49 @@
+# C2-O1 Allocator/Arena Mapping-Closure 分析固化（2026-09-10·run 2026-09-10-c2o1-2p5h·observer COMPLETE/exit0）
+# 口径: v2.1 冻结阶梯; smaps 为逐映射顺序观测非进程级原子快照, 小额 accounting 差异归 PARTIAL 不作机制证据(固定披露)。
+# 扰动声明: observer 只读 procfs 非零开销, 影响按诊断扰动对待, 不作因果证据; 本 run 未观测事件才记 INCONCLUSIVE(已观测, 不适用)。
+# 时间轴: RUN_REL_S 主轴 (run_t0=1789000744 = btime+starttime/clk_tck, clk_tck=100, page=4096, 可重算)。
+
+== 身份 ==
+bin_md5(24h 同一) = f52b01613b28ddbbc8d3722858a6451b (header 与 /proc/exe 双源一致) · manifest 7521d17e…43dd
+workload: CYCLES=315 DWELL=28 REPLAY_EVERY=5 (Step15 同构·诊断性质·runner 机械 verdict PASS 10/10 = informational only·不入梯)
+observer: COMPLETE / exit 0 · coverage 98% · gap 0s · main=304 lite=907 fast=1454 · trig=5+/0- · cap 未触(20)
+
+== T-A 事件表 ==
+W01 run=13  +867664kB 热身(管线构建) PRE=start@3      — 描述性, 不入判定
+W02 run=23  +5628kB   热身      PRE=start@3          — 描述性
+W03 run=43  +22264kB  热身      PRE=post-2@38        — 描述性
+E01 run=7150 +5796kB 量子事件 PRE=win-7141@7141(前9s) — primary
+E02 run=7204 +5632kB 量子事件 PRE=base-7203@7203(前1s) — secondary validation
+跨 run 首事件: 7132(B1)/7142(24h)/7150(本run) 对齐 ±18s; 双连跳间隔: 10s(B1)/54s(本run), 24h 族 29-86s。
+
+== T-B 逐事件 mapping 归因 (PRE→TRIG) ==
+E01: 消失 rw-p 713004000000-713005619000 (Size=Rss=Anon=PD=22628kB, 64MB对齐基址)
+     新增 rw-p 713004000000-713005b8d000 (Size=Rss=Anon=PD=28212kB, 同基址)        ⇒ 同基址 rw 头 +5584kB
+     消失 ---p 713005619000-713008000000 (Size=42908kB, Rss=0)
+     新增 ---p 713005b8d000-713008000000 (Size=37324kB, Rss=0)                      ⇒ PROT_NONE 尾等量 -5584kB
+     ⇒ 预留整体 713004000000→713008000000 恒 64MiB, 基址/末端/总量不变, 仅 rw|PROT_NONE 分界线上移 5584kB。
+E02: 同构, 基址 713010000000: rw 头 22652→28240 (+5588kB), PROT_NONE 尾 42884→37296 (-5588kB), 预留恒 64MiB。
+簇合并(E01+E02, win-7141→post-5): 新增Σ 56452 = 消失Σ 45236 + 11216(事件净额)。
+
+== T-C 对账与硬约束 ==
+主对账: ΔRssAnon(status) ↔ ΣΔAnonymous(smaps): E01 5584==5584 逐kB精确; E02 5588==5588; 簇 11216==11216。零缺口。
+辅助: ΣΔPrivate_Dirty == ΣΔAnonymous (PD=Anon 全等); VmData 簇增量 11256kB == Σrw头扩展(5584+40+5588+44) 逐kB精确。
+VmSize: fastlite 窗口段[6900,7400] min/max Δ=12kB(一次 +12kB 瞬态, B1 亦见同类 12kB 瞬态, 如实记录)。
+[heap]: 两事件均 0 增长。Threads 恒 29; RssFile 恒 16560kB。
+全生命周期: 两 64MiB 预留热身期(run 3→43)填至 22588/22608kB → 精确休眠 7023s → run≈7141/7201 各扩一段
+(+40/+44kB 前奏 + 5584/5588kB) → 事件后再休眠至 run 结束(9003/9081 快照不变)。
+
+== 判定 (冻结阶梯) ==
+- 非 CONFIRMED-DIRECT: 字面 "same VMA address range + Size unchanged" 不满足——rw-p VMA 末端移动(分界线上移)。
+- 非 REFUTED(§九归因主导制): 主增长不由新地址映射创建/VmSize 增长/heap 增长解释——基址+总预留恒定,
+  VmSize 平直(±12kB 瞬态), [heap] 平, ΣΔAnon 与 ΔRssAnon 零缺口, 增量全落在同基址预留的 rw 头部扩展内。
+- 登记: MORPHOLOGY-REFINED(=§五 MORPHOLOGY-REOPEN 分支·精化后模型成立):
+  事件 = 固定 64MiB 对齐预留内 rw-p 头部经 mprotect(PROT_NONE→rw) 扩展一个事件量级段, 且新段立即全触
+  (Rss==Size==Anon==PD)。此即 C2 假设(d)"既有预留区内新触页"的机制精化形态(预留级成立·VMA 级字面条件不成立)。
+- 64MB 对齐 = 辅助线索(与 glibc 非主 arena 预留形态相容; "是否 arena/哪个线程" = O2 职责, O1 不判断)。
+- E01→M1(0x713004000000 预留), E02→M2(0x713010000000 预留): 簇内两个子步落在两个不同预留(不同基址)——
+  意味着 ~5.5MB 级分配在两个不同 arena(推断为两个线程, 归 O2 证实)几乎同时各发生一次。
+- 量子族更新: 5544-5628(24h) ∪ 5796/5632(本run) — 观测带 ~5.4-5.7MiB 按源单位, quantum consistency = supporting evidence only。
+
+C2-O1 FINAL: M1/M2 定位完成(同基址 64MiB 预留 mprotect 头部扩展·零对账缺口·VmSize/[heap] 平直) — MORPHOLOGY-REFINED,
+page-commit 方向成立(精化为 mprotect 扩展形态), 停等 C2-O2 裁决(arena/thread 归属)。

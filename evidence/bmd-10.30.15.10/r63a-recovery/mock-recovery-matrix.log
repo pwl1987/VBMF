@@ -1,0 +1,34 @@
+   Compiling media-agent v0.1.0 (/home/lytv/media-agent-build/services/media-agent)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.56s
+     Running tests/switch_fault_probe.rs (target/debug/deps/switch_fault_probe-75a60a6913bb8baf)
+
+running 9 tests
+R63-MATRIX R1         err_class=Backend desired=ActiveInput(fef6a935-9a03-4e37-8cd1-e2260091fd71) switch_epoch=1 observed=Some(fef6a935-9a03-4e37-8cd1-e2260091fd71) runtime_active=true
+R63-MATRIX F0         err_class=Backend desired=ActiveInput(8c46bd64-1b3a-4df0-9ae5-738423be5c1f) switch_epoch=0 observed=Some(8c46bd64-1b3a-4df0-9ae5-738423be5c1f) runtime_active=true
+R63-MATRIX degraded   err_class=Backend desired=RecoveryRequired { from: c4bcbb8f-38eb-4bd6-ac4a-caedeb3df6db, to: 5dfb5fa5-08b2-4080-8a1c-ee2ea0ef446b } switch_epoch=1 observed=None runtime_active=true
+R63-MATRIX R2         err_class=Backend desired=ActiveInput(7d337e5d-d335-4c8b-be08-852dd48edef0) switch_epoch=1 observed=Some(7d337e5d-d335-4c8b-be08-852dd48edef0) runtime_active=true
+R63-MATRIX degraded-next err_class=RecoveryRequired desired=RecoveryRequired { from: c4bcbb8f-38eb-4bd6-ac4a-caedeb3df6db, to: 5dfb5fa5-08b2-4080-8a1c-ee2ea0ef446b } switch_epoch=1 observed=None runtime_active=true
+R63-MATRIX degraded recovery=teardown(会话级·契约内)
+test r63_degraded_observed_none_recovery_required_terminal ... ok
+R63-MATRIX R4         err_class=Backend desired=ActiveInput(35d7b792-9351-4b01-8826-d1437f1e27a5) switch_epoch=1 observed=Some(35d7b792-9351-4b01-8826-d1437f1e27a5) runtime_active=true
+R63-MATRIX ctrl outcome=Preserved desired=ActiveInput(b) epoch=1 observed=Some(b) tl_epoch=0
+R63-MATRIX 0a         err_class=Backend desired=ActiveInput(e558d3d6-27c7-49d2-b711-2ea236486dbb) switch_epoch=1 observed=Some(e558d3d6-27c7-49d2-b711-2ea236486dbb) runtime_active=true
+R63-MATRIX R1+R7 recovered_next=Preserved epoch=2 observed=Some(b)
+R63-MATRIX F0-recover next_switch=Preserved desired=ActiveInput(b)
+test r62_probe_00_control_normal_switch_preserved ... ok
+R63-MATRIX R2+R8 recovered_next=Preserved epoch=2 observed=Some(a) tl_epoch=1(同世代延续)
+test r62_probe_f0_pre_begin_failure_recoverable ... ok
+test r63_r1_adapter_error_recovers_to_from_then_replan ... ok
+test r63_r2_fence_confirm_error_lands_observed_to ... ok
+R63-MATRIX replay(original=Failed) == replayed(byte-identical); new-id=Executed
+test r63_replay_after_recovery_returns_original_outcome ... ok
+R63-MATRIX R4(+R5-class) recovered_next=Preserved epoch=2 observed=Some(a)
+test r63_r4_settle_contradiction_lands_observed ... ok
+R63-MATRIX 0a-recover next_switch=Preserved epoch=2 observed=Some(a)
+test r63_0a_steady_state_pts_latch_pre_begin_recovers ... ok
+R63-MATRIX R3         err_class=Backend desired=ActiveInput(44271595-27c8-4753-b450-0c665d899fed) switch_epoch=1 observed=Some(44271595-27c8-4753-b450-0c665d899fed) runtime_active=true
+R63-MATRIX R3+R6 recovered_next=Preserved epoch=2 observed=Some(a)
+test r63_r3_evidence_timeout_lands_observed_not_faking_success ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.17s
+

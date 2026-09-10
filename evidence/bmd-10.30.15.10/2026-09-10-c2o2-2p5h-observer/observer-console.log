@@ -1,0 +1,9 @@
+2026-09-10T13:22:54+08:00 target pid=2011183 ev=/home/lytv/a2-8-02i-evidence/2026-09-10-c2o2-2p5h
+2026-09-10T13:22:54+08:00 topology start OK(startup)
+2026-09-10T13:22:54+08:00 T0(obs)=1789017774 run_t0=1789017487(src=proc_stat) domain=[2011183] main=30s lite=10s fast=2s+per-tid{comm,stat} watch=[6000,8700](run_rel)+120s guard base=300s win=60s trig=1024kB×max20 nominal=9200s
+2026-09-10T13:24:55+08:00 threads start snapshot taken
+2026-09-10T14:58:08+08:00 watch window entered (run_rel=6000s)——fast×2s + per-tid 活动 + 密集拓扑×60s
+2026-09-10T15:17:17+08:00 trigger #1 kind=positive pending=5740kB → topology-trig-1.smaps + threads-trig-1 (PRE=最近先行全量快照, POST=+15s)
+2026-09-10T15:18:08+08:00 trigger #2 kind=positive pending=5624kB → topology-trig-2.smaps + threads-trig-2 (PRE=最近先行全量快照, POST=+15s)
+2026-09-10T15:49:28+08:00 topology end OK(shutdown 触发)
+2026-09-10T15:49:31+08:00 observer 生命周期结束 status=COMPLETE code=0 terminal=gone coverage=95% gap_max=0s main=294 lite=876 fast=1443 tid=(1443 ticks/41847 rows/born=0/gone=0/err=0) trig=(2+/0-)limit=false

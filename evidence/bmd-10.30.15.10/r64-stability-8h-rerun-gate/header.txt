@@ -1,0 +1,5 @@
+date=2026-09-08T11:54:41+08:00
+bin_md5=816d2dde052a3253049475f9a70b0f75
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+env=VBMF_A2_8_R64_CP=1,DIAG,INPUTS=2
+note=Step15 8h rerun opening gate (post S15-E01 fix3)

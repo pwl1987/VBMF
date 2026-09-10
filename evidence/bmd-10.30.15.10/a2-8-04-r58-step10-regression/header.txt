@@ -1,0 +1,11 @@
+Sun Sep  6 12:57:39 PM CST 2026
+Sun Sep  6 04:57:39 AM UTC 2026
+               Local time: Sun 2026-09-06 12:57:39 CST
+           Universal time: Sun 2026-09-06 04:57:39 UTC
+                 RTC time: Sun 2026-09-06 04:57:39
+                Time zone: Asia/Shanghai (CST, +0800)
+System clock synchronized: yes
+              NTP service: active
+REV=6ab24a3c8fa3fe1d4a24aec964595966cc64cf88
+440c761b79457dd51f6dd49ca6aa5bb2  target/debug/media-agent-gates
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json

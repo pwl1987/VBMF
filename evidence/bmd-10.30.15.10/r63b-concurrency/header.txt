@@ -1,0 +1,5 @@
+=== R63-B concurrency probe 2026-09-06T20:12:53+08:00
+bin_md5=1326be285e0ee2aee43648c6f2f82b52
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+teardown_line=1 watchdog_exit_line=1 (service resident by design)
+process-stopped-after-evidence (explicit)

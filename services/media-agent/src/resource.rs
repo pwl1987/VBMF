@@ -183,6 +183,25 @@ pub struct ResourceRegistry {
     pub resources: Vec<Resource>,
 }
 
+/// 端口 → 资源命名空间（UUIDv5 over `vbmf:resource:{port_id}`）。
+///
+/// `derive_from_discovery` 与消费侧一致性校验（A2-8 Gate L1d, 第十九轮 §十六 H2）
+/// 共用的**单一派生来源**——防消费侧复制公式漂移成第二 SoT。
+fn port_resource_ns(port_id: Uuid) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::from_u128(0x6d5f_5206_4a1c_4b9e_8f0a_1b2c_3d4e_5f60),
+        format!("vbmf:resource:{port_id}").as_bytes(),
+    )
+}
+
+/// 端口的 Input 资源 ID（`<connector>-input` 平面的规范派生）。
+///
+/// A2-8 Gate L1d 以它核验"唯一 Input Resource 的 ID == Manifest Input Port
+/// 的规范派生"——闭合 Manifest Port → Registry Port → Resource → Session 证据链。
+pub fn input_resource_id_for_port(port_id: Uuid) -> Uuid {
+    Uuid::new_v5(&port_resource_ns(port_id), "input".as_bytes())
+}
+
 impl ResourceRegistry {
     pub fn new() -> Self {
         Self::default()
@@ -244,17 +263,13 @@ impl ResourceRegistry {
                 r.device_id = port.device_id; // Discovery 派生 → 记录所属设备 (供 Preflight 按设备校验)
                 r
             };
-            let ns = Uuid::new_v5(
-                &Uuid::from_u128(0x6d5f_5206_4a1c_4b9e_8f0a_1b2c_3d4e_5f60),
-                format!("vbmf:resource:{port_id}").as_bytes(),
-            );
             if port.direction == crate::port::PortDirection::Input
                 || port.direction == crate::port::PortDirection::Bidirectional
             {
                 out.push(mk(
                     &format!("{cap_base}-input"),
                     format!("{cap_base}-input-{port_id}"),
-                    Uuid::new_v5(&ns, "input".as_bytes()),
+                    input_resource_id_for_port(*port_id),
                 ));
             }
             if port.direction == crate::port::PortDirection::Output
@@ -263,7 +278,7 @@ impl ResourceRegistry {
                 out.push(mk(
                     &format!("{cap_base}-output"),
                     format!("{cap_base}-output-{port_id}"),
-                    Uuid::new_v5(&ns, "output".as_bytes()),
+                    Uuid::new_v5(&port_resource_ns(*port_id), "output".as_bytes()),
                 ));
             }
         }

@@ -1,0 +1,156 @@
+# c2o1 envelope tables v2 (machine-emitted, session-executed analyzer; source preservation = session execution record)
+== FIXTURES (ladder pre-validation) ==
+A same-VMA commit          got=CONFIRMED-DIRECT                               want=CONFIRMED-DIRECT                               PASS
+B new-map+VmSize           got=REFUTED                                        want=REFUTED                                        PASS
+C same-VMA gap             got=CONFIRMED-PARTIAL                              want=CONFIRMED-PARTIAL                              PASS
+D envelope repartition     got=RESERVATION-EXTENSION.BOUNDARY-MIGRATION       want=RESERVATION-EXTENSION.BOUNDARY-MIGRATION       PASS
+fixture_all_pass=True
+
+== SELF-CHECK ==
+captures parsed=87/87 ; R1 window and R2 window resolved in all captures (see RESERVATION IDENTITY) ; file-level md5 integrity verified at mirror time (registered commit 92e50df)
+
+== T-A EVENT TABLE (run_rel primary axis) ==
+warmup trig (descriptive, run_rel<6000): trig-1@13 +867664kB; trig-2@23 +5628kB; trig-3@43 +22264kB
+E4 run=7151 step=+5572kB win(PRE@7141->TRIG@7150)=+5584kB PRE=win-7141 trig_pend=+5796kB
+  trigger_latency: prev_sample@7148 step_first_seen@7151 trig_capture@7150 (interval, not point; PRE_age=10s)
+E5 run=7204 step=+5588kB win(PRE@7203->TRIG@7204)=+5588kB PRE=base-7203 trig_pend=+5632kB
+  trigger_latency: prev_sample@7202 step_first_seen@7204 trig_capture@7204 (interval, not point; PRE_age=1s)
+
+== T-B/T-C DUAL-LEVEL ATTRIBUTION AND RECONCILIATION ==
+E4 PRE=win-7141@7141 TRIG=trig-4@7150 ev(win)=5584kB
+  DISAPPEAR 713004000000-713005619000 rw-p 00000000 00:00 0  Size=22628 Rss=22628 Anon=22628
+  DISAPPEAR 713005619000-713008000000 ---p 00000000 00:00 0  Size=42908 Rss=0 Anon=0
+  NEW      713004000000-713005b8d000 rw-p 00000000 00:00 0  Size=28212 Rss=28212 Anon=28212
+  NEW      713005b8d000-713008000000 ---p 00000000 00:00 0  Size=37324 Rss=0 Anon=0
+  ENV 713004000000-713008000000 rw 22628->28212 (+5584) pn 42908->37324 (-5584) conservation=+0
+  metrics env_grow=5584 cons_err=0 new_out_rss=0 new_env_rss=0 heap_d=0 vmsize_d=+0 vmdata_d=+5584
+  recon dRssAnon(win)=+5584 vs sumDAnon(smaps)=+5584 gap +0 ; sumDPD=+5584
+  quantum_pages=1396 (page=4096 supporting-only)
+  VERDICT(E4)=RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+
+E5 PRE=base-7203@7203 TRIG=trig-5@7204 ev(win)=5588kB
+  DISAPPEAR 713010000000-71301161f000 rw-p 00000000 00:00 0  Size=22652 Rss=22652 Anon=22652
+  DISAPPEAR 71301161f000-713014000000 ---p 00000000 00:00 0  Size=42884 Rss=0 Anon=0
+  NEW      713010000000-713011b94000 rw-p 00000000 00:00 0  Size=28240 Rss=28240 Anon=28240
+  NEW      713011b94000-713014000000 ---p 00000000 00:00 0  Size=37296 Rss=0 Anon=0
+  ENV 71300c000000-713040000000 rw 641996->647584 (+5588) pn 209972->204384 (-5588) conservation=+0
+  metrics env_grow=5588 cons_err=0 new_out_rss=0 new_env_rss=0 heap_d=0 vmsize_d=+0 vmdata_d=+5588
+  recon dRssAnon(win)=+5588 vs sumDAnon(smaps)=+5588 gap +0 ; sumDPD=+5588
+  quantum_pages=1397 (page=4096 supporting-only)
+  VERDICT(E5)=RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+
+== RESERVATION IDENTITY (four-evidence, window granularity) ==
+R1 window [713004000000,713008000000): resolved=86/87 (unresolved only pre-creation captures) first_resolved=trig-1@run13 ; coverage_all_resolved=True ; continuity_all_resolved=True ; boundaries stable across resolved=True ; aligned64=True exact64MiB=True (64MiB=structural clue only, NOT identity condition)
+R2 window [713010000000,713014000000): resolved=86/87 (unresolved only pre-creation captures) first_resolved=trig-1@run13 ; coverage_all_resolved=True ; continuity_all_resolved=True ; boundaries stable across resolved=True ; aligned64=True exact64MiB=True (64MiB=structural clue only, NOT identity condition)
+NOTE over-merge disclosure: R2 sits inside contiguous anon chain 0x71300c000000-0x713040000000 (832MiB address_extent, repeating rw/PN structure); adjacency alone does NOT define reservation identity - window four-evidence does.
+
+== ENVELOPE TRAJECTORY (window rw|pn kB, all captures) ==
+3      start     R1=- R2=- 
+13     trig-1    R1=17000|48536 R2=11372|54164 
+23     trig-2    R1=22588|42948 R2=11380|54156 R1+5588,R2+8
+28     post-1    R1=22588|42948 R2=11384|54152 R2+4
+38     post-2    R1=22588|42948 R2=22608|42928 R2+11224
+43     trig-3    R1=22588|42948 R2=22608|42928 
+58     post-3    R1=22588|42948 R2=22608|42928 
+303    base-303  R1=22588|42948 R2=22608|42928 
+603    base-603  R1=22588|42948 R2=22608|42928 
+903    base-903  R1=22588|42948 R2=22608|42928 
+1203   base-1203 R1=22588|42948 R2=22608|42928 
+1503   base-1503 R1=22588|42948 R2=22608|42928 
+1803   base-1803 R1=22588|42948 R2=22608|42928 
+2103   base-2103 R1=22588|42948 R2=22608|42928 
+2403   base-2403 R1=22588|42948 R2=22608|42928 
+2703   base-2703 R1=22588|42948 R2=22608|42928 
+3003   base-3003 R1=22588|42948 R2=22608|42928 
+3303   base-3303 R1=22588|42948 R2=22608|42928 
+3603   base-3603 R1=22588|42948 R2=22608|42928 
+3903   base-3903 R1=22588|42948 R2=22608|42928 
+4203   base-4203 R1=22588|42948 R2=22608|42928 
+4503   base-4503 R1=22588|42948 R2=22608|42928 
+4803   base-4803 R1=22588|42948 R2=22608|42928 
+5103   base-5103 R1=22588|42948 R2=22608|42928 
+5403   base-5403 R1=22588|42948 R2=22608|42928 
+5703   base-5703 R1=22588|42948 R2=22608|42928 
+6000   win-6000  R1=22588|42948 R2=22608|42928 
+6003   base-6003 R1=22588|42948 R2=22608|42928 
+6060   win-6060  R1=22588|42948 R2=22608|42928 
+6121   win-6121  R1=22588|42948 R2=22608|42928 
+6181   win-6181  R1=22588|42948 R2=22608|42928 
+6241   win-6241  R1=22588|42948 R2=22608|42928 
+6301   win-6301  R1=22588|42948 R2=22608|42928 
+6303   base-6303 R1=22588|42948 R2=22608|42928 
+6361   win-6361  R1=22588|42948 R2=22608|42928 
+6421   win-6421  R1=22588|42948 R2=22608|42928 
+6481   win-6481  R1=22588|42948 R2=22608|42928 
+6541   win-6541  R1=22588|42948 R2=22608|42928 
+6601   win-6601  R1=22588|42948 R2=22608|42928 
+6603   base-6603 R1=22588|42948 R2=22608|42928 
+6661   win-6661  R1=22588|42948 R2=22608|42928 
+6721   win-6721  R1=22588|42948 R2=22608|42928 
+6781   win-6781  R1=22588|42948 R2=22608|42928 
+6841   win-6841  R1=22588|42948 R2=22608|42928 
+6901   win-6901  R1=22588|42948 R2=22608|42928 
+6904   base-6903 R1=22588|42948 R2=22608|42928 
+6961   win-6961  R1=22588|42948 R2=22608|42928 
+7021   win-7021  R1=22588|42948 R2=22608|42928 
+7081   win-7081  R1=22588|42948 R2=22608|42928 
+7141   win-7141  R1=22628|42908 R2=22608|42928 R1+40
+7150   trig-4    R1=28212|37324 R2=22608|42928 R1+5584
+7165   post-4    R1=28212|37324 R2=22608|42928 
+7201   win-7201  R1=28212|37324 R2=22652|42884 R2+44
+7203   base-7203 R1=28212|37324 R2=22652|42884 
+7204   trig-5    R1=28212|37324 R2=28240|37296 R2+5588
+7219   post-5    R1=28212|37324 R2=28240|37296 
+7261   win-7261  R1=28212|37324 R2=28240|37296 
+7321   win-7321  R1=28212|37324 R2=28240|37296 
+7381   win-7381  R1=28212|37324 R2=28240|37296 
+7441   win-7441  R1=28212|37324 R2=28240|37296 
+7501   win-7501  R1=28212|37324 R2=28240|37296 
+7503   base-7503 R1=28212|37324 R2=28240|37296 
+7561   win-7561  R1=28212|37324 R2=28240|37296 
+7621   win-7621  R1=28212|37324 R2=28240|37296 
+7681   win-7681  R1=28212|37324 R2=28240|37296 
+7741   win-7741  R1=28212|37324 R2=28240|37296 
+7801   win-7801  R1=28212|37324 R2=28240|37296 
+7803   base-7803 R1=28212|37324 R2=28240|37296 
+7861   win-7861  R1=28212|37324 R2=28240|37296 
+7921   win-7921  R1=28212|37324 R2=28240|37296 
+7981   win-7981  R1=28212|37324 R2=28240|37296 
+8041   win-8041  R1=28212|37324 R2=28240|37296 
+8101   win-8101  R1=28212|37324 R2=28240|37296 
+8103   base-8103 R1=28212|37324 R2=28240|37296 
+8161   win-8161  R1=28212|37324 R2=28240|37296 
+8221   win-8221  R1=28212|37324 R2=28240|37296 
+8281   win-8281  R1=28212|37324 R2=28240|37296 
+8341   win-8341  R1=28212|37324 R2=28240|37296 
+8402   win-8402  R1=28212|37324 R2=28240|37296 
+8403   base-8403 R1=28212|37324 R2=28240|37296 
+8462   win-8462  R1=28212|37324 R2=28240|37296 
+8522   win-8522  R1=28212|37324 R2=28240|37296 
+8582   win-8582  R1=28212|37324 R2=28240|37296 
+8642   win-8642  R1=28212|37324 R2=28240|37296 
+8703   base-8703 R1=28212|37324 R2=28240|37296 
+9003   base-9003 R1=28212|37324 R2=28240|37296 
+9081   end       R1=28212|37324 R2=28240|37296 
+
+== ENVELOPE INVENTORY (address_extent >=4MB) ==
+start count=6 aligned64=2 tot_size=679988kB tot_rss=393800kB largest=71308c000000(458752kB)
+end count=11 aligned64=4 tot_size=2779224kB tot_rss=1260468kB largest=713044000000(1245184kB)
+
+== CLUSTER RECONCILIATION (win-7141 -> post-5, recomputed) ==
+fastlite: dRssAnon=+11216kB dVmData=+11216kB dVmSize=+0kB (window samples 7140->7219)
+smaps windows: R1 +5584 ; R2 +5632 ; R2-chain(0x71300c000000) total +5632 (non-R2 remainder +0 = E5 prelude-44 inside window)
+sum windows R1+R2 = +11216 ; sum with chain-remainder = +11216 ; primary reconciliation per-kB
+
+== VERDICTS (frozen ladder, machine-emitted) ==
+E4 = RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+E5 = RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+
+== CROSS-RUN FIRST-EVENT ALIGNMENT (supporting only) ==
+B1 7132s / 24h 7142s / C2-O1 7150s : range 18s
+families: reservation / quantum ~5.4-5.7MiB per source unit / VmSize-conservation / RW-PN-migration
+
+== O1 FINAL (upgraded registration) ==
+ANON_GROWTH -> NO UNIQUE BUSINESS ATTRIBUTION -> STATIC -> MORPHOLOGY-REFINED (adjudication event, not terminal) -> RESERVATION-EXTENSION.BOUNDARY-MIGRATION
+smaps is a sequential procfs observation, not an atomic process-wide snapshot; small accounting differences -> PARTIAL, not mechanism evidence.
+VmData is address-space evidence, not glibc arena committed bytes. 64MiB alignment is an allocator-family structural clue (supporting only).

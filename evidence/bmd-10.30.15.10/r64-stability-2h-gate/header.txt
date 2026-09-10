@@ -1,0 +1,4 @@
+2026-09-07T07:10:09+08:00
+f7f7db7d385f69f3c34c80603f4fcc48  target/debug/media-agent-gates
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+env=VBMF_A2_8_R64_CP=1,DIAG,INPUTS=2 rung=step15-2h-opening

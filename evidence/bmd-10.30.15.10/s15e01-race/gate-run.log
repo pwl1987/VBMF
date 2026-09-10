@@ -1,0 +1,60 @@
+[2m2026-09-08T03:45:09.862261Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"gstreamer" [3mmode[0m[2m=[0m"diagnostic"
+[2m2026-09-08T03:45:09.867396Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-08T03:45:09.867520Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-08T03:45:09.867559Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-08T03:45:09.867584Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-08T03:45:09.867609Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-08T03:45:09.867645Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-08T03:45:09.867682Z[0m [32m INFO[0m [2mmedia_agent_gates[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+=== S15-E01 竞争窗确定性复现（强制 pre-executed Segment → 修复③回放计入）===
+披露: 注入=adapter 内生产函数级接缝（fence capture+⑤暂存+下游确认同 seqnum 成对）——非真实 pad 事件投递; 与 cycle 908 现场同一分裂面（fence 收到/timeline 没收到）, 确定性强制非概率轰击
+披露: 判据面=outcome=preserved + program_epoch 保持 0（无 FailClosed/NewEpoch rebase）+ segment_id 逐轮前进 + DD——先到 Segment 穿真实evidence collector 计入; 红态证据=8h soak cycle 908 历史档（r64-stability-8h/）, 不回放
+[2m2026-09-08T03:45:14.351400Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-08T03:45:14.351519Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+[2m2026-09-08T03:45:14.568010Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:14.922: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:14.922: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:14.922: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:14.922: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:14.922: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:14.922: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:15.494: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:15.495: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1433435): GStreamer-Video-CRITICAL **: 11:45:15.495: gst_video_converter_free: assertion 'convert != NULL' failed
+S15E01-RACE world A=4fa33dcb-5f76-5f76-aea8-330df7ada03e B=6ede00d0-baf4-573f-a0dd-4a503bf7f766 sid=b2fd2181-bc0e-4059-b770-e7afa81b5b6c
+R64-MATRIX sixplane [init] cmd=None desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(0)/Some(0)/Some(0) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+S15E01-RACE control A→B status=executed class=None detail=Some("switch executed: av_epoch=1 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[1] →4fa33dcb-5f76-5f76-aea8-330df7ada03e elapsed=151.872175ms status=executed class=None detail=Some("switch executed: av_epoch=2 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[2] →6ede00d0-baf4-573f-a0dd-4a503bf7f766 elapsed=155.677662ms status=executed class=None detail=Some("switch executed: av_epoch=3 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[3] →4fa33dcb-5f76-5f76-aea8-330df7ada03e elapsed=152.123969ms status=executed class=None detail=Some("switch executed: av_epoch=4 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[4] →6ede00d0-baf4-573f-a0dd-4a503bf7f766 elapsed=152.364286ms status=executed class=None detail=Some("switch executed: av_epoch=5 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[5] →4fa33dcb-5f76-5f76-aea8-330df7ada03e elapsed=158.313625ms status=executed class=None detail=Some("switch executed: av_epoch=6 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[6] →6ede00d0-baf4-573f-a0dd-4a503bf7f766 elapsed=157.40276ms status=executed class=None detail=Some("switch executed: av_epoch=7 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[7] →4fa33dcb-5f76-5f76-aea8-330df7ada03e elapsed=158.269898ms status=executed class=None detail=Some("switch executed: av_epoch=8 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[8] →6ede00d0-baf4-573f-a0dd-4a503bf7f766 elapsed=158.26917ms status=executed class=None detail=Some("switch executed: av_epoch=9 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[9] →4fa33dcb-5f76-5f76-aea8-330df7ada03e elapsed=155.235731ms status=executed class=None detail=Some("switch executed: av_epoch=10 outcome=preserved timeline_epoch=0")
+S15E01-RACE race[10] →6ede00d0-baf4-573f-a0dd-4a503bf7f766 elapsed=155.155063ms status=executed class=None detail=Some("switch executed: av_epoch=11 outcome=preserved timeline_epoch=0")
+R64-MATRIX sixplane [after-races] cmd=None desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(11)/Some(11)/Some(11) tl(epoch/src/api)=Some(0)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(0) api(status/present)=(200/true) verdict=OK
+
+(media-agent-gates:1433435): GStreamer-CRITICAL **: 11:45:23.348: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1433435): GStreamer-CRITICAL **: 11:45:23.348: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1433435): GStreamer-CRITICAL **: 11:45:23.348: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1433435): GStreamer-CRITICAL **: 11:45:23.348: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+[2m2026-09-08T03:45:23.348968Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0mb2fd2181-bc0e-4059-b770-e7afa81b5b6c [3mgraph[0m[2m=[0m3
+S15E01-RACE stop status=executed class=None detail=None
+R64-MATRIX sixplane [teardown] cmd=Some(("executed", None)) desired=None observed=None sw_epoch(g/p/api)=None/None/None tl(epoch/src/api)=None/None/None api(status/present)=(200/false) verdict=OK
+S15E01-RACE summary injections=10 failures=0
+S15E01-RACE verdict PASS（强制竞争窗×10 全部被回放计入——修复③真机判据绿; exit 0）
+EXIT=0

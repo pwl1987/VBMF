@@ -1,0 +1,11 @@
+Sun Sep  6 01:48:23 PM CST 2026
+Sun Sep  6 05:48:23 AM UTC 2026
+               Local time: Sun 2026-09-06 13:48:23 CST
+           Universal time: Sun 2026-09-06 05:48:23 UTC
+                 RTC time: Sun 2026-09-06 05:48:23
+                Time zone: Asia/Shanghai (CST, +0800)
+REV=e09ed975c3db1e2fdc6f253a304f97d549333b14
+bin md5 (frozen reuse, ==Step10 440c761b):
+440c761b79457dd51f6dd49ca6aa5bb2  /home/lytv/media-agent-build/services/media-agent/target/debug/media-agent-gates
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+source sweep: 864/864 files box==git-archive-e09ed97==HEAD (sha256sum -c all match)

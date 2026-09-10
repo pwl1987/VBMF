@@ -34,6 +34,7 @@ pub mod contracts;
 pub mod custody; // A2-7-02: Program Runtime Custody (Program semantic lifecycle owner; Runtime/Orchestration 边界; 七不终裁)
 pub mod device;
 pub mod error_model; // P0.7C-5: Error Model (失败归因分类平面; 三平面分离)
+pub mod event_intake; // A2-8-03-01-B/C: internal 平面唯一 drain 边界 + custody 生产接线 (R44 单一事实消费点)
 pub mod event_projection; // P0.7C-6: Event Projection Foundation (Runtime→Event→Projection 生产边)
 pub mod events; // 0.6D: RuntimeEvent canonical 事件契约 + 归一化映射 + 有界事件日志
 pub mod fixture; // HW-PORT-01 / MEDIA-RT-01 复用的 BMD-SDI-LOOPBACK Fixture (host-specific 证据)
@@ -49,6 +50,8 @@ pub mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖
 pub mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
 pub mod preflight; // P0-7A: Preflight 分级判定 (judge-only; V0.2 §1.2)
 pub mod program; // A2-1: Program Domain —— 节目生产模型 Canonical 层（SwitchPolicy 首块; A2-2+ Masters/MasterJoin/ProgramMaster）
+pub mod program_execution; // A2-8-02-E: Program Execution Runtime（program 执行资源生命周期唯一 owner; creator=destroyer）
+pub mod program_timeline; // A2-8-C-TIMELINE-01: Program Timeline Authority（Program Execution 层媒体时间线权威; 纯 Domain 零 GStreamer）
 pub mod registry;
 pub mod resolver;
 pub mod resource; // 0.6E: Resource 模型 + 状态机 + Preflight 闸门 (防自动 Fallback)
@@ -58,6 +61,8 @@ pub mod runtime_state; // 0.7C-1: Canonical Runtime State 聚合 (组合非展�
 pub mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner; D10 多输入)
 pub mod signal; // 信号探测 + 亮度黑场检测
 pub mod supervisor; // Gate 6/7: Runtime Supervisor — 恢复决策引擎（只决策, 不碰 GStreamer）
+pub mod switch_dispatch_plane; // A2-8-05 v0.2: SwitchProgram 执行平面 + program_switch 回读平面（命令/查询双 trait 类型级隔离; 核心四零触碰）
+pub mod switch_execution; // A2-8-01: Switch Execution 执行面（ExecutionGroup/Intent/Plan; 纯模型零 GStreamer, probe §7 冻结）
 pub mod timecode; // P0.7B-2C: Canonical Timecode (时间标签, 非时间本体; #148)
 pub mod transport; // P0.7C-8: Transport (五端点 + P1b 静态文件面; std-only)
 pub mod watchdog; // A2-0: Ingest Watchdog — Runtime Health/Recovery 模块

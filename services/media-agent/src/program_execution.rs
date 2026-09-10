@@ -1,0 +1,1879 @@
+//! A2-8-02-E: Program Execution Runtime——program 执行资源的**生命周期
+//! 唯一 owner**（creator=destroyer, 第七轮终裁 §12.4）。
+//!
+//! A2-8-01 时组合根散持 group/switcher/graph/watchdog 四件（"创建的人
+//! 不是销毁的人"风险）; 本对象统一治理并经 `SessionStopHook` 抽象缝接入
+//! Session 停止链——**SessionManager 不理解 GStreamer/Program**（缝在
+//! session.rs, 语义在.program_execution 层）。
+//!
+//! 生命周期序（终裁冻结）:
+//! - 创建: attach taps（input 侧）→ build graph → start program →
+//!   （组合根 spawn watchdog 后 `set_watchdog_stop` 注旗）;
+//!   任一步失败 → **部分资源清理**（已挂 tap detach + 已建 graph stop）
+//!   后返回 Err（组合根据此回滚整个会话——input/lease/resource 归
+//!   SessionManager 既有机制）。
+//! - 停止（`teardown`, 经 hook 于 Input 停止前触发）: watchdog 旗置位 →
+//!   Program Stop → Tap Detach; **幂等**; 各步失败只记录不阻断其余步。
+//!
+//! 不做: 不切换（显式 Intent 链不变）·不恢复输入（Supervisor 链不变）·
+//! 不持有 Session 语义（SessionInput 原样）。
+
+use std::sync::{Arc, Mutex};
+
+use crate::contracts::media_tap::{MediaTapPort, MediaTapRequest, TapPlanes};
+use crate::contracts::switch::{
+    CutoverDrainEvidence, ProgramExecutionObservation, SwitchExecutionAdapter,
+};
+use crate::pipeline::PipelineHandle;
+use crate::program_timeline::{
+    MediaPlane, TimelineAuthority, TimelineObservation, TimelinePhase, TransitionFailure,
+    TransitionOutcome,
+};
+use crate::session::{SessionId, SessionStopHook};
+use crate::switch_execution::{ExecutionGroup, SwitchError, SwitchIntent};
+
+/// tap channel 派生约定（**唯一来源**, F-02/F-03）：DeviceId → execution
+/// bridge address。**非新 identity**——仅 inter 桥接寻址（`intervideosink
+/// .channel` ↔ `intervideosrc.channel`）；组合根挂 tap 与 program graph
+/// 桥消费两侧均经本函数, 禁止内联重写格式（约定漂移=桥断）。
+pub fn tap_channel(device_id: uuid::Uuid) -> String {
+    format!("tap-{device_id}")
+}
+
+/// input 侧 tap 接线请求（channel 经 `tap_channel` 派生——唯一约定来源）。
+pub struct TapWiring {
+    pub input: PipelineHandle,
+    pub channel: String,
+}
+
+impl TapWiring {
+    /// 由 SessionInput 派生（channel=tap_channel(device_id)）。
+    pub fn for_input(input: &crate::session::SessionInput) -> Self {
+        Self {
+            input: input.handle,
+            channel: tap_channel(input.device_id),
+        }
+    }
+}
+
+// === A2-8-02-G/H: Observation & Timeline Evidence（第十四轮终裁） ===
+// 只观测/只取证/绝不修 timestamp 行为。三列各自独立测量点 join。
+
+/// 三列时间线采样行（Input/Bridge/Program——按 device 一行; program 列
+/// 为整图共享）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TimelineSample {
+    pub sampled_at_ms: u64,
+    pub device: uuid::Uuid,
+    pub input_video_pts: Option<u64>,
+    pub input_audio_pts: Option<u64>,
+    pub bridge_video_pts: Option<u64>,
+    pub bridge_audio_pts: Option<u64>,
+    pub program_video_pts: Option<u64>,
+    pub program_audio_pts: Option<u64>,
+    pub input_video_state: crate::pipeline::PtsMonotonicity,
+    pub input_audio_state: crate::pipeline::PtsMonotonicity,
+    pub bridge_video_state: crate::pipeline::PtsMonotonicity,
+    pub bridge_audio_state: crate::pipeline::PtsMonotonicity,
+    pub program_video_state: crate::pipeline::PtsMonotonicity,
+    pub program_audio_state: crate::pipeline::PtsMonotonicity,
+    pub program_alive: bool,
+}
+
+/// 三列 join（各列独立测量: 输入=输入管线健康弧; 桥=BridgeObservation
+/// 行[调用方按 tap_channel(device) 选行]; 程序=ProgramObservation）。
+pub fn assemble_timeline_sample(
+    device: uuid::Uuid,
+    input_health: Option<&crate::pipeline::PipelineHealth>,
+    bridge: Option<&crate::contracts::media_tap::BridgeObservation>,
+    program: &crate::contracts::switch::ProgramObservation,
+) -> TimelineSample {
+    TimelineSample {
+        sampled_at_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        device,
+        input_video_pts: input_health.and_then(|h| h.video_last_pts),
+        input_audio_pts: input_health.and_then(|h| h.audio_last_pts),
+        bridge_video_pts: bridge.and_then(|b| b.video_last_pts),
+        bridge_audio_pts: bridge.and_then(|b| b.audio_last_pts),
+        program_video_pts: program.program_video_pts,
+        program_audio_pts: program.program_audio_pts,
+        input_video_state: input_health
+            .map(|h| h.video_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        input_audio_state: input_health
+            .map(|h| h.audio_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        bridge_video_state: bridge
+            .map(|b| b.video_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        bridge_audio_state: bridge
+            .map(|b| b.audio_pts_state)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        program_video_state: program.program_video_pts_state,
+        program_audio_state: program.program_audio_pts_state,
+        program_alive: program.program_video_pts.is_some()
+            && program.program_video_pts_state != crate::pipeline::PtsMonotonicity::NonMonotonic,
+    }
+}
+
+/// recover 后桥健康结构化报告（RECOVER_PARTIAL_DEGRADED 观测化——
+/// **不改 recover 返回类型**, 由观测查询组装: recover Ok + 簿记重放 ≠
+/// 桥真实流通; degraded = 恢复成功但期望 channel 无实测数据流通）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgeHealthReport {
+    pub pipeline_recovered: bool,
+    pub expected_channels: Vec<String>,
+    pub observed_alive_channels: Vec<String>,
+    pub bridge_degraded: bool,
+}
+
+/// alive = **当前推进性**（G/H-1, 第十五轮 §5-7: `frames>0` 只证"曾经
+/// 活过"——必须以观察时钟窗口判定: now - last_observed ≤ window。
+/// 历史证据 frames 与活性证据 last_observed 分层, 禁混）。
+pub fn assemble_bridge_health(
+    pipeline_recovered: bool,
+    expected_channels: Vec<String>,
+    liveness: &[crate::contracts::media_tap::BridgeChannelLiveness],
+) -> BridgeHealthReport {
+    let observed_alive_channels: Vec<String> = liveness
+        .iter()
+        .filter(|l| l.alive_in_window)
+        .map(|l| l.channel.clone())
+        .collect();
+    let bridge_degraded = pipeline_recovered
+        && expected_channels
+            .iter()
+            .any(|c| !observed_alive_channels.contains(c));
+    BridgeHealthReport {
+        pipeline_recovered,
+        expected_channels,
+        observed_alive_channels,
+        bridge_degraded,
+    }
+}
+
+// G/H-1（第十五轮 §11）: "曾经活过 ≠ 当前推进"——以采样增量分离历史
+// 存在与当前推进（不改 ProgramObservation/PipelineHealth 契约）。
+
+/// 程序出口当前推进（两次观测间帧计数增长）。
+pub fn program_progress_since(
+    prev: &crate::contracts::switch::ProgramObservation,
+    cur: &crate::contracts::switch::ProgramObservation,
+) -> bool {
+    cur.program_video_frames > prev.program_video_frames
+        || cur.program_audio_frames > prev.program_audio_frames
+}
+
+/// 输入管线当前推进（两次健康弧快照间帧计数增长）。
+pub fn input_progress_since(
+    prev: &crate::pipeline::PipelineHealth,
+    cur: &crate::pipeline::PipelineHealth,
+) -> bool {
+    cur.video_frame_count > prev.video_frame_count || cur.audio_frame_count > prev.audio_frame_count
+}
+
+// === A2-8-04: 六路逐平面连续性取证（R51 Unit 1——observation only） ===
+// R50 OQ-T3 修订后冻结: `program_progress_since`/`input_progress_since`
+// 为聚合 A/V "或"——不能证六路逐平面推进。本面逐路独立记账, **只测量
+// 不判定**（无阈值/无判据/不触 L4——判据属取证后的验收层）。absence≠
+// false: `advanced=None`=无可比帧计数证据, 与 `Some(false)`=有证据未
+// 推进严格分离。
+
+/// 取样所处切换阶段标签（调用方时序标注, 纯数据——无判定语义）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidencePhase {
+    PreSwitch,
+    PostSwitch,
+}
+
+/// 单路证据行: PTS + 单调态 + 帧计数 + 相对前一采样的推进证据。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathEvidence {
+    pub pts: Option<u64>,
+    pub pts_state: crate::pipeline::PtsMonotonicity,
+    /// 该路帧计数（观测行缺席=None——如 bridge 无对应行）。
+    pub frames: Option<u64>,
+    /// 相对前一采样推进: None=无可比证据（absence≠false）。
+    pub advanced: Option<bool>,
+}
+
+/// 六路证据行（input/bridge/program × video/audio——按 device 一行;
+/// program 列为整图共享）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SixPathEvidence {
+    pub sampled_at_ms: u64,
+    pub device: uuid::Uuid,
+    pub phase: EvidencePhase,
+    /// 采样时 adapter 侧切换计数（`ProgramObservation.switch_epoch` 同源）。
+    pub switch_epoch: u64,
+    pub input_video: PathEvidence,
+    pub input_audio: PathEvidence,
+    pub bridge_video: PathEvidence,
+    pub bridge_audio: PathEvidence,
+    pub program_video: PathEvidence,
+    pub program_audio: PathEvidence,
+    /// T2（R50 冻结）: 只测量 `|program_v_pts − program_a_pts|`——ns 可比
+    /// ≠阈值授权（阈值禁令维持）; 任一平面无 PTS=None。
+    pub program_av_delta_ns: Option<u64>,
+}
+
+/// 三列原始观测借用面（与 `assemble_timeline_sample` 同源三面: 输入=
+/// 输入管线健康弧; 桥=BridgeObservation 行[按 tap_channel 选行];
+/// 程序=ProgramObservation）。
+pub struct SixPathInputs<'a> {
+    pub input: Option<&'a crate::pipeline::PipelineHealth>,
+    pub bridge: Option<&'a crate::contracts::media_tap::BridgeObservation>,
+    pub program: &'a crate::contracts::switch::ProgramObservation,
+}
+
+/// 单路装配: 行缺席→全 None/Unknown + advanced=None; 帧计数双方在场
+/// 才产出推进证据（absence≠false）。
+fn path_row(
+    cur: Option<(Option<u64>, crate::pipeline::PtsMonotonicity, Option<u64>)>,
+    prev_frames: Option<Option<u64>>,
+) -> PathEvidence {
+    PathEvidence {
+        pts: cur.as_ref().and_then(|c| c.0),
+        pts_state: cur
+            .map(|c| c.1)
+            .unwrap_or(crate::pipeline::PtsMonotonicity::Unknown),
+        frames: cur.and_then(|c| c.2),
+        advanced: match (prev_frames.flatten(), cur.and_then(|c| c.2)) {
+            (Some(p), Some(c)) => Some(c > p),
+            _ => None,
+        },
+    }
+}
+
+/// 六路证据装配（纯函数——两快照 join, 只取证不判定）。
+pub fn assemble_six_path_evidence(
+    device: uuid::Uuid,
+    phase: EvidencePhase,
+    prev: Option<&SixPathInputs<'_>>,
+    cur: &SixPathInputs<'_>,
+) -> SixPathEvidence {
+    // 输入列: 行在=健康弧在（帧计数恒 u64, 非 Option 源）。
+    let cur_input = |video: bool| {
+        cur.input.map(|h| {
+            if video {
+                (
+                    h.video_last_pts,
+                    h.video_pts_state,
+                    Some(h.video_frame_count),
+                )
+            } else {
+                (
+                    h.audio_last_pts,
+                    h.audio_pts_state,
+                    Some(h.audio_frame_count),
+                )
+            }
+        })
+    };
+    let prev_input = |video: bool| {
+        prev.and_then(|p| p.input).map(|h| {
+            Some(if video {
+                h.video_frame_count
+            } else {
+                h.audio_frame_count
+            })
+        })
+    };
+    // 桥列: 行缺席=无 bridge_observation 匹配行（frames None→advanced None）。
+    let cur_bridge = |video: bool| {
+        cur.bridge.map(|b| {
+            if video {
+                (b.video_last_pts, b.video_pts_state, Some(b.video_frames))
+            } else {
+                (b.audio_last_pts, b.audio_pts_state, Some(b.audio_frames))
+            }
+        })
+    };
+    let prev_bridge = |video: bool| {
+        prev.and_then(|p| p.bridge).map(|b| {
+            Some(if video {
+                b.video_frames
+            } else {
+                b.audio_frames
+            })
+        })
+    };
+    // 程序列: 行恒在（ProgramObservation 必有）。
+    let cur_prog = |video: bool| {
+        Some(if video {
+            (
+                cur.program.program_video_pts,
+                cur.program.program_video_pts_state,
+                Some(cur.program.program_video_frames),
+            )
+        } else {
+            (
+                cur.program.program_audio_pts,
+                cur.program.program_audio_pts_state,
+                Some(cur.program.program_audio_frames),
+            )
+        })
+    };
+    let prev_prog = |video: bool| {
+        prev.map(|p| {
+            Some(if video {
+                p.program.program_video_frames
+            } else {
+                p.program.program_audio_frames
+            })
+        })
+    };
+    SixPathEvidence {
+        sampled_at_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        device,
+        phase,
+        switch_epoch: cur.program.switch_epoch,
+        input_video: path_row(cur_input(true), prev_input(true)),
+        input_audio: path_row(cur_input(false), prev_input(false)),
+        bridge_video: path_row(cur_bridge(true), prev_bridge(true)),
+        bridge_audio: path_row(cur_bridge(false), prev_bridge(false)),
+        program_video: path_row(cur_prog(true), prev_prog(true)),
+        program_audio: path_row(cur_prog(false), prev_prog(false)),
+        program_av_delta_ns: match (cur.program.program_video_pts, cur.program.program_audio_pts) {
+            (Some(v), Some(a)) => Some(v.abs_diff(a)),
+            _ => None,
+        },
+    }
+}
+
+/// 故障域分类（G/H ④: Input/Bridge/Program 组合观测——单故障假设,
+/// 优先序 Input>Bridge>Program; 多重并发故障如实报首因不做多维归因）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureDomain {
+    None,
+    Input,
+    Bridge,
+    Program,
+}
+
+pub fn classify_failure_domain(
+    input_advancing: bool,
+    bridge_alive: bool,
+    program_advancing: bool,
+) -> FailureDomain {
+    if !input_advancing {
+        FailureDomain::Input
+    } else if !bridge_alive {
+        FailureDomain::Bridge
+    } else if !program_advancing {
+        FailureDomain::Program
+    } else {
+        FailureDomain::None
+    }
+}
+
+/// 03-01-E（R45）: 运行时故障域分类的桥 liveness 观察窗——与 gate L5
+/// （gates/dual_input.rs `LIVENESS_WINDOW_MS`=3000）同值同义, 分类器喂入
+/// 口径一致。常量在本模块定义（gates→runtime 依赖禁反转; gate 局部常量
+/// 保持不动）。
+pub const FAILURE_DOMAIN_LIVENESS_WINDOW_MS: u64 = 3000;
+
+struct Inner {
+    group: Arc<Mutex<ExecutionGroup>>,
+    switcher: Arc<dyn SwitchExecutionAdapter>,
+    graph: PipelineHandle,
+    /// 已挂 tap 簿记（input handle + channel）——teardown 时 detach。
+    taps: Vec<(PipelineHandle, String)>,
+    tap_port: Option<Arc<dyn MediaTapPort>>,
+    watchdog_stop: Option<Arc<std::sync::atomic::AtomicBool>>,
+    /// C-TIMELINE-01 ⑨（Freeze §1 四组件并列）: Program Timeline Authority
+    /// ——Domain 状态机; **不是第二个 switch state machine**（switch_epoch
+    /// 归 ExecutionGroup, program_epoch/segment 归本 Authority——经
+    /// SwitchExecutionPlan/SwitchExecuted 关联, 各自拥有自己的状态）。
+    timeline: TimelineAuthority,
+    /// R65-A 契约 §3.2（2026-09-07 R65-A0）: 本轮切换尝试中
+    /// `adapter.switch()` 是否已返回 Ok（=翻转已执行、必落）。chain 顶复位
+    /// false; switch() Ok 后置 true——恢复稳定再观测的**期望感知**输入
+    /// （不经错误字符串/不经相位推断——on_switch_executed 失败路径的
+    /// 硬件事实只有 switch() 位点持有）。
+    switch_executed_in_attempt: bool,
+}
+
+/// Program Execution Runtime（组合根装配后为 program 资源唯一 owner）。
+pub struct ProgramExecutionRuntime {
+    session_id: SessionId,
+    inner: Mutex<Option<Inner>>,
+    /// R63-B3: 最近一次**已提交事实快照**（derived 缓存——同型
+    /// `ProgramExecutionObservation`, 非第二 Runtime State; B0 契约 §2.3）。
+    /// 发布点=create 初始 / switch_program 出口（成败与恢复后）/ 自由读;
+    /// teardown 清空。切换编排长持 inner 期间, `observe_execution` 以
+    /// try_lock 短锁回退本快照——查询面不等待切换（诚实时间戳在载荷）。
+    /// 锁序恒 inner→published（无反向路径）。
+    published: Mutex<Option<ProgramExecutionObservation>>,
+}
+
+impl std::fmt::Debug for ProgramExecutionRuntime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProgramExecutionRuntime")
+            .field("session_id", &self.session_id)
+            .field("active", &self.is_active())
+            .finish()
+    }
+}
+
+impl ProgramExecutionRuntime {
+    /// 组合根装配（creator=destroyer）。任一步失败 → 部分资源清理后 Err。
+    pub fn create(
+        session_id: SessionId,
+        group: ExecutionGroup,
+        switcher: Arc<dyn SwitchExecutionAdapter>,
+        tap_port: Option<Arc<dyn MediaTapPort>>,
+        tap_wirings: Vec<TapWiring>,
+    ) -> Result<Self, SwitchError> {
+        // 第八轮终裁 P1: session/group 身份一致性 fail-closed（组合根当前
+        // 同源 sid 不会错——类型面强制不变量, 防未来调用方构造
+        // Runtime=A/Group=B 的分裂态; 不引入新 identity 类型）。
+        if session_id != group.session_id {
+            return Err(SwitchError::Backend(format!(
+                "session/group 身份不一致 (runtime={} group={})——fail-closed",
+                session_id.0, group.session_id.0
+            )));
+        }
+        // 步 1: input 侧 tap attach（失败 → 已挂部分全部 detach）。
+        let mut attached: Vec<(PipelineHandle, String)> = Vec::new();
+        if let Some(port) = tap_port.as_ref() {
+            for w in &tap_wirings {
+                let req = MediaTapRequest {
+                    channel: w.channel.clone(),
+                    planes: TapPlanes::Both,
+                };
+                match port.attach_media_tap(&w.input, &req) {
+                    Ok(()) => attached.push((w.input, w.channel.clone())),
+                    Err(e) => {
+                        for (h, ch) in &attached {
+                            let _ = port.detach_media_tap(h, ch);
+                        }
+                        return Err(SwitchError::Backend(format!(
+                            "tap attach 失败（部分已清理）: {e}"
+                        )));
+                    }
+                }
+            }
+        }
+        // 步 2+3: graph 物化 + 启动（失败 → tap 清理 + 已建 graph 停止）。
+        // C-TIMELINE-01 ⑨: Authority 以初始 active 源锚定（epoch 0 恒等段）。
+        let initial_active = match group.desired {
+            crate::switch_execution::SwitchDesired::ActiveInput(a) => a,
+            switching @ crate::switch_execution::SwitchDesired::Switching { .. } => {
+                return Err(SwitchError::NotActiveSource(switching))
+            }
+            // R63-A 强制调用点: 降级终态组不可物化 graph（诚实拒收——
+            // 出口=会话级 teardown 后重建）。
+            recovery @ crate::switch_execution::SwitchDesired::RecoveryRequired { .. } => {
+                return Err(SwitchError::RecoveryRequired(recovery))
+            }
+        };
+        let timeline = TimelineAuthority::new(initial_active);
+        let group = Arc::new(Mutex::new(group));
+        let graph = {
+            let g = group.lock().unwrap();
+            switcher.build_program_graph(&g)
+        };
+        match graph {
+            Ok(graph) => match switcher.start_program(&graph) {
+                Ok(()) => {
+                    // R63-B3: 发布初始快照（服务起后首个查询即见已提交事实——
+                    // 即便首场切换进行中, 诚实缺席语义不被误伤）。
+                    let initial = ProgramExecutionObservation {
+                        program: switcher.observe(&graph).program,
+                        timeline: timeline.snapshot(now_observed_ms()),
+                    };
+                    Ok(Self {
+                        session_id,
+                        inner: Mutex::new(Some(Inner {
+                            group,
+                            switcher,
+                            graph,
+                            taps: attached,
+                            tap_port,
+                            watchdog_stop: None,
+                            timeline,
+                            switch_executed_in_attempt: false,
+                        })),
+                        published: Mutex::new(Some(initial)),
+                    })
+                }
+                Err(e) => {
+                    Self::cleanup_partial(&switcher, Some(&graph), &attached, tap_port.as_ref());
+                    Err(e)
+                }
+            },
+            Err(e) => {
+                Self::cleanup_partial(&switcher, None, &attached, tap_port.as_ref());
+                Err(e)
+            }
+        }
+    }
+
+    /// 部分资源清理（创建失败路径）: 已建 graph 停止 + 已挂 tap detach。
+    fn cleanup_partial(
+        switcher: &Arc<dyn SwitchExecutionAdapter>,
+        graph: Option<&PipelineHandle>,
+        attached: &[(PipelineHandle, String)],
+        tap_port: Option<&Arc<dyn MediaTapPort>>,
+    ) {
+        if let Some(g) = graph {
+            if let Err(e) = switcher.stop_program(g) {
+                tracing::warn!(error = ?e, "A2-8-02-E 创建失败清理: graph 停止失败（残留风险已记录）");
+            }
+        }
+        if let Some(port) = tap_port {
+            for (h, ch) in attached {
+                if let Err(e) = port.detach_media_tap(h, ch) {
+                    tracing::warn!(error = ?e, channel = %ch, "A2-8-02-E 创建失败清理: tap detach 失败");
+                }
+            }
+        }
+    }
+
+    /// 停止序: watchdog 旗 → Program Stop → Tap Detach。幂等（已 teardown
+    /// = no-op）。各步失败只记录——**不因 Program 停止失败截断 Session
+    /// 停止链**（hook 调用方保证; 本函数不向上传播错误）。
+    pub fn teardown(&self) {
+        let Some(inner) = self.inner.lock().unwrap().take() else {
+            return;
+        };
+        // R63-B3: 清空已发布快照（teardown 后查询=诚实缺席 None——
+        // 投影块缺席 transport 契约保持）。
+        *self.published.lock().unwrap() = None;
+        if let Some(flag) = &inner.watchdog_stop {
+            flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        if let Err(e) = inner.switcher.stop_program(&inner.graph) {
+            tracing::warn!(error = ?e, "A2-8-02-E teardown: Program Stop 失败（记录不阻断 Tap Detach）");
+        }
+        if let Some(port) = inner.tap_port.as_ref() {
+            for (h, ch) in &inner.taps {
+                if let Err(e) = port.detach_media_tap(h, ch) {
+                    tracing::warn!(error = ?e, channel = %ch, "A2-8-02-E teardown: Tap Detach 失败");
+                }
+            }
+        }
+        tracing::info!(
+            session = %self.session_id.0,
+            graph = inner.graph.0,
+            "A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach）"
+        );
+    }
+
+    /// program 执行资源是否仍存活。
+    pub fn is_active(&self) -> bool {
+        self.inner.lock().unwrap().is_some()
+    }
+
+    pub fn session_id(&self) -> &SessionId {
+        &self.session_id
+    }
+
+    /// 组合根接线访问器（watchdog spawn 需要 graph/group/switcher）。
+    pub fn graph_handle(&self) -> Option<PipelineHandle> {
+        self.inner.lock().unwrap().as_ref().map(|i| i.graph)
+    }
+
+    pub fn group_arc(&self) -> Option<Arc<Mutex<ExecutionGroup>>> {
+        self.inner.lock().unwrap().as_ref().map(|i| i.group.clone())
+    }
+
+    pub fn switcher_arc(&self) -> Option<Arc<dyn SwitchExecutionAdapter>> {
+        self.inner
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|i| i.switcher.clone())
+    }
+
+    /// watchdog spawn 后注入停止旗（teardown 置位）。
+    pub fn set_watchdog_stop(&self, flag: Arc<std::sync::atomic::AtomicBool>) {
+        if let Some(inner) = self.inner.lock().unwrap().as_mut() {
+            inner.watchdog_stop = Some(flag);
+        }
+    }
+
+    // ── C-TIMELINE-01 ⑩⑪: timeline orchestration（①-⑩ 全链 owner）────
+
+    /// ①-⑩ 全链切换（timeline orchestration）。实现纪律（第三十一轮 §十六
+    /// 照录）: **TimelineAuthority 产生"应该怎样映射"的声明; selector
+    /// downstream Event/Buffer 产生"实际上发生了什么"的证据; 两者在本
+    /// Runtime 中闭合成 TimelineMapped**。
+    ///
+    /// - ⓪ R58 cutover fence: V+A 双面 Armed（INV-F1/F2/F3 编码进执行
+    ///   契约——barrier 非权威; 守卫 Drop 兜底任意错误路径解除）;
+    /// - ① 基准+锚采样（Adapter 观测——offset 归 Authority 声明）;
+    /// - ② Authority 声明（fail-closed）; ③ pre-flip install（只安装）;
+    /// - ④ group begin→adapter switch（失败→timeline abort+传播）;
+    /// - ⑤⑥⑦⑧ 证据收集（adapter facts→Authority 校验闭合; 超时/矛盾=
+    ///   FailClosed——"evidence 不足"不猜测成功）;
+    /// - ⑨ settle 稳定窗（映射后连续观测; 停滞超时不 FailClosed——停滞=
+    ///   Observation 事实归 watchdog/Gate 故障面, 时间线证据已闭合）;
+    /// - ⑩ confirm_settled + Desired 推进（Observed 驱动——非命令回显）;
+    /// - R63-A: 任何失败由外层包装统一按**再观测**恢复落定（Observed 优先
+    ///   ——契约 2026-09-06 R63-A0; 命令 outcome 保持 Failed, 不伪装成功）。
+    pub fn switch_program(
+        &self,
+        intent: &SwitchIntent,
+    ) -> Result<ProgramSwitchReport, SwitchError> {
+        let mut inner_guard = self.inner.lock().unwrap();
+        let Some(inner) = inner_guard.as_mut() else {
+            return Err(SwitchError::Backend(
+                "runtime 未激活（已 teardown）——切换拒收".into(),
+            ));
+        };
+        let result = Self::switch_program_locked(inner, intent);
+        if result.is_err()
+            // R65-B（契约 §3.5 补充——回归测试暴露）: 终态拒收
+            // （SwitchError::RecoveryRequired=入口早卫兵/①b 同臂）**不是
+            // 失败的尝试**——落定时的恢复已完成; 若再跑, 组已不 Switching,
+            // 普通稳定观测读到真实值会把时间线"治愈"成 Stable{observed}+
+            // epoch+1 而组仍停留 RecoveryRequired=跨平面分歧。跳过。
+            && !matches!(&result, Err(SwitchError::RecoveryRequired(_)))
+        {
+            // R63-A 恢复契约（Observed 优先）: 任何失败后按再观测落定两平面
+            // ——尽力恢复, 恢复自身失败只记录, 绝不吞/改原始错误。
+            // R65-A 时序契约（2026-09-07 R65-A0 §2/§3.1——更正 R63 注释
+            // "恢复先于 Drop"的失准措辞）: fence 守卫 Drop 强释在
+            // switch_program_locked 返回时已完成（release-Err 时更在
+            // confirm_and_release 帧内）——恢复经 adapter observe 与
+            // watchdog 同通路（不取 inner 锁——无自锁）, 且观测取自
+            // force_open 之后的**物理稳定再观测**协议（迟翻窗口内单发
+            // 观测不可信——R64 发现①②三跑三态在案）。
+            recover_after_failed_switch(inner);
+        }
+        // R63-B3: 出口发布（成败与恢复后各一次）——切换结束后首个查询即见
+        // 新鲜事实; 切换进行中的查询回退上一次已提交快照（B0 契约 §2.3）。
+        *self.published.lock().unwrap() = Some(ProgramExecutionObservation {
+            program: inner.switcher.observe(&inner.graph).program,
+            timeline: inner.timeline.snapshot(now_observed_ms()),
+        });
+        result
+    }
+
+    /// ①-⑩ 全链切换主体（R63-A 抽出——外层 `switch_program` 包装失败恢复;
+    /// 编排语义与既有链逐字等价, 文档见 `switch_program`）。
+    fn switch_program_locked(
+        inner: &mut Inner,
+        intent: &SwitchIntent,
+    ) -> Result<ProgramSwitchReport, SwitchError> {
+        // R65-A 契约 §3.2: 期望感知输入复位——本轮 attempt 的 executed 标志
+        // （switch() Ok 后置 true; 恢复稳定协议据此选择期望规则）。先于早
+        // 卫兵: 拒收的 attempt 从未开始, 标志不得携带上一轮残留。
+        inner.switch_executed_in_attempt = false;
+        // R65-B 入口早卫兵（契约 §3.5·2026-09-07 R65-A0）: 组停留
+        // RecoveryRequired 终态时, 任何切换在 ⓪ fence 装甲 / ①a PTS 喂入
+        // 之前直接诚实拒收——Permanent 分类不被 ①a PTS FailClosed（unknown）
+        // 遮蔽（R64 发现③: C3 式 fence 周期可留 PTS 基线伪影 3/3 复现）。
+        // 不猜源、时间线零触碰; 唯一出口=会话级 teardown（R63-A 词表）。
+        if let recovery @ crate::switch_execution::SwitchDesired::RecoveryRequired { .. } =
+            inner.group.lock().unwrap().desired
+        {
+            return Err(SwitchError::RecoveryRequired(recovery));
+        }
+        // ⓪ R58 cutover fence: V+A 双面 Armed——自此旧世代数据不再进入
+        // Program 观测（INV-F1 在途处置按构造覆盖; INV-F3 双面同装;
+        // 守卫 Drop 兜底 ①-④ 任意错误路径解除 barrier 恢复流面）。
+        let fence = CutoverFenceGuard::arm(inner.switcher.clone(), inner.graph)?;
+        // ①a 连续性基准（pre-flip program 实测位置——Authority 连续性校验基准）。
+        let pre = inner.switcher.observe(&inner.graph).program;
+        if let Some(v) = pre.program_video_pts {
+            inner
+                .timeline
+                .on_program_pts(MediaPlane::Video, v)
+                .map_err(timeline_fail_closed)?;
+        }
+        if let Some(a) = pre.program_audio_pts {
+            inner
+                .timeline
+                .on_program_pts(MediaPlane::Audio, a)
+                .map_err(timeline_fail_closed)?;
+        }
+        // ①b 执行计划（零状态变化——与既有显式链同语义）+ 锚采样。
+        let execution_plan = inner.group.lock().unwrap().plan_switch(intent)?;
+        let anchors = inner
+            .switcher
+            .sample_switch_anchors(&inner.graph, intent.target)?;
+        // ② Authority 声明（唯一 offset 生产点）。
+        let plan = inner
+            .timeline
+            .declare_transition(
+                intent.target,
+                execution_plan.epoch,
+                anchors.video,
+                anchors.audio,
+            )
+            .map_err(|e| SwitchError::Backend(format!("timeline ② 声明 fail-closed: {e}")))?;
+        // ③ pre-flip install（Adapter 执行态——非 TimelineMapped）。
+        inner
+            .switcher
+            .install_timeline_transition(&inner.graph, &plan)?;
+        // ④ 执行（既有显式链不动: begin→switch）。
+        inner.group.lock().unwrap().begin_switch(&execution_plan)?;
+        // 失败路径: fence 守卫 Drop 解除 barrier 恢复流面（屏障不吞错误）;
+        // R63-A: 状态恢复统一交外层包装按再观测落定（Observed 优先——
+        // adapter Err ≠ 翻转未发生, 不再盲 abort）。
+        let executed = inner.switcher.switch(&inner.graph, &execution_plan)?;
+        // R65-A 契约 §3.2: 翻转已执行（必落）——即使后续 ④联动/release/
+        // 证据/settle 失败, 物理终态=to; 恢复稳定协议据此只接受稳定
+        // Some(to)（迟翻窗口内稳定 from=伪稳定, 拒绝）。
+        inner.switch_executed_in_attempt = true;
+        // ④ Domain 联动（executed 标记——终裁 §9 顺序: mark execution
+        // state → 等下游 cutover 证据 → Release）。
+        inner
+            .timeline
+            .on_switch_executed(executed.av_epoch)
+            .map_err(|e| SwitchError::Backend(format!("timeline ④ 联动 fail-closed: {e}")))?;
+        // INV-F1/F3 确认闭环（R58 步骤5.1——终裁 §2/§4/§9/§10）: 阻塞等待
+        // 双平面下游新世代 Segment 确认（queue 保序 ⇒ Segment 到达=Arm 前
+        // 入队旧世代缓冲已全部被消费门处置=排空事实锚; 真实媒体事件证据,
+        // 非时间猜测——timeout 仅异常界）后原子 Release 重开流面。超时 →
+        // Err 且 fence 保持 Armed → 守卫 Drop 强释恢复流面（强释属失败
+        // 处置, 非确认放行; 切换已执行而排空未证实=如实失败, 不伪装连续;
+        // R63-A: 失败后状态恢复由外层包装按再观测落定（SwitchExecuted 闩锁
+        // 不再残留——契约 2026-09-06 R63-A0）。
+        fence.confirm_and_release(CUTOVER_DRAIN_CONFIRM_TIMEOUT)?;
+        // ⑤⑥⑦⑧ 证据收集（poll adapter observe[驱动 Mock tick]+facts→Authority）。
+        let evidence_deadline = std::time::Instant::now() + TIMELINE_EVIDENCE_TIMEOUT;
+        loop {
+            let _ = inner.switcher.observe(&inner.graph);
+            let facts = inner.switcher.timeline_execution_facts(&inner.graph);
+            if let Some(facts) = facts {
+                feed_authority(inner, &facts, intent.target);
+            }
+            match inner.timeline.phase() {
+                TimelinePhase::TimelineTransition { .. } => break,
+                TimelinePhase::TransitionFailed { reason } => {
+                    return Err(SwitchError::Backend(format!(
+                        "timeline FailClosed（证据/矛盾）: {reason}"
+                    )));
+                }
+                _ => {}
+            }
+            if std::time::Instant::now() >= evidence_deadline {
+                let reason = TransitionFailure::EvidenceInsufficient {
+                    pending: pending_planes(inner),
+                };
+                let _ = inner.timeline.fail_closed(reason.clone());
+                return Err(SwitchError::Backend(format!(
+                    "timeline 证据超时 FailClosed: {reason}"
+                )));
+            }
+            std::thread::sleep(TIMELINE_POLL_INTERVAL);
+        }
+        // ⑨ settle: 映射后连续观测稳定窗（回退→Authority FailClosed）。
+        let settle_deadline = std::time::Instant::now() + TIMELINE_SETTLE_TIMEOUT;
+        let mut stable_rounds = 0u32;
+        let mut last: Option<(Option<u64>, Option<u64>)> = None;
+        loop {
+            let obs = inner.switcher.observe(&inner.graph).program;
+            if let Some(v) = obs.program_video_pts {
+                inner
+                    .timeline
+                    .on_program_pts(MediaPlane::Video, v)
+                    .map_err(timeline_fail_closed)?;
+            }
+            if let Some(a) = obs.program_audio_pts {
+                inner
+                    .timeline
+                    .on_program_pts(MediaPlane::Audio, a)
+                    .map_err(timeline_fail_closed)?;
+            }
+            let cur = (obs.program_video_pts, obs.program_audio_pts);
+            let advancing = match (last, cur) {
+                (Some((lp, la)), (cp, ca)) => {
+                    cp.is_some_and(|v| lp.is_some_and(|l| v > l))
+                        || ca.is_some_and(|a| la.is_some_and(|l| a > l))
+                }
+                _ => true, // 首观测轮计稳定（无前值——absence≠停滞）
+            };
+            if advancing {
+                stable_rounds += 1;
+            }
+            last = Some(cur);
+            if stable_rounds >= TIMELINE_SETTLE_ROUNDS
+                || std::time::Instant::now() >= settle_deadline
+            {
+                break; // 停滞超时不 FailClosed（停滞归故障面; 时间线证据已闭合）
+            }
+            std::thread::sleep(TIMELINE_POLL_INTERVAL);
+        }
+        // ⑩ settle 落定 + Desired 推进（Observed 驱动）。
+        let outcome = inner
+            .timeline
+            .confirm_settled()
+            .map_err(|e| SwitchError::Backend(format!("timeline ⑩ settle fail-closed: {e}")))?;
+        {
+            let mut g = inner.group.lock().unwrap();
+            if let Some(o) = inner.switcher.observe(&inner.graph).program.observed_active {
+                g.complete_switch(o);
+            }
+        }
+        let observation = inner.timeline.snapshot(now_observed_ms());
+        Ok(ProgramSwitchReport {
+            executed,
+            outcome,
+            observation,
+        })
+    }
+
+    /// ⑪ 裁决级 observation 组合面: program=adapter 既有平面; timeline=
+    /// **Authority snapshot**（Domain SoT——epoch/段/连续性恒当前; adapter
+    /// 行=执行侧原始证据）。
+    ///
+    /// R63-B3 查询短锁/快照（B0 契约 §2.3）: 切换编排长持 inner 期间以
+    /// `try_lock` 回退**最近一次已提交事实快照**（derived published 缓存
+    /// ——非第二 Runtime State; observed_at_ms 在载荷=诚实时间戳）——
+    /// 查询面不等待切换。锁空闲时真读并刷新发布。
+    pub fn observe_execution(&self) -> Option<ProgramExecutionObservation> {
+        match self.inner.try_lock() {
+            Ok(guard) => {
+                let Some(inner) = guard.as_ref() else {
+                    // teardown 竞态窗口: 与已发布快照口径一致
+                    //（teardown 已清空 → None 诚实缺席）。
+                    return self.published.lock().unwrap().clone();
+                };
+                let obs = ProgramExecutionObservation {
+                    program: inner.switcher.observe(&inner.graph).program,
+                    timeline: inner.timeline.snapshot(now_observed_ms()),
+                };
+                *self.published.lock().unwrap() = Some(obs.clone());
+                Some(obs)
+            }
+            // inner 被切换编排/teardown 持有——回退快照（不阻塞查询面）。
+            Err(_) => self.published.lock().unwrap().clone(),
+        }
+    }
+}
+
+/// R63-A: 失败后恢复落定（Observed 优先——契约 2026-09-06 R63-A0;
+/// R65-A 时序契约 2026-09-07 R65-A0 §3）。再观测经 adapter observe（与
+/// watchdog 同通路, 不取 inner 锁）, 且取自 fence 守卫 Drop 强释之后的
+/// **物理稳定再观测**协议（迟翻窗口内单发观测三跑三态在案——R64 发现①②;
+/// 已执行翻转只接受稳定 Some(to), 分叉态不可构造）; 组平面
+/// 仅当停留 Switching 才 `reconcile_switch`（pre-begin 失败组未动）; 时间线
+/// 按相位分流: 未翻转（SwitchRequested 且 observed≠to）→ 既有
+/// `abort_transition`（epoch/世代不变）; 已执行/已闩（SwitchExecuted/
+/// TimelineTransition/TransitionFailed, 含 ①a 稳态 PTS 闩锁）→
+/// `reconcile_executed_failure`（落地=epoch+1 恒等重开+DiscontinuityDeclared;
+/// observed 未知→诚实停留, 恢复归会话级故障面）。恢复失败只记录——尽力
+/// 恢复, 不改变原始错误的上抛。
+fn recover_after_failed_switch(inner: &mut Inner) {
+    // R65-A §3.2 期望感知输入: executed 标志（本轮 switch() 是否已 Ok）
+    // + 本轮 attempt 的 (from, to)（组停留 Switching 时）。
+    let executed = inner.switch_executed_in_attempt;
+    let attempt = {
+        let g = inner.group.lock().unwrap();
+        match g.desired {
+            crate::switch_execution::SwitchDesired::Switching { from, to } => Some((from, to)),
+            _ => None,
+        }
+    };
+    let observed = observe_active_settled(inner, executed, attempt);
+    let mut group_landed: Option<Result<crate::switch_execution::SwitchDesired, SwitchError>> =
+        None;
+    {
+        let mut g = inner.group.lock().unwrap();
+        if matches!(
+            g.desired,
+            crate::switch_execution::SwitchDesired::Switching { .. }
+        ) {
+            group_landed = Some(g.reconcile_switch(observed));
+        }
+    }
+    let phase = inner.timeline.phase().clone();
+    let timeline_landed = match phase {
+        TimelinePhase::Stable { .. } => None,
+        TimelinePhase::SwitchRequested { to, .. } => {
+            if observed == Some(to) {
+                // 后端半执行（adapter Err ≠ 翻转未发生）——按已执行落定。
+                Some(inner.timeline.reconcile_executed_failure(observed))
+            } else {
+                Some(inner.timeline.abort_transition().map(|_| None))
+            }
+        }
+        TimelinePhase::SwitchExecuted { .. }
+        | TimelinePhase::TimelineTransition { .. }
+        | TimelinePhase::TransitionFailed { .. } => {
+            Some(inner.timeline.reconcile_executed_failure(observed))
+        }
+    };
+    tracing::warn!(
+        observed_active = ?observed,
+        group = ?group_landed,
+        timeline = ?timeline_landed,
+        "R63-A 切换失败后恢复落定（Observed 优先）"
+    );
+}
+
+/// R65-A 契约 §3.2（2026-09-07 R65-A0）: 期望感知稳定再观测——`force_open`
+/// 即返后物理翻转迟落窗内单发观测不可信（R64 三跑三态: L1 落 Active(from)+
+/// 迟翻分歧死锁 / L2 None 终态 / L3 Some(to) 自洽）。协议只读
+/// `observed_active`（**不喂时间线**——纯观测稳定器, 非第二套时间语义）,
+/// 复用 ⑨ settle 同族常量（节奏/轮数/界）:
+/// - executed=true（本轮 `adapter.switch()` 已 Ok——翻转已执行、必落）:
+///   只接受连续 `TIMELINE_SETTLE_ROUNDS` 次 == Some(to)。稳定 from=迟翻
+///   伪稳定、None=V/A 分歧瞬态或真未知——均继续轮询; 界尽仍无 → None
+///   （未知——落 RecoveryRequired 诚实终态, absence≠false）。
+/// - executed=false / 组不在 Switching（未执行或同步回滚, 当前值即终态）:
+///   普通稳定——任意连续同值即返回（from→abort 语义; 稳定 None→终态）;
+///   界尽（振荡不敛）→ None。
+fn observe_active_settled(
+    inner: &Inner,
+    executed: bool,
+    attempt: Option<(uuid::Uuid, uuid::Uuid)>,
+) -> Option<uuid::Uuid> {
+    let expect_to = if executed {
+        attempt.map(|(_, to)| to)
+    } else {
+        None
+    };
+    let deadline = std::time::Instant::now() + TIMELINE_SETTLE_TIMEOUT;
+    let mut streak_state = SettleStreak::default();
+    loop {
+        let cur = inner.switcher.observe(&inner.graph).program.observed_active;
+        let streak = streak_state.feed(cur);
+        if settle_accepts(cur, streak, expect_to) {
+            return cur;
+        }
+        if std::time::Instant::now() >= deadline {
+            // 界尽: 已执行未获稳定 to / 未执行亦不敛 → 未知（不猜）。
+            return None;
+        }
+        std::thread::sleep(TIMELINE_POLL_INTERVAL);
+    }
+}
+
+/// 稳定计数器（连续同值——None 亦为一值: absence≠false 语义下**稳定缺席**
+/// 是可判定的终态输入, 与"瞬态缺席"由连续性区分）。
+#[derive(Default)]
+struct SettleStreak {
+    streak: u32,
+    last: Option<Option<uuid::Uuid>>,
+}
+
+impl SettleStreak {
+    fn feed(&mut self, cur: Option<uuid::Uuid>) -> u32 {
+        if self.last == Some(cur) {
+            self.streak += 1;
+        } else {
+            self.streak = 1;
+            self.last = Some(cur);
+        }
+        self.streak
+    }
+}
+
+/// 落定接受判据（纯决策核——单测钉住三面: 稳定落定/期望拒绝/轮数门槛）。
+/// expect_to=Some(to): 只接受稳定 Some(to)（迟翻伪稳定 from 与稳定 None 均
+/// 拒绝——R64 L1 死锁根因）; expect_to=None: 普通稳定（任意连续
+/// `TIMELINE_SETTLE_ROUNDS` 同值即落, 含稳定 None）。
+fn settle_accepts(cur: Option<uuid::Uuid>, streak: u32, expect_to: Option<uuid::Uuid>) -> bool {
+    if streak < TIMELINE_SETTLE_ROUNDS {
+        return false;
+    }
+    match expect_to {
+        Some(to) => cur == Some(to),
+        None => true,
+    }
+}
+
+/// C-TIMELINE-01 轮询参数（观察层节流——非时间线语义; 常量不 IO 等待媒体）。
+const TIMELINE_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+const TIMELINE_EVIDENCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const TIMELINE_SETTLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const TIMELINE_SETTLE_ROUNDS: u32 = 3;
+
+/// R58 步骤5.1: cutover drain 确认异常界（**非时间假设**——正常排空为
+/// 毫秒级, 证据=下游 Segment 事件到达而非时钟流逝; 此界仅圈异常路径的
+/// 失败上抛时点, 与 TIMELINE_* 超时同族）。
+const CUTOVER_DRAIN_CONFIRM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+fn now_observed_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn timeline_fail_closed(e: TransitionFailure) -> SwitchError {
+    SwitchError::Backend(format!("timeline FailClosed（观测/状态机）: {e}"))
+}
+
+/// ⑤⑥⑦ 证据喂入（幂等——每轮只推进尚在途的平面; FailClosed 由相位检查上抛）。
+fn feed_authority(
+    inner: &mut Inner,
+    facts: &crate::contracts::switch::TimelineExecutionFacts,
+    target: uuid::Uuid,
+) {
+    let feed_plane = |inner: &mut Inner,
+                      plane: MediaPlane,
+                      f: &crate::contracts::switch::PlaneExecutionFacts| {
+        if f.segment_observed
+            && matches!(
+                inner.timeline.plane(plane).transition,
+                Some(crate::program_timeline::PlaneTransitionState::AwaitSegmentEvent)
+            )
+        {
+            let _ = inner.timeline.on_segment_event(plane, target);
+        }
+        if let Some((src, mapped)) = f.first_mapped {
+            if matches!(
+                inner.timeline.plane(plane).transition,
+                Some(crate::program_timeline::PlaneTransitionState::AwaitFirstMappedBuffer)
+            ) {
+                let _ = inner.timeline.on_mapped_buffer(plane, target, src, mapped);
+            }
+        }
+    };
+    feed_plane(inner, MediaPlane::Video, &facts.video);
+    feed_plane(inner, MediaPlane::Audio, &facts.audio);
+}
+
+fn pending_planes(inner: &Inner) -> Vec<MediaPlane> {
+    [MediaPlane::Video, MediaPlane::Audio]
+        .into_iter()
+        .filter(|p| {
+            !matches!(
+                inner.timeline.plane(*p).transition,
+                Some(crate::program_timeline::PlaneTransitionState::Mapped)
+            )
+        })
+        .collect()
+}
+
+impl SessionStopHook for ProgramExecutionRuntime {
+    fn on_session_stopping(&self, id: &SessionId) -> Result<(), String> {
+        if *id == self.session_id {
+            self.teardown();
+        }
+        Ok(())
+    }
+}
+
+/// C-TIMELINE-01 ⑩: 全链切换报告（switch 执行证据 + timeline 结局 +
+/// Authority 快照行——L4-TIMELINE 九项合取的输入）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProgramSwitchReport {
+    pub executed: crate::contracts::switch::SwitchExecuted,
+    pub outcome: TransitionOutcome,
+    pub observation: TimelineObservation,
+}
+
+/// R58 步骤5.1: cutover fence 编排守卫——Drop 兜底**强释**（①-④ 任意
+/// 错误路径必恢复流面; 屏障不是权限, 不吞切换错误; 强释无确认前提, 属
+/// 失败处置非确认放行）; 成功路径在 switch() executed 落点之后走
+/// `confirm_and_release`（INV-F1: 阻塞等待双平面下游新世代 Segment 确认
+/// ——queue 保序排空事实锚; INV-F3: Release 仅由编排在 executed 之后
+/// 驱动——fence 永不自宣布完成。超时 → Err 且 fence 保持 Armed → Drop
+/// 强释恢复流面, 错误如实上抛）。
+struct CutoverFenceGuard {
+    switcher: Arc<dyn SwitchExecutionAdapter>,
+    graph: PipelineHandle,
+    armed: bool,
+}
+
+impl CutoverFenceGuard {
+    fn arm(
+        switcher: Arc<dyn SwitchExecutionAdapter>,
+        graph: PipelineHandle,
+    ) -> Result<Self, SwitchError> {
+        switcher.arm_cutover_fence(&graph)?;
+        Ok(Self {
+            switcher,
+            graph,
+            armed: true,
+        })
+    }
+
+    /// INV-F1/F3 确认闭环落点（R58 步骤5.1——终裁 §9: 真实媒体事件证据,
+    /// 非时间猜测）: executed 之后阻塞等待 Both-confirmed 并原子 Release。
+    fn confirm_and_release(
+        mut self,
+        timeout: std::time::Duration,
+    ) -> Result<CutoverDrainEvidence, SwitchError> {
+        let r = self.switcher.release_cutover_fence(&self.graph, timeout);
+        self.armed = r.is_err(); // 成功=已 Open; 失败=保持 Armed → Drop 强释
+        r
+    }
+}
+
+impl Drop for CutoverFenceGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.switcher.force_release_cutover_fence(&self.graph);
+        }
+    }
+}
+
+#[cfg(all(test, feature = "mock"))]
+mod tests {
+    use super::*;
+    use crate::adapters::mock::{MockBackend, MockMediaTapPort};
+    use crate::adapters::switch_mock::MockSwitchExecutionAdapter;
+    use crate::contracts::backend::MediaBackend;
+    use crate::contracts::media_tap::MediaTapPort;
+    use crate::pipeline::PipelinePlan;
+    use crate::session::{SessionId, SessionInput};
+    use crate::switch_execution::SwitchDesired;
+    use uuid::Uuid;
+
+    fn dual_group(session_id: SessionId, a: Uuid, b: Uuid) -> ExecutionGroup {
+        let backend = MockBackend;
+        let h1 = backend.instantiate(&PipelinePlan::self_test()).unwrap();
+        let h2 = backend.instantiate(&PipelinePlan::self_test()).unwrap();
+        ExecutionGroup::new(
+            session_id,
+            vec![
+                SessionInput {
+                    device_id: a,
+                    handle: h1,
+                },
+                SessionInput {
+                    device_id: b,
+                    handle: h2,
+                },
+            ],
+            a,
+        )
+        .unwrap()
+    }
+
+    struct FailingSwitcher;
+    impl SwitchExecutionAdapter for FailingSwitcher {
+        fn build_program_graph(
+            &self,
+            _group: &ExecutionGroup,
+        ) -> Result<PipelineHandle, SwitchError> {
+            Err(SwitchError::Backend("注入: graph 物化失败".into()))
+        }
+        fn start_program(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
+            Ok(())
+        }
+        fn switch(
+            &self,
+            _g: &PipelineHandle,
+            _p: &crate::switch_execution::SwitchExecutionPlan,
+        ) -> Result<crate::contracts::switch::SwitchExecuted, SwitchError> {
+            unreachable!("失败注入不用于切换")
+        }
+        fn observe(
+            &self,
+            _g: &PipelineHandle,
+        ) -> crate::contracts::switch::ProgramExecutionObservation {
+            unreachable!("失败注入不用于观测")
+        }
+        fn stop_program(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
+            Ok(())
+        }
+        fn arm_cutover_fence(&self, _g: &PipelineHandle) -> Result<(), SwitchError> {
+            unreachable!("失败注入不用于 fence")
+        }
+        fn release_cutover_fence(
+            &self,
+            _g: &PipelineHandle,
+            _timeout: std::time::Duration,
+        ) -> Result<CutoverDrainEvidence, SwitchError> {
+            unreachable!("失败注入不用于 fence")
+        }
+        fn force_release_cutover_fence(&self, _g: &PipelineHandle) -> Result<u64, SwitchError> {
+            unreachable!("失败注入不用于 fence")
+        }
+    }
+
+    #[test]
+    fn program_exec_rt_01_create_teardown_idempotent() {
+        // 正常全序: create[taps attach→graph→start] → teardown[Program
+        // Stop→Tap Detach] 幂等; 观测面可证（tap 簿记清空+graph 停止后
+        // observe 归零——非仅内部标志）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let group = dual_group(sid, a, b);
+        let h1 = group.inputs[0].handle;
+        let h2 = group.inputs[1].handle;
+        let switcher = Arc::new(MockSwitchExecutionAdapter::new());
+        let taps = Arc::new(MockMediaTapPort::new());
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            group,
+            switcher.clone(),
+            Some(taps.clone()),
+            vec![
+                TapWiring {
+                    input: h1,
+                    channel: format!("dev-{}-raw", a),
+                },
+                TapWiring {
+                    input: h2,
+                    channel: format!("dev-{}-raw", b),
+                },
+            ],
+        )
+        .expect("创建成功");
+        assert!(runtime.is_active());
+        assert_eq!(
+            taps.tap_attachments(&h1).len() + taps.tap_attachments(&h2).len(),
+            2
+        );
+        let graph = runtime.graph_handle().expect("graph 在");
+        assert!(
+            switcher.observe(&graph).program.observed_active.is_some(),
+            "program 运行中（观测面）"
+        );
+
+        runtime.teardown();
+        assert!(!runtime.is_active(), "teardown 后失活");
+        assert!(
+            taps.tap_attachments(&h1).is_empty() && taps.tap_attachments(&h2).is_empty(),
+            "Tap Detach 完成（簿记清空）"
+        );
+        assert!(
+            switcher.observe(&graph).program.observed_active.is_none(),
+            "Program Stop 完成（observe 归零）"
+        );
+        runtime.teardown(); // 幂等
+        assert!(!runtime.is_active());
+    }
+
+    #[test]
+    fn program_exec_rt_01_create_failure_cleans_partial_taps() {
+        // 创建失败（graph 物化注入失败）: 已 attach 的 tap 必须全部清理
+        // ——零部分资源残留。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let group = dual_group(sid, a, b);
+        let h1 = group.inputs[0].handle;
+        let h2 = group.inputs[1].handle;
+        let taps = Arc::new(MockMediaTapPort::new());
+        let err = ProgramExecutionRuntime::create(
+            sid,
+            group,
+            Arc::new(FailingSwitcher),
+            Some(taps.clone()),
+            vec![
+                TapWiring {
+                    input: h1,
+                    channel: "dev-f1".into(),
+                },
+                TapWiring {
+                    input: h2,
+                    channel: "dev-f2".into(),
+                },
+            ],
+        )
+        .expect_err("注入失败应传播");
+        assert!(matches!(err, SwitchError::Backend(_)));
+        assert!(
+            taps.tap_attachments(&h1).is_empty() && taps.tap_attachments(&h2).is_empty(),
+            "部分资源已清理（tap 零残留）"
+        );
+    }
+
+    #[test]
+    fn program_exec_rt_01_stop_hook_scoped_to_own_session() {
+        // hook 仅对本 session 触发 teardown（他 session 停止零副作用）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            dual_group(sid, a, b),
+            Arc::new(MockSwitchExecutionAdapter::new()),
+            None,
+            Vec::new(),
+        )
+        .expect("创建");
+        let own = *runtime.session_id();
+        let other = SessionId(Uuid::new_v4());
+        SessionStopHook::on_session_stopping(&runtime, &other).unwrap();
+        assert!(runtime.is_active(), "他 session 停止不触发");
+        SessionStopHook::on_session_stopping(&runtime, &own).unwrap();
+        assert!(!runtime.is_active(), "本 session 停止触发 teardown");
+        let _ = SwitchDesired::ActiveInput(a); // 引用锚（模块语义完整性）
+    }
+
+    #[test]
+    fn program_exec_rt_01_session_group_identity_mismatch_rejected() {
+        // 第八轮终裁 P1: runtime.session_id ≠ group.session_id → fail-closed
+        // 拒收（防未来调用方构造 Runtime=A/Group=B 分裂态; 不引入新
+        // identity 类型——仅既有身份的一致性强制）。
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let group = dual_group(SessionId(Uuid::new_v4()), a, b);
+        let mismatch = SessionId(Uuid::new_v4()); // ≠ group.session_id
+        let err = ProgramExecutionRuntime::create(
+            mismatch,
+            group,
+            Arc::new(MockSwitchExecutionAdapter::new()),
+            None,
+            Vec::new(),
+        )
+        .expect_err("身份不一致必须拒收");
+        assert!(matches!(err, SwitchError::Backend(_)));
+        assert!(
+            err.to_string().contains("身份不一致"),
+            "错误信息可观测: {err}"
+        );
+    }
+
+    // ── A2-8-02-G/H: 三列采样/桥健康报告/故障域分类（第十四轮） ──────
+
+    #[test]
+    fn gh_rt_01_timeline_sample_three_independent_columns() {
+        // 三列各自独立测量点 join: 六 PTS 列互异（非复制——第十四轮 §4
+        // "三列实际两份数据"反证）; 缺席列=Unknown 非伪造。
+        use crate::contracts::media_tap::BridgeObservation;
+        use crate::contracts::switch::ProgramObservation;
+        use crate::pipeline::{PipelineHealth, PtsMonotonicity};
+        let device = Uuid::new_v4();
+        let input = PipelineHealth {
+            video_last_pts: Some(1111),
+            audio_last_pts: Some(2222),
+            video_pts_state: PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            ..Default::default()
+        };
+        let bridge = BridgeObservation {
+            channel: tap_channel(device),
+            video_last_pts: Some(3333),
+            audio_last_pts: Some(4444),
+            video_pts_state: PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            video_frames: 99,
+            audio_frames: 198,
+        };
+        let program = ProgramObservation {
+            observed_active: Some(device),
+            video_active: Some(device),
+            audio_active: Some(device),
+            switch_epoch: 0,
+            input_pts: Vec::new(),
+            program_video_pts: Some(5555),
+            program_audio_pts: Some(6666),
+            program_video_pts_state: PtsMonotonicity::ValidMonotonic,
+            program_audio_pts_state: PtsMonotonicity::ValidMonotonic,
+            program_video_frames: 42,
+            program_audio_frames: 84,
+        };
+        let s = assemble_timeline_sample(device, Some(&input), Some(&bridge), &program);
+        let cols = [
+            s.input_video_pts,
+            s.input_audio_pts,
+            s.bridge_video_pts,
+            s.bridge_audio_pts,
+            s.program_video_pts,
+            s.program_audio_pts,
+        ];
+        assert!(cols.iter().all(|c| c.is_some()), "六列全在场");
+        let vals: Vec<u64> = cols.iter().map(|c| c.unwrap()).collect();
+        let mut sorted = vals.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 6, "六列值互异——独立测量非复制");
+        assert!(s.program_alive);
+        // 桥缺席列 = Unknown（absence≠evidence）。
+        let s2 = assemble_timeline_sample(device, Some(&input), None, &program);
+        assert_eq!(s2.bridge_video_state, PtsMonotonicity::Unknown);
+        assert_eq!(s2.bridge_video_pts, None);
+    }
+
+    #[test]
+    fn gh_rt_01_bridge_health_degraded_detection() {
+        // RECOVER_PARTIAL_DEGRADED 观测化（G/H-1 升级 liveness 基）:
+        // "曾经活过"（frames>0 但窗口外）≠ 当前流通——b 有历史帧但断流
+        // → degraded=true（帧基判定会漏报, 第十五轮 §5 实证场景）。
+        use crate::contracts::media_tap::BridgeChannelLiveness;
+        let now = 10_000u64;
+        let row =
+            |ch: &str, frames: u64, last: Option<u64>, window_alive: bool| BridgeChannelLiveness {
+                channel: ch.into(),
+                frames,
+                last_observed_at_ms: last,
+                alive_in_window: window_alive,
+            };
+        // 健康: 双 channel 窗口内流通。
+        let ok = assemble_bridge_health(
+            true,
+            vec!["a".into(), "b".into()],
+            &[
+                row("a", 100, Some(now - 100), true),
+                row("b", 200, Some(now - 200), true),
+            ],
+        );
+        assert!(!ok.bridge_degraded);
+        assert_eq!(ok.observed_alive_channels.len(), 2);
+        // **历史曾经活过≠当前流通**: b frames=10_000（曾在流）但最后实测
+        // 在窗口外（断流）→ degraded（帧基判定此处置 false=漏报根因）。
+        let degraded = assemble_bridge_health(
+            true,
+            vec!["a".into(), "b".into()],
+            &[
+                row("a", 100, Some(now - 100), true),
+                row("b", 10_000, Some(now - 9_000), false),
+            ],
+        );
+        assert!(
+            degraded.bridge_degraded,
+            "pipeline Ok + bridge 当前断流（虽有历史帧）degraded 可见"
+        );
+        assert_eq!(degraded.observed_alive_channels, vec!["a".to_string()]);
+        // 从未观测（重放失败/无数据）→ 亦降级。
+        let never = assemble_bridge_health(true, vec!["a".into()], &[row("a", 0, None, false)]);
+        assert!(never.bridge_degraded);
+        // recover 本体失败 → 不声称桥降级（管线平面事实优先）。
+        let failed = assemble_bridge_health(false, vec!["a".into()], &[row("a", 0, None, false)]);
+        assert!(!failed.bridge_degraded);
+    }
+
+    #[test]
+    fn gh_rt_01_failure_domain_matrix() {
+        // ④: 组合观测分类——单故障假设, 优先序 Input>Bridge>Program。
+        use FailureDomain::*;
+        assert_eq!(classify_failure_domain(true, true, true), None);
+        assert_eq!(classify_failure_domain(false, true, true), Input);
+        assert_eq!(
+            classify_failure_domain(false, false, false),
+            Input,
+            "输入死为首因"
+        );
+        assert_eq!(classify_failure_domain(true, false, true), Bridge);
+        assert_eq!(classify_failure_domain(true, false, false), Bridge);
+        assert_eq!(classify_failure_domain(true, true, false), Program);
+    }
+
+    // ── C-TIMELINE-01 Batch 2: Runtime orchestration ①-⑩（Mock 闭环）────
+
+    /// Mock runtime 构造 helper（双输入 + Mock switcher）。
+    fn runtime_with_mock() -> (
+        Uuid,
+        Uuid,
+        SessionId,
+        ProgramExecutionRuntime,
+        std::sync::Arc<MockSwitchExecutionAdapter>,
+    ) {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let sid = SessionId(Uuid::new_v4());
+        let adapter = std::sync::Arc::new(MockSwitchExecutionAdapter::new());
+        let runtime = ProgramExecutionRuntime::create(
+            sid,
+            dual_group(sid, a, b),
+            adapter.clone(),
+            None,
+            Vec::new(),
+        )
+        .expect("runtime 创建");
+        (a, b, sid, runtime, adapter)
+    }
+
+    #[test]
+    fn timeline_rt_02_runtime_switch_program_full_chain_preserved() {
+        // Runtime 全链（⑨ 挂 Authority + ⑩ orchestration）: ①基准+锚→②声明
+        // →③install→④switch→⑤-⑧证据闭合→⑨settle→⑩Stable——Preserve
+        // （epoch 不变）+ Desired Observed 落定 + observe_execution 权威行。
+        let (a, b, _sid, runtime, adapter) = runtime_with_mock();
+        let report = runtime
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect("全链切换");
+        assert_eq!(report.executed.av_epoch, 1);
+        let TransitionOutcome::Preserved { epoch, mapped } = &report.outcome else {
+            panic!("连续性成立应 Preserve, 得 {:?}", report.outcome);
+        };
+        assert_eq!(
+            *epoch,
+            crate::program_timeline::ProgramEpoch(0),
+            "Preserve=同世代"
+        );
+        assert_eq!(mapped.source_id, b);
+        assert!(mapped.evidence.mapped_program_pts > 0);
+        assert_eq!(
+            mapped.evidence.video_continuity,
+            crate::program_timeline::PlaneContinuity::Continuous
+        );
+        // Desired=Observed 落定（非命令回显）。
+        {
+            let group_arc = runtime.group_arc().expect("group");
+            let g = group_arc.lock().unwrap();
+            assert_eq!(g.desired, SwitchDesired::ActiveInput(b));
+        }
+        // ⑪ observe_execution: program 平面 + Authority snapshot（Domain SoT）。
+        let obs = runtime.observe_execution().expect("obs");
+        assert_eq!(obs.program.observed_active, Some(b));
+        assert_eq!(obs.timeline.source_id, Some(b));
+        assert!(obs.timeline.mapped_program_pts.is_some());
+        assert_eq!(
+            obs.timeline.discontinuity_state,
+            crate::pipeline::PtsMonotonicity::DiscontinuityDeclared
+        );
+        // adapter 行（执行侧原始证据）与权威行同一声明映射（offset 恒等;
+        // pts 因 mock 观测即推进允许权威行落后若干 tick——单调 ≥）。
+        let graph = runtime.graph_handle().expect("graph");
+        let adapter_row = adapter.observe(&graph).timeline;
+        assert_eq!(adapter_row.mapping_offset, obs.timeline.mapping_offset);
+        assert!(
+            adapter_row.mapped_program_pts >= obs.timeline.mapped_program_pts,
+            "adapter={:?} authority={:?}",
+            adapter_row.mapped_program_pts,
+            obs.timeline.mapped_program_pts
+        );
+        runtime.teardown();
+        let _ = a;
+    }
+
+    #[test]
+    fn timeline_rt_03_m1_staged_straggler_fenced_runtime_preserves() {
+        // R58 步骤6 Runtime 级 M1 证明: staged 竞态窗窜帧于 ①c 锚采样读毕
+        // 即投递（[锚采样→install] µs 窗模型——Runtime 调用链 cut-point
+        // 注入, 确定性非 OS 线程并发; 真实并发归 Step 7 真机）; R58 编排
+        // （⓪arm→…→④switch→④executed→确认 Release）处置窜帧——全链
+        // Preserve + 程序面 DiscontinuityDeclared（非 NonMonotonic）+
+        // 八事件生产序完整在案（七词汇——HOLD-1 后 ①a 门处置入日志）。
+        let (a, b, _sid, runtime, adapter) = runtime_with_mock();
+        let graph = runtime.graph_handle().expect("graph");
+        // 段 #1 生效（Runtime 全链——Authority 闭合 Preserved）。
+        let r1 = runtime
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect("#1 全链");
+        assert!(matches!(r1.outcome, TransitionOutcome::Preserved { .. }));
+        assert_eq!(
+            runtime
+                .observe_execution()
+                .expect("obs")
+                .program
+                .program_video_pts_state,
+            crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
+            "#1 首枚映射=干净声明边界（装置前提）"
+        );
+        // 竞态窗窜帧预置（值取现实领先量——armed 门必处置, 数值不进观测）。
+        let cur = runtime.observe_execution().expect("obs").program;
+        let (pv, pa) = (
+            cur.program_video_pts.expect("pv"),
+            cur.program_audio_pts.expect("pa"),
+        );
+        adapter.stage_window_straggler(&graph, pv + 3 * 40, pa + 3 * 20);
+        // 段 #2 全链: ⓪arm（①a 前）→①a（Armed tick 交付被门处置）→①c
+        // （AnchorSampled+窜帧投递→OldBufferDropped）→②③④→executed→
+        // 确认式 Release（FenceConfirmed）→⑤ 循环 Segment/首枚映射。
+        let r2 = runtime
+            .switch_program(&SwitchIntent {
+                target: a,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect("#2 全链");
+        assert!(
+            matches!(r2.outcome, TransitionOutcome::Preserved { .. }),
+            "窜帧被 fence 处置——连续性成立 Preserve, 得 {:?}",
+            r2.outcome
+        );
+        let obs = runtime.observe_execution().expect("obs").program;
+        assert_eq!(
+            obs.program_video_pts_state,
+            crate::pipeline::PtsMonotonicity::DiscontinuityDeclared,
+            "Runtime 级 M1 PASS: 竞态窗窜帧被 fence 处置——干净声明边界（非 NM）"
+        );
+        // 八事件生产序（七词汇——HOLD-1: ①a Armed tick 门处置如实入日志
+        // 为首事件; arm 清空; ⑤ 循环内首枚映射收尾——完整日志恰为该序）。
+        let log = adapter.cutover_interleave_log(&graph);
+        assert_eq!(log.len(), 8, "八事件生产序: {:?}", log);
+        use crate::adapters::switch_mock::CutoverInterleaveEvent as E;
+        assert!(matches!(log[0], E::OldBufferDropped));
+        assert!(matches!(log[1], E::AnchorSampled { .. }));
+        assert!(matches!(log[2], E::OldStraggler { .. }));
+        assert!(matches!(log[3], E::OldBufferDropped));
+        assert!(matches!(log[4], E::InstallNew { .. }));
+        assert!(matches!(log[5], E::SwitchNew { .. }));
+        assert!(matches!(log[6], E::FenceConfirmed { .. }));
+        assert!(matches!(log[7], E::FirstNewMapped { .. }));
+    }
+
+    #[test]
+    fn timeline_rt_02_runtime_switch_aborts_timeline_on_backend_failure() {
+        // ④ 失败路径: adapter.switch 失败 → R63-A 外层恢复（再观测=旧源 →
+        // timeline abort 回 Stable 旧源, 零时间线变化; 组 reconcile 回
+        // Active(from)）+ 原始错误传播——observed=from 的失败落定契约锚。
+        struct FailingSwitchOnly(MockSwitchExecutionAdapter);
+        impl crate::contracts::switch::SwitchExecutionAdapter for FailingSwitchOnly {
+            fn build_program_graph(
+                &self,
+                g: &ExecutionGroup,
+            ) -> Result<PipelineHandle, SwitchError> {
+                self.0.build_program_graph(g)
+            }
+            fn start_program(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
+                self.0.start_program(g)
+            }
+            fn install_timeline_transition(
+                &self,
+                g: &PipelineHandle,
+                plan: &crate::program_timeline::ProgramTimelinePlan,
+            ) -> Result<(), SwitchError> {
+                self.0.install_timeline_transition(g, plan)
+            }
+            fn sample_switch_anchors(
+                &self,
+                g: &PipelineHandle,
+                target: uuid::Uuid,
+            ) -> Result<crate::contracts::switch::SwitchAnchors, SwitchError> {
+                self.0.sample_switch_anchors(g, target)
+            }
+            fn timeline_execution_facts(
+                &self,
+                g: &PipelineHandle,
+            ) -> Option<crate::contracts::switch::TimelineExecutionFacts> {
+                self.0.timeline_execution_facts(g)
+            }
+            fn switch(
+                &self,
+                _g: &PipelineHandle,
+                _p: &crate::switch_execution::SwitchExecutionPlan,
+            ) -> Result<crate::contracts::switch::SwitchExecuted, SwitchError> {
+                Err(SwitchError::Backend("注入: switch 执行失败".into()))
+            }
+            fn arm_cutover_fence(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
+                self.0.arm_cutover_fence(g)
+            }
+            fn release_cutover_fence(
+                &self,
+                g: &PipelineHandle,
+                timeout: std::time::Duration,
+            ) -> Result<CutoverDrainEvidence, SwitchError> {
+                self.0.release_cutover_fence(g, timeout)
+            }
+            fn force_release_cutover_fence(&self, g: &PipelineHandle) -> Result<u64, SwitchError> {
+                self.0.force_release_cutover_fence(g)
+            }
+            fn observe(
+                &self,
+                g: &PipelineHandle,
+            ) -> crate::contracts::switch::ProgramExecutionObservation {
+                self.0.observe(g)
+            }
+            fn stop_program(&self, g: &PipelineHandle) -> Result<(), SwitchError> {
+                self.0.stop_program(g)
+            }
+        }
+        let (a, b, sid, _runtime, _adapter) = runtime_with_mock();
+        _runtime.teardown();
+        let failing = std::sync::Arc::new(FailingSwitchOnly(MockSwitchExecutionAdapter::new()));
+        let rt =
+            ProgramExecutionRuntime::create(sid, dual_group(sid, a, b), failing, None, Vec::new())
+                .expect("创建");
+        let err = rt
+            .switch_program(&SwitchIntent {
+                target: b,
+                policy: crate::program::SwitchPolicy::FrameSwitch,
+            })
+            .expect_err("注入失败必须传播");
+        assert!(err.to_string().contains("switch 执行失败"), "err={err}");
+        // timeline abort 回 Stable 旧源——⑪ 行诚实（恒等段: source=A,
+        // offset=0, 位置=已观测 program 实测——映射事实缺席非伪 None）。
+        let obs = rt.observe_execution().expect("obs");
+        assert_eq!(obs.timeline.source_id, Some(a), "abort 回 Stable 旧源");
+        assert_eq!(obs.timeline.mapping_offset, Some(0), "恒等段 offset 0");
+        assert!(
+            obs.timeline.mapped_program_pts.is_some(),
+            "位置=实测 program pts（恒等映射下 mapped==observed）"
+        );
+        rt.teardown();
+    }
+}
+
+// === A2-8-04 六路取证面纯函数测试（R51 Unit 1——observation only） ===
+#[cfg(test)]
+mod six_path_tests {
+    use super::*;
+
+    fn health(v_fr: u64, a_fr: u64) -> crate::pipeline::PipelineHealth {
+        crate::pipeline::PipelineHealth {
+            video_frame_count: v_fr,
+            audio_frame_count: a_fr,
+            ..Default::default()
+        }
+    }
+
+    fn bridge(v_fr: u64, a_fr: u64) -> crate::contracts::media_tap::BridgeObservation {
+        crate::contracts::media_tap::BridgeObservation {
+            channel: "ch".into(),
+            video_last_pts: Some(1_000),
+            audio_last_pts: Some(1_200),
+            video_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            audio_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            video_frames: v_fr,
+            audio_frames: a_fr,
+        }
+    }
+
+    fn program_obs(
+        v_fr: u64,
+        a_fr: u64,
+        v_pts: Option<u64>,
+        a_pts: Option<u64>,
+    ) -> crate::contracts::switch::ProgramObservation {
+        crate::contracts::switch::ProgramObservation {
+            observed_active: None,
+            video_active: None,
+            audio_active: None,
+            switch_epoch: 0,
+            input_pts: Vec::new(),
+            program_video_pts: v_pts,
+            program_audio_pts: a_pts,
+            program_video_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            program_audio_pts_state: crate::pipeline::PtsMonotonicity::ValidMonotonic,
+            program_video_frames: v_fr,
+            program_audio_frames: a_fr,
+        }
+    }
+
+    /// T3 实锚（R50 修订）: input video 冻结、audio 推进——聚合
+    /// `input_progress_since` 会报"推进", 逐平面证据必须分记
+    /// Some(false)/Some(true)。
+    #[test]
+    fn per_plane_independence_input() {
+        let dev = uuid::Uuid::new_v4();
+        let prog = program_obs(10, 10, Some(5_000), Some(5_500));
+        let prev = SixPathInputs {
+            input: Some(&health(10, 10)),
+            bridge: None,
+            program: &prog,
+        };
+        let cur = SixPathInputs {
+            input: Some(&health(10, 12)),
+            bridge: None,
+            program: &prog,
+        };
+        let e = assemble_six_path_evidence(dev, EvidencePhase::PreSwitch, Some(&prev), &cur);
+        assert_eq!(
+            e.input_video.advanced,
+            Some(false),
+            "video 冻结=有证据未推进"
+        );
+        assert_eq!(e.input_audio.advanced, Some(true), "audio 推进");
+        assert_eq!(e.input_video.frames, Some(10));
+        assert_eq!(e.program_av_delta_ns, Some(500));
+    }
+
+    /// absence≠false: bridge/input 行缺席→frames/advanced=None;
+    /// PTS 缺一平面→av_delta=None; prev=None→全路 advanced=None。
+    #[test]
+    fn absence_is_not_false() {
+        let dev = uuid::Uuid::new_v4();
+        let prog = program_obs(10, 10, Some(5_000), None);
+        let cur = SixPathInputs {
+            input: None,
+            bridge: None,
+            program: &prog,
+        };
+        let e = assemble_six_path_evidence(dev, EvidencePhase::PreSwitch, None, &cur);
+        assert_eq!(e.bridge_video.frames, None);
+        assert_eq!(e.bridge_video.advanced, None);
+        assert_eq!(
+            e.bridge_video.pts_state,
+            crate::pipeline::PtsMonotonicity::Unknown
+        );
+        assert_eq!(e.input_video.frames, None);
+        assert_eq!(
+            e.program_av_delta_ns, None,
+            "audio PTS 缺席→delta=None 非差值"
+        );
+        assert_eq!(e.program_video.advanced, None, "无 prev=无可比证据");
+    }
+
+    /// bridge v 冻结/a 推进 + program 双平面推进 + epoch/phase 透传;
+    /// av_delta=|v−a| 只测量。
+    #[test]
+    fn bridge_program_paths_independent_and_epoch_passthrough() {
+        let dev = uuid::Uuid::new_v4();
+        let b1 = bridge(7, 7);
+        let b2 = bridge(7, 9);
+        let p1 = program_obs(100, 100, Some(50_000), Some(50_900));
+        let mut p2 = program_obs(125, 125, Some(51_000), Some(51_900));
+        p2.switch_epoch = 1;
+        let h = health(5, 5);
+        let prev = SixPathInputs {
+            input: Some(&h),
+            bridge: Some(&b1),
+            program: &p1,
+        };
+        let cur = SixPathInputs {
+            input: Some(&h),
+            bridge: Some(&b2),
+            program: &p2,
+        };
+        let e = assemble_six_path_evidence(dev, EvidencePhase::PostSwitch, Some(&prev), &cur);
+        assert_eq!(e.bridge_video.advanced, Some(false));
+        assert_eq!(e.bridge_audio.advanced, Some(true));
+        assert_eq!(e.program_video.advanced, Some(true));
+        assert_eq!(e.program_audio.advanced, Some(true));
+        assert_eq!(e.input_video.advanced, Some(false));
+        assert_eq!(e.switch_epoch, 1);
+        assert_eq!(e.phase, EvidencePhase::PostSwitch);
+        assert_eq!(e.program_av_delta_ns, Some(900));
+    }
+}
+
+/// R65-A §3.2 纯决策核单测（无 mock 门——随 default 腿运行; 稳定计数/
+/// 接受判据/期望拒绝三面钉住契约）。
+#[cfg(test)]
+mod r65_settle_tests {
+    use super::*;
+
+    #[test]
+    fn streak_counts_consecutive_identical_and_resets_on_change() {
+        let mut s = SettleStreak::default();
+        let id = uuid::Uuid::new_v4();
+        assert_eq!(s.feed(Some(id)), 1);
+        assert_eq!(s.feed(Some(id)), 2);
+        assert_eq!(s.feed(Some(id)), 3);
+        // 变值（含 None<->Some 切换）复位——absence 亦为一值
+        assert_eq!(s.feed(None), 1);
+        assert_eq!(s.feed(None), 2);
+        assert_eq!(s.feed(Some(id)), 1);
+        assert_eq!(s.feed(None), 1);
+    }
+
+    #[test]
+    fn acceptance_plain_mode_takes_any_stable_value_at_rounds() {
+        let id = uuid::Uuid::new_v4();
+        assert!(!settle_accepts(Some(id), TIMELINE_SETTLE_ROUNDS - 1, None));
+        assert!(settle_accepts(Some(id), TIMELINE_SETTLE_ROUNDS, None));
+        // 稳定缺席 = 可判定终态输入（→ RecoveryRequired 语义臂）
+        assert!(settle_accepts(None, TIMELINE_SETTLE_ROUNDS, None));
+    }
+
+    #[test]
+    fn acceptance_expectation_mode_rejects_pseudo_stable_from() {
+        let from = uuid::Uuid::new_v4();
+        let to = uuid::Uuid::new_v4();
+        // 迟翻伪稳定: 稳定 from 无论多少轮都不接受（R64 L1 死锁根因）
+        assert!(!settle_accepts(
+            Some(from),
+            TIMELINE_SETTLE_ROUNDS,
+            Some(to)
+        ));
+        assert!(!settle_accepts(Some(from), 99, Some(to)));
+        // 稳定 None 同样不接受（V/A 分歧瞬态或真未知）
+        assert!(!settle_accepts(None, TIMELINE_SETTLE_ROUNDS, Some(to)));
+        // 稳定 to 才接受（且须达轮数门槛）
+        assert!(!settle_accepts(
+            Some(to),
+            TIMELINE_SETTLE_ROUNDS - 1,
+            Some(to)
+        ));
+        assert!(settle_accepts(Some(to), TIMELINE_SETTLE_ROUNDS, Some(to)));
+    }
+}

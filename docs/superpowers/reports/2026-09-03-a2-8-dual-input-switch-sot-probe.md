@@ -1,0 +1,5242 @@
+# A2-8-00 — Dual-input Switch Execution SOT Probe
+
+> Status: `PROBE ONLY / NO CODE CHANGE`
+> Authority: A2-7 CLOSED @7745968 后用户终裁（否决直接编码；批准 00 Probe；
+> 12 红线 + 六问冻结）
+> Date: 2026-09-03 · Change: a2-8-dual-input-switch · Base: master `7745968`
+> 定位转折（终裁原文）：A2-8 不再沿 A2-7"Domain→Custody"路线堆模型，而是
+> **首次进入 "Program Semantic → Execution Adapter → GStreamer Graph" 实现层**。
+
+---
+
+## 1. 裁决事实断言复核（§三-§七/§十三，全部实锚确认）
+
+| 断言 | 复核 | 实锚 |
+|---|---|---|
+| 多输入执行已具备（Session N-input） | ✅ 属实 | `inputs: Vec<SessionInput>` + start() 全 plans 实例化（A2-7-00 已锚） |
+| Session 已 N-input 但旧 API 仍 first-pipeline | ✅ 属实 | `pipeline: Option<PipelineHandle>`（首输入兼容字段，session.rs）——**未完成迁移边界非 bug** |
+| Watchdog 仍单 Pipeline 视角 | ✅ 属实 | bin/media-agent.rs **L403** + gates L165：`status(&sid).and_then(\|s\| s.pipeline)` → 仅首 handle spawn——B 路无 watchdog/health 观测 |
+| GStreamer 无 Switch 节点 | ✅ 属实 | 实链 `src→caps→tee→{appsink,encode}`（A2-7-01 已锚）；无 input A/B→switcher→program 拓扑 |
+| switch_mode 是预留 intent 非可执行 Switch Plan | ✅ 属实 | PipelinePlan.switch_mode（L144）**单路采集计划内的 Program execution intent 预留**——无法在单 PipelinePlan 内表达 A↔B |
+| 单输出承诺 | ✅ 属实 | pipeline.rs L114"L114 单会话单输出"+ L659"Alpha-1 仅首输入物化输出" |
+| 双路独立输出≠切换 | ✅ 接受 | A→RTMP + B→RTMP = 双路独立输出（Alpha-1 已能）非 Program switch |
+| Identity 三层正确/双语义债务/V0.3 边界 | ✅ 维持 | A2-7-03 反推结论复认 |
+
+## 2. 六问探针（终裁 §A2-8-00 必产出）
+
+### Q1 两个 Pipeline 能否同时真实运行？
+
+**Mock 层已证**（A2-7-04 custody_09：双 Session 双 handle 并行 start/stop）；
+**真机层**：Alpha-1 Gate A1-01..07 已实证**双 SDI 卡同会话 inputs=2**（A1
+收口记录）——即同 Session 双 Pipeline 真机并行采集**已验证过**。
+**残余**：双 Pipeline + **双输出段**组合未验证（当前单输出承诺下 B 路强制
+纯分析）；switch 场景要求的是"双采集 + 单 Program 输出"——与 A1 验证形态
+不同但基础能力在。真机确认留 01 前置 gate。
+
+### Q2 两个 Pipeline 如何进入同一个 Program execution graph？
+
+**三种候选形态**（GStreamer 能力实查，盒上 gst-inspect）：
+- **(a) input-selector**（**在**：Long-name "Input selector"；属性
+  `active-pad`/`switch-mode`/`drop-backwards`/`cache-buffers`——frame
+  boundary 切换原生支持；audio 对应 output-selector+audiomixer 在）：
+  单 pipeline 内 A/B 源 → input-selector → program——**要求 A/B 在同一
+  GStreamer pipeline 实例内**（与当前"每设备一 PipelinePlan"模型冲突）；
+- **(b) intervideosink/intervideosrc**（**在**）跨 pipeline 隧道：A/B 各自
+  pipeline → inter sink → program pipeline inter src → selector——**保持
+  每设备一 pipeline**（SessionInput 模型不变），切换在 program pipeline 内；
+- **(c) appsink→appsrc 桥接**（Rust 层转发）：零新元素但引入用户空间拷贝
+  与时钟问题——不倾向。
+**倾向（待终裁）**：(b) inter 系——最大保留既有 Execution/identity 模型
+（每设备一 handle 一 watchdog 可扩展），selector 在 program graph 端。
+
+### Q3 FRAME_SWITCH 的最小可靠实现？
+
+`input-selector`（video）+ `input-selector`（audio，或 audiomixer 若需
+叠加而非选择）+ `switch-mode=interpolate`/active-pad 运行时切换——
+GStreamer 原生 frame-boundary 机制。**PALETTE_SWITCH=Deferred（压缩域
+输入不存在——canonical ingest 是 RAW）/ MASTER_SWITCH=Deferred（依赖
+Normalize Gap）——终裁已预裁，复认**。
+
+### Q4 Switch ownership 落在哪个 Execution Adapter？
+
+终裁倾向 E/D 组合（Switch Execution Adapter → GStreamer Switch Graph），
+Session 只管生命周期资源。**具体落点候选**（待 01 裁）：
+- `MediaBackend` SPI 扩展 switch 方法？——**风险**：Backend SPI 是
+  instantiate/start/stop/recover/observe 生命周期五方法，塞 switch 可能
+  越界；
+- **独立 Switch Execution Adapter trait**（消费两 handle + SwitchPolicy →
+  操作 program graph 的 selector）——与 Backend 平行的执行面，更贴终裁 E。
+倾向独立 trait（01 裁）。
+
+### Q5 Multi-input watchdog 挂接？
+
+现状缺口（§1 断言核 1）：B 路零观测。候选（终裁倾向第二种）：
+- (a) 每输入一 watchdog 线程——线程语义膨胀；
+- **(b) MultiInputWatchdog（单 watchdog 服务 Session execution group）**：
+  `spawn_ingest_watchdog` 演进为接收 `Vec<(device_id, handle)>`——
+  **Precondition Gate**（终裁定性：无双路观测 = 不能作为生产双输入完成态）。
+倾向 (b)；实现边界（改 watchdog 签名 vs 新包装）留 01。
+
+### Q6 Frame boundary + AV continuity + failure takeover 观测点？
+
+- **Frame boundary**：input-selector `switch-mode` 属性 + active-pad 切换
+  时刻（selector 自身按 running-time 对齐）；
+- **AV continuity**：双路 appsink PTS 观测（已有 b1-b4 机制扩展到 program
+  graph 出口）；盒上已证 showinfo `type:I` 等观测手段（probe 终裁账）；
+- **Failure takeover**：**首版只做显式切换（终裁 §二十）**——自动 failover
+  需 Runtime failure→Custody→classification→Policy→Switch Intent 链
+  （生产链三缺口债务在，不可跳）。
+- **AVSync 债务升级为 A2-8 硬前置**（终裁 §二十三）：AV continuity 是真实验收
+  项——至少定义测量接入边界（双 PTS 对比已有素材，OQ-4 通路）。
+
+## 3. 十二红线（终裁冻结，全程生效）
+
+1 不改 V0.2 Architecture Contract · 2 不改 RuntimeEvent identity contract ·
+3 不建 Handle↔Device 全局 registry · 4 不把 SwitchPolicy 变成执行器 ·
+5 不把 Switcher 塞进 SessionManager · 6 不让 Supervisor 直接执行切换 ·
+7 不为 A2-8 虚构 Metadata · 8 不把 Normalize 声明当 Execution Fact ·
+9 不顺手解决 V0.3 Event Contract · 10 不顺手做 HLS+RTMP 多输出 ·
+11 不把双输入独立运行冒充双输入切换 · 12 无真实 AV/Frame continuity
+证据不宣布广播级切换完成。
+
+另：禁 PipelinePlan 硬塞 A/B（source_a/source_b/active_source/switcher
+字段——Semantic Intent≠Execution Plan≠Execution Fact 边界，§九三案全禁）。
+
+## 4. Open Questions（交终裁，01 前置）
+
+| # | 问题 | 倾向（非裁决） |
+|---|---|---|
+| OQ-1 | Program graph 形态：inter 系跨管线隧道 vs 单 pipeline 内双源 vs appsink 桥 | **inter 系**（保留每设备一 pipeline+identity 模型） |
+| OQ-2 | Switch Execution Adapter 形态：独立 trait vs Backend SPI 扩展 | **独立 trait**（Backend 五方法是生命周期语义，塞 switch 越界） |
+| OQ-3 | MultiInputWatchdog：改 spawn 签名收 Vec vs 新包装层 | 单 watchdog 服务 execution group（终裁倾向 (b)）；实现边界 01 裁 |
+| OQ-4 | AVSync 测量接入边界（A2-8 硬前置）：program graph 出口双 PTS vs 输入侧双 PTS | 01 设计裁 |
+| OQ-5 | A/B 在 GStreamer 层的构图归属：program pipeline 归 Session 还是独立 composition 执行单元 | 与 OQ-1 联动 |
+
+## 5. No-Build Gate
+
+零 .rs diff；六问答案基于现有代码/盒上元素实查/既有 Gate 记录；不实现
+任何 switch 执行/Domain 新对象。
+
+## 6. 证据清单
+
+bin/media-agent.rs L403 / gates/session_lifecycle.rs L165（单 watchdog）·
+pipeline.rs L114/L144/L659（单输出/switch_mode 预留/首输入物化）·
+session.rs（inputs 句柄表/pipeline 兼容字段）· 盒上 gst-inspect：
+input-selector（active-pad/switch-mode/drop-backwards/cache-buffers）/
+output-selector/audiomixer/intervideosink/intervideosrc/valve 全在 ·
+A1 收口记录（双 SDI inputs=2 真机）· A2-7 系列归档（identity/债务）。
+
+---
+
+## 7. OQ-1..5 终裁 + A2-8-01 Pre-Implementation Gate 十项冻结（2026-09-03 用户两轮终裁落盘）
+
+> 终裁链：第一轮批准 OQ-1..5 + 01 开工 → 第二轮修正：**不批准直接编码**，
+> 批准进入 **A2-8-01 Pre-Implementation Gate**（先在 change 记录冻结十项再
+> 开工）。**A2-8-00 正式 CLOSED**（`c3d3e23` SOT Probe / Design-only /
+> No-Build Gate 定格；00 与 01 不得混为一个 change 节点）。
+
+### 7.1 OQ 终裁（含第二轮修正边界）
+
+| OQ | 终裁 | 第二轮修正/边界 |
+|---|---|---|
+| OQ-1 | ✅ A/B 各自 Pipeline → inter → Program Pipeline → selector | **inter 系 = 候选 Execution Materialization，非架构合同**——GStreamer topology（inter 系 / 单图 selector / 其他）属实现细节；换 topology 不得触及 Program Domain |
+| OQ-2 | ✅ 独立 Switch Execution Adapter/组件 | 不塞 Backend 五方法（复认 contracts/backend.rs:22 生命周期语义） |
+| OQ-3 | ✅ Session/ExecutionGroup 级 MultiInputWatchdog 单实例 | **ExecutionGroup 概念正式冻结**（§7.3）；watchdog 职责严格限定四观测非 God Object；喂现有 RuntimeEvent→Custody→Health 链 |
+| OQ-4 | ✅ APPROVED WITH SCOPE LIMIT | 六路 PTS 观测（A/B/Program × video/audio）+ before/after switch 无 rollback/discontinuity/divergence/starvation；禁 AvSyncEngine·禁 threshold 进 MasterJoin |
+| OQ-5 | ✅ Program pipeline 归 Program Execution/Switch 层 | SessionManager lifecycle only（复认 session.rs:609 仅经 backend.instantiate） |
+
+### 7.2 Pre-Implementation Gate 十项冻结（开工前置，编码全程生效）
+
+1. **ExecutionGroup = Program execution boundary**（inputs[]+switch+program
+   output+supervision；SessionInput{device_id,handle} 原样保留）
+2. **Switch Execution ≠ Backend lifecycle SPI**
+3. **SessionManager ≠ GStreamer graph builder**
+4. **Supervisor ≠ switch executor**（decides recovery only）
+5. **GStreamer topology = implementation detail**
+6. **FRAME_SWITCH first**（PACKET/MASTER 不偷渡）
+7. **Video + Audio switch semantics 必须显式——终裁采方案 A：Video/Audio
+   成对切换**（不是 video-only；audiomixer 放进去 ≠ Audio 已解决）
+8. **AV continuity observation is mandatory**（六路 PTS；T4 element property
+   ≠ PASS——须实证 switch→B 成为 program source→output 存活）
+9. **MASTER_SWITCH remains Deferred**（normalize Gap 不顺手补）
+10. **automatic failover remains Deferred**
+
+### 7.3 ExecutionGroup 职责分层（冻结）
+
+- **Session**：Create/Reserve/Instantiate/Start/Stop/Recover/Destroy（生命周期）
+- **ExecutionGroup**：哪些 Pipeline 属同一 Program execution · 当前 active
+  source · switch execution · Program graph · group-level observation
+- **Switch Execution**：A→B / B→A
+- **Watchdog**：观察 Input A · Input B · Switch · Program Output（四面）
+
+### 7.4 状态空间三分离（Desired ≠ Execution ≠ Observed）
+
+Domain/Intent：ACTIVE_A / ACTIVE_B / SWITCHING；Execution：selector pad A /
+pad B；Observation：actual active pad · PTS · output frames。Session RUNNING
+与 Program ACTIVE=A→B 正交，**绝对不共享状态机**：禁 `Session.active_input`
+与 `SessionInput.is_active`（switch state 不得污染 Session lifecycle model）。
+
+### 7.5 A2-8-01 验收矩阵 T1-T12（替代第一轮 T1-T5）
+
+| Gate | 必须证明 |
+|---|---|
+| T1 | A/B 两个真实输入同时运行 |
+| T2 | A/B 汇入同一个 Program Execution（非 A→output A / B→output B） |
+| T3 | A→B→A 真实执行切换（改 GStreamer execution graph active source，非 Rust 状态字段） |
+| T4 | 切换发生于合法 frame boundary（element property ≠ PASS，实证 A active→switch(B)→B=program source→output 存活） |
+| T5 | Video/Audio Program continuity 可观测（成对切换语义） |
+| T6 | A/B/Program 三者 PTS 可追踪 |
+| T7 | MultiInputWatchdog 不再只看 `first()`（ExecutionGroup 四视角） |
+| T8 | RuntimeEvent/Custody 不产生跨设备污染 |
+| T9 | Session lifecycle 与 switch state 分离 |
+| T10 | Supervisor 不执行 switch |
+| T11 | `SwitchPolicy` 未被执行逻辑污染 |
+| T12 | `MASTER_SWITCH` / auto-failover 未偷渡 |
+
+### 7.6 其他维持项与完成标准
+
+- **Event Identity Debt 不修**：`PipelineFault.pipeline`（legacy DeviceId
+  承载）双语义 = V0.3 Event Contract debt，A2-8 沿用兼容层，**新增代码不得
+  扩大歧义**——否则 change 膨胀为 Switch+Event Contract+Identity+Watchdog
+  四合一。
+- **依赖链冻结**：SwitchPolicy(semantic declaration)→SwitchIntent→
+  SwitchExecutionPlan→Switch Execution Adapter→{Input A/B Pipeline, Program
+  Graph}→Program Output→Observation/PTS→RuntimeEvent→Watchdog→Health/Custody；
+  SessionManager owns lifecycle only / Supervisor decides recovery only。
+- **01 完成标准**：不停在"设计完成"——须至少 **真实 Execution Graph + 真实
+  A/B 切换 + MultiInputWatchdog 架构落地**，之后进入 02 真机验证。
+- **收口链**：01 实现→02 真机→03 failure/supervision→04 AV continuity→
+  05 archive+CI+merge；**A2-8 NOT CLOSED until 05**（任一中间节点完成
+  不宣布 CLOSED）。
+
+---
+
+## 8. 第三轮终裁：A2-8-01 APPROVED + T5 拆分裁定 + 02 重定义（2026-09-03 落盘）
+
+> 终裁链：第一轮（OQ 批准）→ 第二轮（Pre-Implementation Gate 十项冻结）
+> → 第三轮（本节; 01 实现完成后裁决）。
+
+### 8.1 A2-8-01 = IMPLEMENTATION COMPLETE / APPROVED
+
+ExecutionGroup 模型/Switch Execution 独立于 Backend SPI/双路并存/汇入
+Program Execution/A→B→A 真实切换/active-pad 实测/成对语义类型约束/
+MultiInputWatchdog 脱离 first()/PTS 观测/冻结面零 diff——**正式通过**。
+流程 agent 代选（决策点未应答→direct+tdd+standard）裁定为
+"Process deviation disclosed, no technical invalidation"——不返工;
+**改变冻结架构边界仍必须停**，普通实现细节不停。
+
+### 8.2 T5 拆分裁定（本轮最重要）
+
+```text
+Switch Execution        PASS
+Program Output Alive    PASS
+Frame Switch            PASS
+PTS Observation         PASS
+PTS Continuity          FAIL / NOT YET SATISFIED
+```
+
+**T5 = 观测能力 PASS / 连续时间线 NOT YET PASS**——绝不能整体写 PASS。
+01 状态记录为：**FRAME_SWITCH execution PASS; Program timeline
+continuity DEFERRED / FAIL-PENDING-CORRECTION**。
+
+### 8.3 架构级硬事实（提升为 A2-8 后续设计硬事实，非普通 bug）
+
+真实 GStreamer 实证：**source switching 与 Program Timeline continuity
+是两个不同问题**——input-selector 可正确完成 A/B 切换但原生透传源
+时间戳不构成 Program Timeline（A→B 与 B→A 不对称; 回切可现 <1 帧 PTS
+后跳→NonMonotonic）。未来应存在 Source Timeline→Switch Execution→
+**Program Timeline（monotonic PTS/discontinuity handling/source
+transition/潜在 AV alignment）**→Output 的连续性层; **现在不立即做
+Engine**——属 02/04 设计裁决。
+
+### 8.4 术语修正（防实现方案提前变架构合同）
+
+登记为 **Program Timeline Continuity / Timestamp Normalization**（四
+方案未裁: A 切后 Program Timestamp Regenerator / B Program Pipeline 新
+Clock-Segment Timeline / C Encoder-Output boundary normalization / D
+Switch transition 新 segment-timebase）——**不冻结 "Output Timestamp
+Regenerator" 表述**（01 报告原"出口再生成平面"措辞废止）。
+
+### 8.5 inter 注入面裁决（OQ-1 再进一步）
+
+**不批准 pipeline.rs 直接耦合**——禁 `PipelinePlan{inter_channel}` /
+`build_pipeline(..., switch_channel)` 式改动（Pipeline 将感知 Program/
+Switch/ExecutionGroup = Program 层污染 Pipeline 层）。正确关系：
+**Program Execution 层组合 execution handles/materialization resources;
+Pipeline 本身不知自己是 A、B 还是 Program 的一部分**。inter 系作为
+GStreamer materialization **可继续研究**，但代码 API 不得耦合。
+
+### 8.6 A2-8-02 重定义 = Real Dual-Input Program Execution Verification
+
+五维验证矩阵：Input[A/B alive]·Execution[A→B→A active 推进]·Output
+[Program alive]·Timing[PTS monotonic/discontinuity/AV continuity——
+**Program Timeline Continuity / Timestamp Normalization 为 02 明确观察
+项**]·Supervision[A fail→B 仍可观测·B fail→A 仍可观测·Supervisor
+echo 不被 Custody 误计新故障（沿 A2-7 链零旁路）]。
+**Program Output = 一级 Observation 对象**（Input health 与 Program
+execution health 两维度分离——A/B/switch 全 healthy 而 program DEAD
+必须可检出; 与 V0.2 HealthState≠EffectiveChannelStatus 一致）。
+**开工唯一前置 = 02 Design Gate**：裁 materialization 注入面（按 §8.5
+边界约束），先裁边界再编码。
+
+### 8.7 最终状态表
+
+```text
+A2-8-00  CLOSED
+A2-8-01  IMPLEMENTATION COMPLETE / APPROVED（T5=观测 PASS·连续性未 PASS）
+A2-8-02  NEXT  = Real Dual-SDI Program Execution（02 Design Gate 先行）
+A2-8-03  FAILURE / SUPERVISION
+A2-8-04  PROGRAM TIMELINE / AV CONTINUITY
+A2-8-05  ARCHIVE / CI / MERGE
+A2-8     NOT CLOSED
+```
+
+---
+
+## 9. 第四轮终裁：能力表拆分 + 五层验收 + MediaTap 排序 + Design Gate 开工（2026-09-03 落盘）
+
+> 前提声明（用户原话）: 01 新增代码未经远端逐行复核（当时未 push）——
+> 验证依据=盒上执行结果+已核实代码事实。**分支已于本轮推送远端**
+> （`c3d3e23..f349e23`）, 后续验证恢复 GitHub 代码级核验口径。
+
+### 9.1 A2-8-01 = Execution implementation accepted / Timeline acceptance NOT accepted
+
+| 能力 | 裁决 |
+|---|---|
+| 双输入 Execution Group / A/B 独立 Pipeline / Program-level switch | 🟢 已实现 |
+| A→B→A / active-pad 实际变化 / Program output 存活 | 🟢 已验证 |
+| PTS observation | 🟢 已实现 |
+| **PTS monotonicity / Program Timeline continuity** | 🔴 **未通过/未完成** |
+| 真双 SDI | 🟡 待 02 · 故障/监督闭环 🟡 待 03 · AV continuity 🔴 待 04 |
+
+### 9.2 Source Time / Program Time 架构分野（关键一步）
+
+每个输入自持 PTS/DTS/timebase/segment/discontinuity（Source Time）≠
+切换后统一 Program PTS/timeline/continuity（Program Time）——自动
+failover 前必须解决 B 源 PTS 与 Program timeline 不一致问题。
+
+### 9.3 02 五层验收模型（正式冻结）
+
+**L1 Input**[SDI A/B alive]·**L2 Execution**[Pipeline A/B+ExecutionGroup]·
+**L3 Switching**[A→B·B→A]·**L4 Program Output**[单输出·continuous
+buffers]·**L5 Program Timeline**[PTS monotonic·segment/discontinuity
+semantics·A/V relation——**明确未通过项**]。
+
+### 9.4 MediaTap 注入面（首选确认 + 排序）
+
+Controller 只知"媒体输出能力"（MediaTap）不知 Program——禁
+`ProgramSwitchInput` 语义/`PipelinePlan{program_id,switch_channel}`。
+排序: ① Controller 通用 Media Tap 🟢首选 · ② 动态 tee 注入 🟡可研究 ·
+③ appsink→appsrc Rust 桥 🔴不推荐 · ④ Program 直接开双设备 🔴禁止。
+
+### 9.5 Audio 澄清（audiomixer ≠ audio switch）
+
+成对切换≠audiomixer（混音可产生 Video=B/Audio=A+B 非 source switch）。
+02 必须明确 audio 机制=selector-style / mute-gating / mixer-based
+selection; 若只 audiomixer 无 active-source semantics → 不给 Audio
+Switch PASS。（Gate 复核: 01 现实现 audio 平面=input-selector+active
+语义, 非 mixer——probe"audiomixer 在"仅为元素清点, 见 design-gate §⑤。）
+
+### 9.6 Watchdog 边界维持 + 03 重点重定义
+
+watchdog 仍是 observe→fold→RuntimeEvent, 禁 switch/restart 决策/
+failover/health policy/program state machine; Supervisor 只 decide
+recovery。03 验证= A fail→B+Program 仍可观测 / B fail→A 仍可观测 /
+Program output failure→A/B healthy+Program 故障正确分类 / Supervisor
+recovery echo 不计为第二次物理故障（不破坏 A2-7 Custody 语义）。
+
+### 9.7 模拟源边界（必须写入 archive）
+
+**A2-8-01 GStreamer test PASS（videotestsrc 双源）≠ A2-8 真机 PASS**
+——不能证明真 DeckLink A/B 的 format/framerate/caps/clock/PTS/
+segment/audio timing 一致。
+
+### 9.8 Design Gate 批准开工（无需再问）
+
+只读调查六产出: ①真实 PipelineController 构图分析 ②MediaTap 注入
+落点 ③Program graph 生命周期（create/owns/start/stop/destroy）④A/B
+handle 关联（SessionInput, 零新 registry）⑤Audio topology ⑥Program
+Timeline 归一化点（**只调查不实现**）。产出=
+docs/superpowers/reports/2026-09-03-a2-8-02-design-gate.md。
+
+---
+
+## 10. 第五轮终裁：C1/C2 成立 + G1 升级必修 + 02 重定义为 Execution Integration（2026-09-03 落盘）
+
+> 证据基线升级: 以远端 `d132b6c` 实码为主证（GitHub 可读）; 本轮全部
+> 断言经实码复核（含 Session.stop() 逆序全停 session.rs:726-763——
+> 本轮新锚定, 此前未亲验）。
+
+### 10.1 裁定表
+
+| 项目 | 裁决 |
+|---|---|
+| C1 纯分析管线无 tee | **成立**（但修正实现建议, 见 10.2） |
+| C2 recover 重建丢 tap | **成立 / MUST FIX**（attachment bookkeeping 形式, 非 recover 内裸调 attach） |
+| MediaTap 独立能力/平行 SPI | 批准 |
+| PipelinePlan 加 Program/A-B 字段 | 否决 |
+| **强制 pipeline 带 HLS/RTMP output 获得 tee** | **否决**（内部 tap 需求≠业务 OutputPlan; 无意义编码 CPU/输出失败污染输入/生命周期耦合） |
+| 动态 tee 手术 | 暂不批准为首选（排序 A>C>B） |
+| inter 系真机桥接 | 批准调查, 不冻结 |
+| **G1 Program Graph 未入 Session 生命周期** | **当前存在, 升级为 02 必修 Gate**（Session.stop 只停 SessionInput 句柄; stop_program 存在但零接线——Program pipeline orphan/lifecycle leak 实证） |
+| Program Graph 自生成 PipelineHandle | 可作为执行资源句柄, 必须纳入生命周期治理 |
+| 01 videotestsrc 双源 | 只证明 GStreamer switch execution ≠ 真机输入验证 |
+| Timeline continuity | 仍未通过; **FrameAligned ≠ TimelineContinuous 继续冻结** |
+| A2-8 | NOT CLOSED 维持 |
+
+### 10.2 C1 修正裁定
+
+方向排序 **A > C > B**: A=Generic MediaTap Capability（构造期天然
+generic tap: src→tee→{canonical appsink, generic tap}; Controller 持有
+真实 GstPipeline 所有权）> C=intervideo 桥 > B=运行期动态插 tee。
+tap 只知"要该管线的 video/audio media output", 不知 Program/A/B/
+Switch/active——Program Execution 消费两个 tap 组合 Program Graph。
+
+### 10.3 C2 实现形式裁定
+
+禁"recover 内裸调 attach_tap()"——GstInstance 现无 attachment state。
+须落 **MediaTapAttachment 簿记**（video/audio/endpoint identity——
+**execution resource attachment bookkeeping, 非新 Device Identity
+Registry**）, recover 重建后按簿记重放 attach。
+
+### 10.4 A2-8-02 重定义 = Real Dual-Input Program Execution Integration
+
+五层（替代 §9.3 层序, 本轮为准）: **L1 Input**[DeckLink A/B 各自真实
+video/audio RAW+PTS+health+bus]·**L2 Execution**[A/B 真实进入 Program
+Graph]·**L3 Output**[Program video/audio output 真有 frames+PTS 非
+仅 selector 状态]·**L4 Timing**[A/B/Program 三列 PTS, A→B/B→A 切换
+前后 monotonic?/continuous?]·**L5 Supervision**[A fail→B alive·B
+fail→A alive·Program output fail 不误判为 A fail·recovery echo 不成
+第二物理 failure fact]。
+
+三件事一个完整 Execution Integration: **MediaTap + Program Graph
+Lifecycle + Recover Reattachment**。执行序: 02-A Controller/Session
+生命周期接线 → 02-B Generic MediaTap contract → 02-C MediaTap
+materialization → 02-D recover re-attach → 02-E Program Graph 入
+Session 生命周期 → 02-F intervideo A/B 真机桥接 → 02-G Program
+Output observation → 02-H Timing/PTS measurement → 02-I 真机双
+DeckLink 验证。停止序: Program Stop→Tap Detach→Input B/A Stop→
+Resource Release; 恢复序: Supervisor 决策→Controller 重建→tap 重挂→
+Program 保持可观测。
+
+### 10.5 红线维持
+
+不改 PipelinePlan Program 语义·SwitchPolicy 不扩执行器·HLS/RTMP 不
+当 MediaTap·02 不冻结 Timeline Normalization 方案。**02 可进入编码,
+但按修正后范围执行。**
+
+---
+
+## 11. 第六轮终裁：假实现禁令 + 无第二 registry + 02-A..F 顺序修正（2026-09-03 落盘）
+
+> 证据基线: 远端 `0e0e3e1` 实码（02-B 已落地确认）。
+
+### 11.1 实码确认（六项）
+
+1. C1 修改点确定在 **controller.rs**（纯分析分支 L266-271 组装,
+   pipeline.rs 无关）——强制 output 获 tee 否决维持;
+2. Controller=GstPipeline 唯一 owner（GstInstance 直持 Pipeline;
+   recover=remove→stop→rebuild→Playing）——C2 非理论问题;
+3. **02-B SPI 边界正确**（attach/detach/tap_attachments; channel 不透明;
+   零 Program 词汇; 簿记=recover 重放事实源）——**契约不改**;
+4. Program Graph 确为独立资源（自申 handle/自建 pipeline/自持 graphs;
+   Session.stop 只遍历 inputs 逆序停）;
+5. **G1 必须先于 MediaTap→Program 接通解决**（否则双 owner 生命周期）;
+6. 顺序修正: 02-A[Controller generic tap point + GstInstance 簿记]→
+   02-C[MediaTapPort→Controller-owned pipeline 物化]→02-D[recover
+   attachment replay]→02-E[Program 入 Session 生命周期]→02-F[真机桥接]
+   ——**不先接 intervideosink/src**。
+
+### 11.2 假实现禁令（关键新裁决）
+
+`MediaTapRequest` 支持 Video/Audio/Both + 同管线多 channel ⇒ **禁**在
+build_pipeline 永久预塞 `tee→intervideosink channel=<固定值>` 再把
+attach 降级为"登记"——API 看似动态、物化只有一个预设 tap = **假实现**,
+与 AlreadyAttached/NotAttached/tap_attachments 语义不一致。正确形态:
+构造期只建**通用 tap 点**（tee）; 具体 tap branch 的**生命周期由
+MediaTapPort 控制**; `GstInstance.media_taps: Vec<MediaTapAttachment>`
+保存簿记。
+
+### 11.3 无第二 registry（红线）
+
+**禁**新建独立 `GStreamerMediaTapPort` 自持第二 Pipeline Registry——
+违反 "Controller=GstPipeline owner/不建第二 identity·execution
+registry"。实现路径: `impl MediaTapPort for GStreamerPipelineController`,
+attachment bookkeeping 入 GstInstance（同 ownership 边界）。
+
+### 11.4 模块影响表（裁决冻结）
+
+| 模块 | 裁决 |
+|---|---|
+| contracts/media_tap.rs | 已完成·**契约不改** |
+| adapters/mock.rs | 已完成·继续作契约测试基准 |
+| **controller.rs** | **核心修改点·必须改** |
+| pipeline.rs | **零 diff 维持** |
+| switch_graph.rs | 暂不改（02-F 才接真实 A/B） |
+| session.rs | 02-E 修改（**不让 Session 理解 GStreamer**——仅生命周期接线缝） |
+| switch_execution.rs / contracts/switch.rs | 不改 |
+| Supervisor | 不改（不进 MediaTap/Program execution） |
+| Health/PTS | 02-G/H 后续·不提前冻结 Timeline Normalization |
+
+### 11.5 状态
+
+02-B=完成; 02-A/C=**设计裁决完成, 不得以旁路 adapter 冒充实现**——
+直接进 GStreamerPipelineController/GstInstance ownership 边界;
+02-D 紧随（attachment replay 入 recover）; pipeline.rs 不动;
+Program Graph 不接真实输入直至 02-E 生命周期统一。A2-8 NOT CLOSED。
+
+---
+
+## 12. 第七轮终裁：02-A/C/D 盖章 + attach 原子性债 + 02-E 强制 Gate（2026-09-03 落盘）
+
+> 证据基线: 远端 `af3ef70` 实码逐行核验（controller/media_tap/
+> switch_execution/switch_graph/media-agent 组合根/session 调用链）。
+
+### 12.1 盖章
+
+- **02-A ACCEPTED**: GstInstance 直持 {pipeline,plan,bus_rx,stop_flag,
+  thread,media_taps}; 纯分析形态=构造期命名 tee（tap 点）非预塞 branch;
+  pipeline.rs 不污染。
+- **02-C ACCEPTED WITH ONE P2 DEBT**: MediaTapPort 在 Controller
+  ownership 边界内**真实图变更**（非登记式）; 无第二 registry;
+  **P2 债=attach 部分失败原子性**（§12.2）。
+- **02-D ACCEPTED**: recover 前读簿记→销毁→重建→新管线重放（真实
+  测试验证新 Pipeline 实体元素）; 依赖 C 的 bookkeeping↔graph 一致性。
+
+### 12.2 P2 债务（实码直接推出）: attach 部分成功污染
+
+`attach_tap_to_instance` 逐平面物化, `media_taps.push` 在**全平面成功
+后**——Both 时 video 成功 + audio 失败 ⇒ video branch 已入真实图而簿记
+无此行 ⇒ **Reality≠bookkeeping**（破坏"media_taps=recover 唯一事实源";
+下次 recover saved_taps 缺行, video branch 丢失）。补强（不重设计 SPI）:
+`attach_transactional_failure_cleanup`——video 成功+audio 失败→video
+branch 回滚[request pad release+Null/remove]→簿记零增加。
+
+### 12.3 G1 硬结论（比文档更明确）
+
+Session.stop() 逆序停 inputs+释放资源链——Program Graph handle 不在
+Session.inputs/任何生命周期集合 ⇒ **两套生命周期实存**; H3=真实管线却
+不属 Session lifecycle, 违反 "Session owns lifecycle/Backend owns real
+Pipeline/Handle links"。具体风险: Session Released+Inputs stopped+
+**Program Graph still alive**。
+
+### 12.4 02-E 结构（正式冻结, MANDATORY NEXT）
+
+- **不是** Session 理解 GStreamer / `Session{program_graph}`; 正确链:
+  SessionManager→lifecycle（经**抽象 Program/Execution lifecycle port**,
+  不直调 stop_program）→ExecutionGroup/Program Execution owner→
+  SwitchExecutionAdapter→graph;
+- 组合根"临时拥有"（group/switcher/graph/watchdog 四件散持）→02-E
+  必须形成 **ProgramExecution/ExecutionGroupRuntime 生命周期对象**
+  （creator=destroyer）;
+- 启动序: Session Create→inputs→ExecutionGroup→graph instantiate→
+  start→Running; 停止序: Session Stop→**Program Stop→Tap Detach**→
+  Input Stop→Resource Release→Released;
+- **四场景必证**: ①正常停止全序 ②Program 创建失败→部分清理→Input/
+  lease/resource rollback ③Released 后 Program/Tap/Input 零残留
+  ④Stop 失败不截断释放链（沿 session.rs 既有"stop 失败不截断"原则）。
+
+### 12.5 模块影响表（第七轮）+ 执行序冻结
+
+contracts/media_tap+mock/switch_execution/contracts-switch/pipeline.rs/
+Supervisor/pipeline_events: 不改; controller.rs: 🟡补 attach rollback;
+switch_graph: 🟡02-F 再接真实 tap; **session.rs 🔴02-E 生命周期接线必改
+（不触 GStreamer）**; **media-agent.rs 🔴02-E 重构 ownership/teardown**;
+watchdog.rs 🟡随 Program Runtime 调整; Timeline/PTS ❌不冻结。
+执行序: **02-E[可并入 02-C rollback debt]→02-F→02-G→02-H→02-I→
+Timeline decision→A2-8 CLOSE**。诚实边界维持: 205 passed≠真实 DeckLink
+A/B 通过; FrameAligned≠Timeline Continuity。A2-8 NOT CLOSED。
+
+---
+
+## 13. 第八轮终裁：stop_hook 单槽缺陷（P0）+ 身份一致性（P1）+ 修复落盘（2026-09-03）
+
+> 证据基线: 远端 `4825a5c` 实码; 02-C/02-D ACCEPTED 复认, 02-E 判
+> IMPLEMENTED / NOT CLOSED（多 Session 生命周期错误）。
+
+### 13.1 P0 缺陷（实码直证）
+
+SessionManager 多 Session（HashMap<SessionId, SessionInner>）但
+stop_hook=**单槽 Option**——第二 Session 注册覆盖第一（`set_stop_hook`
+简单覆写）→ 停止首 Session 调到第二 Runtime 的 hook → session-id guard
+使其 no-op → **首 Session 的 Program Graph/Tap 存活=G1 多 Session
+复现**。Runtime 自身的"错误 id 不触发"测试恰不能救 Manager 单槽。
+
+### 13.2 修复（本轮落地）
+
+- session.rs: `stop_hooks: Mutex<HashMap<SessionId, Arc<dyn
+  SessionStopHook>>>`——**Session-scoped 生命周期回调关联表**（Session
+  生命周期回调关联, 非 Device/execution identity registry——红线不破）;
+  `register_stop_hook(id, hook)`（同 Session 覆盖/他 Session 不受影响）;
+  stop() 按 id 查调 + **Released 后条目移除**（E-5: 防 Runtime 引用残留）。
+- program_execution.rs: create() 增 **P1 一致性校验**
+  `session_id == group.session_id` fail-closed（复用 SwitchError::Backend,
+  零新 identity 类型/零词表扩张——switch_execution.rs 不动）。
+- media-agent.rs: `register_stop_hook(&sid, runtime)`。
+- **不回滚** 00ca2dc/ProgramExecutionRuntime（本轮发现是外围关联模型
+  缺陷, 非 owner 设计错误）。
+
+### 13.3 测试（E-1..E-5 Gate 全过, mock 341）
+
+- **E-4 多 Session 回归**: session_rt_01_stop_hooks_session_scoped_
+  multi_session_regression——双 Session 各注册; A 停止恰调 A 的 hook
+  [B 的 hook 零调用+B 会话 Running 完整保留]; E-5: A Released 后条目
+  移除[B 条目保留], B 停止后关联表清空（零引用残留）。
+- **P1**: program_exec_rt_01_session_group_identity_mismatch_rejected
+  ——身份不一致 fail-closed 拒收（错误可观测）。P1 校验上线即拦截测试
+  助手自身的不一致构造（dual_group 内造随机 sid）——防御有效性顺带
+  实证; helper 改为显式传 sid。
+- E-1/E-2/E-3 既有测试复认（create/teardown 幂等·失败清理·hook 不截断）。
+
+### 13.4 02-F 前置（第八轮冻结）
+
+registry 必须提供**同一 concrete GStreamerPipelineController 实例的
+多 trait view**（Arc<dyn MediaBackend> + Arc<dyn MediaTapPort> 同源
+对象——否则 instances 表不共享, attach 得 UnknownPipeline）;
+**禁第二 registry**（GStreamerMediaTapRegistry/独立 port 持第二表=两
+个 execution ownership 表）。02-E 修复后按序 02-F。
+
+---
+
+## 14. 第九轮终裁：E-6 close-path 边界 + 02-F 执行序 + 本轮修复落盘（2026-09-03）
+
+> 证据基线: 远端 `ed388dc` 实码; 第八轮 P0/P1 复认 PASS。
+
+### 14.1 E-6 CLOSE-PATH GAP（实码确认并已修）
+
+close() 是**独立终态路径**（session.rs:852-879——接受 Released/
+Terminated/ProvisioningFailed/BindingFailed/StartFailed; sessions.remove
++防御性回收, **零 stop_hooks 处理**）⇒ 异常终态→close 理论上残留
+Runtime 引用。**修复**: close() 增 `stop_hooks.remove(id)`——不变量
+**任何 close(id) ⇒ hook 条目不存在**（防御性兜底, 与 stop 路径的
+Released 后移除双保险）; 测试 session_rt_01_close_path_clears_stop_
+hook_entry[终态后残留注册→close→条目必不存在]。
+
+### 14.2 02-F 执行序（第九轮冻结）
+
+02-E-E6[本轮已修]→**02-F-01** AdapterRegistry 同一 concrete controller
+双 trait view→**02-F-02** Runtime 真接 tap_port→**02-F-03**
+switch_graph videotestsrc→intervideosrc/interaudiosrc→**02-F-04** A/B
+跨 pipeline 接通→**02-F-05** 双 plane 成对切换→02-G→02-H→02-I。
+
+### 14.3 02-F-01 已交付（本轮）
+
+- registry.rs 增 `MediaAdapterBundle{backend, media_tap}` +
+  `build_media_adapter_bundle()`——**单次构造 concrete controller →
+  双 clone 各自 coerce**（两 trait object 同源同一对象; 禁二次构造）;
+  mock 分支无共享 instances 表（独立实例语义等价）;
+- **同源行为证明**（盒上真实 GStreamer）:
+  registry_rt_01_bundle_dual_view_same_controller——经 backend view
+  实例化的 handle 经 tap view attach 成功+簿记在（**若二次构造两
+  controller, instances 分裂 → UnknownPipeline——反证排除**）;
+- SessionManager 仍只见 MediaBackend（Session 抽象边界不破——组合根
+  持双 view）; channel 语义维持: DeviceId=canonical hardware identity,
+  tap channel=execution bridge address（不提升新 identity）。
+
+### 14.4 边界维持
+
+watchdog 不承担 Tap ownership（Tap=Runtime 创建/销毁资源的一部分）;
+watchdog 恢复仍只 ctrl.recover(故障输入 handle) 非切换; pipeline.rs
+零 diff; Supervisor 不动; AVSync/Timeline 继续冻结; A2-8 NOT CLOSED。
+盒上: mock 342·bmd+gstreamer 207·clippy 双组合 clean·fmt clean。
+
+---
+
+## 15. 第十轮终裁：E-6/F-01 CLOSED + 唯一构造路径 + F-02 执行（2026-09-03）
+
+> 证据基线: 远端 `efc1b2a` 实码; E-6 正式 CLOSED[调用链结构补认:
+> hook 仅 Running 后注册→异常终态无 hook, close 防御性 remove=双保险;
+> 隐含不变量"close⇒无运行 Runtime"列为未来 Runtime 生命周期测试
+> 长期红线——Runtime 若提前到 Starting 阶段注册则须显式测试]; F-01
+> CLOSED[同源双 view+行为证明]; **残留发现: build_media_backend 旧
+> 单 view 入口仍在+bin 仍在用——F-02 必须替换而非叠加**。
+
+### 15.1 第十轮复核结论（全确认）
+
+2 输入限制=ExecutionGroup/SwitchGraph MVP 限制非硬件模型限制
+（port.rs N×M/Discovery 无双口硬编码——4/8/N 扩展只动 ExecutionGroup
+<N>/SwitchGraph<N>/watchdog<N>, Device/Port/SessionInput/lifecycle
+不改）; SimulatedDeviceManager 固定 (0..2)=🟡N 泛化阶段补 fixture;
+F-03 换 inter* **禁顺手修 PTS**（bridge 与 Timeline/G-H 独立成刀）;
+GitHub check-runs=0=feature 分支不触发 CI（既定惯例）——盒上证据非
+CI 独立验证（如实区分）。
+
+### 15.2 F-02 已执行（本轮交付）
+
+- **唯一构造路径封死**: `build_media_backend()` 改为
+  `Self::build_media_adapter_bundle()?.backend` 委托面——全仓库唯一
+  concrete controller 构造点= bundle; 旧独立 `Arc::new(controller)`
+  路径删除（恢复即制造第二 instances 表）;
+- **组合根切换**: bin 主装配改 `build_media_adapter_bundle()`——
+  backend→SessionManager（Session 仍只见 MediaBackend）, media_tap→
+  Program 装配;
+- **Runtime 真接 MediaTap**: `create(sid, group, switcher, Some
+  (tap_port), tap_wirings)`——wirings 由 device_id 派生
+  （`tap-{device_id}`=execution bridge address 非新 identity）; attach
+  随 create 真实发生, detach 随 Session 停止链;
+- **真实 GStreamer 生命周期集成测试**:
+  registry_rt_01_runtime_tap_lifecycle_on_same_controller——bundle
+  双 view→双真实管线→Runtime create 真挂（A/B 管线簿记各 1）→
+  teardown 真摘（清空）。
+
+### 15.3 状态
+
+E-6/F-01/F-02 🟢; F-03[intervideosrc 双源]→F-04[跨管线接通]→F-05
+[成对切换]→G→H→I 待续; A2-8 NOT CLOSED。盒上: mock 342·
+bmd+gstreamer 208·clippy 双组合 clean·fmt clean。
+
+---
+
+## 16. 第十一轮终裁：F-02 全 CLOSED + F-03/F-04 合并执行（2026-09-03）
+
+> 证据基线: 远端 `0df5b4a` 实码; F-02 五项全 CLOSED（唯一构造路径/
+> 生产 bundle 接线/Runtime 真接/teardown/recover 兼容）+ Session 边界
+> + N×M 硬件模型复核全确认; 2 输入=ExecutionGroup/SwitchGraph MVP
+> 限制（非架构错误）。**F-03+F-04 合并一刀直接执行**（不再细拆）。
+
+### 16.1 F-03/F-04 交付（本轮）
+
+- **channel 唯一约定来源**: `program_execution::tap_channel(device_id)`
+  （`tap-{device_id}`=execution bridge address, 非新 identity）+
+  `TapWiring::for_input`——组合根挂 tap 与 program 桥消费两侧同源,
+  禁内联重写（漂移=桥断）;
+- **switch_graph 双形态**: `SwitchMaterialization{Simulation[自持测试
+  源——自包含验证保留]/Bridged[inter 系跨管线桥]}`——Bridged 源=
+  `intervideosrc/interaudiosrc` 消费 tap channel; capsfilter 仅
+  Simulation（Bridged 透传输入实际 caps——强制 320x240 会协商冲突）;
+  生产 bin 切 `bridged()`;
+- **真实跨管线 Program Media Path 实证**（盒上真实 GStreamer, 输入
+  管线=videotestsrc 真实帧无 SDI 亦真跑）:
+  `switch_graph_rt_01_real_bridge_cross_pipeline_media_path`——
+  输入管线→tee→MediaTap[intervideosink/interaudiosink]→inter src→
+  selector→program appsink 全链真实流通。
+
+### 16.2 十项验证清单映射（十一轮 §13）
+
+| # | 项 | 证据 |
+|---|---|---|
+| ① | A+B 真实帧 | 双输入管线 health 弧 video_frame_count>0 ✓真 |
+| ② | channel 正确 | tap 簿记 channel==tap_channel(device_id) ✓真 |
+| ③ | program 有帧 | program video/audio frames>0（跨管线桥流通）✓真 |
+| ④ | A→B→A | observed_active 双向 flip ✓真 |
+| ⑤ | 双平面成对 | video_active==audio_active 每次切换 ✓真 |
+| ⑥ | A 断 B 仍供 | 停 A 输入管线（active=B）program 持续 ✓真 |
+| ⑦ | B 断 A 仍供 | ⑥之对偶（swap 即得; F-05/Gate 补全量） |
+| ⑧ | program 自身故障独立观察 | 观测维度分离=GroupObservation 三维已证（mock fold 层） |
+| ⑨ | teardown 零残留 | program 停+tap 摘/停侧结构空 ✓真 |
+| ⑩ | recover 重挂 | 运行中 B recover→簿记重放同 channel ✓真 |
+
+**禁项遵守**: 零 PTS 行为修改（Timeline=G/H 独立裁决）·channel 未升
+identity·Supervisor/PipelinePlan/SwitchPolicy/Session 零触碰。
+盒上: mock 342·**bmd+gstreamer 209**·clippy 双组合 clean·fmt clean。
+下一刀: F-05（双 plane 成对切换全量验证）→G→H→I。A2-8 NOT CLOSED。
+
+---
+
+## 17. 第十二轮终裁：⑥ 序错修正 + 证据补强刀（2026-09-03）
+
+> 证据基线: 远端 `7de6fec` 实码交叉裁决——架构/实现/主链 PASS;
+> **⑥ 测试逻辑错误确认**[for target in [b,a] 循环后 active=A, 直接停
+> h1 停的是 active 源非 standby——证明语义完全不同]; ⑦ 未真证[对偶
+> 不能由结构对称自动成立]; ⑩ 仅证簿记未证媒体恢复; 缺 Runtime→
+> Bridged 一体化。**F-03/F-04=实现 CLOSED·证据 PARTIAL→本轮补严**。
+
+### 17.1 F-04 Evidence Patch（仅测试, 零生产代码改动）
+
+1. **⑥ 严格序修正**: 切 B→确认 observed=B→停 A（standby）→B 独立
+   持续供桥+active 维持 B（`real_bridge_cross_pipeline_media_path`
+   重写尾段）;
+2. **⑦ 真对偶新测试**: `real_bridge_standby_b_failure_dual`——独立
+   场景[stop 不可逆故不共用管线]: active=A→停 B（standby）→A 独立
+   持续+成对维持;
+3. **⑩ 升级媒体路径恢复**: recover 运行中 active B→簿记重放**+帧继续
+   增长**[intervideosrc→selector→appsink 媒体真实重新穿越全桥——
+   media-path recovery 非 bookkeeping-only];
+4. **Runtime→Bridged 一体化**: `registry_rt_01_full_integration_
+   brid_runtime`——bundle→SessionInput→TapWiring::for_input→
+   Runtime::create[bridged]→真实媒体到达 program 出口→teardown 全摘。
+
+### 17.2 架构债务登记（非阻塞, 不动）
+
+`adapters/gstreamer → program_execution::tap_channel` 层级债务:
+bridge address 命名规则长期应独立为 bridge-address primitive——
+**F-05/G/H 后低风险搬迁, 现在不为漂亮切模块**。
+
+### 17.3 证据等级维持
+
+盒上记录≠CI 独立验证[GitHub status checks 空=feature 分支惯例];
+⑧真桥级 FULL PASS 仍未做[结构性具备+fold 层已证——不伪闭合]。
+盒上: mock 342·**bmd+gstreamer 211**[209+2]·clippy clean·fmt clean。
+F-03/F-04 证据链闭合→**F-05 即刻可做**（多切换序列+三态不串+禁 PTS）。
+
+---
+
+## 18. 第十三轮终裁：F-03/F-04 正式 CLOSED + F-05 开工（2026-09-03）
+
+> 证据基线: 远端 `7531e87` 实码交叉核查。评分表十六层 PASS +
+> PTS🟡观察不修复 + ⑧🟡OPEN + N-input🟡MVP未实现 + CI🟡无status。
+
+### 18.1 新登记（不修, 冻结到对应刀）
+
+- **RECOVER_PARTIAL_DEGRADED 债务**: recover=Ok 但 tap replay 失败
+  目前仅 warning——"pipeline 成功·bridge degraded"不可长期只靠日志;
+  属 G/H runtime health/observation 工作, 现在不修;
+- **N×M 边界冻结**: "设备模型 N×M"≠"Program Switch 已 N 输入"——
+  F-05 禁顺手声称 4-way switch（MVP 边界非 bug）;
+- **tap_channel 层级债务**: 继续冻结到 G/H 后搬迁。
+
+### 18.2 F-05 范围（本轮执行）
+
+多跳 A→B→A→B→A 每跳六点验证[plan.target→selector actual→
+video/audio_active→observed_active→complete_switch→Desired]+核心
+断言[成对/observed==target/desired==target/epoch+=1/帧持续]+快速
+A→B→A+四类 fail-closed 真适配器级[invalid target/duplicate target/
+wrong epoch/PACKET·MASTER]+**⑧真桥级区分性小验收**[program 停后
+observed 归零而输入健康仍在推进——Input healthy 与 Program failed
+不混淆]。禁项: PTS/Session/Supervisor/PipelinePlan/N-input 零触碰。
+F-05 后 G/H 合并为观测与时间线证据大刀[三列 Input/Bridge/Program
+PTS]→Timeline Normalization 裁决。
+
+---
+
+## 19. 第十四轮终裁：G/H 四验证面 PASS* + BridgeObservation 一等事实（2026-09-03 落盘）
+
+> 证据基线: 远端 `3378651` 实码交叉核查（不接受自报 213 passed 为证）。
+> F-05 正式 CLOSED[TargetAlreadyActive 修复=真纵深缺口非测试噱头]。
+
+### 19.1 G/H 四验证面裁决（probe §18.2 范围兑现）
+
+- **① Bridge primitive 一等事实: PASS**——`BridgeObservation` ≠
+  `MediaTapAttachment` 分层成立[静态 attachment/recover replay fact vs
+  动态 runtime observation fact]·来源=tap 分支 sink pad
+  `PadProbeType::BUFFER` 真实 buffer probe（tee→tap branch→probe→
+  intervideosink——非复制 Input/Program 统计·非构造期假 frames+=1）;
+- **② 三列 PTS 独立测量: PASS**——TimelineSample 六 PTS 列
+  [Input/Bridge/Program × video/audio]各带 PtsMonotonicity·三源独立
+  join[Input=PipelineHealth·Bridge=BridgeObservation·Program=
+  ProgramObservation]——非"三列两份数据"复制（mock 测试六列互异反证）;
+- **③ recover 降级结构化: PASS**——BridgeHealthReport
+  {pipeline_recovered·expected_channels·observed_alive_channels·
+  bridge_degraded}观测查询组装·recover=Ok+expected tap 在+桥无流量
+  =degraded——**MediaBackend::recover() 返回类型零改动**（§18.1
+  RECOVER_PARTIAL_DEGRADED 债务在观测面兑现）;
+- **④ failure-domain 区分: PASS**——classify_failure_domain{None/
+  Input/Bridge/Program}单故障假设·优先序 Input>Bridge>Program·
+  多故障如实报首因——**禁扩张为 multi-fault root-cause engine**。
+
+### 19.2 结构终裁（无新冲突）
+
+ownership 四面清白: ProgramExecutionRuntime creator=destroyer 不变·
+Session 仅经 SessionStopHook 触发 teardown·bundle 三 trait view 同一
+`Arc<GStreamerPipelineController>` 单次构造（instances/bridge_stats/
+media_taps 不分裂）·V0.2 无偷渡（Bridge=Execution-layer observation
+非 13th Engine·不碰 Master Join/ProgramMaster）。N×M 边界+tap_channel
+搬迁债务维持冻结。
+
+盒上: mock 345[342+3]·bmd+gstreamer 213[212+1: gh_three_column_
+observation_evidence——三列同采六 PTS 全在场+桥 probe 帧递增+recover
+后双 channel 实测流通不降级+三域分类]·clippy 双组合 clean·fmt clean。
+
+---
+
+## 20. 第十五轮终裁：G/H-1 两项微修 → G/H 星号解除（2026-09-03 落盘）
+
+> 证据基线: 远端 `3378651` 实码。G/H 方向 PASS 不返工·不为 F-01..05
+> 重开 review·PTS normalization 继续冻结。
+
+### 20.1 必修① tap_channel 唯一来源收尾
+
+registry.rs 真实 runtime tap 生命周期测试残留 `format!("tap-{a}"/
+"tap-{b}")` ×2 → `tap_channel(a)/(b)`——**全仓库唯一约定来源彻底
+成立**[残存 `tap-` 字面量仅两处: tap_channel 本体（program_execution
+.rs:34）+ controller `tap_element_name` 元素名（detach 定位锚·非桥
+地址约定）]。
+
+### 20.2 必修② Bridge liveness「当前推进」语义（§5-8）
+
+- 缺陷: 帧基 alive=`ever_observed_alive` 非 `currently_alive`
+  [frames=10_000 断流后仍 alive=I 真机误判源·Input healthy+Bridge
+  falsely healthy+Program stalled 三态错判];
+- **BridgeObservation 本体不加 wall-clock**（PTS=媒体时序·wall clock=
+  观察时序**严格分离**·禁塞 sampled_at 进 last_pts·禁 PTS 差值当
+  liveness——保护 Timeline Normalization 证据纯净）→ 窗口判定在
+  port 层: **BridgeChannelLiveness{frames=历史证据·last_observed_
+  at_ms=活性证据·alive_in_window}+bridge_liveness(handle, window_ms)**;
+- 落地: controller BridgeStat.last_observed_ms+bridge_clock_origin
+  [probe 闭包记录观察时刻]·assemble_bridge_health 第三参改
+  `&[BridgeChannelLiveness]` 以 alive_in_window 判活·mock bridge_stall
+  钩子+测试锁死「b frames=10_000 但窗口外→degraded」（帧基漏报根因
+  场景）+从未观测→降级+recover 失败不虚报;
+- §11 program_alive 弱语义: **不改 ProgramObservation**——evidence 层
+  program_progress_since/input_progress_since 采样增量分离[曾经活过≠
+  当前推进];
+- **MediaTapPort 契约零改动·recover 返回类型零改动·PTS 行为零触碰**。
+
+### 20.3 状态
+
+G/H 星号（current liveness window 未建立）**解除**。盒上: mock 345·
+bmd+gstreamer 213·clippy 双组合 -D warnings clean·fmt clean（提交
+`19326e8`）。**下一步 = 02-I 真机双 DeckLink 五层 Gate**——链
+discovery→Device/Port→Pipeline→MediaTap→Bridge→Program→A/B switch→
+failure isolation→recover 代码全就绪零阻塞; 唯一前置=用户侧双 SDI
+信号源+采集卡占用窗口。
+
+---
+
+## 21. 第十六轮终裁：02-I 代码级前置三项 + IdentityStrength/日期修正（2026-09-03 落盘）
+
+> 证据基线: 远端 `8e60497` 实码。总裁决: E/F/G/H/G-H1 保持 CLOSED 不返工;
+> **02-I 修正为「OPEN 且存在代码级前置项」**——"硬件接上跑一次"≠I 完整验收;
+> 不建议停下来等硬件: 先一次性完成代码前置再进真机。
+
+### 21.1 裁决账（§一..§十七 复核定性）
+
+- **§二 五层链未闭合到同一生产调用链——实码精确定性**: 用户引用的
+  `_registry=None` 行实为 `#[cfg(not(gstreamer-backend))]` hardware-test
+  分支（media-agent.rs:260）; 真实缺口=**SessionManager 仅在 diagnostic
+  auto-start 分支构造（media-agent.rs:378）, Production 模式（else 分支
+  仅日志）PortRegistry 零消费者**——registry 在组合根构建但生产无下游。
+  结论成立, 引用锚点修正;
+- **§三 Capability 证据缺口**: `PortRegistry::build()` 硬置
+  `(Unknown, Unknown)`（port.rs:434）——而 `discover_ports()` 已从 SDK
+  位掩码算出 DeviceCapabilities 却未被 build() 消费。I Gate 验收表
+  **Capability 为独立结果**, resolver 成功≠Capability PASS;
+- **§四 多同类物理端口建模不完整**: 位掩码→ordinal 恒 `Known(1)`, Duo 类
+  单卡双 SDI 不可自然表达两条 BindingEntry——**I Gate 硬件形态边界显式
+  声明: 两块独立单输入卡=支持; 一块多输入卡=不支持; 禁把双设备验证偷换成
+  N×M Port 验证**（N×M 冻结维持）;
+- **§五 IdentityStrength serial 语义瑕疵**: serial-only 设备误归
+  DeviceHandle 档（device_manager.rs:65 合并判定）;
+- §六 Session 生命周期/§七 ProgramExecutionRuntime ownership/§八
+  MediaTap recover——结构正确保持不动;
+- **§九 SwitchGraph 双平面部分执行风险**: video 成·audio 败=真实输出面
+  半切而 bookkeeping 未动（observe 诚实但不可恢复）——真机 on-air 前必修;
+- **§十 L5 Supervision（G/H FailureDomain）≠ A2-8-03 监督闭环**
+  （fact→event→custody→supervisor→action→recover）——前者不能替代后者;
+- **§十一 program_alive 红线**: 任何"当前 Program alive"决策只能用 sample
+  delta/progress evidence（progress_since）, 禁直接拿 program_alive 当
+  实时健康信号; ProgramObservation 不重设计;
+- **§十六 文档时间漂移**: 报告 §14-§20 七处 2026-09-04 → 2026-09-03
+  （机器时钟 +0800 过午夜伪影——提交与文档日期悖论修正）。
+
+### 21.2 实现（本轮四刀, 全部落地）
+
+1. **P0-1 生产组合根接入 PortRegistry**（media-agent.rs）: SessionManager
+   构造自 diagnostic auto-start 分支**上移为两种模式共同组合根**
+   （registry→ResourceRegistry→bundle→SessionManager 单次构造）; Production
+   分支 mgr 常驻（tick 线程持有——lease 房务零媒体启动）等待 Control
+   Plane——P1-3「生产绝不自行启动」与 0.7C-8「生产 503 契约」均不变;
+2. **P0-2 Capability 真实证据**（port.rs build()）: SDK 连接位掩码=能力
+   证据——真实硬件（任一掩码≠0）该方向掩码含连接器→`Supported(true)`/
+   不含→`Unsupported`; 仿真（双掩码=0）无证据→Unknown 保持; connector
+   未声明→Unknown; **Capability≠Direction≠Signal 不变（禁方向反推）**;
+   设备级 audio 能力改端口级证据聚合; 测试×3;
+3. **P1-1 SwitchGraph 双平面补偿**（switch_graph.rs switch()）: audio 败
+   →video 回滚至 prev（返回原错, active/epoch 不动, 双平面一致恢复）;
+   回滚再败 → **degraded=true + active=None**（显式记录分离态, 后续切换
+   fail-closed 拒收）——真实平面不进入无记录半切中间态; 注入测试×2
+   （裸 input-selector 缺 pad: 补偿成功回滚/不可恢复降级+后续拒收）;
+4. **P1-2 IdentityStrength::Serial 独立档**（device.rs + device_manager.rs）:
+   serial-only 不再误归 DeviceHandle; pipeline.rs 选卡 match 经 `_` 兜底
+   臂天然覆盖（serial 无 manifest handle 解析路径→生产 IdentityUnresolved/
+   诊断 fallback——保守正确, 无需改 match）。
+
+### 21.3 02-I Gate 定义（十六轮 §十四 收纳）
+
+- **L1 Input**: discovery→canonical DeviceId→manifest→runtime binding→
+  Port→Signal Locked→video/audio PTS（Capability=独立结果）;
+- **L2 Execution**: A/B 真实进入 Program Graph + 双 MediaTap 真实存在;
+- **L3 Output**: Program video/audio 帧真实增长;
+- **L4 Timing**: Input A/B V/A + Bridge A/B V/A + Program V/A 同采 +
+  monotonicity + pre/post-switch——**只测量, 不做 timestamp normalization**;
+- **L5 Supervision**: A fail→B alive·B fail→A alive·Bridge fail≠Input
+  fail·Program fail≠Input fail·recover 后桥真实复流——**≠A2-8-03 完成**。
+
+前置序 P0-1→P0-2→P1-1（本轮全落地）→真机 I（双 SDI 窗口）。
+
+盒上: mock **348**[345+3 capability]·bmd+gstreamer **218**[213+2 双平面补偿
++3 capability]·clippy 双组合 -D warnings clean·fmt clean。测试注入口教训:
+input-selector `%u` 模板请求 pad 自 0 顺序编号（忽略请求名后缀）——先按
+模板名顺序请求再释放多余 pad 才能构造"仅 sink_1"形态; 裸元素 NULL 态
+active-pad 属性不保证可读——stand-in 断言改走真实 selector 实读。
+
+## 22. 第十七轮终裁: Identity final closure + PortId 碰撞防线（base f28b9bf）
+
+### 22.1 裁决账（逐条复核, 全部对实码）
+
+- **P0-1 PASS**（组合根已共同构造）; 精确口径收纳: **dependency composition
+  ≠ 生产 Session API 打通**——`api_mgr` 仍仅 diagnostic auto-start 赋值,
+  query/idem 生产 503/idle 保持（0.7C-8 冻结语义, 非 bug）;
+- **P0-2 主链 PASS** + **audio capability 独立性 = P1 债务**: port.rs
+  `audio_input/output` 由 video 连接器能力推导（SDI 嵌入音频工程成立但
+  非独立 SDK audio 证据）——02-I 不得偷报"独立真实探针", 已登记;
+- **P1-1 PASS**（degraded=真实状态, 无边界破坏）; **P1-2 PASS** +
+  **serial production binding 债务**: `identity_handle()` 仍只取
+  device_handle（resolver.rs:509-511）, Serial 档无 manifest 交叉键——
+  语义校正非完整实现, 已登记;
+- **§二 PersistentId fail-open 实锤**: pipeline.rs:575 档位只看
+  identity_strength 直接 PersistentIdCanonical·:653 `binding.and_then
+  (persistent_id)` 可 None·src_props `unwrap_or(0)` → `persistent-id=0`
+  盲开路径确实存在——**本轮已修（22.2①）**;
+- **§三 三项实锤**: `connector_from_mask` Component/Composite/SVideo 三位
+  全折 Analog（:674-682）·真实发现序号恒 `Known(1)`（:707/:715）·
+  `PortIdentity::derive` 键 `device_id+connector+ordinal` **不含
+  direction**（:255）——in/out 同 connector 必同 port_id——**本轮已立
+  防线（22.2②）**; N×M = 架构模型完成非 BMD 发现实现完成（02-I 硬件
+  形态边界不变: 两块独立单输入卡）;
+- G/H/G-H1 维持 CLOSED 不退回; 调用链 ownership 边界（SessionManager
+  只持 SessionInput{device_id,handle}）本轮未破坏。
+
+### 22.2 本轮两刀（十七轮 §七①②）
+
+1. **① Identity final closure**（pipeline.rs）: `PersistentId` 档证据门
+   ——binding 在且 `persistent_id=Some` 才可 PersistentIdCanonical, 否则
+   `IdentityUnresolved`（生产/诊断一致: 无 binding 时 device_number 同样
+   无据, 降级 device-number 仍是盲 0, 故不降级）; **src_props 改 Result**
+   belt——launch 串拼装层最后一道防线, 伪造/未来生产者也无法把 None 拼成
+   `persistent-id=0`; controller prepare `?` 接线; 测试×3（无证据双模式
+   拒/证据齐备 persistent-id=77 正控制/belt 单测）;
+2. **② PortId 碰撞防线**（port.rs）: **证据面告警 + 消费面 fail-closed**
+   两层分工——`warn_duplicate_discovery_port_ids`（SDK 双口是真实物理
+   事实, 模型无法区分命名=已登记缺口, 拒绝整个 build 会 brick 全部真实
+   流程）; registry 装配层重复 port_id → `DiscoveryMismatch` fail-closed
+   （别名 port_id 永远进不了寻址 SoT）。三个裁决案例全部 registry 层
+   fail-closed 测试锁死: in/out 同 connector+ordinal（manifest 声明
+   双侧）·多 Analog 位（双 Analog/1 声明）·同 connector+ordinal 重复
+   声明; 正控制×2（双工掩码单侧声明 OK=盒上实测形态·不同 connector
+   不碰撞）。
+
+### 22.3 实证发现: 盒上两张 DeckLink SDI 均为双工卡（in/out 同 port_id）
+
+初版防线（discovery 层 fail-closed）在盒上真实硬件直接击穿 build:
+resolver gate（VBMF_RESOLVER + hw-ident-02 manifest）panic 于
+`Input/Sdi/Known(1)@DeckLink SDI (1)` vs `Output/Sdi/Known(1)` 共享
+port_id `e43d8f5a-…`; 复跑（收窄后）双卡各告警一次（`e43d8f5a-…`/
+`f0f53b80-…`）, build 通过, HW-PORT-01 报告正常产出。**"如果未来处理
+双向接口"不是未来——两张在装卡就是 direction 碰撞拓扑**, 这是 collision
+closure（direction 入键或等效）从"登记债务"升格为 **02-I L1 硬前置**
+的直接证据（L1 端口寻址在双工卡在机时必须先能区分 in/out 身份）。收窄
+决策（证据面告警/消费面拒绝）为执行侧最小正确解, closure 本身待专门
+change 裁决。
+
+### 22.4 债务登记（第十七轮新增/确认）
+
+- **collision closure**（direction 入键或等效）——已从登记债务升格为
+  02-I L1 硬前置候选, 待裁决;
+- **audio capability 独立性**（P1）: 现为 video 连接器推导, 02-I 不得
+  偷报独立探针;
+- **serial production binding**（P1）: identity_handle 只认 device_handle;
+- **A2-8 Dual Input Gate 正式入口**: gates.rs 现仅 probe→resolver→
+  loopback→session_lifecycle, 无 A2-8 五层专用 gate——02-I 执行首刀;
+- Serial production binding/closure 前的既有冻结全部不变（PTS
+  normalization·N-input·recover() 返回类型·Supervisor-as-executor·
+  MASTER/PACKET/auto-failover）。
+
+盒上: mock **356**[348+3 persistent-id+5 碰撞防线]·bmd+gstreamer **226**
+[218+8 同]·clippy 双组合 -D warnings clean·fmt clean·resolver gate
+真机复跑双工卡 warn×2 落盘。
+
+## 23. 第十八轮终裁: b039e0c 复核 + A2-8 Dual Input Gate 正式入口
+
+### 23.1 裁决账（逐条对实码）
+
+- **PersistentId fail-closed = CLOSED**（materialize 证据门 + src_props
+  belt 两层确认）; **Production Composition = CLOSED**（dependency
+  composition ≠ production session API 口径保持）;
+- **新遗漏实锤: `SessionManager::derive_claims()`**（session.rs:372-375）
+  不消费 port_id——`find(device_id && capability.ends_with("-input"))`
+  取**首个** input resource; 多端口下可能预留错误 Input。裁定=P1 /
+  N×M closure debt, **非当前 02-I blocker**（双卡单输入 first==intended）;
+- **collision closure 纠偏（本轮最重要）**: 不批准"closure 是 02-I 硬阻塞"
+  ——§22.3 的"升格 L1 硬前置"过度扩大阻塞范围; 双工卡 Manifest 只声明
+  Input → registry 投影无别名（Case A 可继续）, Manifest 双侧声明 →
+  registry fail-closed（Case B 正确拒绝）。closure 批准为 **Port Identity
+  架构债务**（N×M/双工/多端口正式扩展前必须闭合）;
+- **PortIdentity v2 = 身份迁移 change**（direction 直塞 UUID 键会永久
+  改变全部现有 PortId——影响 Manifest/Intent.port_id/PipelinePlan/
+  Resource ID/持久化引用; 禁当 A2-8 小修）;
+- **ResourceRegistry 补偿结构实锤**（port_id 命名 + input/output 分叉;
+  Resource 状态机无需返工）; **Session 多输入 PASS**（SessionInput
+  {device_id,handle} 每输入一行, 合法承载）; **gates 列表实锤**（五 env
+  无 A2-8——"代码前置全清"≠"acceptance automation 已存在"）;
+- **登记独立后续 change: `PORT-IDENTITY-AND-RESOURCE-ADDRESSING`**——
+  direction + physical connector identity + ordinal + PortId 稳定性/
+  迁移 + Manifest + PortRegistry.get() + SessionManager.derive_claims()
+  + Resource addressing **一次闭合**; 禁只修 UUID 不修 derive_claims
+  （否则"寻址 ID 正确、实际 Resource 错位"更隐蔽）。
+
+### 23.2 本轮交付: VBMF_A2_8_DUAL_INPUT 正式 Gate（gates/dual_input.rs）
+
+gates 模块族新增第六入口（bin/gates.rs 接线 + mod.rs; 生产 bin 零
+dispatch 不变）。五层验收链（§十一 冻结形态）:
+
+- **L0 形态 fail-closed**: manifest 双 Input port（含 connector/ordinal
+  声明）且分属两台设备——一块多输入卡拒绝（N×M 见独立 change）;
+- **L1a/b/c**: 双设备生产级 binding / Capability=SDK 位掩码证据
+  （**三列分记**: audio=video 推导工程事实不报独立探针）/ 双 Signal
+  Locked;
+- **L2a/b**: 双输入 Session（appsink 纯分析）+ ProgramExecutionRuntime
+  （Bridged switcher + 双 TapWiring + stop hook 接线）+ MediaTap 桥
+  簿记可查;
+- **L3**: Program video/audio 帧计数与 PTS 真实增长（非 PLAYING 态）;
+- **L4**: Input A/B + Bridge A/B + Program 三列 PTS 同采 pre/post +
+  A→B 切换（plan→begin→switch→observe→complete 全序）——**只测量不
+  normalize**;
+- **L5**: A fail→B alive（含 program 不受牵连）· recover A→桥真实复流
+  （assemble_bridge_health 窗口语义）· B fail→A alive · 故障域分类
+  不越域（真实观测行: 存活输入行=Program 域/停滞输入行=Input 域）·
+  Supervisor=recovery decision 非 switch executor 注记; Bridge 故障
+  注入验证属 A2-8-03（不伪造桥故障）;
+- **Teardown**: Session stop→hook→Program Stop→Tap Detach→Input
+  Stop→Release 全链 verdict。
+
+**入口 smoke（盒上真机）**: env 命中→真实 SDK discovery→registry→形态
+拒绝（hw-ident-02 无 port 声明 → ports=0 devices=0 fail-closed）——
+入口真实接线实证; 02-I 执行需 **v4 manifest（双卡各一条 Input port
+声明）**。
+
+### 23.3 02-I 阻塞最终态（十八轮 §十五 收敛）
+
+代码前置（十六轮三刀+十七轮两刀）与 **acceptance automation（本轮
+Gate）全部在仓**; 唯一阻塞 = **用户侧双 SDI 信号源 + 两块采集卡可占用
+窗口**（+现场 v4 manifest 双 Input port 声明）。collision closure /
+derive_claims / serial binding / audio capability 独立性 =
+PORT-IDENTITY-AND-RESOURCE-ADDRESSING 等独立 change, 不混入 02-I。
+
+盒上: mock **356**·bmd+gstreamer **226**·clippy 双组合 -D warnings
+clean·fmt clean·A2-8 gate 入口 smoke 落盘。
+
+## 24. 第十九轮终裁（基线 `cb78adc`）: A2-8 Gate Hardening（H1-H4 + P1）
+
+### 24.1 裁决账本（全实码核验通过）
+
+| # | 终裁 | 核验 |
+|---|------|------|
+| 一 | cb78adc 单笔提交 = Gate 正式入仓; bootstrap::build 唯一构造源正确 | ✅ 实锚 |
+| 二 | L0 形态 Gate PASS（恰 2 Input port/2 设备; 一卡双输入拒） | ✅ 维持 |
+| 三 | **P0: L1 失败仍继续 L2**（L1a/b/c 仅 record 无 fail-stop → Session 照建） | ✅ 实锚 dual_input.rs:168-216→218 |
+| 四 | **P0: Gate 验 Manifest Port 但 Runtime Intent port_id=None**（Session 实际用"每设备首 Input Resource"） | ✅ 实锚 dual_input.rs:265 |
+| 五 | 禁为 Gate 临时改 `derive_claims()`（会重耦合 PORT-IDENTITY-AND-RESOURCE-ADDRESSING）——Gate 侧闭合证据链 | ✅ 遵守（本轮零改 session.rs） |
+| 六 | P1: L1 对应关系未锁一一映射（"Device A signal=true"散点非端口行） | ✅ H4 补强 |
+| 七~十二 | L2 架构/L3 输出定义（Program Graph 媒体推进证据≠HLS/RTMP）/L4（PTS observation+switch continuity ≠ "证明两输入 PTS 已同步"）/L5（隔离非自动切源）/FailureDomain/Teardown 全 PASS 维持 | ✅ 零改动 |
+| 十三 | P1: Gate verdict ≠ Production health state（部分路径直写 Degraded/Capturing） | ✅ 实锚 6 处直写; session_lifecycle 惯例=只读派生断言 |
+| 十四 | 依赖图无新冲突 | ✅ 维持 |
+| 十六 | **下一刀 = 仅 A2-8 Gate Hardening H1-H4, 不再扩大范围**; 完成后批准直接进真机 02-I | ✅ 本轮执行 |
+| 最终 | cb78adc 不回滚、Gate 架构不推倒; "唯一阻塞=双 SDI 窗口"表述被纠正为"尚有一次必要 hardening" | ✅ 采纳 |
+
+**关键实码发现（H3 前置问题答案, 强于"无副作用承载"预期）**:
+`SourceIntent.port_id` **不是无副作用字段——已被 materialize 精确消费**
+（pipeline.rs:630-666: Some→registry 按 `p.identity.port_id == Some(u)` 精确
+匹配出 connector; 无匹配生产 fail-closed"拒绝静默回退 auto 探测",
+Diagnostic 回退 None; None 才回退设备首输入端口; 既有测试
+`materialize_resolves_explicit_port_id_in_registry` /
+`materialize_rejects_explicit_port_id_missing_in_registry_production` 锁定）。
+→ Gate 携带 port_id 直接闭合 **Manifest→Registry→Intent→connector 定位链**。
+
+### 24.2 实现账（H1-H4 + P1, 2 文件 +350/−78）
+
+- **H1 fail-stop（§三链全量）**: `record` 改模块级 fn + `finish(verdicts,
+  stopped_at) -> !` 统一终裁输出; L1a/b/c/**d** 任一 FAIL → `finish("L1
+  fail-stop——L2-L5 不执行")`（此前零已建资源, 无清理）; L2 Session/L2a/
+  Group/Runtime 四处早退统一 finish; **L2b FAIL → 完整 Teardown 后终裁不进
+  L3-L5; L3 FAIL → 同链不进 L4/L5**; L4 FAIL → 跳过 L5（既有）→ final
+  FAIL; L5 FAIL → final FAIL。层间失败仍走完整 Teardown（停止链本身即
+  验收点 + 资源释放）。
+- **H2 L1d Port↔Resource closure**: `device_input_resource_closure(resources,
+  device, manifest_port)` 纯函数——该设备恰一 Input Resource
+  （`capability.ends_with("-input")`）且 ID == manifest port 规范派生;
+  resource.rs 抽出 `input_resource_id_for_port`（`derive_from_discovery`
+  input 臂改为同源调用——单一派生来源, 零行为变化, 防消费侧复制公式成
+  第二 SoT）。多输入卡/跨端口污染/零资源三路 fail-closed + 唯一对应
+  正路, 4 纯函数测试锁语义。**零改 SessionManager/derive_claims**。
+  证据链闭合: Manifest Port → Registry Port → 唯一 Input Resource →
+  （derive_claims 首 "-input" 唯一命中）→ Session; H3 另闭合 connector
+  定位: Registry Port → Intent.port_id → materialize 精确匹配。
+- **H3 intent 携带 port_id**: `SourceIntent.port_id =
+  Some(已验证 manifest port UUID)`（原 None）; L2a verdict detail 注记。
+- **H4 每端口一行一一对应证据**: DeviceHandle(identity_handle)/DeviceId/
+  PortId/connector/ordinal/dir=Input/cap.input/cap.audio(video-推导)/dn/
+  signal/prod_binding 同行打印（"=== A2-8 L1 端口证据（一一对应, H4）==="
+  块）; dn_sig 单次采样共用。
+- **P1 收口（§十三）**: 删除全部 6 处 agent_state 直写（Degraded×4/
+  Capturing×1/终裁×1）; 参数改 `_agent_state`（签名/传位不变）;
+  Gate verdict = 打印 + exit code, **不写 agent_state**（session_lifecycle
+  同惯例: 状态由 reducer 从真实事件流派生）。
+
+### 24.3 盒上验证（matrix 全绿）
+
+fmt clean（文件回拉同步）· mock **356**·bmd+gstreamer **230**（226+4
+新增 `gates::dual_input::tests::*` 全绿: 唯一对应/多输入卡拒绝/跨端口
+污染/零资源）·clippy 双组合 `-D warnings` clean。
+
+### 24.4 状态与下一步
+
+- Gate hardening 完成——02-I 回到"**硬件窗口 = 唯一阻塞**"（用户侧双
+  SDI 信号源 + 两卡占用窗口）; 届时现场备 v4 manifest（双卡各一条
+  Input SDI port 声明）执行 `VBMF_A2_8_DUAL_INPUT` L0→L5+Teardown。
+- 冻结维持: 不碰 derive_claims/PortIdentity v2/PTS normalization/N 输入/
+  Supervisor-as-executor/`MediaBackend::recover()` SPI——皆属
+  PORT-IDENTITY-AND-RESOURCE-ADDRESSING 或 A2-8-03/04/05。
+
+## 25. 第十九轮最终裁决（基线 `fe71b7c`）: APPROVED——Gate Hardening CLOSED, 进入 02-I 真机
+
+### 25.1 终裁要点
+
+> **APPROVED — A2-8 Gate Hardening CLOSED。`fe71b7c` 保留并冻结为 A2-8
+> 当前验收候选基线。A2-8 代码前置 CLOSED ≠ 02-I 真机验收 CLOSED——
+> 仅剩实际硬件 L0→L5+Teardown 证据。下一动作不是继续重构, 而是直接
+> 执行 02-I 真机双 DeckLink/双 SDI 验收**（"继续找代码问题"与"开始
+> 硬件验收"正式分开; A2-8 再动代码收益低且易把 Port Identity/N×M
+> 问题重新污染进当前 Gate）。
+
+本轮独立复核（零代码）: `cb78adc→fe71b7c` 单提交恰 4 文件
+（dual_input.rs/resource.rs/tasks.md/probe §24）——生产核心
+session/pipeline/switch_graph/program_execution/resolver/port/bootstrap/
+supervisor/MediaBackend **全部不在 diff**; 控制流实锚: L1 fail-stop
+（dual_input.rs:363）·L2b teardown+finish（:550-551）·L3 teardown+finish
+（:579-580）·H3 port_id=Some manifest port（:419）·agent_state 直写零
+命中（P1 闭合）; derive_claims/session.rs 零触碰。
+
+### 25.2 裁决表（H1-H4+P1 全 CLOSED, 冻结面全确认未动）
+
+H1 L1 fail-stop CLOSED（实际控制流已变, 非测试层面"看起来正确"）·
+H2 Port→Resource CLOSED（`input_resource_id_for_port` 单一派生源,
+derive 与 Gate validation 同源）·H3 Intent→Port CLOSED（materialize
+真实消费链: Manifest→Port→Intent→Materialize→Connector 闭环）·
+H4 一一对应证据 CLOSED（cap.audio=video-推导 明确标注=证据纪律）·
+Gate verdict≠health state CLOSED（观察者污染消除）·
+SessionManager/derive_claims/PortIdentity v2/PTS normalization/N-input/
+Supervisor executor 化/recover SPI **均未修改=正确**。
+
+L4 语义确认: PTS observation+switch continuity evidence——**非**
+"证明 A/B 两路 PTS 完全同步"（无过度声明）; L5 确认: 隔离非自动切源,
+Supervisor 仍非 Switch Executor。资源状态机
+Available→Reserved→Allocated→Releasing→Available 未被 Gate 越权改写
+（Gate 走 validate→create→start→observe→stop）。
+
+### 25.3 债务重新定级账本（十九轮 §11——全部不阻塞 02-I）
+
+| 级 | 债务 | 归属 |
+|---|------|------|
+| P1 | derive_claims() 只取首 Input Resource | PORT-IDENTITY-AND-RESOURCE-ADDRESSING |
+| P1 | PortIdentity 未含 direction（Resource 层 input/output namespace 已隔离不直接碰撞; 结构性问题仍在 PortIdentity） | PORT-IDENTITY-AND-RESOURCE-ADDRESSING |
+| P1 | Component/Composite/SVideo connector folding→Analog | Port Identity/connector taxonomy change |
+| P1 | audio capability=video 推导非独立 SDK 探针（Gate 已标注） | 独立（02-I 禁偷报已守） |
+| P1 | Serial-only binding 无法成生产 canonical key（identity_handle=device_handle） | 独立 identity change |
+| **P1** | **canonical UUID namespace 未统一（BMD/filesystem/simulation 差异）——本轮新增登记** | **独立 identity closure** |
+| P2 | tap_channel() 层次归属（宜为 execution/bridge addressing primitive） | 独立（G/H-1 已注） |
+| P2 | Production API 保持 503/未启用（A2-8 ≠ "已打开 Production Session API"——正确状态） | A4/后续 |
+
+### 25.4 02-I 执行序（§16 冻结: 现场零代码改动）
+
+```bash
+VBMF_A2_8_DUAL_INPUT=1 \
+MEDIA_AGENT_DEVICE_BINDING=<v4-dual-input-manifest> \
+<media-agent-gates binary>   # 运维纪律: gate env 须用 media-agent-gates bin
+```
+
+v4 manifest 要求: Card A `Input/SDI/port_id A` + Card B
+`Input/SDI/port_id B` 双声明（旧 hw-ident-02 触发 L0 fail-closed
+=**正确行为非 Gate bug**, 十八轮 smoke 已证）。状态树（§15）:
+A2-0..A2-7 全 CLOSED; A2-8: 02-A..02-H CLOSED; 02-I 子项 code
+precondition/Gate automation/H1/H2/H3/H4/health-state isolation 全
+CLOSED——**Real hardware OPEN**（DeckLink A/B + SDI source A/B +
+L0→L5+Teardown）。
+
+## 26. 第二十轮裁决（基线 `019f89e`）: APPROVED / FROZEN / GO——02-I 真机执行纪律冻结
+
+### 26.1 终裁与禁令
+
+> **APPROVED / FROZEN / GO。双基线: `fe71b7c` = A2-8 实现冻结基线;
+> `019f89e` = 文档/裁决账本基线。A2-8 代码前置 CLOSED, 02-I Real
+> Hardware OPEN。下一动作 = 直接执行真实双 DeckLink/双 SDI
+> L0→L5+Teardown, 禁止再修改 A2-8 代码。**
+
+禁改清单（冻结）: `derive_claims()` / PortIdentity（含 direction 入键）/
+PTS normalization / N-input switch / Supervisor executor 化 /
+`MediaBackend::recover()` SPI / Production API——全部 OPEN 债务, 禁
+"顺手优化"。**首跑 FAIL 纪律（§11）: 先保留完整证据再按 A/B/C 分类——
+A=真代码缺陷（如 Resource allocation failed / Manifest Port≠
+Materialized connector）→ 新 change; B=硬件/输入条件（无 SDI 信号/错源/
+卡被占）→ 修环境不改码; C=已登记架构债务（如 PortIdentity direction
+collision）→ 禁为过 02-I 临时改架构。禁止为"跑绿"直接改代码。**
+
+阶段模型（§12）: Code Closed → Real Hardware → PASS=A2-8 acceptance
+close / FAIL=classify（hardware→fix env · evidence→Gate correction ·
+code→new change review）。
+
+### 26.2 §9 验收矩阵 ↔ Gate 实现逐项映射（真机证据点核对表）
+
+| 矩阵行 | Gate 实际检查（实锚） |
+|---|---|
+| L0: 恰 2 Input port + 2 设备 + connector/ordinal present | 过滤 `Input && port_id.is_some()` + len==2 + 去重设备==2, 否则 exit(2) 不进 L1; **port_id Some ⟺ ordinal Known**（port.rs:248-260 "Unknown 不伪造 ID"——connector/ordinal present 由构造保证） |
+| L1: Manifest Port→PortRegistry→Resource→DeviceBinding→device_number→Signal Locked 全链两卡 PASS | L1a 双卡 production_grade binding·L1b SDK 位掩码 Supported(true)·L1c 双卡 signal==Some(true)·L1d 每卡恰一 Input Resource 且 ID==port 规范派生·**H4 证据行同行印全链**（handle/port_id/conn/ordinal/dir/cap/dn/signal/prod_binding）; 任一 FAIL → finish 不进 L2（:363） |
+| L2: Session create→资源分配→instantiate→双输入 start→Program runtime→Tap A/B→Bridged graph（非 PLAYING） | mgr.create（Preflight→Reserve→Lease→Binding verify）+mgr.start→l2a started_inputs==2→ExecutionGroup→ProgramExecutionRuntime::create（bridged build+start+双 tap attach）→L2b 双桥观测行 frames=Some |
+| L3: video/audio 帧计数>0 + PTS progression（非 GST_STATE_PLAYING） | program_progress_since(obs1,obs2)+双 pts Some+!=NonMonotonic |
+| L4: A/B pre+post × Input/Bridge/Program 三列 PTS + 切换证据保留 | sample_row 四行（pre A/pre B/post A/post B）+print_row 三列落盘; plan→begin→switch→observe→complete 全序; l4=completed∧observed==B∧av_epoch==1∧!=NonMonotonic∧pts Some; FAIL→跳 L5 |
+| L5: A fail→B alive→A recover 桥复流→B fail→A alive→FailureDomain 隔离; **不得写"自动故障切换"** | 5.1/5.2/5.3/5.4 四 verdict + classify_failure_domain 真实行; Supervisor=recovery decision 注记打印（无自动 switch 声明） |
+| Teardown: 正式验收项非附属 | 见 §26.3 |
+
+### 26.3 §10 Teardown 确认清单映射（诚实分账）
+
+**直接断言**: session_stop=is_ok（触发 hook 全链）/ program_runtime_inactive
+（rt.is_active()==false——runtime teardown 序=watchdog 旗→Program Stop→
+Tap Detach）/ phase==Released。
+**传递保证（由 SessionManager::stop 链执行, 单测锁定, Gate 不单独打印）**:
+Resource→Available（Release 步）/ Lease release。真机 Evidence Package
+以全量 stdout/stderr 捕获（含 stop 链 tracing 行）佐证——**零代码改动**
+（冻结纪律优先; 若二十+轮裁决要求 Gate 显式断言 Resource/Lease 终态,
+属新裁决新刀, 不在本轮）。
+
+### 26.4 v4 Manifest 生成纪律（§8）
+
+不手工美化: 现场先跑真实盒子 Discovery（两卡 DeviceHandle/DeviceId/
+PortId/connector=SDI/ordinal/direction=Input/binding/device_number 实测
+落盘）→ 据实填 v4 双 Input port 声明 → `VBMF_A2_8_DUAL_INPUT=1
+MEDIA_AGENT_DEVICE_BINDING=<v4> media-agent-gates` 执行, 全程零代码。
+
+## 27. 02-I 真机首跑 Evidence Package（2026-09-04 盒上执行, 零代码改动）
+
+### 27.1 执行序（严格按二十轮 §8/§11）
+
+真实 Discovery 落盘（VBMF_RESOLVER + sigprobe）→ 据实生成
+`~/a2-8-02i-v4.manifest.json`（两卡 Input/SDI/1 声明; SDI-IN-1 gst=1
+今日实测, SDI-IN-2 gst=2 为 08-27 物理核值今日未开——resolver 诚实
+fail-closed）→ `VBMF_A2_8_DUAL_INPUT=1` 两跑。证据归档
+`~/a2-8-02i-evidence/`（resolver-discovery / run1-stale-bin-cb78adc /
+run2-frozen-fe71b7c）。
+
+### 27.2 今日硬件事实（Discovery, 三卡）
+
+| 卡 | device_id | handle | 今日 gst | signal |
+|---|---|---|---|---|
+| SDI-IN-1 | 4fa33dcb… | 46:…002e4500 | **device 1 open OK** | **false（无信号）** |
+| SDI-IN-2 | 6ede00d0… | 46:…002e4400 | **无（2-7 全 StateFailed, 复跑持续）** | 无证据 |
+| MINI-MON-4K | 1afe2dcc… | 83:…1a66443b | device 0（纯输出卡） | false |
+
+碰撞告警 e43d8f5a/f0f53b80 证据面照常落盘。
+
+### 27.3 Run1（意外对照: 陈旧 cb78adc bin）→ Run2（fe71b7c 冻结行为）
+
+run1 意外用上 cb78adc 时代 target/debug bin（教训: **cargo test/clippy
+不刷新普通可执行档——gates 真机复跑前必须 cargo build --bin
+media-agent-gates**）。其行为 = 十九轮 §3 P0 的真机活体演示: L1a/L1c
+FAIL 后**继续进 L2**（仅被 SessionManager preflight IdentityBinding
+Fail 兜住——纵深防御实证）。重新 build fe71b7c 后 run2:
+
+- **H4 证据行齐全**（双卡 handle/port_id/Sdi/Known(1)/Input/cap/dn/
+  signal/prod_binding 同行）;
+- **L1a FAIL**（bindings=1/2 production_grade——SDI-IN-2 Unresolved）;
+- L1b PASS（双卡 SDK 位掩码 input=Supported(true), audio=video-推导标注）;
+- **L1c FAIL**（SDI-IN-1 signal=Some(false); SDI-IN-2 无 signal 证据）;
+- **L1d PASS**（双卡 唯一InputResource+ID对应=true——H2 闭环真机成立,
+  manifest port_id 与规范派生一致）;
+- **H1 fail-stop 精确触发**: `FAIL (2/4 verdicts; L1 fail-stop——L2-L5
+  不执行（H1）)` exit 2, **零会话创建**。
+
+run1↔run2 同硬件同条件正反对照 = H1 hardening 的最强真机验证。
+
+### 27.4 §11 分类裁决: **B 类 Real Hardware / Runtime Environment Preconditions——零代码改动**
+
+> **二十一轮精度修正（probe §28.2）**: 分类正式定名 **B 类 Real
+> Hardware / Runtime Environment Preconditions**——当前证据仅证明
+> "该环境不满足 02-I 验收前置", **不证明、也不得写成"已定位某一具体
+> 硬件故障根因"**。
+
+1. SDI-IN-1: gst 可开（dn=1）但**无 SDI 信号接入**（08-27 rt01 时代
+   signal=true, 今日 false——信号源未接/已断）——可直接归入硬件/输入
+   条件;
+2. SDI-IN-2: **gst 输入不可开（稳态, 复跑持续）**——仅 device 0/1 可开
+   （0=Mini Monitor, 1=SDI-IN-1）; 08-27 时代 device 2=SDI-IN-2 可开,
+   今日 2-7 全 StateFailed。**证据边界: 只证明"当前 Runtime Environment
+   无法获得 SDI-IN-2 的可用 GStreamer binding", 不证明唯一根因**——
+   候选（未定, 用户侧排查）: B1 duplex 端口方向配置 / B2 Desktop Video
+   状态 / B3 驱动状态 / B4 卡被其他进程占用 / B5 设备注册状态 / B6 需
+   重启盒 / B7 硬件本身异常 / B8 Runtime probe/OS 设备枚举环境异常。
+
+Gate/Preflight 行为全部正确（fail-closed 精确）; 无 A 类（代码缺陷）
+无 C 类触发。**02-I 硬件前置细化为: ① 双 SDI 信号源接入两卡输入
+②SDI-IN-2 gst 输入可开性恢复**。恢复后**无需修改代码; 但必须重新以
+当日 Discovery 核验 manifest 的 runtime binding（device-number=Runtime
+instance address 非 Device Identity, 重枚举后编号可能变化）, 若
+device_number 发生变化则据实更新 v4**, 再复跑 `VBMF_A2_8_DUAL_INPUT=1`
+（完整执行序①-⑧=probe §28.3）。
+
+## 28. 第二十一轮裁决（基线 `d0ffff9`）: APPROVED / FROZEN / GO 维持——02-I=B 类前置条件未满足（根因未证明）+ 账本三处精度修正
+
+### 28.1 终裁
+
+> **维持 APPROVED / FROZEN / GO。02-I 当前不是"代码失败", 而是"真机
+> 前置条件未满足"。`fe71b7c` 仍为 A2-8 Implementation Freeze;
+> `d0ffff9` = Real Hardware Evidence / B-class FAIL 账本提交（非代码
+> 修复提交）; 02-I = OPEN; 代码 = 禁止修改——本轮禁改一行 A2-8 代码。**
+
+用户侧独立核验（GitHub 实物）与本侧复核实一致: fe71b7c→d0ffff9
+ahead 3 / behind 0, 仅 tasks.md+probe 两文件, `services/media-agent/
+src/**` 零变化——实现未被真机测试偷改, §1 正式 CLOSED。H1/H2/H3 经
+真实代码+本次真机行为一致验证 **CLOSED**（H1=L1 fail-stop/exit 2/
+零 Session——Gate 正确拒绝了不满足验收前置的硬件系统, 非"跑失败";
+H2=`input_resource_id_for_port` 单一派生源+L1d 反向闭环, 真机 PASS
+强证据; H3=Manifest→PortRegistry→validated PortId→SourceIntent.
+port_id=Some→materialize 精确匹配, 全链非假闭环）。Session 层/
+Resource 状态机未被 A2-8 污染（SessionManager 仍为唯一创建/销毁者;
+L1 fail 发生在 Session.create 与 Resource.allocate 之前=零 runtime
+污染的理想失败位; Available→Reserved→Allocated→Releasing→Available
+链未被越权改写）。L1a FAIL/L1b PASS/L1c FAIL/L1d PASS 组合=系统正确
+分离 **Capability ≠ Runtime Binding ≠ Signal ≠ Resource** 四层
+（audio=video-推导的工程事实已在证据表标注=证据纪律守住）。
+
+### 28.2 账本三处精度修正（本轮落实, §27.4 已按此改写）
+
+1. **B 类表述降级**: SDI-IN-2 gst 不可开暂归 **B 类 Real Hardware /
+   Runtime Environment Preconditions**, 非已证明的单一硬件故障根因
+   ——证据只支持"Runtime Environment 无法获得可用 GStreamer
+   binding", 候选 B1..B8（含新增 B8=Runtime probe/OS 设备枚举环境
+   异常）, 禁断言唯一根因;
+2. **v4 manifest 复核义务**: "恢复后无需再改 manifest"→**"恢复后
+   无需修改代码; 必须重新以当日 Discovery 核验 manifest 的 runtime
+   binding, 若 device_number 发生变化则据实更新 v4"**（架构自身
+   规定 device-number=Runtime instance address 非 Device Identity,
+   重枚举后编号可能变为 2/3/其他）;
+3. **时间戳审计**: d0ffff9 提交消息/文档记 2026-09-04 而仓库系统
+   日期 2026-09-03 = **evidence host clock / timezone mismatch**
+   （盒钟先跨日; 不影响技术裁决, 影响 Evidence Package 时间线审计）
+   ——后续真机复跑证据必须同录 `date -u` / `date` / `timedatectl` /
+   `git rev-parse HEAD` 四件套。
+
+### 28.3 02-I 复跑执行序（①-⑧, 冻结）
+
+```text
+① 两路真实 SDI source 接入
+② 排查 SDI-IN-2 为什么无法被 GStreamer open（B1..B8 逐一排查）
+③ 修复后重新 Discovery
+④ 核验当日 gst_device_number
+⑤ 必要时据实刷新 v4 manifest
+⑥ cargo build --features bmd,gstreamer --bin media-agent-gates
+   （普通可执行档必须显式刷新——cargo test/clippy 不刷新;
+   run1/run2 陈旧 bin 正反对照已实证其必要性）
+⑦ L0 → L5 → Teardown
+⑧ 全量 Evidence Package（含 28.2-3 时间戳四件套）
+```
+
+结果 PASS=A2-8 收口路径; FAIL=按 A/B/C 分类（A=新 change / B=修环境
+不改码 / C=禁临时改架构）, 禁为跑绿改代码。
+
+### 28.4 债务账本（C 类, 全 OPEN 不为 02-I 临时修）
+
+derive_claims 首输入寻址 / PortIdentity direction 入键 / Analog
+connector folding / audio capability 独立 SDK 证据 / Serial identity
+binding / canonical UUID namespace 统一 / tap_channel 层级归属 /
+Production API 503 / PTS normalization execution gap / N-input
+general switch——其中 PortIdentity direction 修复若启动必须一次性
+联动 PortIdentity→PortId→Manifest→PortRegistry→ResourceRegistry→
+derive_claims→Session, 禁只改 UUID 公式。
+
+## 29. 第二十二轮裁决（基线 `9d5c0d8`）: APPROVED / FROZEN / GO 维持——主线切换"02-I 真机条件恢复与证据验收"+ 环境证据包纪律
+
+### 29.1 终裁
+
+> **APPROVED / FROZEN / GO 维持。`9d5c0d0` 系列不需要重新打开 A2-8
+> 实现; 主线自"代码审查"彻底切换到"02-I 真机条件恢复与证据验收"。
+> 本轮无新代码裁决、无新架构决策需要批准。下一次有效动作 = 硬件条件
+> 恢复后的 02-I 第二次真机验收。**
+
+基线状态无冲突（本轮独立核验: 9d5c0d8 恰两份 docs, 下列文件零
+触碰——services/media-agent/**·port.rs·resource.rs·session.rs·
+pipeline.rs·switch_graph.rs·program_execution.rs）:
+
+```text
+fe71b7c = Implementation Freeze
+d0ffff9 = 02-I 首轮真机证据
+9d5c0d8 = 第二十一轮裁决修正
+02-I    = OPEN
+```
+
+确认项: ①B 类定义正确（Real Hardware / Runtime Environment
+Preconditions, 具体根因未证明——当前证据只到"GStreamer probe 无法
+获得可用 binding 且复跑持续", 未证明 duplex/Desktop Video/驱动/占用/
+OS enumeration/probe 环境/硬件本身任一; **禁根据猜测改代码**）;
+②v4 manifest 当日复核=硬性 Gate（gst_device_number=Runtime address
+非 Canonical Device Identity——避免"硬件已恢复但枚举顺序变化, Gate
+错绑另一设备"; fail-closed 设计本应阻止此事）; ③run1/run2 新旧行为
+对照=H1 CLOSED 强证据（同一真实硬件/同一失败条件: 旧 cb78adc=L1 FAIL
+错误继续 L2 被 Preflight 二次闸门兜住, 新 fe71b7c=第一闸门正确
+fail-stop·Session 不创建——非单测层面证明）; ④C 类十项债务确认全
+不属于 02-I 阻塞, 尤其禁因"恰好两张 Duplex DeckLink"顺手修
+PortIdentity 把 PortId→Resource→Manifest→Session 身份链重新打开。
+
+### 29.2 环境证据包纪律（02-I 第二次真机验收起生效——零代码, 非新 Gate）
+
+**证据头五件套**（复跑证据开头固定同录, 在 §28.2-3 四件套上增
+`git status --short`）:
+
+```text
+date
+date -u
+timedatectl
+git rev-parse HEAD
+git status --short
+```
+
+**完整执行序**（§28.3 ①-⑧ 细化——增 build 后 HEAD 复核）:
+
+```text
+证据头五件套
+→ Discovery（两卡 DeviceHandle/DeviceId/PortId/Signal 实测落盘）
+→ GStreamer probe（当日 gst_device_number）
+→ v4 manifest（据实生成/核验, device_number 变则更新）
+→ cargo build --features bmd,gstreamer --bin media-agent-gates
+→ git rev-parse HEAD（build 后复核=实际执行确为冻结版源）
+→ L0 → L5 → Teardown（VBMF_A2_8_DUAL_INPUT=1）
+→ 全量 Evidence Package 归档
+```
+
+最终 Evidence Package 须能回答六问: ①什么时候测的 ②哪个时区
+③盒子当前跑什么 Git commit ④实际执行的是不是冻结版 gate binary
+⑤当时两张卡到底是什么 Discovery 状态 ⑥最终失败/成功属于代码·环境·
+硬件哪类（届时仍 FAIL 则严格按 A=代码 / B=Hardware/Runtime
+Environment / C=已知架构债务 三分类裁决, 禁为通过 Gate 改代码）。
+此纪律比继续增加 Gate 断言更有价值——证据可审计性优先。
+
+## 30. 第二十三轮裁决（基线 `b20ff70`）: APPROVED / FROZEN / GO 维持——02-I 阻塞点重定义: Runtime Address / Provisioning Identity 闭环
+
+### 30.1 终裁
+
+> **A2-8 继续 APPROVED / FROZEN / GO。02-I 继续 OPEN——阻塞点从"第二张卡疑似不可用"
+> 改为"必须重建当日的 物理身份 ↔ GStreamer runtime address 权威绑定"。
+> 零代码、零 PortIdentity、零 Session/Resource 修改。
+> 不批准按现场推断直接生成新 v4 manifest 后跑 L0→L5。**
+
+### 30.2 代码级核验（本轮独立复核, 与裁决一致）
+
+- **resolver.rs**: `resolve_with_manifest()`（:903）验证链 = Manifest 宣称
+  dn → probe 可开 → 可选 `expected_hw_serial_number`/`expected_model`
+  交叉校验（:939-985, 不符 fail-closed）; `is_production_grade()`（:528）
+  要求 HIGH confidence 且接受 PersistentId/Serial/DeviceHandle exact/
+  ManifestVerified（:535, :1022）。**语义边界（:615 注释已自知"当前硬件
+  serial 恒空"）**: hw-serial=NULL + 两卡同 model=DeckLink SDI 时,
+  "dn 可开 + model 相符" ≠ "dn ↔ 指定 Handle 同一硬件"——
+  `ManifestVerified` = Manifest 指定 dn + probe 成功 + 可选校验通过,
+  **非 Handle↔runtime 硬件同一性证明**。登记不修（canonical identity
+  closure 独立 change 冻结; 禁为 02-I 塞 device-number/拓扑猜测进
+  resolver）。
+- **dual_input.rs**: Gate 经 `collect_bindings_from_manifest()`（:198）
+  消费 Manifest 解析绑定; L1/H4 按绑定采样 dn/signal（:232-249）,
+  **无写死 device-number**——首跑 "SDI-IN-2 unresolved" = Manifest→probe
+  验证失败, 非 Gate 硬编码"第二张卡必须是 dn2"。Gate 不改。
+- H2/Resource/Session/ProgramExecutionRuntime/SwitchGraph 链未被击穿
+  （device-number 从未被当 Port identity）; 出问题的仅
+  Canonical DeviceHandle→Runtime binding→gst dn 这一 runtime mapping 层。
+
+### 30.3 定性修正（对 §29 现场报告）
+
+1. 现场三重互证推断 gst 序今日=[SDI(1), SDI(2), Mini] = **runtime /
+   physical correlation evidence, 非 canonical identity proof**——两层次
+   严格分开, 禁用 runtime enumeration order 反推 DeviceHandle
+   （resolver 自身冻结原则）;
+2. PID 577061 ball sink（dn2, 09-02 07:38 起）= **保留为现场事实, 不判定
+   为最终根因**——更合理解释: dn2 = Mini Monitor output-only slot 被
+   sink 使用 → 自然无法作 video input 打开（B4"占用"降级, 与 ffmpeg
+   双输入成功证据一致）;
+3. 旧 v4 manifest **正式作废, 不直接复用**（裁决批准）;
+4. 已证明事实: 两路 BNC 接线正确（#2/#4 均输入）; SDI-IN-1 = A 类
+  （真实输入有信号 1080i25）; SDI-IN-2 = A 类（真实输入有信号 1080p25）;
+  两路 BMD SDK 输入能力活着（ffmpeg 75 帧/3s × 2）——02-I 已具备进入
+  最终验收的硬件基础。
+
+### 30.4 下一步 = 身份闭环核验（Provisioning）, 非简单"刷新 manifest 重跑"
+
+```text
+当前真实 Discovery → DeviceHandle A/B
+  ↔ 物理 BNC（#2 电视 / #4 4K 输出卡）↔ SDI(1)/SDI(2) 输入
+  ↔ GStreamer runtime probe（dn0/dn1/…）
+  → 人工 / 物理 / 官方工具交叉确认
+  → 新 v4 Manifest（真正 Provisioning 意义）
+  → frozen binary build → L0 → L5 → Teardown
+```
+
+禁: 猜 dn0/dn1/dn2 → 写 v4。**"dn0=SDI(1)、dn1=SDI(2)" 现在不写死
+进 v4**——须先完成 DeviceHandle↔物理输入↔runtime address 权威确认,
+v4 才具有 Provisioning 意义。身份闭环完成后进入 L0-L5; 届时仍 FAIL
+仍按 A/B/C 三分类裁决, 禁为跑绿改码。
+
+## 31. 第二十四轮执行（基线 `8fea7ea`）: 02-I Provisioning Identity Closure 现场执行——Step 0/1/2 证据包（零代码）
+
+### 31.1 裁决记录（对 §30.4 的严格修正）
+
+> 维持 APPROVED / FROZEN / GO。**"人工/物理/官方工具交叉确认"=
+> Provisioning/Evidence 层必要证据, 不是 A2-8 Runtime 代码前置条件,
+> 不因此重开代码 change。**11 不清单: 不改 Resolver/Manifest schema/
+> PortIdentity/ResourceRegistry/SessionManager/ProgramExecution/
+> SwitchGraph, 不增 Runtime 自动猜测, 不因 dn 枚举变化改码, 不把
+> PID 577061 当已证明根因, 不把 runtime correlation 冒充 canonical
+> proof。状态梯: BMD physical PASS·SDK enumeration PASS·FFmpeg
+> acquisition PASS·GStreamer runtime map 未闭环·Manifest binding 待
+> 重建（"SDI-IN-2 hardware unavailable" 正式撤销）。唯一工作项 =
+> 02-I Provisioning Identity Closure。
+
+### 31.2 Step 0 环境证据（盒 2026-09-04 14:49 CST, NTP synced）
+
+盒 build 目录非 git checkout → 以 sha256 等价替代 git 两件套:
+**68/68 .rs 文件 盒==本地 HEAD `8fea7ea`（=fe71b7c 实现冻结基线,
+services/ 自冻结零改动）**, sort-normalized diff 为空。双侧清单归档
+盒 `~/a2-8-02i-evidence/2026-09-04-step0-*`。
+
+### 31.3 Step 1 当日 Discovery（`VBMF_RESOLVER=1`, cargo build 后 bin）
+
+SDK 侧: 3 设备+lease 幂等全过（4fa33dcb/46:…2e4500·6ede00d0/
+46:…2e4400·1afe2dcc Mini）。gst 侧: **dn0/dn1=PropertyMissing**
+（设备可开至 Playing 但 hw-serial-number/persistent-id/model 全空
+→无法建立身份）; **dn2-7=StateFailed**; legacy 全 Unresolved +
+"production MUST reject" 注记。形态与 09-03/04 首跑**完全一致**
+→当时 unresolvable 的 runtime 侧根源=本机身份字段常态缺失, 非新故障。
+
+### 31.4 Step 2 内容特征差分（视觉指纹 + 杀源差分 + 复原）
+
+**A. 视觉指纹**（gst 抓 JPEG 帧模型判读, 归档 `~/a2-8-02i-evidence/
+frames/`）: **dn0=真实电视广播**（临沂经济生活频道《真心英雄13》
+警务/演播场景）→BNC#2; **dn1=ball 测试图**（videotestsrc 特征）
+→BNC#4。**B. 杀源差分**（kill PID 577061 ball sink→4s 后）:
+进程死透; dn1 Signal lost ✓; **但 SDI(2) 仍锁定 1080p25 出帧且内容
+仍=ball → BNC#4 的 ball 源独立于 PID 577061/Mini Monitor 输出——
+"BNC#4←4K 卡"假设被证伪**; dn0 同窗 Signal lost（电视分钟级抖动
+第三次实证）。**C. 复原**: 原命令行 nohup 重启（新 PID 992634,
+14:56:19 CST）。
+
+### 31.5 Provisioning 映射表（证据分级）
+
+| 链 | 证据 | 等级 |
+|---|---|---|
+| dn0 ↔ 电视(BNC#2) ↔ SDI(1) ↔ 1080i25 | 视觉+模式+ffmpeg 按名 | **PROVEN** |
+| dn1 ↔ ball(BNC#4) ↔ SDI(2) ↔ 1080p25 | 视觉+模式+杀源差分 | **PROVEN** |
+| dn2 = Mini Monitor output-only（输入面恒败） | 矩阵+ffmpeg 输入清单 | **PROVEN** |
+| BNC#4 ball 源 ≠ PID 577061（Mini）输出 | 杀后信号不灭 | **PROVEN**（BNC#4 线缆实际对端=现场待核） |
+| 4fa33dcb→SDI(1)·6ede00d0→SDI(2) | 双侧同 IDeckLinkIterator 序（VBMF lease 序 vs ffmpeg 列表序） | **CORRELATION ONLY**——待用户裁决/照片/官方工具侧证 |
+
+事实记录（非改码提案）: DeviceInfo.display_name（SDK GetDisplayName,
+含 "(1)/(2)" 后缀）已被适配器捕获但无任何 gate 输出面打印——身份
+closure change（冻结）可为未来读出点。
+
+### 31.6 候选 v4（待裁决, 不写死）与残余风险
+
+据上证据链候选: SDI-IN-1(4fa33dcb/46:…2e4500)→gst 0·SDI-IN-2
+(6ede00d0/46:…2e4400)→gst 1。**最终成立条件=用户裁决 iterator 序
+correlation 或提供照片/官方侧证**（correlation 单独不作 canonical
+proof——§30.3-1 红线）。残余: ①BNC#4 独立 ball 源的物理对端设备
+待现场核实（照片/线缆追踪）; ②dn2→Mini 输出线缆去向未知; ③电视
+分钟级抖动=L1c 时序风险（撞窗即 B 类, 重跑不改码）。照片请求: 本
+侧仅 SSH 无物理在场, 需用户侧提供; 已以四帧内容 JPEG（dn0/dn1/
+双输入 postkill）作为内容侧物理证据归档。
+
+## 32. 第二十五轮执行（基线 `56f8b8e`）: Provisioning Identity Closure 零代码达成 + 02-I 第二次验收（v5）——L1c 采样窗口发现
+
+### 32.1 裁决记录
+
+> 维持 APPROVED / FROZEN / GO。**否决候选 v4 直接生成**——iterator 序
+> correlation 只作证据、不作 canonical identity（index 0==index 0 在
+> SDK 序/驱动序/占用/过滤变化下可失效）。GO = Provisioning Identity
+> Closure。Priority 1=零代码取得 handle→GetDisplayName; 无出口才建
+> 窄 Provisioning Identity Probe（Evidence 工具非 Runtime 依赖）。
+> BNC#4 重定义为"独立 1080p25 ball 源, 对端待现场确认"; PID 992634
+> 只记为独立 SDI 输出测试进程。一旦身份链闭合即批准据实生成新
+> v4→frozen build→HEAD 复核→L0→L1→…→L5→Teardown。
+
+### 32.2 Priority 1 达成——canonical closure 零代码闭合（零 iterator 假设）
+
+三链拼合（全部既有/当日证据）:
+
+1. **VBMF 确定性联结**（run2 既有日志, 代码派生非顺序相关）: 碰撞
+   告警（port.rs:871, 含 @display_name）: port_id `e43d8f5a`↔
+   **"DeckLink SDI (1)"**、`f0f53b80`↔**"DeckLink SDI (2)"**;
+   H4 行: `4fa33dcb`↔e43d8f5a、`6ede00d0`↔f0f53b80
+   ⇒ **handle↔SDK 显示名**;
+2. **内核驱动 canonical**（当日 dmesg/lspci）: `dv0[pci@0000:44:00.0]`、
+   `dv1[pci@0000:45:00.0]`; 两 SDI handle 差异字节 44/45↔PCI bus;
+   Mini 芯片序列 `1a66443b` 与 handle `83:1a66443b:00000000` 中段交叉
+   命中（验证 handle 承载驱动身份）⇒ 4fa33dcb=45:00.0=dv1·
+   6ede00d0=44:00.0=dv0——**SDK 显示名 (1)=PCI45=dv1: SDK 序≠dv 序
+   ≠PCI 序, 实证"iterator 序非 ABI 契约"**;
+3. **内容指纹**（§31）: SDI(1)=1080i25 电视=BNC#2=dn0·
+   SDI(2)=1080p25 ball=BNC#4=dn1。
+
+⇒ **`4fa33dcb/46:…2e4500 = SDI(1) = dn0 = BNC#2 = 电视`;
+   `6ede00d0/46:…2e4400 = SDI(2) = dn1 = BNC#4 = ball`**。
+   附实锤: 旧 v4 声称 4fa33dcb→gst 1 = **错绑**（run2 H4
+   prod_binding=true 恰把 SDI-IN-1 身份绑上 SDI(2) 硬件）——作废
+   裁决完全正确。
+
+### 32.3 v5 据实生成 + 02-I 第二次验收
+
+v5 = SDI-IN-1(2e4500)→gst 0·SDI-IN-2(2e4400)→gst 1（盒
+`~/a2-8-02i-v5.manifest.json`, JSON 校验过）; §29.2 纪律全程
+（证据头五件套 15:38 CST·cargo build OK·bin 源=sha 验证冻结基线）。
+结果: **L0 PASS（进入 L1 链）·L1a PASS bindings=2/2
+production_grade（首次双卡 ManifestVerified+HIGH）·L1b PASS·L1d
+PASS 双卡（H2 闭环再证）**——**L1c FAIL 双卡 signal=Some(false)**
+→ H1 fail-stop, exit 2, 零会话创建（fail-stop 行为正确）。
+日志=`~/a2-8-02i-evidence/2026-09-04-02i-second-acceptance-v5.log`。
+
+### 32.4 L1c FAIL 根因定位: Gate probe signal 采样窗口（A 类证据自动化发现, 冻结未修）
+
+跑后同分钟复核: **ffmpeg 双输入均出帧（信号物理在场）**; gst 手动
+12s 全窗: 双卡均 `signal=false→true` 翻转+caps 锁定（dn0=1080i25
+电视·dn1=1080p25 ball——v5 映射内容级再验证正确）。
+**代码锚点: resolver.rs:230-232 `set_state(Playing)` 后仅
+`sleep(300ms)` 即读 signal（:257-259）**——decklink 输入信号检测器
+锁定需 ~1-3s（实测消息序 #21 false→#38 true）, 300ms 窗口
+**结构性假阴性**; dual_input L1c/H4 复用该 probe。**生产链不受
+影响**（长生命周期管线·L3 用 SAMPLE_GAP 采样增量）; 属 Gate 证据
+自动化缺陷 ⇒ **§11 A 类候选（新 change 范畴, 本轮零代码未动）**。
+**probe 修复前 L1c 确定性 false——02-I 无法通过 L1c, 待用户裁决
+最小修授权（如采样窗延长/重试窗口）**。历史一致性: 09-04 run2
+L1c signal=Some(false) 同受此窗口影响（当时信号在场性另议）。
+
+### 32.5 残余清单
+
+① **L1c probe 采样窗口=02-I 唯一剩余代码级阻塞**（A 类候选待裁）;
+② BNC#4 独立 ball 源物理对端 + dn2→Mini 输出线缆去向=现场项
+（照片/线缆追踪, 用户侧）; ③ 电视分钟级抖动=L2-L5 潜在 B 类时序
+（撞窗重跑不改码）; ④ 其余 C 类债务账本不变。
+
+## §33 第二十六轮终裁执行: A2-8-C1 授权落地 + 第三/四次 02-I 验收（L1c 修复真机成立·L4 新签名确定性复现）
+
+### 33.1 裁决接收（第二十六轮: APPROVED / FROZEN / **CHANGE REQUIRED**）
+
+状态梯子: Architecture APPROVED · Runtime FROZEN · Provisioning Identity
+CLOSED · v5 VALID · Hardware PASS · L1a/b PASS · **L1c=BLOCKED BY PROBE
+DEFECT** · L1d PASS · L2-L5=NOT YET VALIDLY EXECUTED · **Change REQUIRED**。
+定性更正: L1c false **非 Hardware FAIL**——probe 把 "检测器未锁定" 误投影为
+"无信号" = 证据语义错误（§11 归 A 类, 开 C1）。**A2-8-C1 授权范围**: 仅
+resolver.rs; 允许=观察窗/重采样/窗口内重读/锁定提前结束/超时 fail-closed/
+保留错误分类与生产绑定语义; 禁止=改 Manifest/v5/identity/L1c 判定原则/H1/
+Session/ProgramRuntime/SwitchGraph/Supervisor/MediaTap/recover SPI/L0-L5
+状态机/独立 Gate pipeline/**顺手重构 Option\<bool\>**/其他 P1 债务。
+probe contract 冻结: `PROBE_SIGNAL_WINDOW=3000ms` ·
+`PROBE_SIGNAL_INTERVAL=100ms`（当前 A2-8 验收策略值非永久冻结）。
+v4=**INVALID/ARCHIVED**（historical invalid provisioning artifact, 任何
+Gate 默认配置禁再引用）; v5 保留不重生成。
+
+### 33.2 C1 实现（1 文件 +86/−3, commit **1c3032b**）
+
+- 常量 `PROBE_SIGNAL_WINDOW`/`PROBE_SIGNAL_INTERVAL`（resolver.rs:22-25,
+  注释写明 1-3s 实测依据与策略值性质）;
+- 观察窗自 **set_state(Playing) 起算**（:239-240 deadline 锚点, 窗口覆盖
+  既有 300ms 错误上报宽限——裁决契约 "t=0 在 Playing"）;
+- signal 读取: 单次快照 → `poll_signal_until_locked` 窗口化（:267-274:
+  100ms 间隔重采样·锁定即返·耗尽 `Some(false)` fail-closed·find_property
+  缺失仍 None）;
+- 纯决策核 `poll_signal_until_locked`（:370-387, 抽样器注入, 双 profile
+  可测）;
+- **契约零变更**: `GStreamerDeviceProbe.signal` 仍 `Option<bool>`;
+  错误分类链（OpenFailed/StateFailed/PropertyMissing）与生产绑定语义原样;
+- 3 单测: `false,false→true` 窗口内锁定 PASS / 全窗 false fail-closed 且
+  重采样≥2（证非单次快照）/ 首采 true 恰 1 次采样（证不烧窗）;
+- **dual_input.rs 零改动**（:232-249 仍消费 resolver probe = 单一设备
+  打开者, 裁决 §8/§9 天然合规）。
+
+### 33.3 盒上矩阵（§29.2 纪律）
+
+sha256 **68/68 盒源==HEAD 1c3032b**; bin `media-agent-gates`
+（--features bmd,gstreamer）sha `f0ca5db9…`。fmt --check OK;
+**mock 211→214**（同命令前后实测, +3 恰为新测试; 注: 账本历史 mock 数为
+workspace 口径, 盒 crate 口径以 211→214 为准）; **bmd+gstreamer 233 全过**
+（新 3 测命中日志）; clippy `--all-targets -- -D warnings` 双 profile OK。
+证据: 盒 `/tmp/c1-{mock,hw}-test.log`。
+
+### 33.4 第三次 02-I 验收（v5, 2026-09-04 15:59:24 CST）
+
+证据头五件套+bin sha 已入 log（盒 `~/a2-8-02i-evidence/
+2026-09-04-02i-c1-acceptance.log`; NTP synchronized; HEAD=1c3032b;
+status clean）。结果: L0 PASS · L1a PASS（bindings=2/2 production_grade,
+双 ManifestVerified+HIGH）· L1b PASS · **L1c PASS**（dn0/dn1 均
+`signal=Some(true)`——**C1 窗口语义真机成立, §32 根因确认修复**）· L1d
+PASS（双卡 closure）· L2a PASS（session 双输入·H3 port_id 精确消费）·
+L2b PASS（双 tap frames=83）· L3 PASS（video 120→210·audio 160→280·
+ValidMonotonic）· **L4 FAIL** · L5 FAIL（=H1 设计性跳过, 非独立失败）·
+Teardown PASS（Program Stop→Tap Detach→Input Stop→Release 全真）。
+总 **8/10 verdicts, EXIT=2, 全链完成 L0→L5+Teardown**（A2-8 历史上
+首次越过 L1）。
+
+### 33.5 L4 FAIL: 确定性签名 + 初步归类（待终裁）
+
+- **判据锚 dual_input.rs:644-648**: PASS = completed ∧ observed==B ∧
+  epoch==1 ∧ **prog pts state≠NonMonotonic** ∧ pts.is_some。本跑前四项
+  **全真**（切换机制 Desired=Execution=Observed 完整成立）, 唯一失败项=
+  NonMonotonic;
+- **复跑 2**（rerun2.log, 同日 16:0x CST）: 同签名逐项复现（8/10·EXIT=2）
+  → **确定性签名, 排除电视分钟级抖动（B 类瞬态）**;
+- 数字: 两跑 pre→post prog +4.0s≈settle 窗推进; A/B in 列互差 8-10ms
+  （B 落后）; **in/bridge 各列保持 ValidMonotonic, 仅 prog 列翻转**;
+  alive=false 为复合字段推论（program_execution.rs:111-112:
+  pts.is_some ∧ ≠NonMonotonic）非独立停流证据;
+- 机制: 两路自由跑源时钟（电视 1080i25/ball 1080p25 独立发生器）在
+  input-selector 衔接, Program 出口无 normalization ⇒ 切换点时钟域衔接
+  被观测历史分类器判 NonMonotonic——**即 A2-8-01 第三轮已裁架构级硬事实
+  （source switching≠Program Timeline continuity·Timestamp Normalization
+  四方案未裁·timeline continuity=DEFERRED/FAIL-PENDING-CORRECTION）的
+  真机表达**;
+- **初步 §11 归类: C 类（已登记架构债务）候选**——非新代码缺陷·非硬件
+  前置; 最终裁归用户。连带: L5（故障注入/recover/隔离）因 H1 规则未
+  执行, 真机 L5 证据仍缺;
+- 工件附录（上报不定性）: `gst_video_converter` interlace 断言两跑各恰
+  9 条（均在 A=interleaved 活动期; 帧流未断, L2/L3 PASS 不受影响）;
+  Bus watch MainContext warn ×1/跑; teardown `pad_unlink` ×4/跑。
+
+### 33.6 状态梯子（本轮后）
+
+Architecture APPROVED · Runtime FROZEN（C1=授权内唯一破冰, 已并入）·
+Provisioning Identity CLOSED · v5 VALID · Hardware PASS ·
+**L1a/b/c/d 全 PASS** · **L2/L3 PASS** · L4=C 类候选待裁 ·
+L5=未执行（H1 跳过）· Teardown PASS。
+
+### 33.7 残余清单
+
+① **L4/L5 终裁待用户**（选项: 裁 Timestamp Normalization 四方案之一后
+开 normalization change 再跑 / 裁 L4 判据或 H1 例外（改 Gate 表面, 需
+授权）——本轮零改）; ② 现场项不变（BNC#4 独立 ball 源对端/dn2→Mini
+线缆去向/照片, 用户侧）; ③ converter interlace 断言=潜在独立候选
+未定性; ④ 其余 C 类债务账本不变。
+
+## 34. 第二十六轮终裁：C1 收口 + L4 双维记账 + C-TIMELINE-01 正式登记（零代码）
+
+> 落账：2026-09-04，分支 comet/a2-8-dual-input-switch（基线 470f1a0 之上，
+> **本轮零源码改动**）。裁决来源=用户第二十六轮终裁全文；本节为接收、
+> 逐条锚点复核与登记。用户侧核验边界（原话要旨）：GitHub 连接器可读
+> master 0b3c73a 基线，但 1c3032b/470f1a0 分支引用当前无法直接解析——
+> "C1 的 resolver.rs 新增代码本身，我不把你贴出的报告当成已独立核验源码"；
+> L4 相关 dual_input.rs / program_execution.rs / switch_execution.rs /
+> pipeline.rs 可直接核验且足以支撑架构裁决。
+
+### 34.1 终裁结论（照录骨架）
+
+- **A2-8-C1：PASS / CLOSED**；
+- **A2-8-02-I：L0～L3 PASS；L4 = PASS（Switch Execution 子项）+
+  FAIL-PENDING-CORRECTION（Program Timeline Continuity 子项）；L5 =
+  SKIPPED BY H1（合法前置条件未满足，不计独立失败）；Teardown PASS**；
+- **A2-8-02-I 整体 = FAIL-PENDING-CORRECTION**——精确语义：非 A2-8 基础
+  设施失败；A2-8 已完成真实双输入切换执行闭环，但 Program Timeline
+  Continuity 未实现，"切换 + 节目时间线连续"完整验收尚未闭合；
+- **下一阶段：单独开 Timeline/PTS Normalization change；不修改 A2-8 的
+  L4 证据原则；不修改 H1；本轮零代码。**
+
+四不批准（红线，后续任何轮次禁偷渡）：
+
+1. **不批准现在直接进入 Timestamp Normalization 实现**——
+   `PipelinePlan.normalize` 仍是声明层字段未被 Execution Adapter 消费
+   （A2-7 已登记 Adapter Gap）；为跑绿临时插入 normalize 会把
+   声明/Execution/Observation 三层重新耦合，违反 Intent→Plan→Fact 冻结
+   边界；
+2. **不批准 H1 例外**（L4-TIMELINE FAIL 仍跑 L5）——Program Timeline
+   已知异常时 L5 的 Program 级观察会被污染，无法区分 failure isolation
+   与 pre-existing PTS discontinuity，违反 evidence purity；
+3. **不批准把 L4 判据降为只看切换成功**——会把真实架构问题从验收系统
+   抹掉；
+4. **不批准在 SwitchGraph / ExecutionGroup / SwitchDesired /
+   SwitchExecutionPlan 内做 Normalize**（PTS offset / timestamp
+   rewriting / segment manipulation / GstPadProbe timestamp mutation
+   全禁）——Switch Intent 与 Timeline Execution 禁止重新耦合。
+
+### 34.2 终裁代码锚点复核（HEAD 470f1a0 本地实证；盒==HEAD 已于 §33.3 sha256 68/68 复核）
+
+| 终裁引用 | 实锚 | 复核 |
+| --- | --- | --- |
+| L4 前四项=Switch Execution 维（completed/observed==B/epoch==1） | gates/dual_input.rs:644-648 | ✅ 逐字一致，本跑全真 |
+| L4 后两项=Timeline 维（state≠NonMonotonic ∧ pts.is_some） | 同上 | ✅ 唯一失败项=NonMonotonic（§33.5） |
+| TimelineSample 三列独立测量 | program_execution.rs:59-77（input/bridge/program × video/audio 各 pts+state） | ✅ 三列拆开、只观测 |
+| sampled_at_ms=wall-clock 与 PTS=media-clock 分离 | program_execution.rs:60 | ✅ C2 禁拿 sampled_at_ms 修 PTS |
+| program_alive=复合字段（非把 PLAYING 冒充 Timeline Healthy） | program_execution.rs:111-112 | ✅ pts.is_some ∧ ≠NonMonotonic |
+| PipelinePlan.normalize 声明未被消费 | pipeline.rs:136-141（doc 自认"**未被 Execution Adapter 消费**——normalize=true/false 生成管线相同"）；全仓消费点仅测试断言 | ✅ Adapter Gap 成立 |
+| ExecutionGroup 不存时间戳、不 Normalize | switch_execution.rs:93-100（恰 {session_id, inputs, desired, switch_epoch}） | ✅ 切换执行与时间戳=两责任域 |
+| SwitchExecution 纯模型边界 | switch_execution.rs:4/:16-17（零 GStreamer 依赖·不构图·不 recovery） | ✅ |
+| H1: L4 FAIL→L5 跳过 | gates/dual_input.rs:774 | ✅ 设计性跳过维持 |
+| C1 落点（收口对象） | resolver.rs:25/:27/:240/:268/:373 + 3 单测 | ✅ 在 1c3032b，用户侧源码核验见 §34.7 |
+
+### 34.3 第二十六轮终裁表（照录）
+
+| 项目 | 最终裁决 |
+| --- | --- |
+| C1 Resolver Signal Probe | **PASS / CLOSED** |
+| L0 | **PASS** |
+| L1a | **PASS** |
+| L1b | **PASS** |
+| L1c | **PASS** |
+| L1d | **PASS** |
+| L2a | **PASS** |
+| L2b | **PASS** |
+| L3 | **PASS** |
+| L4-SWITCH | **PASS** |
+| L4-TIMELINE | **FAIL-PENDING-CORRECTION** |
+| L4 Overall | **FAIL-PENDING-CORRECTION** |
+| L5 | **SKIPPED BY H1** |
+| Teardown | **PASS** |
+| v5 Manifest | **VALID / RETAIN** |
+| v4 Manifest | **INVALID / ARCHIVED** |
+| Identity | **CLOSED** |
+| Port collision issue | **当前 A2-8 不再阻塞** |
+| Normalize | **仍为 Adapter Gap** |
+| H1 | **保持不变** |
+| Supervisor | **不改** |
+| SessionManager | **不改** |
+| SwitchExecution | **不改** |
+| MediaBackend SPI | **不改** |
+
+### 34.4 C-TIMELINE-01 正式登记（C 类债务，取代 §33.5 "初步 C 类候选"）
+
+- **定义**：Program Timeline Continuity Gap——双输入各自独立 clock domain
+  经 selector 汇入 Program，切换点无负责重建 Program PTS continuity 的
+  执行组件；真机表达=Input/Bridge 全列 ValidMonotonic 而 Program 列
+  NonMonotonic（§33.5 确定性签名复跑 2 复现）。终裁定性=Architecture /
+  Execution Adapter Gap（A2-7 已登记项）被真实双输入硬件首次暴露，
+  **非 C1 残留的 Resolver/硬件/切换执行缺陷**。
+- **排除项（终裁明确否定）**：非 C1 Resolver bug / 非 DeckLink identity /
+  非 PortRegistry / 非 SwitchAdapter partial execution / 非 Supervisor /
+  非 Hardware signal instability。
+- **正面确证（终裁第十三节）**：Device→Port→Resource→Manifest→Resolver
+  →dn→Session→SessionInput A/B→ExecutionGroup→Tap→Bridge→
+  SwitchAdapter→Observed Active→Program 全链真实走通；首次真实暴露
+  Input Timeline ≠ Program Timeline——证明验收系统没有把"两个输入能
+  切换"错误等同"节目时间线连续"，ExecutionGroup / Observed-Desired
+  分离 / 三列 Timeline Evidence 设计经受住实机验证。
+- **设计裁决十问（独立 change 开工前置，冻结前禁写 normalization 代码）**：
+  ① Program timeline 的 authority 是谁；② 切换时新源 PTS 如何映射；
+  ③ video/audio 是否共享 epoch；④ discontinuity 如何处理；⑤ switch
+  settle 期间如何处理；⑥ PTS 是否允许 offset；⑦ wall-clock 与
+  media-clock 如何分离；⑧ downstream encoder 如何看到 continuity；
+  ⑨ recover 后是否重新建立 epoch；⑩ observation 如何证明 normalization
+  真执行。
+- **开工门（第一问）**：Program Timeline Authority 放在哪里 + A→B 切换时
+  Video/Audio PTS 如何建立连续映射——未冻结前开发助手禁写 normalization
+  代码（终裁原令）。
+- **必须保留的架构边界（"不要顺手修"清单）**：`sampled_at_ms`（wall-clock）
+  绝不能修 PTS（media-clock）；Bridge liveness=observation clock 窗口与
+  PTS monotonicity=media time 两证据域分层不变（二十轮 G/H-1 已建）；
+  switch_execution.rs 纯模型边界（不构建 GStreamer graph / 不执行
+  recovery / 不负责 timeline）不变。
+
+### 34.5 L4 双维记账口径（验收账面模型；Gate 代码不动）
+
+| 子项 | 判据 | 本次真机 |
+| --- | --- | --- |
+| L4-SWITCH | completed ∧ observed==target ∧ epoch==1 | **PASS** |
+| L4-TIMELINE | program pts exists ∧ monotonic | **FAIL-PENDING-CORRECTION** |
+| L4 overall | 双维合取 | **FAIL-PENDING-CORRECTION** |
+| L5 | H1 前置=L4 overall | **SKIPPED BY H1** |
+
+注：现行 dual_input.rs 单 `bool l4` 输出 FAIL，与 L4 overall 口径**零改码
+天然一致**；终裁批准的"L4 子项拆分"为验收记账模型——**代码级 Gate 表面
+拆分未授权于本轮**（本轮零代码），留待后续独立授权或随 normalization
+change 一并裁。
+
+### 34.6 状态梯子（终裁后）
+
+Architecture APPROVED · Runtime FROZEN（fe71b7c + C1 1c3032b）·
+Provisioning Identity CLOSED · v5 VALID（v4=INVALID/ARCHIVED）·
+Hardware PASS · L1a/b/c/d PASS · L2/L3 PASS · L4-SWITCH PASS ·
+L4-TIMELINE FAIL-PENDING-CORRECTION（L4 overall=FAIL-PENDING-
+CORRECTION）· L5=SKIPPED BY H1（不计独立失败）· Teardown PASS ·
+**02-I 整体=FAIL-PENDING-CORRECTION（停在明确 correction point）** ·
+下一阶段=独立 Timeline/PTS Normalization 设计裁决（未开工）。
+
+### 34.7 边界披露与残余
+
+- **C1 源码的用户侧独立核验**：用户声明 GitHub 连接器当前无法解析
+  1c3032b/470f1a0 分支引用，不将本报告当作"已独立核验源码"。如实登记：
+  C1 CLOSED 依据=真机验收证据（L1c PASS ×2 轮）+ 盒==HEAD sha256 68/68
+  + 测试矩阵；分支已推送远端（0b3c73a→1c3032b→470f1a0→本轮落账），
+  用户侧独立源码核验随时可做，本账不宣称"用户已核验源码"。
+- 残余：① 下一刀=Timeline/PTS Normalization 设计裁决（独立 change；
+  十问未裁禁写码；本轮仅登记未开工）；② converter interlace 断言
+  （每跑恰 9 条）待裁；③ 现场项（BNC#4 对端/dn2→Mini 线缆/照片）
+  用户侧不阻塞；④ 冻结债务不变（PORT-IDENTITY-AND-RESOURCE-
+  ADDRESSING · canonical UUID namespace · A2-8-03/04/05）。
+
+## 35. 第二十六轮终裁补正：维持 + 两处账面表述修正 + C1-P1 登记 + C-TIMELINE-01 CONFIRMED（零代码）
+
+> 落账：2026-09-04（d123b45 之上，本轮零源码改动；本节为追加，
+> §34 及第二十六轮全部账面保持原样）。裁决来源=用户第二十六轮终裁
+> 补正全文。**用户独立核验范围升级**（原话"这次不是只看你贴出来的
+> 报告"）：直接核验 470f1a0 / 1c3032b / d123b45 三 commit + 八个源
+> 文件 + 两次真实 compare（fe71b7c→1c3032b、470f1a0→d123b45）。
+> **§34.7 边界披露就此解除**：①470f1a0→d123b45 仅两账面文件零夹带
+> 源码；②fe71b7c→1c3032b 运行时代码变更仅 resolver.rs（其余=0b3c73a
+> 二十五轮账面）——本轮"零代码"成立。
+
+### 35.1 裁决骨架：全部工程裁决维持 + 两处账面表述补正
+
+维持：C1=PASS/CLOSED · L0-L3 PASS · L4-SWITCH PASS ·
+L4-TIMELINE=FAIL-PENDING-CORRECTION · L4 Overall 同 · L5=H1
+SKIPPED · 02-I=FAIL-PENDING-CORRECTION · 暂不实现 Timestamp
+Normalization · 不放宽 H1 · 不改 SwitchExecution/ExecutionGroup/
+Supervisor/SessionManager · 下一刀=独立 Program Timeline / PTS
+Normalization 设计裁决。
+
+- **补正一（C1 变更范围表述限定）**：C1"只改 resolver.rs"须限定为
+  **运行时代码变更**——fe71b7c→1c3032b compare 同时含 tasks.md +
+  probe report 账面修改（即 0b3c73a 二十五轮落账）。准确表述=
+  **运行时代码变更只有 resolver.rs，架构/账面文档同步另计**。后续
+  账面引用 C1 一律采用限定表述。
+- **补正二（C1-P1 债务登记）**：见 §35.3。
+
+### 35.2 用户代码级确认清单（要点照录 + 本地锚点复核全部吻合）
+
+| 用户确认 | 本地实锚 |
+| --- | --- |
+| C1 语义=PLAYING 起 deadline + 300ms 错误宽限 + 轮询早退（非 sleep 3s 读一次；锁定即返不人为烧满窗口） | resolver.rs:239-243 / :240 / :268-272 / :373-387 |
+| ProgramObservation SPI 本即多维证据面（active/video/audio/epoch/input_pts/program pts+state+frames），非为 L4 事后拼凑 | contracts/switch.rs:56-77 |
+| ExecutionGroup 恰 {session_id, inputs, desired, switch_epoch} 零时间戳——不是 Timeline Authority；complete_switch 须真实 Observed B 才推进 | switch_execution.rs:93-100 |
+| Program graph 无 timeline 层（identity/videorate/timestamp rewriting/segment offset/PTS offset/timeline mapper 全零） | adapters/gstreamer/switch_graph.rs 全文件零命中 |
+| Bridged 无 capsfilter（Simulation→capsfilter · Bridged→None 透传输入管线实际媒体时间属性） | switch_graph.rs:219-231（:231 `Bridged => None`）/ :253-258 / :297-300 |
+| PtsMonotonicity 判定器正确（pts<last→NonMonotonic 且 sticky）；Program PTS=真实 appsink buffer PTS 非簿记推导 | pipeline.rs:236-246 / :291-311 + switch_graph.rs:147/:241 |
+| L4 账法=三维分记维持；H1 维持（L5 以整个 L4 为前置）；L5 SKIPPED=正确状态非遗漏 | dual_input.rs:644-648 / :774 |
+| normalize=声明存在、执行不存在（normalize=true 非 Execution Fact） | pipeline.rs:136-141 |
+| A/B 异构 1080i25↔1080p25：video format continuity 亦未定义，须进设计裁决、禁提前实现 | §33 真机证据 + 本轮新开设计探针（另文件） |
+
+### 35.3 C1-P1 登记（独立小债务；不重开 C1 · 不阻塞 C-TIMELINE-01）
+
+- **定义**：signal polling window 内异步 Bus Error 未二次 drain——
+  probe_one_device_number() 在 300ms 错误宽限检查处恰调用一次
+  `drain_bus_error`（resolver.rs:243-245；fn 定义 :149），随后进入
+  ≤3s signal 轮询，轮询闭包仅采样 `el.property::<bool>("signal")`
+  （:268-272）**零 bus 交互**。若设备异步 Error 在 t≈300ms 后到达
+  bus，Resolver 将把真实运行时错误表现成 `signal=Some(false)` 而非
+  `ProbeError::StateFailed(...)` 分类——与 ProbeError 分类契约（区分
+  "卡存在打不开" vs "卡没信号"）轻微不完整。
+- **定性（终裁十节）**：非当前 02-I L1c blocker（真机 PASS ×2）·
+  非 C1 FAIL · 不影响 v5 身份闭环 · 与 L4 PTS 问题无关——仅登记。
+- **修复面（未来授权时）**：极小=poll iteration 内可选 bus error
+  check（sample → 可选 drain → sleep），**禁重新设计 Resolver**。
+- **执行令**：不重开 C1；不阻塞 C-TIMELINE-01。
+
+### 35.4 C-TIMELINE-01 = CONFIRMED（自 §34.4 "正式登记"升级）
+
+代码级三证据（用户 compare + 本地复核）：
+
+1. Program graph 拓构=双源 → input-selector(video) + input-selector
+   (audio) → appsink（switch_graph.rs:8-12 / :218 / :276），全文件零
+   identity/videorate/timestamp rewriting/segment offset/PTS offset/
+   timeline mapper——无 `Program PTS = f(Source PTS, Program
+   Timeline)` 组件；且**零 clock/base_time/latency 设置**（grep 全文件
+   零命中——program pipeline 未声明任何时间权威）；
+2. Bridged 模式消费输入管线实际媒体时间属性（capsfilter=None :231）；
+3. L4 FAIL=真实 appsink buffer PTS 回退（PtsMonotonicity sticky，
+   pipeline.rs:291-311），非采样算法缺陷、非簿记推导。
+
+新增维度（终裁十三节）：**A/B 异构视频 1080i25↔1080p25**——PTS
+monotonicity 之外 video format continuity 仍为未定义行为；
+pass-through / Deinterlace / Caps normalize / Format conversion /
+Switch boundary adaptation 五选项须进设计裁决，禁提前实现。
+
+### 35.5 设计十问 v2（A2-8-C-TIMELINE-01 开工前置；照录终裁十六节）
+
+① Program Timeline Authority；② A→B 切换 PTS mapping；③ Video/Audio
+是否共享 epoch；④ **1080i25↔1080p25 异构输入策略（新增）**；⑤ switch
+settle 时间语义；⑥ discontinuity/segment event 语义；⑦ recover 后
+timeline 处理；⑧ normalization 的 Execution Fact；⑨ Observation 如何
+证明"真的 normalize 了"；⑩ 不把 Normalize 塞进 ExecutionGroup /
+Supervisor / MediaBackend。
+
+反假修复红线（终裁十二节）：禁 `max(last_program_pts + duration,
+incoming_pts)` 类"PTS 不回退"假闭合——NonMonotonic→ValidMonotonic
+不代表 AV sync / frame duration / segment semantics / latency /
+switch boundary 正确；第一问不是"选哪个 GStreamer element"
+（videorate / identity sync=true 之类后置）而是 **Authority 结构
+冻结**。
+
+### 35.6 影响矩阵（终裁十四节照录）
+
+| 模块 | 当前状态 | 下一轮是否影响 |
+| --- | --- | --- |
+| Resolver | C1 PASS | ❌ 不动（C1-P1 仅登记） |
+| Device Registry | CLOSED | ❌ |
+| PortRegistry | CLOSED for 02-I | ❌ |
+| Manifest | v5 VALID | ❌ |
+| ResourceRegistry | CLOSED | ❌ |
+| SessionManager | PASS | ❌ |
+| ExecutionGroup | PASS | ❌ |
+| SwitchIntent/Plan | PASS | ❌ |
+| SwitchExecutionAdapter SPI | PASS | ❌ |
+| GStreamer SwitchGraph | **当前 Timeline Gap 所在边界** | ⚠️ 可能 |
+| ProgramObservation | 基本够用 | ⚠️ 可能增加 execution evidence |
+| TimelineSample | 设计正确 | ⚠️ 可能增加 normalization evidence |
+| PipelineHealth | 当前 PTS tracker 可继续复用 | ⚠️ |
+| PipelinePlan.normalize | 已存在但未消费 | **核心入口之一** |
+| Supervisor | 不应承担 Normalize | ❌ |
+| MediaBackend SPI | 不改 | ❌ |
+| H1 | 保持 | ❌ |
+| L5 | 暂不执行 | ⏸ |
+| A2-8-03～05 | 不提前侵入 | ❌ |
+
+### 35.7 最终状态机（终裁十五节照录）与执行令
+
+```text
+A2-8-02-I
+├── L0 PASS          ├── L1a PASS
+├── L1b PASS         ├── L1c PASS ← C1 CLOSED
+├── L1d PASS         ├── L2a PASS
+├── L2b PASS         ├── L3 PASS
+├── L4-SWITCH PASS
+├── L4-TIMELINE      └── FAIL-PENDING-CORRECTION
+├── L4 OVERALL       └── FAIL-PENDING-CORRECTION
+├── L5               └── SKIPPED BY H1
+└── Teardown PASS
+```
+
+- **A2-8-02-I = FAIL-PENDING-CORRECTION** 且 **A2-8 Switch Execution
+  基础能力 = PASS**（实际代码 + 真实硬件证据双证并立）。
+- 执行令：第二十六轮代码与账面不再修改（d123b45 保持）；下一轮
+  直接进入 **A2-8-C-TIMELINE-01: Program Timeline Authority & PTS
+  Continuity Design**（十项冻结前禁写 normalization 实现）；C1-P1 仅
+  登记不修不阻塞。
+- 本轮入口动作：C-TIMELINE-01 设计 SoT 探针已开（零代码新报告
+  `docs/superpowers/reports/2026-09-04-c-timeline-01-program-timeline-
+  authority-design-probe.md`）。
+
+## 36. C-TIMELINE-01 十问终裁（跨账引用，2026-09-04，零代码）
+
+用户对设计探针 OQ-1..12 **全部裁定**（全文落账=设计探针报告 §11；
+冻结设计=`2026-09-04-c-timeline-01-design-freeze.md`，15 项+八红线
+R1-R8）：
+
+- **架构方向冻结**：Program Timeline Authority + Clock-Segment
+  Timeline + Source Segment Mapping——**B 为主 + A 的执行机制 +
+  C（"出口再生成"正式废止）/ D 不采用**。
+- Authority=Program Execution 层 TimelineAuthority（禁
+  ExecutionGroup/Supervisor/MediaBackend/单 pipeline/出口 muxer；
+  不做大型独立 Engine；Domain 拥有语义、Adapter 拥有执行）。
+- PTS=Source Segment Offset Mapping（SourceSegment 五字段；
+  `max(last+dur, incoming)` 永久禁止；wall-clock 永久禁修 PTS）。
+- V/A 共享 Program Epoch 不共享数值序列；switch_epoch≠program_epoch。
+- Timeline 与格式归一化解耦（当前=Switch Boundary Adaptation +
+  Format Contract 显式声明不保证无缝 format continuity；格式策略=
+  独立 Program Media Format Policy）。
+- settle=状态语义（TimelineTransition 期间 PTS 必须已属新 timeline）。
+- Discontinuity 双层表达 + PtsState 四态（+DiscontinuityDeclared；
+  declared ≠ unexpected backward）。
+- Recover 本轮不实现、语义冻结（Soft/Hard 两类；Supervisor 只决定
+  recover 不拥有 Timeline）。
+- TimelineMapped 结构化 Fact ≠ TimelineHealthy；TimelineObservation
+  专门证据面（observed_at=wall clock 禁入 program_pts；"真的完成"
+  七条定义；pts>prev 永远不足）。
+- 删裸 bool normalize → TimelinePolicy（本轮零代码）。
+- 三时钟职权切开（Timeline Authority / AVSync Manager / Channel
+  Reference Clock 不得互相越权）。
+- **不触碰**：已 PASS 各层 + SwitchExecution/SessionManager/Resolver/
+  PortRegistry/ResourceRegistry/Supervisor——只解决 L4-TIMELINE；
+  **02-I 状态严格保持 FAIL-PENDING-CORRECTION（设计≠Gate PASS）**。
+- 隔离禁顺手修：C1-P1（不重开 C1）/ converter interlace /
+  PORT-IDENTITY / canonical UUID namespace。
+- 执行令：设计 SoT 探针阶段正式结束；**不进入实现**；下一动作=
+  Design Freeze（已形成）→ 冻结后才开 implementation change。
+
+本主线状态机不变：A2-8-02-I = FAIL-PENDING-CORRECTION（L4-SWITCH
+PASS / L4-TIMELINE FAIL-PENDING-CORRECTION / L5 SKIPPED BY H1）；
+A2-8 Switch Execution 基础能力 = PASS 并立。
+
+## 37. Design Freeze 复核通过 + Implementation Impact Map 交付（跨账引用，2026-09-04，零代码）
+
+- 用户复核 f3158a0：**Design Freeze 有效**（核心冻结与十问终裁一致，
+  本轮闭合不回裁）；**正式进入 A2-8-C-TIMELINE-01 Implementation
+  Change**——纪律=先实现前代码拓扑探针/Impact Map→最小变更面冻结→
+  再写代码；第 4/5/6 落点项须以真实 Rust/GStreamer API 为准不凭
+  架构图猜。
+- 工程状态表照录冻结（C1 CLOSED·C1-P1 隔离·L0-L3/L4-SWITCH PASS·
+  L4-TIMELINE FAIL-PENDING-CORRECTION·L5 SKIPPED BY H1·02-I
+  FAIL-PENDING-CORRECTION·Design FROZEN·Implementation=下一阶段·
+  converter interlace/PortIdentity/UUID=独立队列）。
+- **Implementation Impact Map 已交付**：
+  `2026-09-04-c-timeline-01-implementation-impact-map.md`（十项逐项
+  实锚+盒上 GStreamer 1.28.2 gst-inspect 实证+gstreamer-0.23.7
+  crate 源码实证+OQ-IMP-1..7 待裁+最小变更面候选）。关键实证：
+  input-selector 自身零时间戳改写（drop-backwards=丢帧藏证禁入）；
+  **identity `single-segment` 真实存在**（"eat segments, appear as
+  one segment"=方案 B 现成 primitive 候选，精确行为留 sim 实验锚定）；
+  crate `event::Segment::new`/`Pad::send_event`/
+  `PadProbeInfo::buffer_mut` 全真实可用；全仓 GStreamer 高层 API
+  零存量。
+- 全文落账=设计探针 §12；主账状态机不变。
+
+## 38. OQ-IMP-1..7 裁决 + SIM-01 实验刀完成（跨账引用，2026-09-04）
+
+- 用户裁决 OQ-IMP-1..7：**5 ADOPT**（IMP-1 normalize→TimelinePolicy[
+  SourceNative/ProgramTimelineMapped·禁含糊 bool]/IMP-2 走现有
+  Plan/materialization 链[禁新 Timeline trait/Port/SPI·ProgramEpoch
+  authority 永在 ProgramExecutionRuntime]/IMP-4 TimelineEvidence=
+  Adapter 装配 Runtime 独立读取[禁塞 PipelineHealth·Evidence≠Authority]/
+  IMP-6 失败三结局[Preserve/NewEpoch/FailClosed·禁第四种猜测成功·R2
+  绝对禁区]/IMP-7 L4-TIMELINE 升级为 Timeline Mapping Evidence 七合取
+  [TimelineTransitionEvidence 结构]）+ **IMP-3/IMP-5 授权 sim 实验**。
+- **SIM-01 已执行**（设计探针 §13+`2026-09-04-c-timeline-01-sim-01-
+  experiment.md`，9 变体 2583 行，盒 ~/ct-sim-01 sha256 归档）：
+  F1 桥按接收墙钟重定基=独立时钟域只剩相位差（真机 8-10ms 同源）·
+  F2 selector 自然转发 stream-start/caps/segment(B)=免费边界标记·
+  **F3 identity single-segment 只吃段不修 PTS=吞段假阳性实证**·
+  **F4 控制线程 send_event(Segment) 两序均被拒**·**F5 selector 后
+  BUFFER probe+Domain 声明映射=完整可行[backward=0·首帧精确落
+  anchor·V/A 双平面 121/121+162/162]**·F6 pre-flip 安装无竞态+
+  **set_property 后立即 readback=旧值而流已切**·F7 基线复现生产
+  L4 签名。
+- IMP-3/IMP-5 候选结论待用户终裁→冻结最小变更面→正式实现批次。
+- 实验零架构漂移：normalize/PipelineHealth/L4/SwitchGraph 正式逻辑/
+  Production graph 全未触碰；实验工程不入库。
+- 主账状态机不变。
+
+## 39. IMP-3/IMP-5 终裁 + IMP-2 实现层纠偏 + Batch 1 开工（跨账引用，第三十一轮，2026-09-04）
+
+- 用户终裁（全文=设计探针 §14）：**IMP-3 ADOPT**（selector 后 per-plane
+  EVENT+BUFFER probe；identity=吞段假阳性禁承担 proof；F4 精确表述=控制
+  线程外部注入 sent=false 非主注入机制，不过度扩大）·**IMP-5 ADOPT**
+  （①-⑩ 微观序冻结：anchor→声明→install→active-pad→Segment(B) event→
+  下一枚 B 实际 buffer→mapping→TimelineMapped→settle→Stable；**生效边界
+  ="事件确认+下一 Buffer"，active-pad readback 只能辅助**）·**IMP-2
+  ADOPT WITH CORRECTION**（PipelinePlan=ingest 只承载 TimelinePolicy 声明
+  清理；Program Timeline 走 ProgramExecutionRuntime→TimelineAuthority→
+  ProgramTimelinePlan→Adapter——build_program_pipeline 实锚不消费
+  PipelinePlan）·IMP-4 契约演进=**ProgramExecutionObservation{program,
+  timeline}**（observe() 单一 observation surface，Mock/GStreamer 同构）
+  ·IMP-6 三结局映射=Preserve(epoch N 保持)/NewEpoch(N→N+1)/FailClosed·
+  PtsMonotonicity 升级四态(+DiscontinuityDeclared·禁洗状态)·L4 最终=
+  九项合取 TimelineTransition proof·recover 本 change 不碰（A2-8-03）。
+- **SIM-01 足够，无需第二轮实验；正式开 A2-8-C-TIMELINE-01 最小实现
+  批次**：第一批 Domain+contract+Mock→第二批 GStreamer Adapter+L4→
+  真机复跑。实现纪律："TimelineAuthority 产生'应该怎样映射'的声明；
+  selector downstream Event/Buffer 产生'实际上发生了什么'的证据；两者
+  在 Runtime 中闭合成 TimelineMapped。"
+- 本轮 Batch 1（Domain+contract+Mock）实现落账=设计探针 §15。
+- 主账状态机不变（02-I 仍 FAIL-PENDING-CORRECTION，L4-TIMELINE 复跑前
+  不因实现存在而改判）。
+
+## 40. Batch 1 复核终裁 APPROVED + Batch 2 开工令（跨账引用，第三十二轮，2026-09-04）
+
+- 用户按 f82e625 实际代码全盘复核：**Batch 1 APPROVED**（Domain/GStreamer
+  分层·ExecutionGroup 零污染·observe 机械波及无隐藏语义扩散·GStreamer
+  诚实缺席，四项成立；PipelinePlan 边界**正式关闭不再回头**；SwitchExecution
+  调用链零污染确认——on_switch_executed 禁成第二 switch state machine）。
+- **两项 Batch 2 前置直接处理**：①BLOCKER-DOC=Freeze §3 epoch 文本统一
+  为 Preserve=同世代不变/NewEpoch+1（switch_epoch/segment_id/program_epoch
+  三职权分离）；②BLOCKER-IMPLEMENTATION=no_evidence 消除虚假 epoch=0
+  （携带当前已知 epoch，十键形状不改 Option）。
+- 三非阻塞风险：P2 i64 差值算法·P1 no_evidence（=②）·P1 段历史累积不
+  覆盖（Batch 2 锁测试）。
+- **Batch 2 十四步顺序锁定开工**（1-2 直接处理·3-12 主实现·13 双轨回归·
+  14 真机复跑仅矩阵绿后）；禁做清单照录（Authority 不入 SwitchGraph/
+  set_active 不产 epoch/readback 不判生效/identity 不用/send_event 不用/
+  recover·Supervisor 不碰）。全文=设计探针 §16。
+- 本轮执行落账=设计探针 §17；主账状态机不变（02-I 仍
+  FAIL-PENDING-CORRECTION 直至真机 Timeline Evidence PASS）。
+
+## 41. Batch 2 落地 + 真机复跑：Timeline 层真机 Preserve 达成（跨账引用，第三十二轮收官，2026-09-04）
+
+- Batch 2 十四步全落地（设计探针 §17, commits e86d0e8 终裁账/59aec43
+  Freeze epoch 统一/3ff66ad Batch 2）；盒矩阵 fmt/default 217/mock 381/
+  **bmd+gst 237（含真实 GStreamer 全链 Preserve 实证）**/clippy×2 全绿。
+- **真机 02-I 复跑（步骤 14, 22:15 CST, HEAD=3ff66ad, bin 31e294f4,
+  68/68 源 sha==HEAD, 证据=盒 ~/a2-8-02i-evidence/2026-09-04-2230-batch2-
+  ctimeline/）**: L1a-d/L2a/L2b/L3/Teardown **8/10 PASS（EXIT=2）**——
+  **L4=switch_ok true ∧ outcome=Preserved（真 DeckLink 双输入全链: 声明
+  offset 118799ns 相位级·Segment(B) 观测·首枚映射缓冲过证据校验·V/A
+  双平面 Continuous·无未声明回退·epoch 保持 0）**; L4 overall FAIL 单点
+  =九项合取转写 `mapped>pre` 严格大于 vs 真机零隙拼接**精确相等**（冻结
+  语义=非回退 ≥）——**B 类 Gate 判据转写, 未改码待裁决**; L5 H1 跳过;
+  **A2-8-01 架构硬事实真机表达（prog NonMonotonic 确定性签名）消失**
+  （post-switch ValidMonotonic）。全文=设计探针 §18。
+- 02-I 仍 FAIL-PENDING-CORRECTION（8/10）——性质迁移=架构缺口→验收判据
+  单点转写; 正式 PASS 待 B 类修正（`>`→`>=`）+复跑（L5 首次真机注入）。
+- 主账状态机：02-I FAIL-PENDING-CORRECTION（8/10 verdicts）暂记。
+
+## 42. 第三十三轮终裁：Batch 2 APPROVED + L4 B 类单字符批准 + NewEpoch rebase P1（跨账引用，第三十三轮，2026-09-05）
+
+- **Batch 2 ✅ APPROVED**（复核 14 项关闭——三职权分立无越权/①-⑩ 顺序/
+  SIM-01 一致/Authority 声明→Adapter 冻结→实际 buffer 三段闭合/F6 生效
+  边界/真机 Preserve=核心问题实际解决/双面分工/消费面/Teardown-Recover
+  零污染——设计探针 §19.1）。
+- **L4 `>`→`>=` 正式批准**（B 类 Gate-only 单字符; 禁趁机重写其余八项）
+  ——冻结语义非回退=≥, 真机零隙拼接 equal≠backward。
+- **NewEpoch SourceSegment rebase 缺陷 = P1 登记**:
+  `program_timeline.rs:682-688` rebase 沿用旧 plan offset 未按新
+  boundary 重算——不变量
+  `new_segment.offset == new_segment.program_start_pts −
+  new_segment.source_start_pts`; 回归四条（Preserve/NewEpoch/
+  A→B→A history/append-only）——不阻断本轮, **C-TIMELINE-01 Final
+  Close 前必修**; 不混入本次小修。
+- **on_mapped_buffer 先行 DiscontinuityDeclared**（616 先于连续性判定）
+  = NewEpoch 修复时锁回归（"新世代合法边界"≠"backward 洗白"）; 现阶段
+  不判结构性错误。
+- **令**: 修正后立即真机复跑——H1 开 L5, 完整 L5 真实证据必拿（A fail→
+  B alive / recover A→bridge real flow / B fail→A alive / failure-domain
+  classification）; L5 全绿 → 02-I 具备正式收口评审条件。
+
+## 43. 第三十三轮执行：L4 真机正式 PASS；L5 首跑留证=C 类 recover 契约缺口（跨账引用，2026-09-04 22:35 CST）
+
+- 执行链: c5c7753 终裁账 / b856a04 `>`→`>=` 单字符 / d5059e2 盒 fmt 残留;
+  69/69 源 sha==HEAD; 矩阵 fmt/default 217/mock 381/bmd+gst 237/clippy×2
+  全绿; bin 重建 c0efdfad; v5 当日复核; 证据=盒
+  ~/a2-8-02i-evidence/2026-09-04-2340-l4fix-l5run（run.log sha 4616d680）。
+- **L4 Timing/switch+timeline(A→B) 首次真机 PASS**——九项合取全绿:
+  Preserved（epoch 保持 0）·映射闭合 6937849283+33301642==6971150925
+  逐 ns·V/A Continuous·declared==observed==SegmentId(1)·无未声明回退·
+  **mapped==pre_v 再次精确相等（零隙拼接复现→`>=` 修正被证实必要且
+  充分）**·post prog ≥ mapped·Authority 行 mapped=Some。
+- **L5 FAIL（首次真机执行; 历史两跑均被 H1 跳过）**: L5.1 A-fail→B-alive
+  **true**（隔离半边真机成立）; L5.2 根因=**stop/recover 契约结构性冲突**
+  [MediaBackend::stop=终态注销（P0-2 防句柄泄漏）vs recover 第一步
+  instances.get 取 plan——controller.rs:314-331 vs 220-227; stop→recover
+  序列生产上必败]; Mock stop/recover 均 no-op Ok（mock.rs:129-134）+
+  L5 序列仅真机 gate 执行——Mock≠GStreamer 预警在 recover 契约面成真;
+  L5.3/L5.4/Teardown session_stop=false 全为级联（Teardown 本体无独立
+  缺陷: program_runtime_inactive=true·phase_released=true）。
+- **分类=C 类候选（gate 序列×生产契约不匹配）待裁**, 候选方向三选一
+  （L5 注入面改造 / Session 层 recover-from-plan / recover 语义归属
+  A2-8-03 supervision 面）; 红线: MediaBackend::recover 不改 + stop 注销
+  语义=P0-2 专裁不可反转。**未改码**。
+- 02-I 仍 FAIL-PENDING-CORRECTION（8/10; 失败集迁移 {L4,L5-skip}→
+  {L5, Teardown-级联}）。全文=设计探针 §20。
+
+## 44. 第三十四轮终裁：方案 1 批准——Diagnostic Runtime Fault Injection（2026-09-05）
+
+### 44.1 裁决（照录）
+
+- **方案 1（L5 注入面改造）✅ 正式批准**，冻结名称
+  **A2-8-02-I — Diagnostic Runtime Fault Injection**。定义边界:
+  注入"运行故障"非"生命周期终止"——真实执行面停流·**PipelineHandle
+  与 HEALTH_ARCS 保持登记**·随后 `MediaBackend.recover(handle)`=生产
+  行为（同 handle 原 plan 重建）。**被证伪的是 L5 的故障注入方式, 非
+  生产恢复链。**
+- **落点=GStreamerPipelineController 第四 trait view**
+  （MediaBackend / MediaTapPort / BridgeObservationPort /
+  **DiagnosticFaultInjection**）——保持"一次 concrete controller 多
+  trait view"（F-01 同源原则）; **禁入 MediaBackend 冻结 SPI**（五方法
+  面不动）; SessionManager（生命周期 owner 不知"怎么搞坏 GStreamer"）/
+  Supervisor（observe→decide 不做故障制造器）均不落。
+- **方案 2（Session recover-from-plan）暂不批准**——Session 只存
+  SessionInput{device_id,handle} 无 plan 持久引用, 真做必牵动
+  SessionInput→重 instantiate→handle 替换→Health identity→Tap
+  ownership→ProgramExecutionRuntime→ExecutionGroup→Watchdog 全链
+  ="用 Session 重构修一个 Diagnostic Gate 错误"。
+- **方案 3（recover 推 03）不作替代**——生产 watchdog→Supervisor.
+  report_failure→Restart→lease 重校→backoff→ctrl.recover 接线实存,
+  推迟会把已存在能力伪装成未来功能; 03 验证策略闭环但不能替代 02-I
+  注入修正。
+- **定性**: recover(handle) 本体 P0/P1 无阻断; stop→recover=非法 Gate
+  生命周期组合; **Teardown 本体 PASS / 当前 Gate FAIL=L5 注入级联**
+  （session stop 对已注销 handle 报 UnknownPipeline=级联后果, 不单独
+  开缺陷——与 P0-2"backend.stop 失败仍继续释放"设计吻合）。
+- **红线七条**: ✗改 MediaBackend::recover ✗改 MediaBackend::stop
+  （终态注销=P0-2 防泄漏, 改成 paused-but-registered=架构回退）
+  ✗Session 替换 handle ✗Supervisor 执行注入 ✗fault injection 入
+  冻结 SPI ✗recover 推成"03 才有" ✗Timeline 代码混修 L5。
+- **第一版故障形态**: ✗禁模拟 Bus Error 合成事件（Observation Fact ≠
+  Synthetic Event; Health 体系 frames/PTS/last_observed/liveness/Bus
+  分层不可污染）——✓作用于 A branch 实际执行面使真实媒体流停止产出。
+- **02-I 收口条件=13 项全 PASS**（L0/L1a-d/L2a/L2b/L3/L4/L5.1-5.4/
+  Teardown）→ 届时才进入 Final Close Review。
+- NewEpoch rebase P1 维持; DiscontinuityDeclared 语义 P1 维持
+  （Final Close 时 Declared boundary 与 Observed backward jump 锁成
+  两个独立概念）; Mock 无证明价值确认（**禁扩展 Mock 假装真实
+  controller registry**——bundle mock 分支 diagnostic=None）。
+
+### 44.2 裁决代码断言实物核验（落账前）
+
+| 断言 | 实锚 | 结论 |
+| --- | --- | --- |
+| 生产恢复链 watchdog→Supervisor→recover 实存 | watchdog.rs:212-233: report_failure→Ok(Restart)→lease 重校（:214-216 "recover 中止: lease 失效"）→ctrl.recover（:228）→report_recovered; 头注 :5-11 | **证实** |
+| Session 不存 materialized plan | session.rs:193-197 SessionInput{device_id, handle} 恰两字段 | **证实** |
+| recover=同 handle 原 plan 重建 | controller.rs:217-299（R33 已核）: get(plan)→save taps→remove→old.stop→build(plan, same handle)→Playing→insert→replay | **证实** |
+| Mock stop/recover 无 registry 语义+bridge_stall 测试钩子实存 | mock.rs:129-134 no-op Ok; :153 bridge_stalled HashSet; :228 pub fn bridge_stall | **证实** |
+| bundle 三 view 同源单构造 | registry.rs:193-199 MediaAdapterBundle 三字段; :162-186 单次 Arc::new(controller) 三 clone（F-01"禁二次构造"注释） | **证实** |
+
+### 44.3 执行序（本轮）
+
+1. 终裁落账（本节 + 设计探针 §21 跨账 + tasks 第三十四轮）零代码 commit;
+2. 实现: contracts/diagnostic.rs 新契约面（仅诊断）+ controller 第四
+   view impl（真实执行面停流不注销）+ MediaAdapterBundle 第四 view
+   （同源第四 clone; mock=None）+ gate L5 5.1/5.3 stop→inject +
+   registry rt 测试（注入保持 handle 可 recover 契约）;
+3. 盒矩阵 + bin 重建 + 69/69 sha + 真机复跑（目标 13 项全 PASS）;
+4. 证据归档 + §45 复跑账 + commit/push + 记忆同步。
+
+## 45. 第三十四轮执行：Diagnostic Fault Injection 真机——9/10；L5.2 recover 真机成立；L5.4=B 类观测窗口候选留证（2026-09-05 00:19 CST）
+
+### 45.1 执行纪律（§29.2 全项）
+
+- HEAD=bb1360c（374f5c0 终裁账 + bb1360c 实现）; local git status
+  clean; **70/70 源 sha==HEAD**（含新 contracts/diagnostic.rs）。
+- 矩阵全绿: fmt OK / default **217** / mock **381** / bmd+gst
+  **240（+3 diagnostic_rt×3 全过: 结构面[注入后 instances 保持+recover
+  Ok]/行为面[self_test 真元素帧冻结→recover 复流]/fail-closed[stop 后
+  注入拒收]** / clippy×2 `-D` PASS。
+- bin 重建 sha `7e665e3b`; 盒时钟 **2026-09-05 00:19 CST**（跨午夜,
+  header 照实记录; 当日 Discovery=跑内 L1a 2/2 production_grade）;
+  ball PID 992634 存活 9h22m; gst dn0/dn1 可开有信号。
+- 证据=盒 `~/a2-8-02i-evidence/2026-09-05-0020-r34-diag-inject/`
+  （header.txt + run.log, sha256 `83017553`）。
+
+### 45.2 结果（EXIT=2, **9/10——历史最高**; 失败集 {L5.4} 单项）
+
+| Verdict | 结果 |
+| --- | --- |
+| L1a-d / L2a / L2b / L3 | PASS |
+| **L4 switch+timeline** | **PASS（连续第三次）**——Preserved·epoch 0·映射闭合 6970279646+452126==6970731772 逐 ns·V/A Continuous·offset 452126ns 相位级 |
+| **L5.1 A-fail→B-alive** | **PASS**（inputA_advancing=false·bridgeB_alive=true·program_advancing=true）——注入=真实运行故障实证 |
+| **L5.2 recover-A→桥复流** | **PASS（首次真机）**——recovered=true·bridgeA_alive=true·degraded=false; recover tap 簿记重放成功（run.log 00:19:51.853 handle=1）。**33 轮 C 类缺口（stop→recover 结构性必败）经方案 1 修复真机闭环** |
+| **L5.3 B-fail→A-alive** | **PASS**（bridgeB_alive=false·bridgeA_alive=true） |
+| L5.4 故障域不越域 | **FAIL**——A行=None（期望 Program）; B行=Input ✓ |
+| **Teardown** | **PASS**——session_stop=true·program_runtime_inactive=true·phase_released=true（33 轮级联彻底消失: handle 全程在册） |
+
+### 45.3 L5.4 单点失败根因（首跑留证——**未改任何代码**）
+
+- `classify_failure_domain(a_input_adv=true, a_bridge_alive=true,
+  prog_adv2=true)` → **None**（program_execution.rs:186-199 全健康臂;
+  None≠分类器缺陷——帧真的在到达, 不能声称停滞）。
+- `program_progress_since`=帧计数增长（:160-166, video OR audio 任一）。
+  5.4 采样窗 [B 注入后 ~8s, ~11s]（L5_WAIT 5s + 5.3 检查 + a1/GAP3/a2
+  + q1/GAP3/q2）内 program 出口帧计数**仍在增长**。
+- **机制=下游集料排空（drain runway）**: B 输入管线 Paused 后,
+  intersink(B)→inter→intervideosrc(B)→selector→queue→appsink 链上
+  已缓冲数据继续以消费速率流动——GStreamer 默认 queue ≈200 buffers
+  ≈**8s@25fps** + inter 内部缓冲, 与 8-11s 采样窗**恰好重叠**。
+  5.3 的 bridgeB_alive=false（tap 面 3s 窗口）证明源侧确已冻结;
+  排空=正常 GStreamer 行为, 非实现缺陷。
+- **分类=B 类候选（Gate L5.4 观测窗口与真实管线排空时间物理不匹配）**。
+  非 A（硬件/信号/双卡全好）; 非 C 实现缺陷（排空=正常; 分类器语义
+  正确）。候选修复待裁（本轮零改动）: ①5.4 前加长排空等待
+  （drain-wait 常量或采样推后至预期 runway 后, e.g. ≥12-15s）
+  ②program 停滞判定改为相对注入时刻锚定 ③（不推荐）显式读取 queue
+  水位=过度工程。
+- 02-I 收口清单现状: **14 项中 13 PASS, 唯 L5.4 待裁**。
+
+### 45.4 工件（隔离队列不变）
+
+converter interlace 断言同历跑; **pad_unlink CRITICAL ×4 本跑复现**
+（teardown 时刻, 33 轮跑未现/32 轮曾现——间歇性）; Bus watch
+MainContext already-acquired WARN 复现于 recover(B) 新管线建立前
+（00:20:10.580, 与 handle=2 tap 重放成功同秒——无功能影响）。
+
+### 45.5 02-I 状态
+
+仍 FAIL-PENDING-CORRECTION（9/10）——但性质再迁移: 由"注入方式结构性
+错误"变为"**L5.4 单项观测窗口物理不匹配（B 类候选）**"。方案 1
+（Diagnostic Runtime Fault Injection）核心目标全部真机达成: 注入=
+真实运行故障·handle 全程在册·recover=生产行为·隔离/复流/Teardown
+全链成立。
+
+## 46. 第三十六轮（repo 账第三十五轮）— L5.4 终裁: 方案②「相对故障注入时刻锚定」批准（2026-09-05; 裁决轮·零代码）
+
+**裁决输入**: 用户 2026-09-05 全盘重审（基于 GitHub 真实 HEAD 1d0d314）,
+对 §45.3 三候选的终裁。
+
+### 46.1 裁决
+
+1. **L5.4 定性升级**: B 类确认——不是 Domain/Runtime/Adapter/GStreamer
+   recover/Session/Supervisor/Timeline/Diagnostic Injection 架构 bug,
+   是 Gate 对「故障发生后何时开始判断 Program 停滞」的观测时序**无显式
+   建模**。5.4 问的不是「B 故障后 Program 最终有没有停」而是「恰好选中
+   的一个 3s 采样窗里有没有继续收帧」——两个问题不是同一个问题。
+2. **方案①（机械加长等待 12-15s）**: 🟡 可行但不采纳为正式方案——把某
+   一次硬件/帧率/queue 配置的实验结果硬编码成固定 sleep, 无稳定语义;
+   现有 L5_WAIT 的语义是 fault observation settling time, 不是 pipeline
+   topology drain time。
+3. **方案②（相对故障注入时刻锚定）**: ✅ **正式批准**。时序语义冻结:
+   `Fault t0（B inject_stall 成功时刻）→ Drain Grace → q1 → 固定 GAP →
+   q2 → program_progress_since → classify_failure_domain`。grace 成为
+   Gate 显式观测窗口参数（`L5_PROGRAM_DRAIN_GRACE`）——实现须
+   `wait_until(fault_started_at + grace)` 而非叠加 sleep, 使前置
+   L5_WAIT/桥检查/a1a2 采样变化不造成采样时刻漂移; 未来换帧率/queue/
+   inter/format 最多调此单一 knob, FailureDomain/ProgramObservation/
+   PipelineHealth/BridgeObservation 全不动。
+4. **方案③（读取 queue 水位）**: ❌ 不批准——把 L5 Gate 引入 GStreamer
+   topology/property 依赖, 且会把 FailureDomain 从封闭四词表
+   {None,Input,Bridge,Program} 悄悄扩成 {…,Queue,…}。
+5. **classify_failure_domain 冻结**: (true,true,true)→None=all-healthy
+   语义正确, 禁为 Gate 通过把 None 改成 Program。Bridge liveness
+   （last_observed 观察时钟窗口）与 Program 推进（帧计数增量）两证据
+   模型不得合并成"统一 health"。
+
+### 46.2 裁决代码主张核验（vs 真实代码 1d0d314; 本轮先行义务）
+
+| # | 裁决主张 | 实锚 | 结论 |
+| --- | --- | --- | --- |
+| 1 | classify 优先序 Input>Bridge>Program, (true,true,true)→None | program_execution.rs:186-199 逐字符一致 | ✅ 证实 |
+| 2 | L5.4 现流=B inject→L5_WAIT→桥检查→a1→3s→a2→q1→3s→q2（q2≈t0+11s） | dual_input.rs:785-808（L5_WAIT_SECS=5 :90·SAMPLE_GAP_SECS=3 :87） | ✅ 证实 |
+| 3 | program graph=selector→queue→appsink, 双 queue 无显式容量属性=默认容量语义 | switch_graph.rs:397/441 `make_element("queue",…)` 后零容量 set_property | ✅ 证实 |
+| 4 | appsink sync=false+async=false（下游消费不依赖实时播放时钟） | switch_graph.rs:399-400 / 443-444 | ✅ 证实 |
+| 5 | SessionManager: Program teardown（hook）先于 Input Stop; hook 失败不截断资源释放 | session.rs:782-798（Err 仅 warn「仍继续输入停止与资源释放」）·:804 Backend.stop 在后 | ✅ 证实 |
+
+### 46.3 执行令（边界照录）
+
+- **只改** `gates/dual_input.rs` L5.4 观测安排（fault_started_at 锚点 +
+  drain-grace 等待; q1/GAP/q2 与 classify 判据零变化）。
+- **禁改**: program_execution.rs / contracts/diagnostic.rs /
+  controller.rs / switch_graph.rs / session.rs / backend.rs /
+  program_timeline.rs / Supervisor / MediaBackend SPI。
+- 后续序: 修改→fmt→default/mock/bmd+gst/clippy→gates bin rebuild→真机
+  02-I→核对 14/14→NewEpoch P1 关闭（独立刀·四回归+DiscontinuityDeclared
+  两概念锁）→C-TIMELINE-01 Final Close→A2-8-05 archive。
+- 隔离队列维持: pad_unlink CRITICAL ×4·Bus watch MainContext
+  already-acquired WARN 不因 L5.4 收口顺手修。
+- grace 初值=15s 依据: 真机 2026-09-05 00:19 实测 t0+8..11s program 仍
+  推进（runway 下界 >11s）→15s=下界+~4s 余量; 若复跑仍见推进=新下界
+  证据回裁, 禁无裁决自行调参。
+
+## 47. 第三十六轮执行 — 方案②落地 + 真机复跑: 9/10 复现, L5.4 runway 新下界 >18s（留证·零后续改码）
+
+### 47.1 交付（commit 3c0b2af, 单文件 +18 行）
+
+- `L5_PROGRAM_DRAIN_GRACE = 15s` 常量（含依据注释: R34 实测下界 t0+11s+余量）。
+- 5.3 `inject_stall(&h_b)` 后 `fault_started_at = Instant::now()` 锚点。
+- 5.4 q1 前 `wait_until(fault_started_at + grace)`（`saturating_duration_since`
+  剩余等待——前置 L5_WAIT/桥检查/a1a2 已耗时间自动折算, 不随流水 sleep 漂移）。
+- q1/GAP/q2/classify 判据零变化; §46.3 禁改九面零触碰（diff 仅 dual_input.rs）。
+- 盒矩阵: fmt --check 绿 · default 217 · mock 381 · bmd+gst 240 · clippy×2 绿;
+  gates bin 重建 `baf5f895`。
+- sha 清单（81 文件全列·较历史 70 文件清单扩大）: **80/81 符**, 唯一
+  DIFF=Cargo.lock（盒 cargo 较新 lockfile v4 消歧格式重写+少量传递依赖
+  显式化; Cargo.toml==HEAD; 历史 70 文件清单从不含 lock——**非本轮引入**,
+  零语义影响, 披露不阻断）。
+
+### 47.2 真机复跑（2026-09-05 00:47 CST; 证据盒 `~/a2-8-02i-evidence/2026-09-05-0047-r35-l54-anchor`; header 五件套+bin/manifest sha; run.log sha `23a5f860`）
+
+EXIT=2 **9/10**（失败集仍 {L5.4} 单项）:
+
+| Verdict | 结果 |
+| --- | --- |
+| L1a-d / L2a / L2b / L3 | PASS（dn0/dn1 signal=true·tap 82/81·L3 120→210 ValidMonotonic） |
+| **L4 switch+timeline** | **PASS（连续第四次）**——Preserve·epoch 0·offset 130924ns·src 6969781703+130924==6969912627 逐 ns·V/A Continuous·undeclared_backward_jump=None |
+| L5.1 / L5.2 / L5.3 | PASS（recover(A) tap 重放成功 handle=1, 00:47:35.386） |
+| L5.4 故障域不越域 | **FAIL**——A行=None（期望 Program）; B行=Input ✓ |
+| Teardown | PASS（session_stop=true·inactive=true·released=true） |
+
+### 47.3 锚定机制执行精确性（时间线闭合证明）
+
+tracing 时间戳重建: t0(B inject)≈00:47:42.5 → q1=t0+15.0 → q2=t0+18.0 →
+recover(B) tap 重放成功 handle=2（00:48:01.147）→ Teardown（00:48:04.149,
+pad_unlink ×4 同刻）。**wait_until 语义按设计精确执行**（前置消耗 ~8s
+自动折算为 ~7s 剩余等待）。
+
+### 47.4 L5.4 新证据与定性（维持 B 类·零后续改码）
+
+- prog_adv2=true 于 [t0+15, t0+18] ⇒ **排空 runway >18s**（R34 下界 >11s
+  再推高）。两跑数据与"固定大积压（任意 >18s）"一致, 亦与"积压≈冻结前
+  B 生产窗"的累积假设一致——本跑 B 生产窗 ≈00:47:17→t0 ≈25.5s。
+- 机制实锚: inter sink（tap）在**输入管线内** tee 挂接（controller.rs:645-666
+  `attach_tap_to_instance`·sync_state_with_parent）——B Paused 冻结其
+  inter sink 属实（bridgeB_alive=false 旁证）; program 侧唯一余流=inter
+  shm 积压（intervideosrc(B)→selector→queue→appsink·sync=false）。积压
+  容量/排空速率由 inter 插件内部语义决定, 仓库代码不可见。
+- **候选待裁（本轮零后续改动）**: ①grace 15s→30s（覆盖累积假设 ~26s
+  生产窗+裕量; 仍是方案②框架内单 knob 调参）②①+5.4 证据行打印 q1/q2
+  program 帧计数（Gate 观测性一行·不改判据; 无论 PASS/FAIL 下次精确钉
+  runway）③语义升级 eventually-stalled-with-deadline（grace 后循环采样
+  至观测停滞或超 deadline; 最强语义·需新裁决）。**推荐②**。
+- 02-I 收口清单: 14 项中 13 PASS 维持, 唯 L5.4。
+
+### 47.5 工件（隔离队列维持）
+
+converter interlace 断言 ×6（历跑 9·间歇性）; pad_unlink CRITICAL ×4
+（teardown 时刻复现）; MainContext already-acquired WARN ×2（两次 recover
+各一·无功能影响·recover tap 重放成功 ×2 同批）。
+
+## 48. 第三十七轮（repo 账第三十六轮）— L5.4 终裁: 方案③「有界 eventual-stall」批准（2026-09-05; 裁决轮·零代码）
+
+### 48.1 终裁主文（对 §47.4 三候选的再裁决）
+
+- **①grace 15s→30s = ❌ 不作为最终收口方案**。>11s/>18s 只是"本次实验
+  尚未排空的下界", 不证 runway=20/25/<30s; 15→30 若 PASS 只能得出
+  "本次环境 30s 够了", 不能得出"L5.4 故障域语义已被严格证明"——那会把
+  Gate 降级为经验性 timeout tuning 而非 failure-domain verification。
+  **禁止再做 30s（及后续 30→60）盲调**。
+- **②grace+q1/q2 帧计数 print = ❌ 已不足以解决根本问题**（观测性仍留
+  在"固定 grace 后单窗采样"的脆弱假设上）。
+- **③有界 eventual-stall（收敛版）= ✅ 正式批准**。两轮真机证据
+  （15s grace FAIL·t0+15..18 仍推进）+ inter 积压不可仓库级观测 ⇒ 已无
+  证据为"固定 grace"找到可证明常数——继续调常数反不如把判定语义升级为
+  "eventually stalled, bounded by deadline" 严谨。
+
+### 48.2 批准的 L5.4 语义: 三阶段观测器
+
+- **Phase A 确认输入故障**: inject(B) → L5_WAIT → bridgeB=false ∧
+  bridgeA=true（现有 5.3 检查即 Phase A, 结构不变）。
+- **Phase B 排空期**: fault t0 → minimum drain grace（wait_until(t0+grace)
+  锚定——第三十六轮真机时间线闭合已证精确执行, **机制保留**; 期间禁判
+  停滞——runway 排空前采样即假阴性）。
+- **Phase C 停滞确认循环**: grace 后取 q1 基线, 按采样间隔循环观测
+  Program 增量——有增长 ⇒ stall_rounds 归零; 无增长 ⇒ +1; **连续 N=
+  L5_PROGRAM_STALL_CONFIRM_ROUNDS 个采样窗无增长 ⇒ StalledConfirmed**
+  （单窗零增量可能是调度/分发/桥抖动, 禁以单窗判停）; **now ≥ t0+
+  L5_PROGRAM_STALL_DEADLINE 仍未确认 ⇒ StillAdvancingAtDeadline =
+  L5.4 FAIL/TIMEOUT**（明确分类结局, 终结 grace 数值调参循环）。
+- **结束原因三词表（evidence 必记"最终为什么结束", 禁静默超时）**:
+  `StalledConfirmed`（→ 继续用 classify_failure_domain 判 Program 域）/
+  `StillAdvancingAtDeadline`（明确 FAIL·不再猜"也许再等 20 秒"）/
+  `ObservationInvalid`（帧计数簿记回退等观测面异常, 本轮禁判停滞）。
+- **分层不变**: classify_failure_domain 与 FailureDomain 封闭四词表
+  {None,Input,Bridge,Program} 冻结——真正变化的只是 prog_advancing
+  这一观测输入的产生方式（固定单窗 → 有界循环）。Bridge liveness
+  （last_observed 观察时钟）与 Program 推进（帧计数增量）两证据模型
+  维持分离, 禁"bridgeB 死 ⇒ program 立即停滞"推导。
+- **queue 水位读取维持 ❌**（vendor/topology-specific fact 会把故障域
+  体系拉出第四个执行内部子域, 破坏封闭四词表）。
+
+### 48.3 裁决代码主张核验（六项·全实锚）
+
+| # | 主张 | 实锚 | 结果 |
+| --- | --- | --- | --- |
+| 1 | 现行 Gate=B inject→t0=Instant::now()→wait_until(t0+15s)→q1→3s→q2 | dual_input.rs:793-827（inject :793/t0 :795/grace wait :820-823/q1 :824/gap :825/q2 :826） | ✓ |
+| 2 | Program Graph=intervideosrc(B)→selector→queue→appsink; queue 默认容量·appsink sync/async=false | switch_graph.rs:397·399-400·441·443-444; git log 证 3ff66ad 后未变 | ✓ |
+| 3 | classify 优先序 !input→Input / !bridge→Bridge / !program→Program / else None | program_execution.rs:186-200 | ✓ |
+| 4 | Teardown 顺序 Program Stop→Tap Detach→Backend.stop·hook 失败不截断 | session.rs:782-798; efc1b2a 后未变 | ✓ |
+| 5 | Bridge liveness=last_observed 观察时钟·frames=历史证据分层 | program_execution.rs:131-143（alive_in_window 过滤 :139-143） | ✓ |
+| 6 | 诊断注入=运行态暂停·handle/instances 保持·recover 同 handle 真实重建 | controller.rs 第四 view（R34 bb1360c 落地·后未变·diagnostic_rt ×3） | ✓ |
+
+### 48.4 执行令与边界
+
+- **只改 `gates/dual_input.rs`**; 允许面=三常量 + 观测循环 + evidence
+  输出: `L5_PROGRAM_DRAIN_GRACE`（语义改写为 minimum drain grace, **值
+  维持 15s**——不因新框架调参）+ `L5_PROGRAM_STALL_CONFIRM_ROUNDS`（=3;
+  裁决建议 2 或 3, 取 3 配合既有 SAMPLE_GAP_SECS=3 ⇒ 9s 确认窗）+
+  `L5_PROGRAM_STALL_DEADLINE`（=60s; 取值依据=两跑下界 >11/>18s+"积压≈
+  冻结前 B 生产窗 ~25.5s"假设+grace+N×GAP+余量——**是验证期限不是
+  通过常数**, 到期是分类结局非静默超时）。采样间隔复用 SAMPLE_GAP_SECS
+  不新增第四 knob。
+- 非确认结局（StillAdvancingAtDeadline/ObservationInvalid）保守按
+  "未证停滞"进 classify（prog_advancing=true ⇒ A 行=None ⇒ L5.4 自然
+  FAIL）, 结束原因在证据行区分——**判据表达式零变化**。
+- **禁改九面维持**: program_execution.rs / contracts/diagnostic.rs /
+  controller.rs / switch_graph.rs / session.rs / backend.rs /
+  program_timeline.rs / Supervisor / MediaBackend SPI（stop/recover
+  零修改）。
+- 后续序: 修改→fmt→矩阵（default/mock/bmd+gst/clippy×2）→gates bin
+  rebuild→真机 02-I→**核对 14/14**→NewEpoch P1 关闭（独立刀）→
+  C-TIMELINE-01 Final Close→A2-8-05 archive。
+- 隔离队列维持不得顺手修: pad_unlink CRITICAL ×4 / MainContext
+  already-acquired WARN / converter interlace 断言; NewEpoch rebase P1
+  不与本轮混修。
+
+### 48.5 02-I 状态重定级
+
+L0/L1a-d/L2a-b/L3 PASS·L4 PASS×4·L5.1-5.3 PASS·Teardown PASS——
+**"Runtime 功能未做完"已排除, 唯一剩余=L5.4 Gate 观测语义**（本裁决即
+其收口刀）。14 项中 13 PASS 维持。
+
+## 49. 第三十七轮执行 — 方案③落地 + 真机两跑: L5.4 观测器按设计给出分类结局; L4 首次真机 NewEpoch（双 C 类回裁·零后续改码）
+
+### 49.1 交付（commit d7d4fc6, 单文件 +68/−16）
+
+- `L5_PROGRAM_DRAIN_GRACE` 15s（语义=Phase B 最小排空·值不动）+
+  `L5_PROGRAM_STALL_CONFIRM_ROUNDS`=3 + `L5_PROGRAM_STALL_DEADLINE`=60s
+  + `L5ProgramStallOutcome` 三词表 enum + Phase C 循环 + evidence
+  （outcome/samples/stall_rounds/首末帧计数/@t0+x.xs）。
+- 判据表达式与 classify 调用面零变化; 非确认结局保守按"未证停滞"进
+  分类（A 行=None ⇒ 自然 FAIL）; §48.4 禁改九面零触碰。
+- 盒矩阵: fmt --check 绿·default 217·mock 381·bmd+gst 240·clippy×2 绿;
+  bin release 重建 `596a8bcc`（与 R35 同 target/release 路径）; sha 80/81
+  唯 DIFF=Cargo.lock（既有分歧维持·Cargo.toml 在 80 内==HEAD）。
+
+### 49.2 真机 run 1（09-05 05:38 CST; 证据盒 `2026-09-05-0538-r36-l54-eventual-stall`; run.log sha `1f0ea619`）: 8/10 — L4 首次 NewEpoch FAIL
+
+- L1a-d/L2a-b/L3 PASS; Teardown PASS; **L4 FAIL**: outcome=NewEpoch
+  {epoch 1·video program_start 6970509011/offset 33221397·audio offset
+  104795}, switch_ok=false（prog_v 11170509011 NonMonotonic）,
+  v/a=DeclaredDiscontinuity/Continuous, disc=DiscontinuityDeclared,
+  undeclared_backward_jump=None; L5 被 H1 跳过（级联非独立失败）。
+- **触发机制实锚（代码+数值联合裁定）**: `on_mapped_buffer`
+  :618-622 连续性判据=mapped ≥ last_program_pts 否则 Unproven;
+  `close_transition` :658-679 双平面 Continuous 才 Preserve, 否则
+  NewEpoch（epoch+1·按观测边界 rebase·:700-704 非 Continuous 平面重标
+  DeclaredDiscontinuity=合法世代边界）。本跑**视频 mapped 6970509011 <
+  已观测 prog 6970509012——1ns 级差距**触发 Unproven→NewEpoch; run 2
+  对照 mapped 6970555975 > 6970555974（1ns 高）→ Preserve。**声明锚与
+  边界前在途末帧的 ns 级竞态决定结局**（历五跑 4 Preserve+1 NewEpoch=
+  间歇性, 复跑不逐项复现=非确定性签名, 与 R26 电视抖动排除法相区分）。
+- NewEpoch 记账面按设计运行（DiscontinuityDeclared·无 undeclared jump·
+  段历史 append）; **P1 rebase 不变量本跑数值成立**（接受边界经
+  :599-605 映射校验 ⇒ offset==program_start−source_start 自动满足,
+  33221397 与 104795 双平面核验）——P1 登记 维持（回归锁缺失·Final
+  Close 前必修不变）。L4 九项合取（冻结）要求 Preserve+Continuous ⇒
+  FAIL 为判据忠实执行。
+- **分类=C 类候选**（生产 Timeline Preserve/NewEpoch 判定语义 × Gate
+  冻结判据首次在真机 NewEpoch 路径相遇）。回裁三问: (a) Preserve 声明
+  是否应保证 mapped ≥ last（声明锚取整/上取 last+ε 等生产语义修正）
+  (b) L4 是否接受"良构 NewEpoch"（DeclaredDiscontinuity·双平面一致·
+  无 undeclared jump）——Gate 判据属验收记账模型, R26 红线禁自行降
+  (c) NewEpoch P1 修复刀排期。**本轮零改码**。
+
+### 49.3 真机 run 2（09-05 05:40 CST; 证据盒 `2026-09-05-0540-r36-l54-eventual-stall-rerun2`; run.log sha `ba2f1783`）: 9/10 — L5.4 观测器首次真机执行, StillAdvancingAtDeadline
+
+- L1a-d/L2a-b/L3/L4 全 PASS（**L4 Preserve 连续第五次**·epoch 0·offset
+  210016ns·V/A Continuous）; L5.1/5.2/5.3 PASS（recover(A) handle=1
+  21:41:07.341 tap 重放成功）; Teardown PASS。
+- **L5.4 FAIL=诚实分类结局**: `L5.4=StillAdvancingAtDeadline samples=15
+  stall_rounds=0 prog_frames v 1261->2611 a 1681->3481 @t0+60.0s`——
+  15/15 窗口全速增长（v +1350=恒 30fps·a +1800）, 停滞从未发生;
+  deadline 锚定精确（@t0+60.0）。观测器语义达成: 无假阳性·无盲等·
+  分类结局+全程证据, "15→30→60 盲调"被终结——**不是 grace 不够, 是
+  停滞在 60s 验证期限内根本不发生**。
+- **排空假设被本跑算术否定（重大）**: 时间线重建=B 输入 21:40:47 起·
+  t0(B inject)≈21:41:14（recover(A)+7s settle+5.3 流程锚定）⇒ **B 预
+  冻结生产窗 ≈27s**; 程序自切换(~21:40:52)起已在消费 B（选择器非活动
+  pad 丢弃=reader 与 writer 同步走）⇒ shm 积压上限≈秒级; 而 t0 后
+  **60s 全速推进 ⇒ 余流不可能是 B 积压排空**。唯一活源=A（a_input_adv
+  =true·bridgeA=true 全程）⇒ 领先假设=**程序出口在活跃输入死亡后仍被
+  另一活输入全速 feeding（L5.4 隔离前提在现拓扑真机上不成立）**; 次假
+  设=inter 内部超大缓冲（与恒速 30fps wall-clock 节律不符·弱）。R34
+  （>11s）/R35（>18s）的"drain runway"解释被同一定量框架追溯否定。
+- **回裁四选（均需授权, 本轮零改码）**: ①观测归因探针——L5.4 期间打印
+  program PTS 与 A/B 源 PTS 对齐（Gate 观测性增强·不改判据）直接定
+  位余流源 ②现场 gst 检查 inter/selector 行为（独立诊断管线·需授权）
+  ③deadline 加大到 >B 生产窗+裕量的判别实验（区分"晚停"vs"不停"·
+  单次诊断跑）④接受"L5.4 前提在现拓扑不成立"的语义重裁（改前提或改
+  判据=架构级新裁决）。**推荐①**（一次跑同时钉死归因与后续方向）。
+- 分类: L5.4 观测器本身=B 类无虞（按批准语义精确执行·证据完备）; 其
+  暴露的隔离前提问题=**C 类候选**（Gate 前提 × 生产拓扑行为）。
+
+### 49.4 两跑工件（隔离队列维持）
+
+run1: interlace ×3·pad_unlink ×4·MainContext ×0（L5 未执行）; run2:
+interlace ×6·pad_unlink ×4·MainContext ×2（两次 recover 各一,
+21:42:15.098 WARN "already acquired by another thread" + recover(B)
+handle=2 21:42:15.116）。
+
+### 49.5 02-I 状态（双证归档·全部回裁）
+
+- 14 项清单: 以 run2 为准 13 PASS 唯 L5.4; 但 **L4 NewEpoch 间歇性
+  （1/5 真机频次）为并列未决项**——直至 (a)(b)(c) 裁决落地, L4 存在
+  相位条件性 FAIL。02-I 整体维持 FAIL-PENDING-CORRECTION（8/10+9/10
+  双证）; 零后续改码; 隔离队列与 NewEpoch P1 排期不变。
+
+## 50. 第三十七轮后即时诊断（用户拍板"截图比对"）— intervideosrc 断粮自造帧实锤: L5.4 前提失败的插件级根因（2026-09-05 06:1x CST; 零仓库代码）
+
+### 50.1 背景与执行方式
+
+- 用户指示以"截图比对"定余流源。执行=盒独立诊断管线 `~/vbmfp-r36`
+  （gst-launch + python-gst `probe.py`·不入库·零仓库 diff·未触碰 ball
+  源 PID 992634·采集卡 dn0/dn1 用后即释）。
+- 方法=内容取证（截图 md5/尺寸/节奏）+ Gate 同款 `set_state(Paused)`
+  注入复刻。
+
+### 50.2 实验链与结果
+
+| # | 实验 | 结果 |
+| --- | --- | --- |
+| E1 | 跨进程 writer/reader（decklink dn0/dn1→inter 通道; 读者 2fps 存图） | 读者只得 320×240 同 md5 占位帧（`ad15e287`·1827B·12s+ 不间断）→ **暴露合成行为** + inter=进程内通道实证（/dev/shm 无实体·跨进程不通） |
+| E2 | 无写入器 + 强制 1080p25 caps | 12s × 24 帧全同 md5（`8fdeed7b`·1920×1080·33267B）→ **在协商 caps 上合成** |
+| E3 | 进程内双链: 球源 6s 真流（num-buffers=150）后断 | 真帧 md5 逐帧变化（57745/57808B）→ 断流后 23+s 恒 md5 `84546bfe`·57327B 连续 2fps **不停** |
+| E4 | **Gate 同款 set_state(Paused)**（python-gst·is-live ball 1080p25·t13 注入·t38 恢复） | 真帧→**25s pause 全程每帧 md5=`84546bfe`（与 E3 断流帧同一帧）**→恢复即回真帧（`ec1e12cf`）·recover 复流 ✓ |
+
+### 50.3 结论（插件级 CONFIRMED）
+
+- **intervideosrc 通道断粮时以墙上时钟在协商 caps 上无限自造恒定帧**
+  ——下游帧计数无法区分真假活性。
+- **L5.4 前提"活跃输入死 ⇒ program 停滞"在 inter 拓扑上结构性不可
+  满足**: B 注入 Paused 后 program 图的 intervideosrc(B) 转入合成, 帧
+  计数恒增（run2: 15/15 窗全速 v+1350）。
+- 旁证: gate program 30fps ≠ 两真实源 25fps = 合成默认节奏候选（未
+  单独定率）; **R34 ">11s"/R35 ">18s" runway 解释最终修正为合成非
+  排空**; §49.3 领先假设"A 喂出口"被证伪（未据此改码）。
+- 诚实信号确认: 输入侧 bridge liveness 在 B 死时正确翻 false（run2
+  L5.3）——**死活信号在输入侧; program 侧帧计数在 inter 拓扑下结构性
+  失真**。
+- 截图: 盒 `~/vbmfp-r36/`（pa-018 真球·pa-050 合成帧·pa-078 恢复）;
+  本地 `D:\SYSTEM~1\Temp\vbmfp\`（1-real-ball / 2-fabricated-paused /
+  3-recovered.jpg）。
+
+### 50.4 待裁（重塑后的三选 + 并列项）
+
+- ①program 源机制去 inter 化（架构级——02 候选机制重开）; ②program
+  活性信号换面（bridge liveness 已证诚实; 与旧裁"Bridge liveness 与
+  Program 推进两证据模型不合并"构成再裁关系——"program 信号被插件
+  污染"新事实下是否解禁合并=用户裁决）; ③L5.4 语义重定义。
+- L4 NewEpoch 1ns 竞态间歇（run1）独立并列待裁; 合成帧的 PTS 行为
+  未测（时间戳归因探针仍可选）。
+
+## 51. 第三十八轮（repo 账第三十七轮）— 双段裁决: L5.4 重定义「故障域归因完整性」+ R36 观测器撤销（2026-09-05; 裁决轮·零代码）
+
+### 51.1 裁决主文
+
+- **第一段（基于 6759443 复核·后被第二段部分取代）**: L5.4 批准①归因
+  探针为最高优先; **deadline 非严格有界发现**（sleep 可越 deadline 上至
+  SAMPLE_GAP + stall 确认先于 deadline 检查 ⇒ 理论上 t0+61s 样本仍可
+  StalledConfirmed——Final Close 前必修; 随第二段撤销观测器而 moot·
+  记录在案）; L4 **Preserve-only 冻结不放宽**（❌ Preserve∨NewEpoch=
+  "NewEpoch 合法"≠"L4 Timing Gate 应 PASS"两语义不混）; **P1-A 根因
+  确认=连续性基准使用动态 last_program_pts**（"用比被检 buffer 更晚
+  观测的 Program PTS 证明该 buffer 回退"=用未来观测值判当前边界）;
+  P1-B rebase offset 不变量破坏=代码结构直证; §十一依赖图全链复核
+  无 ownership 冲突（Session/Backend/SwitchAdapter/TimelineAuthority/
+  Gate/Diagnostic 六面职责不动）。
+- **第二段（基于 6400639 诊断·终裁）**: L5.4 四选**正式选③=重定义**。
+  ①去 inter **现在不批准**（inter=带 starvation fallback 语义的媒体桥
+  ≠错误架构; 未来产品要求"输入死⇒真 EOS/冻结"再开独立
+  PROGRAM-BRIDGE-TRANSPORT-SEMANTICS 评审）; ②bridge_liveness 与
+  program_progress 合并 **❌ 维持**（三事实分层正确——变化的只是本
+  Gate 证据适用范围, 非 Observation 模型合并; 禁 bridge_dead⇒
+  program_dead 与组合式伪健康值）; **③L5.4=Source-fault attribution
+  integrity**: B 故障场景证明 B input 不推进 ∧ B bridge 死 ∧ A input
+  推进 ∧ A bridge 活 ∧ Program 输出=**非权威证据**（不作源存活证明）
+  ⇒ A 行=None ∧ B 行=Input ⇒ PASS——"真实 Input 故障不得因 Program
+  graph 继续产生合成帧而被错误提升为 Program 故障"（与故障域不越域
+  理念更一致）。**真 Program 域故障测试归 A2-8-03**（Input 活∧Bridge
+  活∧Program 死⇒Program 的专项注入在那里设计, 禁塞进现有
+  DiagnosticFaultInjection 契约面）。**删除整个 grace/deadline/
+  eventual-stall 循环**（已知不适用信号不断尝试自证=技术债）。
+  d7d4fc6=R36 experimental implementation 保留历史; **R37=semantic
+  correction** 撤销观测器——账面链: R36 实现→真机失败→独立插件诊断
+  →前提证伪→R37 语义修正, 比叠改成"看起来 PASS"干净。
+
+### 51.2 裁决代码主张核验（五项·全实锚）
+
+| # | 主张 | 实锚 | 结果 |
+| --- | --- | --- | --- |
+| 1 | Phase C deadline 非严格有界（sleep 越界+stall 先于 deadline 检查） | dual_input.rs Phase C 循环序（sleep→sample→backward→stall→deadline） | ✓（随观测器撤销 moot·记录在案） |
+| 2 | ProgramObservation 已有 observed_active/input_pts/program PTS/frame counters——归因探针无需扩 SPI | contracts/switch.rs:57-73（observed_active :59·input_pts :67·program_video/audio_pts :68-69·frames :72-73） | ✓ |
+| 3 | on_program_pts 持续更新 last_program_pts（=P1-A 动态基准根源） | program_timeline.rs:745-769（:768 每观测必更） | ✓ |
+| 4 | L4 判据 Preserve-only（match 单臂） | dual_input.rs:685-686 `match &report.outcome { TransitionOutcome::Preserved {..} => .., }` | ✓ |
+| 5 | intervideosrc 官方语义=timeout 后输出黑帧（默认 1s） | 盒 gst-inspect: `timeout: Timeout after which to start outputting black frames, Default: 1000000000` | ✓（与 §50 E1-E4 实证互证） |
+
+### 51.3 执行令与边界
+
+- **只改 `gates/dual_input.rs`**: ①撤销 R36 观测器（三常量
+  GRACE/ROUNDS/DEADLINE + L5ProgramStallOutcome enum + 5.3 t0 锚 +
+  Phase C 循环全删）; ②5.4 重写为归因完整性（B input b1/b2 采样·
+  双桥活性重采样·Program 输出单窗非权威观测·classify 后判
+  row_a==None ∧ row_b==Input）; ③5.3 头注释陈旧表述"program 诚实
+  停滞"修正（语义已被证伪）。
+- classify_failure_domain/FailureDomain 四词表**冻结零触碰**;
+  5.1/5.2/5.3 语义不动; DiagnosticFaultInjection 契约不动; L4 判据
+  不动。
+- 后续序: 修改→fmt→矩阵（default/mock/bmd+gst/clippy×2）→gates bin
+  rebuild→真机 02-I→14/14 核对。**10/10 亦不触发 Final Close**:
+  C-TIMELINE-01 Final Close 暂缓（两 P1 未闭合）·A2-8-05 archive
+  暂缓。
+- **P1-A/P1-B=下一独立刀**（program_timeline.rs·不与本轮混 commit）:
+  P1-A=第一枚映射缓冲连续性基准改**冻结 transition boundary**
+  （declare 的 program_start_pts）, 之后才进运行期 last_program_pts
+  单调观测——"禁用未来观测值判当前切换边界"; P1-B=rebased 恢复
+  offset==program_start_pts−source_start_pts 不变量。修后第五刀=
+  L4 真机复跑目标稳定 Preserve（4P+1NE→Preserve·非放宽判据放过）。
+
+## 52. 第三十七轮执行 — R37 语义修正落地 + 真机首跑 10/10 ALL PASS（02-I 全链历史首次通过）
+
+### 52.1 交付（commit 0d59ddb, 单文件 +37/−82）
+
+- **撤销 R36 观测器**: 三常量（GRACE/ROUNDS/DEADLINE）+
+  `L5ProgramStallOutcome` enum + 5.3 t0 锚 + Phase C 循环全删（grep
+  零残留）; 5.3 陈旧注释"program 诚实停滞"修正。
+- **5.4 重写为归因完整性**: B input b1/b2 采样（B 故障持续确认）+
+  双桥活性重采样 + Program 输出单窗非权威观测 + classify 后
+  `l5d = row_a==None ∧ row_b==Input`; 证据行如实记录 Program
+  advancing 与帧计数并标注非权威。
+- classify_failure_domain/FailureDomain 四词表/L4 判据/5.1-5.3/
+  DiagnosticFaultInjection 契约零触碰; 盒矩阵 fmt 绿·default 217·
+  mock 381·bmd+gst 240·clippy×2 绿; bin release `6e02ba57`; sha
+  80/81 唯 DIFF=Cargo.lock（既有分歧维持）。
+
+### 52.2 真机（09-05 06:38 CST; 证据盒 `2026-09-05-0638-r37-l54-attribution`; run.log sha `c1c296a6`; 全程 ~46s）
+
+**EXIT=0 · ALL PASS（10/10）——02-I 历史上首次全链通过**:
+
+| 层 | 结果 |
+| --- | --- |
+| L0/L1a-d/L2a-b/L3 | PASS（双卡 signal=true·tap 81/80·L3 120→210 ValidMonotonic） |
+| L4 | PASS（**Preserve 连续第六次**·epoch 0·offset 174161ns·映射 6970673376+174161==6970847537 逐 ns·V/A Continuous） |
+| L5.1/5.2/5.3 | PASS（recover 桥复流·tap 重放） |
+| **L5.4（新语义首跑）** | **PASS**——`故障域归因完整=true (A行=None B行=Input; B故障归Input·A无越域归因·Program输出=非权威证据[inter合成帧语义·advancing=true v 1053->1143 a 1405->1525])`: Program 输出持续增长（合成帧）被如实记录且不再承担源存活证明——重定义语义按裁决精确执行 |
+| Teardown | PASS（session_stop=true·inactive=true·released=true） |
+
+### 52.3 02-I 状态与后续
+
+- **14/14 达成（历史首次）**; 02-I 验收全绿。
+- **Final Close 不触发**（§51.3 冻结）: C-TIMELINE-01 两 P1 未闭合
+  [Final Close 暂缓]·A2-8-05 archive 暂缓。
+- **下一刀=P1-A/P1-B 独立修**（program_timeline.rs·方向已批）:
+  P1-A=第一枚映射缓冲连续性基准改冻结 transition boundary（根除
+  1ns 相位条件性 NewEpoch——当前 6 跑 5P+1NE）; P1-B=rebase offset
+  不变量恢复。修后 L4 真机复跑目标=稳定 Preserve（非放宽判据）。
+- 工件（隔离队列维持）: interlace ×6·pad_unlink ×4·MainContext ×2
+  （两次 recover 各一）。
+
+## 53. 第三十九轮（repo 账第三十八轮）— P1-B 撤销确认 + P1-A 批准·实现期偏离回裁（2026-09-05; 核验+测试增强轮·生产代码零改动）
+
+### 53.1 裁决主文
+
+- **P1-B 正式撤销（非 bug）**: 沿调用链数学闭合——on_mapped_buffer
+  :597-606 先以 `seg.map_pts(source_pts)` 校验 expected==mapped（不符
+  即 fail_closed MappingMismatch）, 故进入 close_transition 的合法
+  boundary 必然满足 `boundary.1−boundary.0==seg.offset` ⇒ NewEpoch
+  rebased（:682-691）沿用 seg.offset 时 `offset==program_start−
+  source_start` 自动成立。R33 原登记表述修正为"测试不足以证明不变量,
+  非代码缺陷"。
+- **P1-A 批准修复**: on_mapped_buffer 首枚连续性基准从动态
+  last_program_pts 改为声明冻结边界; 回归七项; 只改
+  program_timeline.rs; 修后看 L4 Preserve 稳定性（非放宽判据）。
+- 全盘不动清单照录（Runtime 编排/SessionManager/Supervisor/
+  MediaBackend/SPI/topology/ExecutionGroup/segment history 等十余面
+  ✗ 不改）; A2-8-03=Program 域故障专项; C-TIMELINE-01 Final Close
+  前置; A2-8-05 禁入。
+
+### 53.2 裁决主张核验
+
+| # | 主张 | 实锚 | 结果 |
+| --- | --- | --- | --- |
+| 1 | on_mapped_buffer 先映射校验后置 boundary | :597-606（expected≠Some(mapped)⇒fail_closed）→ :624 | ✓ |
+| 2 | NewEpoch rebased 沿用 seg.offset ⇒ 不变量经 ① 自动成立 | :682-691 | ✓（**撤销成立**） |
+| 3 | 现连续性基准=动态 last_program_pts | :618-622 + on_program_pts :768 持续更新 | ✓ |
+| 4 | segment history append-only | 测试 :1244-1290（三段零变异）——裁决回归项 6 已存在 | ✓ |
+| 5 | DiscontinuityDeclared 不洗（Preserve 路径） | 测试 :952/:966/:1315——NewEpoch 平面 pts_state 断言随 §53.4 补 | ✓ |
+
+### 53.3 P1-A 实现期偏离发现（回裁——本轮生产代码零改动）
+
+**字面谓词与锚设计数学不相容**:
+- `sample_switch_anchors` :852-867: program_anchor=出口实测 last PTS
+  **+active 分支节拍**; source_anchor=target 分支 last PTS **+target
+  分支节拍**——两锚各加一个独立测量的节拍。
+- **四跑实测**（R34/R35/R36r2/R37）: `program_start_pts − mapped_first
+  ≡ 33,333,333ns`（恰一帧@30fps·逐跑精确）⇒ **`mapped ≥
+  plan.program_start_pts` 在一切健康 Preserve 跑为假**——字面实现将把
+  L4 翻成恒 NewEpoch（与"稳定 Preserve"目标相反）。
+- **±1ns 竞态根源修正**: mapped = pv + (d_active − d_target) +
+  (S_b − target_v), 其中 (d_active − d_target)=两独立测量节拍之差
+  （±1ns 观测噪声）——**竞态非来自 last_program_pts 推进**（run1/
+  run2 间 A 均未跨帧）, 而来自锚公式的双节拍噪声。
+- **修复方案权衡（待裁）**: **方案 α（推荐·需扩授权至 switch_graph.rs
+  一处）**=锚去节拍（program_anchor=pv·source_anchor=target_v 原样）
+  ——offset 仅变 ±1ns、拼接点语义不变（仍零隙落 pv）, 且
+  mapped==program_start 精确相等=裁决回归项 1 的世界;
+  (S_b−target_v)∈{0,+1帧}≥0 ⇒ 竞态根除。**方案 β（Domain-only·
+  不越授权）**=declare 冻结 last_program_pts 为 transition 基准（=pv）
+  ·谓词 mapped ≥ 基准−slack——slack 为新魔数, 竞态被吸收非消除, 与
+  回归项 1"boundary==mapped"不符。
+- 依 Design Freeze"实现期偏离必回裁"本轮停手, 仅交付测试增强（§53.4）。
+
+### 53.4 本轮交付（测试增强·program_timeline.rs 单文件·零生产代码）
+
+- 新增 `timeline_rt_01_new_epoch_rebase_offset_invariant`: NewEpoch
+  双平面断言 `offset==program_start_pts−source_start_pts`（P1-B 撤销后
+  的不变量锁·防未来 rebase 改动破坏）+ NewEpoch 双平面
+  pts_state==DiscontinuityDeclared（不洗白·NewEpoch 路径补位）。
+- 既有覆盖维持不重复: history append-only（:1244）/Discontinuity
+  Declared Preserve 路径（:952/:966）。
+- 盒矩阵: fmt 绿·default 217 不变·mock 381→382（timeline 测试=
+  `#[cfg(all(test, feature="mock"))]` 车道）·bmd+gst 240 不变·clippy×3
+  绿（default/mock/bmd+gst）。
+- 真机: 本轮无生产代码变更不复跑（P1-A 裁决后一并）。
+
+## §54 第四十轮裁决: P1-A=方案 α「边界帧锚修正」批准——β 否决·P1-B 维持撤销（2026-09-05, 落账零代码）
+
+### 54.1 裁决前核验（依例: 裁决内代码主张先证后录）
+
+- ✅ `sample_switch_anchors` switch_graph.rs:852-867: 双锚各 `saturating_add`
+  独立测量节拍（`program_anchor: pv+video_anchor_delta`·
+  `source_anchor: target_v+target_v_delta`; audio 同构）——裁决引用的
+  "未来一节拍外推"实锚无误。
+- ✅ `last_delta` 全仓消费点唯一=:843 `need` 闭包（本函数）: 结构定义
+  :101 + 探针写点 :503（`ns−last` 步长）——锚去节拍后该字段转为
+  write-only 观察事实, 需按项目惯例（pipeline_events.rs:22 先例）
+  加 `#[allow(dead_code)]`+说明, **不删字段**（裁决 §三: 留作稳定性/
+  格式/帧周期证据·A2-8-03 诊断备查）。
+- ✅ AnchorPair 注释原文 program_timeline.rs:61-64（"B 首帧应落位的
+  Program 位置"）与实现（+节拍=下一帧预测）语义错位——裁决 §九
+  注释一致性修正点名成立。
+- ✅ 四跑 `program_start−mapped ≡ 33,333,333ns`（R39 盒日志已证）+
+  ±1ns 竞态=双节拍测量差（R39 代数）——α 后 mapped=pv+(S_b−target_v)
+  ∈{pv, pv+1帧} ≥ pv=program_start, **竞态结构性根除**。
+
+### 54.2 裁决正文（用户原意照录要点）
+
+- **方案 α 批准, 表述=「边界帧锚修正」**: `program_anchor=pv`·
+  `source_anchor=target_v`（audio: pa/target_a）原值, 去两处
+  `saturating_add(节拍)`; 修改面=switch_graph.rs 单函数+回归测试+
+  必要注释（含 program_timeline.rs AnchorPair 注释语义统一——注释级
+  非 production 逻辑）。健康无缝切换下 `mapped==program_start_pts`
+  精确相等; `mapped<program_start` 才是真正 NewEpoch（"首枚 target
+  buffer 比声明边界还早"语义变干净）。
+- **方案 β 否决**: slack 魔数=在错误外推锚上人工容差——吸收非消除
+  竞态, 且会吞真实 discontinuity; 违反"解决映射关系, 不是调大数字"。
+- **P1-A 定义正式修订**: `sample_switch_anchors() 将已观测边界帧做
+  未来一个节拍的外推, 导致 SourceSegment.program_start_pts 与实际首枚
+  target buffer 不在同一个离散帧边界上`（非"last_program_pts 污染"）。
+  R37 run1 的 1ns NewEpoch=错位模型上双 delta 恰好不等的表象。
+- **P1-B 维持撤销**; R39 交付的 NewEpoch 不变量测试保留（加强证明
+  非修 bug）。
+- **不修清单**: on_mapped_buffer（`expected=seg.map_pts(source_pts)`
+  +:618-622 连续性判定照旧）/ close_transition / SourceSegment::
+  declare / ProgramExecutionRuntime 编排链 / ExecutionGroup /
+  SessionManager/Supervisor/MediaBackend——**零改**。
+- **last_delta 解耦红线**: `last_delta=observation fact`;
+  `program_anchor/source_anchor=timeline declaration input`——重新
+  解耦, 禁删字段禁删探针写点。
+- **新回归锁**（裁决 §七例值）: active_delta=33,333,333·
+  target_delta=33,333,334·pv=1,000,000,000·target_v=900,000,000 ⇒
+  断言 `program_anchor==pv ∧ source_anchor==target_v`（非
+  pv+delta/target_v+delta）——未来把 delta 加回锚即翻。
+- **R39 七项回归处置**: 项 1-4（on_mapped_buffer 谓词改法）**被本轮
+  α 取代**——α 后 `mapped∈{pv,pv+1帧}≥last_program_pts` 天然成立,
+  Domain 零改即达"边界==映射帧"世界; 项 5 已交付（R39）; 项 6-7 既有
+  覆盖维持（:1244-1290 append-only·:952/:966/:1315 Discontinuity
+  不洗）。
+- **真机七项验收重点**: ①L4 连续 Preserve ②program_start_pts==
+  first mapped PTS（首证精确相等）③V/A Continuous ④无 1ns 条件性
+  NewEpoch ⑤NewEpoch 测试仍过（矩阵）⑥L5.4 R37 归因语义 PASS
+  ⑦Teardown PASS。
+
+### 54.3 披露（不扩面待裁）
+
+- **Mock 分叉**: switch_mock.rs:297-306 `sample_switch_anchors` 同为
+  `+VIDEO_PTS_STEP/+AUDIO_PTS_STEP` 外推语义——本轮裁决修改面未含
+  Mock, 不动; Mock 同构面（含其注释 :271-273 与 F5/F6 同构测试的
+  锚语义）是否同步去 STEP=独立待裁项, 不阻塞本轮。
+- Design Freeze 文本无需修改（grep 证实 Freeze 内"锚"仅现状锚用法,
+  +节拍外推非 Freeze 条文而是 Batch 2 实现层选择; 本轮=对该实现
+  偏离的正式回裁, 记于本账）。
+- C-TIMELINE-01 Final Close 与 A2-8-05 维持暂缓（P1-A 落地+真机后
+  再裁）。
+
+## §55 第四十轮实现+真机复跑: α 落地——`program_start==first mapped` 精确相等首次真机成立·双跑 10/10（2026-09-05）
+
+### 55.1 实现（5d61b97, switch_graph.rs + program_timeline.rs 注释）
+
+- `sample_switch_anchors`: 双锚 `saturating_add(节拍)` 移除——
+  `program_anchor=pv`·`source_anchor=target_v`（audio: pa/target_a）已观测
+  边界帧原值。五道 fail-closed 门全保留; active 门降为存在性检查
+  （披露: 原 pad_index 反查仅服务节拍消费, 移除后 active 分支不再参与
+  锚——错误消息原文不变）。
+- `last_delta`: 字段+探针写点保留, `#[allow(dead_code)]`+裁决注释
+  （观察事实≠声明输入——pipeline_events.rs:22 先例）。
+- `switch_graph_rt_03_anchor_declaration_excludes_branch_cadence`
+  回归锁: 纯状态构造（无 PLAYING/无线程——受控节拍不被真实缓冲覆写,
+  断言确定性）; 裁决例值 active_delta=33,333,333/target_delta=
+  33,333,334/pv=1,000,000,000/target_v=900,000,000 ⇒ 断言四锚=原值;
+  反证: delta 若回锚 video.program_anchor=1,033,333,334 即翻。
+- AnchorPair 注释统一为"已观测边界帧"语义（注释级·program_timeline.rs
+  生产逻辑零改）。
+
+### 55.2 盒矩阵 + sha
+
+fmt 零改动 · default 217 不变 · mock 382 不变 · **bmd+gst 241（+1=rt_03
+通过）** · clippy×3（default/mock/bmd+gst `-D warnings`）全绿 · **sha
+80/80 盒源==本地 HEAD（5d61b97）** · gates release bin `83b9b695`。
+
+### 55.3 真机复跑 ×2（02-I v5, EXIT=0 ×2）
+
+- **run1**（07:18:00 CST / 23:18 UTC）: **10/10 ALL PASS**。L4
+  `outcome=Preserved` epoch 0·`source_pts==source_start_pts==
+  6,973,066,813`·**`mapped_program_pts==program_start_pts==
+  6,973,081,228`（首次精确相等——历跑 `program_start−mapped ≡
+  33,333,333ns` 消失）**·offset=14,415ns·V/A Continuous·
+  undeclared_backward_jump=None·pre A prog_v==mapped（零隙拼接于 pv）。
+- **run2**（07:19:13, 稳定性确认跑）: **10/10 ALL PASS again**。
+  `mapped==program_start==6,969,530,558`·source==6,969,476,589·
+  offset=53,969ns（帧级相位随跑变化, 等式恒立）——**连续两跑 Preserve+
+  精确相等 = ±1ns 条件性 NewEpoch 结构性根除的真机实证**（修正前六跑
+  5P+1NE）。
+- 七项验收对照（§54.2）: ①L4 连续 Preserve ✅（双跑）②program_start==
+  first mapped PTS ✅（首次·双跑精确）③V/A Continuous ✅ ④无 1ns 条件性
+  NewEpoch ✅（epoch 0×2）⑤NewEpoch 测试仍过 ✅（mock 382/bmd+gst 241
+  含 NewEpoch 路径+不变量锁）⑥L5.4 R37 归因语义 PASS ✅（A行=None
+  B行=Input×2）⑦Teardown PASS ✅（session_stop=true×2）。
+- 隔离队列照旧未触碰: PortId 碰撞 WARN×2·MainContext WARN×2·interlace
+  converter CRITICAL（电视 1080i25 活动期）·teardown pad_unlink ×4。
+- 证据: `~/a2-8-02i-evidence/2026-09-05-r40-anchor-fix/`（run.log
+  `a67ef58a`·run2.log `be80906f`·bin `83b9b695`·v5 manifest
+  `7a52b498`·时钟头=盒 09-05 07:18 CST 与仓库日期一致无 clock mismatch;
+  盒非 git checkout, repo HEAD 5d61b97 以 80/80 sha 清单锚定）。
+
+### 55.4 状态
+
+- **P1-A CLOSED**（α 实现+回归锁+真机双证）; P1-B 维持撤销（不变量
+  测试在册）。02-I=10/10 EXIT=0 第二次（R37 首次·本次为锚修正后）。
+- C-TIMELINE-01 Final Close 与 A2-8-05 archive: 依三十八/三十九轮
+  纪律待用户裁（P1-A 已闭合为 Final Close 的前置条件之一）。
+- 披露维持: switch_mock.rs +STEP 外推分叉待独立裁（不阻塞）。
+
+## §56 第四十一轮终裁: R40 复核 PASS·C-TIMELINE-01 Final Close 批准·Mock 锚语义分叉正式立项（2026-09-05, 落账零代码）
+
+### 56.1 核验（裁决前实锚复核——主张全部属实）
+
+- `sample_switch_anchors`（switch_graph.rs:802-863）: 四锚=已观测边界帧
+  原值（program_anchor=pv :855·source_anchor=target_v :856·audio 同构
+  :859-860）; 函数内零 `saturating_add`; fail-closed 门全保留——
+  GraphNotRunning(:814-818)/!started(:817-819)/TargetNotInGroup(:820-822)/
+  TargetAlreadyActive(:823-825)/pad_index(:826-829)/active 存在性门
+  (:832-834, 错误消息原文不变)/program V·A PTS 缺席(:837-844)/target
+  V·A PTS 缺席(:846-852)。**α=锚语义修正, 非放宽 fail-closed**。
+- `last_delta` 解耦属实: 字段保留(:105, `#[allow(dead_code)]` :104)+
+  探针写点(:507)——生产零读取（仅注释与 rt_03 播种）。
+- AnchorPair 注释统一属实(program_timeline.rs:61-66); `git diff f51d039
+  5d61b97 -- program_timeline.rs` = 恰两段 doc 注释、零生产逻辑变更。
+- P1-B 维持撤销属实: program_timeline.rs 生产逻辑零改;
+  `timeline_rt_01_new_epoch_rebase_offset_invariant` 在册(:1121)。
+- rt_03 回归锁属实(switch_graph.rs:1167-1248): 纯状态构造（无
+  PLAYING/无线程）·裁决例值 active_delta=33,333,333/target_delta=
+  33,333,334/pv=1,000,000,000/target_v=900,000,000 ⇒ 四锚断言=原值;
+  反证注释(:1230-1231)=1,033,333,333（正确）。
+- Mock 分叉属实: switch_mock.rs:299-304 仍 `+VIDEO_PTS_STEP/
+  +AUDIO_PTS_STEP` 外推——真实 adapter 已切换「已观测边界帧原值」语义。
+- tasks.md:6 「A2-8 NOT CLOSED until 05」在册; 项 5/6/7 全 `[ ]` 待。
+- 提交链健康: f51d039(账面 3 文件)→5d61b97(恰 switch_graph.rs+
+  program_timeline.rs, +107/−26)→b823e22(账面 3 文件); HEAD=b823e22=
+  origin/comet/a2-8-dual-input-switch; 工作树 clean。
+- **账面勘误登记**: §55.1 反证值误写 1,033,333,33**4**——正确为
+  1,033,333,333（代码注释 :1231 为准; 933,333,334 方为 source_anchor
+  外推值）。纯账面笔误, 零代码, 不影响任何断言/测试。
+
+### 56.2 终裁落账
+
+- **R40 本轮裁决 = PASS**（α 实现与裁决一致·未借删 delta 放宽任何门）。
+- **C-TIMELINE-01 / P1-A Final Close = APPROVED / CLOSED**——措辞限定:
+  此为 C-TIMELINE-01 专项 Close, **≠ A2-8 CLOSED**。状态板: P1-A=
+  CLOSED（边界帧锚修正 α·5d61b97·rt_03 回归锁·真机双证）/ P1-B=
+  REVOKED·CLOSED-AS-NON-ISSUE（不变量测试保留）/ Evidence=PASS /
+  Hardware=PASS×2 / Final Close=APPROVED。Close SoT=设计探针 §33。
+- **A2-8 总体 = OPEN**: 顺序维持 C-TIMELINE-01 Close → **A2-8-03** →
+  A2-8-04 → A2-8-05。A2-8-05 可进入准备阶段但不得收口（03/04 未完;
+  01-04 任一完成不宣布 CLOSED——tasks.md 项 7 冻结语义）。
+- C-TIMELINE-01 Close ≠ A2-8-04 完成: 六路 PTS/AV continuity 验证仍待
+  （02-I 验收面 ≠ 04 专项验证面）。
+
+### 56.3 Mock 锚语义分叉正式立项（独立裁决项·非 R40 FAIL）
+
+- **MOCK-ANCHOR-SEMANTIC-ALIGNMENT**: switch_mock.rs:299-306
+  `sample_switch_anchors` 仍 +STEP 外推（「预测下一帧」语义）vs
+  GStreamer 真实 adapter「已观测边界帧原值」——AnchorPair 语义分叉,
+  影响 Mock 同构基线资格。
+- 三不: 不回溯 R40（修改面冻结合法）·不阻塞 C-TIMELINE-01 Final
+  Close·不再挂 R40 disclosure（自本轮起独立项）。
+- 待裁问题: Mock 保留独立时序语义（合成流整步进, +STEP 或为合法构造）
+  还是同步为观测原值语义; 若同步, F5 同构映射流与 legacy 逐字节保持面
+  是否受影响须回归。
+- 修复未授权——待用户独立裁决后单刀处理。
+
+### 56.4 状态与下一刀
+
+- 本轮零代码: 无矩阵/真机复跑（无生产变更, 沿零代码轮惯例）。
+- C-TIMELINE-01=CLOSED（设计探针 §33）。02-I 现状不变: 10/10 EXIT=0
+  （锚修正后双证, R37 后第二次）。
+- **下一刀 = A2-8-03 failure/supervision 验证**（watchdog 四视角观测穿
+  RuntimeEvent→Custody 无跨设备污染 + Supervisor 边界 recovery-only）——
+  按探针先行纪律, 开工前须其 SoT Probe/裁决授权, 本轮未启动。
+
+## §57 第四十二轮终裁: R41=PASS（含一项登记的契约注释漂移）·A2-8-03-00 SoT Probe 授权·Mock 分叉批 Probe·Mimosa 后置（2026-09-05, 裁决落账零代码）
+
+### 57.1 核验（裁决前实锚复核——主张全部属实）
+
+- **契约注释漂移属实**: contracts/switch.rs:91-92 仍写「program 连续性锚
+  （当前出口位置+步长）与 target 源连续性锚（target 分支位置+步长）」
+  ——与 R40 后真实实现（已观测边界帧原值）不一致; trait 默认面无运行
+  时执行, 属**契约文档语义残留**非 P1-A 缺陷。**扩面发现**:
+  switch_mock.rs:271-273 注释同源同文（"当前出口+步长"）——漂移面实为
+  两处, R40 注释统一只覆盖 program_timeline.rs AnchorPair +
+  switch_graph.rs。
+- 既有监督能力五件属实: ①TimelineSample 三列 Input/Bridge/Program +
+  program_alive（program_execution.rs:63-79, assemble :83-118）; ②
+  program_progress_since/input_progress_since（:160-174, 帧计数增量
+  语义）; ③BridgeHealthReport{pipeline_recovered,expected_channels,
+  observed_alive_channels,bridge_degraded}+alive_in_window 当前推进性
+  （:120-154, 观察时钟窗口）; ④FailureDomain{None,Input,Bridge,Program}
+  + 单故障优先序 Input>Bridge>Program（:176-200）; ⑤Supervisor 纯决策
+  引擎 + SupervisorAction 封闭词表 {Restart,Escalate}（supervisor.rs
+  :1-19/:119-125）。
+- tasks.md A2-8-02 定义含 L5 Supervision、项 5/6/7 全 `[ ]` 待——03 非
+  从零开始, 定位=收敛已有 02/G/H/I supervision 观测能力。
+
+### 57.2 终裁落账
+
+- **R41 = PASS with one documented semantic-drift follow-up**。
+- **① A2-8-03: 批准开工, 第一步必须是 SoT Probe（仅探针零代码）**;
+  不重新造 watchdog/liveness/FailureDomain（代码现实已在册）; 核心查
+  Observation→RuntimeEvent→Custody→Supervisor→Recovery 唯一无旁路
+  无重复归因闭环; **硬红线: Supervisor 禁 switch()/begin_switch()**
+  （违反即触 A2-8 冻结「Supervisor ≠ switch executor」）。Probe 十二问
+  见裁决 §十二。
+- **② MOCK-ANCHOR-SEMANTIC-ALIGNMENT: 立项批准, 暂不选 A/B, 批 Probe**
+  ——先答三问（消费者/F5F6 测试意图/+STEP 是否入 Authority）, 第三问
+  明确后才裁同步或保留。
+- **③ Mimosa: 后置, 不作为 A2-8-03 前置 Gate**——正确位置=05 后 Final
+  Mimosa full audit → archive/CI/merge; 例外=03 Probe 若涉新增/高风险
+  路径可做局部检查, 但不得宣称完整 audit PASS。不宣称项目安全维持。
+- **④ 契约注释漂移正式登记 = CONTRACT-ANCHOR-DOC-SYNC**（两处:
+  contracts/switch.rs:91-92 + switch_mock.rs:271-273）: 契约注释漂移
+  非 P1-A 运行缺陷; 于下一次允许的文档/契约同步轮处理, **禁留到
+  A2-8 最终归档**; 届时允许修改 contracts/switch.rs（SPI 文档与已冻结
+  实现语义一致, 非扩架构面）。本轮不修（裁决定位"后续修正"）。
+
+### 57.3 状态与下一刀
+
+- 本轮交付: A2-8-03-00 SoT Probe（另文
+  `2026-09-05-a2-8-03-00-failure-supervision-sot-probe.md`, 十二问全锚
+  + 三缺口 + 红线核验）+ MOCK-ANCHOR-SEMANTIC-ALIGNMENT Probe（设计
+  探针 §34, 三问全答——含确定性时钟代数: mock +STEP 恒取 {0,+1} 窗口
+  的 +1 臂, Preserve 成立, P1-A 失效模式在 mock 不可构造）。
+- 下一刀 = 03-01（依 03-00 Probe 缺口清单裁实现面——**待用户对 Probe
+  结论裁决后授权**, 本轮零代码）。
+
+## §58 第四十三轮（R42 复核 + 03-01 第一阶段授权）
+
+### 58.1 终裁前核验（对 R43 裁决代码声明的逐条复核, 锚 `d981728`）
+
+- SupervisorAction 封闭 `{Restart, Escalate}`（supervisor.rs:120）✔;
+  supervisor.rs grep `switch_program|begin_switch|SwitchExecution`
+  **零命中**——硬红线维持（R43 §七强 PASS）。
+- `observations_from_events` 存在+**零生产调用者**（custody.rs:136
+  定义; 其余命中全在 #[cfg(test)] :399-:730）——G-1=真实架构/运行时
+  集成缺口非文档债（R43 §五）✔。
+- `custody_snapshot`/`attribute_failures` 生产调用**双零**（grep
+  复核）——「能力存在≠生产监督闭环存在」（R43 §六）✔。
+- classify/TimelineSample/bridge_health 生产消费面=仅 gate
+  （dual_input.rs:596/:758/:827-832）——G-2 确认 ✔。
+- Mock `+STEP` 旧语义仍在（switch_mock.rs:297-306 本轮重读）✔;
+  contracts/switch.rs:90-93「当前出口位置+步长」漂移仍在
+  （CONTRACT-ANCHOR-DOC-SYNC 两处, 本轮不修——裁决定位后续同步轮）✔。
+- **GStreamer adapter observed-boundary 原值未被回退**:
+  switch_graph.rs:802-863 `sample_switch_anchors`——program 锚=出口
+  实测 last PTS（pipeline_events::read_health, :836-844）, target 锚=
+  分支实测 last PTS（:845-852）, 零外推; R40 α 修复+真机 10/10 双证
+  维持（R43 §三「R40 的真实机器 Preserve 结论没有被 R42 破坏」核验
+  成立）✔。
+- `d981728`=HEAD、工作树干净、零运行时代码变更（R42 提交分类=
+  Documentation/Probe/Governance only——R43 §十五）✔。
+
+### 58.2 终裁落账（R43, 四十三轮裁决全文要点）
+
+- **R42 = PASS**（收紧表述: 「R42 PASS — Probe/ledger round
+  completed; no runtime implementation authorized or introduced.
+  A2-8-03-00 is complete. A2-8-03 implementation remains OPEN」）。
+  状态图维持: C-TIMELINE-01=CLOSED·A2-8-02=完成·03-00=COMPLETE·
+  **03-01=未实现**·04/05=OPEN·A2-8=OPEN。
+- **① 实施序正式冻结（依赖 DAG, 禁四项并列同时开工）**:
+  **G-1 → G-2 → Failure Attribution → Recovery Contract → G-3 →
+  G-4**（Supervisor 全程纯决策）; 03-01 不能直接从 G-1「补调用」
+  开始而不先裁身份/生产消费链。
+- **② 授权 A2-8-03-01 第一阶段: G-1 Identity/Custody + G-2 Runtime
+  Consumption 设计/实现探针; 暂不授权 Program-domain recovery
+  implementation（G-3）**——避免把 G-3 做成「看似完整、实际上没有
+  可靠事实来源的 supervision 系统」。
+- **③ CONTRACT-ANCHOR-DOC-SYNC 与 Mock A/B 合并同一文档/契约同步轮**
+  一次性统一（Contract→GStreamer[已合规零改]→Mock→F5/F6 测试意图）,
+  禁半同步中间态; 用户**倾向 B**（observed-boundary 语义镜像）但
+  非现在改、非本轮——执行授权留待该同步轮。
+- **④ 五误区禁令（R43 §十七）**: 禁说「Supervisor 已有⇒03 supervision
+  完成」/「FailureDomain::Program 存在⇒Program recovery 已完成」/
+  「Custody mapper 存在⇒事件链已闭合」/「Mock 与 GStreamer 不同⇒
+  一定是 bug」/「Mimosa 未完整扫描但没发现问题⇒安全」。
+- **⑤ Mimosa 后置维持**（05 后 Final full audit; 本轮零代码无矩阵/
+  真机复跑——R40 runtime 证据继续为 baseline, 两类证据不混）。
+- tasks 项 5 保持未勾（03-00 完成≠03 完成; 03-01/验证/证据全开放）。
+
+### 58.3 本轮交付（零代码）
+
+- **A2-8-03-01 Phase-1 设计/实现探针**（新文
+  `2026-09-05-a2-8-03-01-g1-g2-custody-consumption-design-probe.md`）:
+  03-00 之后展开新事实——**internal 平面多消费者竞争 drain**
+  （ingest watchdog 每输入一个 + group watchdog 共享同一
+  world.internal_log 破坏性 drain, watchdog.rs:192/:537·bin:39/:479/
+  :529——「单一 drain 点」假设不成立=G-1 拓扑硬约束）; 身份丢失
+  机制根因（bus Error 身份在 watchdog 已知、ingest→mapper 边界归零,
+  watchdog.rs:174-181·events.rs:164-189）; custody 双零生产调用
+  复核; 组 watchdog 无 MediaTapPort 依赖（G-2 接线=组合根+签名面）;
+  R43 目标链逐边映射表; **OQ-G1-1..7 + OQ-G2-1..6 共十三问待裁**
+  （身份语义先行: PipelineFault.pipeline 设备身份三选项; 消费拓扑
+  四选项含 FanoutSink 第三平面=D3 定稿修订裁面; 发射面三选项含
+  「supervisor 唯一事件出口」释法; 快照调用点+Observation SoT 双通道
+  职能; 丢弃×custody 事实性; G-2 子集/挂点/输出走向[GroupAction
+  T10/T12 扩词=裁面]/sim 模式面）。
+- 设计探针 §35（Mock 倾向 B 登记）; tasks.md 项 5 R43 段。
+
+### 58.4 状态与下一刀
+
+- 02-I 现状不变（10/10 EXIT=0 双证）; C-TIMELINE-01=CLOSED。
+- **下一刀 = 用户裁决 OQ-G1/OQ-G2 十三问 → 03-01 实现批次授权**
+  （依冻结序 G-1 先行; 实现轮须矩阵: fmt→default→mock→bmd+gst→
+  clippy→bin 盒序）。CONTRACT-ANCHOR-DOC-SYNC+Mock B 同步轮另行排期
+  （R43 §十一: 一次统一, 不与 03-01 混轮）。
+
+## 59. 第四十四轮（R44, 2026-09-05: 裁决落账 + 03-01-A/B/C 实现 + 盒矩阵全绿）
+
+### 59.1 裁决前核验（落账前置义务）
+
+- 基线: `git rev-parse HEAD`=2b5835c·worktree clean·`git diff --stat
+  d981728..2b5835c` = 恰 4 文档（tasks.md/主账/设计探针/03-01 探针）
+  +412 行零 runtime——**R43 零代码轮成立**, R44 十六行代码声明在 2b5835c
+  全部延续成立（代码状态与 R43 核验时点 d981728 逐字节一致）。
+- 抽验复核（本轮实测）: SupervisorAction 仍恰 {Restart, Escalate}
+  （supervisor.rs:120-125·全仓 grep switch 零命中）; fault_trigger
+  归属/回声谓词原样（:45-58）; ingest 旧签名无身份（:161-166 旧态）;
+  mapper 三类故障恒 nil（events.rs 旧态）; FanoutSink 同序双写
+  （emit :328-333）+internal 有界两级丢弃原样; custody 桥规则原样
+  （custody.rs:136-158）; 组 watchdog drain 只喂 health::reduce
+  （watchdog.rs:537-539 旧态）; `observations_from_events`/
+  `attribute_failures`/`custody_snapshot` 生产调用者零（grep 实测）。
+
+### 59.2 R44 终裁落账
+
+- **R43 = PASS（Probe/架构裁决轮）**; G-1/G-2 缺口确认为真实集成缺口
+  非推测。
+- **① 消费拓扑裁定**: 禁 custody 挂第三 drain（多消费者抢事件否决）——
+  「一个事实消费点完成事件取得, 然后非破坏性 fan-out / fold」。
+- **② 实施顺序收紧**: 03-01-A→B→C→D→E→F→G; 03-02 Recovery Contract;
+  03-03 Program 域监督; 03-04 Mock recover/终验（十三问不逐问重裁,
+  P0 两问由本轮裁掉, P1 随实现落地, P2=G-2, G-3/G-4 暂缓）。
+- **③ 授权 = 03-01-A/B/C + 矩阵 fmt→default→mock→bmd+gst→clippy→binary
+  gate**; G-2 接线依真实测试结果后裁。**不碰**: G-3·Mock A/B·Mimosa·
+  Timeline·Supervisor switch 边界。
+- **④ 新正式红线**: G-2 禁改 ProgramExecutionRuntime 切换逻辑/禁塞
+  supervision 入 switch_program（execution authority≠failure decision
+  authority）; 归因禁放宽（identity absent→NO ATTRIBUTION fail-closed）;
+  EventLog 契约禁绕开; watchdog 重接线为周期驱动器。
+- **⑤ 五误区禁令维持**; Mimosa 后置 05 后维持（不宣称安全）。
+
+### 59.3 03-01-A/B/C 实现（运行时代码, 9 文件）
+
+- **A 身份契约**: `Supervisor::ingest(source, device, observation)`
+  签名扩展——生产唯一调用点 watchdog.rs:177 携 `device_uuid`; mapper
+  重构为单一归类 `map_with_identity` + 携身份入口
+  `map_upstream_for_device`（三类故障事件身份=device canonical 身份;
+  trait 面 identity-less 兜底维持 nil=未归属, custody 桥拒收语义不变）。
+  **词面零变化**: RuntimeEvent/EventSource/FanoutSink/RuntimeEventLog/
+  EventSeverity 零触碰。
+- **B 单一 drain 边界**: 新 `event_intake.rs`（+277 行含测试）——
+  `InternalEventIntake{log, custody}` 持 internal log 句柄, `consume()`
+  =**唯一生产 drain 实现**（生产 internal 平面 drain 全仓普查: 仅
+  event_intake.rs:60 一处; transport.rs:232=projection 面 D3 既定;
+  gates/session_lifecycle.rs:564=gate 诊断 E7 残留断言——披露维持）;
+  生产 watchdog 线程不再直接持 internal log（spawn 参数 `internal_log`
+  →`intake`, 类型级排他）; bootstrap 构造共享单实例（BS-01, 字段
+  `event_intake`）; bin 三处 spawn + gates bin/session_lifecycle 接线
+  同步。
+- **C custody 生产接线**: `consume()` 边界内对每 drained 批次调
+  `observations_from_events`（A2-7 冻结桥规则原样）**全量恰一次累积**
+  （任意驱动器先 drain 都不丢 custody 事实——G-1 拓扑硬约束闭合）;
+  `observations()` 只读暴露; 零新增生产消费者·零 advance·快照调用点
+  不加（OQ-G1-5 留 D/E/F）。
+- **测试 +6（全绿）**: event_intake ×4（唯一 drain/跨驱动器恰一次累积/
+  生产链身份→custody→归因 FAILED 全闭环·fault_trigger 精度·投影面
+  D3 不破坏/本地 fold 分区语义披露锁）+ events mapper 携身份 vs
+  identity-less ×1 + supervisor 身份化故障只触归属设备 ×1（nil 保守
+  匹配维持）; supervisor 既有 ingest 测试升级身份断言。
+- **行为变化披露（两处, 均为授权方向内的语义修正）**: ①生产上游故障
+  事件由恒 nil 改为携带真实设备身份——custody 归因面可达, fault_trigger
+  由"nil 误触所有设备"收敛为"只触归属设备"（nil 未归属路径的保守全匹配
+  维持既有语义零变化）; ②组/ingest watchdog 本地 fold 仍按消费分区
+  （既有行为零变化——R43 §1.2 事实; 全量统一 fold 属 D/E/F 裁面,
+  intake_04 测试锁死该披露）。
+
+### 59.4 盒矩阵（终态实测, 盒源 9/9 sha8 与本地一致）
+
+- fmt --check 绿·**default 223**[217+6]·**mock 388**[382+6, §31 起
+  baseline 382——主账 :2918 记录]·**bmd+gst 247**[241+6]·clippy ×2
+  （default+bmd,gst 均 -D warnings exit 0）·bin: media-agent
+  `d38af05f`·media-agent-gates `e73281d5`。
+- 修复过程: fmt 两轮（长断言换行, 盒 cargo fmt 应用后回传本地=格式 SoT）;
+  clippy 修 supervisor.rs 未用 trait import（ingest 改走 inherent 方法）。
+- **状态**: 03-01 A/B/C 落地——custody「双零生产调用」闭合其一（事件
+  事实流已入 custody 累积面）; 归因/快照生产消费仍零（D/E/F 待授权）。
+- **下一刀 = R44 §5**: 依真实测试结果裁决 G-2 runtime consumption 具体
+  接线（03-01-D/E/F）→G tests+真机; CONTRACT-ANCHOR-DOC-SYNC+Mock B
+  同步轮另行排期不混轮。
+
+### 60.1 落账前独立核验（b6b9a3f, 用户 R44 复核逐条实文对照）
+
+- git: HEAD=b6b9a3f==远端, working tree clean; a787974 9 文件 +410/−27
+  与账面一致。用户 16 行复核表逐条实文确认: custody.rs:61-68 注释原文
+  确证 `PipelineFault.pipeline` 当前承载 device identity（legacy 双语义
+  =V0.3 Event Contract 债, 本轮不动字段——用户裁定正确）; bootstrap.rs:36
+  `internal_log` 仍 pub——**"类型级排他"表述降级为"组合根接线级唯一 drain
+  ownership"成立**（代码注释 bootstrap.rs:39/event_intake.rs:12 已同步
+  纠偏措辞; 强类型封锁留后续治理轮, 不为形式重构已过 Gate 接线）;
+  Supervisor 无 switch 入口维持。
+- **E 前提纠偏（本轮最重要事实披露）**: 用户 §11-E 前提"仓库不存在
+  FailureDomain runtime contract"与实文**不符**——`program_execution.rs:179`
+  已有 `pub enum FailureDomain{None,Input,Bridge,Program}` +
+  `classify_failure_domain`(:186, 三列进度观测 input/bridge/program,
+  单故障优先序 Input>Bridge>Program, gh_rt_01 矩阵测试); 消费现状=
+  dual_input.rs L5d(:827-838) gate-only——**恰是 03-00 探针 G-2 缺口
+  原文**("分类器三列观测 gate-only 无 runtime 常驻消费");
+  master_join.rs:112/api_boundary.rs:406 早已预留"红后 Runtime
+  classify_failure_domain"消费面(§8.10)。依用户自身红线（"必须从现有
+  真实 evidence contract 向前推"）**禁新造第二同名类型**
+  （PipelineFault.pipeline 同名双语义教训）→ E 刀=把现有分类器生产化。
+  custody `FailureScope::SharedPipeline`（事件身份证据）与 FailureDomain
+  （进度证据）为**两族互补证据, 禁融合**。
+
+### 60.2 G-2-00 契约/组合预检 + D/E/F 落地（a787974 后续实现提交）
+
+- **预检**: report_failure 生产调用者恰 2（watchdog.rs:217 ingest tick /
+  :549 group tick; event_projection.rs:277+intake_03 均测试代码）——签名
+  扩展波及面有界; 桥 liveness=`BridgeObservationPort` trait 方法
+  （controller.rs:814 实现）, 组 watchdog 今日无此依赖=OQ-G2-2 实锚;
+  **装配点现成**: `MediaAdapterBundle.bridge_observation` 第三 trait view
+  （registry.rs:206, A2-8-02-G/H 同源 controller）——bin composition
+  元组 :290-293 原样丢弃该 view, 扩 4 元透传零新构造。
+- **D（custody 归因生产消费）**: `watchdog::assemble_decision_input`
+  纯函数装配点——ingest tick 同临界区 consume+归因（attribute_failures
+  首个生产调用者; 空 custody 证据→None=absence≠evidence; 证据在场身份
+  不匹配→零归因结果≠无证据, identity correlation 零污染）。
+- **E（FailureDomain 生产消费）**: 组 watchdog tick 三列生产喂入——
+  ①input 列=fold per_input advancing ②桥列=bundle bridge_observation view
+  `bridge_liveness(handle, FAILURE_DOMAIN_LIVENESS_WINDOW_MS=3000)`
+  （与 gate L5 LIVENESS_WINDOW_MS 同值同义, 常量落 program_execution.rs
+  ——gates→runtime 依赖禁反转）按 tap_channel 取本设备行 ③program 列=
+  program_progress_since 两采样帧计数（首采样前不分类）。
+- **F（Supervisor 决策输入面）**: `report_failure(+domain, +attributed)`
+  ——按值携带零 Custody 所有权（用户拓扑: Policy input→Supervisor;
+  **Custody→Supervisor→switch 禁式不可构造维持**）; Status 逐决策**替换**
+  记录（Some/None 均如实——absence≠evidence 不累积）;
+  `last_decision_domain/last_decision_attribution` 只读访问器;
+  **决策判定逻辑零变化**: attempts/circuit/Restart/Escalate 词表预算全
+  冻结, 本轮无分支消费——域→恢复策略选择=03-02 Recovery Contract 消费面。
+
+### 60.3 披露（五项）
+
+1. **组 tick 桥列缺席→不分类 ≠ gate L5d 缺席→false**: gate 在 L2b（tap
+   在场已验）前提下 `is_some_and(alive)=false` 记账; 运行时无此前提, 按
+   media_tap.rs:109 `absence≠evidence` 契约不分类（None=无分类证据）。
+   喂入口径差异如实记档, 分类器本身零改动。
+2. **F 无分支消费**: 决策输入本轮只记录不改变判定（用户 §11-F 授权语义
+   =接收决策输入; 分支消费属 03-02）——测试锁"有证据与无证据同判"。
+3. **组 watchdog tick 接线真机活体证据缺**: `spawn_execution_group_watchdog`
+   唯一 spawn 点=生产 bin（bin:479）; 本轮活体=编译级（bmd+gst 全绿）+
+   同一分类器 gate 侧 L5d 真机复核通过; 组 tick 活体执行留 A2-8-04 生产
+   bin 验证轮。
+4. **hw 门控闭包作用域 bug 盒上抓到**: bridge_alive 闭包链 `p` 越域
+   （E0425）——该段 cfg(bmd+gst) 专属, default/mock 不编译（矩阵分层
+   价值实证）; 盒上修复复跑全绿。
+5. **基线校准**: R40 真机 dual_input 已 10/10（L5.4 经 R36/R37 闭环;
+   记忆线"9/10 L5.4 FAIL"过期作废）→ 本轮门槛=10/10。
+
+### 60.4 盒矩阵 + 真机（终态实测, 盒源 7/7 sha8 与本地一致）
+
+- fmt 绿·**default 224**[223+1]·**mock 390**[388+2]·**bmd+gst 248**
+  [247+1]·clippy ×2（default+bmd,gst 均 -D warnings exit 0）·双 bin
+  构建成功; 变更 7 文件 sha8 全对（38d05f68/40e3fa87/0eeb4e93/4ff9e9e9/
+  061f2b9b/cd631c0e/24e07bb5）。
+- **真机（证据盒 ~/a2-8-02i-evidence/2026-09-05-r45-g2-decision-input/,
+  盒钟 UTC 02:02=CST 10:02 无失配, v5 manifest sha 7a52b498 复用）**:
+  ①VBMF_SESSION_LIFECYCLE **ALL PASS EXIT=0**——ingest watchdog 新决策
+  输入接线真机活体（custody 归因逐 tick 生产计算+E7 internal residue
+  既有语义维持）; ②VBMF_A2_8_DUAL_INPUT **ALL PASS 10/10 EXIT=0**——
+  L0→L5+Teardown 全链零回归（L1a 2/2 production_grade·L1c 双信号·L2a
+  port_id 精确·L2b 双 tap 82 帧·L3 120→210·L4 Preserved{epoch 0,
+  offset 278599ns, V/A Continuous, DiscontinuityDeclared}·L5 归因完整
+  "A行=None B行=Input"·Teardown 停止链）。
+- **状态**: G-2 stage-1（D/E/F）落地——custody 归因+FailureDomain 生产
+  消费+Supervisor 决策输入面三缺口闭合; **G-2 PASS 不自宣**（真机已跑
+  但按纪律待用户复核; 组 tick 活体见披露 3）。
+- **下一刀（待裁）**: 03-02 Recovery Contract（决策输入记录面的消费——
+  域→恢复策略选择; R43/R44 冻结序下一环）; CONTRACT-ANCHOR-DOC-SYNC+
+  Mock B 同步轮仍另行排期不混轮。
+
+## §61 第四十六轮（R45 复核裁决 + G-2-G 真机活体 + 03-02 设计提案）
+
+### 61.1 R45 复核裁决登记（用户独立实文核验后, 落账前已对分支头复核）
+
+- **R45=PASS 限定为 G-2 Stage-1 PASS, G-2 不关闭**; 状态表: 03-01-A..F
+  COMPLETE·G-2-00 COMPLETE·G-2-G PARTIAL·G-2 Final OPEN·03-02 NOT
+  STARTED·A2-8-04 OPEN。
+- **开发线纪律**: 一切后续复核/提交以 `comet/a2-8-dual-input-switch`@
+  ff864d2 为准（已核: 本地 HEAD=远端=ff864d2; **master=7745968 旧头,
+  禁混线**）。
+- 用户确认要点: E 前提纠偏被采信（FailureDomain 既有复用正确, 未新造
+  第二同名类型）; 单故障优先序分类器语义锁死重申（禁多故障多维归因）;
+  group custody batch 为 group-wide + 逐 action device-scoped attribution
+  双防线（identity correlation）边界在 03-02 必须沿用; tasks.md 单元不纯
+  =engineering hygiene 非架构缺陷, 保留披露不重写历史。
+
+### 61.2 R46 执行: 组 watchdog 真机活体（G-2-G Final 证据）
+
+- **活体观测行使能披露**: 组 watchdog 健康路径原为静默（仅 spawn/异常
+  日志）——增加两处**仅诊断输出、零决策逻辑**观测行（watchdog.rs: 周期
+  活体观测行每 20 tick≈10s + 决策输入指纹行于故障动作路径; 分类经同一
+  `assemble_decision_input` 纯函数, 结果不入任何状态——决策输入仍只在
+  故障动作路径装配）。矩阵全绿后开跑。
+- **真机活体跑**: 生产 `media-agent` bin（MEDIA_AGENT_MODE=diagnostic +
+  v5 manifest sha 7a52b498 + VBMF_DIAG_INPUTS=2; VBMF_OUTPUT_* 全缺省 ⇒
+  fail-soft 纯分析零外推流; 盒钟无失配; 无 stray 进程）9.5min（timeout
+  SIGTERM 终止=预期, 无优雅停路径）。
+- **活体证据（强阳性）**: "Execution Group 就绪... MultiInputWatchdog
+  四观测面启动"（graph_handle=3, initial_active=4fa33dcb）; **线程连续
+  tick 0→1120（57 条活体观测行）**; 双设备三列实时 observed=true/
+  advancing=true/bridge=Some(true) + program_advancing Some(true);
+  **分类器真机活体: tick 0 domain=None（首采样无证据诚实缺席）→ tick≥20
+  domain=Some(None)（三列齐备全健康臂——`FailureDomain::None` 变体在
+  生产线程真机产出）**。用户 §13 缺口"group watchdog 真机 ❌"的线程/
+  三列/分类器三面已闭合。
+- **活体缺口（如实）**: 窗口内零自然故障（TV 未抖动; ball 源 992634
+  勿杀; 生产注入面=gate-only R35 红线禁入）→ 故障动作路径决策输入活体
+  指纹=0（custody_evidence 恒 0, 无 ReportInputFailure）。该路径现有
+  证据=纯函数测试+gate L5d 真实故障注入分类真机复核+本轮线程/三列/
+  分类器活体。**OQ-R4 待裁**: 证据组合是否足以关闭 G-2-G, 还是要求
+  自然故障长窗复跑。
+- 证据盒: ~/a2-8-02i-evidence/2026-09-05-r46-g2g-group-watchdog-live/
+  （header 五件套 + production-run.log; bin media-agent ab361801）。
+- 矩阵（观测行使能后复跑）: fmt 绿·default 224·mock 390·bmd+gst 248·
+  clippy×2 绿·双 bin 构建（计数零变化——纯诊断输出无新测试）。
+
+### 61.3 03-02 Recovery Contract 设计冻结提案（零实现, 新探针文档）
+
+- 交付 `2026-09-05-a2-8-03-02-recovery-contract-design-probe.md`:
+  As-Is 实锚（决策/执行/证据/冻结四面）+ 六面契约提案（F-1 domain→
+  strategy: **提案不新造 Strategy 词表**; F-2 attribution→target 双路→
+  own handle 冻结; F-3 RestartPolicy 零变化; F-4 fail-closed None→现状;
+  F-5 **消费点=执行域**（watchdog 读 last_decision_* ——Supervisor 判定
+  /词表零变化, R44 §7 红线一致））+ **OQ-R1..R5 待裁**。
+- 关键提案默认: **OQ-R1 全维持现状（03-02 记账收口零代码候选）**——
+  Bridge/Program 域无执行面恢复能力, 禁凭空造; 若裁执行分支, 最小影响
+  面=watchdog Restart 分支读 last_decision_domain 分支（§6 预估, 未授权）。
+
+### 61.4 状态与下一刀
+
+- G-2 Stage-1=PASS（维持）; **G-2-G Final=待用户对 OQ-R4 裁定**; 03-02=
+  设计提案已交付待冻结（OQ-R1..R5）; A2-8-04 OPEN（组 tick 活体已并入
+  本轮证据, 真实故障路径活体与 Timeline/AV continuity 专项仍待）。
+- 提交: 观测行代码（watchdog.rs 单文件）+账单元（本 §+03-01 §11+03-02
+  新文档+tasks R46 段）分单元提交推送。
+
+## §62 第四十七轮（R46 复核裁决 + OQ-R4 关闭 + G-2 Final CLOSE + 03-02 命名纠偏; 零运行时代码）
+
+### 62.1 R46 复核裁决登记（用户三层复核: 裁决原文→GitHub 提交/分支→证据链语义）
+
+- **R46=PASS — G-2-G LIVE EVIDENCE**; 12 行逐条复核: 1-6/8-9/11-12 全
+  PASS; 7 有条件通过（LIVE Gate PASS / Production Failure E2E 未触发）;
+  10 = DESIGN DELIVERED / FREEZE NOT YET COMPLETE。
+- 分支与提交核验属实: comet/a2-8-dual-input-switch=f5eedcb, master=
+  7745968 旧头, 无混线; a8b87b1（纯代码, 观测行）/f5eedcb（账 4 文件）
+  单元分离实际修正; R45 d6c6a45 卷入维持披露不重写。
+- 观测代码边界确认（用户 §四: 非基本符合而是**架构边界正确**）: 诊断
+  观测→assemble_decision_input→仅 logging, 零状态零决策路径; 故障动作
+  路径保持独立——未污染 G-2 边界。
+
+### 62.2 OQ-R4 正式裁决（用户 §六/§七）: **组合证据关闭, 不要求自然故障长窗**
+
+- 裁决理由: 长窗复跑=把"验证软件链路"变成"等待电视信号自然故障"——
+  概率性证据非确定性软件证据; 现有三层证据已覆盖链路/分类器/真实故障
+  分类本身: Layer1 生产线程真实活体（tick 0→1120·57 行·双设备三列）+
+  Layer2 生产线程真实分类器（同 assemble_decision_input, 非测试 harness,
+  FailureDomain::None 真机产出）+ Layer3 真实故障分类（gate L5d 真机
+  注入, 故障域归因完整=true）。
+- **Gate 分层模型（正式记账）**: G-2-G-LIVE=PASS / G-2-G-CLASSIFY=PASS /
+  G-2-G-FAULT=NOT OBSERVED（不阻塞——缺的是"production watchdog+真实
+  故障同时发生"而非链路/分类器正确性）/ G-2-G-E2E（recovery action）=
+  属后续 03-02 Recovery 与 A2-8-04 范围。**LIVE 与 E2E 两 Gate 禁混**。
+
+### 62.3 G-2 Final=CLOSED（R47）; 03-01-G=COMPLETE
+
+- 用户状态表收敛: 03-01-A..G 全 COMPLETE; G-2-00/G-2 Stage-1/G-2-G LIVE
+  COMPLETE; G-2-G FAULT-ACTION E2E NOT OBSERVED（OQ-R4 已裁=接受, 不
+  阻塞）; **G-2 Final=CLOSED**。R40..R46 全 PASS 链保持。
+- 边界面保持: Supervisor RECOVERY ONLY / Switch boundary / Timeline /
+  Mock A/B DEFERRED / Mimosa DEFERRED。
+
+### 62.4 03-02 命名纠偏（用户 §八, 立即修正）
+
+- "设计冻结提案"表述不严谨——OQ-R1..R5 未裁决前**不是 Frozen Contract**;
+  准确名称=**设计探针/冻结提案（Design Probe / Freeze Proposal）**,
+  状态=DESIGN DELIVERED / FREEZE NOT YET COMPLETE。03-02 文档标题/状态
+  行已就地修正+§7 修正记录; 本账及下游账自本节起统一用词。
+- hygiene（用户 §九, defer）: "五面 F-1..F-6"计数修正为**六面**——
+  不单独制造提交, 于 03-02 正式冻结时顺手统一。
+
+### 62.5 下一刀（用户 §十三路线图, 纪律重申）
+
+- **禁先写 Recovery 代码**——先 OQ-R1..R5 用户裁决 → Recovery Contract
+  Freeze → 最小实现（若裁执行分支）→ matrix+真机 → A2-8-04。
+- 本轮=零运行时代码零矩阵（纯账面）; 提交=账单元（主账 §62+03-01 §12+
+  03-02 文档纠偏+tasks R47 段）; 基线=f5eedcb..（本节提交后新头）。
+
+## §63 第四十八轮（R47 复核裁决登记 + 状态语言规则永久锁 + OQ-R1..R5 冻结包; 零运行时代码）
+
+### 63.1 R47 复核裁决登记（用户四层复核: 用户报告→GitHub 实际提交→当前分支状态→语义一致性）
+
+- **总体: 🟢 R47 PASS——"实际落地正确, 且没有发现运行时代码越界"; 结论比
+  R47 报告再收紧一点**。
+- 13 项逐条: 分支纪律 / R46 状态继承 / 观测边界 / OQ-R4 / Gate 分层 /
+  G-2 Final / 03-01-A..G / 03-02 命名 / Recovery 禁先实现 / 提交单元
+  纯度 / Mimosa DEFERRED 全 ✅; F-1..F-6 六面计数 🟡 DEFER（维持, 随
+  03-02 正式冻结顺手修）; **memory sync 🟡=报告自证通过但 GitHub 不可
+  独立验证**（外部执行环境动作, 不构成 R47 阻塞——按"自证项"登记接受）。
+- 本轮独立核验（R48 执行前置, 实文/git 为准）: local=remote=6f5735e,
+  master=7745968, 树净; 6f5735e=4 文件 +108/−3 ledger-only（tasks/主账/
+  03-01/03-02）, commit message 载明基线 f5eedcb/7745968+零运行时代码
+  声明; 03-02 doc 实文=纠偏后标题+状态行+§7 修正记录（会话恢复缓存中的
+  旧标题为陈旧快照, 实文无问题）。
+
+### 63.2 状态语言规则（用户 §十三, **永久锁死**）
+
+- **可以说**: G-2 Final=CLOSED（语义=**G-2 自身的 consumption/evidence/
+  attribution/decision-input 闭环**）; G-2-G-LIVE=PASS /
+  G-2-G-CLASSIFY=PASS / G-2-G-FAULT=NOT OBSERVED（不阻塞）。
+- **不能说**: 'G-2-G E2E=PASS' / 'Recovery E2E=COMPLETE' /
+  '03-02 Recovery Contract=FROZEN'（直至 OQ-R1..R5 裁决冻结）。
+- 边界根源: R47 已将 E2E 从 G-2 Final 验收范围剥离——**G-2 Final=
+  CLOSED 与 G-2-G-E2E=未实现/未验证 并存不矛盾**; 后续账本永久保持此
+  分离, **禁把 E2E 写回 G-2 Final**; 四层 Gate LIVE/CLASSIFY/FAULT/E2E
+  分层边界永久保持。
+- 观测边界升级表述（用户 §三）: 诊断观测面**没有改变原有决策拓扑**
+  （非仅"代码没出问题"）——此表述入账为口径基准。
+
+### 63.3 §十五 指令接收: 活体复跑终止 + 唯一待裁=OQ-R1..R5
+
+- **不再跑任何 R46/R47 活体——该轮已彻底结束**。
+- 唯一真正待裁=03-02 OQ-R1..R5（最关键=OQ-R1）; **用户维持推荐:
+  OQ-R1=全维持现状**——FailureDomain 继续作 evidence/attribution,
+  不驱动新 Recovery Strategy 分支; 03-02 可成为**零运行时代码 Contract
+  close-out**, 直进 A2-8-04 Program Timeline/AV continuity; 比贸然增加
+  Input→recover/Bridge→…/Program→… 更稳, 符合已冻结 Supervisor
+  Recovery-only 边界。
+- **裁决完成前继续保持零 Recovery runtime code**; 下一轮=OQ-R1..R5
+  逐项最终裁决（冻结包已落 03-02 doc §8, 待裁版）。
+
+### 63.4 本轮执行（零运行时代码零矩阵）
+
+- 主账 §63 + 03-02 doc §8（R48 确认+OQ 冻结包待裁版）+ tasks R48 段;
+  单一账单元提交; **03-01 探针本轮不新增**（R48 无 03-01 域新裁定——
+  G-2 Final 及四层 Gate 模型已录 §12, 状态语言规则属全局口径记本账+
+  03-02 doc; 止于 §12——如实披露, 避免重复记账噪音）。
+- 无代码变更⇒无矩阵需求; 无真机动作（§十五: 活体复跑终止）。
+- 基线: comet/a2-8-dual-input-switch@6f5735e, master=7745968（本节提交
+  后新头）。
+
+## §64 第四十九轮（OQ-R1..R5 终裁落账 + 03-02 Contract Freeze + 六面统一 + A2-8-04 开启; 零运行时代码）
+
+### 64.1 R48 复核登记 + OQ-R1..R5 终裁（用户 R49 裁决）
+
+- R48 复核=🟢 PASS（1-7/9 落实; 8=memory sync 自证项接受不阻塞）; 用户
+  重核事实: 远端=a6af188、master=7745968 未推进、a6af188 ledger-only
+  属实、无 03-02 偷冻结、无架构偷改（FailureDomain 未变新 Strategy
+  selector）; "不应该再做 R49 式的重复审计或重新跑 R46/R47" 接收。
+- **OQ 终裁**: OQ-R1=**案 A（全维持现状）**——FailureDomain=evidence/
+  attribution/decision-input, ≠新 Recovery Strategy selector/≠新
+  restart 语义/≠新 escalation 词表; **不新增 Recovery runtime code**
+  （用户原语: "不是少做一点, 而是更严格地保持已经形成的架构边界"）。
+  OQ-R2=接受（域永不参与 restart budget/circuit; RestartPolicy
+  unchanged）; OQ-R3=接受（消费点=执行域既有 last_decision_*;
+  Supervisor 词表不变）; OQ-R4=已闭不重开（E2E 永不塞回 G-2 Final）;
+  OQ-R5=接受（案 A 下无独立 Recovery implementation round）。
+
+### 64.2 03-02 Contract Freeze（DESIGN DELIVERED → FROZEN）
+
+- 状态正式提升 **CONTRACT FROZEN（R49）**（03-02 doc 状态行+§4 终裁列+
+  §6 未启用注记+§9 冻结记录）; 冻结内容=六面（F-1..F-6）既有行为+边界+
+  "不新增语义"约束——**零运行时代码收口**; Recovery runtime code 状态语
+  =NOT NEEDED（案 A, 非仅 NOT STARTED）。
+- **术语一次性统一（R47 §九授权执行）**: 非引用处"五面"→"六面"恰三处
+  （03-02 §3 标题/主账 §61 行/tasks R46 段）; 引用纠错原文处保留（改
+  动=伪造被纠错对象）。
+- 状态语言规则更新: **"03-02=FROZEN" 自本轮起解锁可说**（R48 禁语条件
+  已满足）; "G-2-G E2E=PASS"/"Recovery E2E=COMPLETE" **仍然禁说**（E2E
+  未实现未验证, 归属 03-02/A2-8-04 边界不变）。
+
+### 64.3 A2-8-04 开启（SoT 探针同轮交付, 独立第二单元）
+
+- 形态发现（探针实锚, 非类推）: tasks "六路 PTS"=**TimelineSample 六
+  PTS 流**（input/bridge/program × video/audio, program_execution.rs:
+  66-77）——**六路已在 gate L4 同采（只测量）**; 现判据仅覆盖
+  L4-SWITCH+L4-TIMELINE（program video 主导九项合取）, 其余五路未判。
+- 四失败模式×现有面: rollback=六路 PtsMonotonicity 四态已在;
+  discontinuity=DiscontinuityDeclared+program 双平面 PlaneContinuity
+  已在; divergence=**两语义未消歧**（pad 分离=av_paired 已检出
+  [watchdog.rs:460]/PTS 时序漂移=**零观测面**）; starvation=stalled 旗
+  [contracts/switch.rs:52]+progress_since+alive_in_window 已在, 验收
+  判据形状未定义。
+- **OQ-T1..T6 待裁——裁决前零实现**（判据落点[新增独立验收节不触 L4
+  冻结判据]/divergence 语义与界限[漂移首版只测量+分布取证]/starvation
+  判据复用 progress_since/input-bridge 平面 continuity 必要性/合成谓词
+  形状/与 C-TIMELINE-01 冻结关系确认不重开）。
+- 红线继承: observation only 无 Engine; L4 冻结判据零触碰（解冻需用户
+  明示授权）; 首跑 FAIL 留证禁为跑绿改判据。
+
+### 64.4 本轮执行（零运行时代码零矩阵）
+
+- 提交两单元: ①freeze 账（03-02 doc 冻结提升+主账 §64+tasks item-5
+  R49 段+三处五面→六面）; ②A2-8-04 SoT 探针（新探针 doc+tasks item-6
+  开启段）。03-01 探针仍止于 §12（本轮无 03-01 域新裁定）; 无真机动作。
+- 基线: a6af188..（本轮两单元后新头）, master=7745968。
+
+## §65 第五十轮（R49 二层代码真相审计 + OQ-T1..T6 终裁修订 + C-TIMELINE 状态校准; 零运行时代码）
+
+### 65.1 R49 复核登记 + 时间状态消歧（用户 §一）
+
+- R49 账面动作=🟢 PASS（03-02 冻结+OQ-R1..R5 终裁+开 A2-8-04 探针成立;
+  R49 自身零新增 runtime code 属实——OQ-T 不能全按原提案直接批准, 见
+  65.5）。用户审计对象（ProgramExecutionRuntime/ExecutionGroup/
+  SwitchExecutionAdapter/SwitchGraph/TimelineAuthority/TimelineSample/
+  MultiInputWatchdog/Supervisor/RestartPolicy/C-TIMELINE 冻结↔实现关系）
+  逐项与本账 SoT 实锚一致。
+- **时间状态消歧**: R49 pre-flight=远端/本地 **a6af188**（§64.1"远端=
+  a6af188"为单元开始前核验时点事实）; **R49 final=639b0f3**（44a32bb+
+  639b0f3 两单元推送后）; master=7745968 不变。§64.4"基线: a6af188..
+  （本轮两单元后新头）"口径一致, 本节补记 final 头消除歧义——只改账面
+  表述, 零代码。
+
+### 65.2 OQ-R1..R5 代码级坐实 + OQ-R3 措辞校准（用户 §二-§六）
+
+- **OQ-R1 案 A=代码证明级坐实**: 真实调用链 execution_group_observe_fold
+  →assemble_decision_input→classify_failure_domain/attribute_failures→
+  Supervisor::report_failure——report_failure 体（supervisor.rs:229-270）=
+  记录 last_domain/last_attributed（:240-241）→attempts+=1（:242）→
+  circuit_threshold（:243-245）→RestartPolicy.should_retry/circuit→
+  Restart|Escalate（:246-252）, **零 domain 条件分支**; docstring 自证
+  （:226-228"本轮无分支消费——有证据与无证据同判"）; RestartPolicy::
+  should_retry(attempt)（:93）**无 FailureDomain 参数**。
+- **OQ-R2 维持接受**: Status.last_domain/last_attributed（supervisor.rs:
+  137/:141）=记录性 decision evidence; budget/circuit 由 attempts/
+  max_retries/circuit_threshold 控制, 无域反向耦合。
+- **OQ-R3 措辞校准（用户 §四; 03-02 doc §4/§9 已就地修正+§10 修正
+  记录）**: domain 生产点=execution/watchdog; **当前唯一消费=Supervisor
+  记录 decision evidence**（读取面 last_decision_domain/
+  last_decision_attribution, supervisor.rs:203-210——当前零调用者=
+  潜伏读取面）; **domain→recovery strategy=NOT USED / NOT NEEDED**
+  （案 A=不新增该消费分支; F-5=预留消费边界潜伏, 非"已存在策略消费"）。
+  **禁表述"watchdog 已消费 FailureDomain 选择恢复策略"**——与真实代码
+  不符。
+- **OQ-R4 维持 CLOSED**（G-2-G 四层记账与 Timeline/Recovery E2E 两生命
+  周期正交——G-2-G-E2E 永不回写 G-2 Final）; **OQ-R5 维持接受**（案 A
+  下再造独立 Recovery 实现轮反而违反案 A）。
+
+### 65.3 缺口 A 登记+校准: C-TIMELINE-01 文档状态 vs 代码状态（用户 §七-§八）
+
+- 代码现实（截至 639b0f3, **非 R49 新增**）: ProgramExecutionRuntime::
+  switch_program 全链+TimelineAuthority+TimelineExecutionState+install_
+  timeline_transition+sample_switch_anchors/timeline_execution_facts+
+  GStreamer timeline probes（EVENT Segment 身份+BUFFER 声明 offset 施加）
+  +真实 GStreamer 测试 switch_graph_rt_02_timeline_full_chain_real_
+  gstreamer（switch_graph.rs:1093）+真机 L4 Timeline 三连续 PASS
+  （Preserve·epoch 0·offset 118799ns）。
+- 冻结期文本（design-freeze 文档 :12-15"Design Freeze 已形成; **不进入
+  实现**; 下一动作=开 implementation change"）=**冻结时点（2026-09-04）
+  状态**, 已被其后实现批次与真机记录接续——定性=**仓库状态一致性缺口**
+  （非 R49 违规: R49 零新增 runtime code 属实）。
+- 处置（用户裁定: 状态校准, **不回滚不重设计**）: design-freeze 文档已加
+  **§19 状态校准附录（R50）**——15 项冻结+八红线零修改; 状态歧义自附录
+  起以附录为准。
+
+### 65.4 缺口 B 登记（不本轮修）: DiscontinuityDeclared adapter 侧语义过宽 + 事实核验差异披露（用户 §十三-§十五）
+
+- **实锚**: GStreamer adapter 证据行在 `t.video.first_mapped.is_some()`
+  时无条件 `discontinuity_state=DiscontinuityDeclared` 且
+  `video_continuity` 硬编码 `Continuous`（switch_graph.rs:969-984;
+  switch_mock.rs:425-445 同构, 测试 :861-869 锁定 mapped→Declared+双
+  Continuous）——"发生 Source Segment transition/存在映射"被等价为
+  "声明了不连续", 与 Freeze 冻结项⑥语义（声明边界≠transition 本身;
+  **Preserve=同 epoch 连续时间线**）不完全一致。裁决级 Authority
+  snapshot 路径语义正确（program_timeline.rs:616-618: 仅"已声明边界被
+  观测证实"置 Declared）。
+- **事实核验差异披露（对用户审计 §十三"三态"表述）**: 与代码不符——
+  **PtsMonotonicity 实为四态**（pipeline.rs:263-276: Unknown/
+  ValidMonotonic/DiscontinuityDeclared/NonMonotonic, Batch 1 落地+
+  Freeze §14 语义注释在位, 仅经 observe_*_pts_declared 产生）。真缺口=
+  **第四态的生产使用语义过宽**（上述 adapter 行）, 非变体缺失——OQ-T4
+  终裁按此定稿, 修订方向不受影响。
+- 处置=登记→A2-8-04 取证→**C-TIMELINE implementation correctness
+  change**（独立队列; 禁 R50 收尾顺手修、禁趁 03-02/账面轮修）。
+
+### 65.5 A2-8-04 OQ-T1..T6 终裁（修订后冻结; 全文=A2-8-04 探针 §7）
+
+- **T1 🟢 接受**: 独立 A2-8-04 验收面; L4-SWITCH/L4-TIMELINE 冻结表面
+  零改动（禁偷偷扩大旧 L4 判据）。
+- **T2 🟢 接受（附前置）**: D1 平面/pad 结构性分离（av_paired 面）与
+  D2 PTS 时序漂移**分账**; PTS 全链 ns 单位（ClockTime::nseconds,
+  controller.rs:560/588/686+switch_graph.rs:180/328/354/503）=V/A
+  可比性成立**≠阈值授权**; 漂移首版只测量+真机分布取证后再裁界。
+- **T3 🔴 原案拒绝·修订后接受**: program/input progress_since=聚合
+  A/V"或"语义（program_execution.rs:160-174）不能证六路逐平面
+  starvation; 生产 InputPts.stalled 硬编码 false（switch_graph.rs:936;
+  Mock 真实 stalled≠生产——Mock≠GStreamer 契约面又一例）。修订边界=
+  六路 PTS continuity+六路各自 progress evidence+absence≠evidence;
+  **执行序=先观测探针取证六路推进行为→据实定 starvation window**;
+  本轮禁发明阈值、禁立即实现六路 starvation 判据。
+- **T4 🔴 原案拒绝·修订后接受**: 按 65.4 定稿——四态已在（非三态,
+  差异已披露）, 真缺口=adapter 行过宽→correctness change 队列;
+  A2-8-04 discontinuity 证据=逐路四态**如实读出**+declared vs
+  unexpected 区分+与 Freeze 语义偏差如实记录（**一致性验证, 非代码
+  修正**）; input/bridge 平面首版不新增 PlaneContinuity 级面（取证
+  发现不足再回裁）。
+- **T5 🟡 修订后冻结**: 验收模型=**六路×四模式证据矩阵**
+  （PathEvidence[6]×FailureMode 证据面; 每格=证据 E 非布尔; absence 与
+  false 分离）; 禁预设单一合成大布尔; 最终验收谓词由验收层在证据矩阵
+  填充后定义。
+- **T6 🟢 接受（新增职责）**: 不重开 C-TIMELINE-01 十二 OQ/四方案;
+  A2-8-04=验证/取证/发现缺口+**实现↔Design Freeze 一致性验证**。
+
+### 65.6 缺口 C/D 登记 + 执行序（用户 §21-§24）
+
+- **缺口 C**: 六路 starvation 无逐平面生产证据（stalled=false 硬事实;
+  progress_since=聚合）→ A2-8-04 观测探针先行, 不立即发明阈值。
+- **缺口 D**: "六路×四模式"当前=数据结构+分散观测面, 非完整独立可审计
+  证据矩阵 → A2-8-04 按 T5 模型完成。
+- Recovery 与 Timeline 两链正交性确认（用户依赖图: FailureDomain→
+  Supervisor decision evidence 与 TimelineAuthority→Program Timeline
+  无错误循环依赖——架构正确）。
+- **执行序**: 修订冻结文字（本轮已做）→ 六路实际证据采集（observation
+  only; 其最小观测面实现按探针 §7 冻结边界单独落地）→ 发现
+  implementation gaps → C-TIMELINE correctness change → A2-8-04 Gate;
+  **禁回头重复 R46-R49 旧活体验证**; 现在不写 A2-8-04 判据实现代码。
+
+### 65.7 本轮执行（零运行时代码零矩阵）
+
+- 两单元: ①R50 裁决账（主账 §65+03-02 doc §4/§9 OQ-R3 措辞校准+§10
+  修正记录+tasks item-5 R50 段）; ②A2-8-04 OQ-T 终裁修订+状态校准
+  （a2-8-04 探针 §2/§3 校准+§4 终裁列+§7 终裁记录+design-freeze 文档
+  §19 状态校准附录+tasks item-6 R50 段）。03-01 探针仍止于 §12（本轮
+  无 03-01 域新裁定）; 无真机动作。
+- 基线: 639b0f3..（本轮两单元后新头）, master=7745968。
+
+## §66 第五十一轮（R50 复核 PASS + A2-8-04 进入代码阶段: 六路取证面落地 + 真机全链首次全绿 + 六路首采）
+
+### 66.1 R51 复核登记（用户对 9875b0e→e24aaa2 / runtime 基线 639b0f3 二层裁决）
+
+- 总裁决: R50 🟢 PASS 可继续推进代码; OQ-R1..R5 全冻结维持[案 A 代码级
+  成立——supervisor.rs:229-270 零域分支 + should_retry(:93) 无 FailureDomain
+  参数 + Status.last_domain(:137)/last_attributed(:141) 纯记录 + 潜伏读取面
+  (:203-210) 零调用方]; OQ-T1..T6 修订后全冻结确认; 03-02 CONTRACT FROZEN
+  维持; C-TIMELINE runtime EXISTS IN CODE + 文档已校准（§19）。
+- **"PtsMonotonicity 实为四态"用户侧确认**[pipeline.rs:263-276; 真问题=
+  adapter 生产使用 DiscontinuityDeclared 语义过宽（switch_graph.rs:969-984
+  mapped→Declared + continuity 硬编码）——correctness 队列, 非 enum 缺态]。
+- 授权边界（Unit 1）: 新增最小观测代码·六路独立·不发明阈值·不改 L4·不改
+  Supervisor/RestartPolicy·不修 C-TIMELINE correctness——先采真实六路数据;
+  **不做纯账面轮**。
+
+### 66.2 Unit 1 实现（4d95ec6; 零触 L4/Supervisor/契约面）
+
+- program_execution.rs: 新增纯 Domain 取证面——`EvidencePhase`(Pre/PostSwitch
+  纯标签) + `PathEvidence{pts,pts_state,frames,advanced:Option<bool>}`
+  [absence≠false: None=无可比证据 / Some(false)=有证据未推进, 严格分离] +
+  `SixPathEvidence`[六路逐平面 + sampled_at_ms + switch_epoch +
+  program_av_delta_ns 只测量(T2)] + `SixPathInputs` +
+  `assemble_six_path_evidence` 纯 join[三列同源: 健康弧/BridgeObservation/
+  ProgramObservation——**帧计数原料全已在**（PipelineHealth 帧计数/
+  BridgeObservation.video_frames,audio_frames/ProgramObservation 帧计数）,
+  缺口纯在逐路 join 面]。+3 纯函数测试[T3 场景锁死: input v 冻结 a 推进→
+  聚合"或"误报 vs 逐路 Some(false)/Some(true); absence≠false; epoch 透传]。
+- gates/dual_input.rs: L4 判据输入全部捕获之后追加独立观测节——PRE 对
+  （切换前相位推进, 隔 SAMPLE_GAP_SECS 两快照）/ SPAN（pre2→post1 跨切换
+  推进=starvation 证据基础）/ POST 对（切换后相位推进）, 每设备一行×六路
+  +av_delta; 切换失败臂=如实缺席行。**零判据零阈值零 L4 触碰**[插入点在
+  L4 判据输入捕获后, record 不变]。+`PathSnapshot` owned 快照。
+- 边界遵守: contracts/MediaTap/watchdog/supervisor/resolver/switch_graph/
+  program_timeline 零触碰; TimelineSample 零改（观测面=并列新类型非侵入）。
+
+### 66.3 盒矩阵（全绿）
+
+- fmt ✓ / default 227（+3 六路测试）✓ / mock 393 ✓ / bmd+gst 251 ✓ /
+  clippy×2（默认+features, -D warnings）✓ / bins ✓。
+- 留证: 中间一跑 `switch_graph_rt_01_paired_failure_compensated_rollback`
+  FAILED（背靠背负载 flaky）——过滤重跑 8/8 绿 + 全量复跑 251/251 绿; 该
+  测试与 pad_unlink CRITICAL×4 均既有隔离债, 本轮 diff 零触碰 switch_graph.rs。
+- 复跑教训（流程面）: gates bin 重建必须带 `--features bmd-provider,
+  gstreamer-backend`（分发整体 cfg 门控——默认构建 bin 无 gate dispatch,
+  表现为"未命中任何 gate env"）。
+
+### 66.4 Unit 3 真机取证（2026-09-05 13:15 CST; 证据盒
+~/a2-8-02i-evidence/2026-09-05-r51-a204-sixpath-observation/）
+
+- 证据头五件套 + 盒源 sha==HEAD（4d95ec6: program_execution b54faa5f /
+  dual_input b4faee32）+ gates bin（feature 构建 dd5198dc）+ v5 manifest
+  当日核验[L1a production_grade 2/2 + L1c dn0/dn1 signal=true——v5 映射
+  当日有效, 无需重生成]。ball 源 PID 992634 存活 22h。
+- **Gate 全链 10/10 ALL PASS——按账本记录为真机首次全绿**（L0/L1a-d/L2a-b/
+  L3/L4[switch epoch=1 + Preserve offset=78120ns + mapped==pre 精确拼接]/
+  L5[注入隔离 + recover 复流 + 故障域归因 Input 无越域]/Teardown）; **L5
+  观测窗 B 类候选不因单次 PASS 复案**（概率性重叠未再现≠已消除, 维持登记）。
+- **六路取证首采（本轮目标）**: PRE A/B（epoch 0）六路全 advanced=Some(true)
+  + 全 ValidMonotonic; SPAN A/B（epoch 1, 跨切换）六路全 Some(true)——含
+  被切离的 A 输入管线/桥持续推进（selector 切换不停输入管线, 与架构一致）,
+  跨切换 starvation 未观测（单次）; POST A/B 六路全 Some(true)。**av_delta
+  实测: pre 7,149,169ns(≈7.1ms) → post 15,482,503ns(≈15.5ms)——切换后
+  V/A 差翻倍, 首个 D2 PTS 漂移实测点（只测量登记, 不设阈值——T2）**。
+  program 列为整图共享（每设备行重复=TimelineSample 同惯例）。工件全为
+  既有隔离债（PortId 碰撞 WARN×2 / MainContext WARN×2 / pad_unlink
+  CRITICAL×4）零新增。
+- T6 一致性记录: adapter observe() 行仍报 mapped→DiscontinuityDeclared +
+  硬编码 continuity（Gap B 原样, correctness change 队列不变）; L4-TIMELINE
+  裁决消费的是 Authority snapshot 证据（declared 边界事实+映射实测, 语义
+  正确）——两路径分层与 R50 T4 裁决一致。
+
+### 66.5 本轮执行
+
+- 单元: ①4d95ec6 码（program_execution.rs + gates/dual_input.rs, +431/−0）;
+  ②本轮账（主账 §66 + a2-8-04 探针 §8 + tasks item-6 R51 段）。盒矩阵+
+  真机如上; 03-01/03-02 探针本轮不新增（无新域裁定）。
+- 基线: e24aaa2..4d95ec6..（本轮账后新头）, master=7745968。
+
+## §67 第五十二轮（R51 复核 PASS + R52 多场景证据采集: 观测 Gate 落地 + 真机 20 切换三场景 + pr_v NonMonotonic 闩锁首证）
+
+### 67.1 R52 裁决登记（代码锚点 HEAD=d49dbcd 复核全过）
+
+- 总裁决: **R51 PASS 不回滚; 直接进入多场景证据采集（Unit A）→ R53 才修
+  Gap B**——两链分离硬纪律: ①Observation Expansion（多场景六路采集,
+  不改业务判定）②C-TIMELINE correctness（switch_graph.rs
+  `first_mapped.is_some()→DiscontinuityDeclared` 过宽, 独立 R53 单元修+
+  测试锁死 mapped+monotonic→非 Declared / 显式 declaration→Declared /
+  真回退→NonMonotonic / Unknown=证据不足非 false）。
+- 架构链确认: 切换链与故障链无错误循环（Supervisor 不调 switch; FailureDomain
+  不反向入 Timeline; watchdog 只供 evidence/decision input）——HEAD 实锚:
+  supervisor.rs 全文唯一 "switch" 命中=R44 §7 红线注释本身（:224）; 生产
+  drain 唯一入口=watchdog.rs:203 `consume()`（event_intake.rs 其余命中全为
+  测试）。
+- 裁决所锚代码事实复核: **Gap B 原文在位**——switch_graph.rs observe()
+  `Some(t) if t.video.first_mapped.is_some()` ⇒ `discontinuity_state:
+  DiscontinuityDeclared` + `video_continuity: Continuous` 硬编码（≈:975-984）
+  + `stalled: false`（:936）; TimelineSample 六 PTS+六态（program_execution.rs
+  :66-78）; `program_progress_since`=video‖audio 聚合（:160-166）——均与
+  裁决文一致, 零偏差。
+- 模块影响表接受: program_execution.rs 六路投影✅已正确/pipeline.rs 四态❌
+  不改/switch_graph.rs 🔴 R53 必修/其余全部 ❌ 不动（含 L4 暂不打开、
+  TimelineSample 不扩张、Contract 不重开、Mimosa ⏸ A2-8-05）。
+- **R52 硬约束: 零 Domain API 扩张**——复用 R51
+  SixPathEvidence/PathEvidence/EvidencePhase/assemble_six_path_evidence,
+  禁造第二套 TimelineEvidence/TimelineProbe/PathHealth; 无阈值（T2）; 数据
+  只采集不判定; exit=采集完整性非时间线裁决。
+
+### 67.2 R52 实现（e843eba, +784/−2, 纯增量）
+
+- **新模块 `gates/a204_obs.rs`（VBMF_A2_8_04_OBS, 第七真机 env）**:
+  - 多场景参数化: `_N`（默认 6 交替 A↔B）/`_DWELL_MS`（默认 5000; **0=场景 3
+    连续切换**; N 调大=场景 4 长窗）; 每切换 PRE 对→切换→SPAN→POST 对六行,
+    复用 R51 投影零新 Domain 类型; 方向自校正（读 Desired→另一端）。
+  - S5 format 证据行: 每设备 dn/signal/negotiated caps 同行（实测
+    **caps=None 缺席如实**——probe 上下文读不到协商 caps, absence≠evidence;
+    i25/p25 异构事实仍以二十五轮 canonical closure+ffmpeg 指纹为据, 本行
+    只做在场记录）。
+  - 汇总=纯数据: 每切换 outcome/epoch/av_delta[PRE/SPAN/POST] 序列 + 六路
+    pts_state 计数 + adv=Some(false) 定位行（absence≠false, None 不计）;
+    Teardown=卫生打印非 verdict。
+  - 全量 feature 门控（同 dual_input 惯例——默认构建零编译面, 纯聚合项亦
+    门控否则 dead_code 击穿 clippy）; 3 纯函数测试（tally 计数/负推进定位/
+    delta 三相位读取）入硬件矩阵。
+- 变更面: a204_obs.rs 新增 + gates/mod.rs（+1）+ bin/gates.rs（派发臂+env
+  清单）; **dual_input.rs/program_execution.rs/switch_graph.rs/Supervisor/
+  RestartPolicy/契约面零触碰; Gap B 未修（R53 队列不变）**。
+- 两处初版编译缺陷自纠（未出仓）: impl 块漏门控 + find().map() 双层
+  Option→and_then 展平; SessionPhase 未用导入清除。
+
+### 67.3 盒矩阵（全绿）
+
+- fmt --check ✓; default **227**（新测试硬件门控不动默认数）/ mock **393** /
+  bmd+gst **254**（251+3 新测试）/ clippy ×2（default+hw）`-D warnings` ✓;
+  bins ✓（gates hw bin md5=81bbc40a…）。
+- SHA: 三变更文件 盒==HEAD e843eba（SHA_MATCH_ALL_3）; 证据头五件套+
+  REV+bin md5+manifest v5 md5 齐备。
+- v5 当日核验内生: 三跑 format 行 dn0/dn1 signal=true + run4 L1a 2/2
+  production_grade + L1c 双 true——v5 映射当日有效, 无需重生成。
+
+### 67.4 真机四跑（2026-09-05, 证据盒 ~/a2-8-02i-evidence/2026-09-05-r52-a204-multi-scenario/）
+
+- **run1 默认 N=6 dwell=5s**: 6/6 采集完整 EXIT=0; 全 Preserved; av_epoch
+  1..6 / segment 1..6 / **ProgramEpoch(0) 全程保持**（Preserve 语义多切换
+  真机首次成立）; 六路×36 行全 ValidMonotonic; adv=Some(false)=0。
+- **run2 长窗 N=10 dwell=1s**: 10/10 EXIT=0; 全 Preserved; epoch/segment
+  1..10 / ProgramEpoch(0) 保持。**pr_v NonMonotonic=16/60 首证（本轮最重要
+  数据）**: 全部集中于 pr_v（pr_a 60/60 ValidMonotonic）; 起于 switch #8
+  (B→A) SPAN 持续到会话尾; 边界链 #7 POST=70.137s(VM)→#8 PRE=74.137s(VM)
+  →#8 SPAN=76.304s(**闩锁**)——**采样 pts 全程严格递增+帧推进(fr
+  2299→2941)+10/10 Preserved+Authority 证据 Continuous** ⇒ 回退事件发生在
+  切换窗内 per-buffer 层（adapter 原始面追踪器内部）, 单次回退后状态闩锁
+  无复位语义——**Gap B 相邻的 adapter 原始行闩锁行为首次真机多场景显形,
+  登记 R53 correctness change 输入证据, 本轮不修不判**。对照: dwell=5s×6
+  切换与 dwell=0×4 切换均零闩锁（20 切换样本恰 1 次, 非 dwell 决定论,
+  概率性边界事件——如实记录样本量）。
+- **run3 突发 N=4 dwell=0**: 4/4 EXIT=0; 全 Preserved; 全 ValidMonotonic;
+  adv=Some(false)=0——连续切换场景首采干净。
+- **run4 dual_input 回归（同 bin 含 obs gate）: 10/10 ALL PASS**——判据面
+  零扰动实证（L4 Preserve 全细节/L5 三段+归因/Teardown 全绿）。
+- **av_delta 方向振荡（D2 数据, 不设阈值）**: 20 切换 PRE→SPAN delta 跳变
+  与方向强相关——B 活跃期 ≈15.0-40.1ms / A 活跃期 ≈1.7-26.7ms, 无跨会话
+  单调漂移; SPAN≈POST（run2 #9 唯一 SPAN≠POST=18.4→6.6ms, 后续采样回落
+  稳态）。候选解释（登记非裁决）: 两源各自内在 A/V skew 不同（电视 i25 vs
+  ball p25）, 边界跳变=源 skew 切换非时间线损伤证据——待 R53 后更多样本。
+- 工件: pad_unlink CRITICAL ×4/跑、PortId 碰撞 WARN ×2/跑、converter
+  interlace ×3（run4 ×6）——全为既有隔离债零新增; MainContext WARN 本轮
+  未复现（0/4）。
+
+### 67.5 本轮执行
+
+- 单元: ①e843eba 码（gates/a204_obs.rs+mod+bin）; ②本轮账（主账 §67 +
+  a2-8-04 探针 §9 + tasks item-6 R52 段）。04-探针 §8.3 执行序兑现:
+  多场景采集→T5 矩阵部分填充→R53 correctness 下一刀。
+- 基线: d49dbcd..e843eba..（本轮账后新头）, master=7745968。
+
+## §68 第五十三轮（R53: C-TIMELINE adapter correctness——Gap B 修正 + NonMonotonic 生命周期 + 五锁 + 全绿矩阵 + 真机四跑）
+
+### 68.1 R53 裁决登记（代码锚点 HEAD=c06cdbe 复核全过）
+
+- 总裁决: **R52 PASS 直接进入 R53 代码落地**（"不要再做一轮纯账面验证"）;
+  范围严格=R53-1 修 `mapped→DiscontinuityDeclared` 过宽 / R53-2 定义
+  NonMonotonic 生命周期 / R53-3 四锁+第五锁 / R53-4 全矩阵回归 / R53-5
+  真机再跑——**禁借机修改 Supervisor/L4/Contract; Observation 结果禁反向
+  塞进 switch_program() 控制逻辑**; S5 caps 保持诚实 None。
+- §九两独立问题映射: Correctness-1（mapped≠Declared）=行装配面;
+  Correctness-2（NonMonotonic=事件还是状态+解除条件）=生命周期面。
+  **代码事实分层确认: 两缺陷不在同一处**——Gap B 块在 observe() 行装配
+  （≈:975-984, 零生产消费方——observe_execution 用 Authority snapshot
+  替换/L4 九项吃 Authority/a204_obs 打印 Authority）; run2 闩锁在
+  `HEALTH_ARCS` 的 `PipelineHealth`（pipeline.rs plain 观测器, sticky 由
+  `non_monotonic_is_sticky` 测试锁死——pipeline.rs 禁动）。**pipeline 预留
+  `observe_*_pts_declared`（:354-378, 文档明言 ingest 无声明源永不出现）
+  零生产调用者**——为本轮生命周期能在 switch_graph.rs 单文件内落地提供了
+  既有 API 基础。
+- §十二未完成项对照: ①Gap B ✅本轮修 ②闩锁生命周期 ✅本轮定义+测试
+  ③S5 caps=None 保持诚实 ④T5 矩阵继续（非本轮收口）⑤验收谓词归验收层
+  （不自行发明 delta<X/NM=0）⑥不因 20/20 Preserved 宣布 A2-8-04 CLOSED。
+- **§十三 R52 表述确认（append-only 不回改）**: §67.5 与 tasks R52 段本就
+  未写"多场景验证完成"（§67.5="多场景采集→T5 矩阵部分填充→R53
+  correctness 下一刀"; tasks R52 段="本项未勾——R53 correctness 未做+
+  验收谓词未定义"）——与建议的"Unit A PASS + open items"形态一致, 无需
+  修正; 本轮起按该形态续记（R53=Unit B PASS, open=T5/谓词/Gate）。
+
+### 68.2 实现（d1a4fc6, 单文件 +387/−40, 仅 switch_graph.rs）
+
+- **Fix 1（Gap B, R53-1）**: `PlaneTimelineExec` 增加 adapter 私有
+  `continuation: MappedContinuation{Boundary/Continuing/Violated}`（install
+  置 Boundary=声明段作用域, 新段自动重置）; 探针核心抽出可测纯函数
+  `apply_declared_mapping`（未执行/⑤未观测/无 PTS/映射越界四 passthrough
+  与抽前逐字节同语义——legacy 路径零变化）; 行装配新 `plane_row_state`
+  四态派生: **mapped+续流单调→ValidMonotonic/Continuous（非 Declared）**
+  / 防御退化（mapped 无声明, 结构不可达）→Unknown/Unproven / 显式声明
+  （仅边界帧）→DiscontinuityDeclared+DeclaredDiscontinuity / 段内真回退→
+  NonMonotonic+Violated; **V/A 两平面对称派生**（删除 video 硬编码
+  Continuous 与 audio 单独门控不对称）。
+- **Fix 2（生命周期, R53-2——run2 闩锁首证输入）**: `note_declared_boundary`
+  ——段首枚映射缓冲（BUFFER 探针 first_mapped 迁移时刻）通知程序平面健康弧:
+  ①`observe_*_pts_declared`（**pipeline 预留 API 首个生产调用者**; ingest
+  平面零触碰）; ②**干净边界**（mapped≥段前基准）显式重开段基准=
+  DiscontinuityDeclared（上一段内 NonMonotonic 就此解除——**闩锁不跨声明
+  边界**）; ③**违例边界**（mapped<基准）→NonMonotonic 传播入新段（声明不
+  豁免连续性违反——禁以声明洗回退, pipeline 反洗纪律原样）。**明文规则
+  （代码注释+本账+测试三重锁）**: 段内普通单调帧永不自动恢复; NonMonotonic
+  唯一解除条件=下一个干净已声明边界。
+- 五锁测试: rt_04×4（行四锁: mapped+monotonic≠Declared / mapped 无声明
+  NOT Declared / 显式声明→Declared+audio Unproven 对称 / 真回退→NM+
+  Violated 且新段重置）+ rt_05（arc 生命周期: ①段内回退→NM ②普通单调帧
+  不自动恢复 ③干净边界→Declared+基准重开=闩锁解除 ④违例边界传播不洗
+  ⑤V/A 平面独立）——全入硬件矩阵（254→**259**）。
+- 出仓前自纠两处（披露）: cargo fmt 三处重排（盒 fmt 重写回拷两侧一致）+
+  一条 doc_lazy_continuation（文档列表续段空行）; 均未出仓。
+
+### 68.3 盒矩阵（全绿）
+
+- fmt --check ✓; default **227**（不变）/ mock **393**（不变）/ bmd+gst
+  **259**（254+5 新锁测试， 一次全过）/ clippy ×2（default+hw）
+  `-D warnings` ✓; bins ✓（gates hw bin md5=7a0ed95c…）。
+- SHA: switch_graph.rs 盒==HEAD d1a4fc6（3c303952…, 单文件比对通过）;
+  证据盒 `~/a2-8-02i-evidence/2026-09-05-r53-ctimeline-correctness/`
+  （header 五件套+REV d1a4fc6+bin md5+manifest v5 md5 7521d17e…）。
+- v5 当日有效内生核验: run4 L1a 2/2 production_grade + L1c 双 signal=true。
+
+### 68.4 真机四跑（R53-5, 2026-09-05 14:37-14:49 CST）
+
+- **run1 N=6 dwell5s**: 6/6 采集完整 EXIT=0; 全 Preserved; ProgramEpoch(0)
+  ×6; **pr_v/pr_a = DiscontinuityDeclared=34 + ValidMonotonic=2**——恰为
+  预测签名: 首切前 2 行 PRE=VM（无边界）, 此后边界事实按四态纪律保持
+  （**此前干净跑被 VM 全程掩盖**——闩锁 API 接线后 DiscontinuityDeclared
+  首次真机显形）; adv=Some(false)=0; NonMonotonic=0。
+- **run2 N=10 dwell1s（上轮闩锁场景复刻）**: 10/10 EXIT=0; 全 Preserved;
+  ProgramEpoch(0)×10; pr=Declared 58+VM 2; **概率性边界回退未复现**（历史
+  30 切换恰 1 次; 闩锁解除路径由 rt_05 确定性单测锁定, 真机解除样本待
+  未来——如实记样本量, 不制造事件）。
+- **run3 burst N=4 dwell0**: 4/4 EXIT=0; 同签名（Declared 边界事实+VM 首切前）。
+- **run4 dual_input 回归: 10/10 ALL PASS EXIT=0**——L3 切前
+  state v=ValidMonotonic（legacy 路径不变实证）; **L4 分层签名同帧共存:
+  程序面 state=DiscontinuityDeclared + Authority 证据 timeline_ok=true
+  outcome=Preserved v/a=Continuous**（两 face 语义分层如设计, 九项合取
+  零影响）; L5 三段+故障域归因+Teardown 全绿——**判据面零扰动第二轮实证**。
+- 工件: pad_unlink CRITICAL ×4/跑、PortId 碰撞 WARN ×2/跑、converter
+  interlace ×3/跑——全为既有隔离债零新增; MainContext WARN 0/4。
+- 首跑留证: run1 首次调用漏带 MEDIA_AGENT_DEVICE_BINDING env → EXIT=2
+  （调用侧疏漏非代码失败, log 同文件留存）。
+
+### 68.5 本轮执行与登记
+
+- 单元: ①d1a4fc6 码（switch_graph.rs 单文件）; ②本轮账（主账 §68 +
+  a2-8-04 探针 §10 + tasks item-6 R53 段）。
+- 基线: c06cdbe..d1a4fc6..（本轮账后新头）, master=7745968。
+- 登记不修: ①switch_mock 行为分歧（mock timeline 行仍 Declared-forever+
+  program 面 VM 硬编码, 其自有测试锁死——mock-sync 轮留后续独立登记）;
+  ②`stalled:false`（observe() input 行硬编码, mock 侧有真值）非本轮范围;
+  ③S5 negotiated caps=None 保持诚实缺席。
+- 下一步: T5 矩阵续填（含 [pr×DiscontinuityDeclared] 新基线格+闩锁解除
+  真机样本待采）→ 验收谓词由验收层定义 → A2-8-04 Gate → A2-8-05。
+
+## §69 第五十四轮（R54: T5 证据矩阵续填+正式化——零代码真机取证轮）
+
+### 69.1 裁决登记（HEAD=2f30d16 复核起点）
+
+- R53 = Unit B PASS 用户终裁 + 独立复核（本会话按 git 对象+代码逐行+
+  账本原文 13 项全过: d1a4fc6 单文件 +387/−40·MappedContinuation 四态
+  派生与五锁断言逐行核实·账本三处纯追加·A2-8-04 未提前关闭）; 复核边界
+  如实声明: 盒矩阵与真机四跑未重执行（记录级交叉一致）, 仓库外证据盒未
+  开（plan-mode 权限拦截）。
+- R54 范围 = T5 矩阵续填（§68.5/04-探针 §10.3 执行序）: 真机增量采集 +
+  矩阵正式化 + 交接验收层; **零代码轮**（预期=实际: 72/72 源 sha 本地↔
+  盒全等; gates bin 重建 md5 与 R53 逐字节一致）。裁决依据=账本执行序,
+  无新 OQ, 无判据变化, 无阈值。
+
+### 69.2 真机四跑（2026-09-05 15:15-15:26 CST; 证据盒 ~/a2-8-02i-evidence/
+2026-09-05-r54-a204-t5-matrix/）
+
+- run1 N=30 dwell=1000ms EXIT=0: 30/30 采集完整·全 Preserved·pr_v/pr_a
+  DD=178+VM2（R53 基线 30 切换扩展）·NM=0·adv=0。
+- run2 burst N=30 dwell=0 EXIT=0: 同签名全净。
+- run3 dual_input 首跑 **EXIT=2 = L1c B 类瞬态**（ball 源 signal=false→
+  H1 fail-stop 3/4）; 首跑留证日志保留; run2 数秒前该源仍供帧→判瞬态。
+- run4 dual_input 重试 **ALL PASS 10/10 EXIT=0 = 判据面零扰动第三轮**;
+  L4 两 face 同构（DD+Preserved/Continuous/epoch0/offset 32868814 逐 ns）;
+  L5+Teardown 全绿。
+- 累计: 本轮 +60 切换全 Preserved; R53 语义后 80 切换 NM=0（闩锁未复现,
+  解除格维持"rt_05 单测证明+真机待样本"）。
+- **D2 新事实: av_delta 振荡包络随会话推进增长**（两跑同形态 ~2-7ms →
+  ~101-127ms; R52 短窗 1.7-40.1ms 未暴露; 候选=源 skew 随时间漂移;
+  登记非裁决阈值仍禁）。
+- 工件零新增: OBS 跑 4/2/3-4/1（pad_unlink/PortId/interlace/MainContext）
+  ·dual_input 跑 4/6/2 与 R53 原始日志逐项相等; **就地校准: §68.4
+  "MainContext WARN 0/4" 与原始日志不符（实测 OBS 域 1/跑·dual_input 域
+  2/跑）——历史登记表述修正, 技术结论（既有隔离债零新增）不变**。
+
+### 69.3 T5 矩阵正式化与交接（全文=04-探针 §11.2）
+
+- 显式六路×四模式矩阵落账（每格=证据 E·absence≠false·样本基数 101
+  切换）: 正证据格（六路 VM/推进/DD 新基线/跨切换不饿死首证）+ 首证格
+  （pr_v NM=R52 旧语义历史）+ 单测锁定格（闩锁解除）+ 如实 absence/缺口
+  （stalled 生产硬编码·S5 caps=None·switch_mock 分歧——各有独立归属）。
+- **交接判定: T5 矩阵 = 已填充至可交接验收层状态**; 闩锁解除真机样本
+  = opportunistic 增量项不阻塞。
+- 下一步: **验收谓词由验收层在矩阵上定义**（禁发明 PTS delta 阈值——
+  D2 会话包络新事实即阈值必须由验收层据分布裁决的实证; 禁合成大布尔）→
+  A2-8-04 Gate → A2-8-05。R52/R53 历史零回改; 本轮账本纯追加。
+
+## §70 第五十五轮（R55: 验收谓词提案交付——零代码, 待终裁）
+
+- 用户 R54 收口确认: R53 PASS 冻结不重跑; R54=T5 矩阵零代码; 正确
+  收口点=矩阵整理交验收层逐格裁决——**Evidence Matrix → Predicate →
+  Gate**, 禁 Evidence→自己解释成 PASS→Gate。
+- 交付: 验收谓词提案文档（04-探针 §12 摘要+全文=2026-09-05-a2-8-04-
+  acceptance-predicate-proposal.md, PROPOSAL 状态, 基线 2d66ab3）:
+  P1-P9 逐格谓词（六路 rollback/discontinuity 三段/D1/D2 无阈值/
+  六路 starvation/闩锁解除 UnitProven+FieldPending/dual_input 回归/
+  证据完整性/Gap 披露）+ Gate 层固定合取组合（格 verdict 独立保留）。
+- 用户边界全部内嵌: pr_v×NM 双层不混; NM 解除禁人为制造; av_delta
+  分布事实不发明阈值; advanced 逐路独立（聚合 OR 排除）; S5=None/
+  mock/stalled=Gap 披露不顺手修; 首跑 FAIL 留证。
+- **OQ-P1..P7 待终裁**（D2 形状/FieldPending 阻塞/证据窗/B 类重试/
+  工件漂移/Gap 阻塞化/组合规则——提案默认见文档 §5）。终裁前 A2-8-04
+  Gate 不执行, A2-8-05 不提前; 本轮零代码, 账本纯追加。
+
+## §71 第五十五轮修订（R55.1: 终裁纠偏与冻结——零代码, docs-only）
+
+- 验收层终裁 R55 = **ACCEPT WITH CORRECTIONS**: 方向保留, 四项必改后
+  冻结（P1/P5 充分性前置·P2 改 outcome↔continuity 一致性·P2c 弃用
+  硬编码 None 字段改三支合取·P6 FieldPending 永不伪装 Satisfied）;
+  四层 Gate 组合冻结（Evidence Integrity(P8)/Semantic Correctness(P1,
+  P2,P3,P5,P6a)/Regression Safety(P7=dual_input 回归证据, 不替代
+  Timeline Gate 裁决)）。
+- 终裁前只读核验把裁决引用的代码事实逐条对到行号（全部属实; 运行时
+  代码 d1a4fc6→89e2863 零改动）, 新增两处结构性披露不修: ①
+  undeclared_backward_jump 死字段（唯一构造点 program_timeline.rs:658
+  硬编码 None）→ dual_input.rs:789 合取项恒真; ②on_mapped_buffer
+  （:621-624）首帧边界回退吸收为 Unproven→NewEpoch（fail-closed 链
+  仅在 on_program_pts :754-763）= P2c 语义边界。引用订正:
+  SixPathEvidence/advanced=program_execution.rs:204-247, av_paired=
+  watchdog.rs:456。
+- **OQ-P1..P7 全关**: R55 终裁五项 + R55.1 补裁三项（OQ-P3 证据窗=
+  **案 b** Gate 日新鲜确认集+累计背景; OQ-P4=仅 signal 类可重试全
+  归档; P1/P5 完整性下限=每路 PRE≥1∧POST≥1 非 Unknown）。verdict
+  词表 v2 {Satisfied/Failed/Unproven/Historical/UnitProven/
+  FieldPending/Gap}; blocking 格 Failed **或 Unproven** 均阻断 PASS。
+- 谓词文档 = 2026-09-05-a2-8-04-acceptance-predicate-proposal.md
+  **FROZEN (R55.1)**, 终裁登记+旧→新对照+披露 = 其 §7; 全文摘要 =
+  04-探针 §13。
+- 状态: A2-8-04 Final Gate 待按冻结谓词+案 b 证据窗执行（下一轮）;
+  A2-8-05 不提前; 本轮零代码零硬件, 账本纯追加。
+
+## §72 第五十五轮修订二（R55.2: 终裁补正与最终冻结——零代码, docs-only）
+
+- 验收层按远端真实状态复裁（**远端 HEAD=2f30d16; 本地 R54/R55/
+  R55.1/R55.2 未推送——文档裁决按本地内容审查不称远端已存在; 推送
+  延后至 Final Gate 完成后**）。裁决 = **ACCEPT WITH ONE REQUIRED
+  CORRECTION**: R55.1 四项必改全确认; 唯一必改 = P2c
+  "UndeclaredBackwardJump 事件计数==0" 亦 vacuous（路径真实存在但
+  无生产证据 sink——失败经 timeline_fail_closed→SwitchError
+  program_execution.rs:751 走错误面）→ 拆双通道: P2c-1 可观测通道
+  blocking（程序面 NM==0 交叉引用 P1 ∧ Violated==0, 读出面=OBS 逐
+  切换 outcome a204_obs.rs:537-545+dual_input L4）/ P2c-2 =
+  Unproven·Structural Gap 披露（owner=后续 Domain/Observation
+  change, 禁 0 事件=Satisfied）。
+- 两项澄清入稿: PRE≥1∧POST≥1 = sufficiency minimum ≠ continuity
+  completeness proof; DD = declaration-bearing state 非异常（禁
+  DD>0→FAIL 判法）。P2 Failed 子句收紧（Violated∨TransitionFailed∨
+  任何 TransitionFailure 终态）。
+- 谓词文档 = **FROZEN-FINAL (R55.2)**, 登记 = 其 §8; 摘要 = 04-探针
+  §14。执行序: 直接进入 A2-8-04 Final Gate 新鲜证据窗（OBS N≥10 +
+  dual_input 10/10 + hw 259）→ 逐格 verdict → P8 → Gate 层 AND。
+  运行时零改动清单维持; D2 无阈值; A2-8-05 不提前。
+
+## §73 第五十六轮（R56: A2-8-04 Final Gate 执行——Gate = FAIL·pr_v 边界违例 NM 首现）
+
+- 按冻结谓词+案 b 窗执行（6ffff44; 冻结 bin md5 7a0ed95c ✓·72/72
+  源 sha ✓·manifest 7521d17e ✓·工件零新增 OBS 4/2/3/0==R54run1·
+  dual 4/2/6/0==R54run4 ✓; 证据盒 2026-09-05-r56-a204-final-gate）。
+  新鲜三件: OBS N=30 dwell1000 **EXIT=0 30/30 全 Preserved**·
+  dual_input **首跑 10/10 EXIT=0**·hw **259/259 EXIT=0**。
+- **核心事件: switch #8 B→A pr_v NM=6 行——R53 语义后首次（80→111
+  切换累计仅此一例）**: 边界 mapped==program_start 锚; NM 闩锁贯穿
+  段 8 早窗（帧计数全程推进·PTS 正常步进=非停流）; **#9 干净边界
+  解除回 DD——rt_05 生命周期（违例传播+干净解除）真机完整首证 =
+  P6b FieldPending 样本落地**。候选成因=跨源 skew（PRE #8 A 落后
+  B 25.8ms）× 边界锚点交互; av_delta 包络 1.52→101.52ms 振荡延续。
+- 逐格 verdict（§15 全表）: P1 四 in/br 路+pr_a/P2 核心/P2a/P3/P4/
+  P5/P6a/P7/P8 全 **Satisfied**; P6b field 首证落地; **P1-pr_v/
+  P2b-pr_v/P2c-1 三 blocking 格 Failed** → **Gate 层固定合取 =
+  A2-8-04 Final Gate = FAIL**。首败留证·判据零改动。
+- 交接验收层两读法: (a) 维持冻结谓词=rollback 违例（FAIL 维持）;
+  (b) R52→R53 先例开边界 rebase 语义裁决轮。实现层不自行解释;
+  A2-8-05 不进入。全文 = 04-探针 §15。
+
+## §74 第五十七轮（R57）: 边界回退语义裁决支持——只读重建（零代码）
+
+- 用户 R56 终裁: **(b) 严格版**——A2-8-04 = **FAIL / HOLD FOR
+  BOUNDARY-REBASE SEMANTICS ADJUDICATION**; 三 blocking（P1-pr_v/
+  P2b-pr_v/P2c-1）不撤销不豁免不修改; FAIL 定性 = "Semantic
+  adjudication required"（非 "R53 已证伪"）; **P6a→Satisfied·P6b→
+  FieldProven**（词汇 v2.1 增补, 生命周期证据域, 不改 blocking）;
+  本轮零代码零判据零 Gate 零阈值。交付 = R57 独立文档 + 04-探针
+  §16 + 谓词文档 §10。
+- 只读重建四答（全文锚定实码+R56 盒证据）: **A** 六行 NM 唯一来源
+  = PipelineHealth 程序面健康弧（appsink 逐缓冲 plain + 段首帧
+  declared 两写点）; Authority 从未收到违例值（喂入=①a 一次+50ms
+  轮询, 单缓冲瞬态采样不可见; 反证=#9~#30 正常执行）——观察面逐缓冲
+  vs 控制面采样 = 接缝实锚。**B** #8 锚=74137405051×74037405049、
+  offset=差值精确、边界帧零间隙落旧段末值; 切换行 mapped 非锚
+  （settle 推进, R56 "+26.67ms 前跳" 读法就地修正）。**C** 六行=
+  3 窗×双设备克隆同一程序观测的闩锁读数, 底层事件 ≥1 最简恰 1;
+  行数≠事件数（P1 若改事件计数需证据面扩展, 登记不自行改）。**D**
+  无跨源 rebase/排水/事件计数 Domain 概念, D2 不能裁决边界合法性。
+- **机制排查 M1 唯一存活**: M2（未映射 raw 穿越）被干净边界 DD 释放
+  洗除→排除; M1 = [锚采样→install] 微秒窗一枚出发段映射帧穿越→基线
+  +1 帧（40ms）→ A 边界帧（=锚）成违例边界→NM（"声明不豁免回退"）;
+  概率 0.1-0.6%/切换与 1/~170（R53 后）+R52 run2 相容; #8 同索引复现
+  =同节拍同相位候选, n=2 未证。**skew 框架消解**: 锚构造两锚同瞬、
+  offset=差、skew 相消（日志双证到 ns）——#8 非 skew 驱动 rebase。
+- 锐化裁决问题交验收层: (i) 连续性违例（现行立场→adapter 边界原子性
+  修复→复跑, 谓词不动）vs (ii) 合法排水语义（Domain 变更+事件计数,
+  与 "禁以声明洗回退" 冻结纪律冲突）。**执行层分析（非裁决）: 证据
+  支持 (i)**——有界 ≤1 帧真实回跳、四态机各自按设计工作、缺口在切换
+  协议原子性（锚快照↔映射安装对旧段在途流不原子）。诚实边界: 违例帧
+  未被直接观测（M1=排除法推理, 幅度推断值）。红线全维持。
+
+## §75 R57 终裁复核（2026-09-05, 验收层终裁 × 实现层源码逐条复核）
+
+- 验收层 R57 终裁: A2-8-04 维持 **FAIL/HOLD**; 三 blocking 维持;
+  修复否决三项（禁语义洗回退/禁阈值/禁 Gate 忽略行）; R57-A/B/C/D
+  分级维持; **R58 边界原子性实现轮获批**（11 步: 冻结证据/不改
+  谓词/先设计/先补确定性测试/改 GStreamer 执行边界/mock+真实双侧
+  回归/真机复现 #8/NM 消失/生命周期仍立/全回归/新鲜 Final Gate）。
+- 实现层以 2972fb8 源码逐条复核（全文 = R57 文档 §10）: **实体
+  裁决全部成立**（调用链/门控/锚读取面/clean 相对序/Authority 轮询
+  两时间尺度/R53 生命周期/offset 唯一生产/模块矩阵——逐行证实）;
+  **机制替换案 M1′（raw 帧推进基准）被双重反驳**——[锚采样→install]
+  窗内槽为 #7 状态 executed=true（install :891 替换式、运行期无清
+  槽点）→出发源帧仍被旧段映射（`!t.executed` 门控的是尚未 install
+  的新 transition）; 且 offset#7=+100131607>0 封闭 raw 路线（基线
+  −100ms→#8 边界 clean→DD 覆写, 与跨 #9 解除签名矛盾）。**M1 维持
+  唯一双相容机制**; 裁决自身算术示例（P→P+40ms→A=P）即映射帧签名。
+- 接受锐化: §六 clean 相对序=R57 §5.2 条件排除一般化（条件
+  offset_prev>0, #8 成立）; §十七 mock 缺口加强（observe→tick_once
+  :396 + program pts_state 硬编码 ValidMonotonic :406-415——结构上
+  不可复现竞态, R58 测试须补交错注入）。
+- R58 输入修正: 修复不变量按健康弧观测序表述（appsink transit）;
+  测试主缝=[①c→③] 映射帧、次缝=[③→④] raw 符号面。红线全维持,
+  谓词/Gate 零改动, A2-8-05 不进入。
+
+## §76 R58-Design 终裁复核 + R58 步骤 4（R58 unit 1, 测试先行零生产代码）
+
+- 验收层接受 §75 复核（**M1′ 正式撤销·M1 恢复唯一双相容机制**）并
+  下达 R58-Design 终裁 12 条; 逐条复核全相容（§1 槽 :891 唯一写点/
+  运行期无清槽/executed :844/锚 :946-949; §2 锁仅护槽·弧冻结=污染
+  观测·重采样=二线; §3 fence 三条件——queue 在途入 confirmed（拓扑
+  selector→queue→appsink :508/:552/:630-634）·拦截缓冲 DROP·同 pad
+  探针序; §4 appsink 链 :422-446（:439 plain 写点）; §5 双面; §6 只拦
+  BUFFER（EVENT 门 :170-185）; §7 顺序校正=锚先于窜帧; §9 mock 缺口
+  :396/:406-415; §12 远端 2972fb8 `git ls-remote` 实测）。
+- **主方案=selector-output BUFFER Cutover Fence（V+A 双面）+重采样
+  fail-closed 二线**; 实现层不变量原文登记（锚采样后 cutover 生效前
+  旧执行态不得推程序基线——不触碰 Domain predicate）; 否决族维持
+  （冻结基线/放宽 declared/阈值/单纯 Mutex/改 Authority/判合法排水）。
+- **步骤 4 执行=switch_graph.rs 测试模块两测（生产代码零改动）**:
+  M1 确定性复现（数值=R56 #8 实测锚 74137405051×74037405049·
+  offset#7=+100131607——S7→P→锚 P→窜帧 P+40ms Continuing（#7 行不
+  Violated=pr_v 签名）→install #8→首枚映射 P→NM 断言（声明不豁免）
+  →#9 干净边界→DD 断言=现场签名闭环）+无窜帧差分对照（干净 DD）。
+- 盒=编译 bmd,gstreamer tests+clippy×2 -D warnings 全绿·default/sim
+  227·gst 261=259+2（run-A 瞬态 1 失败未捕获名·零改动重跑 261/261
+  全绿——R51 rt_01 flaky 同型·未改未删未跳过任何测试）; 谓词/Gate/
+  阈值零改动·三 blocking 维持; 步骤 5-11 待执行（fence 实现/双侧
+  回归/真机 #8 复现 NM 消失/生命周期仍立/全回归/新鲜 Gate）;
+  A2-8-05 不进入。
+
+## §77 R58 独立远端裁决复核（验收层基于 GitHub 真实状态, docs-only 零代码）
+
+- **远端事实独立实测与裁决一致**: `git ls-remote`=2972fb80…（R56
+  FAIL=远端最新·证据完整）; `git branch -r --contains d1f1e58`=空
+  （d1f1e58/f9dc935/a8ac09a 均本地; tip=祖先⇒GitHub 无 R58 测试）;
+  **口径纪律冻结**: 本地/远端事实分开陈述·本地提交永不表述为远端
+  落地·推送仅按明确指示。
+- **M1=源码闭环证实非推测**（appsink 链 :422-446/:439·install 整槽
+  :889-891·门 :221-223·锚 :946-949·①-⑩ :596-716·fail-closed
+  program_timeline.rs:746/:755-763/:776·50ms 采样 :739——两时间尺度
+  ⇒ NM×Preserved 并存=观察粒度差非模块错误）; HOLD 维持=设计方向
+  无错·生产修复未进远端·R58 完成至「根因确定+测试先行」层级。
+- **fence 不变量升格冻结**: INV-F1（confirmed 含 queue 在途排放——
+  selector src fence≠output 静止, 拓扑 :508/:552/:630-634; 原 §76
+  条件 a 升格）·INV-F2（旧世代拦截帧不可复放——三段模型「旧世代
+  排空+cutover barrier+新世代重开」, 非 pause/resume; 原 §76 条件
+  b 升格）·INV-F3（V+A Both Confirmed→anchor/declare/install/switch
+  →Both Release——switch() :822 video 先/:824 audio 后/:828 回滚/
+  :830-837 degraded）; BUFFER-only 与 Mock 交错增强维持。
+- **步骤 5 边界树登记**（裁决 §十三）: V/A 双 BUFFER fence→confirmed
+  （含 queue in-flight）→anchor snapshot→declare→install→dual
+  switch→拦截帧不可复放→mark executed→release; 二线=stale-baseline
+  detection→fail-closed/secondary resample（非主一致性机制）;
+  A2-8-04 不得宣布恢复 PASS; A2-8-05 不进入。
+
+## §78 R58 步骤 5 执行: Cutover Fence 生产实现（代码轮, 本地未推送）
+
+- 验收层 Step 5 执行令落地——INV-F1/F2/F3 编码进 Adapter 执行契约:
+  端口新增 arm_cutover_fence/release_cutover_fence（无默认实现,
+  4 个实现方编译期表态: 真实 GStreamer 双面 fence / Mock staging
+  旗标+编排序 debug_assert / 两个测试包装器）。
+- switch graph: FenceState{Open,Armed}+PlaneFence{state,discarded}+
+  FencePair{video,audio}（V+A 成对单字段）+fence_should_discard
+  纯门（单语义双应用点）; 两层门=selector src BUFFER 探针门
+  （drop-first 先于映射——丢弃帧不消耗 first_mapped/不改写 PTS/
+  不写弧）+appsink 消费门（V/A 对称; INV-F1 构造性覆盖 queue 在途
+  帧——无时间等待确定性非启发式; INV-F2 Drop 无 flush/复放, 丢弃
+  计数 release 交回）; Open=legacy 逐字节保持; 未知 graph 双向
+  fail-closed。
+- 编排: CutoverFenceGuard ⓪ arm（①a 前）→①c 锚→②③④→switch
+  executed 落点→defuse=Release（INV-F3 落点序; fence 非权威）;
+  Drop 兜底 ①-④ 任意错误路径必解除 barrier 恢复流面（不吞错误）。
+  Mock=staging 最小实现（真实交错模型 OldStraggler/FenceConfirmed/
+  OldBufferDropped=步骤 6）。
+- 测试: switch_graph_fence_contract_arm_release_both_planes（契约:
+  双面同装同释/计数如实/未知 graph fail-closed）+
+  switch_graph_fence_armed_closes_m1_race_boundary_stays_clean
+  （§8 同序: 窜帧被门处置→基线不推进（对照红测已推进 P+40ms 在
+  案）→executed 落点 Release 计数=1→新世代首帧 P→干净 DD）。
+- 盒（tar 通道）: 首跑 2 编译错（测试闭包 E0597 借期+clippy 参数
+  8/7）→FencePair 重构+闭包先拷贝后组元组修复→复跑全绿: default
+  227/227·sim 227/227·gst **263=259+2(m1)+2(fence)**·clippy×2
+  --all-targets -D warnings 过（失败如实登记非隐藏）。
+- 红线: Domain/谓词/Gate/阈值零字节; 三 blocking 维持 Failed; 首败
+  留证; 步骤 6/7（真机 #8 复现 NM 消失+生命周期仍立）/10/11 待执行;
+  A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入; 本地未推送（远端=dd263be）。
+
+## §79 R58 步骤 5 终裁复核（IMPLEMENTATION PARTIAL/HOLD）+ 步骤 5.1 落地
+
+- 验收层对 0abde4d 反向审查终裁 14 节逐项复核全相容: 消费门仅在
+  Armed 窗口有效、Release 不等 queue 排空 → **INV-F1/F2 未闭合**
+  （T0 旧帧入 queue→T2 switch+defuse→T3 浮出 Open 直写弧=穿透路径
+  成立）; **我方"INV-F1 构造性覆盖"注册正式撤回**; FencePair 两把
+  独立 Mutex 顺序加锁=结构性打包非原子（Video=Armed/Audio=Open 微观
+  窗口）→ INV-F3 严格并发语义不足; executed 权威序与 program
+  timeline 零触碰两项确认维持。
+- **步骤 5.1**（四文件, Domain 零触碰）: ①原子 FencePairState——
+  `Arc<Mutex<FencePairState>>` 单锁承载 {video,audio,video_ready,
+  audio_ready,video_segment_seq,audio_segment_seq,generation},
+  arm/确认/Open 单临界区双面同变; ②Downstream Segment Cutover
+  Confirmation——selector src EVENT 探针 Armed 期捕获本世代 Segment
+  的 `gstreamer::Seqnum`（arm→switch 间无其它 Segment 源=结构性唯一）
+  → appsink sink pad 新增 EVENT_DOWNSTREAM 纯观测确认探针（不阻塞
+  EVENT）按序号匹配→ready→Condvar notify; **queue 保序 ⇒ Segment
+  到达=Arm 前入队旧世代缓冲已全部被消费门处置=排空事实锚**（等真实
+  新世代 Segment 穿过 queue, 非时间猜测; timeout 5s 仅异常界）; ③
+  确认式 Release——`release_cutover_fence(graph, timeout)` 阻塞等待
+  Both-confirmed 后同一临界区原子 Open 双面, 返回
+  CutoverDrainEvidence{generation, video/audio{segment_confirmed,
+  discarded}}; 超时→Err 保持 Armed→守卫 Drop 走新增
+  `force_release_cutover_fence` 兜底强释（强释=失败处置非确认放行,
+  T-F3 只在成功路径强制）; 编排序 ⓪arm→①a-④switch→④ Domain
+  executed 标记→确认式 Release（终裁 §9 序）。端口双法仍无默认
+  实现（4 实现方编译期表态延续; Mock=auto-confirm 建模如实披露,
+  协议强制由真适配器 T-F1/F2/F3 证明, 交错模型=步骤 6 范围）。
+- **T-F1/F2/F3 三测全绿**（队列在途帧处置至 Both 确认/跨 executed
+  与单面确认边界的旧帧不进弧/Both-confirmed 前置+世代序号身份匹配）
+  + 既有契约测与 fence 闭合 M1 测升级（门走生产决策点 discard_if_
+  armed; T6=世代捕获+双面确认后确认式 Release）。
+- 盒（tar 通道）逐轮如实: run1 gst 误配 bmd 未导 SDK env+fmt 尘
+  （含 R53/R56 时代遗留, 顺带清偿）; run2 2×E0308 Seqnum 新类型→
+  类型本尊入状态; run3 gst 266/266 绿+clippy 2×needless_borrow→修;
+  **最终全量矩阵全绿: fmt/default 227/sim 227/mock 393/gst
+  266=259+2+2+3(T-F)/clippy×3 -D warnings**（clippy 升×3——
+  switch_graph 仅 gst 编译、switch_mock 仅 mock 编译, 三配置覆盖
+  全部新代码面）。
+- 红线: Domain/谓词/Gate/阈值零字节; 三 blocking 维持 Failed; **步骤
+  6 ⏸️/7 ⏸️（终裁: 先 Fence 修正确定性验证）**/10/11 待执行; A2-8-04
+  仍 FAIL/HOLD; A2-8-05 不进入; 残留登记=drain 确认超时路径 Domain
+  停留 SwitchExecuted 相（后续 declare InvalidPhase fail-closed,
+  恢复归会话级故障面）+confirm 等待期 inner 锁持有（正常 ms 级,
+  与既有 settle 轮询同类）。
+
+## §80 R58 步骤 5.1 源码级调用链终审（ffdb9ce）: A/B/C 全 CONFIRMED → CLOSED
+
+- 验收层第一轮独立复核确认 ffdb9ce=真实远端基线（ahead_by=1, 4 生产/
+  契约文件+3 审计文档, "实质性正确修复非账本包装"; queue 穿透与双
+  Mutex 两核心问题分别被 Downstream Segment+Seqnum 确认与单锁
+  FencePairState 正面解决, 无需回滚无需重设计）; 关闭前置=三项源码
+  级终审, 本轮逐行核验完毕。
+- **A ✅**: capture first-wins+Armed 门; confirm 世代序号三元组匹配;
+  Segment 源枚举（启动段=Open 期不可捕获/切换段=rt_02 实机在案/
+  伪段=超时 fail-closed 安全方向）; BUFFER 门与 EVENT 探针类型分离。
+- **B ✅**: confirm_and_release Ok→armed=false·Err→Drop 强释;
+  force_release 类型面无法构造 CutoverDrainEvidence, 生产调用点仅
+  守卫 Drop; release_after_drain Open 翻转仅在 both_ready 同一临界区;
+  :662 `?` 如实传播; 调用链终序 ⓪arm→①→②declare→③install→
+  ④switch→④executed→confirm_and_release——无隐藏序。
+- **C ✅（一项披露）**: 四接线点共用同一 FencePair; T-F1/F2/F3 驱动
+  生产方法零复刻; 旧 buffer 消费门先于 Segment 确认由 queue→appsink
+  单流线程 FIFO+sync=false 内联渲染保证——**披露: 依赖 GStreamer
+  basesink 标准内部行为（非本仓可证）, Step 7 真机 NM 消失为端到端
+  反证**。
+- **Step 5.1 正式 CLOSED**（依据=A/B/C CONFIRMED+§14.4 矩阵全绿+
+  Domain 零触碰）。后续序=Step 6 Mock 交错→Step 7 真机 #8→Step 10
+  全回归→Step 11 新鲜 Gate; A2-8-04 仍 🔴 FAIL/HOLD; A2-8-05 不进入。
+  本轮零代码纯 docs 登记。
+- **C 项措辞终审级修正（验收层核对 GStreamer 官方语义）**: 排空
+  顺序保证的正确归因=serialized SEGMENT 数据流顺序 + AppSink
+  new_sample 回调在 streaming thread 执行; sync=false/async=false
+  非该顺序主要来源（前者=时钟同步等待关闭, 后者=BaseSink 状态转换
+  语义）。结论不变——Step 5.1 维持 CLOSED, 不回滚; 端到端正确性仍由
+  Step 7 真机 #8 验证; 进入 Step 6。
+
+## §81 R58 步骤 6: Mock 交错模型落地（代码轮）— 无 Fence→M1 FAIL / 有 Fence→M1 PASS 双模式在案
+
+- 终裁输入: Step 5.1 CLOSED + C 项措辞修正登记（§15.6/§80 注——
+  serialized SEGMENT 数据流顺序+AppSink streaming-thread 回调为排空
+  顺序保证的正确归因）。
+- Mock 交错模型: 程序面真实单调状态机（plain/declared 双写点——
+  R57-terminal 硬编码 VM 缺口闭合）+ 消费门施加于 tick 交付（EVENT
+  不拦·设备 PTS 照推）+ 竞态窗窜帧注入（deliver=协议级/stage=Runtime
+  级 ①c 读毕投递——[锚采样→install] µs 窗模型）+ 七事件交错日志
+  （arm 清空·生产序·序映射登记: 终裁列举序按词汇理解, 生产序由
+  Step 5.1 终审锁死）+ 诚实 per-plane 丢弃计数与 generation（force
+  不产确认事件——类型面分离同构）。
+- 三测全绿: T-M1-FAIL（协议级: 窜帧 plain 写弧推进基线→首枚映射
+  违例边界 NM sticky·V+A 双面·日志五事件无确认）+ T-M1-PASS（协议
+  级: R58 编排序下窜帧被门处置基线冻结→干净声明边界 DD·计数 4 如
+  实·日志恰七事件）+ T-RUNTIME（Runtime 级全链×2 切换 staged 窜帧
+  →Preserved+程序面 DD+七事件——生产编排序端到端证明）。
+- 盒: E0252 重复导入→删·rig 缺 complete_switch→补·**mock
+  396/396（393 既有零破坏）**·最终矩阵全绿 fmt/default 227/sim
+  227/mock 396/gst 266 不变/clippy×3（fmt 差 apply+拉回复验绿）。
+- 披露: mock 锚=+步长外推（真实=last PTS——第四十轮 α 未及 mock,
+  超出本轮范围登记不改）; M1 以"窜帧恒领先边界一帧"同构表达（mock
+  边界 2-tick 前导）; queue 保序不在 mock 证明范围（T-F1/F2/F3 在案）。
+- 红线: Domain/谓词/Gate/真适配器/契约端口零字节; 三 blocking 维持
+  Failed; 下一步=**Step 7 真机 #8 复现（NM 消失+#9 生命周期仍立）**
+  →Step 10→Step 11; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。
+
+## §82 R58 步骤 6 独立复核: IMPLEMENTATION PASS / TEST MODEL HOLD-1 → 状态顺序修复落地
+
+- 终裁（验收层独立复核 04c3dd1 实际源码）: Step 6 = **IMPLEMENTATION
+  PASS / TEST MODEL HOLD-1**——核心成果成立（三证明方向对·非换名单测·
+  计数真实·七事件在案）, 但 Mock 交错模型自身有一处状态语义缺口必须
+  先修: tick_once timeline 分支**先置 first_mapped=true 再查 cutover_
+  fence_armed**——Armed 丢弃的缓冲占用"首枚已映射"槽位（与字段定义
+  "真正被接受的首帧"不一致; 三测调用序恰好避开 post-switch Armed 在途
+  窗口——恰是 Step 5.1 要防的边界）。
+- 修复（处方=终裁原文"Fence Drop 必须先于任何 first_mapped/timeline
+  evidence 状态推进"）: timeline 分支重排 segment_seen（EVENT 不拦）
+  →消费门（丢弃+计数+**OldBufferDropped 入日志**——同根证据面缺口
+  顺带闭合: 修复前 tick 路径门处置不可见）→first_mapped/facts/PTS/
+  帧数; 门不分辨世代只认 Armed（confirm→release 控制隙新世代缓冲同
+  处置, 真适配器同语义）。legacy/straggler 分支顺序审计=本正确零改动。
+- 新增回归（终裁处方逐条）: `switch_rt_03_m1_armed_gate_precedes_
+  first_mapped_evidence_state`——install→switch→Armed→缓冲到达→Drop
+  （timeline 行仍 no_evidence·PTS 冻结·帧数不进）→release（v/a 各 1
+  如实）→下一枚放行=FirstNewMapped+DD（P+3 步长前导如实）·窗口四
+  事件; 修复判别性在案（旧序必红: 槽位被预占+FirstNewMapped 消失）。
+- 两项登记口径修正: ① stage_window_straggler=**Runtime 调用链
+  cut-point 注入**（确定性同步落点, 非 OS 线程并发竞态——真实并发归
+  Step 7 真机）; ② 04c3dd1 无 GitHub combined status——"396/396"=
+  盒上本地验证口径, 不表述为 GitHub CI 结论（§16.4 加注·§17.3）。
+- 盒（本地验证口径）: mock 397/397（396 零破坏+新增一次过）·最终矩阵
+  fmt ✓/default 227/sim 227/mock 397/gst 266 不变/clippy×3 全绿
+  （fmt 差→盒上 apply+拉回复验）; T-M1-PASS/T-RUNTIME 事件数断言
+  7→8 如实更新（①a 门处置入日志后的诚实计数——词汇仍七）。
+- 红线: Domain/谓词/Gate/真适配器/契约端口零字节; 三 blocking 维持
+  Failed; **Step 6 最终 CLOSED 裁决权在验收层（处方测试已通过）;
+  Step 7 不先于该裁决启动**; A2-8-04 仍 FAIL/HOLD; A2-8-05 不进入。
+
+## §83 R58 步骤 7: 真机 #8 场景复现（fence 生效轮）— 71 fence 周期全确认·NM=0·C 项真链反证闭合
+
+- 终裁输入: **Step 6 = 实质 CLOSED（HOLD-1 解除, cfb0943）**; Step 7
+  放行（硬验收=NM 消失/DD 边界/后续帧 face 读数/#9 生命周期/V-A 一致/
+  无跨边界 NM+C 项真链兑现——非"测试命令跑绿"）。
+- 部署指纹: cfb0943 干净树 tar 上盒·源 SHA 四文件盒==HEAD 全等; gates
+  bin `--features bmd,gstreamer` md5=d05be28f…; manifest v5 7521d17e…
+  不变; 证据盒 `~/a2-8-02i-evidence/2026-09-06-r58-step7-fence-replay/`
+  （header+四跑 log md5 齐备）。
+- 四跑（12:29-12:42 CST·switch_program 全链含 fence）: run1 **#8 精确
+  形态**（N=10 dwell1s）EXIT=0·全 Preserved·epoch(0)×10·pr_v/pr_a
+  对称 DD=58+VM=2·**NM=0·adv=0**·**#8 B→A 执行行 disc=DD v/a=
+  Continuous**（R52/R56 闩锁位点干净）·#9 PRE=DD→新边界 DD 生命周期
+  仍立·SPAN av_delta 1.28-34.6ms（无 5s 逼近）; run2 N=30 dwell1000
+  同签名（DD=178+VM2·NM=0）; run3 burst N=30 dwell0 同签名; run4
+  **dual_input ALL PASS 10/10**（L3 切前 VM legacy 不变·L4 fence 在链
+  timeline_ok=true Preserved+程序面 DD+两 face 分层·L5+Teardown 全绿）。
+- **C 项端到端反证闭合**: 71 fence 周期（70 obs+1 L4）全部 Both-
+  confirmed 确认式 Release·四跑 "cutover" 错误串=0·NM=0——serialized
+  SEGMENT 顺序+AppSink streaming-thread 回调在真实 BMD/GStreamer 链
+  兑现为"旧 buffer 消费门先于 Segment confirmation"（序破坏的两种
+  可见后果——确认超时/NM 重现——均未发生）; §15.4 披露的 GStreamer
+  内部行为依赖就此落地真机反证。
+- 工件: 既有隔离债零新增（pad_unlink×4/converter interlace 家族同
+  量级）; 诚实口径=NM 消失属必要非充分（历史事件概率性 0.1-0.6%/
+  切换·R53 无 fence 30 切换亦 0）——确定性击杀证明在 mock 双模式+真
+  适配器红/绿测; 真机贡献=71/71 fence 周期可运行+无反例+R53 基线
+  签名逐字保持。
+- 红线: 零代码轮（ gates bin 重建外无源改动）; Step 7 验收判定归
+  验收层; 后续=**Step 10 全回归→Step 11 新鲜 Final Gate（冻结谓词）
+  ——仅届时 A2-8-04 verdict 可变**; A2-8-04 仍 🔴 FAIL/HOLD;
+  A2-8-05 不进入。登记=R57 文档 §18+主账 §83+tasks item-6。
+
+## §84 R58 步骤 7 终裁: ✅ PASS / CLOSED——C 项升级 CONFIRMED / REAL-HARDWARE-VALIDATED
+
+- 验收层独立复核 6ab24a3（真实远端提交·零生产源码验证轮·未冒充
+  GitHub CI·tasks HOLD-1 已解除）: 五关键点全过——①#8 位点
+  Preserved+DD+V/A Continuous+PE(0)+NM=0（击中 R52/R56 闩锁位点）
+  ②#9 生命周期保持无 NM 传播③V-A 对称（含 run4 L4 fence 在链
+  timeline_ok）④71 fence 周期 Both-confirmed 零超时零 cutover 错误
+  ⑤SPAN 1.28-34.6ms 无 5s 级等待。
+- **C 项升级**: 真实 BMD→GStreamer→selector→queue→appsink→Fence→
+  observation 链 71/71 周期正常完成（timeout=0·跨边界 NM=0·#8
+  latch absent·#9 lifecycle preserved）——**CONFIRMED / REAL-
+  HARDWARE-VALIDATED**; 措辞红线保留: NM=0 必要非充分, 确定性证明
+  在 mock 双模式+真适配器红/绿测, 真机=协议落实+无反例（§18.5
+  口径不变）。
+- 纪律: A2-8-04 不因 5.1/6/7 连续通过自动转绿——三 blocking cells
+  由冻结门禁控制, 仅 Step 10 全回归+Step 11 新鲜 Final Gate 允许
+  改判。**🚦放行 Step 10**（六路/Authority/Desired/observed
+  active/epoch/V-A/teardown 全局无回归, 非再证 Fence）→ 之后
+  Step 11（冻结谓词重算, 此前不宣布 PASS）。
+
+## §85 R58 步骤 10: 全回归执行（零代码轮, 2026-09-06）——全局无回归成立
+
+- 部署: 远端=本地=6ab24a3 双侧核验; tar 上盒+BUILD_REV; 源 SHA 四
+  文件盒==HEAD 全等（与 §18.2 同值, docs-only 后源未变）; gates
+  bin md5=**440c761b…**（源同源新构建指纹, debug 非逐字节复现
+  如实登记）; manifest 7521d17e 不变; 证据盒 2026-09-06-r58-
+  step10-regression（header 五件套+四跑 log md5: 8361e98a/
+  2d2b724e/f9c60fbe/355330b3）。
+- 盒矩阵（本地验证口径）: fmt ✓·default 227·sim 227·mock 397·gst
+  266·clippy×3 全绿——**基线齐平零回归**（Desired/fence/timeline/
+  四态生命周期测试族在内）。
+- 真机四跑（12:57-13:13 CST）: run1 dual_input **ALL PASS 10/10**
+  （L4 epoch=1·observed=B·completed·switch_ok·timeline_ok·
+  Preserved{PE(0)}·程序面 DD·v/a Continuous——Authority/Desired/
+  active/epoch/连续性 Gate 级一行齐·fence 在链; L5 四 verdict;
+  Teardown 绿）; run2 obs #8 精确形态 EXIT=0·全 Preserved·PE(0)×10·
+  NM=0·adv=0·tally in/br VM=60×4·pr DD=58+VM=2 对称（R53 签名
+  逐字）·#8/#9 位点干净（#9 PRE=DD→新边界 DD 生命周期仍立）·SPAN
+  毫秒量级（样值 1.56-31.8ms）; run3 N=30 dwell1000 与 run4 burst
+  N=30 dwell0 同签名（VM=180×4·DD=178+VM2·NM=0·adv=0）。
+- 错误面: 四跑 ERROR=0·cutover 字串=0·CRITICAL=gst_pad_unlink 族
+  ×4/跑·interlace 3-6/跑——既有隔离债同类同量级零新类; fence
+  周期 carried watch: 71 周期（70 obs+1 L4）全确认式 Release。
+- 澄清登记: "adv=Some(false)=1" 初判=grep 命中定位行自身字面量,
+  locator 明示 0——证据行零非推进格。
+- 结论: **六路 PTS→TimelineAuthority→Desired→observed active→
+  epoch→V/A continuity→teardown 全局无回归**; A2-8-04 仍 🔴
+  FAIL/HOLD（Step 11 新鲜 Final Gate 冻结谓词重算前不改判）;
+  A2-8-05 不进入。登记=R57 §19+§20+主账 §84+§85+tasks item-6。
+
+## §86 R58 步骤 10 终裁: ✅ PASS / CLOSED（验收层全盘裁决 e09ed97）
+
+- regression 轮四条件同时成立: ①e09ed97 docs-only（生产源码未改·
+  盒上四文件 SHA==基线）②盒矩阵基线齐平（contracts 无 default impl
+  掩盖——实现缺失编译期暴露）③控制面→Fence→数据面状态链零回归
+  （单锁事务 V+A·Seqnum 匹配防假释放·Drop 先于证据推进——Step 6
+  修复+Step 7 replay+Step 10 回归闭合）④真机无反例（L4 一行齐·
+  #8/#9 干净·NM=0·adv=0）。
+- 边界口径: 验收层 GitHub 连接器本轮未返回 raw 内容——代码裁决基于
+  此前源码审计+登记+执行记录（不冒充重新抓取）; 真机数字="执行记录
+  已登记"口径。adv 误报定性认可（locator 行字面量·证据行=0）; 既有
+  artifact 不重开（已知债务保留）; Mimosa="功能编译、测试、真机回归
+  通过; AST 扫描能力不完整, 不构成全项目静态安全保证"（不阻塞·不
+  宣称安全）。
+- 状态: 5.1/6/7/10 ✅ CLOSED·C 项 CONFIRMED/REAL-HARDWARE-VALIDATED·
+  A2-8-04 🔴 FAIL/HOLD 维持·A2-8-05 ⛔ BLOCKED。**无足够证据要求继续
+  改生产代码**（禁为 Final Gate 变绿预改 predicate/NM 定义/判据/
+  threshold/artifact 分类——Step 10≠Final Gate, 连续 PASS 不推导
+  A2-8-04 PASS）。🚦**放行 Step 11 新鲜 Final Gate**（冻结谓词+案 b
+  新鲜窗重算三 blocking cells·双出口预定义）。登记=R57 §21+谓词文档
+  §10 增补+本节+tasks item-6。
+
+## §87 R58 步骤 11: 新鲜 Final Gate——冻结谓词重算 = **PASS**（三 blocking cells Failed→Satisfied）
+
+- 身份链: git archive e09ed97 上盒·源 sha **864/864 全等**·**冻结 bin
+  440c761b 复用==Step 10 登记值（案 b 口径·未重建）**·manifest 不变;
+  证据盒 step11-final-gate+**入库审计副本**（evidence/bmd-10.30.15.10/
+  ·md5 全过·盒=origin·非 CI; 同轮入库 Step 10 四跑）。
+- 案 b 三件全绿: run1 OBS N=30 dwell1000（**R56 失败窗同形**）EXIT=0·
+  30/30 全 Preserved·PE(0)·**六路 NM 独立计数全 0**·adv=0·P2b 签名
+  逐字（VM=首切前 PRE 对+其后 DD178）·#8 位点干净·#9 生命周期仍立;
+  run2 dual_input 10/10 首跑（L4 一行齐）; run3 hw 266/266（259+批准
+  增量 7 如实登记）; run3b 能力补证（mock 门控·R56 "∈259" 引用口径
+  修正）。
+- 逐格重算: **P1-pr_v/P2b-pr_v/P2c-1 Failed→Satisfied**·其余 blocking
+  维持·Gap 披露齐·P6b FieldProven → **冻结合取 = A2-8-04 Final Gate
+  = PASS（机械产出·判据零改动零豁免·验收终裁归验收层）**; A2-8-05 =
+  解锁待令不进入。工件零新类（MainContext 类内 0→1 与 Step 10 同形
+  ·OQ-P5 登记）。登记=R57 §21+§22+谓词文档 §10 增补+§11+04-探针
+  §17+tasks item-6/item-7 注+evidence 入库。
+
+## §88 R59: Step 11 验收终裁 = **A2-8-04 PASS / CLOSED** + A2-8-05 开启（正常使用形态链起步·2026-09-06）
+
+- **验收层终裁: A2-8-04 = PASS / CLOSED**——代码/架构/Fence 状态
+  模型/控制面→契约→数据面调用链/Mock↔GStreamer 契约全 PASS·证据
+  层十八行表全过·Step 5.1/6/7/10/11 全 CLOSED; 边界声明 = 验收层
+  本轮 GitHub 原文读取未返回·代码裁决基于既往审计+已登记证据
+  （原话与架构认可要点 = R57 §23.1/§23.2）; 残余风险四条冻结
+  （force_release 非成功证据/P3 capability=Mock 口径/sync·async=
+  false 非正确性依据/Mimosa 不升格）+ 核心四文件禁优化式改动红线
+  （R57 §23.3/§23.4）; 谓词/词表/阈值/豁免永久冻结（谓词文档头
+  终裁行）。
+- **A2-8-05 解锁（R59 开启）**: 收口时序用户裁决 = **开 PR 跑 CI·
+  链末收口**（PR 仅 CI 通道不 merge; archive+merge+tag 推至 Step
+  13-17 完成后）; Step 12 基线冻结（R57 §24: commit 4b473b3·源
+  基线 e09ed97 零源码差·核心四文件 SHA 盒==本地全等·manifest
+  7521d17e·冻结 gates bin 440c761b·矩阵 227/227/397/266+clippy×3）;
+  Step 13a 启动入口全盘审计（新报告·八缺口表·v0.2 控制面扩面
+  提案待裁决）; 零代码 v0.1 测试包（诊断模式真实 bin 冒烟·切换面
+  如实标注 v0.2）。
+- **R59 执行记录（2026-09-06 14:5x-15:2x CST·零生产源码）**: ①身份链
+  ——`git diff e09ed97..4b473b3 -- services/` 零差 + 核心四文件 SHA
+  盒==本地全等（d2167b82/64f8890f/74189c2f/1c5c17a0）+ 服务 bin md5
+  `6a0fa224`（build-bmd 口径·--bin media-agent·增量 8.79s）+ manifest
+  `7521d17e` 复核。②Step 13a 审计 = 新报告 2026-09-06-a2-8-05-
+  normal-use-startup-entry-audit.md（八缺口表·v0.2 控制面扩面提案
+  待裁决）。③v0.1 打包 = preview/a2-8-05-v0.1/（README runbook+
+  启停脚本+env.sample+IDENTITY）+ 盒上冒烟两跑（run1 留证:
+  stop_session 400 = 打包脚本 UUID 展示形缺陷·形状层拒绝未触
+  Runtime; run2 全绿: Capturing·双输入两路 advancing·events 15·
+  stop_session executed·teardown 链+watchdog 停止旗·进程死亡·
+  gst_pad_unlink×3/@teardown+gst_video_converter_free×1/@startup
+  =既有已知类）+ 证据盒入库 evidence/bmd-10.30.15.10/a2-8-05-
+  v0.1-smoke/（9 文件 md5sum -c 全过·盒=origin·EVIDENCE-INDEX
+  Current）。④**PR #30 开出·GitHub CI 7/7 首跑全绿**（run
+  34018242258: rust-format 15s / architecture-portability 31s /
+  rust-clippy 32s / session-lifecycle 37s / hardware-test-compile
+  55s[secrets 在位·bindgen+FFI 过] / rust-test-matrix 1m11s /
+  gstreamer-build 1m16s）——本分支 114+ 提交首次 CI 实测一次通过·
+  与盒上口径分述互证·**不 merge**。⑤commit 64769b0 推送
+  remote==local。⑥过程如实: Mimosa 钩子拦 .sh 写操作三次（scp/
+  sed/chmod 路径）——改走 Write 通道+整目录 scp 重部署规避; events
+  带 ?limit 查询串返回 not_found（路由不认·非缺陷）。
+
+## §89 R60: v0.2 Control Plane Expansion SoT 探针（只读代码裁决·零代码轮·2026-09-06）
+
+- 用户 R60 指令: A2-8-05 推进 = v0.2 探针 → 最小命令/状态投影设计 →
+  真实实现 → A↔B 真机业务测试（Step 14）→ 长稳（15）→ Transport
+  联调（16）→ Preview RC（17）; "不能偷偷塞进 v0.1·先只读裁决再定
+  最小边界"。
+- **探针交付 = 2026-09-06-a2-8-05-v02-control-plane-expansion-probe.md**:
+  现状链五面证据（命令面五要素/幂等包裹/transport 五端点零触碰
+  红线/查询 allowlist/执行面签名+所有权链 :513 Arc move）; 插入点
+  映射（缺口①→命令面+接线·缺口②→runtime 投影·缺口③→503 维持）;
+  **提案 A（推荐）**: SwitchProgram 第四命令 + SwitchDispatchPlane
+  trait（无默认实现·真实=ProgramExecutionRuntime 薄包装/mock 双
+  实现）+ idempotency switch_plane 字段（None→503 契约）+ runtime
+  顶层 program_switch 可选块（数据源 observe_execution·policy 固定
+  FrameSwitch 与 gates 真机口径一致）+ bin clone Arc 接线·v0.2 单
+  会话语义如实; B（注册表/事件/rpc）归 Step 16; C（旁路端点）不
+  推荐; 7 文件面**零核心四行改动**; 测试面 6 组 + Step 14 盒上
+  验收线预演（A→B→回读→B→A→回读→异常/恢复→teardown）。
+- **待裁六点**（各带推荐）: ①命令面归属 A vs C ②payload 面
+  （target_device+policy 固定 vs policy 入 wire）③回读块形状（顶层
+  vs 嵌 session）④多会话（单会话如实 vs B 注册表）⑤events 面
+  （不加 vs 加 SwitchExecuted）⑥Production 语义（503 维持 vs 接线）。
+- 实现轮待验收层对六点裁决后另启; 基线 29cef9c。
+
+## §90 R61: v0.2 Control Plane Expansion 实现 + Step 14 闭环全过（代码轮·2026-09-06）
+
+- **六点裁决全部按推荐冻结**（R60 探针 §9.1 回执）: A 扩词表/payload
+  单字段+FrameSwitch 固定/回读顶层块/单会话/不加 events/Production
+  503; 硬边界=七文件面, 核心四禁改; 架构纪律=命令面请求执行·查询面
+  事实回读不越界。
+- **实现**: 新模块 switch_dispatch_plane（双 trait 类型级隔离+
+  RuntimeSwitchPlane+classify_switch_error+outcome Failed 如实
+  Failed）; command 词表四命令+validate 第四臂+dispatch 签名扩展
+  （平面缺席→Rejected）; idempotency switch_plane 字段+builder
+  （replay/conflict 同表同律·能力拒绝占 id 分层）; api_boundary
+  target 变体+ApiProgramSwitchState/ApiTimelineEvidence+enum_tag
+  snake_case; transport 显式契约修订注记+vocab 四词+投影合并
+  （query None 仍 503·平面不越权）; bin Arc 化 runtime clone 先于
+  move（探针 §2.6 所有权修复）+双通道装配; 强制调用点 2 文件
+  （error_model 测试×3+gates/session_lifecycle×3 补 None 参——
+  签名变更机械传导·零语义·如实登记）+lib 模块声明行。
+  **核心四 git diff --stat = 0 实证**。
+- **盒矩阵全绿**: fmt/229/229/405（397+8）/268（266+2）/clippy×3;
+  新服务 bin md5 90186bb9。
+- **Step 14 闭环全过（真实服务进程内·非 gates 替代）**: 投影块首次
+  兑现（observed=A·epoch=0·valid_monotonic）→ API A→B executed
+  （av_epoch=1 outcome=preserved timeline_epoch=0）→ 回读 observed=B/
+  seg=1/continuous/discontinuity_declared（R53 冻结签名逐字）→ API
+  B→A（av_epoch=2 preserved）→ 回读 observed=A/seg=2 → 错误路径
+  （TargetNotInGroup/TargetAlreadyActive→permanent）→ 幂等重放
+  （replayed 原 detail 逐字节）→ 冲突 → stop_session → teardown 链
+  → 进程死亡。证据盒 2026-09-06-r61-v02-step14 入库（md5 全过·
+  盒=origin）。
+- 下一步: Step 15 长稳（30min→2h→8h→24h）/Step 16 联调/Step 17
+  Preview RC 与链末 archive+merge+tag——待用户指令; A2-8-05 进行中。
+
+## §91 R62: Control Plane Safety Probe（Step 16-0A/0B/0C·只读探针轮·2026-09-06）
+
+- 用户裁决逐条复核: **A 组 R61 实现 10/10 落实 ✓**（含核心四
+  `git diff 7978250..HEAD`=0 实测）; **B 组两风险属实+精细化**——
+  ①Transport 单连接同步属实且更强: switch_program:593 持 inner 锁全程
+  （排空 5s+证据 5s+settle 5s）·observe_execution:751 同锁=**双层阻塞**;
+  单 accept 循环 bin:655·单请求即关 transport:535·五超时全编译期常量
+  （无 env/配置旋钮）。②Switching 无恢复属实: ExecutionGroup 方法面
+  无 abort/reconcile; **裁决未覆盖的精细化**——watchdog:612-616 条件
+  落定（observed==Some(to)→complete_switch）只救组平面; declare
+  Stable-only + TransitionFailed 终态救不了时间线 → 失败×平面矩阵:
+  F1 组闩锁（NotActiveSource 永久）/F2-F4 时间线闩锁（InvalidPhase）,
+  恢复=仅会话级 teardown（代码注释自认的文档化残留·非未发现 bug）。
+- 16-0A mock 级全链注入 **6/6**（新增 tests/switch_fault_probe.rs 集成
+  测试·生产源码零改动·核心面全零触碰）: F0 pre-begin 完全可恢复; F1
+  组闩锁+重放逐字节一致; F2/F3（真实 5s 墙钟）/F4 watchdog 落定组平面
+  但下次 declare InvalidPhase; 全类失败后 readback 仍活+teardown 可用。
+- 16-0A 真机 leg: 正常切换全程 POST **0.152s**（av_epoch 递进·R53 签名
+  preserved/seg/continuous/discontinuity_declared）→ 正常路径 inner 锁
+  持有窗≈152ms。
+- 16-0B 真机并发: 串行基线 sub-ms; 切换在途查询排队 61ms; 在途同 id
+  replay **replayed 逐字节**; 双并发反向=accept 串行化（一 executed 一
+  permanent「already active」·epoch 恰推进一次）; **停滞读者冻结整个
+  管理面 10.175s**（=read timeout·单 accept 串行性铁证）; stop_session
+  1.23s 完整 teardown; watchdog 活体行全程无中断（tick 720→780）。
+- 16-0C 裁决: 风险 2=**情况 B** 成立 / 风险 1=**情况 C** 成立; 修复面
+  建议（不实现·待用户二轮裁决）: R62-A 状态恢复三案（a timeline
+  reconcile [F2-F4] + b 组 abort [F1] = 最小完整组合 / c 契约声明化
+  零代码）+ R62-B std-only Transport 并发（per-connection worker+命令
+  串行边界+查询非阻塞·禁 async 框架）; 两条 change 分开开。
+- 矩阵回归全绿: fmt CLEAN/default 229/sim 229/mock **405+6**/hw 268/
+  clippy×3（-D warnings）; 证据盒 r62-cp-safety-probe 入库 md5 全过
+  （盒=origin·8 文件）; 报告=2026-09-06-a2-8-05-r62-control-plane-
+  safety-probe.md §1-§6。
+- 下一步: R62-A/R62-B 修复边界二轮裁决 / Step 15 长稳 / Step 16 联调 /
+  Step 17 RC 与链末收口——待用户指令。
+
+## §92 R63-A: Switch Failure Recovery（修复架构轮第一刀·代码轮·2026-09-06）
+
+- 用户 R63 裁决: 两实证问题升级修复轮; A（域状态机恢复）/B（Transport
+  并发·std-only·禁 async）两 change 分开·先 A 后 B; R64 全矩阵→Step 15
+  （30m→24h·场景升级）→Step 17 RC 顺序冻结; 逐条确认表 9 项落报告 §1。
+- **A0 契约先行（commit 1 a6ecbb0·先于代码 commit）**: SoT=Observed 优先·
+  Desired 由 reconciliation 推进·absence≠false; 三类落定（未翻转变效→abort
+  语义回旧源 epoch 不变 / 已执行证据失败→命令仍 Failed+两平面落 Active
+  (observed)+ProgramEpoch+1+恒等重开+DiscontinuityDeclared+基线清空 /
+  observed 未知→RecoveryRequired 终态不猜·下次 Permanent·恢复=会话级
+  teardown）; replay≡原始 outcome; complete_switch/force_release/watchdog
+  语义冻结; R53 闩锁纪律不破坏（显式恢复转移·违例历史入 immutable 段史
+  不洗·last_outcome 保留失败事实）。
+- **A1 实现（9 文件 +853/−194）**: 新词表 2（SwitchDesired::RecoveryRequired
+  {from,to}+SwitchError::RecoveryRequired→Permanent）; 新方法 2
+  （reconcile_switch 三路落定 + reconcile_executed_failure 四相位落地/
+  None 诚实停留/复用 abort_transition）; switch_program 抽 locked+外层
+  recover_after_failed_switch（adapter observe 通路·不取 inner 锁·不吞
+  原始错误）; 强制编译臂 5 处（create/两 adapter build_program_graph/
+  a204_obs 如实截断/plan_switch 拒收）; contracts/transport/api_boundary/
+  command/idempotency/bin 零触碰。
+- **新鲜度谓词修正（执行中发现的第二缺口·R62 前被组闩锁掩盖）**: 两
+  adapter plan.epoch != av_epoch+1 精确锁步→<=av_epoch 重放判据——begin
+  后失败留下合法 epoch 间隙（组已消费/adapter 未执行）→ 修复后 R1/R7
+  重试被 StalePlanEpoch 永久拒绝（mock+真 adapter 同病）; 防重放锚保留·
+  未来 epoch 新鲜度归组平面·干净运行数值不变（hw 268 零改动全过=证）。
+- **A2 矩阵 mock 全链 9/9**: ctrl/F0 同形 + R1+R7（adapter Err→回旧源→
+  再 A→B Preserved epoch2）+ R2+R8（fence 确认 Err→落 B+epoch+1+DD→再
+  B→A）+ R3+R6（证据超时真实 5s→不伪装成功落 B）+ R4[R5 类]（settle
+  矛盾→落 B）+ degraded（observed=None→RecoveryRequired 终态·下次
+  Permanent 确定性·teardown 恢复）+ **0a（①a 稳态 PTS 闩锁——R63 新登记
+  第三闩锁位点: 组未动而 timeline 卡 TransitionFailed·R62 矩阵未列）**
+  + replay（恢复改变状态后同 command_id 逐字节 Replayed·新 id 真实
+  Executed）。
+- 盒矩阵全绿: fmt CLEAN/default 229/sim 229/mock **411+9=420**/hw 268/
+  clippy×3（-D warnings）; 真机正常路径回归: bin 重建 md5 f6e6303b（重建
+  先行·R62 纪律）→A→B executed preserved av_epoch=1→回读 R53 冻结签名
+  逐字→B→A av_epoch=2→回读→stop→teardown 完成行+watchdog 退出行验证
+  （服务常驻=设计语义·首轮误标已澄清）; 证据盒 r63a-recovery 入库 md5
+  盒=origin 全等（12 件含 R63-MATRIX 矩阵行日志）。
+- 披露: R5=settle 唯一 Err 源 on_program_pts 矛盾（observe 无 Err 通道）
+  由 R4 类覆盖; F2 即时同类注入（沿 R62）; adapter 层未来-epoch 纵深移除
+  归组平面; Mimosa python_ast_unavailable×4+冒烟脚本 HOME advisory（误报
+  语境如实披露）; 盒上≠CI 分述; 真机故障注入仍无旋钮（R64 再议）。
+- 下一步: **R63-B Transport 并发（std-only·per-connection worker+命令
+  串行边界+查询短锁/snapshot·首步 inner 结构小审计）→ R64 全矩阵+真机
+  故障恢复+并发查询 → Step 15 → Step 17 → 链末收口**——待用户指令。
+
+## §93 R63-B: Transport 并发与 Query 解耦（修复架构轮第二刀·代码轮·2026-09-06）
+
+- 用户 R63-B 裁决: B0 审计先行·B1 连接并发/B2 切换串行边界/B3 查询快照
+  解耦三层·两 commit 分离架构与实现·真机并发验证（B-T1..T7+慢读者+
+  B6 恢复后连续切换）后才进 R64/Step 15; Step 15 不启动（长稳异常须先
+  排除基础设施串行混杂）。
+- **B0 契约+审计（commit 1 ad3f002·docs 先行）**: HTTP 并发≠切换并发
+  （inner=既有串行边界零新锁·idempotency 不合并）/std-only（无
+  tokio/axum/hyper/tower·Connection: close 不变）/快照 SoT=既有
+  ProgramExecutionObservation（Clone 已在·contracts 零触碰·derived
+  published 非第二状态）/慢读者隔离 per-connection thread/残留=无连接
+  上限+窗内查询=上一次已提交事实（诚实时间戳在载荷）; inner 审计:
+  group 独立可锁/timeline 纯派生/adapter observe 沿 watchdog 真机先例
+  并发安全/inner=切换编排边界保持。
+- **B1+B2+B3 实现（3 文件 +89/−28+新测试）**: transport 新 serve_forever
+  （accept→超时→clone→thread::spawn）+bin 一行化; program_execution 最小
+  四处开启（published 字段/create 发布/switch 出口发布/teardown 清空+
+  observe_execution try_lock 短锁+快照回退·锁序恒 inner→published 零死锁）;
+  核心域文件续冻零触碰实证。
+- **B4 mock 全链 8/8（真实 socket+serve_forever 本体+真实 5s 证据窗）**:
+  b3 窗内 worst_query=19.9µs（回退快照 observed=旧源→切换后新鲜·恢复落
+  B·teardown 后 None）/t1 health 840µs/t2 runtime 816µs（快照语义可见证
+  明）/t3 events 653µs/t4 replay 逐字节 identical（二发等待 4.99s）/
+  **t5 双反向串行双消费 epoch+2·终态唯一 Active(a)（恢复后连续切换=B6
+  锚）**/**t6 慢读者 718µs（R62 同形=10.175s 冻结）**/t7 n=16 worst
+  1.43ms; R63-A 矩阵 9/9 零回归; 盒矩阵 fmt CLEAN/229/229/**411+9+8=428**/
+  268/clippy×3 exit0。
+- **真机 B5/B6（bin 1326be28 重建先行）**: 后台切换窗内 health/runtime/
+  events 并发全 200 ~1ms 级·慢读者挂 8s 期间三时点 962µs–1.08ms（**
+  10.175s 冻结的修复实证**）·同 id replay=executed+replayed detail/
+  classification identical·N=8 并发 680µs–1.04ms·A→B/B→A 双 preserved+
+  R53 签名回读+stop_session teardown 行+watchdog 退出行验证; 证据盒
+  r63b-concurrency 14 件 md5 盒=origin。
+- 披露: 真机脚本首版裸 wait 把自 nohup 服务当 job 等待→挂起+手工收尾两
+  笔误（一次 invalid_session_id 工件·服务未经 stop_session 被杀）——规范
+  证据以修复脚本完整重跑为准·归档脚本=修复版; 无连接上限残留; 盒上≠CI
+  分述（gh 实测 616543d=run 34028205578 success 已记·新 commit 另测）;
+  Mimosa python_ast_unavailable×4+脚本 HOME advisory（误报语境）。
+- 下一步: **R64 全矩阵+真机故障恢复+并发查询+30min 稳定基线 → Step 15
+  （2h/8h/24h）→ Step 17 Preview RC → 链末收口**——待用户指令。
+
+## §94 R64: Control Plane / Switch Recovery 综合验收（真服务恢复矩阵·两跑架构·代码轮·2026-09-06）
+
+- 用户裁决（R64-0..6 十一节）: 基线审计→真服务恢复矩阵（real Control Plane
+  + test-controlled adapter·现有适配器抽象接缝而非生产旋钮）→故障→恢复→
+  再切换三态→Command/Query/Idempotency 并发综合→快照真值（快≠读未来）→
+  六平面一致性审计→30min 稳定基线→Step 15→Step 17→收口; 暴露契约违背→
+  停·如实报告·修复另裁。
+- **载体（源内新增仅测试脚手架·生产零触碰）**: 新 gate
+  `src/gates/r64_control_plane.rs`（env `VBMF_A2_8_R64_CP`·bin/gates.rs
+  派发+mod.rs 一行）+ mock 测试文件加 `r64_storm` 1 测试。gate=真 BMD 双输入
+  Session+真 `GStreamerSwitchAdapter::bridged()` 包私有 FaultControlWrapper
+  （11 方法全委托·R53 face 零触碰·四旋钮场景前置位）+真 transport/
+  idempotency/api_boundary **全程 HTTP 闭环**; watchdog 不接线（a204 先例·
+  披露）。epoch 记账真机钉死: group=begin 尝试数·ProgramObservation=已委托
+  plan epoch（绝对值可跳号）。
+- **阶段一判据段（attempt5 规范跑 exit0·failures=0·bin 31a00197 钉扎）**:
+  C0 preserved+R53 签名/C1 observed=from 落 Active(from)+replay 原样+再切
+  成功（av=2 保持·重试直跳 4 在案）/C2 observed=to **硬件真翻转+真 5.02s
+  证据超时（R62 场景+恢复闭环）**落 Active(to)+NewEpoch(1)+DD+identity 段+
+  反向再切 preserved@1/STORM 真切换窗 0.87s 四路并发查询 200<2s+同 id
+  replay 原样+异 id 串行+快照真值窗内 observed=旧已提交+无未来时间戳/C3
+  observed=None（接缝注入·披露）落 **RecoveryRequired 终态**拒绝猜测→
+  拒收+replay 原样→teardown 全缺席; **13 静息六平面检查点全 OK**（六平面
+  =命令/幂等/组 group_arc 直读·零 API 扩张/程序观测/时间线/API 投影; 纯函数
+  checker+5 单测入 hw 腿）。
+- **阶段二 KNOWN-FINDING（C2b release Err=真机 5s 确认超时同型）四跑三态**:
+  L1(attempt1) observed=Some(from)→落 Active(from)+强释迟到翻转→**静息分歧
+  +死锁**（切 to 适配器拒/切 from 组平面拒·唯一出口 teardown）/L2(attempt2/4)
+  observed=None→RecoveryRequired 诚实终态/L3(attempt3/5) observed=Some(to)→
+  Active(to) 自洽可服务（from-探针合法切换成功）。规范跑 findings=12 不 gate
+  exit（观察≠判据·R52 纪律）。
+- **发现三条（停·报告·未在线修——归裁决）**: ①[P1] 真机物理 cutover 在
+  release（force_open 只开屏障不回拨 selector）完成而非 switch(); release
+  失败恢复观测读于屏障拆除窗内→迟到翻转→L1 死锁（真实超时同后果·mock F2
+  掩盖）②[P2] 恢复观测非确定（三跑三态·Observed-first 判据在物理未落定窗
+  内不稳定）③[P2] C3 类 fence 周期留 PTS 基线伪影→下一切换 ①a FailClosed
+  （3/3 复现）遮蔽 RecoveryRequired 拒收形态（分类 unknown 非 permanent·
+  状态机未破坏·恢复 rebase tl+1 在案）。修复建议: 恢复落定后移至 guard
+  Drop 强释之后——核心域文件·另裁。
+- 盒矩阵（终态代码）: fmt 0/clippy×3 全 0/229/229/**429**(411+9+9 含
+  r64_storm)/**273**(268+5 checker)/gates bin exit0; 证据盒 r64-recovery
+  9 件（canonical+attempt1-4 全档+mock-storm-matrix）md5 盒=origin。
+- R64-6 30min 基线脚本已上盒启动（60 周期×30s+九项显式验收谓词·经 R64
+  计划批准）——结果与补章归 commit 2。
+- 下一步: 发现①②③裁决→（修复轮若裁）→R64-6 完成后 Step 15（2h/8h/24h）
+  →Step 17 Preview RC→链末收口——待用户指令。
+- **R64-6 30min 基线结果（commit 2·bin e08978e1 重建钉扎）**: 脚本裁决
+  VERDICT FAIL(5/9)——按原样交付未改谓词未重跑。实质数据全绿: 60/60 切换
+  executed+preserved（tl 恒 0·R53 签名逐周期）/replay 12/12 原样/854 并发
+  查询全 200 ~1ms（max 1.26ms）/fd 14→14 零漂移/RSS +12MB 无爬升/零丢弃
+  零 critical/frames 全程推进。四项 FAIL 定性: threads 29-31 有界振荡
+  （per-connection 模型本性·无增长趋势·语义归裁）/switch_epoch_plus60 与
+  observed_tracks=谓词实现取样伪影（数据满足批准语义: 绝对纪元 0→60 恰
+  +60·readbacks 60/60 observed==target）/watchdog_ticks=测量缺口
+  （RUST_LOG=warn 遮蔽 info 级 tick 与 teardown 行——非 watchdog 失败·
+  下轮 info 级重测）。证据盒 r64-stability-30m 19 件 md5 盒=origin。
+
+## §95 R65-A: 物理 Cutover / Recovery 时序修复（P1/P2 修复轮·A0 契约+A1 实现+A2 真机·2026-09-07）
+
+- 用户 R65 裁决=R64 三发现全 BLOCKING 开修复轮（梯子 A0→A1→A2→B→R64-6'→裁→
+  Step15）; 基线 7e16fcc。
+- **A0 机制更正（commit 82834fd·docs-only）**: 三路勘探+本人核验实证——守卫
+  Drop（force_open 调用）在源码层**已先于**恢复（:627-630 注释"恢复先于 Drop"
+  失准·R64 登记措辞随更正）; 真缺口=force_open 即返后物理翻转迟落窗内
+  recover :829 **单发** observe 三跑三态。修复=期望感知稳定再观测协议
+  （复用 50ms/3 轮/5s 三常量零新时间语义·只读 observed_active 不喂时间线）:
+  executed=true 只接受连续 3 次==Some(to)（迟翻伪稳定 from/None 拒绝·界尽→
+  RecoveryRequired 诚实终态）; executed=false 普通稳定（from→abort·稳定 None→
+  终态）; 标志经 Inner 私有 bool（chain 顶复位+switch() Ok 后置真）。
+  **分叉态 Desired=A/Observed=A/Physical=B 从此不可构造**。
+- **A1 实现（commit 2·生产触碰收敛 program_execution.rs 单文件——比授权面
+  更窄: reconcile 两函数/complete_switch/force_release/force_open/watchdog
+  语义零改动, 病灶在观测时机非落定逻辑）**: settle 协议三件（observe_active_
+  settled/SettleStreak/settle_accepts 纯决策核）+ 纯单测 ×3; mock 侧 P1 迟翻
+  **首次可表达**（包装器 force_release 后前 6 次 observe 滞报旧源——无期望
+  规则必落 Active(from)=R64 L1 死锁形态·有则必落 Active(to)）+ 界尽诚实终态
+  测试（真值/None 振荡→5s 界尽→RecoveryRequired+Permanent 确定性）; gate
+  阶段二重写=三变体容忍→**F2×10 确定性断言**+F4 行（regress_pts_from 阈值制）。
+- **盒矩阵（终态）**: fmt 0（产物回传 md5 双侧一致）/default **232**（229+3）/
+  simulation **232**/mock **434**（414+9+11）/hw **276**（273+3）/gates bin
+  hw exit0（md5 1e4f0372）/clippy×3 全 0。工程坑两笔: clippy
+  manual_is_multiple_of; **R62 坑复发**——mock 测试腿在 hw bin 构建后重建
+  debug bin 致 gates bin mock 化（hw bin 构建必须是最后一次构建）。
+- **A2 真机（attempt2 规范 run exit 0·failures=0）**: **F2×10 确定性 10/10
+  落 Active(to)——R64 四跑三态零复现**（每轮 av=2i/tl=i 记账精确·六平面全
+  OK·replay 原样·失败切换全程 100-152ms）; F4 ⑨ 回注矛盾→确定性落
+  Active(to)+NewEpoch(11)+av=21→反向 preserved（av=22）→teardown; 阶段一
+  C0/C1/C2=F3（真 5.12s 证据超时闭环）/STORM/C3（本次 c3-next=permanent
+  recovery-required 干净形态·拒收零委托）全绿。attempt1 如实归档: F4 首版
+  布尔旋钮在 ①a 提前点火=0a pre-begin 形态（gate 场景设计错误·产品零改动·
+  7 断言 fail·阈值制修复）。证据盒 r65-cutover-recovery 4 件 md5 盒=origin。
+- 登记=报告 2026-09-07-a2-8-05-r65-physical-cutover-recovery.md §1-§4+tasks
+  item-7 R65-A 段+EVIDENCE-INDEX+本节。
+- **R65-B 早卫兵+恢复触发面收口（commit 3）**: 早卫兵=switch_program_locked
+  ⓪ 前 RecoveryRequired 直接 Permanent 拒收（①a PTS 喂入不再执行——发现③
+  遮蔽形态从根不可达·时间线零触碰）; **B 执行中由回归测试暴露并收口的
+  真实语义缺口**: 终态拒收后外层仍触发恢复→组不 Switching 下普通稳定
+  观测会把时间线"治愈"成 Stable{observed}+epoch+1 而组仍终态=跨平面分歧
+  （mock 测试首跑即抓到 tl_epoch 0→1·该缺口 R63-A 起潜伏）——修正=
+  SwitchError::RecoveryRequired 拒收不触发恢复+executed 标志复位先于卫兵。
+  矩阵: fmt0/232/232/**435**（434+1）/276/clippy×3 全 0/gates bin f7f7db7d
+  （hw 构建为最后一次）; 真机 gate-run-b exit0 failures=0——**c3-next=
+  确定性 permanent+recovery required（①a 遮蔽真机同样消失）**·c3-after-reject
+  六平面 OK（tl 诚实停留未治愈）·F2×10 仍 10/10+F4 OK=R65-A 零回归。
+  证据 r65-cutover-recovery 增至 6 件（header-b/gate-run-b）md5 盒=origin。
+- **R64-6' 30min 重跑（commit 4·谓词 v2·VERDICT PASS 10/10）**: 入口门禁
+  满足（R65-A/B 真机 exit0+全矩阵）; bin 2b5aa760 重建钉扎; 60 周期+replay
+  12/12+855 查询全 200+teardown 完成行——threads spread=2（29-31 有界）·
+  fd 14→14·RSS +2.8MB 无爬升·**epoch 逐命令恰 +1（1→60）**·60/60
+  executed+preserved·**observed 逐命令==target 60/60**·frames 推进·零
+  丢弃·**watchdog tick 84→173（info 级可测——v1 测量缺口消除）**·零
+  critical。如实登记: 首跑 summary 9/10 = v2 解析器 bug（detail 误当
+  status 内嵌→0/60 假 FAIL）; 原始证据零改动, 修正解析对同一份产物重析
+  =10/10; 首跑保留 summary-parserbug.txt。证据 r64-stability-30m-v2
+  22 件 md5 盒=origin。
+- R65 全链完成（A0→A1→A2→B→R64-6'）: 停, 等用户裁 Step 15（2h/8h/24h）。
+
+## §96 Step 15: 长稳验收 2h→8h→24h（真服务无注入 soak + 每步开场 r64 gate·2026-09-07）
+
+- 用户终裁进入 Step 15（R65/R65-CI CLOSED·CI 7/7 run 34064040960·PR #30
+  OPEN 未合并）；生产九文件冻结。步进=PASS 自动续步·FAIL/异常整梯即停报
+  （计划批准默认）；「错误后恢复切换」场景（R62 登记）=每步开场真机 r64
+  控制面 gate 一轮落实（FaultControlWrapper·生产零触碰·与 soak 分目录取证）。
+- **载体=冻结 30min 骨架参数化推广**（Step15-0 commit 782e290·CI success）:
+  r64-probe/r64-stability-long.sh（env CYCLES/DWELL/REPLAY_EVERY/TAG·默认
+  复现 30m 形态）+ reanalyze-long.py（expected_cycles 第 4 参·谓词 4/5/6 的
+  60→N）——已登记 30m 工件字节不动·**十谓词 v2 阈值逐字不随时长放宽**。
+  盒源码三文件（R65 链全部改动）md5=26e6cde 同态核验；真机 smoke
+  CYCLES=6 DWELL=1 = PASS 10/10 EXIT=0（内嵌与独立解析器对同一产物交叉
+  复核一致·smoke 证据按计划弃置）。
+- **2h rung（240 周期×~30s·07:10:59-09:13 盒钟）VERDICT PASS 10/10**:
+  开场 gate exit0（failures=0·findings=1=F2×10 确定性 10/10 数据行；gates
+  bin f7f7db7d——touch 强制重编同哈希=26e6cde 纯空白改动产出同一二进制的
+  证明）。soak（bin 2b5aa760=R64-6' 同源·manifest 7521d17e）: threads
+  spread=2（29-31）/fd 14→14/**RSS 1237.6→1238.7MB（2h 仅 +1.1MB·无爬升）**/
+  **epoch 1→240 逐命令恰 +1**/**240/240 executed+preserved**/**observed==target
+  240/240**/frames v 28→206653·a 38→275500 严格递增/drops 恒 0/**watchdog
+  343→691**/events 120 采样 critical=0；数据行: replay 48/48 原样·**3415
+  查询零非-200**·teardown 完成行=1·服务干净退出。证据 r64-stability-2h
+  （21 件）+ r64-stability-2h-gate（3 件）全件 md5 盒=origin；独立
+  reanalyze-long.py 对同一产物重析=同 verdict。
+- 2h PASS → 按步进规则自动启动 8h rung（960 周期·同构流程）。
+- **8h rung（960 周期·09:29-17:33 盒钟）VERDICT FAIL（9/10）——整梯按停点
+  规则停止, 不启动 24h, 等用户裁决**: 开场 gate exit0（failures=0·findings=1
+  =F2×10 确定性 10/10 数据行）。soak（bin 2b5aa760·manifest 7521d17e）其余
+  九项全过: threads spread=2（29-31）/fd 14→14/RSS 首/末 1/3 1249.4→1277.2MB
+  （+27.8MB/8h 无单调爬升·50MB 界内）/**epoch 1→960 逐命令恰 +1**/
+  **observed==target 960/960**/frames v 25→829254·a 34→1105503 严格递增/
+  drops 恒 0/**watchdog 1379→2764**/events 480 采样 critical=0; 数据行:
+  replay 192/192 原样·**13659 查询零非-200**·teardown 完成行=1·服务干净退出。
+  **唯一 FAIL 谓词 = switches_all_executed_preserved 959/960——cycle 908
+  （08:29:01Z·运行 7h34m 处）一条切换响应 executed+classification=unknown+
+  detail「timeline 证据超时 FailClosed: timeline evidence insufficient
+  (pending planes: [Video])」**。完整事件链（只读取证·证据零改动）: 视频面
+  PTS 证据窗**自发**超时 → 响应诚实报 unknown（不伪装成功）→ svc.log 全窗
+  唯一关键行 WARN 08:29:01.557Z「**R63-A 切换失败后恢复落定（Observed 优先）**
+  observed_active=Some(to)·timeline=NewEpoch{ProgramEpoch(1)·SourceSegment(to)}」
+  ——R63-A/R65 恢复路径的**真实自发执行** → 回读 observed==target·sw_epoch 仍
+  +1·tl_ep 0→1·seg=909·discontinuity_declared·v_cont=declared_discontinuity
+  诚实再基准 → 后续 52 周期（909-960）全 executed+preserved·tl_ep=1 保持·
+  零死锁零发散。定性（归裁决）: 全程序**首次自发**（非注入）真机证据超时——
+  全部稳定基线运行（30m v1/v2+2h+8h=1320 次切换）唯一一例（1/960≈0.1%）;
+  R64 gate C2 的 5.02s 超时为注入形态, 本例为其自发对应; 系统行为与 R65/
+  R63-A 设计语义完全一致。证据 r64-stability-8h（21 件）+
+  r64-stability-8h-gate（3 件）md5 盒=origin; 独立 reanalyze-long.py 对同一
+  产物重析=同 verdict。**梯子停止: 24h rung 未启动——Step 15 = 2h PASS +
+  8h FAIL 停等用户裁决**。
+- **用户裁决（8h 后）**: 维持 8h FAIL 原判（不可改 PASS·十谓词冻结字面）；
+  24h 不启动；生产代码+阈值双冻结；cycle 908 升格独立事件 **S15-E01**
+  （spontaneous recovery event——比 960/960 PASS 更有价值：恢复语义首次
+  真机自发触发实证）；指令=只读 RCA（目的非改判，是判定「可接受偶发边界
+  vs 真实稳定性缺陷」；关键问题=Video PTS 真迟到还是 collector 没看到
+  已存在的数据）。
+- **S15-E01 RCA 完成（只读·报告 2026-09-07-s15-e01-video-evidence-timeout-rca.md）**:
+  判定=**后者**——数据按时在场，⑤ 旗门控的读-竞争窗错过已到达事件。
+  推理链全锚: 帧满速（dv=1011/34s 与标称吻合）+输入弧 advancing 全程+
+  PTS 基线推进正常（工件层六面全正常·svc.log 8h 唯一运行期 WARN 即恢复行）；
+  fence `capture_segment` **无条件**捕获了 Video 新世代 Segment（rt_02 登记
+  前提: arm→翻转无其它 Segment 源）且 `release_after_drain` 双面 seqnum 确认
+  成功返回（cycle 908 收到证据超时错而非 fence 错=drain 确认成功铁锚）→
+  同一 EVENT 探针回调里 executed 门控的时间线旗未置 → 事件命中于
+  **video 翻转→`t.executed=true`** 窗口（adapter switch() 次序 :1123-1147·
+  video 先翻暴露窗最长=与 pending=[Video] 精确吻合·audio 后翻已过窗）；
+  map_pts 纯加法无拒绝路径（排除越界拒）；mock 零复现=轮询驱动证据推进
+  天然后置 executed（结构性缺席）。定性=**真实可指认的簿记层微观竞争**
+  （非媒体/硬件/deadline/调度层；1/1320 触发·FailClosed→R63-A 恢复→
+  NewEpoch 诚实再基准完整吸收·零停摆零污染）。修复方向三候选登记未实施
+  （executed 前移/⑤ 无条件闩锁/seqnum 暂存回放——另裁·生产冻结维持）。
+- **用户裁决（RCA 后·2026-09-08）**: 修复候选=**③「seqnum 暂存+回放」**
+  （①②否——最完整保留现语义: 事件可先到、后完成执行提交; 世代归属以
+  seqnum/世代锚校验; 不以状态发布顺序调整制造新时序耦合; 不混旧/新世代
+  Segment; FailClosed 对真缺证据保持）。闭环冻结=**修复→定向回归→真机
+  gate→8h 重跑**（8h 必须重新 10/10 才有资格 24h·不豁免）。新增回归判据=
+  **强制 Segment 到达发生在 executed=true 之前的竞争窗——必须最终被
+  timeline collector 计入、不得永久卡 AwaitSegmentEvent**（deterministic+
+  真机两层证据）。24h 四条件=定向测试 PASS+真机 gate PASS+8h 重跑 10/10+
+  RCA 事件闭环登记（满足即启动·不降阈不改十谓词）。顺序链=修复→8h 重验
+  →24h→Step 15 完成→P2 收口→Step 17。**旧 8h FAIL 证据绝对保留**（重跑
+  入新目录 r64-stability-8h-rerun·目标审计链=2h PASS→8h FAIL(S15-E01)→
+  RCA→fix→8h rerun PASS→24h）。
+- **S15-E01 fix3 实施（unit 1·commit d5bc130）**: 解冻面=switch graph 单
+  生产文件+gates 测试侧（wrapper 旋钮/新场景/分发接线——R65 其余冻结文件
+  零触碰）。机制: EVENT 探针体抽具名生产函数（真实闭包与测试/gate 共用
+  同一函数）——fence capture 无条件保持+executed 前先到 Segment **首个**
+  seqnum 暂存（per-plane·与 fence first-while-Armed 同源配对）; switch()
+  提交点在同一 timeline 临界区回放: 暂存==fence 捕获锚 →
+  segment_observed=true; 无锚/不匹配 → 丢弃 fail-closed
+  （EvidenceInsufficient 保护保持·两锁不嵌套纪律保持·fence 序号锁外
+  copy-out）。install 整槽替换=暂存按声明段世代重置; audio 同窗竞态天然
+  同覆盖; 失败/回滚路径 executed 恒 false 无泄漏面。
+- **定向回归（两层判据全绿·2026-09-08）**: R0 确定性四锁（盒 hw 矩阵
+  276→280·default 232/mock 435=R65 基线不变）: 锁A 竞争窗计入（先到→
+  提交回放→facts segment_observed=true→⑥⑦ 映射入段不卡
+  AwaitSegmentEvent·audio 对照不计入）/锁B 世代不匹配丢弃/锁C 无锚丢弃/
+  锁D install 重置。R1 真机强制复现（新 gate env VBMF_A2_8_S15E01_RACE·
+  wrapper switch 委托**前**一次性注入——此刻 fence Armed+timeline
+  installed+executed=false 恰为竞争窗入口·**确定性强制非概率轰击**; seam=
+  同一生产函数 capture+暂存并以同 seqnum 配对驱动下游确认=事件真实穿透
+  两探针的净效果·零媒体流扰动）×10 交替+对照轮: **11/11 outcome=preserved
+  ·单轮 ~152-158ms（远低 5s 证据窗——无超时无恢复）·av 1→11 恰 +1·
+  program_epoch 保持 0（无 FailClosed→NewEpoch rebase=竞争窗被修复吸收的
+  直接证明）·segment_id 1→11·每轮 DD·六平面检查点 init/after-races/
+  teardown 全 OK·注入计数对账 10/10**。run1 EXIT=2 如实在案: 场景断言
+  初版误抄 F2 失败轮账本（program_epoch 逐轮 +1）——成功切换正确语义=
+  epoch 保持 0+segment_id 前进（2h/8h 浸泡同口径 ProgramEpoch(0) held）;
+  核心判据（preserved×11/av 推进/DD/无超时）run1 即全绿·修正断言后 run2
+  EXIT=0。既有冻结 gate 复跑=修复零扰动证明: R64 CP gate exit0
+  （failures=0·F2×10 landed_to=10/10 保持）+ dual_input ALL PASS 10/10
+  （L0→L5+Teardown）。盒矩阵: fmt ✓/clippy --all-targets -D warnings ×3
+  组合 0。gates bin 51ce1477。证据 s15e01-race+s15e01-fix-r64cp-gate+
+  s15e01-fix-dual-input-gate（全件 md5 盒=origin）。
+- **Step15-8h 重跑 rung（fix3 后·960 周期·11:57-19:37 盒钟·2026-09-08）VERDICT PASS（10/10）——首轮 8h FAIL 的唯一失败谓词在修复后全量通过**: 开场 gate exit0（failures=0·F2×10 确定性 10/10 数据行）。soak（bin f52b0161=fix3 后新二进制·manifest 7521d17e）: threads spread=2（29-31）/fd 14→14/RSS 首/末 1/3 1248.9→1276.3MB（+27.4MB/8h 无单调爬升·50MB 界内）/**epoch 1→960 逐命令恰 +1**/**switches_all_executed_preserved 960/960（首轮 959/960 的唯一败项——cycle 908 竞争窗已被 fix3 吸收, 960 次真机切换零复发）**/**observed==target 960/960**/frames v 28→829125·a 37→1105347 严格递增/drops 恒 0/**watchdog 1379→2764**/events 480 采样 critical=0; 数据行: replay 192/192 原样·teardown 完成行=1·服务干净退出·tl_ep=0 全程保持（ProgramEpoch(0) held——无 FailClosed/无 rebase）。独立 reanalyze-long.py（expected_cycles=960）对同一产物重析=同 verdict。证据 r64-stability-8h-rerun（21 件）+r64-stability-8h-rerun-gate（2 件）全件 md5 盒=origin; **旧 8h FAIL 证据 r64-stability-8h/ 原样保留（本 rung 为新验证 rung, 不覆盖不改写）**。**24h 启动四条件此刻核验: ①定向测试 PASS（四锁 hw 280+盒矩阵）②真机 gate PASS（S15E01-RACE EXIT=0+R64 CP exit0+dual_input 10/10）③8h 重跑 10/10（本条）④RCA 事件闭环登记（RCA §8 附录+本账四 bullets）——四条件全部成立 → 按裁决启动 24h rung（CYCLES=2880）**。
+- **Step15-24h rung（fix3 后·2880 周期·19:46 次日~20:12 盒钟·2026-09-08/09）VERDICT FAIL（9/10）——唯一败项=rss_bounded, 按停点规则整梯停止**: 开场 gate exit0（failures=0·F2×10 确定性 10/10 数据行）。soak（bin f52b0161=fix3 后·manifest 7521d17e）: **切换面全绿——switches_all_executed_preserved 2880/2880（S15-E01 修复经 24h/2880 次真机切换零复发; 修复后累计 2h+8h+24h=4080 次切换零事件）·epoch 1→2880 逐命令恰 +1·observed==target 2880/2880·tl_ep=0 全程保持（无 FailClosed/无 rebase）·frames v 26→2489044·a 35→3318327 严格递增·drops 恒 0·watchdog 4143→8291·events 1440 采样 critical=0·threads spread=2（29-31）·fd 14→14·replay 576/576 原样·teardown 完成行=1·服务干净退出**。**唯一 FAIL 谓词=rss_bounded: 首/末 1/3 均值 1262.4→1349.0MB（+86.6MB·阈值 +50MB·monotonic=False）**。只读形态事实（报告用·非调查）: 十分位均值 1247.5/1260.6/1273.3/1286.1/1301.9/1312.2/1325.6/1338.6/1351.3/1363.9MB——**第 2-10 位近似线性缓增 ~5MB/h·无平台化**（末 5h 仍 +25.3MB·峰值 1368.9MB 在 cycle 2868 贴近终点·首样本含启动谷 1118.8MB）; 与 8h rerun +27.4MB/（首末 1/3 跨 ~5.3h）≈5.2MB/h 同斜率——即同一缓增在 8h 未越 50MB 界·24h 越界; 2h +1.1MB 显著平于该斜率（早期相位平·~2h 后进入 ~5MB/h 段——形态学如上, 归因未做·归裁决）。独立 reanalyze-long.py（expected_cycles=2880）同 verdict。证据 r64-stability-24h（21 件）+r64-stability-24h-gate（2 件）全件 md5 盒=origin。**梯子停止: Step 15 = 2h PASS + 8h FAIL(S15-E01→fix3→8h rerun PASS) + 24h FAIL(rss_bounded)——等用户裁决（缓增归因 RCA/阈值再裁/其他均另裁·观察≠判据）**。
+- **RSS RCA B0+B1-DIAG（2026-09-09/10·用户三刀框架 A→B→C 逐刀指挥·禁重跑/改谓词/改生产/加 instrumentation/清证据）**: **B0（只读）**=已有 21+2 件证据**无任何内存构成维度**（runner 仅采 VmRSS/fd/Threads·svc.log 内存词族 0 命中·events 词表仅 7 种启动事件后全空·runtime 投影无内存字段且缺 AFTER 快照·9 条 GST CRITICAL 全在启动期）→ B1 前置成立; **Evidence-01 同轮关闭**（+86.6MB=数据事实·独立重算与 verdict 逐位对齐·内核 VmRSS 单进程零缺口）。**B1-DIAG（4h 外部只读构成诊断·非 Step15 rung·无 verdict）**: 裁决 4 收紧+3 机械调整+硬红线全落地——b1-observer.sh 入库（667e9ff·部署 md5 盒=源=repo HEAD 05b4670e）; 生命周期状态机（0=COMPLETE/3=TARGET_GONE/4=PARTIAL/10=OBSERVER_ERROR·meta.json 为准）+domain T0 冻结（运行期新 child 只记事件不入域）+topology 三次全量快照（不截断·单点失败如实 ERROR）+红线（live 源仅 procfs+两份落盘文件·零网络零业务端点）; 本地 bash -n+红线 grep 零命中+两场景 fixtures 模拟（COMPLETE/PARTIAL）+local 同句交叉引用 bug 修复。真机执行（01:19 盒钟·workload DWELL=28/CYCLES=480/replay 5=Step15 同构·**bin 重建 f52b0161==24h 同一二进制**·manifest 7521d17e）: **observer 终态 COMPLETE/exit 0**（覆盖 95%·gap_max 0s·零内部错误·零 rollup 失败·domain=[1811469] 单进程 children=0 零漂移）·runner 机械 verdict PASS 10/10=informational only。**离线分析（三轴对齐 observer↔samples↔watchdog·480/480 周期匹配）= classification ANON_GROWTH**: 构成分解（稳态窗三分位）VmRSS +11.2MB=**100% RssAnon**（RssFile 恒 16.1MB·RssShmem 0·Private_Dirty=Anonymous=Pss_Anon 同涨同量=私有脏匿名页）; **增长模式=离散周期事件——4h 稳态窗仅一次 +11.0MB 跳变（03:18:25/03:18:35 盒钟·两个 5.5MB 子步相隔 10s）·其余时间精确平台（unique 值仅 6 个）**; **与切换次数无线性（R²(sw_epoch)=0.0417）**; 逐小时形态=24h 锯齿同机制（~2h 周期步进的小时桶化）; **topology 三点: [heap] 3.4→4.0MB 基本不动（glibc 主堆非增长点）·全部增量在 anon rw-p 私有映射（60.4MB×~20 大块=采集 buffer 池形态·热身后稳定）·mid(03:19:29)→end Rss 零变化（-0.0MB）·file/libs/dev/shmem 全程平稳**; 事件映射粒度归因受 start 快照先于热身完成限制（如实披露）; 跨 run 一致性: ~2h 周期 × 11MB/事件 与 24h 斜率 5.626MB/h 精确吻合（8h +27.4≈2-3 事件·2h +1.1≈0 事件）→ **24h +86.6MB ≈ 同类 ~2h 周期事件的累积**。措辞冻结遵守: 对既有 24h RSS 增长提供解释性证据·**不改判 rss_bounded FAIL**·不重评 S15-E01·无 verdict 无 PASS/FAIL。证据 2026-09-10-b1-diag-4h（21 件）+-observer（11 件·3×topology 全量 160-223KB）+b1-diag-4h-analysis（四图+composition-table·本地派生产物）镜像 32 件 md5 盒=origin。工程坑: 分析脚本文件化被 Mimosa 拦 3 次（变量路径污点误报·内容无穿越）→ 以会话执行记录为审计载体如实登记; smaps 头解析须 split 法（正则捕获组会把单 token 路径吃错列）; svc.log tick 行须先剥 ANSI 转义; 本地 heredoc 超 ~10KB 会被截断须分段; pip install --user matplotlib 3.11.1（本地图表工具·不触运行时）。
+- **RSS RCA C 线两刀（2026-09-09/10·C1 业务时间对齐 + C2 静态代码审计·均
+  stdout-only 只读·零新实验/零代码改动/零阈值改动·24h+B1 证据域内）**:
+  **C1 FINAL: NO UNIQUE BUSINESS ATTRIBUTION**——四层跳变检测（raw Δ>0 事实层
+  →噪声刻画→512/1024/2048KB 敏感档→C1-F1 复合: 正向步 ≤90s 合并·回落
+  >256KB 断开·子步签名永不塌缩）: 稳态窗 **29 个 strong 复合事件/10 簇**
+  （簇间隔 7057/7028/7086/6970/7576/6711/7142/14372(双缺口)/7172s·剔双缺口
+  均值 **7092.8s σ226s CV0.032**）; **量子步直方图=5544/5548/5584/5588/5592/
+  5620/5624/5628KB 八值**（4KB 页级差·31 步全落带内）; 全 run 仅 **8 个负步**
+  （同量子·集中 C07 11:53-13:19 爆发簇=偶发释放形态·非纯泄漏亦非每周期释放）;
+  周期性 N=29 与 N=10 双层均 REPEATED_PATTERN; **三时钟退化**（wall/cycle/tick
+  R² 全 0.99131·RMS ~2097s）→ INSUFFICIENT; mod5 均匀（replay 锁相否）; **首
+  量子事件距启动 24h=7142s vs B1=7132s 跨 run 对齐 ±10s**; B1 03:18 双子步在
+  lite.csv 精确复现（+5588kB×2 相隔 10s·main.csv 30s 粒度并档 +10.9MB）;
+  **29 事件窗 + 3 机械对照窗（同长·无复合跳·远离候选）八业务流逐字段不可区分**
+  （events/非wd 日志/batch/custody/advancing/domain/readback/switch/latency 异常
+  全 0/29 且 0/3; replay 与 watchdog tick=case-B 全程共现无特异性被否证）→
+  DIRECT 无·最小共同业务指纹=∅·完整性闸门 29/29 COMPLETE; **三问=Q1 YES（稳定
+  重复量子化形态）/Q2 NO（无稳定业务共同指纹）/Q3 NO（无唯一映射）→ C1-F4
+  分流: 匿名映射/native/allocator/buffer-pool 二阶段方向（待解禁）**。R² 口径
+  澄清: B1 期 0.0417=平台窗（剔跳变）定义; 全程 0.6697/稳态 0.7547 为单调
+  阶梯 vs 单调 epoch 时间趋势伪影（0.75≈步进中点数学期望）——两口径并行无矛盾。
+  **C2 static（repo 只读·Path E→A→B→C→D·生产代码零改动）: 第一方无命中**——
+  600-7500s 常量仅 main 驻留 park 3600s（醒后零动作零分配）; 无 7100s 定时器/
+  无「到 N 即动作」计数阈值/无 wall-clock 维护任务; 248×28.8s=7142.4s 与首事件
+  数值重合但 Rust 每 cycle 持久分配 ≤数百字节（量级差 1-2 个数量级·且后续簇间隔
+  σ226s≈7.8 cycle 远超计数锁可达抖动→**周期为涌现（填充×阈值）非计数/定时**）;
+  无界容器四项（幂等表/段史/custody failures/Released 会话滞留）合计 ≤~120B/s
+  vs 观测净 1548B/s（**差 13-77×**）且前三者从不释放与 C07 负跳不符; 无
+  vec![0u8;N]/Box 大数组/zeroed/mmap 系/malloc 封装/BytesMut/自定义 GlobalAlloc;
+  数值常量 [5.0M,6.1M] 生产区 0 命中; GStreamer 零显式池/容量配置（appsink
+  即取即释·queue 全默认·唯一显式 caps=program 面 320×240@25·输入面自动协商
+  未落日志=缺口）; B1 全程 0 次 recover/teardown·480 切换全为 active-pad 翻转。
+  **C2 形态反转级新事实（B1 拓扑三快照逐字节复核）**: 双连跳=t+7136/t+7146 各
+  +5588kB（5,722,112B·恰为 5588 档）·**VmSize 全程恒 2,888,904kB（净新增地址
+  空间=0）**·VmData +11,176kB 与 RssAnon 增量逐 kB 相等·[heap] 两小时仅
+  +675,840B（事件量的 5.9%）·Size∈[5.4M,5.7M] 映射三快照均 0·无 ~11MB 映射
+  → (a)2×新映射 (b)1×11MB (c)[heap] 增长全被字节级排除·**(d) 既有预留区内
+  新触页=唯一自洽形态**（64MB 对齐 Size 大 Rss 低预留区=glibc arena 形态·降级
+  为辅助线索不作为证明）·逐映射最终归属因缺事件前快照 OPEN（如实披露）。
+  **用户裁决冻结（2026-09-09）**: 两线纪律（A2-8 功能线与 Step15 RCA 线不互相
+  污染·禁因内存改 SwitchExecution/ExecutionGroup/TimelineAuthority/
+  ProgramTimeline/SessionManager/Supervisor/MediaBackend/PipelinePlan/
+  rss_bounded 谓词）; C2「第一方排除」语义收窄=**未发现显式 5.5MB 分配点与
+  7100s 定时器**（Rust 高频小分配→arena→page commit 路径未排除·mgr.tick/
+  lease/session 快照链仍在嫌疑面）; Gate 序列 **C2-O1(mapping closure)→
+  O2(arena/thread)→O3(call-chain·仅 O2 指向 arena 后审高频面)→O4(lifecycle
+  三态: 真泄漏/allocator retention/fragmentation)→C2-FIX(仅 O4 闭合后)→回归
+  →24h 复验**; 修复优先级 P0 消除不必要长期 retention>P1 降 churn>P2 复用容器
+  >P3 native ownership>P4 allocator/pool 调整; 绝不采用: 放宽/删除 rss 谓词·
+  把增长解释成正常·定期重启·定时人工压 RSS·首修复即 malloc_trim·改 watchdog
+  频率掩盖。
+- **C2-O1 Allocator/Arena Mapping Closure（2026-09-10·2.5h 定点诊断刀·用户 v2.1 裁决
+  逐字执行·非 rung 无 verdict·唯一解禁项）**: 工件=C2-O1 observer（b1-observer 契约
+  A/B/C 继承 + v2.1 扩展: RUN_T0=btime+starttime/clk_tck 四元组可重算·RUN_REL_S 主轴/
+  累计制触发器（|RssAnon−baseline|≥1024kB·正负共享·防小步漏触发）·PRE→TRIG→POST(+15s
+  post-observation 语义)·capture_reason 七类·trigger cap 20 超限=DEGRADED 不退出·
+  identity.json（host/kernel/page 4096/clk 100/bin exe md5/自哈希）·红线=procfs 指定
+  文件集+两落盘文件·禁 malloc_info/gdb/pmap/perf/eBPF/LD_PRELOAD/GStreamer debug/
+  jemalloc/glibc tunables）。本地验证: bash -n+红线零命中+fixtures 全链（正/负触发+
+  POST+shutdown·COMPLETE·TARGET_GONE）+**判定阶梯三场景预验证（A 同映射提交=
+  CONFIRMED-DIRECT/B 新映射+VmSize 增长=REFUTED/C smaps 缺段=CONFIRMED-PARTIAL）**;
+  两个真缺陷被 fixtures 捕获修复（local 单行声明展开顺序 set -u 崩·TOPO_END 旗缺失
+  致 shutdown 拓扑重复捕获）。真机（08:39-11:10 盒钟·CYCLES=315/DWELL=28/replay 5·
+  **bin 重建 f52b0161==24h/B1 同一二进制**·manifest 7521d17e）: observer **COMPLETE/
+  exit 0**（覆盖 98%·gap 0s·main 304/lite 907/fast 1454·trig 5+/0-·cap 未触·域冻结
+  单进程零漂移）; runner 机械 verdict PASS 10/10=informational only 不入梯。**事件
+  按签名准点复现: E01 run_rel 7150 (+5796kB·PRE=win-7141 仅前 9s) / E02 run_rel 7204
+  (+5632kB·PRE=base-7203 仅前 1s) 双连跳相隔 54s; 跨 run 首事件 7132(B1)/7142(24h)/
+  7150 对齐 ±18s**。**逐映射归因（M 定位完成）**: E01/E02 = **两个不同 64MiB 对齐预留
+  （基址 0x713004000000 与 0x713010000000）各自 rw-p 头部经 mprotect(PROT_NONE→rw)
+  扩展一段（+5584/+5588kB）且新段立即全触（Rss==Size==Anon==PD 全等）**; 预留基址/
+  末端/总量恒定 64MiB·VmSize 平直（窗内仅一次 +12kB 瞬态·B1 亦见同类）·[heap] 零增长·
+  **ΣΔAnonymous==ΔRssAnon 逐 kB 零缺口**（5584/5588/簇合并 11216 三档全等）·VmData
+  簇增 11256kB==Σrw 头扩展（5584+40+5888+44…=5584+40+5588+44）逐 kB 精确; 全生命周期:
+  两预留热身期填至 22588/22608kB → **精确休眠 7023s** → 同步扩展（含 +40/+44kB 前奏）
+  → 事件后再休眠至 run 末（9003/9081 快照不变）。**判定（冻结阶梯）: 非
+  CONFIRMED-DIRECT（rw-p VMA 末端移动·字面 same-VMA 条件不满足）; 非 REFUTED（主增长
+  不由新地址映射创建/VmSize/heap 解释·§九归因主导制不触发; 64MB 对齐仅辅助线索）;
+  = 裁决 §五 MORPHOLOGY-REOPEN 分支的精化形态成立——page-commit 方向成立, 机制精化为
+  "固定预留内 mprotect 头部扩展+立即全触"（与 glibc 非主 arena grow 形态相容·是否
+  arena/哪个线程=O2 职责, O1 不判断）**。簇内两子步落在两个不同预留 ⇒ ~5.5MB 级分配
+  在两个线程的 arena 上几乎同时各发生一次（O2 直接输入）。量子族更新: 5544-5628(24h)
+  ∪ 5796/5632(本 run)·观测带 ~5.4-5.7MiB 按源单位（quantum 一致性=辅助证据）。证据
+  2026-09-10-c2o1-2p5h（21 件）+-observer（101 件）+c2o1-analysis（mapping-closure
+  固化表）镜像 **122 件 md5 盒=origin 逐件一致**。工程坑如实登记: Mimosa 拦"cp+源码
+  路径"误判 → 以 glob 变量引用规避（不绕钩子·内容同 md5 证）; ssh nohup 会话不归因
+  后台管道挂起 → 后续一律 </dev/null; MSYS md5sum 二进制星号致清单假差异 → 剥星号
+  归一化比对; 本地 python3 缺失用 python(3.14)。措辞冻结遵守: 不改判 rss_bounded
+  FAIL·不重评 S15-E01·诊断性质非 rung。
+- **C2-O1 模型修订 + C2-O2 设计注册（2026-09-10·用户 v3→v3.1 两轮刀口前审终裁:
+  O1 修订 PASS/FREEZE·O2 设计 PASS/REGISTER·**O2 执行 NOT AUTHORIZED**·零新采集
+  零盒操作·122 件既有镜像证据重析）**: P0×6 全落地——**两级身份** address_extent
+  （邻接分组）≠ reservation_envelope（四证共认: stable base/end+跨快照持续+
+  RW/PROT_NONE 守恒+权限迁移连续性·**adjacency 单独不决定身份**）——重析实证其必要:
+  R2 位于 832MiB 连续匿名链 0x71300c000000-0x713040000000 内·over-merge 由 64MiB
+  窗口四证化解（R1/R2 窗口 resolved 86/87·coverage/continuity/boundaries 全 True·
+  唯一未解析=创建前 start@3）; mapping_key/reservation_key 分离+VMA transformation
+  graph（appear/disappear/split/merge/repartition·1→N/N→1/N→M）; 守恒四指标
+  （envelope/rw/pn/conservation_error·64kB=observational tolerance·来源披露·不新增
+  分级阈值·supporting only）; **状态机新增 RESERVATION-EXTENSION（·BOUNDARY-
+  MIGRATION / ·ENVELOPE-INTRODUCTION=allocator-structure clue·≠arena creation）后
+  即冻结**（不再新增状态·O3 不加第七级·不设 O5）; O1 FINAL 升格链注册:
+  ANON_GROWTH→NO UNIQUE BUSINESS ATTRIBUTION→STATIC→MORPHOLOGY-REFINED（裁决
+  事件·非终态词）→**RESERVATION-EXTENSION·BOUNDARY-MIGRATION**（当前对象层状态）。
+  **c2rules 四句总原则冻结**: ①每层只证本层对象不跨层升级 ②Supporting evidence
+  不得自动升级为本层事实 ③相关性不得自动升级为因果性 ④为获得期望结论不得反向扩大
+  实验强度或修改生产系统; +实验纪律永久句「不得为获得线程归因而缩小采样间隔、延长
+  实验或修改生产程序」。**机判重析（fixtures A/B/C/D 预验证全绿·D=同 envelope 重划
+  形态必须 BOUNDARY-MIGRATION·不得 REFUTED 的反回归）**: E01(trig-4)@7150 与
+  E02(trig-5)@7204 均=**RESERVATION-EXTENSION·BOUNDARY-MIGRATION**（E→R 双层归因:
+  E01→R1[0x713004000000] rw 22628→28212(+5584)·PN −5584·conservation +0;
+  E02→R2[0x713010000000] rw 22652→28240(+5588)·PN −5588·conservation +0）;
+  **簇对账升级三方逐kB全等: dRssAnon=+11216 == dVmData=+11216 == Σ窗口扩展
+  (5584+5632)**（R2 窗口自含 +44 前奏·chain 余量 0）; **轨迹表新定位**: 平台
+  22588/22608 精确恒定 run38→7081（7043s）→R1 前奏 +40 落 (7081,7141]→R1+5584 落
+  (7141,7150]→R2 前奏 +44 落 (7165,7201]→R2+5588 落 (7203,7204]→恒定至 run 末
+  ——**前奏各自早于大扩展 ≤60s/≤36s**·R1 热身含 +5588 量子同族步（supporting only）;
+  口径差披露: 触发器累计 pend 5796/5632 vs 事件窗 5584/5588（阶梯取窗口径）;
+  trigger_latency 区间登记（E01 (7148,7150]·E02 (7202,7204]·非点估计）; quantum_pages
+  1396/1397 + 跨 run 对齐表（7132/7142/7150 ±18s）均 supporting only。**已证明/未证明
+  +Evidence class 表**（Direct/Direct-structural/Structural/Forbidden-runtime/
+  Correlational/O3/O4）与 **O2 裁决矩阵控制表**注册为 C2 核心控制表。
+  **C2-O2 设计注册（NOT AUTHORIZED·entry satisfied ≠ 执行授权）**: O2-A=reservation→
+  allocator-family structural compatibility（verdict=ALLOCATOR-STRUCTURALLY-
+  COMPATIBLE / -INCOMPATIBLE / INCONCLUSIVE·非 runtime arena identification·四判据
+  +证据表+解释纪律——可写 "morphology is consistent with glibc allocator reservation
+  behavior"·不得写 "this is glibc arena X"·thread/arena/core counts 仅 sanity context）;
+  O2-A Entry Condition=由既有 O1 证据核验满足（**satisfied by existing O1 evidence;
+  no O2 execution implied**）; O2-B=activity-correlated TID set（不答 ownership;
+  c2o2-observer=c2o1-observer v2.1 全契约+per-tid {comm,stat} 采样**保持 2s 不加快**·
+  state=辅助 supporting only+触发全线程快照+tid 生命周期 diff; **红线扩围清单明示待批**:
+  task/<tid> comm→{comm,stat}+一次性 ldd --version; thread_activity_visibility=
+  {VISIBLE/AMBIGUOUS/INVISIBLE} 报告字段非 verdict）; **O2-A/B STOP**: INCOMPATIBLE→
+  不做 thread 归因停等重裁; INCONCLUSIVE(granularity)→停·不得扩实验→O3 替代证据另裁;
+  O3 因果链硬门逐字+O4 三态五问（含「增长的 committed pages 是否在后续 allocation
+  中被重新命中」）注册。工程坑: 分析器文件化被 Mimosa 三拦（Write 路径污点误报×2+
+  Bash 绕扫描拦截）→ 按 B1 先例会话内联分段执行（heredoc ~10KB 截断坑复现→分段+
+  运行时 JSON 传态·Windows python '/tmp' 解析到当前盘根坑）·审计载体=会话执行记录·
+  **机器表 c2o1-envelope-tables.txt+c2o1-reservation-closure.txt 入库**（v1
+  mapping-closure 原样保留 superseded-by）。冻结维持: rss_bounded FAIL/+50MB/十谓词/
+  生产代码/PR #30 不 merge/禁入清单全继承。**停等 C2-O2 执行裁决**。
+- **C2-O2 执行（2026-09-10·用户裁决「授权」含红线扩围批复 task/<tid> comm→{comm,stat}+一次性
+  ldd --version·O2-A 零新增采集→O2-B 真机上盒·非 rung）**: **O2-A=ALLOCATOR-
+  STRUCTURALLY-COMPATIBLE**——40 个 64MiB 对齐·精确 64MiB 保留形态窗口（rw 头+PN 尾全覆盖
+  结构）四普查点计数恒定·832MiB 连续链分解 **13/13 全合规**·[heap] 与事件零相关（全程 +660kB
+  ≈事件量 5.9%）·libc=glibc 上下文（Rust 默认分配器·无自定义 GlobalAlloc）——表述纪律执行:
+  "morphology is consistent with glibc allocator reservation behavior"·不写 arena X·
+  thread/arena/core counts 仅 sanity。**O2-B**: c2o2-observer（c2o1 v2.1 全契约+per-tid
+  {comm,stat} 2s 采样**保持不加快**+触发全线程快照+tid 生命周期 diff+libc 钉扎）——本地 fixtures
+  四轮全链绿·**两真缺陷修复于部署前**（per-tid stat 路径缺 task/ 段·生命周期尾空格 flap）·
+  工程坑: 被杀任务子进程残留致双写者（加入单写者断言）·MSYS CLK_TCK=1000 vs 盒 100 数据侧缩放。
+  真机（13:18-15:54 盒钟·bin f52b0161==冻结·runner 机械 PASS 10/10 informational·315/315 切换）:
+  observer **COMPLETE/exit 0**（tid_stat_err 0·born/gone 0·internal_errors 0·**libc 钉扎
+  =glibc 2.43**）·镜像 **120 件 md5 盒=origin**（17 组休眠期相邻快照字节相同=静止形态互证）。
+  **事件准点复现: E1@run_rel 7149/E2@7200（win==VmData==+5588 逐kB·VmSize 0·conservation +0·
+  冻结阶梯机判均 RESERVATION-EXTENSION·BOUNDARY-MIGRATION）**——跨 run 家族 7132/7142/7150/
+  7149 range 18s·**census=40 窗口跨 ASLR 全新基址复现**（E1/E2→0x732284000000/0x732280000000
+  恰相邻 64MiB·头部 22.6MB 类=O1 R1/R2 同型）。**thread_activity_visibility E1/E2=AMBIGUOUS**
+  （41847 行活动序列: decklinkvideosr×2 恒忙 ~240ms/2s 主导活动面但 ev==base_max **无事件独特
+  激活**·5.5MB 触页 CPU 为 ms 级低于 10ms tick 粒度地板·线程集 29/29/29 tid→comm 全等零漂移）
+  ——**STOP 纪律执行: 未缩小采样间隔·未延长实验·未改生产程序**。O2-B 结论（注册语义内）:
+  activity-correlated TID set 交付（恒忙面语境·非因果指认）; arena owner↔tid 未答（需 registry
+  证据·维持禁入）; causal thread 未答（O3 职责）。**O2 闭合→停等 O3 裁决**（O2-B 未收窄到因果
+  线程 ⇒ O3 需替代证据设计而非加强采样·六环硬门维持）。冻结维持: rss_bounded FAIL/+50MB/
+  十谓词/生产/PR #30。
+
+- **C2-O3-0 静态 candidate inventory+O3 设计注册（2026-09-10·用户三轮裁决 v2/v3 冻结·
+  零盒操作·零新采集·零生产代码改动）: 判定 COMPLETE（=inventory 完成·非 root cause
+  complete）**。三轴清点（周期/量级/对称·生产源码 file:line 重核 12 处全一致）+
+  三层候选分层: **A Rust 显式 retention=量级证伪**（V3 定量: 24h 唯一命令 2304×
+  容器上界 ≤1.59MB vs ≥86.6MB·差两数量级）; **B Rust→native allocation pressure=
+  有 morphology-compatible 路径未证**（make_mut 逐帧深拷贝=allocator-behavior
+  candidate / ring3-compatible candidate·永不 root cause·后三段全部待 O3-1 验证）;
+  **C GStreamer/native 内部状态=仅待验证假设**（~7100s 触发关系尚未由 allocation-path
+  evidence 建立·三行式逐字）。**V1: recover 候选 EXCLUDED-by-existing-evidence**
+  （四 run svc.log 11,703 行 recover/fault/supervisor 零命中+O2-B born=0 双轴反证——
+  退避 10-54s 间隔同构为巧合收敛）。**V2: 首事件四 run 全锁 cycle 249**（runner_rel
+  7142-7143s·计数坐标稳定→计数型类加权·但已注册计数候选成员级全证伪: fresh-command
+  坐标≈199≠幂次 128/256·N=256 预测 9168s≠实测 7143s·24h 簇距 246±9 cycle 恒定非几何;
+  候选空间转向非显式计数/状态累积路径·**不据此直接判定 native/allocator**）; 附带:
+  四 run 启动 cycle 3 同量级 +5.46MB 温启量子·24h 簇质量时变（c1970 处 12 步 +65.9MB）。
+  无 Rust 干净周期/量级候选——~7100s 触发器静态不可见·以"静态清点边界"披露。**O3 设计
+  注册（执行停等独立授权）**: 六环硬门逐字+c2rules 四句+解释纪律; **E2 判读四行表冻结**
+  （单输入同时改变并发度/buffer 生命周期/allocator pressure ⇒ E2 最多=候选空间分叉证据·
+  永不直接升级因果; 单输入事件消失≠"双输入路径导致泄漏"·异常运行=INCONCLUSIVE）+
+  E2 单一问题句（双输入/双实例是否必要前提）+ E2 形态（VBMF_DIAG_INPUTS=1 config-only·
+  单输入路径逐字节保持·program graph 不构建·bin f52b0161/runner/十谓词/+50MB 全不变·
+  2.5h·不因结果不漂亮延长实验）; FIX 原则预注册 A 复用>B 上限（禁机械 reserve(6MB)）>
+  C 真释放>D pool 回收·malloc_trim 永不入产; 验收预冻结 FIX→smoke→2h→8h→24h+谓词
+  10/10+阈值不变+RCA 诊断字段 diagnostic-only。状态链: O1 PASS→O2-A COMPATIBLE→O2-B
+  AMBIGUOUS→**O3-0 COMPLETE→registered→STOP→[独立授权]→O3-1/E2**。证据
+  c2o3-analysis 两件（本地生成）; 登记本 bullet+EVIDENCE-INDEX 一行+tasks part 12。

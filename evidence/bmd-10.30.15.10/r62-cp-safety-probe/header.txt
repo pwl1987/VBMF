@@ -1,0 +1,9 @@
+R62 Control Plane Safety Probe — 证据盒 (盒=origin)
+date: 2026-09-06T16:55-17:03+08:00 (box local)
+host: lytv@10.30.15.10 (BMD 真机)
+repo-rev: b8a9c8d (R61 HEAD) + R62 fault-probe integration test (md5 72a66129)
+service-bin-md5: 90186bb9c4ad29846c4bb95139ee68ff (R61 Step 14 同一 bin·确定性重建复核)
+manifest-md5: 7521d17e7fd02e50eb2b0a84374a43dd (a2-8-02i-v5)
+scope: 16-0A mock 级全链故障注入 F0-F4 (6 tests·盒上 mock 特性测试全过) + 16-0A 真机 leg (正常切换 0.152s·R53 签名) + 16-0B 并发 (串行基线/在途查询/并发 replay/双反向/停滞读者 10.175s) + stop_session teardown 1.23s
+matrix: fmt CLEAN / default 229 / sim 229 / mock 405+6 / hw 268 / clippy x3 -D warnings PASS
+note: md5s.txt 在 header.txt 加入后重新生成

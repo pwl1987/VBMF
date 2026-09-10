@@ -47,6 +47,7 @@ pub fn run(
     event_sink: &Arc<dyn RuntimeEventSink>,
     projection_log: &Arc<RuntimeEventLog>,
     internal_log: &Arc<RuntimeEventLog>,
+    event_intake: &Arc<std::sync::Mutex<crate::event_intake::InternalEventIntake>>,
 ) {
     if std::env::var("VBMF_SESSION_LIFECYCLE").is_ok() {
         let first_id = devices
@@ -171,7 +172,7 @@ pub fn run(
                                 lm.clone(),
                                 agent_state.clone(),
                                 event_sink.clone(),
-                                internal_log.clone(),
+                                event_intake.clone(),
                             );
                         }
                         // P0-7D-4.3 (E5): 生产同款 5s tick 线程 — 真实驱动 lease 续期 /
@@ -291,7 +292,7 @@ pub fn run(
                 issued_at_ms: 0,
                 requested_by: "vbmf-session-lifecycle-gate".into(),
             };
-            let out = dispatch(&mgr, &cmd_env);
+            let out = dispatch(&mgr, None, &cmd_env);
             println!(
                 "COMMAND-CONTRACT-RT-01 step=start status={:?} detail={:?}",
                 out.status, out.detail
@@ -312,7 +313,7 @@ pub fn run(
                     issued_at_ms: 0,
                     requested_by: "vbmf-session-lifecycle-gate".into(),
                 };
-                let out = dispatch(&mgr, &stop_env);
+                let out = dispatch(&mgr, None, &stop_env);
                 println!(
                     "COMMAND-CONTRACT-RT-01 step=stop status={:?} detail={:?}",
                     out.status, out.detail
@@ -324,7 +325,7 @@ pub fn run(
                     issued_at_ms: 0,
                     requested_by: "vbmf-session-lifecycle-gate".into(),
                 };
-                let out = dispatch(&mgr, &rel_env);
+                let out = dispatch(&mgr, None, &rel_env);
                 println!(
                     "COMMAND-CONTRACT-RT-01 step=release status={:?} detail={:?}",
                     out.status, out.detail

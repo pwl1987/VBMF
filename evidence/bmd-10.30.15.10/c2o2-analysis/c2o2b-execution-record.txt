@@ -1,0 +1,52 @@
+C2-O2 EXECUTION RECORD + O2-B ACTIVITY-CORRELATION RESULT —— 2026-09-10
+授权: 用户裁决「授权」（含红线扩围批复: task/<tid> comm→{comm,stat}·一次性 ldd --version）。
+边界重申: O2-A 只证 allocator-family structural compatibility; O2-B 只回答「哪些线程在事件窗口内
+具有活动时序相关性」——active TID ≠ causal TID·arena ownership 不答·因果归 O3 六阶硬门。
+工作负载: 2026-09-10-c2o2-2p5h（CYCLES=315/DWELL=28/replay 5·Step15 同构·**bin f52b0161==24h/B1/O1
+同一冻结二进制**·manifest 7521d17e·runner 机械 verdict PASS 10/10=informational only 不入梯·
+switches 315/315·RSS 首/末 1/3 1238.3→1246.4MB 窗内 +8.1MB）。
+观察者: 2026-09-10-c2o2-2p5h-observer（部署 md5 盒=源=repo 8631dc7 的 2e195d41…·**COMPLETE/exit 0/
+terminal=gone·覆盖 95%·gap_max 0·tid_ticks 1443·tid_rows 41847·tid_stat_err 0·born/gone 0·
+internal_errors 0·trig 2+/0-**）; **libc 钉扎= glibc 2.43（Ubuntu GLIBC 2.43-2ubuntu2.4·ldd+getconf
+双源）**; 红线实际读取面=授权清单（全文 grep 核验·禁入词仅存于禁入声明串）。
+
+== O2-A（零新增采集·既有 O1 证据）==
+VERDICT = ALLOCATOR-STRUCTURALLY-COMPATIBLE（详见 c2o2a-structural-verdict.txt·commit 8631dc7）
+- 40 个 64MiB 对齐·精确 64MiB 保留形态窗口·四普查点计数恒定; 832MiB 链分解 13/13 全合规
+- [heap] 与事件零相关（全程 +660kB≈事件量 5.9%）; libc=glibc 上下文（Rust 默认分配器·无自定义 GlobalAlloc）
+- 表述纪律: morphology is consistent with glibc allocator reservation behavior; 不写 arena X
+- STOP 检查: 非 INCOMPATIBLE → 进入 O2-B
+
+== O2-B（活动相关性·本 run 新采集）==
+事件准点复现: **E1 run_rel 7149（win +5588kB）·E2 run_rel 7200（win +5588kB）**——跨 run 家族
+7132/7142/7150/**7149** range 18s·两事件量子同值 5588（带内 ~5.4-5.7MiB）·间隔 51s。
+信封归因（本 run 全新 ASLR 基址·窗口发现非硬编码）: **E1→[0x732284000000) rw 22620→28208（+5588）
+PN −5588·conservation +0; E2→[0x732280000000) rw 22644→28232（+5588）PN −5588·conservation +0**——
+两窗口恰相邻 64MiB·头部 22.6MB 类=O1 R1/R2 同型·**冻结阶梯机判均=RESERVATION-EXTENSION·
+BOUNDARY-MIGRATION**·win==VmData==+5588 逐kB·VmSize Δ0·[heap] Δ0·new_out_rss 0·ΣΔAnon 零缺口。
+**普查复现: reservation-form 64MiB 窗口=40（O1 run 同为 40·ASLR 全新基址下计数与结构不变）**。
+
+线程活动（tid-activity 41847 行·2s 节拍保持未加快·clk_tck=100→1 tick=10ms）:
+- **thread_activity_visibility: E1=AMBIGUOUS·E2=AMBIGUOUS**（报告字段·非 verdict 枚举）
+- 事件刻活动面: decklinkvideosr ×2 恒忙线程主导（~24 ticks/2s ≈240ms·**ev==base_max·与自身基线
+  无差**）+ queue0:src/program-*-q 等次级（2-4 ticks）——**无任何线程在事件刻高于自身基线**
+- 解读（诚实边界）: 5.5MB 段触页的 CPU 成本为 ms 级=0-1 tick·低于 10ms 粒度地板——分配行为在
+  utime/stime 面不可见; 恒忙视频源线程的存在使活动面天然 AMBIGUOUS·非事件独特激活
+- 线程集稳定: start==trig-1==trig-2（29 tids·tid→comm 映射全等·零漂移）·born/gone 0·stat_err 0
+
+== O2-B 结论（注册语义内）==
+1. activity-correlated TID set 如上交付（以恒忙面为语境的诚实集合·非因果指认）。
+2. arena owner↔tid 未答（需 arena registry 证据=超出 O2-B 职责·维持禁入）。
+3. causal thread 未答（O3 职责·六阶证据链硬门维持）。
+4. STOP 纪律执行: 粒度不足如实记 AMBIGUOUS/粒度地板——**未缩小采样间隔·未延长实验·未改生产程序**。
+
+== 下一刀口 ==
+按注册梯子: O2 闭合（结构 COMPATIBLE + 活动集交付·visibility=AMBIGUOUS 如实）→ **停等 O3 裁决**
+（call-chain 因果候选·O2-B 未收窄到因果线程 ⇒ O3 需替代证据设计而非加强采样; O3 六环硬门:
+candidate→allocation path→allocator behavior→same reservation/arena→magnitude→repeatability 缺一不可）。
+
+== 披露 ==
+smaps 顺序非原子; 64MiB=结构线索; VmData=地址空间证据非 arena 字节; 扰动=诊断扰动非因果证据;
+fixtures 捕获两真缺陷（per-tid stat 路径缺 task/ 段·生命周期尾空格 flap）修复于部署前;
+本轮工程坑: 被杀任务子进程残留致双写者（清理后单写者断言加入 fixtures）·MSYS CLK_TCK=1000 与盒
+100 差异由数据侧缩放吸收。镜像 120 件 md5 盒=origin 逐件（含 17 组休眠期相邻快照字节相同=静止形态互证）。

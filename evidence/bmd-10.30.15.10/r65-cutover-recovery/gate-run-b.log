@@ -1,0 +1,143 @@
+[2m2026-09-06T17:13:37.831832Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"gstreamer" [3mmode[0m[2m=[0m"diagnostic"
+[2m2026-09-06T17:13:37.836469Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-06T17:13:37.836604Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-06T17:13:37.836639Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-06T17:13:37.836660Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-06T17:13:37.836683Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-06T17:13:37.836726Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-06T17:13:37.836758Z[0m [32m INFO[0m [2mmedia_agent_gates[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+=== R64 Control Plane / Switch Recovery 综合验收（real Control Plane + test-controlled adapter）===
+披露: C1/C2=真实硬件行为（注入仅在适配器调用点）; C3 observed=None 为接缝注入（真机管线运行中无法自然产生 absent observed）——恢复语义主证不变: 状态机拒绝猜测
+披露: C2b=R65 阶段二确定性段（F2×10——期望感知稳定再观测协议在案; R64 四跑三态不得复现）+ F4 settle 矛盾行
+披露: watchdog 未接线（a204_obs 先例·矩阵确定性; watchdog-in-loop 由 30min 真服务基线覆盖）
+epoch 口径: group.switch_epoch=begin 即消费（尝试数）; ProgramObservation.switch_epoch=已委托 plan epoch（绝对值, 失败重试可跳号）
+[2m2026-09-06T17:13:42.200593Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-06T17:13:42.200722Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+[2m2026-09-06T17:13:42.519071Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:42.853: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:42.856: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:42.856: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:42.891: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:42.891: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:42.891: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:43.396: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:43.396: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:13:43.396: gst_video_converter_free: assertion 'convert != NULL' failed
+R64-MATRIX phase1 world A=4fa33dcb-5f76-5f76-aea8-330df7ada03e B=6ede00d0-baf4-573f-a0dd-4a503bf7f766 sid=f9af246c-71af-4374-90f0-67a97d8bc9c6
+R64-MATRIX sixplane [init] cmd=None desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(0)/Some(0)/Some(0) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c0a A→B status=executed class=None detail=Some("switch executed: av_epoch=1 outcome=preserved timeline_epoch=0")
+R64-MATRIX c0b B→A status=executed class=None detail=Some("switch executed: av_epoch=2 outcome=preserved timeline_epoch=0")
+R64-MATRIX sixplane [c0-after] cmd=Some(("executed", None)) desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(2)/Some(2)/Some(2) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T17:13:49.990965Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e))) [3mtimeline[0m[2m=[0mSome(Ok(None))
+R64-MATRIX c1 A→B(注入 pre-flip Err) status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C1/C3 注入: adapter switch 失败（第 3 次调用——未委托, 硬件未动）")
+R64-MATRIX sixplane [c1-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(3)/Some(2)/Some(2) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c1-replay status=replayed class=Some("unknown") detail=Some("switch execution backend error: R64-C1/C3 注入: adapter switch 失败（第 3 次调用——未委托, 硬件未动）")
+R64-MATRIX c1-retry(A→B 新 id) status=executed class=None detail=Some("switch executed: av_epoch=4 outcome=preserved timeline_epoch=0")
+R64-MATRIX sixplane [c1-after-retry] cmd=Some(("executed", None)) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(4)/Some(4)/Some(4) tl(epoch/src/api)=Some(0)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(0) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T17:13:55.274038Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(4fa33dcb-5f76-5f76-aea8-330df7ada03e) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(1), video: SourceSegment { source_id: 4fa33dcb-5f76-5f76-aea8-330df7ada03e, program_epoch: ProgramEpoch(1), segment_id: SegmentId(6), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 4fa33dcb-5f76-5f76-aea8-330df7ada03e, program_epoch: ProgramEpoch(1), segment_id: SegmentId(6), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2 B→A(硬件真翻转+证据抑制) elapsed=5.125586071s status=executed class=Some("unknown") detail=Some("switch execution backend error: timeline 证据超时 FailClosed: timeline evidence insufficient (pending planes: [Video, Audio])")
+R64-MATRIX sixplane [c2-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(5)/Some(5)/Some(5) tl(epoch/src/api)=Some(1)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(1) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c2-replay status=replayed class=Some("unknown") detail=Some("switch execution backend error: timeline 证据超时 FailClosed: timeline evidence insufficient (pending planes: [Video, Audio])")
+R64-MATRIX c2-next(A→B) status=executed class=None detail=Some("switch executed: av_epoch=6 outcome=preserved timeline_epoch=1")
+R64-MATRIX sixplane [c2-after-next] cmd=Some(("executed", None)) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(6)/Some(6)/Some(6) tl(epoch/src/api)=Some(1)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(1) api(status/present)=(200/true) verdict=OK
+R64-MATRIX storm 开始（B→A 后台 + 并发查询 + 同 id replay + 异 id 排队）
+R64-MATRIX storm first=executed class=None | replay=replayed | queued=executed class=None
+R64-MATRIX storm 真值序列 4 样本: av6(窗内=B)→7(A)→8(B) 演进=快照只读已提交事实
+R64-MATRIX sixplane [storm-after] cmd=Some(("executed", None)) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(8)/Some(8)/Some(8) tl(epoch/src/api)=Some(1)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(1) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T17:13:56.260518Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mNone [3mgroup[0m[2m=[0mSome(Ok(RecoveryRequired { from: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, to: 4fa33dcb-5f76-5f76-aea8-330df7ada03e })) [3mtimeline[0m[2m=[0mSome(Ok(None))
+R64-MATRIX c3 B→A(注入 pre-flip Err + observed=None) status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C1/C3 注入: adapter switch 失败（第 9 次调用——未委托, 硬件未动）")
+R64-MATRIX sixplane [c3-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(RecoveryRequired { from: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, to: 4fa33dcb-5f76-5f76-aea8-330df7ada03e }) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(9)/Some(8)/Some(8) tl(epoch/src/api)=Some(1)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(1) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c3-next(新 id) status=executed class=Some("permanent") detail=Some("switch recovery required before next switch (observed unknown after failed switch): RecoveryRequired { from: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, to: 4fa33dcb-5f76-5f76-aea8-330df7ada03e }")
+R64-MATRIX sixplane [c3-after-reject] cmd=Some(("executed", Some("permanent"))) desired=Some(RecoveryRequired { from: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, to: 4fa33dcb-5f76-5f76-aea8-330df7ada03e }) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(9)/Some(8)/Some(8) tl(epoch/src/api)=Some(1)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(1) api(status/present)=(200/true) verdict=OK
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:13:56.268: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:13:56.269: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:13:56.269: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:13:56.269: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+[2m2026-09-06T17:13:56.269606Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0mf9af246c-71af-4374-90f0-67a97d8bc9c6 [3mgraph[0m[2m=[0m3
+R64-MATRIX c3-stop status=executed class=None detail=None
+R64-MATRIX sixplane [teardown] cmd=Some(("executed", None)) desired=None observed=None sw_epoch(g/p/api)=None/None/None tl(epoch/src/api)=None/None/None api(status/present)=(200/false) verdict=OK
+[2m2026-09-06T17:14:03.762676Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-06T17:14:03.762805Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+[2m2026-09-06T17:14:03.983548Z[0m [33m WARN[0m [2mmedia_agent::adapters::gstreamer::controller[0m[2m:[0m Bus watch MainContext 推送失败 [3merror[0m[2m=[0mFailed to acquire ownership of main context, already acquired by another thread
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.293: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.293: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.293: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.326: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.326: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.326: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.834: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.835: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent-gates:1285309): GStreamer-Video-CRITICAL **: 01:14:04.835: gst_video_converter_free: assertion 'convert != NULL' failed
+R64-MATRIX phase2(R65 F2×10 确定性) world A=4fa33dcb-5f76-5f76-aea8-330df7ada03e B=6ede00d0-baf4-573f-a0dd-4a503bf7f766 sid=940d1ff0-3760-4f43-91b3-9eb37f48e3a6
+R64-MATRIX sixplane [p2-init] cmd=None desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(0)/Some(0)/Some(0) tl(epoch/src/api)=Some(0)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(0) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T17:14:11.178540Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(1), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(1), segment_id: SegmentId(2), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(1), segment_id: SegmentId(2), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[1] A→B(release Err) elapsed=151.882052ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX sixplane [c2b1-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(1)/Some(1)/Some(1) tl(epoch/src/api)=Some(1)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(1) api(status/present)=(200/true) verdict=OK
+R64-MATRIX c2b[1] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=2 outcome=preserved timeline_epoch=1")
+[2m2026-09-06T17:14:11.489011Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(2), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(2), segment_id: SegmentId(5), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(2), segment_id: SegmentId(5), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[2] A→B(release Err) elapsed=151.920773ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[2] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=4 outcome=preserved timeline_epoch=2")
+[2m2026-09-06T17:14:11.797376Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(3), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(3), segment_id: SegmentId(8), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(3), segment_id: SegmentId(8), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[3] A→B(release Err) elapsed=151.849253ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[3] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=6 outcome=preserved timeline_epoch=3")
+[2m2026-09-06T17:14:12.105105Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(4), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(4), segment_id: SegmentId(11), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(4), segment_id: SegmentId(11), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[4] A→B(release Err) elapsed=151.712879ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[4] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=8 outcome=preserved timeline_epoch=4")
+[2m2026-09-06T17:14:12.412226Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(5), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(5), segment_id: SegmentId(14), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(5), segment_id: SegmentId(14), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[5] A→B(release Err) elapsed=151.748446ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[5] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=10 outcome=preserved timeline_epoch=5")
+[2m2026-09-06T17:14:12.720149Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(6), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(6), segment_id: SegmentId(17), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(6), segment_id: SegmentId(17), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[6] A→B(release Err) elapsed=151.866534ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[6] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=12 outcome=preserved timeline_epoch=6")
+[2m2026-09-06T17:14:13.028566Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(7), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(7), segment_id: SegmentId(20), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(7), segment_id: SegmentId(20), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[7] A→B(release Err) elapsed=168.519693ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[7] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=14 outcome=preserved timeline_epoch=7")
+[2m2026-09-06T17:14:13.352637Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(8), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(8), segment_id: SegmentId(23), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(8), segment_id: SegmentId(23), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[8] A→B(release Err) elapsed=151.898737ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[8] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=16 outcome=preserved timeline_epoch=8")
+[2m2026-09-06T17:14:13.660381Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(9), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(9), segment_id: SegmentId(26), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(9), segment_id: SegmentId(26), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[9] A→B(release Err) elapsed=151.828502ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[9] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=18 outcome=preserved timeline_epoch=9")
+[2m2026-09-06T17:14:13.968299Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(10), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(10), segment_id: SegmentId(29), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(10), segment_id: SegmentId(29), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX c2b[10] A→B(release Err) elapsed=151.70641ms status=executed class=Some("unknown") detail=Some("switch execution backend error: R64-C2b 注入: 排空确认失败（真机=5s 确认超时同类）")
+R64-MATRIX c2b[10] B→A(反向) status=executed class=None detail=Some("switch executed: av_epoch=20 outcome=preserved timeline_epoch=10")
+R64-MATRIX sixplane [c2b10-after] cmd=None desired=Some(ActiveInput(4fa33dcb-5f76-5f76-aea8-330df7ada03e)) observed=Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e) sw_epoch(g/p/api)=Some(20)/Some(20)/Some(20) tl(epoch/src/api)=Some(10)/Some(4fa33dcb-5f76-5f76-aea8-330df7ada03e)/Some(10) api(status/present)=(200/true) verdict=OK
+[2m2026-09-06T17:14:14.279279Z[0m [33m WARN[0m [2mmedia_agent::program_execution[0m[2m:[0m R63-A 切换失败后恢复落定（Observed 优先） [3mobserved_active[0m[2m=[0mSome(6ede00d0-baf4-573f-a0dd-4a503bf7f766) [3mgroup[0m[2m=[0mSome(Ok(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766))) [3mtimeline[0m[2m=[0mSome(Ok(Some(NewEpoch { epoch: ProgramEpoch(11), video: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(11), segment_id: SegmentId(32), source_start_pts: 0, program_start_pts: 0, offset: 0 }, audio: SourceSegment { source_id: 6ede00d0-baf4-573f-a0dd-4a503bf7f766, program_epoch: ProgramEpoch(11), segment_id: SegmentId(32), source_start_pts: 0, program_start_pts: 0, offset: 0 } })))
+R64-MATRIX f4 A→B(⑨ PTS 回注矛盾) status=executed class=Some("unknown") detail=Some("switch execution backend error: timeline FailClosed（观测/状态机）: undeclared backward jump on video: observed 1 last 10467698886")
+R64-MATRIX sixplane [f4-landed] cmd=Some(("executed", Some("unknown"))) desired=Some(ActiveInput(6ede00d0-baf4-573f-a0dd-4a503bf7f766)) observed=Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766) sw_epoch(g/p/api)=Some(21)/Some(21)/Some(21) tl(epoch/src/api)=Some(11)/Some(6ede00d0-baf4-573f-a0dd-4a503bf7f766)/Some(11) api(status/present)=(200/true) verdict=OK
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:14:14.438: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:14:14.438: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:14:14.438: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent-gates:1285309): GStreamer-CRITICAL **: 01:14:14.438: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+[2m2026-09-06T17:14:14.438921Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0m940d1ff0-3760-4f43-91b3-9eb37f48e3a6 [3mgraph[0m[2m=[0m6
+R64-MATRIX phase2-stop status=executed class=None detail=None
+R64-MATRIX sixplane [p2-teardown] cmd=Some(("executed", None)) desired=None observed=None sw_epoch(g/p/api)=None/None/None tl(epoch/src/api)=None/None/None api(status/present)=(200/false) verdict=OK
+R64-MATRIX summary phase1_switches_delegated=7 phase2_switches_delegated=22 findings=1 failures=0
+R64-MATRIX FINDING: c2b F2×10 确定性: landed_to=10/10 other=[]（R64 四跑三态 L1/L2/L3 在案——R65 后不得复现）
+R64-MATRIX verdict PASS-AND-FINDINGS（阶段一判据全绿 + 阶段二在案采集完整——exit 0; FINDING 归裁决）

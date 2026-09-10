@@ -1,0 +1,126 @@
+================================================================================
+C2-O3 ALLOCATION-PATH RCA 设计注册（REGISTERED——执行停等独立授权）
+================================================================================
+日期: 2026-09-10
+轮次: A2-8-05 Step 15 RSS-RCA C 线 C2-O3（用户三轮裁决 v2/v3 注册版冻结）
+状态: 设计+判读规则=已冻结; **O3-1 执行（含 E2）未授权——entry/设计注册≠执行授权**。
+伴生件: c2o3-candidate-inventory.txt（O3-0 判定 COMPLETE·三层候选分层+V1/V2/V3）。
+
+--------------------------------------------------------------------------------
+§0 用户裁决逐条入档（2026-09-10 O3 裁决）
+--------------------------------------------------------------------------------
+- 可以修·但现在不直接改生产代码; 真正要修的问题是"为什么每隔约 7140-7200s
+  会有一块长期保留的匿名 reservation 被再次扩展并触页·而这些页面之后没有回收"。
+- 不修 rss_bounded 谓词·不简单 malloc_trim()（掩盖现象·把 RCA 退化为压指标·
+  与证据纪律冲突）。malloc_trim 仅为潜在实验性诊断手段·**永不入产**。
+- O3 从 activity observation 转向 allocation-path evidence; **不再增加线程采样强度**。
+- FIX 原则预注册（仅注册不执行·优先级序）:
+    A 固定容量复用（初始化一次·固定 capacity·每周期 reset/reuse）
+    > B 明确容量上限（reserve(expected)——**禁机械 reserve(6MB)**·必须由 O3 证明具体对象）
+    > C 生命周期结束真释放（clear 通常不够·按对象语义 swap-empty/重建/显式释放 native 资源）
+    > D GStreamer pool 正确回收（acquire→use→unref→release ownership 链·非 unref+trim）。
+- 验收预冻结: FIX→smoke→2h→8h→24h; 功能谓词 10/10 PASS; **rss_bounded +50MB 阈值不变**;
+  新增 RCA 诊断观测字段 reservation_extension_count / reservation_rw_delta /
+  anonymous_quantum_events = diagnostic-only·不替代稳定性谓词; 理想修复后形态=
+  RSS plateau + reservation boundary migration = 0（至少不再呈 ~7140s/+5588kB 稳定重复）。
+- RCA 现状句（逐字）: 「RESERVATION-EXTENSION·BOUNDARY-MIGRATION 已跨多 run 稳定
+  复现; 其结构与 glibc allocator reservation family 兼容·但 arena、allocation path、
+  causal thread 和 retention mechanism 尚未证明。O2-B 线程活动为 AMBIGUOUS·因此
+  下一阶段必须转向 allocation-path evidence。」
+
+--------------------------------------------------------------------------------
+§1 目标与硬门（冻结·逐字）
+--------------------------------------------------------------------------------
+O3 目标: 找到能够同时解释 周期(~7100s)、对象、allocation family、
+reservation expansion、5.5MB magnitude 的 candidate path。
+
+六环证据硬门（逐字·缺一不可·任何 candidate 若无法形成
+『候选代码路径→实际 allocation family→reservation/arena expansion→observed quantum』
+证据链·不得升级为 RCA conclusion; E2 之后任何候选六环一环都不能跳）:
+    candidate → allocation path → allocator behavior
+    → same reservation/arena → magnitude → repeatability
+
+C2 总原则四句式（c2rules·继承）:
+  ①每层只证本层对象·不跨层升级 ②Supporting evidence 不得自动升级为本层事实
+  ③相关性不得自动升级为因果性 ④为获得期望结论·不得反向扩大实验强度或修改生产系统。
+解释纪律（继承）: 可写 "morphology is consistent with glibc allocator reservation
+behavior"; **不得写 "this is glibc arena X"**（无 runtime evidence 前禁止单一
+glibc 假说定论）。
+
+--------------------------------------------------------------------------------
+§2 E2 判读冻结表（用户裁决逐字——分叉证据·非因果结论）
+--------------------------------------------------------------------------------
+前提钉死: E2 单输入变体同时改变并发度、buffer 生命周期、native allocator
+pressure 等条件 ⇒ E2 最多是**候选空间分叉证据**·永不直接升级因果结论。
+
+| E2 结果                        | 允许结论                                   | 不允许结论                |
+|--------------------------------|--------------------------------------------|---------------------------|
+| 单输入事件仍复现               | 双输入不是必要条件; 候选向 ingest/allocator/common path 收敛 | 不能证明某个 allocator/path |
+| 单输入事件消失                 | 双输入条件是事件出现的必要条件之一; 双实例/共享 graph 候选升权 | **不能写成"双输入路径导致泄漏"** |
+| 事件周期/量级改变              | workload-sensitive; 候选进入 allocation-pressure 分支 | 不能直接判定具体对象       |
+| 运行异常/无法形成完整观察窗    | INCONCLUSIVE                               | 不能用异常运行作为 RCA 证据 |
+
+E2 最终只回答一个问题（冻结句·逐字）:
+  双输入/双实例条件是不是形成这条 allocation-path 的必要前提?
+  是 → 沿 双实例共享 graph / make_mut / GStreamer buffer ownership 链深入;
+  否 → 转向 common ingest / native allocation path·不追 program graph。
+（单输入事件消失 ≠ 找到根因——只意味着双输入条件成为必要条件之一·候选权重上升·
+  之后仍必须过六环硬门。）
+
+--------------------------------------------------------------------------------
+§3 O3-1 证据选项表（每项: 能证明/不能证明/红线状态/需否新授权）
+--------------------------------------------------------------------------------
+E1 零采集交叉验证 —— 已随 O3-0 完成（V1 recover 反证·V2 计数判别·V3 量级证伪）
+   能: 对已注册候选的证伪/降权。不能: 正向定位 allocation path。红线: 纯本地只读。
+E2 单输入差分诊断 workload —— **下一刀建议（需独立授权·未授权）**
+   形态: VBMF_DIAG_INPUTS=1（config-only·bin/media-agent.rs:339-348·默认 1=单输入
+   行为·单输入路径逐字节保持 bin/media-agent.rs:447·started_inputs.len()==2 才接线
+   ExecutionGroup/program graph :455——单输入下 program graph 完全不构建）。
+   bin 不变 f52b0161·runner 不变·十谓词不变·2.5h 定点跨首事件窗（先例: B1/C2O1/C2O2
+   诊断 run·非稳定性 rung·不入梯·非 24h 复验）。observer 复用红线内既有面。
+   能: §2 冻结表四分支的候选空间分叉。不能: 定位具体 allocator/path/对象
+   （六环仅可推进 ring1 方向性）。
+E3 既有红线内 observer 复用 —— procfs {status,smaps,smaps_rollup,statm,stat,cmdline,
+   exe}+task/{comm,stat} 面**不加宽·采样不加密**（默认无需新面·若 E2 需要任何
+   新数据面=逐项另批）。
+E4 生产代码观测点 —— =FIX 前置·不在 O3 批准面。
+
+E2 约束继承（逐字）: f52b0161 二进制不变 / runner 不变 / 十谓词不变 /
+rss_bounded +50MB 不变 / 不增加线程采样频率 / 不引入 allocator tracing /
+不改 production source / 不把诊断 run 当稳定性 rung / 不因结果"不漂亮"而延长实验。
+
+--------------------------------------------------------------------------------
+§4 STOP 条件（冻结）
+--------------------------------------------------------------------------------
+- V1-V3 后候选集空 → 停等重裁。（未触发: 三层分层已登记·B/C 层非空）
+- E2 被否决且无替代判别器 → 停等重裁。
+- 任何证据设计需越禁入清单（malloc_info/gdb/pmap/perf/eBPF/LD_PRELOAD/
+  GStreamer debug/allocator tracing/jemalloc/glibc tunables）→ 停等重裁。
+- c2rules④: 不为结论扩实验强度或修改生产系统。
+
+--------------------------------------------------------------------------------
+§5 最终状态链（入档）
+--------------------------------------------------------------------------------
+  C2-O1    PASS (RESERVATION-EXTENSION·BOUNDARY-MIGRATION)
+    ↓
+  C2-O2-A  ALLOCATOR-STRUCTURALLY-COMPATIBLE
+    ↓
+  C2-O2-B  AMBIGUOUS
+    ↓
+  C2-O3-0  COMPLETE (inventory 完成·非 root cause complete)
+    ↓
+  Candidate inventory registered
+    ↓
+  STOP
+    ↓
+  [独立授权]
+    ↓
+  C2-O3-1 / E2
+
+--------------------------------------------------------------------------------
+§6 边界冻结（本刀不做·全继承）
+--------------------------------------------------------------------------------
+零盒操作·零新采集·不动生产代码·不动 runner 与十谓词·rss_bounded 维持 FAIL
+原判与 +50MB 阈值·不重跑 24h·不 merge PR #30·禁入清单全继承·O3-1 执行（含 E2）
+不在本批准面·不新增线程采样强度·无新阈值·状态机与 O 编号不扩张（无 O5/第七级）。
+================================================================================

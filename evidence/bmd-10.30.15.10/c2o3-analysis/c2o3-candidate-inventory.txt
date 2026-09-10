@@ -1,0 +1,145 @@
+================================================================================
+C2-O3-0 STATIC CANDIDATE INVENTORY —— 判定词 COMPLETE
+（COMPLETE = inventory 完成·不是 root cause complete）
+================================================================================
+日期: 2026-09-10
+轮次: A2-8-05 Step 15 RSS-RCA C 线 C2-O3-0（用户三轮裁决 v2/v3 注册版·逐刀指挥）
+执行面: 仓库只读（services 生产源码三轴探查+file:line 重核 12 处全一致）+
+        既有本地证据镜像只读（V1/V2/V3 零采集交叉验证）。
+边界: 零盒操作·零新采集·零生产代码改动·零 runner/谓词改动。
+上游状态链: C2-O1 PASS(RESERVATION-EXTENSION·BOUNDARY-MIGRATION) →
+  C2-O2-A ALLOCATOR-STRUCTURALLY-COMPATIBLE → C2-O2-B AMBIGUOUS →
+  C2-O3-0 COMPLETE(本件) → STOP → [独立授权] → C2-O3-1/E2。
+
+--------------------------------------------------------------------------------
+§1 零采集交叉验证（V1/V2/V3·全部对既有 242 件本地镜像·只读）
+--------------------------------------------------------------------------------
+
+V1 recover 路径证伪核验（候选 #1 的裁决性反证）
+  - 四 run svc.log 全量扫描（24h=8345 行 / b1-4h=1436 / c2o1=961 / c2o2=961·共 11,703 行）
+    模式 recover|Restart|report_failure|Escalate|MANUAL_REQUIRED|PipelineFault:
+    **零命中（四 run 全零）**。
+  - 叠加 O2-B 既有事实: 全程线程 born=0/gone=0（29/29/29 恒定）——recover=
+    stop+join+新线程（controller.rs:237-242）必然产生新 TID。
+  - 裁决: per-input recover 重建突发候选 = **EXCLUDED-by-existing-evidence**
+    （形态同构于簇内 10-54s 间隔是巧合收敛·双轴反证: 无故障日志+无线程churn）。
+
+V2 计数-vs-墙钟判别（samples.csv 逐 cycle 时间戳 × 四 run RSS 步进事件）
+  - cycle 周期: 四 run 全部 median=29s min=28 max=29（implied 28.80s/cycle 恒定）。
+  - 首事件 cycle 号: **四 run 全部 = 249**（runner_rel 7142-7143s·24h 簇 249+250·
+    b1 249（+10.91MB 单样本窗合并双子步）·c2o1 249+251·c2o2 249+251）。
+  - 24h 簇首 cycle 序列: 249,494,738,984,1226,1489,1722,1970,2469,2718
+    簇间 cycle 差: 245,244,246,242,263,233,248,[499],249（前 7 段 245.9±9.5 恒定·
+    非几何增长）; 簇间墙钟差 6970-7576s（剔除 1970→2469 的 14372s 异常段）。
+  - 成员级证伪: 事件时 fresh-command 坐标 ≈249×0.8=**199**（replays.jsonl 实测
+    24h 576 行重放·唯一命令=2304）≠ 幂次阈值 128/256（N=256 预测首事件 cycle≈320/
+    rel≈9168s·实测 249/7143s）; 簇距 ~246 cycle 恒定 ≠ 倍增几何序列。
+  - park 3600s 坐标: wake≈cycle 125/251/377/501… vs 事件簇 249/494/738/984——
+    前两簇表面接近（249 vs 251·494 vs 501）但第三簇起发散（738 vs 752·984 vs 1002）·
+    且 wake 体=空循环（bin/media-agent.rs:664-666·零代码）= 结构性排除。
+  - 按冻结判读措辞裁决: **固定 cycle 号（249·四 run）→ 计数型候选类加权保留;
+    但已注册的 Rust 显式计数候选（#2/#3/#6）在各自阈值坐标上全部不命中 →
+    成员级证伪·候选空间转向非显式计数/状态累积路径; 不能据此直接判定
+    native/allocator**（墙钟稳定只证时间相关性·不证机制层）。
+  - 附带观测事实（不解释·记为 O3-1 待证输入）:
+    a) 四 run 启动第 3 cycle 均有一次同量级 +5.46MB 步（与大事件量子同量级·
+       与 O1 "R1/R2 启动热身至 22.6MB" 形态一致——同一分配量子在温启与周期
+       事件两处出现）。
+    b) 24h c1970 处 12 步 +65.88MB 簇（跨 ~7.1e3s·1800s 阈值单簇·更细阈值应
+       再分）——簇质量存在时变; c1489 单量子簇; 8 负步（与 C1 一致·集中 C07）。
+    c) 记账: 启动 blob +127.5MB + 簇和 +164.1MB vs 净 +250.1MB（负步/杂项
+       平衡·informational）。
+
+V3 retention 容器增长定量（A 层量级证伪的数值确认）
+  - 24h: cycles=2880·replays=576（实测）·唯一命令=2304
+    idempotency 上界 ~1,125kB + timeline 双 Vec 上界 ~504kB + custody≈0（V1 零故障）
+    ⇒ 合计上界 **≤1.59MB**。
+  - 对照: 24h 启动后量子步和 ~164MB / rss_bounded FAIL 边际 +86.6MB
+    ⇒ **差约两个数量级** —— A 层（Rust 显式 retention）量级证伪定量成立。
+
+--------------------------------------------------------------------------------
+§2 三轴候选全表（file:line 已逐条重核·12 处关键锚点本轮重读原文全一致）
+--------------------------------------------------------------------------------
+
+[A 周期轴] 生产代码全部定时/循环/计数机制
+  A1 mgr.tick 5s 循环            bin/media-agent.rs:572-575(诊断)/609-612(生产)
+     每 tick: holders/targets Vec+owner String clone+leases.health() Vec+renew clone——sub-KB 连续
+  A2 lease renew 窗口续期        session.rs:946-995（TTL 60s/窗口 15s·session.rs:229-237）
+     有效 45-50s 节拍·~64B/次连续非突发; 组合 ~142×50≈7100s=unclear（无正向证据）
+  A3 main park 3600s 空转        bin/media-agent.rs:664-666（醒后零动作·结构性排除·见 V2）
+  A4 watchdog 500ms×20=10s 网格  watchdog.rs:56/277/631（诊断行稳态·无阈值机制）
+  A5 Reserved 30s 超时           session.rs:997-1034·reservation_window_ms=30_000（一次性@启动）
+  A6 GLib 200ms 停止旗标         controller.rs:484（仅查 AtomicBool·零分配）
+  结论: **无干净周期候选**（簇距 σ3.2% 排除硬定时器; 计数类见 V2 成员级证伪）。
+
+[B 量级轴] 落带 [5544,5628]kB 的全部分配式（5588kB=5,722,112B=4096×1397·无整帧式分解）
+  B1 Rust 字面量 [5.0M,6.1M] 零命中（继承 C2·本轮复核确认无新分配原语）
+  B2 v210 帧 5,529,600B=5,400kB   pipeline.rs:222-231 caps 不锁定格式——实协商格式
+     静态不可知（最近单帧式·带下沿 144-234kB·披露）; per-input 对称
+  B3 I420 1080i50 帧 3,110,400B   signal.rs:271-273（probe/gate-only·工作负载未激活）
+  B4 make_mut 深拷贝 3,110,400B/帧@25fps  switch_graph.rs:212-214（见 §3 逐字段）
+  B5 HLS 段 2×~1.53MB@6Mbps      transport.rs:477/540-546（runner 无 HLS GET·未激活;
+     ~21.5Mbps 才近带·VBMF_OUTPUT_V_BITRATE_KBPS 非默认）
+  B6 三大 append-only 容器 KB~百KB级  idempotency.rs:96/146·program_timeline.rs:384-385/
+     722-723·event_intake.rs:65（V3 定量 ≤1.59MB/24h·量级证伪）
+  结论: **Rust 静态面无单点分配式落带**; 量子指向 native 突发合计（非单一 Rust 分配）。
+
+[C 对称轴] 两 reservation 簇内 10-54s 先后扩展 ⇒ 两平行实例路径
+  C1 每输入完整实例化            session.rs:641-665（Backend.instantiate 全部 plans·
+     多输入不再只物化首计划）× controller.rs:380-500 build + :441-498 每管线独立
+     GLib bus-watch 线程
+  C2 每输入 recover 重建         watchdog.rs:735-752 → controller.rs:217-299
+     （supervisor 退避 1→2→…→60s·supervisor.rs 策略——天然把两输入 recover 隔开
+     10-54s·与簇内间隔精确同构）——**V1 双轴反证·EXCLUDED**
+  C3 无 buffer pool 配置         BufferPool|max-buffers|leaky 全仓零命中（queue/appsink
+     全默认）——native 侧池行为=结构性缺失锚（非"无池"结论·是"未配置"事实）
+  C4 c_renegotiations 永不加一   pipeline.rs:431/488（重协商假设静态排除·watchdog c3
+     结构恒真）
+  C5 GST_DEBUG/MALLOC_/env 操纵  全仓零命中（服务只读 LD_LIBRARY_PATH·resolver.rs:891）
+
+--------------------------------------------------------------------------------
+§3 清点结论 = 三层候选分层（用户裁决逐字）
+--------------------------------------------------------------------------------
+
+  A. Rust 显式 retention
+     → 已基本量级证伪（V3 定量: ≤1.59MB/24h vs ≥86.6MB·差两个数量级）
+
+  B. Rust → GStreamer/native allocation pressure
+     → 有 morphology-compatible 路径·allocation-path 尚未证明
+
+  C. GStreamer/native allocator 内部状态
+     → 当前可解释候选之一;
+     → ~7100s 触发关系尚未由 allocation-path evidence 建立;
+     → 仅作为 O3-1 待验证假设。
+
+make_mut 段（用户裁决逐字）:
+
+  switch_graph.rs:212-214 的 make_mut 深拷贝 → 已确认存在持续 allocation/churn 的代码候选;
+  其后是否改变 glibc allocator 的分配尺寸/路径、
+  是否进入当前 reservation envelope、
+  以及是否最终形成 +5588kB RW expansion,
+  均待 O3-1 allocation-path evidence 验证。
+  当前命名: allocator-behavior candidate / ring3-compatible candidate。
+
+事实注（B4 代码形态·重核自 switch_graph.rs:200-217）: 该探针在 selector 出口
+BUFFER probe 内·apply_declared_mapping 返回 Some 后对 info.buffer_mut() 执行
+make_mut()+set_pts()——make_mut 为写时复制: 缓冲区共享（tee 双分支）时深拷贝整帧。
+首条声明段安装并观测后映射持续生效（每次切换后永久处于该状态）。
+
+--------------------------------------------------------------------------------
+§4 静态清点边界（诚实披露·非结论）
+--------------------------------------------------------------------------------
+- ~7100s 触发器在 Rust 静态面不可见: 无定时器/计数器/阈值匹配该周期（§2A+V2）。
+- 触发器可能位于 GStreamer 内部状态（inter 队列/未配置池的涌现行为）或
+  allocator 内部状态（arena 态）——归 C 层待验证假设·以"静态清点边界"披露。
+- 协商像素格式静态不可知（B2）·native 侧分配尺寸全部不可静态枚举——这两类
+  问题只能由 O3-1 证据回答。
+- 本清点不产生任何 root-cause 结论; 任何候选升格必须过六环硬门
+  （candidate→allocation path→allocator behavior→same reservation/arena→
+  magnitude→repeatability·缺一不可）。
+- 解析器/分析过程: 会话内只读 python（V1/V2/V3）·零仓库写入·审计轨迹=本件+会话记录。
+
+================================================================================
+判定: C2-O3-0 = COMPLETE（inventory 完成·非 root cause complete）
+下一刀（需独立授权）: C2-O3-1/E2 单输入差分——见 c2o3-allocation-path-design.txt
+================================================================================
