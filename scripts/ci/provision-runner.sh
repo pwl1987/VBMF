@@ -139,9 +139,13 @@ fi
 
 # ── user + directory layout ───────────────────────────────────────────────────
 if ! id -u "$RUNNER_USER" >/dev/null 2>&1; then
-  useradd --system --home-dir "$BASE_DIR" --shell "$RUNNER_SHELL" "$RUNNER_USER"
+  # --user-group: Debian/Ubuntu useradd --system alone puts the account in
+  # 'nogroup' and creates no vbmf-ci group, which the chown below requires.
+  useradd --system --user-group --home-dir "$BASE_DIR" --shell "$RUNNER_SHELL" "$RUNNER_USER"
   log "created system user $RUNNER_USER (shell $RUNNER_SHELL)"
 fi
+# guard for pre-existing accounts without a matching group (e.g. host drift)
+getent group "$RUNNER_USER" >/dev/null 2>&1 || groupadd --system "$RUNNER_USER"
 mkdir -p "$BASE_DIR/packages" "$BASE_DIR/runners" "$BASE_DIR/manifests/$NAME"
 # vbmf-ci must be able to traverse BASE_DIR to reach runners/<name> (systemd
 # WorkingDirectory resolves as that user); root keeps ownership, group grants
