@@ -1,0 +1,11 @@
+run_kind=C2-O3-1/E2 single-input differential diagnostic
+step15_verdict=INAPPLICABLE
+inputs=1
+cycles=315
+dwell_s=28
+nominal_observer_s=9200
+bin_md5=ad89c6d3c863b3b36bde540892ffdff9
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+frozen_question=dual-input/dual-instance condition necessary for target allocation-path event?
+interpretation=differential evidence only; never causal conclusion
+rss_threshold_reference=+50MB unchanged; not used to re-adjudicate prior 24h FAIL

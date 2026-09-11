@@ -1,0 +1,5 @@
+box-side files NOT copied to repo (recorded only; full md5s in md5s.txt):
+main.csv 297 lines / lite.csv 884 / fastlite.csv 1443 / children.csv 1 / tid-activity.csv 25957
+smaps snapshots: 90 files (topology-base/win/trig/post/end/start + index in topology-index.txt)
+box evidence root: ~/a2-8-02i-evidence/2026-09-11-c2o3-e2-single-input-2p5h(-observer)
+verified 2026-09-12 collection: 35/35 copied files md5 box==local

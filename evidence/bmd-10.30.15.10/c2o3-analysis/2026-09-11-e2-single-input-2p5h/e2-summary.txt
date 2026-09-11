@@ -1,0 +1,11 @@
+observer_status=COMPLETE
+observer_exit=0
+coverage_pct=96
+trig_positive=7
+trig_negative=0
+rss_start_kb=420076
+rss_end_kb=787776
+rss_delta_kb=367700
+E2_RESULT=SINGLE_INPUT_EVENT_OBSERVED
+allowed_conclusion=dual-input is not a necessary condition; narrow toward common ingest/native allocation path
+step15_verdict=UNCHANGED_24H_FAIL
