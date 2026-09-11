@@ -186,6 +186,10 @@ Level 2 (Remote BMD): SSH → pinned SHA → Docker Compose → ENV Preflight �
                       Device Lease → A2(real SDI) → FI-08 → FI-09 → HA → Evidence
 ```
 
+> **Self-hosted Runner 基础设施**（Level 1 执行环境的延伸，**不改变两级验收边界**）：
+> 见 [`CI_RUNNER_STRATEGY.md`](CI_RUNNER_STRATEGY.md)（Phase 1 v1.2 — 先建 Runner，
+> 现有 CI 零改动；GATE-C 实机验收仍走本节 Remote BMD 人工流程，不进普通 PR CI）。
+
 ### Remote Acceptance Workspace（避免随便 clone）
 ```
 /opt/vbmf-dev/
