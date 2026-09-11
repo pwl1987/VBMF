@@ -396,3 +396,28 @@ DeckLink SDK（模式待裁决）·（仅实机验收场景：BMD Desktop Video 
   KVM VM 落地（libvirtd active / 32C·92G·168G 余量充足，由 CI 侧自助供给，
   不触碰宿主机既有 VM）。**同宿主机故障域**：满足维护冗余/滚动升级/并发/parity
   四项诉求；物理级故障冗余留待真机替换时重评。
+
+### 15.5 P2-A 执行记录（2026-09-11，已完成并轨）
+
+- **`vbmf-ci-02` 上线**：KVM VM（Ubuntu 26.04 LTS / 8C·16G·100G qcow2 overlay，
+  `virsh autostart` 已开），同 runbook 供给；probe 定向实测（PR #40 的 tier
+  choice 白名单输入）先后验证 `vbmf-parity-b` 与并轨后 `vbmf-general`。
+- **parity 结论**：被测 6 工具（git 2.53.0 / python3 3.14.4 / pkg-config 2.5.1 /
+  curl 8.18.0 / rustc=null / cargo=null）**逐字符一致**；差异 4 项全数裁决：
+  hostname（机器身份）、OS 点版本字符串（26.04.1 vs 26.04，包版本已证同）、
+  内核小版本（-27 vs -30，Rust CI 无内核依赖）、CPU 呈现（QEMU 透传同物理 CPU）。
+- **工具链 pin 决议（P2-C 前必须执行）**：两台当前 rustc/cargo 均不在 job PATH
+  （§10 #8 预期）。P2-C 灰度前两台**对称**做系统级 pin 安装
+  （`RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`，pin 具体版本，
+  symlink `/usr/local/bin`），禁止只改一台。
+- **个人账户 API 面缺失 +2（实测）**：`PATCH /actions/runners/{id}` 改标签 404 →
+  **改标签的正路 = remove + 重注册**（02 并轨即此法，包缓存按设计复用）；
+  此前已知 repo 级 runner-groups 端点 500（§1 A5）。
+- **VM 网络事实（运维口径）**：runner 协议 GitHub **直连可用**（runtime 零代理）；
+  大文件（云镜像/rustup/大仓 clone）直连吞吐差或不稳 → 下载走 `VBMF_CI_PROXY`
+  （8118），apt 用 `mirrors.aliyun.com`（与宿主机一致），大仓 clone 走宿主
+  `git bundle` → scp LAN 通道。
+- **当前双机状态**：`vbmf-ci-01`（宿主机）+ `vbmf-ci-02`（VM）同标签集
+  `{self-hosted,Linux,X64,vbmf,vbmf-general}`，R 门双 PASS，dispatch 随机派发正常。
+  **下一步 = P2-B**（fork 双通道/concurrency/timeout 裁决），任何 `runs-on` 改造
+  仍须其放行。
