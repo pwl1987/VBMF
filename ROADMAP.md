@@ -3,6 +3,7 @@
 > V0.2 架构基线 LOCK FINAL（22 轮 review）。
 > 本文档是 VBMF 项目路线图（三段式：历史架构 / 当前实施 / 未来产品）。
 > **当前实施阶段的唯一事实源是 [`docs/architecture/PHASE_IMPLEMENTATION_MAP.md`](docs/architecture/PHASE_IMPLEMENTATION_MAP.md)**（本文件只保留概要链接，不复制细节，避免双源漂移）。
+> **V0.3 产品化基线：[`docs/architecture/V0.3/03_独立产品基线.md`](docs/architecture/V0.3/03_独立产品基线.md)**（V0.3 文档包入口：[`docs/architecture/V0.3/README.md`](docs/architecture/V0.3/README.md)）。
 
 ## 状态总览
 
@@ -22,29 +23,24 @@ Phase 0.5D P0 产品表面                  🟢 LOCK FINAL（6 新表面 + M-14
 Phase 0.6  Runtime Abstraction           ✅ COMPLETE（PR#1, tag phase-0.6-runtime-abstraction-baseline）
 Phase 0.7A Session Runtime               ✅ COMPLETE（PR#2, 四轮 Merge Gate Hardening）
 Phase 0.7B  Media Semantics              ✅ COMPLETE（Normalize/Clock/Audio/Timecode 四基础, PR#3-#6）
-Phase 0.7C External Integration          📋 NEXT（前置: D2/D4/D5/D6 债务 + Canonical Runtime State）
-Phase 0.7D Event Projection              📋
-Phase 0.8  Federation / Multi-site       📋（P2）
+Phase 0.7C External Integration          ✅ COMPLETE（Runtime State → Query → Command → Idempotency → Error → Event → API → Transport）
+Phase 0.7D Event Integration             ✅ COMPLETE
+Phase 0.8 Federation / Multi-site         📋 P2
 ```
 
-> 阶段详情/基线 tag/门禁证据/0.7C 前置顺序：见 `docs/architecture/PHASE_IMPLEMENTATION_MAP.md`。
-
-### C. Future Product Roadmap（未来产品阶段）
+### C. V0.3 Productization Roadmap（当前产品化方向）
 
 ```
-Phase 1    Media Agent（Rust + 24h 稳定） 📋 0.7 系列验收后
-Phase 2    后端基础                       📋
-Phase 2.5  Graph Compiler / Preflight     📋
-Phase 3    Auth & RBAC                    📋
-Phase 3.5  UI 原型与验证                 📋
-Phase 4    Web 控制台                     📋
-Phase 5    Signal Fabric                  📋
-Phase 5.5  Health Tree & Incident UI      📋
-V0.3       架构扩展                       📋 任何架构级扩展必须开 V0.3
-V0.4       广播级（PTP/SDI/HA）           📋
-V0.5       WebRTC + 浏览器上行            📋
-V1.0       完整 IP 播控                   📋
+V0.3-P0  Standalone Product Baseline     ✅ BASELINE（架构/红线/不可变项已落盘）
+V0.3-P1  Standalone Boot + Control API   📋 NEXT
+V0.3-P2  Web Console P0                  📋 Dashboard/Sources/Sessions/Switcher/Outputs/Health/Engineering
+V0.3-P3  Bug Fix + Runtime Hardening     📋 Regression/Fault Injection/24h Stability
+V0.3-P4  Broadcast Professionalization   📋 Recording/Incident/Graph/Preflight/Capability/AVSync/Redundancy
+V0.3-P5  Conformance                     📋 Mother Contract Mapping + Consumer Evidence
+V0.3-P6  Integrated Mode                 📋 Mother Platform Integration
 ```
+
+> V0.3 不要求母框架完成后才能实施。Standalone Mode 是一等产品运行形态；Integrated Mode 在母框架具备足够 Contract/Control 能力后接入。
 
 ## Phase 0 — 架构冻结 ✅
 
@@ -58,155 +54,96 @@ V1.0       完整 IP 播控                   📋
 
 ## Phase 0.5 — Operator Semantics + Product UI Surface ✅（0.5A/0.5B/0.5C/0.5D/0.5E/0.5F LOCK FINAL）
 
-> 0.5C 起统一目录 `docs/phase-0.5/`（原 phase-0.5b/ 已归并），milestone 历史见 [`phase-0.5/MILESTONES.md`](docs/phase-0.5/MILESTONES.md)。
-
-**Phase 0.5A（Operator Semantics，LOCK FINAL）已交付**：
-
-- `docs/phase-0.5/OPERATOR_WORKFLOW.md` — 角色矩阵 + 三轴状态机 + 危险操作 3 层
-- 10 Low-Fi HTML 线框（`operator/`，**中英双语**，Dark Mode 24/7）：Dashboard / Sources / Switcher / Composition / Audio / Output / Recording / Graph Designer / Health Tree + 10-states Validation Page
-- 4 关键操作链：On-Air / Failure / Playout / Engineering
-- 20 项 UI 语义修复（`ERRATA.md`：12 P0 + 8 P1）
-
-**Phase 0.5B（Product UI Surface，UX BASELINE LOCK FINAL）已交付**：
-
-- `SURFACE_SPEC.md` — V0.2 架构对象 → 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml；0.5C 起 4 域组织）完整映射
-- `DESIGN_SYSTEM.md` — token / 组件 / 状态模型 / 键盘规范
-- `I18N_SPEC.md` — zh-CN + en-US 契约 + Canonical Vocabulary + enum 翻译表
-- 5 张 P0 wireframe（`product/`）：M-11 Media Library / M-12 Asset Detail / M-14 Transcode Center / P-21 Encoding Profile / P-22 Output Profile
-- 36 项语义收口（31 P0 + 5 P1；B.0 13 + Closure-1 10 + B.2 8+5）
-
-**Phase 0.5C（Info Arch，LOCK FINAL）**：目录归并 + 4 域导航（BROADCAST/MEDIA/ENGINEERING/ADMIN）+ `OBJECT_VOCABULARY.md`（14 对象）+ `PRODUCT_OBJECT_MODEL.md` + `NAVIGATION.md` + 0.6 语义修复
-
-**Phase 0.5D（LOCK FINAL）**：5 个新表面 wireframe（M-17 Realtime Session / M-18 Job Detail / P-20 Profile Center / P-28 Profile Bundle / E-38 Hardware）+ E-37 Clock 升级 + M-14 File Transcode 重画
+> 详细历史记录保持不变，见 `docs/phase-0.5/`、`SURFACE_REGISTRY.yaml`、`DESIGN_SYSTEM.md`、`I18N_SPEC.md`。
 
 ## Phase 0.6 — Reference Implementation + Fault Injection ✅ **COMPLETE**
 
-> **[注记 2026-08-30, p07b-consolidation]** Phase 0.6 已完成（Runtime Abstraction Baseline，merge `d1cfaa9`）——原「Reference + Fault Injection」规划由 0.6 系列实现（SPI 抽象/契约对齐/remove-adapter 证明/CI 七门禁）；本节原文保留以存档。实施现状见 [`PHASE_IMPLEMENTATION_MAP.md`](docs/architecture/PHASE_IMPLEMENTATION_MAP.md)。
+> 当前实施状态以 `docs/architecture/PHASE_IMPLEMENTATION_MAP.md` 为准。
 
-> 前置条件：Phase 0.5 LOCK FINAL（0.5D 完成后）。本阶段不写架构，只做 **Executable Acceptance Specification**。
+## Phase 0.7 — Runtime / Media Semantics / External Integration / Event Integration ✅ **COMPLETE**
 
-**计划交付**：
+> 0.7 全阶段最高架构红线继续有效：Observation ≠ Configuration；Semantic Intent ≠ Execution Plan；Canonical 类型零 vendor 依赖。
 
-- **Reference A1**（PACKET_SWITCH 基础）：预对齐压缩源 A / B（同 codec/container/时间戳）
-  - 验证：Capability Contract、GOP/IDR、PTS/DTS、timebase、SPS/PPS、audio continuity
-- **Reference A2**（SDI 主备走 FRAME/MASTER）：SDI-A/B → Normalize → Encode → FRAME/MASTER → SRS → HLS
-- **Reference B**（异构源 + 图文 + 多 Master）：SDI + SRT + Composition + Audio Mixer → MASTER_SWITCH → Program Master → SRS
-- **8 Fault Injection / Failure-Domain Tests (FI-01A/B/02~07)**：
-  - FI-01A：Primary SDI 冻结 5s → SOURCE → FAILOVER to Backup
-  - FI-01B：Backup SDI 缺失/异常 → SOURCE → READY_TO_TAKE 门禁
-  - FI-02：音频静音 8s → PIPELINE → RESTART audio node
-  - FI-03：Primary FFmpeg 进程崩溃 → PIPELINE → RESTART
-  - FI-04：Clock Drift +5ms/min → CLOCK → FALLBACK to TIMECODE
-  - FI-05：HLS 切片失败 → OUTPUT → RESTART_ADAPTER → alternate
-  - FI-06：Audio Master Join 失败 → MASTER → FILLER_OR_EMERGENCY (target: emergency asset; 不切源)
-  - FI-07：录制盘满/故障 → RECORDING → BACKUP_DISK (target: alternate disk)
-- **7 Health Invariants** → executable test cases
-  - HA-01..HA-07 from `docs/phase-0.5/operator/09-health-tree.html`
-- 端到端：在 10.30.15.10 服务器上跑通
-- 24h stability（基础）
+## V0.3 — 架构扩展 + Standalone Productization 📋
 
-## Phase 1 — Media Agent（Rust + 24h 稳定性）📋
+> **V0.3 不是 V0.2 语义重写。**任何 V0.2 冻结语义变化必须走版本化契约和迁移证据。
+>
+> 完整基线见 `docs/architecture/V0.3/03_独立产品基线.md`。
 
-- [ ] Media Agent v0（Rust + JSON-RPC）
-- [ ] Session Manager（Data Plane 标注 + Switch Mode + Hot-Standby）
-- [ ] FFmpeg Command Builder（**不用 fluent-ffmpeg** — 锁定）
-- [ ] FFmpeg `-progress pipe:1` 解析
-- [ ] BMD 设备 Registry（Media Agent 启动时探测）
-- [ ] Clock Domain 检测
-- [ ] Edge Policy 引擎
-- [ ] Latency Probes（7 Core + 2 Client E2E + 1 Optional CDN）
-- [ ] AVSync Manager（measure / compensate / drift）
-- [ ] Switcher 3 modes
-- [ ] Hot-Standby 3 levels
-- [ ] Local NVMe Recording（5 min/段）
-- [ ] SRS 单实例
-- [ ] 端到端：`SDI → ffmpeg → SRS → HLS`，24h 不掉
+### V0.3-P0 — Baseline
 
-## Phase 2 — 后端基础 📋
+- [x] Standalone Product 定位
+- [x] Integrated Mode 定位
+- [x] Web Console 边界
+- [x] Runtime 唯一执行事实源
+- [x] RED LINES / NON-NEGOTIABLES
+- [x] Shared SDK/UI 准入原则
+- [x] V0.2 Compatibility 原则
 
-- [ ] Fastify + Drizzle + Zod
-- [ ] PostgreSQL schema V0.2.4 final
-- [ ] Valkey + Event Bus
-- [ ] BullMQ + 转码 worker
-- [ ] Media Controller
-- [ ] GraphSpec / GraphRuntime 数据模型
+### V0.3-P1 — Standalone Boot + Control API
 
-## Phase 2.5 — Graph Compiler / Preflight 📋
+- [ ] 独立启动，不依赖母框架
+- [ ] Local configuration
+- [ ] Control API / Query API
+- [ ] Event projection/stream
+- [ ] Web Console shell
 
-X1-X6 横切能力的实施：
+### V0.3-P2 — Web Console P0
 
-- [ ] X1 Graph Compiler（Validator / Insert Missing / Clock Align / Latency Estimate / Resource Plan / Emit Runtime）
-- [ ] X2 Preflight（Graph / Playout / Channel 三类）
-- [ ] X3 Configuration Versioning（Draft / Validate / Preview / Apply / Rollback）
-- [ ] X4 Incident Timeline（自动串接）
-- [ ] X5 Health Tree（7 规则 + 7 Invariants）
-- [ ] X6 Capability Registry（Signal Contract + Player Matrix）
+- [ ] Dashboard
+- [ ] Sources
+- [ ] Sessions
+- [ ] Switcher
+- [ ] Outputs
+- [ ] Health
+- [ ] Engineering
 
-## Phase 3 — Auth & RBAC 📋
+### V0.3-P3 — Bug + Runtime Hardening
 
-- [ ] 用户 / 角色 / 权限
-- [ ] 4 角色：Operator / Director / Engineer / Admin
-- [ ] RBAC 与 V0.2 Operator Workflow 对齐
+- [ ] 现有 bug 全量登记
+- [ ] Regression tests
+- [ ] Fault injection
+- [ ] 24h stability
+- [ ] Runtime Observer / Watchdog / Recovery evidence
 
-## Phase 3.5 — UI 原型与验证 📋
+### V0.3-P4 — Broadcast Professionalization
 
-- [ ] 15 wireframe（10 operator + 5 product）+ 0.5D 新表面对应页面端到端验证
-- [ ] Reference A1/A2/B 真实可跑
-- [ ] 8 Fault Injection / Failure-Domain Tests (FI-01A/B/02~07) 全部覆盖
+- [ ] Recording
+- [ ] Incident Timeline
+- [ ] Graph / Preflight
+- [ ] Capability
+- [ ] AVSync / Latency
+- [ ] Redundancy / Failover
 
-## Phase 4 — Web 控制台 📋
+### V0.3-P5 — Conformance
 
-- [ ] 4 域 × 56 surfaces（55 wireframes + 1 Spec，SoT: SURFACE_REGISTRY.yaml；按 SURFACE_SPEC + DESIGN_SYSTEM + I18N_SPEC 实施；Phase 0.5 wireframe → 真实现）
-- [ ] 4 关键操作链验证
-- [ ] Dark Mode First 24/7
-- [ ] i18n 落地（zh-CN 默认 + en-US，按 I18N_SPEC）
+- [ ] Mother Contract mapping
+- [ ] Standalone Consumer Evidence
+- [ ] `vbmf-sdk` 稳定性评估
+- [ ] Shared SDK/UI 真实 Consumer 证据
 
-## Phase 5 — Signal Fabric 📋
+### V0.3-P6 — Integrated Mode
 
-- [ ] 多 Channel 管理
-- [ ] Output Variant 多路分发
-- [ ] Adaptive Bitrate
-
-## Phase 5.5 — Health Tree & Incident Timeline UI 📋
-
-- [ ] Health Tree 可视化
-- [ ] Incident Timeline 串联
-- [ ] 录像回溯
-- [ ] 7 Health Invariants 实时展示
-
-## V0.3 — 架构扩展 📋
-
-> 任何 V0.2 之后想加的功能，必须开 V0.3 流程。
-
-候选 V0.3 特性（仅占位，不在 V0.2 范围）：
-
-- NDI / RIST / Zixi Source Adapter
-- SDI Master Output（V0.2 已 RESERVED）
-- PTP / Genlock 完整支持
-- 多节点 HA
-- WebRTC 上行 / 互动
+- [ ] Platform Identity / Control integration
+- [ ] Registry / Resolver integration
+- [ ] Unified UI shell integration
+- [ ] 不改变 Runtime 核心
 
 ## V0.4 / V0.5 / V1.0
 
-参见 `docs/architecture/ARCHITECTURE_V0.2.md` 附录 B（版本演进表）。
+参见 `docs/architecture/ARCHITECTURE_V0.2.md` 附录 B（版本演进表）。V0.3 新增候选能力仍须单独走版本化流程。
 
 ## 风险 / 注意事项
 
 | 风险 | 缓解 |
 |---|---|
-| Phase 0.6 真实部署发现 V0.2 漏 | 开 V0.3 流程，不私自改 V0.2 |
-| 7 Health Invariants 实测未通过 | 调 SQL 实现或算法，不动 Schema |
-| 8 Fault Injection / Failure-Domain Tests 恢复动作不符合 §8.9 | 修复实现，§8.9 是 SoT |
-| Playwright 浏览器 E2E 不稳定 | 用直接 JSON-RPC 测试，浏览器只测渲染 |
-
-## 与开源社区的协作
-
-| 阶段 | 社区协作 |
-|---|---|
-| Phase 0.5 | 公开 55 wireframes + 1 Spec = 56 surfaces（SoT: SURFACE_REGISTRY.yaml）+ Design System + i18n 契约（中英双语），欢迎 UI / UX 反馈 |
-| Phase 0.6 | 公开 Reference A1/A2/B + 8 Fault Injection (FI-01A/B/02~07) 配置，欢迎调参与建议 |
-| Phase 1+ | 接受 Rust / TypeScript 贡献 |
+| Standalone 与 Integrated 分叉 | 两种模式强制共享 Runtime/Domain/Execution |
+| 为母框架提前造复杂依赖 | Standalone 优先；Integration 延后；不提前微前端/分布式化 |
+| 共享 SDK/UI 过早抽象 | Contract → 真实 Consumer → Conformance → Shared Module |
+| Phase 0.6/0.7 真实部署发现 V0.2 漏 | 修实现；若必须改冻结语义则开版本化 V0.3+ 流程 |
+| 7 Health Invariants / Fault Injection 实测失败 | 修实现或算法，不偷偷改冻结 Schema |
+| UI workaround 掩盖 Runtime bug | UI 不得绕过 Runtime；bug 必须进入 Regression + Runtime evidence |
 
 ---
 
-**VBMF Contributors** · V0.2 LOCK FINAL · Apache 2.0
+**VBMF Contributors · V0.2 LOCK FINAL + V0.3 Standalone Product Baseline · Apache 2.0**
