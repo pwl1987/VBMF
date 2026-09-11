@@ -19,7 +19,7 @@
 set -euo pipefail
 
 REPO="${VBMF_REPO:-pwl1987/VBMF}"
-EXPECT_LABELS="${VBMF_EXPECT_LABELS:-self-hosted,linux,x64,vbmf,vbmf-general}"
+EXPECT_LABELS="${VBMF_EXPECT_LABELS:-self-hosted,Linux,X64,vbmf,vbmf-general}"
 EXPECT_WORKFLOW_SHA="${VBMF_EXPECT_WORKFLOW_SHA:-5bf1c0e321bbca9bd9ba9f80596b828f2927d0e5}"
 EXPECT_CONTEXTS="${VBMF_EXPECT_CONTEXTS:-rust-format,rust-test-matrix,rust-clippy,hardware-test-compile,architecture-portability,gstreamer-build,session-lifecycle}"
 
