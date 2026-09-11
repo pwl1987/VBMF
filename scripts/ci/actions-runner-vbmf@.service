@@ -1,0 +1,51 @@
+# VBMF self-hosted GitHub Actions runner — systemd template unit
+# Contract: docs/architecture/CI_RUNNER_STRATEGY.md §7 (CI-RUNNER-SYSTEMD-01)
+#
+# Single lifecycle owner for all VBMF runners. provision-runner.sh does NOT
+# call `svc.sh install`; this template is the only service definition.
+#
+# Install (diff first — never silently overwrite local modifications):
+#   diff /etc/systemd/system/actions-runner-vbmf@.service ./actions-runner-vbmf@.service || true
+#   cp ./actions-runner-vbmf@.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now actions-runner-vbmf@vbmf-ci-01.service
+#
+# %i expands to the runner directory name under
+# /data/actions-runners/vbmf/runners/ (e.g. vbmf-ci-01).
+#
+# CI-RUNNER-SEC-01: no proxy environment variables here — ever.
+# If the host cannot reach github.com directly, the proxy is configured at
+# config.sh time (transient env, persisted by the runner itself), not here.
+
+[Unit]
+Description=VBMF self-hosted GitHub Actions runner (%i)
+Documentation=https://github.com/pwl1987/VBMF/blob/master/docs/architecture/CI_RUNNER_STRATEGY.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vbmf-ci
+Group=vbmf-ci
+WorkingDirectory=/data/actions-runners/vbmf/runners/%i
+ExecStart=/data/actions-runners/vbmf/runners/%i/run.sh
+
+# Restart discipline (CI-RUNNER-SYSTEMD-01)
+Restart=always
+RestartSec=5
+
+# The runner handles SIGINT graceful shutdown; SIGTERM would abort jobs.
+KillMode=process
+KillSignal=SIGINT
+TimeoutStopSec=10min
+
+# Pinned environment (CI-RUNNER-SEC-01: deliberately minimal, proxy-free)
+Environment=HOME=/data/actions-runners/vbmf/runners/%i
+Environment=LANG=en_US.UTF-8
+
+# NOTE: intentionally NO extra hardening (NoNewPrivileges/ProtectSystem etc.)
+# here: existing jobs (e.g. gstreamer-build) use `sudo apt-get install`, which
+# such options would break. Revisit only in the Phase 2 migration review.
+
+[Install]
+WantedBy=multi-user.target

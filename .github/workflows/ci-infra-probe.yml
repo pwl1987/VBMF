@@ -1,0 +1,71 @@
+name: CI Infra Probe
+
+# VBMF self-hosted runner Phase 1 — read-only infrastructure probe.
+# Contract: docs/architecture/CI_RUNNER_STRATEGY.md §11 (CI-RUNNER-PROBE-01)
+#
+# HARD RED LINE — this probe must NEVER:
+#   install software · modify the system · access secrets · write to the repo
+#   upload artifacts · execute sudo
+# It only reports: identity / filesystem / workspace / TMPDIR / CPU-OS-arch /
+# tool paths & versions / proxy-env evidence.
+#
+# workflow_dispatch ONLY (fork PRs cannot trigger it), single job, NO matrix —
+# Phase 1 proves "this one runner executes jobs reliably"; scheduler behavior
+# (matrix/concurrency/deterministic assignment) belongs to Phase 2/3.
+on:
+  workflow_dispatch:
+
+jobs:
+  runner-probe:
+    name: runner-probe
+    runs-on: [self-hosted, linux, x64, vbmf-general]
+    timeout-minutes: 5
+    steps:
+      - name: Runner identity
+        run: |
+          echo "runner.name=$RUNNER_NAME"
+          echo "runner.os=$RUNNER_OS"
+          echo "runner.arch=$RUNNER_ARCH"
+          echo "github.repository=$GITHUB_REPOSITORY"
+          echo "workspace=$GITHUB_WORKSPACE"
+          echo "job.started_at=$GITHUB_JOB / run_id=$GITHUB_RUN_ID"
+
+      - name: Host capability contract (read-only)
+        run: |
+          whoami
+          id
+          uname -a
+          hostname
+          pwd
+          for t in git python3 rustc cargo clang pkg-config curl; do
+            p="$(command -v "$t" 2>/dev/null || true)"
+            if [ -n "$p" ]; then
+              echo "$t: $p ($("$t" --version 2>&1 | head -1))"
+            else
+              echo "$t: MISSING"
+            fi
+          done
+
+      - name: Filesystem & isolation markers
+        run: |
+          echo "RUNNER_TEMP=$RUNNER_TEMP"
+          echo "TMPDIR=${TMPDIR:-<unset>}"
+          echo "unique_marker=vbmf-probe-$GITHUB_RUN_ID-$RANDOM"
+          mkdir -p "$RUNNER_TEMP/vbmf-probe-$GITHUB_RUN_ID" \
+            && touch "$RUNNER_TEMP/vbmf-probe-$GITHUB_RUN_ID/marker" \
+            && echo "temp writable: yes" \
+            || echo "temp writable: NO"
+          ls -la "$RUNNER_TEMP" | head -20
+          df -h "$RUNNER_TEMP" | tail -1
+
+      - name: Proxy environment evidence (CI-RUNNER-SEC-01)
+        run: |
+          # Evidence only. Red line: WE never inject proxy vars via systemd
+          # unit / runner .env / workflow env. If any appear here, identify
+          # their origin before Phase 2 (runner-provided config vs host).
+          found=0
+          for v in http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY; do
+            val="$(printenv "$v" || true)"
+            if [ -n "$val" ]; then echo "proxy env PRESENT: $v (origin must be audited)"; found=1; fi
+          done
+          [ "$found" -eq 0 ] && echo "proxy env: ABSENT (red line OK)"
