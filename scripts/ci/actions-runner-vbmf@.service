@@ -42,6 +42,13 @@ TimeoutStopSec=10min
 # Pinned environment (CI-RUNNER-SEC-01: deliberately minimal, proxy-free)
 Environment=HOME=/data/actions-runners/vbmf/runners/%i
 Environment=LANG=en_US.UTF-8
+# Required for graceful shutdown: run.sh's default mode runs run-helper.sh in
+# the foreground WITHOUT any signal trap — under KillMode=process the SIGINT
+# reaches only run.sh and deadlocks until the TimeoutStopSec SIGKILL
+# (observed: 10min hang in the 2026-09-11 F-drill). With this flag run.sh
+# uses runWithManualTrap (trap INT TERM -> kill -INT process group), which is
+# exactly what the official svc.sh-generated service does via runsvc.sh.
+Environment=RUNNER_MANUALLY_TRAP_SIG=1
 
 # NOTE: intentionally NO extra hardening (NoNewPrivileges/ProtectSystem etc.)
 # here: existing jobs (e.g. gstreamer-build) use `sudo apt-get install`, which

@@ -141,7 +141,8 @@ manifest 不放 `_work` 内；`packages` 与 `runners` 分离（同一包可配�
   service」两套生命周期语义并存。
 - 模板冻结参数：`Restart=always` / `RestartSec=5` / `KillMode=process` /
   `KillSignal=SIGINT` / `TimeoutStopSec=10min` / 固定 `HOME`·`LANG`·`WorkingDirectory` /
-  **无任何 proxy 环境变量**。
+  `RUNNER_MANUALLY_TRAP_SIG=1`（优雅停机必需，见单元内注释；F 演习实测缺它会
+  死锁到 SIGKILL）/ **无任何 proxy 环境变量**。
 - 安装 service 文件前必须 `diff`，不静默覆盖已修改的配置。
 
 ## 8. Provision 契约（CI-RUNNER-PROV-01）
