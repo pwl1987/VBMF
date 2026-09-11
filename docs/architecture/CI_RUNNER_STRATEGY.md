@@ -288,7 +288,8 @@ git clone https://github.com/pwl1987/VBMF /tmp/vbmf-repo && cd /tmp/vbmf-repo/sc
 # 生成 fresh registration token 后（GitHub → Settings → Actions → Runners → New self-hosted runner）
 export RUNNER_TOKEN=<fresh-token>          # 只经 env，不进任何文件
 
-sudo -E ./provision-runner.sh --name vbmf-ci-01 --labels vbmf,vbmf-general
+sudo --preserve-env=RUNNER_TOKEN ./provision-runner.sh --name vbmf-ci-01 --labels vbmf,vbmf-general
+#   （B0 实测：本宿主机 sudo 忽略 -E；--preserve-env=RUNNER_TOKEN 为唯一可用传递方式，token 纯经 env、不进 argv）
 #   直连不通时追加: --runner-proxy http://10.30.5.73:8118   （瞬态 env → runner 自持久化）
 
 # systemd（先 diff 再安装，不静默覆盖）
