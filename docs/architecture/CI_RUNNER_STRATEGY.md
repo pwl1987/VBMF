@@ -318,8 +318,9 @@ scripts/ci/verify-runner.sh --name vbmf-ci-01 --no-regression       # N1/N2/N3
 按 §12 执行完整卸载 → `verify-runner.sh` 确认 absent → **清除 packages 缓存（落实 F Gate「重新下载」）** → 重跑 B1-B3 + C/D（第二次独立部署）：
 
 ```bash
-sudo rm -f /data/actions-runners/vbmf/packages/actions-runner-linux-x64-*.tar.gz \
-           /data/actions-runners/vbmf/packages/actions-runner-linux-x64-*.tar.gz.sha256
+# 必须让 root 展开 glob：BASE_DIR 750 root:vbmf-ci，管理员 shell 无法穿越，
+# 直接 sudo rm -f '<字面量>*' 会静默 no-op（F 演习实测踩坑）
+sudo bash -c 'rm -f /data/actions-runners/vbmf/packages/actions-runner-linux-x64-*.tar.gz /data/actions-runners/vbmf/packages/actions-runner-linux-x64-*.tar.gz.sha256'
 ```
 
 ---
