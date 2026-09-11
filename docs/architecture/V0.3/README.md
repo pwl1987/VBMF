@@ -1,81 +1,95 @@
-# VBMF V0.3 Architecture Design Package
+# VBMF V0.3——架构设计文档包
 
-> **Status: BASELINE / IMPLEMENTATION SOURCE OF TRUTH**  
-> Version: V0.3  
-> Product: **Professional Real-Time Media Playout System / 专业实时媒体播出系统 / Real-Time Media Runtime & Fabric**
+> **状态：基线 / 实施事实源**  
+> **版本：V0.3**  
+> **产品：专业实时媒体播出系统 / 实时媒体运行时与媒体织构**
 
-## 1. Purpose
+## 1. 目的
 
-`docs/architecture/V0.3/` is the complete, reviewable and independently maintainable architecture design package for VBMF V0.3.
+`docs/architecture/V0.3/` 是 VBMF V0.3 的完整、可评审、可独立维护的版本化架构设计文档包。
 
-V0.3 is a product/runtime evolution of the V0.2 baseline, not a second unrelated architecture. The directory exists so that one V0.3 design package can be frozen, reviewed, implemented and later compared with V0.2/V0.4 as a coherent version baseline.
+V0.3 是 V0.2 运行时基线的产品化演进，不是另一套无关架构。独立目录用于将 V0.3 的设计作为一个完整版本进行冻结、评审、实施，并支持未来与 V0.2、V0.4 做清晰的版本对比。
 
-## 2. Document Authority
+## 2. 文档权威层级
 
-The V0.3 package is organized into four authority levels:
+V0.3 文档包分为四个权威层级：
 
-1. **Master Design** — product positioning, boundaries, domain model and non-negotiable architecture rules.
-2. **Domain / Runtime Design** — detailed Runtime, media, synchronization, production, playout, HA and integration semantics.
-3. **API Master Design** — API namespace, semantic planes, command/query/event boundaries, compatibility and SDK rules.
-4. **Standalone Product Baseline** — independent boot, Control Plane activation, Web Console and V0.3 implementation acceptance.
+1. **总体设计**：产品定位、边界、领域模型和不可违反的架构规则。
+2. **领域 / 运行时详细设计**：运行时、媒体、同步、制作、播出、高可用和集成等详细语义。
+3. **API 总体设计**：API namespace、语义平面、Command / Query / Event 边界、兼容性和 SDK 规则。
+4. **独立产品基线**：独立启动、控制平面激活、Web Console 以及 V0.3 实施验收标准。
 
-When documents overlap, the more specific document may refine semantics but MUST NOT contradict the Master Design or frozen red lines.
+文档存在交叉时，具体文档可以细化语义，但不得违反总体设计和已经冻结的红线。
 
-## 3. Current Source Documents
+## 3. V0.3 文档目录
 
-The following documents originated from the V0.3 design work and are being consolidated into this directory:
+| 文件 | 职责 |
+|---|---|
+| `00_总体设计.md` | V0.3 总体入口、产品定位、架构边界、领域模型和冻结不变量 |
+| `01_广播媒体运行时与总体架构详细设计.md` | 广播运行时、媒体、部署、同步、制作、播出、保护、传输、观察及扩展详细设计 |
+| `02_API总体设计.md` | API namespace、Query / Command / Event、版本、错误、幂等、安全、扩展和 SDK 规则 |
+| `03_独立产品基线.md` | Standalone 产品范围、P1-P6 实施基线、控制循环 Gate 和验收标准 |
+| `04_一致性审计与实施映射.md` | V0.2 → V0.3、一致性、实施阶段和文档迁移审计 |
+| `文档地图.md` | V0.3 文档权威关系、迁移状态和维护规则 |
 
-- `00_MASTER_DESIGN.md` — V0.3 master entry point and architecture index.
-- `API_MASTER_DESIGN.md` — API Master Design.
-- `BROADCAST_MEDIA_RUNTIME_AND_API_MASTER_DESIGN.md` — Broadcast Runtime and detailed architecture baseline.
-- `STANDALONE_PRODUCT_BASELINE.md` — Standalone Product Baseline and implementation gates.
+`README.md` 是目录入口说明，不参与领域语义定义。
 
-During migration, the original root-level `V0.3_*.md` files remain temporarily as compatibility copies. They MUST NOT be treated as a second source of truth. Final cleanup will remove the duplicate paths after content identity and link migration are verified.
-
-## 4. V0.3 Implementation Sequence
+## 4. 实施顺序
 
 ```text
-V0.3 Architecture Freeze
-        ↓
-P1 Standalone Runtime Control-Plane Activation
-        ↓
-P2 Operator Console
-        ↓
-P3 Runtime Hardening
-        ↓
-P4 Broadcast Professionalization
-        ↓
-P5 Conformance
-        ↓
-P6 Mother Framework Integration
+V0.3 架构冻结
+      ↓
+P1 独立运行时控制平面激活
+      ↓
+P2 操作员控制台
+      ↓
+P3 运行时加固
+      ↓
+P4 广播专业能力
+      ↓
+P5 一致性与符合性
+      ↓
+P6 母框架集成
 ```
 
-P1 is intentionally an activation of the existing Runtime/Control Plane, not an implementation of every V0.3 API namespace.
+P1 的核心是激活已有 Runtime / Control Plane，而不是一次性实现全部 V0.3 API namespace。
 
-## 5. Non-Negotiable Direction
+## 5. 不可谈判的方向
 
-- VBMF remains independently buildable, bootable, testable and deployable.
-- Standalone and Integrated modes share the same Runtime semantics.
-- API is a control/observation boundary, not the Runtime itself.
-- Control Plane and Media Plane remain separate.
-- Pipeline is logical and is not bound to a physical Node.
-- Workload is not equivalent to an OS process.
-- Capability / Resource / Placement determine deployment.
-- Synchronization is first-class Runtime infrastructure.
-- Production switching and Playout are first-class broadcast capabilities.
-- HA/failover preserves the same Runtime and media semantics; it does not create a second pipeline model.
-- Vendor SDKs remain behind Adapter boundaries.
-- Upstream CMS/DAM remains Asset Authority; VBMF owns runtime execution truth, not business asset truth.
-- No mother-framework dependency may be introduced into the standalone boot path.
+- VBMF 必须保持独立构建、启动、测试、运行和部署能力。
+- Standalone 与 Integrated 必须共享同一套 Runtime 语义。
+- API 是控制与观察边界，不是 Runtime 本身。
+- Control Plane 与 Media Plane 必须分离。
+- Pipeline 不得绑定物理 Node。
+- Workload 不得等同于操作系统进程。
+- Capability / Resource / Placement 决定部署方式。
+- Synchronization 是一级 Runtime 基础设施。
+- Production Switching 与 Playout 是一级广播能力。
+- HA / Failover 必须保持同一 Runtime 与媒体语义，不得产生第二套 Pipeline 模型。
+- 厂商 SDK 必须位于 Adapter 边界之后。
+- 上游 CMS/DAM 仍是业务资产权威；VBMF 只拥有运行时执行事实。
+- Standalone 启动路径不得引入母框架依赖。
 
-## 6. Migration Rule
+## 6. 文档迁移规则
 
-The directory migration is documentation-only and MUST NOT change V0.2 frozen Runtime semantics or implementation behavior.
+V0.3 文档整理属于文档层变更，不得改变 V0.2 已冻结的 Runtime 语义或实现行为。
 
-Before deleting legacy `docs/architecture/V0.3_*.md` paths, verify:
+旧的 `docs/architecture/V0.3_*.md` 文件只有在完成以下检查后才能删除：
 
-1. byte/content-level equivalence or an explicit reviewed consolidation diff;
-2. all internal links are updated;
-3. no external documentation references the legacy paths unexpectedly;
-4. PR #31 remains reviewable as the V0.3 documentation baseline;
-5. the final V0.3 tree has one authoritative copy of every design decision.
+1. 新旧内容已经完成等价性或经评审的整合差异核对；
+2. 所有仓库内部链接已经迁移；
+3. 仓库中不再存在对旧路径的有效引用；
+4. 新目录成为唯一权威副本；
+5. 关键设计决策没有因重命名、整合或中文化而遗漏。
+
+### 文件命名原则
+
+V0.3 设计文档正文标题和文件名均采用中文；但以下内容必须保持原样：
+
+- `/api/v1` 等 API 路径；
+- JSON 字段名、枚举值和事件类型；
+- Rust / TypeScript / shell 标识符；
+- GStreamer、FFmpeg、DeckLink、BMD、AJA 等产品或协议名称；
+- Git 路径、代码符号和配置键名。
+
+中文化是**文档语言本地化**，不是对技术标识符进行翻译。
