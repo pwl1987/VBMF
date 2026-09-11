@@ -66,9 +66,9 @@
 
 | Runner | 标签（exact set） | 职责 |
 |---|---|---|
-| `vbmf-ci-01` | `self-hosted, linux, x64, vbmf, vbmf-general` | Rust format/clippy/test、architecture tests、docs/contract |
+| `vbmf-ci-01` | `self-hosted, Linux, X64, vbmf, vbmf-general` | Rust format/clippy/test、architecture tests、docs/contract |
 | `vbmf-ci-02`（未来） | 同上 | 并发 PR / 回归 / 长测试 |
-| `vbmf-ci-media`（未来） | `self-hosted, linux, x64, vbmf, vbmf-media` | FFmpeg/GStreamer/libclang/protobuf/SDK 头编译链 |
+| `vbmf-ci-media`（未来） | `self-hosted, Linux, X64, vbmf, vbmf-media` | FFmpeg/GStreamer/libclang/protobuf/SDK 头编译链 |
 
 标签命名纪律：用**能力**（`vbmf-general`），不用机器名（`server01`）。
 
@@ -76,12 +76,13 @@
 
 ## 3. Runner Identity & Label Contract（CI-RUNNER-LABEL-01）
 
-- `config.sh --labels` 只追加**自定义**标签（如 `vbmf-general`）；`self-hosted / linux / x64`
-  由注册过程产生——**只验证、不假设**。
+- `config.sh --labels` 只追加**自定义**标签（如 `vbmf,vbmf-general`）；`self-hosted / Linux / X64`
+  由注册过程产生——**只验证、不假设**（平台标签服务端规范大小写为首字母大写，
+  C 阶段 2026-09-11 实测；`runs-on` 匹配大小写不敏感，workflow 中仍用小写）。
 - 验收用**集合精确相等**（排序后逐字符比较），禁止 contains 式检查：
 
 ```text
-expected(vbmf-ci-01) = { self-hosted, linux, x64, vbmf, vbmf-general }
+expected(vbmf-ci-01) = { self-hosted, Linux, X64, vbmf, vbmf-general }
 ```
 
 - 实现：`scripts/ci/verify-runner.sh`（R2/R5）。
