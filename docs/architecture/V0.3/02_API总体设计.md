@@ -1,32 +1,39 @@
-# VBMF V0.3——API 总体设计
+# VBMF V0.3 — API 总体设计
 
-> **状态：顶层 API 冻结，进入领域契约详细设计**  
-> **版本：V0.3**  
-> **定位：VBMF Control / Query / Command / Event API 的顶层规范、语义边界、版本策略、扩展机制与 SDK 演进规则**
-
-本文件是 VBMF API 顶层规范。具体领域的字段级 Schema、状态机、Command Payload、Query Filter、Event Payload 在各领域详细设计中继续细化，但不得违反本文件。
+> **状态：已锁定，用于详细 Domain Contract 设计**  
+> 日期：2026-09-11  
+> 范围：VBMF V0.3 Control / Query / Command / Event API 的顶层 namespace、语义边界、版本策略、扩展机制与 SDK 演进规则。
+>
+> 本文件是 VBMF API 的顶层 SoT。具体 Domain 的字段级 Schema、State Machine、Command Payload、Query Filter、Event Payload 在各 Domain Detailed Design 中继续细化，但不得违反本文件。
 
 ---
 
-## 1. API 冻结裁决
+## 1. API 冻结决定
 
-V0.3 API 冻结以下内容：
+VBMF V0.3 API 现在正式进入：
+
+> **顶层 API 已冻结**
+
+冻结的是：
 
 - API 分层；
 - `/api/v1` 版本根；
 - Domain namespace；
 - Control / Query / Event 边界；
-- Resource 与 Command 语义；
+- Resource 与 Command 的语义；
 - ID / Context / Error / Idempotency / Version 规则；
 - Media Plane 与 Control Plane 分离；
 - Extension / Compatibility 规则。
 
-本阶段不冻结所有 endpoint 的最终字段。字段级 Contract 必须按领域确定并经过 Contract Review。
+**不冻结今天所有 endpoint 的最终字段。**
 
-## 2. API 的架构位置
+字段级 Contract 必须在 Domain Detailed Design 阶段逐域确定，并通过 Contract Review 后进入实现。
+
+---
+
+# 2. API 架构定位
 
 API 是 Runtime 的控制与观察边界，不是 Runtime 本身。
-
 ```text
 Web / Desktop / External System
               ↓
@@ -41,12 +48,13 @@ Web / Desktop / External System
           Media Plane
 ```
 
-API 不直接实现媒体处理，也不得暴露 GStreamer、FFmpeg 或厂商 SDK 对象。
+API 不直接实现媒体处理，也不暴露 GStreamer / FFmpeg / Vendor SDK 对象。
 
-## 3. 四类 API 语义平面
+---
 
-严格区分：
+# 3. API 的四个语义平面
 
+VBMF API 至少严格区分四类语义：
 ```text
 Query
 Command
@@ -54,45 +62,98 @@ Event
 Preview / Media Delivery
 ```
 
-### Query
+## Query
 
-回答“现在是什么”，不得产生隐式 Runtime 副作用。
+回答“现在是什么”。
 
-### Command
+例如：
+```text
+GET /api/v1/runtime
+GET /api/v1/nodes
+GET /api/v1/sources
+GET /api/v1/sessions/{id}
+GET /api/v1/playout/channels/{id}/now-playing
+```
 
-表达“请求 Runtime 做什么”。Command 必须经过 authority、policy、validation、idempotency 和 execution path。
+Query 不得偷偷产生 Runtime side effect。
 
-### Event
+## Command
 
-表达“已经发生了什么”。Event 是事实，不是隐藏的 Command 通道。
+表达“请求 Runtime 做什么”。
 
-### Preview / Media Delivery
+例如：
+```text
+POST /api/v1/production/switches/{id}/cut
+POST /api/v1/production/switches/{id}/take
+POST /api/v1/playout/sessions/{id}/start
+POST /api/v1/ha/groups/{id}/failover
+```
 
-预览使用独立媒体交付传输，例如 Snapshot、MJPEG、WebRTC、HLS 等，不得通过普通 JSON Control API 承载实时视频主链路。
+Command 必须经过 Runtime authority、policy、validation、idempotency 与 execution path。
 
-## 4. API 版本
+## Event
+
+表达“已经发生了什么”。
+
+例如：
+```text
+runtime.session.started
+media.signal.lost
+production.switch.completed
+playout.item.started
+ha.failover.completed
+```
+
+Event 不是隐藏 Command 通道。
+
+## Preview / Media Delivery
+
+实时媒体预览必须使用独立 Media Delivery Transport：
+```text
+Snapshot
+MJPEG
+WebRTC
+HLS
+Future Media Transport
+```
+
+不得通过普通 JSON Control API 搬运实时视频主链路。
+
+---
+
+# 4. API 版本
 
 统一根路径：
-
 ```text
 /api/v1
 ```
 
-默认采用：
-
+版本原则：
 ```text
-增量演进优先
-向后兼容
-显式弃用
-破坏性变化使用新主版本
+Additive Evolution First
+Backward Compatibility
+Explicit Deprecation
+Major Version for Breaking Change
 ```
 
-必须区分 API Version、Contract Version、Object Version、Configuration Version、Policy Version、Capability Version 和 Runtime Version。客户端不得依赖内部 Runtime version。
+必须区分：
+```text
+API Version
+Contract Version
+Object Version
+Configuration Version
+Policy Version
+Capability Version
+Runtime Version
+```
 
-## 5. 冻结的顶层 Namespace
+API v1 可以内部包含多个 Domain Contract Version，但不得让客户端依赖内部 Runtime version。
 
-### Runtime / Resource
+---
 
+# 5. 冻结的顶层 Namespace
+
+## Runtime / Resource
 ```text
 /api/v1/runtime
 /api/v1/nodes
@@ -105,8 +166,7 @@ Preview / Media Delivery
 /api/v1/scheduler
 ```
 
-### Media / Graph
-
+## Media / Graph
 ```text
 /api/v1/adapters
 /api/v1/inputs
@@ -118,8 +178,7 @@ Preview / Media Delivery
 /api/v1/graphs
 ```
 
-### Codec / Processing
-
+## Codec / Processing
 ```text
 /api/v1/codecs
 /api/v1/encoders
@@ -132,8 +191,7 @@ Preview / Media Delivery
 /api/v1/filters
 ```
 
-### Audio / Video
-
+## Audio / Video
 ```text
 /api/v1/audio
 /api/v1/video
@@ -143,8 +201,7 @@ Preview / Media Delivery
 /api/v1/video/processors
 ```
 
-### Production
-
+## Production
 ```text
 /api/v1/production
 /api/v1/production/switches
@@ -157,8 +214,7 @@ Preview / Media Delivery
 /api/v1/gpi
 ```
 
-### Playout
-
+## Playout
 ```text
 /api/v1/playout/channels
 /api/v1/playout/schedules
@@ -171,14 +227,14 @@ Preview / Media Delivery
 /api/v1/playout/sessions
 ```
 
-### Protection / HA
-
+## Protection / HA
 ```text
 /api/v1/broadcast/policies
 /api/v1/broadcast/overlays
 /api/v1/broadcast/actions
 /api/v1/broadcast/guards
 /api/v1/broadcast/rules
+
 /api/v1/ha/nodes
 /api/v1/ha/clusters
 /api/v1/ha/groups
@@ -193,8 +249,7 @@ Preview / Media Delivery
 /api/v1/ha/replication
 ```
 
-### Synchronization
-
+## Synchronization
 ```text
 /api/v1/synchronization
 /api/v1/clocks
@@ -206,8 +261,7 @@ Preview / Media Delivery
 /api/v1/frame-sync
 ```
 
-### Gateway / Network / Output
-
+## Gateway / Network / Output
 ```text
 /api/v1/gateway
 /api/v1/gateway/sessions
@@ -221,8 +275,7 @@ Preview / Media Delivery
 /api/v1/deliveries
 ```
 
-### Preview / Recording
-
+## Preview / Recording
 ```text
 /api/v1/preview
 /api/v1/preview/sessions
@@ -233,8 +286,7 @@ Preview / Media Delivery
 /api/v1/timeshift
 ```
 
-### Observability
-
+## Observability
 ```text
 /api/v1/health
 /api/v1/metrics
@@ -246,18 +298,41 @@ Preview / Media Delivery
 /api/v1/evidence
 ```
 
-以上是顶层契约空间，不是 P1 全量实现清单。
+---
 
-## 6. Resource API 规则
+# 6. Resource API 规则
 
-普通资源原则上使用 GET collection、POST create、GET `/{id}`、必要时 PATCH、在生命周期允许时 DELETE。
+Resource endpoint 默认遵循：
+```text
+GET    collection
+POST   create
+GET    /{id}
+PATCH  /{id}       # only when partial mutation is semantically valid
+DELETE /{id}       # only when domain lifecycle permits deletion
+```
 
-实时播出危险动作不得通过隐式状态 PATCH 表达。例如不得用 `PATCH switch.state = ACTIVE` 代替明确的 `POST /switches/{id}/take` 或 `POST /switches/{id}/cut`。
+但实时播出领域的危险动作不得用隐式 PATCH 表达。
 
-## 7. Command 契约
+例如：
+```text
+PATCH switch.state = ACTIVE
+```
 
-生产 Command 至少需要能够关联：
+不推荐。
 
+应使用明确 Command：
+```text
+POST /switches/{id}/take
+POST /switches/{id}/cut
+```
+
+因为它们具有明确的 authority、idempotency、audit、execution 与 continuity semantics。
+
+---
+
+# 7. Command 契约
+
+每一个生产 Command 至少需要能够关联：
 ```text
 command_id
 command_type
@@ -271,8 +346,7 @@ reason
 created_at
 ```
 
-结果必须区分：
-
+Command response 必须区分：
 ```text
 accepted
 rejected
@@ -283,29 +357,43 @@ already_applied
 conflict
 ```
 
-异步命令可返回 `operation_id`。HTTP 200 不等于媒体动作已经完成。
-
-**P1 保持 V0.2 已冻结并通过测试的四命令契约，不在 P1 擅自升级为新的字段/状态体系。**
-
-## 8. 幂等
-
-高风险 Command 必须具备幂等语义，包括 switch、failover、start、stop、promote、rollback、apply 等。
-
-必须能够区分：
-
+异步 Command 应返回：
 ```text
-重复请求
-资源版本冲突
-动作已经完成
-相同 key 但 payload 不同
+operation_id
 ```
 
-幂等语义不得与 ErrorClassification 或 CommandStatus 混为一体。
+不得把“HTTP 200”直接解释为“媒体动作已经完成”。
 
-## 9. 错误契约
+---
 
-跨领域统一预留以下语义错误：
+# 8. Idempotency
 
+高风险 Command 必须支持幂等：
+```text
+switch
+failover
+start
+stop
+promote
+rollback
+apply
+```
+
+Idempotency 不得与 ErrorClassification 或 CommandStatus 合并。
+
+必须能够区分：
+```text
+同一请求重复发送
+同一资源版本冲突
+同一动作已经完成
+同一 key 不同 payload
+```
+
+---
+
+# 9. 错误契约
+
+跨 Domain 至少统一：
 ```text
 VALIDATION_ERROR
 AUTHENTICATION_ERROR
@@ -319,6 +407,7 @@ TIMEOUT
 RATE_LIMITED
 CONTRACT_ERROR
 INTERNAL_ERROR
+
 RUNTIME_UNAVAILABLE
 RESOURCE_UNAVAILABLE
 SIGNAL_NOT_READY
@@ -327,14 +416,13 @@ CONTINUITY_RISK
 VENDOR_ADAPTER_ERROR
 ```
 
-厂商细节可进入 `details`，客户端不得通过解析厂商错误文本判断核心业务语义。
+Vendor-specific detail 可以进入 `details`，但客户端不得解析厂商错误文本判断核心业务语义。
 
-V0.3 增加 HTTP 数字状态码映射层，但不得重写 V0.2 的五类 ErrorClassification 冻结语义。
+---
 
-## 10. Context / Identity
+# 10. Context / Identity
 
-跨系统请求至少支持：
-
+跨系统 API 请求至少支持：
 ```text
 request_id
 correlation_id
@@ -346,8 +434,7 @@ organization / tenant
 site
 ```
 
-运行时对象至少保持：
-
+Runtime Domain object 至少保持：
 ```text
 object_type
 object_id
@@ -355,18 +442,47 @@ object_version / revision
 source_system
 ```
 
-Identity Authority 仍由母框架或上层平台提供；Standalone 可使用本地 Provider，但不得改变规范语义。
+具体 Identity Authority 仍由母框架 / 上层平台提供；Standalone 可以使用本地 provider，但不得改变 Canonical semantics。
 
-## 11. Query 规则
+---
 
-Query 可以逐步支持 state、status、capability、node、resource、source、pipeline、channel、time range、version、health 等过滤条件，但不得承担隐式 Command。
+# 11. Query 规则
 
-例如 `GET /sessions/{id}?auto_recover=true` 禁止，应拆分为查询和明确的 recover Command。
+Query 必须支持按 Domain 需要逐步增加：
+```text
+state
+status
+capability
+node
+resource
+source
+pipeline
+channel
+time range
+version
+health
+```
 
-## 12. Event API
+但 Query 不得承担隐式 command。
+
+例如：
+```text
+GET /sessions/{id}?auto_recover=true
+```
+
+禁止。
+
+应拆成：
+```text
+GET  /sessions/{id}
+POST /sessions/{id}/recover
+```
+
+---
+
+# 12. Event API
 
 Event 必须遵守母框架 Event Envelope：
-
 ```json
 {
   "event_id": "...",
@@ -380,24 +496,40 @@ Event 必须遵守母框架 Event Envelope：
 }
 ```
 
-Event 表达事实，不表达未来动作。未来可以通过 GET、SSE、WebSocket 等 transport 暴露事件，但 transport 不等于 Event 语义本身。
+Event 表达事实，不表达未来动作。
 
-## 13. Preview API 边界
+事件可通过：
+```text
+GET /api/v1/events
+SSE /api/v1/events/stream
+WebSocket /api/v1/events/ws
+```
 
-Preview API 只负责建立、查询和关闭预览会话：
+等 transport 暴露，但 transport 不是 Event semantics 本身。
 
+---
+
+# 13. Preview API 边界
+
+Preview API 只负责建立或查询预览会话：
 ```text
 POST /api/v1/preview/sessions
 GET  /api/v1/preview/sessions/{id}
 DELETE /api/v1/preview/sessions/{id}
 ```
 
-实际媒体通过独立 Media Delivery URL / Session Transport 提供。
+实际媒体通过独立 Media Delivery URL / session transport 提供。
 
-## 14. API 扩展规则
+这样可以保证：
+```text
+Control API ≠ Media Transport
+```
 
-新增 API 优先沿以下路径扩展：
+---
 
+# 14. API 扩展规则
+
+未来新增 API 必须优先：
 ```text
 Existing Domain
       ↓
@@ -410,14 +542,34 @@ New Sub-resource / Command
 New Domain only if semantics genuinely new
 ```
 
-不得因新增一个功能就创建 `/encoder-v2`、`/new-switch`、`/advanced-playout`、`/ai-broadcast`、`/vendor-bmd` 等平行模型。
+禁止因为新增一个功能就创建平行 API：
+```text
+/encoder-v2
+/new-switch
+/advanced-playout
+/ai-broadcast
+/vendor-bmd
+```
 
-如果确需新增领域，必须说明既有领域为何不能承载、规范所有者、对象模型、状态机、Commands、Queries、Events、兼容性影响。
+优先扩展既有 Domain Contract。
 
-## 15. 扩展字段机制
+如果确实需要新 Domain，必须说明：
+```text
+Why existing domain cannot own it
+Canonical owner
+Object model
+State machine
+Commands
+Queries
+Events
+Compatibility
+```
 
-允许保留：
+---
 
+# 15. API 扩展机制
+
+允许对象保留：
 ```text
 extensions
 metadata
@@ -426,114 +578,369 @@ annotations
 vendor_extensions
 ```
 
-核心语义不得藏入 extension；厂商字段不得污染 Canonical Contract；extension 不得成为第二套 Domain Model；extension 必须具备版本；长期稳定且跨系统需要的字段才可晋升为 canonical field。
+但：
 
-## 16. 兼容性
+- Core semantic fields 不得藏入 extension；
+- Vendor fields 不得污染 Canonical Contract；
+- extension 不得成为第二套 Domain Model；
+- extension 必须有 version；
+- 长期稳定且跨系统需要的 extension 才可晋升为 canonical field。
 
-默认优先支持：
+---
 
+# 16. API 兼容性
+
+默认策略：
 ```text
-新增字段
-新增枚举值
-新增 endpoint
-可选能力
+Additive Field
+Additive Enum Value
+Additive Endpoint
+Optional Capability
 ```
 
-破坏性变化必须具备：
+优先兼容扩展。
 
+破坏性变化必须：
 ```text
-新 Contract Version
-迁移方案
-兼容窗口
-消费者证据
-弃用阶段
-最终移除
+New Contract Version
+Migration Plan
+Compatibility Window
+Consumer Evidence
+Deprecation
+Removal
 ```
 
-历史 API 语义不得静默改变。
+历史 API 的语义不能被静默改变。
 
-## 17. Standalone / Integrated API
+---
+
+# 17. Standalone / Integrated API
 
 Standalone：
-
 ```text
-Browser → VBMF API → VBMF Runtime
+Browser
+  ↓
+VBMF API
+  ↓
+VBMF Runtime
 ```
 
 Integrated：
-
 ```text
-母平台 → Integration Boundary → VBMF API / Runtime Contract
+Mother Platform
+  ↓
+Integration Boundary
+  ↓
+VBMF API / Runtime Contract
 ```
 
-Identity Provider、Registry Provider、Authentication Provider、Policy Provider 可以不同；Domain、Runtime execution、Command、Query、Event semantics 不得不同。
-
-## 18. 安全边界
-
-API 必须预留 Authentication、Authorization、Authority Context、Audit、Rate Limit、Replay Protection、Request Validation 和 Sensitive-field Redaction。
-
-具体 IAM / Enterprise Identity Provider 不在 VBMF API Core 内重复实现。
-
-高风险操作至少具备 Actor、Authority、Reason、Correlation、Idempotency 和 Audit。
-
-## 19. API 与 Media Plane 分离
-
-禁止把 `/api/v1/video/raw-frame-stream`、`/api/v1/audio/raw-samples` 作为正常实时主链路。
-
-允许通过 `/api/v1/preview/sessions` 建立预览，再由 Media Delivery Transport 承担实际媒体。
-
-API 可以承载小型控制数据、Snapshot metadata、health、metrics 和 descriptors，但不得成为专业实时媒体主总线。
-
-## 20. API 治理
-
-新增 API 必须至少经过：
-
+两种模式可以不同：
 ```text
-需求
- ↓
-权威归属
- ↓
-领域归属
- ↓
-既有资源检查
- ↓
-契约影响分析
- ↓
-兼容性分析
- ↓
-安全 / Authority
- ↓
-幂等
- ↓
-事件影响
- ↓
-实现与消费者证据
+Identity Provider
+Registry Provider
+Authentication Provider
+Policy Provider
 ```
 
-API 的实现不得反向定义领域模型。领域契约稳定后，再生成 OpenAPI / JSON Schema / AsyncAPI、Contract Tests 和 SDK。
-
-## 21. SDK 原则
-
-`vbmf-sdk` 必须遵循 **契约优先、SDK 后置、真实消费者优先**：
-
+但不能不同：
 ```text
-稳定 L0 契约
+Domain semantics
+Runtime execution
+Command semantics
+Query semantics
+Event semantics
+```
+
+---
+
+# 18. API 安全边界
+
+API 必须预留：
+```text
+Authentication
+Authorization
+Authority Context
+Audit
+Rate Limit
+Replay Protection
+Request Validation
+Sensitive-field Redaction
+```
+
+但具体 IAM / enterprise identity provider 不在 VBMF API Core 内重新实现。
+
+高风险操作必须具备：
+```text
+Actor
+Authority
+Reason
+Correlation
+Idempotency
+Audit
+```
+
+---
+
+# 19. API 与 Media Plane 分离
+
+禁止：
+```text
+POST /api/v1/video/raw-frame-stream
+POST /api/v1/audio/raw-samples
+```
+
+作为正常实时主链路。
+
+允许：
+```text
+POST /api/v1/preview/sessions
+```
+
+然后由 Media Delivery Transport 承担实际媒体。
+
+API 可以传输小型控制数据、Snapshot metadata、health、metrics、descriptors，但不得成为专业实时媒体主总线。
+
+---
+
+# 20. API 治理
+
+新增 API 前必须经过：
+```text
+Requirement
  ↓
-领域契约
+Ownership
  ↓
-OpenAPI / Schema / Event Contract
+Domain
  ↓
+Existing Resource Check
+ ↓
+Contract Impact
+ ↓
+Compatibility
+ ↓
+Security / Authority
+ ↓
+Idempotency
+ ↓
+Event Impact
+ ↓
+Observability
+ ↓
+Test Gate
+```
+
+任何 API 如果不能回答：
+```text
+Who owns this?
+What object does it operate on?
+What state transition does it cause?
+Is it idempotent?
+What fact/event follows?
+How is failure represented?
+How is it observed?
+```
+
+不得进入生产实现。
+
+---
+
+# 21. SDK 策略 — 先 Contract 后 SDK
+
+SDK **不是现在先设计出来再倒逼 API**。
+
+正确顺序：
+```text
+Master API Semantics
+        ↓
+Domain Contract
+        ↓
+OpenAPI / JSON Schema / Event Schema
+        ↓
 Contract Tests
- ↓
-真实消费者证据
- ↓
-vbmf-sdk
+        ↓
+Real Consumer Evidence
+        ↓
+SDK
 ```
 
-SDK 不得暴露 Rust 内部结构、GStreamer/FFmpeg 内部对象、厂商 SDK 对象或数据库模型，也不得演变成 Universal Media SDK。
+因此当前阶段：
 
-## 22. P1 边界
+### 现在冻结
 
-P1 不实现全部 V0.3 namespace，不引入 Scheduler、Placement、Workload、Allocation、Cluster/HA 全套实现，不引入 SSE/WebSocket，不重构 Error Model，不升级 Command 契约。
+- API namespace；
+- API semantic rules；
+- versioning；
+- command/query/event boundaries；
+- error/idempotency/context；
+- extension mechanism。
 
-P1 的 API 任务是激活 Standalone Runtime Control Plane，并让已有 Query / Command / Idempotency / Event Projection 契约真正连接到 Runtime。
+### 后续逐域冻结
+
+- Request / Response schema；
+- State enum；
+- Command payload；
+- Query filters；
+- Event payload；
+- Capability discovery schema；
+- Error detail schema。
+
+### 再之后
+
+根据真实消费者提炼 SDK。
+
+---
+
+# 22. SDK 分层
+
+未来建议：
+```text
+L0 — Contract
+    JSON Schema / OpenAPI / AsyncAPI / fixtures
+
+L1 — vbmf-sdk
+    Stable Broadcast Runtime client/types/helpers
+
+L2 — Optional Integration Adapter
+    Mother Platform / specific consumer integration
+```
+
+`vbmf-sdk` 只表达稳定的 Broadcast Runtime Contract，例如：
+```text
+BroadcastSession
+SignalSource
+SignalGraph
+Pipeline
+Workload
+Placement
+Switch
+Failover
+ClockDomain
+FrameSyncGroup
+VirtualChannel
+PlayoutSession
+Output
+Health
+RuntimeCapability
+```
+
+不得把 VBMF Rust internal structs 自动生成成 SDK API。
+
+不得把 vendor SDK、GStreamer object、FFmpeg command builder、内部 DB model 暴露给 SDK。
+
+---
+
+# 23. SDK 准入门槛
+
+只有同时满足：
+```text
+Stable Contract
++ Stable Semantics
++ Canonical Owner = VBMF
++ Real Consumer
++ Version Compatibility
++ Contract Tests
++ Migration / Exit Path
+```
+
+才允许进入 `vbmf-sdk`。
+
+因此：
+
+> **API 先定档；Domain Contract 再细化；SDK 最后从稳定 Contract 中提炼。**
+
+SDK 是 API/Contract 的消费层，不是 API 的设计源头。
+
+---
+
+# 24. 与母框架的关系
+
+母框架负责：
+```text
+Identity
+Context
+Version
+Lifecycle primitives
+Event Envelope
+Error semantics
+Provenance
+Authority
+Cross-system ownership
+Security / Governance
+```
+
+VBMF API 负责：
+```text
+BroadcastSession
+MediaSource
+Signal
+Pipeline
+Workload
+Placement
+Production
+Playout
+Protection
+Synchronization
+Transport
+Output
+HA
+Runtime Health
+```
+
+两者通过 Integration Contract 对接。
+
+禁止：
+```text
+VBMF API → Mother DB
+VBMF SDK → Mother internal ORM
+Mother Platform → Vendor SDK
+```
+
+普通新增 endpoint、字段、Command、Query、Event、Adapter、Protocol 不得重新定义本文件；按照兼容策略进行 Domain Contract evolution。
+
+---
+
+# 25. 完成定义
+
+本 API Master Design 定档意味着：
+
+1. `/api/v1` 根版本冻结；
+2. 顶层 namespace 冻结；
+3. Query / Command / Event / Preview 边界冻结；
+4. Control Plane / Media Plane 边界冻结；
+5. Command / Idempotency / Error 三平面冻结；
+6. Context / Identity 基础语义冻结；
+7. Error taxonomy 冻结；
+8. Extension Model 冻结；
+9. Compatibility policy 冻结；
+10. Standalone / Integrated API semantics 冻结；
+11. SDK 采用 Contract-first、Consumer-evidence-first；
+12. 后续进入 Domain-by-Domain Contract Design。
+
+---
+
+# 26. 变更控制
+
+只有以下情况才允许重新打开 API Master Design：
+```text
+API root/version model changes
+Control/Media boundary changes
+Command/Query/Event semantic changes
+Canonical ownership changes
+Cross-system Contract foundation changes
+Security/authority foundation changes
+Extension mechanism fundamentally insufficient
+```
+
+---
+
+# 27. 最终声明
+
+> **VBMF V0.3 API 现在定档。**
+>
+> 定档的是 API 的骨架、语义边界、版本机制和扩展能力；不是把所有未来字段一次性猜完。
+>
+> 后续新增 API 必须首先进入既有 Domain/Resource/Capability/Command/Query/Event 体系，只有现有语义确实无法表达时才允许增加新的 Domain。
+>
+> **API 先于 SDK；Contract 先于 SDK；真实 Consumer 证据先于 Shared SDK。**
+>
+> 下一阶段不再讨论“API 要不要存在”，而是按 D1→D15 对每个 Domain 做字段级 Contract、状态机、Command、Query、Event、Error 与 Test Gate 设计。

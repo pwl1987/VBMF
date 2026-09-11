@@ -3,7 +3,7 @@
 > V0.2 架构基线 LOCK FINAL（22 轮 review）。
 > 本文档是 VBMF 项目路线图（三段式：历史架构 / 当前实施 / 未来产品）。
 > **当前实施阶段的唯一事实源是 [`docs/architecture/PHASE_IMPLEMENTATION_MAP.md`](docs/architecture/PHASE_IMPLEMENTATION_MAP.md)**（本文件只保留概要链接，不复制细节，避免双源漂移）。
-> **V0.3 产品化基线：[`docs/architecture/V0.3_STANDALONE_PRODUCT_BASELINE.md`](docs/architecture/V0.3_STANDALONE_PRODUCT_BASELINE.md)**。
+> **V0.3 产品化基线：[`docs/architecture/V0.3/03_独立产品基线.md`](docs/architecture/V0.3/03_独立产品基线.md)**（V0.3 文档包入口：[`docs/architecture/V0.3/README.md`](docs/architecture/V0.3/README.md)）。
 
 ## 状态总览
 
@@ -68,7 +68,7 @@ V0.3-P6  Integrated Mode                 📋 Mother Platform Integration
 
 > **V0.3 不是 V0.2 语义重写。**任何 V0.2 冻结语义变化必须走版本化契约和迁移证据。
 >
-> 完整基线见 `docs/architecture/V0.3_STANDALONE_PRODUCT_BASELINE.md`。
+> 完整基线见 `docs/architecture/V0.3/03_独立产品基线.md`。
 
 ### V0.3-P0 — Baseline
 
