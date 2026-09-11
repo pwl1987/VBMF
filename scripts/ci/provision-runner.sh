@@ -14,7 +14,7 @@
 #     proxy address is never hardcoded here.
 #
 # Usage (root):
-#   RUNNER_TOKEN=<fresh-token> ./provision-runner.sh --name vbmf-ci-01 [--labels vbmf-general]
+#   RUNNER_TOKEN=<fresh-token> ./provision-runner.sh --name vbmf-ci-01 [--labels vbmf,vbmf-general]
 #   RUNNER_TOKEN=<fresh-token> ./provision-runner.sh --name vbmf-ci-01 --reinstall
 #
 set -euo pipefail
@@ -25,7 +25,9 @@ BASE_DIR="/data/actions-runners/vbmf"
 RUNNER_USER="vbmf-ci"
 RUNNER_SHELL="/usr/sbin/nologin"
 API_LATEST="https://api.github.com/repos/actions/runner/releases/latest"
-LABEL_DEFAULT="vbmf-general"
+# Contract §3 exact set: {self-hosted, linux, x64, vbmf, vbmf-general} — the
+# three platform labels are added by registration; we must supply vbmf + tier.
+LABEL_DEFAULT="vbmf,vbmf-general"
 
 NAME=""
 LABELS="$LABEL_DEFAULT"
@@ -42,7 +44,7 @@ Usage: provision-runner.sh --name <runner-name> [options]
 
 Options:
   --name <name>          runner name, e.g. vbmf-ci-01 (required; [a-z0-9-]+)
-  --labels <labels>      comma-separated CUSTOM labels only (default: vbmf-general).
+  --labels <labels>      comma-separated CUSTOM labels only (default: vbmf,vbmf-general).
                          self-hosted/linux/x64 are added by registration and
                          verified server-side; do not pass them here.
   --reinstall            full safety chain: stop unit -> config.sh remove ->
@@ -106,6 +108,15 @@ if [ "$REINSTALL" -eq 1 ]; then
   grep -q "\"agentName\"[[:space:]]*:[[:space:]]*\"${NAME}\"" "$RUNNER_DIR/.runner" \
     || fail "--reinstall: .runner agentName does not match '$NAME'; refusing to touch this directory"
   log "--reinstall chain for $RUNNER_DIR (repo $REPO_SLUG)"
+  # pre-remove server-side scope proof (frozen chain step: API must confirm the
+  # runner is registered under THIS repository before anything is touched)
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh api "repos/${REPO_SLUG}/actions/runners" --jq ".runners[] | select(.name == \"${NAME}\")" | grep -q . \
+      || fail "--reinstall: '$NAME' not listed under repos/${REPO_SLUG}/actions/runners; refusing (repository scope unproven server-side; directory NOT deleted)"
+    log "pre-remove API check: '$NAME' registered under repos/${REPO_SLUG}"
+  else
+    log "WARN: gh not available/authed; pre-remove API scope check skipped (config.sh remove stays the authoritative ownership proof)"
+  fi
   systemctl stop "$UNIT" 2>/dev/null || log "unit $UNIT not active (continuing)"
   # config.sh remove with a repo-scoped registration token is the authoritative
   # server-side removal + repository-ownership proof; it fails on bad token/runner.
@@ -132,6 +143,10 @@ if ! id -u "$RUNNER_USER" >/dev/null 2>&1; then
   log "created system user $RUNNER_USER (shell $RUNNER_SHELL)"
 fi
 mkdir -p "$BASE_DIR/packages" "$BASE_DIR/runners" "$BASE_DIR/manifests/$NAME"
+# vbmf-ci must be able to traverse BASE_DIR to reach runners/<name> (systemd
+# WorkingDirectory resolves as that user); root keeps ownership, group grants
+# traversal — packages/ itself stays root-owned (tamper guard).
+chown "root:${RUNNER_USER}" "$BASE_DIR"
 chmod 750 "$BASE_DIR"
 
 # ── resolve + download runner package (record sha256; verify when published) ──

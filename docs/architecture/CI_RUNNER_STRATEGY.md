@@ -34,7 +34,7 @@
 | A2 | `.github/workflows/media-agent.yml` blob SHA | `5bf1c0e321bbca9bd9ba9f80596b828f2927d0e5` |
 | A3 | required contexts（7，与 job `name` 严格一致） | `rust-format` / `rust-test-matrix` / `rust-clippy` / `hardware-test-compile` / `architecture-portability` / `gstreamer-build` / `session-lifecycle` |
 | A4 | branch protection | strict=true（须含最新 master）；enforce_admins=false；无 PR review 强制；无 restrictions；禁 force-push / 禁删除 |
-| A5 | repo self-hosted runners | total=**0**；owner_type=**User**（个人账户仓库：无 org runner-groups API → 「默认 group 实际名称」= **N/A，无 API 面**；仓库级注册构造性限定于本仓库） |
+| A5 | repo self-hosted runners | total=**0**；owner_type=**User**（个人账户仓库：无 org runner-groups API → 「默认 group 实际名称」= **N/A，无 API 面**，repo 级 `actions/runner-groups` 端点实测 **HTTP 500**（2026-09-11，3 次确定性复现）；仓库级注册构造性限定于本仓库） |
 | A6 | 与 PR #31 文件交集 | PR #31（head `feat/v03-standalone-product-baseline`，14 文件 = `ROADMAP.md` + `docs/architecture/V0.3/**`）与本 Phase 文件集 **零交集** |
 | — | 内网代理连通（管理机实测） | HTTP CONNECT `http://10.30.5.73:8118` → api.github.com 200（1.8s）；SOCKS5 `10.30.5.73:1080` → 200（1.2s）。runner 宿主机待 B0 预检 |
 
@@ -223,6 +223,10 @@ VBMF CI RUNNER PHASE-1 READY
    双通道必须先裁决（§4）。
 7. **toolchain 漂移**：`dtolnay/rust-toolchain@stable` 是滚动 stable（已发生过 CI rustfmt
    与盒上 1.9.0 版本差事件）→ 迁移时决定 pin 策略。
+8. **工具链对 job 的可见性**：B0 的 rustup 装在 root `HOME`；Phase 1 job env 为
+   `HOME=runners/<name>` + 最小 PATH，probe 中 `rustc/cargo` MISSING 属**预期**而非缺陷。
+   工具链对 job 的 PATH/HOME 契约（系统级 `/usr/local` vs unit PATH vs runner 用户
+   rustup）在 Phase 2 迁移评审中裁决。
 
 ## 11. 只读探针红线（CI-RUNNER-PROBE-01）
 
@@ -284,7 +288,7 @@ git clone https://github.com/pwl1987/VBMF /tmp/vbmf-repo && cd /tmp/vbmf-repo/sc
 # 生成 fresh registration token 后（GitHub → Settings → Actions → Runners → New self-hosted runner）
 export RUNNER_TOKEN=<fresh-token>          # 只经 env，不进任何文件
 
-sudo -E ./provision-runner.sh --name vbmf-ci-01 --labels vbmf-general
+sudo -E ./provision-runner.sh --name vbmf-ci-01 --labels vbmf,vbmf-general
 #   直连不通时追加: --runner-proxy http://10.30.5.73:8118   （瞬态 env → runner 自持久化）
 
 # systemd（先 diff 再安装，不静默覆盖）
@@ -301,14 +305,19 @@ unset RUNNER_TOKEN
 
 ```bash
 scripts/ci/verify-runner.sh --name vbmf-ci-01                       # R1-R5 + scope
-gh workflow run ci-infra-probe.yml --ref feat/ci-runner-phase1      # R6（dispatch-only）
+gh workflow run ci-infra-probe.yml --ref master                     # R6（dispatch-only；合并后 master 才有该 workflow）
 gh pr checks <PR#>                                                  # N4
 scripts/ci/verify-runner.sh --name vbmf-ci-01 --no-regression       # N1/N2/N3
 ```
 
 ### F Rollback Drill（宿主机 + 管理机）
 
-按 §12 执行完整卸载 → `verify-runner.sh` 确认 absent → 重跑 B1-B3 + C/D（第二次独立部署）。
+按 §12 执行完整卸载 → `verify-runner.sh` 确认 absent → **清除 packages 缓存（落实 F Gate「重新下载」）** → 重跑 B1-B3 + C/D（第二次独立部署）：
+
+```bash
+sudo rm -f /data/actions-runners/vbmf/packages/actions-runner-linux-x64-*.tar.gz \
+           /data/actions-runners/vbmf/packages/actions-runner-linux-x64-*.tar.gz.sha256
+```
 
 ---
 

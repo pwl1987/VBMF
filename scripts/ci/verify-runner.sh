@@ -84,7 +84,7 @@ if [ "$OWNER_TYPE" = "User" ]; then pass "scope: personal-account repo, no org-w
   echo "INFO: owner is an Organization — verify runner group membership before Phase 2"; fi
 
 if [ "$NOREG" -eq 1 ]; then
-  echo "== No-Regression Gate (vs A-baseline $(date -u +%Y-%m-%d) capture at master ff2c481) =="
+  echo "== No-Regression Gate (vs A-baseline 2026-09-11 capture at master ff2c481) =="
   WF_SHA="$(gh api "repos/$REPO/contents/.github/workflows/media-agent.yml?ref=master" --jq .sha)"
   if [ "$WF_SHA" = "$EXPECT_WORKFLOW_SHA" ]; then pass "N1: media-agent.yml blob sha unchanged ($WF_SHA)"; else fail "N1: media-agent.yml blob sha changed: got $WF_SHA want $EXPECT_WORKFLOW_SHA"; fi
   CTX="$(gh api -H "Accept: application/vnd.github+json" "repos/$REPO/branches/master/protection" --jq '.required_status_checks.contexts | sort | join(",")')"

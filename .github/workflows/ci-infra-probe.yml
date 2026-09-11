@@ -15,6 +15,9 @@ name: CI Infra Probe
 on:
   workflow_dispatch:
 
+# read-only probe: no GITHUB_TOKEN permissions needed or granted
+permissions: {}
+
 jobs:
   runner-probe:
     name: runner-probe
@@ -28,13 +31,15 @@ jobs:
           echo "runner.arch=$RUNNER_ARCH"
           echo "github.repository=$GITHUB_REPOSITORY"
           echo "workspace=$GITHUB_WORKSPACE"
-          echo "job.started_at=$GITHUB_JOB / run_id=$GITHUB_RUN_ID"
+          echo "job=$GITHUB_JOB / run_id=$GITHUB_RUN_ID"
 
       - name: Host capability contract (read-only)
         run: |
           whoami
           id
           uname -a
+          nproc
+          grep -m1 'model name' /proc/cpuinfo || true
           hostname
           pwd
           for t in git python3 rustc cargo clang pkg-config curl; do
