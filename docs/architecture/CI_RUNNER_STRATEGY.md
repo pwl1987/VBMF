@@ -71,6 +71,7 @@
 | `vbmf-ci-media`（未来） | `self-hosted, Linux, X64, vbmf, vbmf-media` | FFmpeg/GStreamer/libclang/protobuf/SDK 头编译链 |
 
 标签命名纪律：用**能力**（`vbmf-general`），不用机器名（`server01`）。
+（Phase 2 上线阶梯与终态拓扑见 §15。）
 
 ---
 
@@ -335,3 +336,63 @@ sudo bash -c 'rm -f /data/actions-runners/vbmf/packages/actions-runner-linux-x64
 | `scripts/ci/actions-runner-vbmf@.service` | systemd 模板（CI-RUNNER-SYSTEMD-01） |
 | `scripts/ci/collect-toolchain.sh` | manifests YAML+TXT（零 secret） |
 | `.github/workflows/ci-infra-probe.yml` | 只读探针（CI-RUNNER-PROBE-01） |
+
+---
+
+## 15. Phase 2 规划输入（2026-09-11 裁决；实施前仍须开工评审）
+
+> 本节冻结 Phase 2 的**拓扑、阶梯与门槛设计**。任何 `runs-on`/workflow 改动仍受
+> §0.1 红线约束，并按本节阶梯逐级评审放行（每级一 PR、全绿才下一级）。
+
+### 15.1 终态拓扑（3 台；BMD 实机不入 CI）
+
+| Runner | 标签（exact set） | 职责 | 状态 |
+|---|---|---|---|
+| `vbmf-ci-01` | `self-hosted,Linux,X64,vbmf,vbmf-general` | General CI | ✅ 在役（Phase 1） |
+| `vbmf-ci-02` | 同上（parity 通过并轨后） | General 并发 / 维护冗余 / A-B parity / 滚动升级 | 🟡 规划 |
+| `vbmf-ci-media` | `self-hosted,Linux,X64,vbmf,vbmf-media` | hardware-test-compile / gstreamer-build（目标载体） | 🟡 规划 |
+| BMD 实机 | `hardware-acceptance`（永不写入任何 workflow） | 真硬件验收 | 🔴 永走 §9 人工线（GATE-C） |
+
+- 命名沿用 §2 冻结表（tier 语义归标签，机器名不承载路由）。
+- 上线顺序：`vbmf-ci-02`（先 parity）→ 并轨 `vbmf-general` → `vbmf-ci-media`
+  （先 capability build，**不接现有 CI**）→ Phase 2 尾段才迁移 media 两 job。
+
+### 15.2 灰度阶梯
+
+```text
+P2-A 双机 parity     vbmf-ci-02 以临时标签 vbmf-parity-b 上线；
+                     manifest 与 01 逐项对比；工具链 pin 策略裁决（§10 #7）；
+                     并轨 vbmf-general 前 parity 差异必须为零或已裁决
+P2-B 安全/调度边界   fork PR 双通道裁决（§4 SEC-02 强制：fork 留 GitHub-hosted）；
+                     concurrency 组（§10 #4）；timeout-minutes 补齐（§10 #3）
+P2-C rust-format     单 job 灰度（最便宜最先）
+P2-D/P2-E           clippy → session-lifecycle → 双机稳定性观察
+                     → architecture-portability → rust-test-matrix（最重最后）
+P2-M media 迁移      hardware-test-compile + gstreamer-build（前置：SDK 模式裁决）
+```
+
+- 双机同标签后 GitHub 派发**非确定**——parity 对比期必须用区分标签定向验证。
+- 并轨纪律：两台工具链未 parity 前，禁挂同一调度标签（防「01 过 02 挂」间歇失败）。
+
+### 15.3 media 主机能力规格（capability spec，非安装清单）
+
+Ubuntu x64 · GStreamer 1.22+ · FFmpeg · libclang · protobuf-compiler ·
+DeckLink SDK（模式待裁决）·（仅实机验收场景：BMD Desktop Video +
+`/dev/blackmagic`，不进本 CI 面）。
+
+**SDK 注入模式决策点（P2-M 前必须二选一，不得混用）**：
+
+- **A. 维持 secrets 分片注入**（`DECKLINK_SDK_HEADERS_1/2`，现状）——CI 内组装；
+- **B. media 主机预装 + 版本锁定**（Acceptance Manifest 式记录）——去 secret 化。
+
+### 15.4 供给与 inventory 纪律
+
+- 供给复用本 runbook（`--name/--labels` 任意扩展）；**media 基线脚本须在实机
+  存在时编写并实测后才可入 runbook**（Phase 1 教训 #37/#38：未经实机检验的
+  步骤必然腐烂）。
+- 任何新 runner 并入调度标签前：collect-toolchain manifest 落盘 + probe 实测 +
+  双 Gate（R/N）复跑通过。
+- **部署形态**（2026-09-11 实测裁决）：`vbmf-ci-02` / `vbmf-ci-media` 以 devbox
+  KVM VM 落地（libvirtd active / 32C·92G·168G 余量充足，由 CI 侧自助供给，
+  不触碰宿主机既有 VM）。**同宿主机故障域**：满足维护冗余/滚动升级/并发/parity
+  四项诉求；物理级故障冗余留待真机替换时重评。
