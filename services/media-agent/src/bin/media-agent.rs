@@ -600,11 +600,12 @@ fn main() {
                 {
                     // 02-I P0-1: 生产组合根就绪——SessionManager 已构造（PortRegistry
                     // 一等消费: registry→ResourceRegistry→preflight）; mgr 常驻（tick
-                    // 线程持有——lease 房务, 零媒体启动）; 查询/命令面仍不暴露
-                    // （0.7C-8 生产 503 契约保持, 待 Control Plane transport 接线）。
+                    // 线程持有——lease 房务, 零媒体启动); P1 standalone Control Plane
+                    // 需要与该**同一实例**共享 Arc，不能另行构造 Runtime/SessionManager。
                     let (mgr, _ctrl, _media_tap_port, _bridge_observation) = composition;
+                    api_mgr = Some(mgr.clone());
                     tracing::info!(
-                        "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 等待 Control Plane 显式 StartPipeline Intent (RPC transport 待接, 见 rpc.rs)"
+                        "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), Control Plane 共享同一 SessionManager, 等待显式 StartSession Intent"
                     );
                     std::thread::spawn(move || loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
@@ -617,10 +618,10 @@ fn main() {
         }
     }
 
-    // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径 mgr 仅组合不暴露
-    // 查询面 → 503 契约保持诚实——0.7C-8 语义不变, 02-I P0-1 只补组合根构造);
-    // events/agent_state/device_count 全路径可用)。/health 响应体经 transport::route 保持
-    // 逐字段不变 (回归锚点)。
+    // P0.7C-8 / P1: Transport 上下文 (Query/Command 共享 Production/Diagnostic 的同一 SessionManager Arc)。
+    // Production 在 P0.7C-8 时因 api_mgr 未接线而返回 503; P1 通过上方 production composition
+    // 的 clone 接线消除该历史 503。events/agent_state/device_count 全路径可用。/health 响应体经
+    // transport::route 保持逐字段不变 (回归锚点)。
     let transport_ctx = media_agent::transport::TransportContext {
         events: projection_log.clone(),
         agent_state: agent_state.clone(),
