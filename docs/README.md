@@ -9,6 +9,7 @@
 |---|---|---|
 | [`architecture/ARCHITECTURE_V0.2.md`](architecture/ARCHITECTURE_V0.2.md) | **V0.2 架构基线**（22 轮 review LOCK FINAL，192KB） | ✅ |
 | [`architecture/README.md`](architecture/README.md) | V0.2 架构快速参考 + 关键定义速查 | ✅ |
+| [`architecture/CI_RUNNER_STRATEGY.md`](architecture/CI_RUNNER_STRATEGY.md) | 自托管 CI Runner 基础设施契约（Phase 1 v1.2：Runner / No-Regression 双 Gate；先建 Runner，现有 CI 零改动） | ✅ |
 | [`SYSTEM_AND_PROJECT_PLAN.md`](SYSTEM_AND_PROJECT_PLAN.md) | 初始系统 + 项目计划（V0.1 阶段） | ✅ |
 | [`phase-0.5/`](phase-0.5/) | Phase 0.5 统一入口：0.5A Operator（10 页 + 4 链）+ 0.5B Product Surface（38 表面 + 5 P0 wireframe + Design System + i18n）+ 0.5C Info Arch（4 域导航 + Object Vocabulary） | ✅ 0.5A/0.5B · 🟡 0.5C |
 | [`phase-0.6/`](phase-0.6/) | Executable Acceptance Specification 计划（前置: Phase 0.5 LOCK FINAL） | 📋 |

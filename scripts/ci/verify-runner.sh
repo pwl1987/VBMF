@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# VBMF self-hosted runner verification (admin machine, read-only)
+#
+# Contract: docs/architecture/CI_RUNNER_STRATEGY.md §3/§4/§9
+#   R1 registered  R2 identity exact  R3 online  R4 idle  R5 labels exact set
+#   + repository scope report (CI-RUNNER-SCOPE-01)
+#   --no-regression adds N1 (media-agent.yml blob SHA) and N2 (required
+#   contexts) against the A-baseline captured 2026-09-11 (master ff2c481).
+#
+# Requires: gh, authenticated with read access to the repository.
+# The default group name is NOT hardcoded: A5 established owner_type=User
+# (personal repo) so no runner-groups API surface exists; scope is proven by
+# querying the repository endpoint itself + owner type readback.
+#
+# Usage:
+#   verify-runner.sh --name vbmf-ci-01
+#   verify-runner.sh --name vbmf-ci-01 --no-regression
+#   verify-runner.sh --list                       # A5 baseline capture
+set -euo pipefail
+
+REPO="${VBMF_REPO:-pwl1987/VBMF}"
+EXPECT_LABELS="${VBMF_EXPECT_LABELS:-self-hosted,linux,x64,vbmf,vbmf-general}"
+EXPECT_WORKFLOW_SHA="${VBMF_EXPECT_WORKFLOW_SHA:-5bf1c0e321bbca9bd9ba9f80596b828f2927d0e5}"
+EXPECT_CONTEXTS="${VBMF_EXPECT_CONTEXTS:-rust-format,rust-test-matrix,rust-clippy,hardware-test-compile,architecture-portability,gstreamer-build,session-lifecycle}"
+
+NAME=""
+LIST=0
+NOREG=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name)         NAME="${2:-}"; shift 2 ;;
+    --list)         LIST=1; shift ;;
+    --no-regression) NOREG=1; shift ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+
+command -v gh >/dev/null 2>&1 || { echo "FAIL: gh CLI required" >&2; exit 2; }
+gh auth status >/dev/null 2>&1 || { echo "FAIL: gh not authenticated" >&2; exit 2; }
+
+sort_csv() { printf '%s' "$1" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | paste -sd, -; }
+pass() { printf 'PASS  %s\n' "$1"; }
+fail() { printf 'FAIL  %s\n' "$1"; FAILED=1; }
+FAILED=0
+
+if [ "$LIST" -eq 1 ]; then
+  echo "repo=$REPO"
+  gh api "repos/$REPO" --jq '"owner_type=" + .owner.type + " private=" + (.private|tostring)'
+  gh api "repos/$REPO/actions/runners" \
+    --jq '"total=" + (.total_count|tostring), (.runners[] | [.id, .name, .os, .status, (.busy|tostring), ([.labels[].name]|join("+"))] | @tsv)'
+  exit 0
+fi
+
+[ -n "$NAME" ] || { echo "--name is required (or use --list)" >&2; exit 2; }
+
+echo "== Runner Gate (repo=$REPO, name=$NAME) =="
+
+ROW="$(gh api "repos/$REPO/actions/runners" \
+  --jq ".runners[] | select(.name == \"${NAME}\") | [.status, (.busy|tostring), .os, ([.labels[].name] | sort | join(\",\"))] | @tsv" || true)"
+if [ -z "$ROW" ]; then
+  fail "R1/R2: runner '$NAME' not found in repos/$REPO/actions/runners"
+  exit 1
+fi
+pass "R1: registered (visible via repository endpoint)"
+
+IFS=$'\t' read -r STATUS BUSY OSNAME LABELS_SORTED <<< "$ROW"
+
+pass "R2: identity exact (name='$NAME' matched literally)"
+if [ "$STATUS" = "online" ]; then pass "R3: status=online"; else fail "R3: status=$STATUS (want online)"; fi
+if [ "$BUSY" = "false" ]; then pass "R4: busy=false (idle)"; else fail "R4: busy=$BUSY (want false)"; fi
+EXPECT_SORTED="$(sort_csv "$EXPECT_LABELS")"
+if [ "$LABELS_SORTED" = "$EXPECT_SORTED" ]; then
+  pass "R5: labels exact set {$LABELS_SORTED}"
+else
+  fail "R5: labels set mismatch: got {$LABELS_SORTED} want {$EXPECT_SORTED} (exact set, contains-style match is not accepted)"
+fi
+if [ "$OSNAME" = "Linux" ]; then pass "R5b: os=Linux"; else fail "R5b: os=$OSNAME (want Linux)"; fi
+
+echo "== Scope Contract (CI-RUNNER-SCOPE-01) =="
+OWNER_TYPE="$(gh api "repos/$REPO" --jq .owner.type)"
+echo "scope source: repository endpoint repos/$REPO/actions/runners (runner is repo-scoped by construction)"
+echo "owner_type=$OWNER_TYPE (A5 baseline: User; no org runner-groups API surface => group name: N/A)"
+if [ "$OWNER_TYPE" = "User" ]; then pass "scope: personal-account repo, no org-wide registration possible"; else
+  echo "INFO: owner is an Organization — verify runner group membership before Phase 2"; fi
+
+if [ "$NOREG" -eq 1 ]; then
+  echo "== No-Regression Gate (vs A-baseline 2026-09-11 capture at master ff2c481) =="
+  WF_SHA="$(gh api "repos/$REPO/contents/.github/workflows/media-agent.yml?ref=master" --jq .sha)"
+  if [ "$WF_SHA" = "$EXPECT_WORKFLOW_SHA" ]; then pass "N1: media-agent.yml blob sha unchanged ($WF_SHA)"; else fail "N1: media-agent.yml blob sha changed: got $WF_SHA want $EXPECT_WORKFLOW_SHA"; fi
+  CTX="$(gh api -H "Accept: application/vnd.github+json" "repos/$REPO/branches/master/protection" --jq '.required_status_checks.contexts | sort | join(",")')"
+  EXPECT_CTX_SORTED="$(sort_csv "$EXPECT_CONTEXTS")"
+  if [ "$CTX" = "$EXPECT_CTX_SORTED" ]; then pass "N2: 7 required contexts unchanged"; else fail "N2: required contexts changed: got {$CTX} want {$EXPECT_CTX_SORTED}"; fi
+  pass "N3: no runs-on change (covered by N1: workflow file unchanged)"
+fi
+
+echo "=="
+if [ "$FAILED" -eq 0 ]; then echo "RESULT: PASS"; else echo "RESULT: FAIL"; exit 1; fi
