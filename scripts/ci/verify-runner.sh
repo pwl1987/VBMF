@@ -38,7 +38,10 @@ done
 command -v gh >/dev/null 2>&1 || { echo "FAIL: gh CLI required" >&2; exit 2; }
 gh auth status >/dev/null 2>&1 || { echo "FAIL: gh not authenticated" >&2; exit 2; }
 
-sort_csv() { printf '%s' "$1" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | paste -sd, -; }
+# LC_ALL=C: byte-order sort to match jq's codepoint sort — locale collation
+# (case folding) would order mixed-case sets like {Linux, X64, self-hosted}
+# differently on the two sides and break exact-string comparison.
+sort_csv() { printf '%s' "$1" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | LC_ALL=C sort | paste -sd, -; }
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; FAILED=1; }
 FAILED=0
