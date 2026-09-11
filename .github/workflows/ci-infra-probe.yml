@@ -12,8 +12,22 @@ name: CI Infra Probe
 # workflow_dispatch ONLY (fork PRs cannot trigger it), single job, NO matrix —
 # Phase 1 proves "this one runner executes jobs reliably"; scheduler behavior
 # (matrix/concurrency/deterministic assignment) belongs to Phase 2/3.
+#
+# `tier` input (choice allowlist) targets a specific runner tier during
+# Phase 2 parity (e.g. vbmf-parity-b) — required by strategy §15.4: every
+# runner must be probe-verified BEFORE joining a scheduling label. Red lines
+# unchanged: read-only, dispatch-only, single job, fixed allowlist (no
+# free-form label injection).
 on:
   workflow_dispatch:
+    inputs:
+      tier:
+        description: "Target runner tier label (allowlist)"
+        type: choice
+        default: vbmf-general
+        options:
+          - vbmf-general
+          - vbmf-parity-b
 
 # read-only probe: no GITHUB_TOKEN permissions needed or granted
 permissions: {}
@@ -21,7 +35,7 @@ permissions: {}
 jobs:
   runner-probe:
     name: runner-probe
-    runs-on: [self-hosted, linux, x64, vbmf-general]
+    runs-on: ${{ fromJSON(format('["self-hosted", "linux", "x64", "{0}"]', inputs.tier)) }}
     timeout-minutes: 5
     steps:
       - name: Runner identity
