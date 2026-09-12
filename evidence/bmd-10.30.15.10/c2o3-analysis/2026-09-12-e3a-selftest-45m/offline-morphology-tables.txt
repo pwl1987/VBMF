@@ -1,0 +1,46 @@
+# C2-O3-2 E3A offline morphology classification — machine tables (2026-09-12)
+# Analyzer: session-inline (B1/O1 precedent); inputs: 11 topology-*.smaps (md5-verified 35/35 box==local)
+# Frozen criteria verbatim: stable envelope "RW +d / PROT_NONE -d / conservation~0 / heap flat /
+#   dVmData~dRssAnon~dAnonymous~drw / new_out_rss~0"; reporting floor 16 kB (any magnitude)
+# trig_positive NOT used; classification from adjacent smaps pairs only.
+
+== T1 snapshot inventory (11 snapshots) ==
+label|run_rel|n_ext_all|census>=32MiB|sum_rw|sum_pn|heap|anon_tot|VmSize|VmData|RssAnon
+start|4|23|3|57320|523248|2672|3112|614048/60184/6480
+base-300|274|22|2|59504|588652|2672|3144|681636/62368/6512
+base-600|574|22|2|59504|588652|2672|3144|681636/62368/6512
+base-900|875|22|2|59504|588652|2672|3144|681636/62368/6512
+base-1200|1175|22|2|59504|588652|2672|3144|681636/62368/6512
+base-1500|1475|22|2|59504|588652|2672|3144|681636/62368/6512
+base-1800|1775|22|2|59504|588652|2672|3144|681636/62368/6512
+base-2100|2076|22|2|59504|588652|2672|3144|681636/62368/6512
+base-2400|2376|22|2|59504|588652|2672|3144|681636/62368/6512
+base-2700|2676|22|2|59504|588652|2672|3144|681636/62368/6512
+end|2707|22|2|59504|588652|2672|3144|681636/62368/6512
+
+== T2 adjacent pairs (floor 16 kB) ==
+start@4 -> base-300@274 dVmSize=+67588 dVmData=+2184 dRssAnon=+32 dheap=+0 dAnonTot=+32 new_out=-88
+   RESIZE base=0x792964000000 65536->589824 kB drw=+1056 dpn=+523232   <- PROT_NONE-growth expansion (no conservation pair)
+   INTRO 0x792988f73000 size=41356kB rw=41356 pn=0
+   GONE  0x79296c000000 size=458752kB
+   GONE  0x792989174000 size=39304kB
+   classification: WARM-UP reconfiguration; no boundary migration; not adjudicated as event
+base-300@274 -> base-600@574    dVmSize=+0 dVmData=+0 dRssAnon=+0 dheap=+0 dAnonTot=+0 new_out=+0
+   (no structural change >= 16 kB)
+base-600@574 -> base-900@875    all deltas +0; (no structural change >= 16 kB)
+base-900@875 -> base-1200@1175  all deltas +0; (no structural change >= 16 kB)
+base-1200@1175 -> base-1500@1475 all deltas +0; (no structural change >= 16 kB)
+base-1500@1475 -> base-1800@1775 all deltas +0; (no structural change >= 16 kB)
+base-1800@1775 -> base-2100@2076 all deltas +0; (no structural change >= 16 kB)
+base-2100@2076 -> base-2400@2376 all deltas +0; (no structural change >= 16 kB)
+base-2400@2376 -> base-2700@2676 all deltas +0; (no structural change >= 16 kB)
+base-2700@2676 -> end@2707      all deltas +0; (no structural change >= 16 kB)
+
+== WARM-UP / STEADY split ==
+WARM-UP pair: start@4 -> base-300@274 (reconfiguration only, no morphology)
+STEADY pairs: base-300@274 -> end@2707 (9 pairs): absolute zero change
+BOUNDARY_MIGRATION_CANDIDATES=0 (full window, any magnitude >= 16 kB)
+
+== detectability argument (mechanical) ==
+E2 steady rate +51.7 kB/min -> expected ~+2.1 MB over 40 min if same-family morphology present;
+E3A floor 16 kB, observed 0 -> NOT_OBSERVED is not a window artifact.
