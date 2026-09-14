@@ -2,7 +2,7 @@
 
 > V0.2 架构基线 LOCK FINAL（22 轮 review）。
 > 本文档是 VBMF 项目路线图（三段式：历史架构 / 当前实施 / 未来产品）。
-> **当前实施阶段的唯一事实源是 [`docs/architecture/PHASE_IMPLEMENTATION_MAP.md`](docs/architecture/PHASE_IMPLEMENTATION_MAP.md)**（本文件只保留概要链接，不复制细节，避免双源漂移）。
+> **实时 Current Phase / Current Task / Next Task / Risks / verification debt / handoff 的唯一动态事实源是 [`.project/STATE.md`](.project/STATE.md)。** `docs/architecture/PHASE_IMPLEMENTATION_MAP.md` 只保留宏观/历史实施阶段地图，不承担实时 Current Task Authority；本文同样不承担动态任务调度职责。
 
 ## 状态总览
 
@@ -16,7 +16,7 @@ Phase 0.5C 信息架构收口                 🟢 LOCK FINAL（目录归并 + 4
 Phase 0.5D P0 产品表面                  🟢 LOCK FINAL（6 新表面 + M-14 重画）
 ```
 
-### B. Current Implementation Roadmap（当前实施阶段 — SoT: PHASE_IMPLEMENTATION_MAP.md）
+### B. Current Implementation Roadmap（宏观/历史实施阶段地图 — 动态状态见 `.project/STATE.md`）
 
 ```
 Phase 0.6  Runtime Abstraction           ✅ COMPLETE（PR#1, tag phase-0.6-runtime-abstraction-baseline）
@@ -27,7 +27,7 @@ Phase 0.7D Event Projection              📋
 Phase 0.8  Federation / Multi-site       📋（P2）
 ```
 
-> 阶段详情/基线 tag/门禁证据/0.7C 前置顺序：见 `docs/architecture/PHASE_IMPLEMENTATION_MAP.md`。
+> 阶段详情/基线 tag/门禁证据/0.7C 前置顺序：见 `docs/architecture/PHASE_IMPLEMENTATION_MAP.md`。实时进度与下一任务只看 `.project/STATE.md`。
 
 ### C. Future Product Roadmap（未来产品阶段）
 
