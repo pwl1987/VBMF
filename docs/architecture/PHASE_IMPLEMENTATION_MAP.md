@@ -1,6 +1,6 @@
-# PHASE_IMPLEMENTATION_MAP — 实施阶段地图（Implementation Roadmap SoT）
+# PHASE_IMPLEMENTATION_MAP — 实施阶段地图（Implementation Roadmap）
 
-> 状态：**ACTIVE SoT**（实施路线的唯一事实源；状态列随阶段推进更新）。
+> 状态：**MACRO / HISTORICAL ROADMAP**。实时 Current Phase / Current Task / Next Task / Risks / verification debt / handoff 的唯一动态事实源是 [`.project/STATE.md`](../../.project/STATE.md)。本文件只保留宏观实施阶段、历史完成记录和阶段间依赖，不承担实时任务调度 Authority。
 > 性质声明：本地图是 **Implementation Roadmap**，不改变冻结 Architecture Contract（V0.2 LOCK FINAL 与各 `CONTRACT = FROZEN` 契约的语义不受本文件影响）。
 > 建立：2026-08-30（p07b-consolidation，0.7B 收口对账）——取代 `PHASE_0_6_MASTER_PRD.md` §5 中规划期的 0.7A-G 标签体系（原文在该文档保留并注记）。
 
