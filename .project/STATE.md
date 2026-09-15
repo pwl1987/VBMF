@@ -14,6 +14,7 @@
 - Git Authority policy: `main` 是唯一开发 Authority；不得再创建 `feature/*`、`fix/*`、`temp/*`、`repair/*`、`experiment/*` 等并行开发分支。
 - `master → main` migration: **COMPLETE**（2026-09-13，原位 rename；历史链未复制、未 rewrite、未 force-push）。
 - Remote `master` ref: **ABSENT**（GitHub 旧路径兼容重定向不构成实际 ref）。
+- Single-branch convergence（2026-09-15）：单人开发裁定，`main` 为唯一分支；7 个历史远端分支（`diag/c2-o3-e2-single-input` / `diag/c2-o3-e3a-selftest` / `docs/v03-architecture-reorg` / `docs/v03-p1-plan` / `docs/v03-p1-plan-2` / `feat/v03-p1-standalone-control-plane` / `feat/v03-standalone-product-baseline`）已删除，远端 heads 仅存 `main`；PR #31 随 head 分支删除自动 CLOSED。
 - Branch protection: `main` protected；required contexts 保持 7 个：
   - `rust-format`
   - `rust-test-matrix`
@@ -266,7 +267,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. **shared physical failure domain**：`vbmf-ci-01` 与 `vbmf-ci-02` 同 devbox 物理故障域，只提供维护冗余/并发/parity，不等价于物理 HA。
 4. **BMD deployment divergence**：`/opt/vbmf-dev/repo` 当前 detached at `7cc33dd…` 且有未提交 ops 改动，明显落后 live main；当前无 VBMF container/service 运行。不得把该旧 deployment 的 hardware evidence 继承给当前 main。
 5. **BMD device occupancy**：DeckLink driver/devnodes/plugins 当前可见，但有历史手工 `gst-launch ... decklinkvideosink device-number=2` 进程持续占用设备；任何后续 hardware acceptance 前必须先归属确认/受控释放，禁止抢占。
-6. **open PR #31 / historical branch**：仍 open / unmerged，不是 canonical development Authority；未来吸收前必须 main-relative reconciliation。
+6. **closed PR #31 / branch convergence**：PR #31 已随 2026-09-15 分支收敛关闭（head 分支已删）；它从来不是 canonical development Authority；未来若吸收 standalone product baseline，按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复任何分支。
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 
 ### Current blockers
@@ -281,7 +282,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-C：host1 已完成 current-SHA bundle/manifest 正式收口（§3.6）；仍欠 host2 对称 pin、双机 parity re-probe、`rust-format` grayscale。
 - Development agent：Pi/Claude Code 项目级 auth + real model smoke 已 PASS；Claude project trust PASS；后续长写任务优先用 `_shared` runner + tmux，不再登记 agent smoke debt。
 - BMD：当前 main 的 Runtime/hardware verification **deferred / not required for P2-B/P2-C CI-only changes**；BMD deployment 需未来按 exact commit 重建后才能产生新 evidence。
-- PR #31：若未来吸收 standalone product baseline，必须先做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
+- PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
 
 ## 10. Cold-Start Handoff
 
