@@ -80,7 +80,9 @@ The `codegraph` binary lives at `/home/ubuntu/.local/bin/codegraph`. After a fre
 
 ## Agent execution
 - The coordinator (ChatGPT or a user-designated orchestrator) owns Authority recovery, reconciliation, Work Packet boundaries, diff review, acceptance, Git/CI/STATE transition.
-- Pi is preferred for bounded/mechanical work; Claude Code is preferred for state machines, concurrency, recovery, cross-domain changes, and difficult RCA.
+- Coordination tiering (confirmed 2026-09-15): the strongest available model in the driving session acts as coordinator — dispatch, Work Packet design, diff review, verification, STATE/Authority transitions. When Claude Code drives a work session (e.g. a Comet change) it is the coordinator tier.
+- Pi is the default executor tier for bounded/mechanical work and most pattern-following coding (backend CRUD/schema, web console surfaces, SDK bindings, adapters following existing patterns, tests, scripts, CI workflow edits). Claude Code remains executor of last resort for state machines, concurrency, recovery, cross-domain changes, and difficult RCA.
+- Executors never write the rules they run under: AGENTS.md, division-of-labor rules, frozen Architecture/Contract, and STATE transitions stay coordinator-written; Pi may draft STATE/evidence edits only as an explicitly assigned packet subject to coordinator review.
 - On this VM use `/home/ubuntu/dev/_shared/bin/run-pi-agent.sh` or `run-claude-agent.sh`; long Claude write tasks should run inside tmux. One write-capable agent per checkout at a time.
 - Every write Work Packet must state: Task ID, relevant Authority, allowed files/scope, forbidden scope, acceptance criteria, and verification environment.
 - Agent exit 0 means `EXECUTOR_DONE_NEEDS_REVIEW`, not COMPLETE. Review diff/scope/tests independently before accepting.
