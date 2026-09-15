@@ -176,15 +176,20 @@ manifest 不放 `_work` 内；`packages` 与 `runners` 分离（同一包可配�
 
 ### No-Regression Gate（N)
 
+Phase 1 初建时 N1/N3 以 A2 workflow blob 不变证明“未迁 `runs-on`”。P2-B 已按计划**有意修改** workflow，
+因此从 Phase 2 起 `verify-runner.sh --no-regression` 改为验证不会随合法 workflow 演进失效的安全不变量：
+
 | # | 检查 | 实现 |
 |---|---|---|
-| N1 | `media-agent.yml` blob SHA 不变（vs A2） | `verify-runner.sh --no-regression` |
-| N2 | 7 required contexts 不变（vs A3） | 同上 |
-| N3 | 现有 CI 行为不变（无 runs-on 改动；N1 覆盖） | 同上 |
-| N4 | PR required checks 全绿 | `gh pr checks` |
+| N1 | repository canonical/default branch = `main` | `verify-runner.sh --no-regression` |
+| N2 | 7 required contexts exact set 不变 | 同上 |
+| N3 | `main` protection: strict=true / force-push=false / deletion=false | 同上 |
+| N4 | 当前 exact HEAD required checks 全绿 | `gh run` / `gh pr checks` |
+
+Phase 1 的 A2 blob SHA 仍保留为历史 baseline evidence，不再作为 Phase 2 的可变 workflow gate。
 
 ```text
-**RUNNER READY + NO REGRESSION = PHASE-1 READY**
+**RUNNER READY + SAFETY NO-REGRESSION = PHASE-2 MIGRATION READY**
 ```
 
 ### Gate 链（A→F）

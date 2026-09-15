@@ -4,8 +4,9 @@
 # Contract: docs/architecture/CI_RUNNER_STRATEGY.md §3/§4/§9
 #   R1 registered  R2 identity exact  R3 online  R4 idle  R5 labels exact set
 #   + repository scope report (CI-RUNNER-SCOPE-01)
-#   --no-regression adds N1 (media-agent.yml blob SHA) and N2 (required
-#   contexts) against the A-baseline captured 2026-09-11 (master ff2c481).
+#   --no-regression adds Phase-2-safe invariants after the intentional P2-B
+#   workflow change: canonical main, exact required contexts, and branch
+#   protection strict/force-push/delete boundaries.
 #
 # Requires: gh, authenticated with read access to the repository.
 # The default group name is NOT hardcoded: A5 established owner_type=User
@@ -20,7 +21,6 @@ set -euo pipefail
 
 REPO="${VBMF_REPO:-pwl1987/VBMF}"
 EXPECT_LABELS="${VBMF_EXPECT_LABELS:-self-hosted,Linux,X64,vbmf,vbmf-general}"
-EXPECT_WORKFLOW_SHA="${VBMF_EXPECT_WORKFLOW_SHA:-5bf1c0e321bbca9bd9ba9f80596b828f2927d0e5}"
 EXPECT_CONTEXTS="${VBMF_EXPECT_CONTEXTS:-rust-format,rust-test-matrix,rust-clippy,hardware-test-compile,architecture-portability,gstreamer-build,session-lifecycle}"
 
 NAME=""
@@ -87,13 +87,23 @@ if [ "$OWNER_TYPE" = "User" ]; then pass "scope: personal-account repo, no org-w
   echo "INFO: owner is an Organization — verify runner group membership before Phase 2"; fi
 
 if [ "$NOREG" -eq 1 ]; then
-  echo "== No-Regression Gate (vs A-baseline 2026-09-11 capture at master ff2c481) =="
-  WF_SHA="$(gh api "repos/$REPO/contents/.github/workflows/media-agent.yml?ref=master" --jq .sha)"
-  if [ "$WF_SHA" = "$EXPECT_WORKFLOW_SHA" ]; then pass "N1: media-agent.yml blob sha unchanged ($WF_SHA)"; else fail "N1: media-agent.yml blob sha changed: got $WF_SHA want $EXPECT_WORKFLOW_SHA"; fi
-  CTX="$(gh api -H "Accept: application/vnd.github+json" "repos/$REPO/branches/master/protection" --jq '.required_status_checks.contexts | sort | join(",")')"
+  echo "== No-Regression Gate (Phase 2 safety invariants) =="
+  DEFAULT_BRANCH="$(gh api "repos/$REPO" --jq .default_branch)"
+  if [ "$DEFAULT_BRANCH" = "main" ]; then pass "N1: canonical/default branch=main"; else fail "N1: default branch=$DEFAULT_BRANCH (want main)"; fi
+
+  PROTECTION_API="repos/$REPO/branches/main/protection"
+  CTX="$(gh api -H "Accept: application/vnd.github+json" "$PROTECTION_API" --jq '.required_status_checks.contexts | sort | join(",")')"
   EXPECT_CTX_SORTED="$(sort_csv "$EXPECT_CONTEXTS")"
   if [ "$CTX" = "$EXPECT_CTX_SORTED" ]; then pass "N2: 7 required contexts unchanged"; else fail "N2: required contexts changed: got {$CTX} want {$EXPECT_CTX_SORTED}"; fi
-  pass "N3: no runs-on change (covered by N1: workflow file unchanged)"
+
+  STRICT="$(gh api -H "Accept: application/vnd.github+json" "$PROTECTION_API" --jq '.required_status_checks.strict')"
+  FORCE="$(gh api -H "Accept: application/vnd.github+json" "$PROTECTION_API" --jq '.allow_force_pushes.enabled')"
+  DELETE="$(gh api -H "Accept: application/vnd.github+json" "$PROTECTION_API" --jq '.allow_deletions.enabled')"
+  if [ "$STRICT" = "true" ] && [ "$FORCE" = "false" ] && [ "$DELETE" = "false" ]; then
+    pass "N3: main protection strict=true, force-push=false, deletion=false"
+  else
+    fail "N3: main protection drift: strict=$STRICT force-push=$FORCE deletion=$DELETE"
+  fi
 fi
 
 echo "=="
