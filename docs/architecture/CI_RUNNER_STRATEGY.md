@@ -469,3 +469,16 @@ P2-C 在迁 `rust-format` 前，先把两台 `vbmf-general` runner 的 Rust 从�
   runner runtime proxy，不把 proxy 写入 systemd / runner `.env`。
 - 完成后必须重新跑 `ci-infra-probe.yml`，两机均证明 `/usr/local/bin` 下 exact Rust parity，
   再允许修改 `media-agent.yml` 的 `rust-format.runs-on`。
+
+### 15.8 P2-C provisioning plane reconciliation（2026-09-15）
+
+§15.7 的 GitHub Actions maintenance 入口经真实 runner 验证后撤回；本节**覆盖其“workflow 作为执行入口”的表述**，system Rust pin 的版本/路径契约仍保留。
+
+Evidence：maintenance run `34921727757` 同时命中 `vbmf-ci-01` / `vbmf-ci-02`；两机 exact-SHA 小脚本下载和 identity 均 PASS，但 `sudo -n true` 均 fail，且 `Pin system Rust 1.98.1` step 均 skipped。因此没有发生任何 system mutation。
+
+裁决：
+
+- `vbmf-ci` service account 保持无通用 sudo/root 权限；**禁止**为了 P2-C 给 CI runner 放开通用 sudo。
+- `.github/workflows/ci-runner-rust-pin.yml` 从 canonical `main` 撤回；临时 repository variable `VBMF_CI_PROXY` 同步删除。
+- `scripts/ci/pin-system-rust.sh` 保留为宿主机管理员工具；由现有 out-of-band host-admin/runbook 通道在两台 runner 主机上以 root 执行 exact `1.98.1` pin。
+- 执行后必须刷新 manifest，并用只读 `ci-infra-probe.yml` 分别命中两机证明 `/usr/local/bin` 的 Rust parity；在此之前 P2-C 不得迁 `rust-format.runs-on`。
