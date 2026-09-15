@@ -26,22 +26,23 @@
 - Last non-state-init implementation / CI reconciliation anchor: `db54d45c76bbd05917292131c0a4a803b2907f36` (`docs(ci): P2-A execution record — dual general runners merged (#41)`).
 - Dynamic state baseline: **以包含本 `.project/STATE.md` 当前版本的 live `main` commit 为准**；冷启动时用 `git log -1 -- .project/STATE.md` / GitHub file history 取得，不在文件内硬编码自引用 SHA。
 
-### Local Working Tree
+### Local Working Tree / Execution Environment
 
-**Local Working Tree: NOT OBSERVABLE** from the current GitHub-only execution environment.
+2026-09-15 已迁入标准 Development VM 布局并可真实观察：
 
-User-reported local facts at state initialization:
+- Development VM: `ubuntu2604`；development checkout = `/home/ubuntu/dev/VBMF`；
+- checkout 从 GitHub canonical `main` 新建，P2-B push 后与 live `main` 对齐；
+- 当前窗口可直接核查 staged / unstaged / untracked，不再使用 `NOT OBSERVABLE` 口径；
+- 旧 STATE 记录的另一环境未提交 `docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md` 修改**不在本新 checkout 中**；未取得原 checkout 证据前不得声称其已删除或已迁移。
+- Development VM 只承担开发/软件验证；BMD `lytv` 承担部署、Broadcast Runtime、DeckLink/hardware verification。
 
-- local branch 已改为 `main` 并跟踪 `origin/main`；
-- preserved uncommitted change: `docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md`.
-
-任何后续能访问本地 checkout 的窗口，在修改前必须重新执行 `git status --short --branch` / staged / unstaged / untracked 核查；不得把远端状态等同于本地 clean，也不得覆盖该用户已明确保留的未提交改动。
+Agent foundation：Claude Code 已在本 checkout 完成 workspace trust + 真实模型 smoke；Pi provider auth 与项目 cwd/approval 已确认，但项目级模型 smoke 当前无返回，登记为非 P2-C 阻塞的 Verification Debt。
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 Entry — P2-B gate preparation**
+**Governance / CI Infrastructure Phase 2 — P2-C rust-format grayscale preparation**
 
-当前不是 Runtime / Web 新业务功能开发阶段。本轮项目状态体系初始化完成后，项目从已完成的 P2-A 进入 P2-B；旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
+当前不是 Runtime / Web 新业务功能开发阶段。P2-B 已在 `main` 完成并通过真实 GitHub Actions；当前进入 P2-C 前置与单 job self-hosted 灰度。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
 VBMF 的永久产品定位保持：
 
@@ -87,45 +88,47 @@ Status: **COMPLETE in the commit containing this file**
 - 未创建 `STATUS.md` / `TODO.md` / `DECISIONS.md` / `RISKS.md` / `HANDOFF.md` 等第二套动态状态文件；
 - 未推进 Runtime / Web 业务功能。
 
+### 3.4 P2-B — CI safety / scheduling boundary
+
+Status: **COMPLETE / SOFTWARE VERIFIED**
+
+Implementation commit: `9d6df61c1e8164d65cc94c4a0a1f4a9febe0a1c2`.
+
+- fork PR 安全边界已冻结：P2-C+ 仅 trusted `main` push / same-repository PR 可进入 self-hosted；fork `pull_request` 永留 GitHub-hosted，禁止 `pull_request_target` 执行 PR code；
+- `media-agent.yml` push branch 收敛到 canonical `main`，并加入 workflow-level `contents: read`、concurrency/cancel-in-progress 与全部 7 jobs 的 timeout；
+- 7 required job/context 名称未变化，P2-B 本身未修改任何 `runs-on`；
+- Strategy 操作性 `--ref master` 已改为 `--ref main`，历史 baseline 中 `master` 仅保留为历史证据；
+- GitHub Actions run `34920528957`：7/7 required jobs **PASS**。
+
 ## 4. Current Task
 
-**P2-B — CI safety / scheduling boundary**
+**P2-C — `rust-format` single-job self-hosted grayscale**
 
 Current Task Authority:
 
-- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2
-- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.5
-- 相关现状 workflow: `.github/workflows/media-agent.yml`
+- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.5 / §15.6；
+- `.github/workflows/media-agent.yml`；
+- P2-B implementation `9d6df61c…` + Actions run `34920528957`.
 
-P2-B 必须先完成裁决，再允许 P2-C 的第一个 `runs-on` 灰度。范围只有：
+P2-C 顺序必须保持：
 
-1. fork PR 双通道安全边界：不可信 fork 路径继续使用 GitHub-hosted；self-hosted 不获得未经裁决的不可信代码执行路径；
-2. concurrency 组策略；
-3. `timeout-minutes` 补齐策略；
-4. 对 branch rename 后遗留的 `master` 字面量做 reconciliation，并统一到 canonical `main`；
-5. focused validation / required-check context 不漂移证明；
-6. 完成后同步本文件。
+1. 两台 `vbmf-general` runner 对称完成**同一具体 Rust 版本**的 system-level pin（`/usr/local/rustup` + `/usr/local/cargo` + `/usr/local/bin` 可见），禁止单机漂移；
+2. 重新 probe 两台，证明 `rustc/cargo/rustfmt` version/path parity；
+3. 只迁 `rust-format` 一个 job；同一 job/context 使用条件 `runs-on`：fork PR = GitHub-hosted，trusted main push / same-repo PR = `vbmf-general`；
+4. required context 仍名为 `rust-format`，其余 6 jobs 保持 GitHub-hosted；
+5. focused validation → push main → Actions 全绿 → runner identity evidence → STATE。
 
-**本状态初始化轮没有开始 P2-B 实现。**
-
-禁止在 P2-B 中顺手推进 Runtime、Web Console、母架构集成或其他产品功能。
+2026-09-15 当前前置证据：4 次 `ci-infra-probe` 分别命中 `vbmf-ci-01` / `vbmf-ci-02`，两机均报告 `rustc: MISSING` / `cargo: MISSING`，因此 system-level pin **尚未满足**。
 
 ## 5. Next Task
 
-**P2-C — `rust-format` single-job self-hosted grayscale**，仅在 P2-B 通过后进入。
+**P2-D — `rust-clippy` self-hosted grayscale**，仅在 P2-C 全绿且双 runner pin/parity 证据成立后进入。
 
-前置条件：
+后续队列保持：
 
-- P2-B 已冻结并验证；
-- `vbmf-ci-01` 与 `vbmf-ci-02` 对称完成系统级 Rust toolchain pin；
-- 不改变 7 required context 名称；
-- 先迁移最便宜的 `rust-format`，全绿后才允许继续 P2-D / P2-E。
+`P2-C rust-format → P2-D rust-clippy → P2-E session-lifecycle / architecture-portability / rust-test-matrix → P2-M media migration`。
 
-后续队列：
-
-`P2-B → P2-C rust-format → P2-D/P2-E clippy/session/architecture/test-matrix → P2-M media migration`。
-
-P2-M 前必须单独裁决 DeckLink SDK 注入模式；BMD 实机仍永走 hardware acceptance 人工线，不进入普通 PR CI。
+P2-M 前仍须单独裁决 DeckLink SDK 注入模式；BMD 实机永走 hardware acceptance 人工线，不进入普通 PR CI。
 
 ## 6. Current Authority
 
@@ -152,11 +155,11 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - actual remote `master` ref absent: **VERIFIED**
 - `main` migration preserved commit history: **VERIFIED at remote ref level**
 
-### P2-A infrastructure
+### P2-A / P2-B infrastructure
 
-- implementation: **COMPLETE**
-- runner parity / dual R Gate / dispatch evidence: **VERIFIED by registered P2-A evidence at `db54d45…`**
-- current state-init changes: docs/governance only；没有重新执行 runner probe。
+- P2-A implementation: **COMPLETE**；runner parity / dual R Gate / dispatch evidence 已登记于 `db54d45…`。
+- P2-B implementation: **COMPLETE / SOFTWARE VERIFIED** at `9d6df61c…`；GitHub Actions `34920528957` 7/7 required jobs PASS。
+- P2-C preflight probes `34920607255` / `34920611254` / `34920615247` / `34920619055`：两台 runner 均被命中，`rustc/cargo` 均 MISSING，故 system-level Rust pin 尚未 verified。
 
 ### Software / Runtime
 
@@ -189,23 +192,25 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 ### Active risks
 
 1. **24h RSS stability debt**：`rss_bounded` 历史 FAIL 尚未由最终修复 + 新 24h rung 关闭。
-2. **P2-C toolchain prerequisite**：两台 general runner 当前需要在迁移 rust-format 前做对称系统级 Rust pin；禁止单机漂移。
+2. **P2-C toolchain prerequisite — ACTIVE**：2026-09-15 双 runner probe 已确认 `rustc/cargo` 均不在 job PATH；迁移 rust-format 前必须对称完成同版本 system-level Rust pin。
 3. **shared physical failure domain**：`vbmf-ci-01` 与 `vbmf-ci-02` 同 devbox 物理故障域，只提供维护冗余/并发/parity，不等价于物理 HA。
-4. **branch-rename hygiene debt**：`.github/workflows/media-agent.yml` 仍有 `push.branches: [master, main]`；`CI_RUNNER_STRATEGY.md` runbook 仍有 `--ref master`。当前不构成功能阻塞，但 P2-B 必须统一到 `main`，不得长期保留双分支语义。
-5. **open PR #31 / historical branch**：`feat/v03-standalone-product-baseline` 的 PR #31 仍 open / unmerged。它不是 canonical development Authority，不得直接恢复为开发入口或自动合并；其中与 Standalone First 一致的内容未来必须先与 live `main` reconciliation。Standalone First 本身来自最新 Project Instructions，不依赖 PR #31 是否合并。
-6. **local pending edit**：用户报告本地 `docs/architecture/DEPLOYMENT_AND_DEV_RUNTIME.md` 有未提交改动；任何本地后续工作必须先观察并保护该改动。
+4. **BMD deployment divergence**：`/opt/vbmf-dev/repo` 当前 detached at `7cc33dd…` 且有未提交 ops 改动，明显落后 live main；当前无 VBMF container/service 运行。不得把该旧 deployment 的 hardware evidence 继承给当前 main。
+5. **BMD device occupancy**：DeckLink driver/devnodes/plugins 当前可见，但有历史手工 `gst-launch ... decklinkvideosink device-number=2` 进程持续占用设备；任何后续 hardware acceptance 前必须先归属确认/受控释放，禁止抢占。
+6. **open PR #31 / historical branch**：仍 open / unmerged，不是 canonical development Authority；未来吸收前必须 main-relative reconciliation。
+7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 
 ### Current blockers
 
-- Project-state initialization: **NONE** after Git Authority migration.
-- P2-B: 尚未发现 Authority/Contract 硬冲突；开工前仍需增量读取相关 workflow/tests 并做 branch-rename reconciliation。
+- P2-B: **NONE / COMPLETE**.
+- P2-C: 两台 general runner 的 system-level Rust pin 是硬前置；当前 probe 已确认尚未安装。必须先取得受控的 runner admin/provisioning 执行路径并对称完成 pin，不能绕过为 job-local rolling `stable`。
 
 ## 9. Verification Debt
 
 - 24h stability：需要在 RCA / fix 真正关闭后重新跑完整 24h rung；旧 FAIL 不得被短跑或诊断 run 覆盖。
-- 当前 state-init HEAD：没有重新跑 software CI / hardware / stability；这是 docs-only governance change，不得借历史证据冒充新验证。
-- branch rename：P2-B 时清理 `master` 操作性字面量并验证 required context 名称不变。
-- P2-C 前：两台 general runner system-level Rust pin + parity 复核。
+- branch rename hygiene：**P2-B CLOSED**；workflow/runbook 操作性路径已统一 `main`，required context 名称未变。
+- P2-C 前：两台 general runner system-level Rust pin + parity 复核（当前 probe 明确为 MISSING）。
+- Development agent：Pi 项目级模型 smoke 尚未成功返回；不阻塞当前 CI task，但不能记为 fully usable。
+- BMD：当前 main 的 Runtime/hardware verification **deferred / not required for P2-B/P2-C CI-only changes**；BMD deployment 需未来按 exact commit 重建后才能产生新 evidence。
 - PR #31：若未来吸收 standalone product baseline，必须先做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
 
 ## 10. Cold-Start Handoff
@@ -217,13 +222,13 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = P2-B** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.5；
-7. 读取 `.github/workflows/media-agent.yml` 与 P2-B 所需的相关 CI scripts/tests；
-8. 先解决已登记的 branch-rename `master` 字面量，再形成最小 P2-B 方案；
+6. 读取 **Current Task = P2-C** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.5 / §15.6；
+7. 读取 `.github/workflows/media-agent.yml` 与 `ci-infra-probe.yml`，先核对两台 runner 的 Rust pin/parity evidence；
+8. system-level Rust pin 未满足时先完成对称 provisioning；满足后才允许迁 `rust-format` 的 `runs-on`；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
-12. 若当前环境不能观察用户本地 checkout，明确写 `Local Working Tree: NOT OBSERVABLE`。
+12. 当前标准 Development VM checkout 应直接观察 working tree；只有执行环境确实失去该 checkout 可见性时才使用 `Local Working Tree: NOT OBSERVABLE`。
 
 ### Expected cold-start conclusion at this state
 
@@ -232,7 +237,8 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - Git Authority 已完成 `master → main`；
 - state system 已初始化；
 - P2-A 已完成；
-- **Current Task = P2-B CI safety / scheduling boundary**；
-- **Next Task = P2-C rust-format single-job grayscale**；
+- P2-B 已完成并经 Actions 7/7 PASS；
+- **Current Task = P2-C rust-format single-job grayscale**；
+- **Next Task = P2-D rust-clippy self-hosted grayscale**；
 - Runtime / Web 新业务功能当前不应推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
