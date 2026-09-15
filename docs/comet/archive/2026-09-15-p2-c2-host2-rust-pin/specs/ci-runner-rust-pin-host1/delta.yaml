@@ -1,0 +1,7 @@
+schema: comet.native.delta.v1
+capability: ci-runner-rust-pin-host1
+base_hash: 1db2f49629c605cdd5a9e03de5b5d0438c8d5cfae02a9db039c657b77c14d4a9
+base_version: 1
+legacy_hash: 1ed0f232beebebd0c238d826bad442e8ab026a123d866ce8ce8875dad049c1f9
+base_requirements: {}
+operations: []

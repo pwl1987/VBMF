@@ -1,0 +1,324 @@
+schema: comet.native.v4
+name: p2-c2-host2-rust-pin
+language: zh-CN
+phase: archive
+status: done
+state_version: 8
+brief: brief.md
+shape_confirmation_hash: 6313d51c14cc3b4bc4f62a4381c4d9867848a143eb8d9b1abeb695dd2844b0fc
+spec_changes:
+  - capability: ci-runner-rust-pin-host1
+    operation: modify
+    source: specs/ci-runner-rust-pin-host1/spec.md
+    delta_source: specs/ci-runner-rust-pin-host1/delta.yaml
+    base_hash: 1db2f49629c605cdd5a9e03de5b5d0438c8d5cfae02a9db039c657b77c14d4a9
+  - capability: ci-runner-rust-pin-host2
+    operation: create
+    source: specs/ci-runner-rust-pin-host2/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 1
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: coordinator 确认 SHA 的 bundle 在 Development VM
+      生成成功，`BUNDLE_SOURCE_SHA` 与 `SHA256SUMS` 完整记录为 evidence。"
+    result: passed
+    reason:
+      text: BUNDLE_SOURCE_SHA=9e47721 recorded; three script hashes independently
+        recomputed at 9e47721/b0f5df3/HEAD, exact match to §3.6 values
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: "Scenario: `vbmf-ci-02` guest 上 `sha256sum -c SHA256SUMS` 全 PASS；首次
+      `pin-system-rust.sh --version 1.98.1` 输出
+      `PINNED_RUST_VERSION=1.98.1`，第二次原样重跑 0 退出且版本不变。"
+    result: passed
+    reason:
+      text: guest checksum 3/3 OK; two consecutive pin runs exit 0,
+        PINNED_RUST_VERSION=1.98.1; 'unchanged' nuance disclosed and consistent
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: "Scenario: 正式 `verify-system-rust.sh --expect-version 1.98.1` 输出 `RESULT:
+      PASS`（V1–V4 全 PASS）。"
+    result: passed
+    reason:
+      text: "V1-V4 RESULT: PASS with versions exactly symmetric to host1 §3.6"
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: "Scenario: 以 `vbmf-ci` 身份（显式 `RUSTUP_HOME`/`CARGO_HOME`）刷新
+      `/data/actions-runners/vbmf/manifests/vbmf-ci-02/`，记录 rustc/cargo 1.98.1 与
+      `/usr/local` 路径。"
+    result: passed
+    reason:
+      text: manifest as vbmf-ci with explicit env @2026-09-15T11:14:31Z, rustc/cargo
+        1.98.1 at /usr/local/bin
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: "Scenario: 管理机 `verify-runner.sh --name vbmf-ci-02` 输出 `RESULT:
+      PASS`（R1–R5 + scope），且 `.project/STATE.md` 登记全部证据并置 P2-C2 COMPLETE / P2-C3
+      READY。"
+    result: passed
+    reason:
+      text: verify-runner-host2 log R1-R5+R5b+scope PASS; STATE §3.7 + §5.1 P2-C2
+        COMPLETE / P2-C3 READY in 05d130d
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: "Scenario: 单分支保持：全程无新建分支/worktree，收尾时本地与远端分支仅存 `main`。"
+    result: passed
+    reason:
+      text: remote heads main only; single local branch/worktree; commit on main
+      truncated: false
+builder_handoff:
+  candidate_id: 68c361ad-8d75-4518-9f6b-a75be805f828
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:affe3789-a118-4fad-813d-5d627d24b072
+  iteration: 1
+  summary:
+    text: "P2-C2 executed end to end via devbox jump SSH to vbmf-ci-02 guest:
+      exact-SHA 9e47721 bundle prepared on VM (SHA256SUMS identical to P2-C1
+      bundle, scripts byte-identical); guest host-key strictly verified (devbox
+      ssh-keyscan fingerprint matched user's guest-console ssh-keygen -lf output
+      before trust write; address/fingerprint not stored); guest sha256sum -c
+      3/3 OK; first pin + idempotent rerun both exit 0 with
+      PINNED_RUST_VERSION=1.98.1; formal verifier V1-V4 RESULT: PASS (exact
+      symmetric with host1); manifest refreshed as vbmf-ci with explicit
+      RUSTUP_HOME/CARGO_HOME per STATE §3.6 RCA (captured 2026-09-15T11:14:31Z,
+      rustc/cargo 1.98.1 at /usr/local/bin); admin-side verify-runner.sh --name
+      vbmf-ci-02 R1-R5 + scope PASS; all bundle temp dirs cleaned on
+      guest/devbox/VM. Ops RCA recorded: scp relay to guest drops exec bits,
+      chmod 755 required before sudo -u vbmf-ci bash. STATE updated (§3.7 added,
+      P2-C2 COMPLETE / P2-C3 READY, §4/§7/§8/§9/§10 reconciled), committed on
+      main as 05d130d. No scripts/ci changes, no sudo changes, no branches
+      created."
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+  checks:
+    - name:
+        text: bundle-prep-exact-sha
+        truncated: false
+      result: passed
+      note:
+        text: BUNDLE_SOURCE_SHA=9e47721eb30355ffe23cea12592445e8f0575c6a; local
+          sha256sum -c 3/3 OK; SHA256SUMS identical to P2-C1 bundle
+        truncated: false
+    - name:
+        text: guest-bundle-checksum
+        truncated: false
+      result: passed
+      note:
+        text: sha256sum -c SHA256SUMS 3/3 OK on vbmf-ci-02
+        truncated: false
+    - name:
+        text: guest-first-pin-and-idempotence
+        truncated: false
+      result: passed
+      note:
+        text: two consecutive sudo pin runs exit 0, PINNED_RUST_VERSION=1.98.1 unchanged
+        truncated: false
+    - name:
+        text: guest-verifier-v1-v4
+        truncated: false
+      result: passed
+      note:
+        text: "RESULT: PASS; rustc 1.98.1 (48a229cea), cargo 1.98.1 (797e8a9bc), rustfmt
+          1.9.0-stable; rustup default exact, no rolling stable"
+        truncated: false
+    - name:
+        text: guest-manifest-refresh
+        truncated: false
+      result: passed
+      note:
+        text: sudo -u vbmf-ci env RUSTUP_HOME=/usr/local/rustup
+          CARGO_HOME=/usr/local/cargo bash collect-toolchain.sh; manifest
+          @2026-09-15T11:14:31Z
+        truncated: false
+    - name:
+        text: admin-verify-runner-host2
+        truncated: false
+      result: passed
+      note:
+        text: "verify-runner.sh --name vbmf-ci-02: R1-R5 + scope RESULT: PASS"
+        truncated: false
+    - name:
+        text: git-diff-check
+        truncated: false
+      result: passed
+      note:
+        text: clean; commit 05d130d touches .project/STATE.md only
+        truncated: false
+    - name:
+        text: rust-script-tests-41
+        truncated: false
+      result: not-run
+      note:
+        text: no scripts/ci changes; 41/41 PASS stands from CI run 34961151910 on
+          9e47721
+        truncated: false
+    - name:
+        text: push-origin-main
+        truncated: false
+      result: not-run
+      note:
+        text: deferred to Archive pending user authorization
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: guest host-key verification relied on devbox single-path keyscan + user
+        console confirmation (qemu-guest-agent exec unavailable on this virsh);
+        no second automated path exists for NAT guest
+      truncated: false
+    - text: first pin run printed 'unchanged' for toolchain components (components
+        pre-seeded during earlier provisioning); default/symlink completion done
+        this round; idempotence proven by two consecutive exit-0 runs
+      truncated: false
+    - text: commit 05d130d local main only; push deferred to Archive
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-15T11:15:42.225Z
+blockers: []
+verification:
+  candidate_id: 68c361ad-8d75-4518-9f6b-a75be805f828
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:5ec7ab85-fe3e-49b0-af19-bc715e73e431
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: script-focal-tests-41
+      name:
+        text: script-focal-tests-41
+        truncated: false
+      argv_display: []
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 968
+    - id: bundle-determinism-9e47721
+      name:
+        text: bundle-determinism-9e47721
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: D=$(mktemp -d) && scripts/ci/prepare-system-rust-bundle.sh --repo . --sha
+            9e47721eb30355ffe23cea12592445e8f0575c6a --out "$D" | grep -q
+            'BUNDLE_SOURCE_SHA=9e47721eb30355ffe23cea12592445e8f0575c6a' && grep
+            -q
+            '46056167848a2e1a71350650650ed7fcd2073aa504474ffafe0e2e6f31d995b1'
+            "$D/SHA256SUMS" && grep -q
+            'd0ae04fc424824951fabb9154da5e0bb766bdaa54d72f182d7d5fa61c03d57db'
+            "$D/SHA256SUMS" && rm -rf "$D"
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 58
+    - id: verify-runner-host2
+      name:
+        text: verify-runner-host2
+        truncated: false
+      argv_display:
+        - text: --name
+          truncated: false
+        - text: vbmf-ci-02
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 2824
+    - id: remote-branch-convergence
+      name:
+        text: remote-branch-convergence
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: test "$(git ls-remote --heads origin | awk '{print $2}' | tr '\n' ' ')" =
+            'refs/heads/main '
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 3123
+    - id: git-clean-check
+      name:
+        text: git-clean-check
+        truncated: false
+      argv_display:
+        - text: diff
+          truncated: false
+        - text: --check
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 8
+  summary:
+    text: All 6 acceptance items independently verified pass; bundle byte-identity
+      to P2-C1 proven by hash recompute; symmetric pin evidence complete.
+    truncated: false
+  risks:
+    - text: three check logs 0-byte (capture gap) compensated by independent hash
+        recompute / ls-remote / git status
+      truncated: false
+    - text: guest host-key verification = single-path keyscan + user console
+        confirmation, disclosed
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-09-15T11:19:23.229Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: All 6 acceptance items independently verified pass; bundle byte-identity
+        to P2-C1 proven by hash recompute; symmetric pin evidence complete.
+      truncated: false
+    completed_at: 2026-09-15T11:19:23.229Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-09-15T11:06:46.209Z
