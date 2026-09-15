@@ -41,9 +41,9 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 — P2-C rust-format grayscale preparation**
+**Governance / CI Infrastructure Phase 2 — self-hosted runner 分批灰度（P2-C 已收口，当前 P2-D rust-clippy）**
 
-当前不是 Runtime / Web 新业务功能开发阶段。P2-B 已在 `main` 完成并通过真实 GitHub Actions；当前进入 P2-C 前置与单 job self-hosted 灰度。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
+当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）均已在 `main` 完成并通过真实 GitHub Actions；当前按 §15.2 阶梯继续单 job 灰度。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
 VBMF 的永久产品定位保持：
 
@@ -161,30 +161,32 @@ Status: **COMPLETE / PROBE VERIFIED（2026-09-15）**
 - §15.7 末条与 §15.9 收尾段的 parity 前置已满足：P2-C4 允许迁 `rust-format.runs-on`。
 
 
+### 3.9 P2-C4 — `rust-format` 条件 `runs-on` self-hosted 灰度（P2-C 收口）
+
+Status: **COMPLETE / CI VERIFIED（2026-09-15）**
+
+- implementation commit `41400e1b36e67a36cbd9a9395d4f42efb42c76ad`：仅改 `rust-format` 单 job——条件 `runs-on` 表达式（trusted = 非 fork PR 或 push → `["self-hosted","Linux","X64","vbmf","vbmf-general"]`；fork PR → `ubuntu-latest`）；dtolnay toolchain 步骤仅 `runner.environment == 'github-hosted'` 时执行且 pin exact `1.98.1`（D3，与系统 pin 对称防 rustfmt 漂移）；self-hosted 路径零 install，format check 内显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo` + `unset RUSTUP_TOOLCHAIN`（§3.6 RCA 调用契约）；
+- 结构不变量已断言（本地检查 PASS）：其余 6 job 与 origin/main 完全一致、job id/name 仍 `rust-format`、无 `pull_request_target`、`permissions: contents: read`、timeout 10m、concurrency 不变；
+- GitHub Actions run `34969039593`（push `main` 触发）：**7/7 required checks PASS**；`rust-format` job 由 **`vbmf-ci-02`** 执行（labels `self-hosted,Linux,X64,vbmf,vbmf-general`），job log 显示 `RUNNER_ENV: self-hosted` 分支与 `cargo fmt --all -- --check` 在系统 pin 下通过——push 路径 runner identity + 系统 toolchain 双证据落库；
+- fork 路径 live 验证（brief D4）：默认真值表+结构审查；若用户提供自有 fork 测试 PR，补充实证后在本节登记；残余风险 = fork 分支未 live 实测，将来外部 fork PR 首次出现时以 job `runner_name` evidence 立即核验；
+- P2-C 整体收口：§15.2 灰度阶梯 P2-C 完成，P2-D（rust-clippy）解锁。
+
 ## 4. Current Task
 
-**P2-C — `rust-format` single-job self-hosted grayscale**
+**P2-D — `rust-clippy` self-hosted grayscale**（P2-C 已收口，P2-D 解锁待开工）
 
 Current Task Authority:
 
-- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.5 / §15.6 / §15.7 / §15.8 / §15.9；
-- `.github/workflows/media-agent.yml` 与只读 `.github/workflows/ci-infra-probe.yml`；
-- P2-B implementation `9d6df61c…` + Actions run `34920528957`；
-- P2-C implementation chain through `0f375c8…`，含 encrypted route probe 与 verifier authority isolation；Actions runs `34934058858` / `34935730648` / `34947630667` / `34949135299`.
+- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6（P2-D 沿用 P2-B/P2-C 已冻结安全边界与迁移模式）；
+- `.github/workflows/media-agent.yml`（P2-C4 已建立的条件 `runs-on` 模式，commit `41400e1…`）。
 
-P2-C 顺序必须保持：
+P2-D 要点：`rust-clippy` 按 P2-C4 同一模式迁移（条件 `runs-on`、fork 留 GitHub-hosted、self-hosted 零 install + 显式 Rust env、其余 job 不动）；clippy 需要编译依赖，首次 self-hosted 运行关注 crate 缓存冷启动与 timeout（20m）余量。
 
-1. 两台 `vbmf-general` runner 对称完成**同一具体 Rust 版本**的 system-level pin（`/usr/local/rustup` + `/usr/local/cargo` + `/usr/local/bin` 可见），禁止单机漂移；
-2. 重新 probe 两台，证明 `rustc/cargo/rustfmt` version/path parity；
-3. 只迁 `rust-format` 一个 job；同一 job/context 使用条件 `runs-on`：fork PR = GitHub-hosted，trusted main push / same-repo PR = `vbmf-general`；
-4. required context 仍名为 `rust-format`，其余 6 jobs 保持 GitHub-hosted；
-5. focused validation → push main → Actions 全绿 → runner identity evidence → STATE。
-
-2026-09-15 P2-C1 收口后前置证据：早期 4 次 `ci-infra-probe` 确认两机最初均 `rustc/cargo: MISSING`，maintenance run `34921727757` 证明 CI service account 无非交互 sudo且无系统修改；随后 encrypted route probe 恢复了既有 out-of-band host-admin 管理路径并严格核验 host identity。`vbmf-ci-01` 已完成 Rust `1.98.1` system pin、幂等执行、修复版 verifier V1–V4 实机 PASS 及 current-SHA bundle/manifest 正式收口（§3.6）；`vbmf-ci-02` 已对称完成 pin/幂等/V1–V4/manifest（§3.7）；双机 parity re-probe 已 PASS（§3.8）。`rust-format.runs-on` 迁移（P2-C4）前置全部满足。
+2026-09-15 P2-C 收口：`rust-format` 已按条件 `runs-on` 迁入 `vbmf-general`（run `34969039593` 7/7 PASS，`rust-format`→`vbmf-ci-02`，§3.9）；双机 system pin/parity 证据见 §3.6/§3.7/§3.8。
 
 ## 5. Next Task
 
-**P2-D — `rust-clippy` self-hosted grayscale**，仅在 P2-C 全绿且双 runner pin/parity 证据成立后进入。
+**P2-E1 — `session-lifecycle` grayscale**（P2-D 完成后）。
 
 后续队列保持：
 
@@ -201,8 +203,8 @@ P2-M 前仍须单独裁决 DeckLink SDK 注入模式；BMD 实机永走 hardware
 | **P2-C1** | **COMPLETE（§3.6，2026-09-15）** | `vbmf-ci-01` current-SHA 正式收口：从 live `main` full SHA 生成 §15.9 bundle，host checksum，Rust 1.98.1 idempotent pin，修复版 V1–V4 verify，以 `vbmf-ci` 刷新 manifest；不得修改 runner sudo 权限 | current live main + §15.9 | exact SHA/bundle checksum；V1–V4 PASS；manifest；无 generic sudo；证据记录 |
 | **P2-C2** | **COMPLETE（§3.7，2026-09-15）** | `vbmf-ci-02` 对称 system Rust 1.98.1 provision/verify/manifest；经 devbox/KVM 既有授权管理面执行，host-key 必须严格验证；以 `vbmf-ci` 调用 rust 工具时显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`（§3.6 RCA） | P2-C1 | 与 host1 同 exact toolchain/path；二次 pin 幂等；V1–V4 PASS；manifest |
 | **P2-C3** | **COMPLETE（§3.8，2026-09-15）** | 双 runner read-only parity re-probe，必须实际命中 01 与 02；验证 Rust path/version、manifest、labels parity | P2-C1/C2 | 两机 evidence；`/usr/local/bin` exact 1.98.1 parity；runner identity 明确 |
-| **P2-C4** | **READY** | 只迁现有 `rust-format` job 到条件 `runs-on`；fork PR 留 GitHub-hosted，trusted main/same-repo PR 走 `vbmf-general`；其余 6 jobs 不动 | P2-C3 | context 名仍 `rust-format`；fork boundary 不变；7 required checks PASS；实际 self-hosted runner identity evidence |
-| **P2-D** | **BLOCKED by P2-C4** | `rust-clippy` 单 job self-hosted grayscale，同 P2-B 安全边界 | P2-C COMPLETE | 7 checks PASS；runner identity；STATE |
+| **P2-C4** | **COMPLETE（§3.9，2026-09-15）** | 只迁现有 `rust-format` job 到条件 `runs-on`；fork PR 留 GitHub-hosted，trusted main/same-repo PR 走 `vbmf-general`；其余 6 jobs 不动 | P2-C3 | context 名仍 `rust-format`；fork boundary 不变；7 required checks PASS；实际 self-hosted runner identity evidence |
+| **P2-D** | **READY** | `rust-clippy` 单 job self-hosted grayscale，按 P2-C4 已建立条件 `runs-on` 模式；fork 留 GitHub-hosted；self-hosted 零 install + 显式 Rust env | P2-C COMPLETE | 7 checks PASS；runner identity；STATE |
 | **P2-E1** | **BLOCKED by P2-D** | `session-lifecycle` grayscale + 双 runner 稳定性观察 | P2-D | required context 不变；调度/失败恢复 evidence |
 | **P2-E2** | **BLOCKED by P2-E1** | `architecture-portability` grayscale | P2-E1 | fork/trusted 双通道回归；7 checks PASS |
 | **P2-E3** | **BLOCKED by P2-E2** | `rust-test-matrix` 最后迁 general pool | P2-E2 | matrix 完整 PASS；queue/concurrency 无未解释失败 |
@@ -256,7 +258,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-C historical preflight probes `34920607255` / `34920611254` / `34920615247` / `34920619055`：当时两台 runner 均被命中且 `rustc/cargo` 均 MISSING；该证据只描述 pin 前基线，当前状态以下列 host execution 证据为准。
 - P2-C host-admin tooling：**IMPLEMENTATION COMPLETE / SOFTWARE VERIFIED** through `0f375c8…`；focused tests **41/41 PASS**；GitHub Actions `34934058858` / `34935730648` / `34947630667` / `34949135299` PASS。
 - P2-C host route recovery：**VERIFIED**（encrypted probe + strict host-key match + BatchMode SSH + host-admin `sudo -n`）；原 missing-host-admin blocker 已解除。
-- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity：**VERIFIED（P2-C3，§3.8；probe env 修正后两机逐字符 1.98.1 parity）**；`rust-format` self-hosted grayscale：**NOT RUN（P2-C4）**。
+- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity：**VERIFIED（P2-C3，§3.8；probe env 修正后两机逐字符 1.98.1 parity）**；`rust-format` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-C4，§3.9；run `34969039593` 7/7 PASS，`rust-format`→`vbmf-ci-02`）**。
 
 ### Software / Runtime
 
@@ -299,13 +301,13 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 ### Current blockers
 
 - P2-B: **NONE / COMPLETE**.
-- P2-C: **NO EXTERNAL BLOCKER; EXECUTION IN PROGRESS**。合法 out-of-band host-admin 通道已经恢复；当前剩余是 P2-C1→P2-C4 的顺序执行工作。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
+- P2-C: **NONE / COMPLETE（§3.6–§3.9）**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
 
 ## 9. Verification Debt
 
 - 24h stability：需要在 RCA / fix 真正关闭后重新跑完整 24h rung；旧 FAIL 不得被短跑或诊断 run 覆盖。
 - branch rename hygiene：**P2-B CLOSED**；workflow/runbook 操作性路径已统一 `main`，required context 名称未变。
-- P2-C：双机 pin/manifest/parity 全部收口（§3.6/§3.7/§3.8）；仅欠 `rust-format` grayscale（P2-C4）。
+- P2-C：全部收口（§3.6–§3.9），无欠账。fork `runs-on` 分支未 live 实测（无现成 fork PR），已在 §3.9 登记残余风险与核验口径。
 - Development agent：Pi/Claude Code 项目级 auth + real model smoke 已 PASS；Claude project trust PASS；后续长写任务优先用 `_shared` runner + tmux，不再登记 agent smoke debt。
 - BMD：当前 main 的 Runtime/hardware verification **deferred / not required for P2-B/P2-C CI-only changes**；BMD deployment 需未来按 exact commit 重建后才能产生新 evidence。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
@@ -319,9 +321,9 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = P2-C** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.5 / §15.6 / §15.7 / §15.8 / §15.9；
+6. 读取 **Current Task = P2-D** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6 + P2-C4 建立的条件 `runs-on` 模式（commit `41400e1…`）；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1/C2/C3 已 COMPLETE（§3.6/§3.7/§3.8），当前 **P2-C4**（迁 `rust-format.runs-on`）为唯一 READY，不重新寻找 host-admin 通道；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4 已全部 COMPLETE（§3.6–§3.9），当前 **P2-D**（`rust-clippy` grayscale）为唯一 READY；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -335,7 +337,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - state system 已初始化；
 - P2-A 已完成；
 - P2-B 已完成并经 Actions 7/7 PASS；
-- **Current Task = P2-C rust-format single-job grayscale**；双机 pin/manifest/parity 已全部收口（§3.6/§3.7/§3.8）；当前第一个 `READY` Work Packet = **P2-C4 `rust-format` 单 job grayscale 迁移**；
+- **Current Task = P2-D rust-clippy self-hosted grayscale**；P2-C 全部收口（§3.6–§3.9，`rust-format` 已迁 `vbmf-general` 且 CI 7/7 PASS）；当前第一个 `READY` Work Packet = **P2-D**；
 - **Next Task = P2-D rust-clippy self-hosted grayscale**（仅 P2-C COMPLETE 后）；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
