@@ -533,6 +533,9 @@ sudo "$PIN_DIR/pin-system-rust.sh" --version 1.98.1
 "$PIN_DIR/verify-system-rust.sh" --expect-version 1.98.1
 # 期望: RESULT: PASS 与 PINNED_RUST_VERSION=1.98.1（canonical /usr/local 语义）
 # V2 同时证明 rustup default = 1.98.1-<target>（不存在 rolling stable）
+# V2/V3/V4 均以显式 RUSTUP_HOME=/usr/local/rustup、CARGO_HOME=/usr/local/cargo
+# 执行（并清除调用方 RUSTUP_TOOLCHAIN）：/usr/local/bin 下是 rustup proxy，
+# 不得让调用方/用户级 rustup 状态冒充 system pin 证据
 
 # 5) 刷新 manifest（以 runner 服务账号身份，不用 root）
 sudo -u vbmf-ci "$BUNDLE_DIR/collect-toolchain.sh" --name vbmf-ci-01   # 02 主机改 --name

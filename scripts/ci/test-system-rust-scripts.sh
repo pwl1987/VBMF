@@ -9,6 +9,9 @@
 #     before the root gate; install logic itself is host-admin-only)
 #   - verify-system-rust.sh V1-V4 gates against fixture trees, happy path and
 #     each failure mode
+#   - regression: caller-level/poisoned rustup env (HOME, RUSTUP_HOME,
+#     CARGO_HOME, RUSTUP_TOOLCHAIN) cannot skew V2/V3/V4; fixture binaries
+#     emulate real rustup proxies that resolve via those env vars
 #   - prepare-system-rust-bundle.sh §15.9 step A: exact-SHA export of the
 #     three reviewed scripts + SHA256SUMS, happy path and fail-closed modes
 #
@@ -53,21 +56,42 @@ trap cleanup EXIT
 make_fixture() { # make_fixture <root>
   local root="$1"
   mkdir -p "$root/bin" "$root/cargo/bin" "$root/rustup/toolchains/$V-x86_64-unknown-linux-gnu"
+  # Fixture binaries emulate real rustup proxies: they resolve the toolchain
+  # via RUSTUP_HOME/CARGO_HOME exactly like the /usr/local/bin shims do. With
+  # any other env (e.g. a caller's own rustup) they answer from "caller
+  # stable" instead — the false-positive/false-fail modes seen on host1.
   cat > "$root/cargo/bin/rustc" <<EOF
 #!/bin/sh
-echo "rustc $V (abcdef123456 2026-01-01)"
+if [ "\$RUSTUP_HOME" = "$root/rustup" ] && [ "\$CARGO_HOME" = "$root/cargo" ]; then
+  echo "rustc $V (abcdef123456 2026-01-01)"
+else
+  echo "rustc 1.97.0 (caller rustup stable)"
+fi
 EOF
   cat > "$root/cargo/bin/cargo" <<EOF
 #!/bin/sh
-echo "cargo $V (abcdef123 2026-01-01)"
+if [ "\$RUSTUP_HOME" = "$root/rustup" ] && [ "\$CARGO_HOME" = "$root/cargo" ]; then
+  echo "cargo $V (abcdef123 2026-01-01)"
+else
+  echo "cargo 1.97.0 (caller rustup stable)"
+fi
 EOF
   cat > "$root/cargo/bin/rustfmt" <<EOF
 #!/bin/sh
-echo "rustfmt 1.9.0-stable (abcdef12 2026-01-01)"
+if [ "\$RUSTUP_HOME" = "$root/rustup" ] && [ "\$CARGO_HOME" = "$root/cargo" ]; then
+  echo "rustfmt 1.9.0-stable (abcdef12 2026-01-01)"
+else
+  echo "error: rustfmt not installed in caller toolchain" >&2
+  exit 1
+fi
 EOF
   cat > "$root/cargo/bin/rustup" <<EOF
 #!/bin/sh
-[ "\$1" = "default" ] && cat "\$RUSTUP_HOME/default.txt" || echo "rustup 1.28.1"
+if [ "\$1" = "default" ] && [ "\$RUSTUP_HOME" = "$root/rustup" ]; then
+  cat "\$RUSTUP_HOME/default.txt"
+else
+  echo "rustup 1.28.1"
+fi
 EOF
   printf '%s\n' "$V-x86_64-unknown-linux-gnu (default)" > "$root/rustup/default.txt"
   chmod +x "$root/cargo/bin/"*
@@ -121,6 +145,51 @@ check "verify: rolling stable default fails" 1 "$VERIFY" --expect-version "$V" -
 NO_DEFAULT="$FIXTURE/no-default";    make_fixture "$NO_DEFAULT"
 : > "$NO_DEFAULT/rustup/default.txt"
 check "verify: unset default toolchain fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_DEFAULT"
+
+# --- regression: poisoned caller rustup env must not skew V2/V3/V4 ---
+# Old verifier ran V2/V3/V4 without explicit RUSTUP_HOME/CARGO_HOME, so the
+# /usr/local/bin rustup proxies resolved whatever caller/user rustup state
+# was in effect (host1: caller stable rustc/cargo masked as 1.98.1, caller
+# rustfmt missing failed V4). Fixture shims reproduce exactly that proxy
+# behavior, so the checks below fail against the old verifier.
+POISON_HOME="$FIXTURE/poison-home"
+POISON_RUSTUP="$POISON_HOME/.rustup"
+POISON_CARGO="$POISON_HOME/.cargo"
+mkdir -p "$POISON_RUSTUP" "$POISON_CARGO"
+printf '%s\n' "stable-x86_64-unknown-linux-gnu (default)" > "$POISON_RUSTUP/default.txt"
+
+# Fixture shims really do answer from caller state when env points elsewhere
+# (this is what made the old verifier's evidence untrustworthy).
+if env RUSTUP_HOME="$POISON_RUSTUP" CARGO_HOME="$POISON_CARGO" \
+     "$GOOD/cargo/bin/rustc" --version 2>/dev/null | grep -q 'rustc 1.97.0'; then
+  ok "regression fixture: proxy shim answers from poisoned env (old bug reproduced)"
+else
+  notok "regression fixture: shim did not emulate caller-rustup resolution"
+fi
+if ! env RUSTUP_HOME="$POISON_RUSTUP" CARGO_HOME="$POISON_CARGO" \
+       "$GOOD/cargo/bin/rustfmt" --version >/dev/null 2>&1; then
+  ok "regression fixture: rustfmt proxy fails under poisoned env (old V4 false fail)"
+else
+  notok "regression fixture: rustfmt shim unexpectedly ran under poisoned env"
+fi
+
+# Verifier must still fully PASS under a fully poisoned caller environment.
+check "verify: poisoned caller rustup env still passes" 0 \
+  env HOME="$POISON_HOME" RUSTUP_HOME="$POISON_RUSTUP" CARGO_HOME="$POISON_CARGO" \
+    "$VERIFY" --expect-version "$V" --root "$GOOD"
+# RUSTUP_TOOLCHAIN is a caller override of the audited default; must be ignored.
+check "verify: poisoned RUSTUP_TOOLCHAIN env still passes" 0 \
+  env HOME="$POISON_HOME" RUSTUP_HOME="$POISON_RUSTUP" CARGO_HOME="$POISON_CARGO" \
+    RUSTUP_TOOLCHAIN="stable-x86_64-unknown-linux-gnu" \
+    "$VERIFY" --expect-version "$V" --root "$GOOD"
+
+# And drift inside the audited root must still fail under a poisoned caller
+# env: the fix must not make the verifier blind to real regressions.
+POISON_DRIFT="$FIXTURE/bad-rustc-poisoned"; make_fixture "$POISON_DRIFT"
+sed -i "s/rustc $V/rustc 1.97.0/" "$POISON_DRIFT/cargo/bin/rustc"
+check "verify: rustc drift still fails under poisoned env" 1 \
+  env HOME="$POISON_HOME" RUSTUP_HOME="$POISON_RUSTUP" CARGO_HOME="$POISON_CARGO" \
+    "$VERIFY" --expect-version "$V" --root "$POISON_DRIFT"
 
 # --- prepare-system-rust-bundle.sh (§15.9 step A; non-root, zero network) ---
 PREPARE="$HERE/prepare-system-rust-bundle.sh"

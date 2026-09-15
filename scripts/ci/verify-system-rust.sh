@@ -10,6 +10,12 @@
 #   V4 rustfmt present and executable (rustfmt's own version scheme never
 #      equals the rustc version; presence + execution is the check)
 #
+# /usr/local/bin/{rustup,rustc,cargo,rustfmt} are rustup proxies: whichever
+# RUSTUP_HOME/CARGO_HOME the caller carries decides which toolchain they
+# resolve. Every probe below therefore runs with explicit
+# RUSTUP_HOME=<root>/rustup and CARGO_HOME=<root>/cargo so caller/user rustup
+# state can never be mistaken for evidence about the audited system pin.
+#
 # This script NEVER installs, writes, or links anything.
 #
 # Usage:
@@ -42,6 +48,13 @@ BIN_DIR="$ROOT/bin"
 CARGO_HOME="$ROOT/cargo"
 RUSTUP_HOME="$ROOT/rustup"
 
+# Run one command against the audited <root>/rustup + <root>/cargo authority,
+# ignoring caller rustup state. RUSTUP_TOOLCHAIN is also cleared: it is a
+# caller-supplied override that would make proxies resolve non-audited state.
+audit() {
+  env -u RUSTUP_TOOLCHAIN RUSTUP_HOME="$RUSTUP_HOME" CARGO_HOME="$CARGO_HOME" "$@"
+}
+
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; FAILED=1; }
 FAILED=0
@@ -72,7 +85,7 @@ done
 # V2: rustup default resolves to the exact pinned toolchain (read-only query)
 RUSTUP_BIN="$CARGO_HOME/bin/rustup"
 if [ -x "$RUSTUP_BIN" ]; then
-  DEFAULT_TOOLCHAIN="$(RUSTUP_HOME="$RUSTUP_HOME" "$RUSTUP_BIN" default 2>/dev/null || true)"
+  DEFAULT_TOOLCHAIN="$(audit "$RUSTUP_BIN" default 2>/dev/null || true)"
   case "$DEFAULT_TOOLCHAIN" in
     "$EXPECT_VERSION"-*) pass "V2: rustup default=$DEFAULT_TOOLCHAIN (exact pin, no rolling stable)" ;;
     "") fail "V2: rustup default not set (want $EXPECT_VERSION-<target>)" ;;
@@ -82,20 +95,22 @@ else
   fail "V2: $RUSTUP_BIN missing; cannot query default toolchain"
 fi
 
-# V3: exact version readback from the exposed binaries
-RUSTC_ACTUAL="$("$BIN_DIR/rustc" --version 2>/dev/null || true)"
+# V3: exact version readback from the exposed binaries (rustup proxies:
+# must resolve via the audited RUSTUP_HOME/CARGO_HOME, not caller state)
+RUSTC_ACTUAL="$(audit "$BIN_DIR/rustc" --version 2>/dev/null || true)"
 case "$RUSTC_ACTUAL" in
   "rustc $EXPECT_VERSION "*) pass "V3: rustc version exact ($RUSTC_ACTUAL)" ;;
   *) fail "V3: rustc version mismatch: got '${RUSTC_ACTUAL:-<none>}' want 'rustc $EXPECT_VERSION'" ;;
 esac
-CARGO_ACTUAL="$("$BIN_DIR/cargo" --version 2>/dev/null || true)"
+CARGO_ACTUAL="$(audit "$BIN_DIR/cargo" --version 2>/dev/null || true)"
 case "$CARGO_ACTUAL" in
   "cargo $EXPECT_VERSION "*) pass "V3: cargo version exact ($CARGO_ACTUAL)" ;;
   *) fail "V3: cargo version mismatch: got '${CARGO_ACTUAL:-<none>}' want 'cargo $EXPECT_VERSION'" ;;
 esac
 
-# V4: rustfmt present and executes (its version scheme is independent of rustc)
-RUSTFMT_ACTUAL="$("$BIN_DIR/rustfmt" --version 2>/dev/null || true)"
+# V4: rustfmt present and executes (its version scheme is independent of rustc;
+# proxy must resolve via the audited RUSTUP_HOME/CARGO_HOME, not caller state)
+RUSTFMT_ACTUAL="$(audit "$BIN_DIR/rustfmt" --version 2>/dev/null || true)"
 case "$RUSTFMT_ACTUAL" in
   rustfmt*) pass "V4: rustfmt executable ($RUSTFMT_ACTUAL)" ;;
   *) fail "V4: rustfmt missing or not executable: got '${RUSTFMT_ACTUAL:-<none>}'" ;;
