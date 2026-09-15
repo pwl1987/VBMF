@@ -10,9 +10,8 @@
 #   V3 rustc --version and cargo --version match the exact pinned version
 #   V4 rustfmt present and executable (rustfmt's own version scheme never
 #      equals the rustc version; presence + execution is the check)
-#   V5 cargo-clippy present and its version matches the exact pinned version
-#      (clippy versions track the rustc version, so an exact prefix is
-#      assertable, unlike rustfmt)
+#   V5 cargo-clippy present with the version derived from the pinned rustc
+#      (clippy's version scheme is 0.1.<rustc-minor>, e.g. 1.98.1 -> 0.1.98)
 #
 # /usr/local/bin/{rustup,rustc,cargo,rustfmt,cargo-clippy,clippy-driver} are rustup proxies: whichever
 # RUSTUP_HOME/CARGO_HOME the caller carries decides which toolchain they
@@ -120,12 +119,18 @@ case "$RUSTFMT_ACTUAL" in
   *) fail "V4: rustfmt missing or not executable: got '${RUSTFMT_ACTUAL:-<none>}'" ;;
 esac
 
-# V5: clippy present with exact pinned version (tracks the rustc version;
+# V5: clippy present with version derived from the pinned rustc (clippy's
+# version scheme is 0.1.<rustc-minor>, e.g. rustc 1.98.1 -> clippy 0.1.98;
 # proxy must resolve via the audited RUSTUP_HOME/CARGO_HOME, not caller state)
+CLIPPY_MINOR="$(printf '%s' "$EXPECT_VERSION" | cut -d. -f2)"
+case "$CLIPPY_MINOR" in
+  [0-9]*) ;;
+  *) CLIPPY_MINOR=""; fail "V5: cannot derive clippy minor from: $EXPECT_VERSION" ;;
+esac
 CLIPPY_ACTUAL="$(audit "$BIN_DIR/cargo-clippy" --version 2>/dev/null || true)"
 case "$CLIPPY_ACTUAL" in
-  "clippy $EXPECT_VERSION "*) pass "V5: clippy version exact ($CLIPPY_ACTUAL)" ;;
-  *) fail "V5: clippy version mismatch: got '${CLIPPY_ACTUAL:-<none>}' want 'clippy $EXPECT_VERSION'" ;;
+  "clippy 0.1.$CLIPPY_MINOR "*) pass "V5: clippy version exact ($CLIPPY_ACTUAL)" ;;
+  *) fail "V5: clippy version mismatch: got '${CLIPPY_ACTUAL:-<none>}' want 'clippy 0.1.$CLIPPY_MINOR'" ;;
 esac
 
 echo "=="

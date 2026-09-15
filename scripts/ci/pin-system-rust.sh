@@ -90,10 +90,17 @@ case "$rustfmt_actual" in
   rustfmt*) ;;
   *) echo "rustfmt missing or not executable: got '${rustfmt_actual:-<none>}'" >&2; exit 1 ;;
 esac
+# clippy's version scheme is 0.1.<rustc-minor> (rustc 1.98.1 -> clippy 0.1.98);
+# derive the expectation from the pinned version, fail closed on parse.
+CLIPPY_VERSION="0.1.$(printf '%s' "$VERSION" | cut -d. -f2)"
+case "$CLIPPY_VERSION" in
+  0.1.[0-9]*) ;;
+  *) echo "could not derive clippy version from: $VERSION" >&2; exit 1 ;;
+esac
 clippy_actual="$(/usr/local/bin/cargo-clippy --version)"
 case "$clippy_actual" in
-  "clippy $VERSION "*) ;;
-  *) echo "clippy version mismatch: got '${clippy_actual:-<none>}' want 'clippy $VERSION'" >&2; exit 1 ;;
+  "clippy $CLIPPY_VERSION "*) ;;
+  *) echo "clippy version mismatch: got '${clippy_actual:-<none>}' want 'clippy $CLIPPY_VERSION'" >&2; exit 1 ;;
 esac
 /usr/local/bin/rustup --version
 printf 'PINNED_RUST_VERSION=%s\n' "$VERSION"

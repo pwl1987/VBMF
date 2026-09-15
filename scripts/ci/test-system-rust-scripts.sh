@@ -98,7 +98,7 @@ EOF
   cat > "$root/cargo/bin/cargo-clippy" <<EOF2
 #!/bin/sh
 if [ "\$RUSTUP_HOME" = "$root/rustup" ] && [ "\$CARGO_HOME" = "$root/cargo" ]; then
-  echo "clippy $V (abcdef123456 2026-01-01)"
+  echo "clippy 0.1.$(printf '%s' "$V" | cut -d. -f2) (abcdef123456 2026-01-01)"
 else
   echo "error: clippy not installed in caller toolchain" >&2
   exit 1
@@ -154,7 +154,8 @@ rm "$NO_FMT/bin/rustfmt" "$NO_FMT/cargo/bin/rustfmt"
 check "verify: missing rustfmt fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_FMT"
 
 BAD_CLIPPY="$FIXTURE/bad-clippy";      make_fixture "$BAD_CLIPPY"
-sed -i "s/clippy $V/clippy 1.97.0/" "$BAD_CLIPPY/cargo/bin/cargo-clippy"
+CLIPPY_GOOD="clippy 0.1.$(printf '%s' "$V" | cut -d. -f2)"
+sed -i "s/$CLIPPY_GOOD/clippy 0.1.97/" "$BAD_CLIPPY/cargo/bin/cargo-clippy"
 check "verify: clippy version drift fails" 1 "$VERIFY" --expect-version "$V" --root "$BAD_CLIPPY"
 
 NO_CLIPPY="$FIXTURE/no-clippy";        make_fixture "$NO_CLIPPY"
