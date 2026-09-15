@@ -43,19 +43,52 @@ if [ ! -x "$CARGO_HOME/bin/rustup" ]; then
   trap - EXIT
 fi
 
+# Idempotent: rustup toolchain install is a no-op when already installed;
+# default re-set to the exact version on every run (never rolling stable).
 run_provisioning_command "$CARGO_HOME/bin/rustup" toolchain install "$VERSION" --profile minimal --component rustfmt
 run_provisioning_command "$CARGO_HOME/bin/rustup" default "$VERSION"
+
+# Fail closed on exact-version semantics BEFORE exposing anything system-wide.
+default_toolchain="$("$CARGO_HOME/bin/rustup" default)"
+case "$default_toolchain" in
+  "$VERSION"-*) ;;
+  *) echo "rustup default not exact: got '$default_toolchain', want '$VERSION-<target>'" >&2; exit 1 ;;
+esac
 for tool in rustup rustc cargo rustfmt; do
   src="$CARGO_HOME/bin/$tool"
   [ -x "$src" ] || { echo "missing installed tool: $src" >&2; exit 1; }
-  ln -sfn "$src" "/usr/local/bin/$tool"
+done
+toolchain_rustc="$("$CARGO_HOME/bin/rustc" --version)"
+case "$toolchain_rustc" in
+  "rustc $VERSION "*) ;;
+  *) echo "toolchain rustc version mismatch: got '$toolchain_rustc', want '$VERSION'" >&2; exit 1 ;;
+esac
+toolchain_cargo="$("$CARGO_HOME/bin/cargo" --version)"
+case "$toolchain_cargo" in
+  "cargo $VERSION "*) ;;
+  *) echo "toolchain cargo version mismatch: got '$toolchain_cargo', want '$VERSION'" >&2; exit 1 ;;
+esac
+
+for tool in rustup rustc cargo rustfmt; do
+  ln -sfn "$CARGO_HOME/bin/$tool" "/usr/local/bin/$tool"
 done
 
+# Post-exposure verification of the system-visible toolchain (V1-V4 of
+# verify-system-rust.sh; this re-checks through /usr/local/bin itself).
 actual="$(/usr/local/bin/rustc --version)"
 case "$actual" in
   "rustc $VERSION "*) ;;
   *) echo "rustc version mismatch: got '$actual', want '$VERSION'" >&2; exit 1 ;;
 esac
-/usr/local/bin/cargo --version
-/usr/local/bin/rustfmt --version
+actual="$(/usr/local/bin/cargo --version)"
+case "$actual" in
+  "cargo $VERSION "*) ;;
+  *) echo "cargo version mismatch: got '$actual', want '$VERSION'" >&2; exit 1 ;;
+esac
+rustfmt_actual="$(/usr/local/bin/rustfmt --version)"
+case "$rustfmt_actual" in
+  rustfmt*) ;;
+  *) echo "rustfmt missing or not executable: got '${rustfmt_actual:-<none>}'" >&2; exit 1 ;;
+esac
+/usr/local/bin/rustup --version
 printf 'PINNED_RUST_VERSION=%s\n' "$VERSION"

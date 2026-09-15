@@ -455,17 +455,12 @@ P2-C 在迁 `rust-format` 前，先把两台 `vbmf-general` runner 的 Rust 从�
 - 实现：`scripts/ci/pin-system-rust.sh`；root-only、幂等、只接受 `x.y.z` exact version；
   固定 `RUSTUP_HOME=/usr/local/rustup`、`CARGO_HOME=/usr/local/cargo`，并只把
   `rustup/rustc/cargo/rustfmt` 暴露到 `/usr/local/bin`。
-- 入口：`.github/workflows/ci-runner-rust-pin.yml`，**workflow_dispatch only**；版本不做
-  free-form input，而是在受 review 的 workflow 中硬编码；`permissions: contents: read`。
-- 该 workflow 是明确的 runner maintenance plane，不是 CI result Authority，也不改变
-  `ci-infra-probe.yml` 的 read-only / no-sudo 红线。
-- 为避免 general runner 对本大仓执行脆弱的 Git clone，maintenance workflow 只从
-  `raw.githubusercontent.com/<repo>/<exact GITHUB_SHA>/scripts/ci/` 拉取两份审过脚本；执行内容仍绑定 exact commit，不使用 floating `main`。
-- workflow 先执行 `sudo -n true`；无非交互维护权限时必须在系统修改前 fail-closed。
-- 两个并行 slot 用于尽量同时占用两台 general runner；实际完成后必须从 logs 核对
-  `runner.name`，不能把 matrix=2 等同于“两台都改过”。若只命中同一台，幂等重跑直至
-  `vbmf-ci-01` / `vbmf-ci-02` 都有证据。
-- provisioning 下载可按 §5 使用 `VBMF_CI_PROXY` repository variable；workflow 不设置
+- 执行入口裁决（2026-09-15，由 §15.8 覆盖）：原拟的 GitHub Actions maintenance
+  workflow（`.github/workflows/ci-runner-rust-pin.yml`）经真实 runner 验证后**已撤回，
+  不存在也不再是执行入口**。CI-root 维护路径被明确否决：`vbmf-ci` 保持无 sudo/root。
+  唯一现行执行平面是 §15.9 的 out-of-band host-admin runbook（管理员以 root 在宿主机
+  直接执行 `scripts/ci/pin-system-rust.sh`）。
+- provisioning 下载可按 §5 以 `VBMF_CI_PROXY` 形式按命令传给 pin 脚本；不设置
   runner runtime proxy，不把 proxy 写入 systemd / runner `.env`。
 - 完成后必须重新跑 `ci-infra-probe.yml`，两机均证明 `/usr/local/bin` 下 exact Rust parity，
   再允许修改 `media-agent.yml` 的 `rust-format.runs-on`。
@@ -482,3 +477,87 @@ Evidence：maintenance run `34921727757` 同时命中 `vbmf-ci-01` / `vbmf-ci-02
 - `.github/workflows/ci-runner-rust-pin.yml` 从 canonical `main` 撤回；临时 repository variable `VBMF_CI_PROXY` 同步删除。
 - `scripts/ci/pin-system-rust.sh` 保留为宿主机管理员工具；由现有 out-of-band host-admin/runbook 通道在两台 runner 主机上以 root 执行 exact `1.98.1` pin。
 - 执行后必须刷新 manifest，并用只读 `ci-infra-probe.yml` 分别命中两机证明 `/usr/local/bin` 的 Rust parity；在此之前 P2-C 不得迁 `rust-format.runs-on`。
+
+### 15.9 P2-C out-of-band host-admin pin runbook（2026-09-15）
+
+本节是 §15.8 裁决的执行细则：管理员如何在两台 general runner 宿主机上对称完成
+exact Rust `1.98.1` system pin，并在不授予 `vbmf-ci` 任何 sudo/root 的前提下留下
+可审计证据。所有宿主机步骤经既有 out-of-band host-admin 通道执行（不写 SSH 主机
+地址/凭据；代理按 §5 经 `VBMF_CI_PROXY` 引用，值由管理员自持）。
+
+**证据安全前提：runner 宿主机不假设存在任何可用 Git checkout。** 脚本不从宿主机
+workspace 做 git fetch/checkout/worktree；三份所需脚本（`pin-system-rust.sh`、
+`verify-system-rust.sh`、`collect-toolchain.sh`）改为在 Development VM / 控制机上
+从 coordinator 核准的 exact canonical `main` SHA 打成隔离 bundle，经既有 out-of-band
+host-admin 通道传输，宿主机只使用 bundle 内容。
+
+**步骤 A —— Development VM / 控制机上准备 bundle（一次性）：**
+
+```bash
+# 0) SHA 必须先由 coordinator 确认为 canonical main 的当前 tip；不得自行取 tip
+git -C /path/to/VBMF fetch origin main
+PIN_SHA="<coordinator-confirmed-exact-sha>"          # 记录进 evidence
+git -C /path/to/VBMF rev-parse "$PIN_SHA" >/dev/null 2>&1 \
+  || { echo "SHA not found locally; fetch/verify first" >&2; exit 1; }
+BUNDLE_DIR="$(mktemp -d /tmp/vbmf-pin-bundle.XXXXXX)"
+for s in pin-system-rust.sh verify-system-rust.sh collect-toolchain.sh; do
+  git -C /path/to/VBMF show "$PIN_SHA:scripts/ci/$s" > "$BUNDLE_DIR/$s"
+done
+chmod +x "$BUNDLE_DIR"/*.sh
+( cd "$BUNDLE_DIR" && sha256sum ./*.sh > SHA256SUMS )
+# 把 $PIN_SHA 与 SHA256SUMS 内容一并记录为 evidence；bundle 随后经 out-of-band
+# host-admin 通道传到两台 runner 宿主机的隔离目录（如 /tmp/vbmf-pin-bundle/）
+```
+
+**步骤 B —— 对每台 runner 宿主机（`vbmf-ci-01` 与 `vbmf-ci-02` 各一次，顺序不限）执行：**
+
+```bash
+# 1) 只使用已传输的 bundle；不在宿主机执行任何 git/fetch/checkout/worktree，
+#    不触碰任何未知 host workspace
+BUNDLE_DIR=/tmp/vbmf-pin-bundle
+(cd "$BUNDLE_DIR" && sha256sum -c SHA256SUMS)   # 任一 mismatch 立即停止
+PIN_DIR="$BUNDLE_DIR"                           # evidence 关联步骤 A 的 $PIN_SHA
+
+# 2) pin 前只读基线（非 root；当前应为 FAIL：rustc/cargo MISSING）
+"$PIN_DIR/verify-system-rust.sh" --expect-version 1.98.1
+
+# 3) root pin（不用 sudo -i / 登录 root shell；proxy 若需要只经 sudo env 按命令传给
+#    pin 脚本，绝不 export 进 root 会话、不写入 systemd / runner env；见 §5）
+sudo "$PIN_DIR/pin-system-rust.sh" --version 1.98.1
+# 宿主机直连不通时改用（把值替换为管理员自持的代理地址）：
+# sudo env VBMF_CI_PROXY=http://<proxy> "$PIN_DIR/pin-system-rust.sh" --version 1.98.1
+# 期望尾行: PINNED_RUST_VERSION=1.98.1 ；任何 mismatch 脚本自身 fail-closed 非零退出
+# 幂等复核：原样重跑一次同一命令，仍必须以 0 退出且版本不变
+
+# 4) pin 后独立验证（非 root、零 mutation；V1-V4 gate 全 PASS 才算数）
+"$PIN_DIR/verify-system-rust.sh" --expect-version 1.98.1
+# 期望: RESULT: PASS 与 PINNED_RUST_VERSION=1.98.1（canonical /usr/local 语义）
+# V2 同时证明 rustup default = 1.98.1-<target>（不存在 rolling stable）
+
+# 5) 刷新 manifest（以 runner 服务账号身份，不用 root）
+sudo -u vbmf-ci "$BUNDLE_DIR/collect-toolchain.sh" --name vbmf-ci-01   # 02 主机改 --name
+
+# 6) 清理（只删本次传输的 bundle 临时目录，不动宿主机上任何其他路径）
+rm -rf "$BUNDLE_DIR"
+```
+
+**两台都完成后，管理机收口证据（只读）：**
+
+```bash
+scripts/ci/verify-runner.sh --name vbmf-ci-01          # R1-R5 + scope，期望 RESULT: PASS
+scripts/ci/verify-runner.sh --name vbmf-ci-02
+```
+
+- 再 dispatch 只读 `ci-infra-probe.yml`（tier=`vbmf-general`，单 job 无 matrix），
+  重复 dispatch 直至 logs 中**两台 runner.name 各出现至少一次**，且每次报告中
+  `rustc` / `cargo` 均为 `/usr/local/bin/...` + `1.98.1`（parity 双证）。
+- 上述证据齐备前，P2-C 不得进入 `rust-format.runs-on` 迁移（§15.8 末条不变）。
+- 红线复述：本 runbook 不给 `vbmf-ci` 加任何 sudo；pin/verify 脚本不以 GitHub
+  Actions workflow 为执行入口；`verify-system-rust.sh` 永不 install/write/link。
+
+**回归测试（Development VM，非 root、零网络）：**
+`scripts/ci/test-system-rust-scripts.sh` —— 覆盖两脚本语法、pin 参数 fail-closed
+（拒绝 rolling `stable`/非 `x.y.z`/未知参数）、verify V1-V4 各失败模式（版本漂移、
+missing rustfmt、非 symlink 暴露、rolling default、未设 default）与 happy path；
+并断言非 canonical `--root` 的成功输出带显式 TEST-ONLY / 非 acceptance evidence 标记
+（canonical `/usr/local` 验证保持普通 acceptance PASS 语义）。
