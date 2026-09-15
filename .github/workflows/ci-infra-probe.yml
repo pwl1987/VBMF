@@ -66,7 +66,15 @@ jobs:
           echo "job=$GITHUB_JOB / run_id=$GITHUB_RUN_ID"
 
       - name: Host capability contract (read-only)
+        # §3.6 RCA: rustup proxies under the vbmf-ci service account cannot
+        # resolve the system pin without explicit RUSTUP_HOME/CARGO_HOME
+        # ($HOME/.rustup is not writable) and must not inherit a caller
+        # RUSTUP_TOOLCHAIN — same call contract as verify-system-rust.sh V2-V4.
+        env:
+          RUSTUP_HOME: /usr/local/rustup
+          CARGO_HOME: /usr/local/cargo
         run: |
+          unset RUSTUP_TOOLCHAIN
           whoami
           id
           uname -a
