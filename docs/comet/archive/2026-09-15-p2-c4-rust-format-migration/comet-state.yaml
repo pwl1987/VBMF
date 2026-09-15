@@ -1,0 +1,297 @@
+schema: comet.native.v4
+name: p2-c4-rust-format-migration
+language: zh-CN
+phase: archive
+status: done
+state_version: 10
+brief: brief.md
+shape_confirmation_hash: 0b263f9bf7f2b544d246c01d5432cdf79a11a0c823dde5003cfeb0d8d2920db7
+spec_changes:
+  - capability: ci-rust-format-grayscale
+    operation: create
+    source: specs/ci-rust-format-grayscale/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 1
+  iteration: 1
+  attempt: 2
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: push canonical `main` 触发 CI，`rust-format` job 由 `vbmf-general`
+      池中一台 self-hosted runner（`vbmf-ci-01` 或 `vbmf-ci-02`）执行；使用系统 pin
+      Rust（`/usr/local/bin` + 显式 `RUSTUP_HOME=/usr/local/rustup
+      CARGO_HOME=/usr/local/cargo` + `unset RUSTUP_TOOLCHAIN`，STATE §3.6 RCA），
+      `cargo fmt --all -- --check` PASS；本次 run 7/7 required checks 全绿； Actions
+      API 中该 job 的 `runner_name` 为两机之一（runner identity evidence）。"
+    result: passed
+    reason:
+      text: "run 34969039593 push/main 41400e1 7/7 success; rust-format job
+        104380476820 runner_name=vbmf-ci-02 labels
+        [self-hosted,Linux,X64,vbmf,vbmf-general]; log shows RUNNER_ENV:
+        self-hosted, export RUSTUP_HOME=/usr/local/rustup
+        CARGO_HOME=/usr/local/cargo + unset RUSTUP_TOOLCHAIN, cargo fmt --all --
+        --check pass, no install step ran"
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: "Scenario: workflow diff 审计——仅 `rust-format` job 变化，其余 6 个 job
+      byte-identical；job id/name 仍为 `rust-format`（required context 不变）； 未引入
+      `pull_request_target`。"
+    result: passed
+    reason:
+      text: git diff bc1d084..41400e1 single hunk confined to rust-format job; other 6
+        jobs PyYAML deep-equal; triggers/concurrency/defaults/permissions
+        identical; job id/name rust-format, timeout 10m; no pull_request_target
+        trigger; branch protection required contexts exactly the unchanged 7
+        names
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: "Scenario: fork PR 路径结构保持——`runs-on` 表达式对 fork `pull_request` 解析为
+      `ubuntu-latest`；toolchain 安装步骤只在 `runner.environment == 'github-hosted'`
+      执行；self-hosted 路径零 install 步骤（直接用系统 pin）。"
+    result: passed
+    reason:
+      text: "expression verified: fork PR falsifies left disjunction so || yields
+        ubuntu-latest; fromJSON array never falsy so trusted path cannot fall
+        through; toolchain step gated runner.environment == 'github-hosted' with
+        toolchain 1.98.1; self-hosted log proves zero install executed"
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: "Scenario: 本地静态验证（YAML 解析 + workflow 结构检查）在提交前 PASS； push 后 GitHub 接受
+      workflow（无语法拒绝）。"
+    result: passed
+    reason:
+      text: GitHub accepted workflow (run 34969039593 on 41400e1, all jobs green); 4
+        v2 runtime checks passed with receipts in logs/checks (STRUCTURE_OK,
+        vbmf-ci-02); verifier independently reproduced structure validation
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: "Scenario: `.project/STATE.md` 更新：P2-C4 COMPLETE（含 run id、runner
+      identity、commit SHA evidence），P2-C 整体收口，P2-D 变为 READY。"
+    result: passed
+    reason:
+      text: git show f37e5de --stat STATE.md-only; adds 3.9 P2-C4 COMPLETE with
+        41400e1/run 34969039593/runner vbmf-ci-02 evidence; P2-C closed; 5.1
+        P2-C4 COMPLETE + P2-D READY
+      truncated: false
+builder_handoff:
+  candidate_id: b8ced05d-1848-4cee-83d7-df3afbb253dd
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:bb39e807-fb36-47ea-8849-857bb93579d8
+  iteration: 1
+  summary:
+    text: "P2-C4 implementation complete. media-agent.yml rust-format job migrated
+      to conditional runs-on (commit 41400e1): trusted (push main / same-repo
+      PR) -> self-hosted vbmf-general labels via fromJSON expression; fork PR ->
+      ubuntu-latest. dtolnay/rust-toolchain step now gated to runner.environment
+      == 'github-hosted' with toolchain pinned 1.98.1 (D3); self-hosted path
+      installs nothing, format-check step sets explicit
+      RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo and unsets
+      RUSTUP_TOOLCHAIN (STATE 3.6 RCA contract). Other 6 jobs untouched. Local
+      structure checks PASS (yaml parse; job set/id/name/required contexts; no
+      pull_request_target trigger; permissions/timeout/concurrency unchanged; 6
+      jobs deep-equal vs origin/main). Pushed to main: Actions run 34969039593
+      7/7 required checks SUCCESS; rust-format job ran on runner vbmf-ci-02 with
+      labels [self-hosted,Linux,X64,vbmf,vbmf-general]; job log shows
+      RUNNER_ENV: self-hosted branch and cargo fmt --all -- --check passing
+      under the system pin. STATE.md updated (commit f37e5de): 3.9 added, P2-C4
+      COMPLETE, P2-C closed, P2-D READY (local only, pushed at archive). Known
+      limit: fork branch of runs-on expression not live-tested (no fork PR
+      available to solo single-branch policy); truth-table + structural review
+      recorded in brief D4; future external fork PR will be checked via job
+      runner_name evidence."
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+  checks:
+    - name:
+        text: local-structure-checks
+        truncated: false
+      result: passed
+      note:
+        text: "python yaml parse + assertions: 7 job ids/names unchanged, runs-on
+          expression carries ubuntu-latest and vbmf-general, dtolnay step
+          if-gated github-hosted with toolchain 1.98.1, fmt step env contract, 6
+          other jobs deep-equal vs origin/main, no pull_request_target trigger,
+          permissions contents:read, timeout 10m"
+        truncated: false
+    - name:
+        text: ci-push-main-34969039593
+        truncated: false
+      result: passed
+      note:
+        text: "gh run watch exit 0; 7/7 required jobs success; rust-format on runner
+          vbmf-ci-02 labels [self-hosted,Linux,X64,vbmf,vbmf-general]; log shows
+          RUNNER_ENV: self-hosted and cargo fmt --check pass"
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: fork runs-on branch not live-tested (no fork PR available); D4 fallback
+        recorded in STATE 3.9
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-15T12:38:30.488Z
+blockers: []
+verification:
+  candidate_id: b8ced05d-1848-4cee-83d7-df3afbb253dd
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:0e0d36c1-ce5b-423e-8b2e-7334b8b6ac6e
+  iteration: 1
+  attempt: 2
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: ci-green-41400e1-v2
+      name:
+        text: ci-green-41400e1-v2
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh run view 34969039593 --repo pwl1987/VBMF --json conclusion,headSha --jq
+            '.conclusion+" "+.headSha' | grep -qx 'success
+            41400e1b36e67a36cbd9a9395d4f42efb42c76ad'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1582
+    - id: selfhosted-identity-v2
+      name:
+        text: selfhosted-identity-v2
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh api repos/pwl1987/VBMF/actions/runs/34969039593/jobs --jq '.jobs[] |
+            select(.name=="rust-format") | .runner_name' | grep -Ex
+            'vbmf-ci-0[12]'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1371
+    - id: workflow-diff-scope-v2
+      name:
+        text: workflow-diff-scope-v2
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: import
+            subprocess,yaml;d=yaml.safe_load(open('.github/workflows/media-agent.yml'));old=yaml.safe_load(subprocess.run(['git','show','bc1d084:.github/workflows/media-agent.yml'],capture_output=True,text=True).stdout);exp=['rust-format','rust-test-matrix','rust-clippy','hardware-test-compile','architecture-portability','gstreamer-build','session-lifecycle'];assert
+            sorted(d['jobs'])==sorted(exp);assert
+            all(d['jobs'][k]==old['jobs'][k] for k in exp if
+            k!='rust-format');assert
+            d['jobs']['rust-format']['name']=='rust-format';assert
+            'vbmf-general' in d['jobs']['rust-format']['runs-on'] and
+            'ubuntu-latest' in
+            d['jobs']['rust-format']['runs-on'];print('STRUCTURE_OK')
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 89
+    - id: git-clean-except-comet-v2
+      name:
+        text: git-clean-except-comet-v2
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: git status --porcelain | grep -v
+            'docs/comet/changes/p2-c4-rust-format-migration' && exit 1 || true
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 12
+  summary:
+    text: "All 5 acceptance items pass on independently gathered evidence: run
+      34969039593 7/7 green with rust-format on vbmf-ci-02 under vbmf-general
+      labels and the full 3.6 RCA env contract in-log with no install step; diff
+      confined to rust-format job (other 6 deep-equal, required contexts
+      unchanged); fork branch resolves to ubuntu-latest by GHA &&/|| semantics;
+      4 v2 runtime checks passed; STATE f37e5de closes P2-C4/P2-C and sets P2-D
+      READY. Residual: un-live-tested fork branch (accepted), dtolnay pre-fetch
+      coupling, ~6.7m vs 10m timeout headroom."
+    truncated: false
+  risks:
+    - text: fork runs-on branch has no live fork-PR test (accepted D4 limitation
+        recorded in brief D4 and STATE 3.9/9); first external fork PR must be
+        checked via job runner_name
+      truncated: false
+    - text: runner pre-fetches dtolnay action tarball even when step skipped on
+        self-hosted; dtolnay outage could fail self-hosted job (availability
+        coupling only)
+      truncated: false
+    - text: rust-format on vbmf-ci-02 took ~6.7 min wall clock (git fetch ~6 min) vs
+        timeout 10m; monitor headroom in P2-C stability observation
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-09-15T12:50:42.942Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: execution-error
+    unresolved_ids: []
+    summary:
+      text: "Native Verifier response was invalid: Native Verifier check ID
+        ci-green-41400e1 conflicts with a Runtime check"
+      truncated: false
+    completed_at: 2026-09-15T12:42:23.536Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 2
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: "All 5 acceptance items pass on independently gathered evidence: run
+        34969039593 7/7 green with rust-format on vbmf-ci-02 under vbmf-general
+        labels and the full 3.6 RCA env contract in-log with no install step;
+        diff confined to rust-format job (other 6 deep-equal, required contexts
+        unchanged); fork branch resolves to ubuntu-latest by GHA &&/||
+        semantics; 4 v2 runtime checks passed; STATE f37e5de closes P2-C4/P2-C
+        and sets P2-D READY. Residual: un-live-tested fork branch (accepted),
+        dtolnay pre-fetch coupling, ~6.7m vs 10m timeout headroom."
+      truncated: false
+    completed_at: 2026-09-15T12:50:42.942Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-09-15T12:01:10.671Z
