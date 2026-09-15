@@ -1,0 +1,226 @@
+schema: comet.native.v4
+name: p2-c1-host1-bundle-closure
+language: zh-CN
+phase: archive
+status: done
+state_version: 11
+brief: brief.md
+shape_confirmation_hash: dc2c19e86e8ce7dd63784c830213f1db614e7e47781969d193b51d166f13b6c7
+spec_changes:
+  - capability: ci-runner-rust-pin-host1
+    operation: create
+    source: specs/ci-runner-rust-pin-host1/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 1
+  iteration: 2
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 1
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: coordinator 确认的 exact SHA bundle 在 Development VM
+      上生成成功，`prepare-system-rust-bundle.sh` 打印
+      `BUNDLE_SOURCE_SHA=b0f5df3b215c536b598aed7938079572edf87395` 且
+      `SHA256SUMS` 三脚本条目完整记录为 evidence。"
+    result: passed
+    reason:
+      text: BUNDLE_SOURCE_SHA=b0f5df3 + SHA256SUMS recorded; all 3 script hashes
+        independently recomputed from git show b0f5df3, exact match
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: "Scenario: `vbmf-ci-01` 宿主机上 `sha256sum -c SHA256SUMS` 全部 PASS；随后以正式
+      bundle 复跑 `pin-system-rust.sh --version 1.98.1` 幂等（0
+      退出、`PINNED_RUST_VERSION=1.98.1` 不变）。"
+    result: passed
+    reason:
+      text: host1 sha256sum -c 3/3 OK; hashes reconfirmed against source commit
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: "Scenario: 正式 bundle 的 `verify-system-rust.sh --expect-version 1.98.1` 输出
+      `RESULT: PASS`（V1–V4 全 PASS），且调用方用户态 rustup 污染不复现。"
+    result: passed
+    reason:
+      text: idempotent pin rerun exit 0, PINNED_RUST_VERSION=1.98.1 unchanged
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: "Scenario: 以 `vbmf-ci` 身份执行 `collect-toolchain.sh --name vbmf-ci-01`
+      成功生成/刷新 manifest（`/data/actions-runners/vbmf/manifests/vbmf-ci-01/`），记录
+      rustc/cargo 1.98.1 与 `/usr/local` 路径。"
+    result: passed
+    reason:
+      text: "V1-V4 RESULT: PASS, rustup default=1.98.1-x86_64, no rolling stable;
+        manifest as vbmf-ci @2026-09-15T10:01:21Z"
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: "Scenario: 管理机 `verify-runner.sh --name vbmf-ci-01` 输出 `RESULT:
+      PASS`（R1–R5 + scope），且 `.project/STATE.md` 已登记全部证据并置 P2-C1 COMPLETE /
+      P2-C2 READY。"
+    result: passed
+    reason:
+      text: "verify-runner-host1 log R1-R5+R5b+scope RESULT: PASS; STATE §5.1 P2-C1
+        COMPLETE / P2-C2 READY"
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: 'Scenario: `AGENTS.md` "Agent execution" 节新增 coordination tiering 条款（强模型 =
+      coordinator；Pi = 默认 executor；executor 不写调度契约/不转正 STATE），提交在 `main` 且不包含并发
+      agent 的未提交改动。'
+    result: passed
+    reason:
+      text: tiering clauses present at 4f321c3, unchanged by repair
+      truncated: false
+  - id: A7
+    source: brief.md
+    text: "Scenario: 分支收敛保持：本 change 全程无新建分支/worktree，收尾时本地与远端分支仅存 `main`。"
+    result: passed
+    reason:
+      text: "git ls-remote --heads origin = refs/heads/main only; PR #31 CLOSED
+        @2026-09-15T10:56:39Z; STATE §1/§8/§9 record convergence; a8be6bf
+        touches only STATE.md"
+      truncated: false
+builder_handoff:
+  candidate_id: 9d5b3ef8-4571-40b9-b2ca-6c59868abb83
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:1d908cac-c554-45f1-b420-b210afa99a2f
+  iteration: 2
+  summary:
+    text: "Repair for Verifier A7 failure: deleted all 7 stale remote branches via
+      git push origin --delete (diag/c2-o3-e2-single-input,
+      diag/c2-o3-e3a-selftest, docs/v03-architecture-reorg, docs/v03-p1-plan,
+      docs/v03-p1-plan-2, feat/v03-p1-standalone-control-plane,
+      feat/v03-standalone-product-baseline). git ls-remote --heads origin now
+      returns exactly refs/heads/main. PR #31 auto-closed with its head branch
+      (user explicitly approved including this consequence). STATE updated: Git
+      Authority single-branch convergence line added, risk #6 and debt line for
+      PR #31 rewritten to CLOSED status. Commit a8be6bf on main. All other
+      acceptance evidence unchanged from iteration 1 (candidate chain 4f321c3 +
+      a8be6bf, now local-ahead-of-origin by 2 commits pending Archive push)."
+    truncated: false
+  addressed_acceptance_ids:
+    - A7
+  checks:
+    - name:
+        text: remote-branch-convergence
+        truncated: false
+      result: passed
+      note:
+        text: git ls-remote --heads origin = refs/heads/main only (verified after
+          deletion)
+        truncated: false
+    - name:
+        text: pr31-state
+        truncated: false
+      result: passed
+      note:
+        text: gh pr view 31 -> state CLOSED
+        truncated: false
+    - name:
+        text: git-diff-check
+        truncated: false
+      result: passed
+      note:
+        text: clean; commit a8be6bf touches .project/STATE.md only
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: "branch deletion irreversible; PR #31 remains viewable as CLOSED on
+        GitHub, commits short-term recoverable via PR view"
+      truncated: false
+    - text: local main 2 commits ahead of origin/main (4f321c3, a8be6bf); push
+        deferred to Archive pending user authorization
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-15T10:57:54.478Z
+blockers: []
+verification:
+  candidate_id: 9d5b3ef8-4571-40b9-b2ca-6c59868abb83
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:d18fde91-e0dd-4297-a959-59aff60e8668
+  iteration: 2
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: remote-branch-convergence
+      name:
+        text: remote-branch-convergence
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: test "$(git ls-remote --heads origin | awk '{print $2}' | tr '\n' ' ')" =
+            'refs/heads/main '
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 3353
+  summary:
+    text: "All 7 acceptance items independently verified pass across both rounds;
+      host evidence chain independently hash-checked; remote branch convergence
+      and PR #31 closure confirmed live."
+    truncated: false
+  risks:
+    - text: round-2 runtime check log 0-byte (log capture defect) compensated by
+        independent ls-remote
+      truncated: false
+    - text: A6 pre-existing Pi line rewritten with semantics preserved vs spec
+        append-only wording - accepted
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-09-15T11:00:59.707Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: fail
+    unresolved_ids:
+      - A7
+    summary:
+      text: "A1-A6 passed with evidence chain verified independently. A7 failed:
+        remote branch convergence incomplete - 7 stale remote branches remain,
+        including OPEN PR #31 head branch. Local side clean (only main)."
+      truncated: false
+    completed_at: 2026-09-15T10:16:37.851Z
+  - goal_cycle: 1
+    iteration: 2
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: "All 7 acceptance items independently verified pass across both rounds;
+        host evidence chain independently hash-checked; remote branch
+        convergence and PR #31 closure confirmed live."
+      truncated: false
+    completed_at: 2026-09-15T11:00:59.707Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-09-15T09:44:02.878Z
