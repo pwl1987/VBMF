@@ -190,7 +190,7 @@ Status: **COMPLETE / CI VERIFIED（2026-09-15）**
 - implementation commit `810b60c8e333a48a26055bcdaf655c6fd5b022f7`：仅改 `session-lifecycle` 单 job——条件 `runs-on` 表达式与 P2-C4/P2-D 逐字一致；dtolnay 步骤与 `actions/cache` 加 `runner.environment == 'github-hosted'` 分流，fork 路径 dtolnay 保持无 pin 参数（D2：本 job 测试断言不依赖 exact 补丁版本，不顺手改语义）；self-hosted 零 install，测试步骤内联显式 `RUSTUP_HOME=/usr/local/rustup` + `unset RUSTUP_TOOLCHAIN`（§3.6 RCA）+ checkout 外持久 `CARGO_HOME="${GITHUB_WORKSPACE%/*}/.cargo-home"`（与 clippy 共享 registry）+ **独立 `CARGO_TARGET_DIR="${GITHUB_WORKSPACE%/*}/target-session"`**（D3：clippy 与 test 构建参数不同，隔离防缓存互踩）；四条 `cargo test --features mock`（session/resource/lease/preflight）逐字不变；
 - 结构不变量本地断言 PASS：其余 6 job 与 origin/main byte-identical、job id/name 仍 `session-lifecycle`、`on:` 触发键 = {push, pull_request}、timeout 20 / concurrency / permissions 不变；
 - GitHub Actions run `35033319131`（push `main` `810b60c`）：首跑三 self-hosted job 全部命中当日第 4 个出网故障窗（~22:55–23:05 UTC，双机 fetch TLS 失败），两次 rerun 后 **7/7 required 全绿**；`session-lifecycle` job 由 **`vbmf-ci-01`** 执行，log 实证 `RUNNER_ENV: self-hosted` 分支 + env 契约 + 四条 mock 门禁测试 **50 passed / 0 failed**；
-- 出网稳定性观察（risk 8 数据）：P2-E1 验证期 1 个故障窗（当日累计第 4 个），双机命中、4 次 job 失败全部为 checkout `git fetch` 新建 TLS 连接失败、2 次 rerun 收口；runner agent 通道始终正常；数据不足以裁决缓解方案，P2-E2 继续累计。
+- 出网稳定性观察（risk 8 数据）：P2-E1 验证期 2 个故障窗——窗 #4（22:55–23:05 UTC，双机，4 次 job 失败，run `35033319131` 2 次 rerun 收口）；窗 #5（23:14–23:19 UTC，双机：ci-01×2 + ci-02×1，3 次 job 失败，STATE 闭环 push `0294450` 的 run `35034627908` 1 次 rerun 收口，收口后 7/7 全绿且 `session-lifecycle` 在 **vbmf-ci-02** 亦有 live PASS 证据）；runner agent 通道始终正常；当日累计 5 窗，数据不足以裁决缓解方案，P2-E2 继续累计。
 
 ## 4. Current Task
 
@@ -317,7 +317,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 6. **closed PR #31 / branch convergence**：PR #31 已随 2026-09-15 分支收敛关闭（head 分支已删）；它从来不是 canonical development Authority；未来若吸收 standalone product baseline，按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复任何分支。
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 
-8. **runner 出网抖动（2026-09-15，持续观察）**：devbox 域到 github.com:443 存在反复故障窗——当日 4 次（~13:12、21:32–21:40、21:51–21:56、22:55–23:05 UTC，末次双机命中 4 次 job 失败、2 次 rerun 收口），均为双机/单机 fetch 新建 TLS 连接失败，runner agent 通道不受影响；影响所有 self-hosted job 的 checkout 首步，目前靠 rerun 收口；P2-E2 观察窗继续计数，数据充分后裁决缓解（job 级 git 代理与 probe 的 workflow-env 红线冲突，未裁决）。
+8. **runner 出网抖动（2026-09-15，持续观察）**：devbox 域到 github.com:443 存在反复故障窗——当日 5 次（~13:12、21:32–21:40、21:51–21:56、22:55–23:05、23:14–23:19 UTC，后两窗均双机命中、合计 7 次 job 失败、3 次 rerun 收口），均为 fetch 新建 TLS 连接失败，runner agent 通道不受影响；影响所有 self-hosted job 的 checkout 首步，目前靠 rerun 收口；P2-E2 观察窗继续计数，数据充分后裁决缓解（job 级 git 代理与 probe 的 workflow-env 红线冲突，未裁决）。
 
 ### Current blockers
 
