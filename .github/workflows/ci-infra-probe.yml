@@ -18,6 +18,15 @@ name: CI Infra Probe
 # runner must be probe-verified BEFORE joining a scheduling label. Red lines
 # unchanged: read-only, dispatch-only, single job, fixed allowlist (no
 # free-form label injection).
+#
+# `host_route_pubkey` input (optional, default empty) carries an ephemeral
+# RSA PUBLIC key (public material only). When non-empty, one extra read-only
+# step collects a compact host-route report and prints ONLY RSA-OAEP-SHA256
+# encrypted base64 ciphertext (prefix HOST_ROUTE_CIPHERTEXT_B64=). This repo
+# is PUBLIC: LAN IPs / gateway / account names / SSH fingerprints must NEVER
+# appear in plaintext logs. The input is used exclusively as an encryption
+# key (passed via step env, never interpolated into the shell script) —
+# never in runs-on, labels, paths, commands, or network destinations.
 on:
   workflow_dispatch:
     inputs:
@@ -28,6 +37,15 @@ on:
         options:
           - vbmf-general
           - vbmf-parity-b
+      host_route_pubkey:
+        description: >-
+          Optional RSA public key (PUBLIC material only) enabling the
+          encrypted host-route diagnostic step. Accepts a PEM "-----BEGIN
+          PUBLIC KEY-----" body with literal \n escapes, or base64 of the
+          whole PEM file. Leave empty to skip. Private keys are never used.
+        type: string
+        required: false
+        default: ""
 
 # read-only probe: no GITHUB_TOKEN permissions needed or granted
 permissions: {}
@@ -88,3 +106,101 @@ jobs:
             if [ -n "$val" ]; then echo "proxy env PRESENT: $v (origin must be audited)"; found=1; fi
           done
           [ "$found" -eq 0 ] && echo "proxy env: ABSENT (red line OK)"
+
+      - name: Host route report (ciphertext only)
+        if: ${{ inputs.host_route_pubkey != '' }}
+        env:
+          # Public material only. Delivered as data via env; the input value
+          # is never expanded into the shell script text itself, so it has no
+          # command-injection surface.
+          HOST_ROUTE_PUBKEY: ${{ inputs.host_route_pubkey }}
+        run: |
+          set -eu
+          # CI-RUNNER-PROBE-01 extension, read-only. Collects a compact
+          # host-route report and prints ONLY RSA-OAEP-SHA256 encrypted
+          # base64 ciphertext. Plaintext (LAN source IPv4, gateway,
+          # accounts, SSH fingerprint) is NEVER echoed — this repository is
+          # public. Fail closed on invalid/undersized key or oversized
+          # plaintext. Local lookups only: no network request, no upload,
+          # no artifact, no sudo, no install, no repo write, no secrets.
+          command -v openssl >/dev/null 2>&1 \
+            || { echo "host-route: FAIL (openssl missing)"; exit 1; }
+
+          key_file="$RUNNER_TEMP/host-route-pubkey.$GITHUB_RUN_ID.pem"
+          pt_file="$RUNNER_TEMP/host-route-report.$GITHUB_RUN_ID.bin"
+          ct_file="$RUNNER_TEMP/host-route-cipher.$GITHUB_RUN_ID.bin"
+          trap 'rm -f "$key_file" "$pt_file" "$ct_file"' EXIT
+
+          # Normalize pubkey: PEM with literal "\n" escapes, or base64 of a
+          # whole PEM file. Anything else fails closed below.
+          key_norm="${HOST_ROUTE_PUBKEY//$'\r'/}"
+          case "$key_norm" in
+            *-----BEGIN*)
+              printf '%s' "${key_norm//\\n/$'\n'}" > "$key_file"
+              ;;
+            *)
+              printf '%s' "$key_norm" | base64 -d > "$key_file" 2>/dev/null \
+                || { echo "host-route: FAIL (pubkey not decodable)"; exit 1; }
+              ;;
+          esac
+
+          # Fail closed unless the file parses as a public key.
+          openssl pkey -pubin -in "$key_file" -noout >/dev/null 2>&1 \
+            || { echo "host-route: FAIL (pubkey invalid)"; exit 1; }
+          key_bits="$(openssl pkey -pubin -in "$key_file" -noout -text 2>/dev/null \
+            | sed -n 's/^Public-Key: (\([0-9]*\) bit)/\1/p' | head -1)"
+          case "$key_bits" in
+            ''|*[!0-9]*) echo "host-route: FAIL (key size unreadable)"; exit 1 ;;
+          esac
+          [ "$key_bits" -ge 2048 ] \
+            || { echo "host-route: FAIL (key below 2048 bits)"; exit 1; }
+
+          # --- read-only, host-local report fields -------------------------
+          # ip route get = kernel FIB lookup only; no packet leaves the host.
+          src4="$(ip -4 route get 1.1.1.1 2>/dev/null \
+            | sed -n 's/.* src \([0-9][0-9.]*\).*/\1/p' | head -1 || true)"
+          dr="$(ip route show default 2>/dev/null | head -1 || true)"
+          gw="$(printf '%s' "$dr" \
+            | sed -n 's/^default via \([0-9][0-9.]*\) dev \([0-9A-Za-z._-]*\).*/\1 dev \2/p')"
+          if ss -tlnH 'sport = :22' 2>/dev/null | grep -q .; then
+            tcp22="listening"
+          else
+            tcp22="not-listening-or-unknown"
+          fi
+          ssh_fp="unreadable"
+          if [ -r /etc/ssh/ssh_host_ed25519_key.pub ]; then
+            ssh_fp="$(ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub 2>/dev/null \
+              | awk '{print $1, $2}' || echo unreadable)"
+          fi
+          virt="$(systemd-detect-virt 2>/dev/null || true)"
+          [ -n "$virt" ] || virt="unknown"
+          accts="$(awk -F: \
+            '$3 >= 1000 && $7 !~ /(nologin|false|sync|shutdown|halt)$/ {print $1}' \
+            /etc/passwd | paste -sd, -)"
+
+          report="runner_name=$RUNNER_NAME"
+          report="$report"$'\n'"hostname=$(hostname)"
+          report="$report"$'\n'"src_ipv4=${src4:-unknown}"
+          report="$report"$'\n'"default_route=${gw:-unknown}"
+          report="$report"$'\n'"tcp22=${tcp22}"
+          report="$report"$'\n'"ssh_ed25519_fp=${ssh_fp}"
+          report="$report"$'\n'"user=$(id -un)"
+          report="$report"$'\n'"virt=${virt}"
+          report="$report"$'\n'"interactive_users=${accts:-none}"
+          printf '%s' "$report" > "$pt_file"
+
+          # RSA-OAEP-SHA256 overhead = 2*hash(32B) + 2 = 66 bytes.
+          max_plain=$(( key_bits / 8 - 66 ))
+          size="$(wc -c < "$pt_file")"
+          [ "$size" -le "$max_plain" ] \
+            || { echo "host-route: FAIL (report ${size}B exceeds OAEP limit ${max_plain}B)"; exit 1; }
+
+          openssl pkeyutl -encrypt -pubin -inkey "$key_file" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+            -in "$pt_file" -out "$ct_file" 2>/dev/null \
+            || { echo "host-route: FAIL (encryption failed)"; exit 1; }
+
+          printf 'HOST_ROUTE_CIPHERTEXT_B64='
+          base64 -w0 "$ct_file"
+          printf '\n'
+          echo "host-route: OK (plaintext ${size}B, key ${key_bits}b, RSA-OAEP-SHA256)"
