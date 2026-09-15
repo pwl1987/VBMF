@@ -32,15 +32,36 @@ jobs:
   # ── rust-format ──────────────────────────────────────────────────────────────
   rust-format:
     name: rust-format
-    runs-on: ubuntu-latest
+    # P2-C4: conditional runner. Trusted events (canonical main push /
+    # same-repository PR) use the pinned self-hosted vbmf-general pool; fork
+    # PRs always stay GitHub-hosted (§15.6 frozen boundary). Push events carry
+    # no pull_request payload, so !github.event.pull_request.head.repo.fork
+    # evaluates true → trusted.
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      # GitHub-hosted (fork) path only: install exact 1.98.1 — same version as
+      # the system pin so both sides of the boundary judge formatting with
+      # identical rustfmt (§15.7). Self-hosted path installs nothing.
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.environment == 'github-hosted'
         with:
+          toolchain: 1.98.1
           components: rustfmt
       - name: Format check (required)
-        run: cargo fmt --all -- --check
+        # §3.6 RCA: under the vbmf-ci service account the rustup proxies only
+        # resolve the system pin with explicit RUSTUP_HOME/CARGO_HOME and no
+        # caller RUSTUP_TOOLCHAIN — same call contract as verify-system-rust.sh
+        # V2-V4. GitHub-hosted path keeps the dtolnay-provided env untouched.
+        env:
+          RUNNER_ENV: ${{ runner.environment }}
+        run: |
+          if [ "$RUNNER_ENV" = "self-hosted" ]; then
+            export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo
+            unset RUSTUP_TOOLCHAIN
+          fi
+          cargo fmt --all -- --check
 
   # ── architecture-portability ────────────────────────────────────────────────
   # ARCH-PORTABILITY-01 两层:
