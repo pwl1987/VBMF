@@ -1,0 +1,76 @@
+schema: comet.native.v4
+name: p2-e1-session-lifecycle-migration
+language: zh-CN
+phase: build
+status: active
+state_version: 3
+brief: brief.md
+shape_confirmation_hash: 021c20c90dd807fc790ee0e2a553d6ef57de06705fcd43e685931fc774634c88
+spec_changes:
+  - capability: ci-session-lifecycle-grayscale
+    operation: create
+    source: specs/ci-session-lifecycle-grayscale/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: building
+  goal_cycle: 1
+  iteration: 1
+  attempt: 0
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: submit-builder-candidate
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: `session-lifecycle` job 迁条件 `runs-on` 后 push `main`：CI 7/7
+      required 全绿；`session-lifecycle` job `runner_name` ∈
+      {`vbmf-ci-01`,`vbmf-ci-02`}； job log 显示 self-hosted 分支零 install、显式 Rust
+      env 契约、四条 `cargo test --features mock`（session/resource/lease/preflight）全
+      PASS。"
+    result: pending
+    reason: null
+  - id: A2
+    source: brief.md
+    text: "Scenario: workflow diff 审计——仅 `session-lifecycle` job 变化，其余 6 job
+      byte-identical；job id/name 仍 `session-lifecycle`；无 `pull_request_target`；
+      fork 路径保持 dtolnay 现状（本 job 原本无 toolchain pin 参数——GitHub-hosted 路径不改
+      dtolnay 步骤语义，见 D2）；`timeout-minutes: 20`、concurrency、 `permissions` 不变。"
+    result: pending
+    reason: null
+  - id: A3
+    source: brief.md
+    text: 'Scenario: 稳定性观察登记——验证期内每次出网故障窗记录（时间窗、命中 runner、 失败步骤、rerun 收口）；无故障窗则明确记
+      "0 故障窗"；数据入 STATE risk 8。'
+    result: pending
+    reason: null
+  - id: A4
+    source: brief.md
+    text: "Scenario: `.project/STATE.md` 更新：P2-E1 COMPLETE（run id、runner identity、
+      观察数据）、P2-E2 变 READY。"
+    result: pending
+    reason: null
+builder_handoff: null
+blockers: []
+verification: null
+history: []
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pending
+verification_report: null
+archived: false
+created_at: 2026-09-15T22:50:38.720Z

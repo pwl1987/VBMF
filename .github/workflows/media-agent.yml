@@ -157,12 +157,22 @@ jobs:
   # 以 mock feature 跑 SessionManager/resource/lease/preflight 全部门禁测试。
   session-lifecycle:
     name: session-lifecycle
-    runs-on: ubuntu-latest
+    # P2-E1: conditional runner (same boundary as P2-C4 rust-format / P2-D
+    # rust-clippy). Trusted events (canonical main push / same-repository PR)
+    # use the pinned self-hosted vbmf-general pool; fork PRs always stay
+    # GitHub-hosted (§15.6 frozen boundary).
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      # GitHub-hosted (fork) path only. Kept as-is (no toolchain pin): this
+      # job's test assertions do not depend on the exact rustc patch version
+      # (unlike rust-format/rust-clippy), and P2-E1 does not change fork-path
+      # semantics (brief D2).
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.environment == 'github-hosted'
       - name: Cache cargo
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: |
@@ -170,8 +180,23 @@ jobs:
             ~/.cargo/git
             services/media-agent/target
           key: ${{ runner.os }}-cargo-session-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      # Self-hosted: /usr/local/cargo is root-only (§3.6 RCA) and
+      # actions/checkout clean removes untracked files, so the writable
+      # CARGO_HOME/CARGO_TARGET_DIR live OUTSIDE the checkout dir. The
+      # target dir is separate from target-clippy (P2-D): clippy and test
+      # builds use different flags and would invalidate each other's cache
+      # in a shared dir (brief D3).
       - name: Test (mock) — session + resource + lease + preflight gate tests
+        env:
+          RUNNER_ENV: ${{ runner.environment }}
         run: |
+          if [ "$RUNNER_ENV" = "self-hosted" ]; then
+            export RUSTUP_HOME=/usr/local/rustup
+            export CARGO_HOME="${GITHUB_WORKSPACE%/*}/.cargo-home"
+            export CARGO_TARGET_DIR="${GITHUB_WORKSPACE%/*}/target-session"
+            unset RUSTUP_TOOLCHAIN
+            mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR"
+          fi
           cargo test --features mock session::
           cargo test --features mock resource::
           cargo test --features mock lease::
