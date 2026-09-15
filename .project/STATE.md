@@ -135,6 +135,20 @@ Status: **COMPLETE / HOST VERIFIED（2026-09-15，§15.9 步骤 A+B 实际执行
 - **运维 RCA（对 P2-C2/P2-C4 有约束力）**：rustup proxy 在 `vbmf-ci` 身份下若不显式设置 `RUSTUP_HOME`/`CARGO_HOME`，会尝试 `$HOME/.rustup` 且因 runner base 目录不可写而失败（2026-09-11 旧 manifest 同样止步于 python3 的原因）。凡以 `vbmf-ci` 身份调用 rustc/cargo/rustfmt（manifest collect、未来 self-hosted CI job）必须显式携带 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`；
 - 本轮同步落盘 `AGENTS.md` coordination tiering（强模型 = coordinator，Pi = 默认 executor，executor 不写调度契约）；`_shared/README.md` 对应条款先行落盘（dev-agent-kit main `93a6451`）。
 
+### 3.7 P2-C2 — `vbmf-ci-02` 对称 system Rust pin 收口
+
+Status: **COMPLETE / HOST VERIFIED（2026-09-15，§15.9 步骤 A+B 经 devbox 跳板实际执行）**
+
+- coordinator 确认 bundle 源 exact SHA：`9e47721eb30355ffe23cea12592445e8f0575c6a`（时点 live canonical `main` tip）；三脚本与 `b0f5df3`（P2-C1）byte-identical，`SHA256SUMS` 完全一致（collect `5af0bfaa…` / pin `46056167…` / verify `d0ae04fc…`）；
+- guest（devbox KVM `vbmf-ci-02`）host-key 严格验证：devbox 管理面 `ssh-keyscan` 所得 ED25519 fingerprint 与用户 guest 控制台读出的 `/etc/ssh/ssh_host_ed25519_key.pub` fingerprint 比对一致后写入信任；地址/fingerprint 不落盘；
+- guest `sha256sum -c SHA256SUMS` 3/3 OK；
+- 首次 system pin + 幂等复跑：两次 `sudo pin-system-rust.sh --version 1.98.1` 均 exit 0，`PINNED_RUST_VERSION=1.98.1`（首次运行输出含 `unchanged` 提示 `/usr/local` 下 toolchain 组件已在此前 provisioning 中就位，本论完成 default/链接收口，符合幂等语义）；
+- 正式 verifier V1–V4：`RESULT: PASS`（rustc `1.98.1 (48a229cea)`、cargo `1.98.1 (797e8a9bc)`、rustfmt `1.9.0-stable`；`rustup default=1.98.1-x86_64-unknown-linux-gnu`，无 rolling stable）——与 host1 exact 对称；
+- manifest 以 `vbmf-ci` 身份（显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`，§3.6 RCA 生效）刷新：`/data/actions-runners/vbmf/manifests/vbmf-ci-02/{toolchain.yaml,toolchain.txt}` @ `2026-09-15T11:14:31Z`，rustc/cargo = `/usr/local/bin/*` 1.98.1；
+- 管理机只读收口：`verify-runner.sh --name vbmf-ci-02` R1–R5 + scope 全 PASS（`RESULT: PASS`），labels exact；
+- **运维 RCA（对 P2-C3+ 有约束力）**：bundle 经 devbox 中转 scp 到 guest 后可能丢失执行/读权限位，宿主机执行前必须 `chmod 755` 脚本，否则 `sudo -u vbmf-ci bash <script>` 以 126 `Permission denied` 失败；
+- `vbmf-ci` 权限零变更；guest 零 git 操作；guest/devbox/VM 三方 bundle 临时目录均已清理。
+
 ## 4. Current Task
 
 **P2-C — `rust-format` single-job self-hosted grayscale**
@@ -154,7 +168,7 @@ P2-C 顺序必须保持：
 4. required context 仍名为 `rust-format`，其余 6 jobs 保持 GitHub-hosted；
 5. focused validation → push main → Actions 全绿 → runner identity evidence → STATE。
 
-2026-09-15 P2-C1 收口后前置证据：早期 4 次 `ci-infra-probe` 确认两机最初均 `rustc/cargo: MISSING`，maintenance run `34921727757` 证明 CI service account 无非交互 sudo且无系统修改；随后 encrypted route probe 恢复了既有 out-of-band host-admin 管理路径并严格核验 host identity。`vbmf-ci-01` 已完成 Rust `1.98.1` system pin、幂等执行、修复版 verifier V1–V4 实机 PASS 及 current-SHA bundle/manifest 正式收口（§3.6）；**尚待** `vbmf-ci-02` 对称 pin、双机 parity re-probe。只有这些证据齐备后才允许迁 `rust-format.runs-on`。
+2026-09-15 P2-C1 收口后前置证据：早期 4 次 `ci-infra-probe` 确认两机最初均 `rustc/cargo: MISSING`，maintenance run `34921727757` 证明 CI service account 无非交互 sudo且无系统修改；随后 encrypted route probe 恢复了既有 out-of-band host-admin 管理路径并严格核验 host identity。`vbmf-ci-01` 已完成 Rust `1.98.1` system pin、幂等执行、修复版 verifier V1–V4 实机 PASS 及 current-SHA bundle/manifest 正式收口（§3.6）；`vbmf-ci-02` 已对称完成 pin/幂等/V1–V4/manifest（§3.7）；**尚待**双机 parity re-probe。只有该证据齐备后才允许迁 `rust-format.runs-on`。
 
 ## 5. Next Task
 
@@ -173,8 +187,8 @@ P2-M 前仍须单独裁决 DeckLink SDK 注入模式；BMD 实机永走 hardware
 | ID | Status | Task / Scope | Depends on | Required acceptance |
 |---|---|---|---|---|
 | **P2-C1** | **COMPLETE（§3.6，2026-09-15）** | `vbmf-ci-01` current-SHA 正式收口：从 live `main` full SHA 生成 §15.9 bundle，host checksum，Rust 1.98.1 idempotent pin，修复版 V1–V4 verify，以 `vbmf-ci` 刷新 manifest；不得修改 runner sudo 权限 | current live main + §15.9 | exact SHA/bundle checksum；V1–V4 PASS；manifest；无 generic sudo；证据记录 |
-| **P2-C2** | **READY** | `vbmf-ci-02` 对称 system Rust 1.98.1 provision/verify/manifest；经 devbox/KVM 既有授权管理面执行，host-key 必须严格验证；以 `vbmf-ci` 调用 rust 工具时显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`（§3.6 RCA） | P2-C1 | 与 host1 同 exact toolchain/path；二次 pin 幂等；V1–V4 PASS；manifest |
-| **P2-C3** | **BLOCKED by P2-C1/C2** | 双 runner read-only parity re-probe，必须实际命中 01 与 02；验证 Rust path/version、manifest、labels parity | P2-C1/C2 | 两机 evidence；`/usr/local/bin` exact 1.98.1 parity；runner identity 明确 |
+| **P2-C2** | **COMPLETE（§3.7，2026-09-15）** | `vbmf-ci-02` 对称 system Rust 1.98.1 provision/verify/manifest；经 devbox/KVM 既有授权管理面执行，host-key 必须严格验证；以 `vbmf-ci` 调用 rust 工具时显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`（§3.6 RCA） | P2-C1 | 与 host1 同 exact toolchain/path；二次 pin 幂等；V1–V4 PASS；manifest |
+| **P2-C3** | **READY** | 双 runner read-only parity re-probe，必须实际命中 01 与 02；验证 Rust path/version、manifest、labels parity | P2-C1/C2 | 两机 evidence；`/usr/local/bin` exact 1.98.1 parity；runner identity 明确 |
 | **P2-C4** | **BLOCKED by P2-C3** | 只迁现有 `rust-format` job 到条件 `runs-on`；fork PR 留 GitHub-hosted，trusted main/same-repo PR 走 `vbmf-general`；其余 6 jobs 不动 | P2-C3 | context 名仍 `rust-format`；fork boundary 不变；7 required checks PASS；实际 self-hosted runner identity evidence |
 | **P2-D** | **BLOCKED by P2-C4** | `rust-clippy` 单 job self-hosted grayscale，同 P2-B 安全边界 | P2-C COMPLETE | 7 checks PASS；runner identity；STATE |
 | **P2-E1** | **BLOCKED by P2-D** | `session-lifecycle` grayscale + 双 runner 稳定性观察 | P2-D | required context 不变；调度/失败恢复 evidence |
@@ -230,7 +244,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-C historical preflight probes `34920607255` / `34920611254` / `34920615247` / `34920619055`：当时两台 runner 均被命中且 `rustc/cargo` 均 MISSING；该证据只描述 pin 前基线，当前状态以下列 host execution 证据为准。
 - P2-C host-admin tooling：**IMPLEMENTATION COMPLETE / SOFTWARE VERIFIED** through `0f375c8…`；focused tests **41/41 PASS**；GitHub Actions `34934058858` / `34935730648` / `34947630667` / `34949135299` PASS。
 - P2-C host route recovery：**VERIFIED**（encrypted probe + strict host-key match + BatchMode SSH + host-admin `sudo -n`）；原 missing-host-admin blocker 已解除。
-- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**NOT RUN**；双机 parity / `rust-format` self-hosted grayscale：**NOT RUN**。不得把 host1 单机成功记成 P2-C COMPLETE。
+- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity / `rust-format` self-hosted grayscale：**NOT RUN（P2-C3/P2-C4）**。不得把双机 pin 成功记成 P2-C COMPLETE。
 
 ### Software / Runtime
 
@@ -263,7 +277,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 ### Active risks
 
 1. **24h RSS stability debt**：`rss_bounded` 历史 FAIL 尚未由最终修复 + 新 24h rung 关闭。
-2. **P2-C toolchain prerequisite — ACTIVE / HOST1 CLOSED**：host-admin 通道已恢复并严格验证；`vbmf-ci-01` 已完成 system pin + current-SHA 正式收口（§3.6）。仍须 `vbmf-ci-02` 对称 pin + 双机 parity re-probe，完成前禁止迁 `rust-format`。`vbmf-ci` 调用 rust 工具需显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`（§3.6 RCA），P2-C4 self-hosted job env 必须据此设计。
+2. **P2-C toolchain prerequisite — ACTIVE / 双机 pin CLOSED**：两台 runner 均已完成 exact 1.98.1 system pin + current-SHA 收口（§3.6/§3.7）。仅剩双机 parity re-probe（P2-C3），完成前禁止迁 `rust-format`。`vbmf-ci` 调用 rust 工具需显式 `RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo`（§3.6 RCA），P2-C4 self-hosted job env 必须据此设计。
 3. **shared physical failure domain**：`vbmf-ci-01` 与 `vbmf-ci-02` 同 devbox 物理故障域，只提供维护冗余/并发/parity，不等价于物理 HA。
 4. **BMD deployment divergence**：`/opt/vbmf-dev/repo` 当前 detached at `7cc33dd…` 且有未提交 ops 改动，明显落后 live main；当前无 VBMF container/service 运行。不得把该旧 deployment 的 hardware evidence 继承给当前 main。
 5. **BMD device occupancy**：DeckLink driver/devnodes/plugins 当前可见，但有历史手工 `gst-launch ... decklinkvideosink device-number=2` 进程持续占用设备；任何后续 hardware acceptance 前必须先归属确认/受控释放，禁止抢占。
@@ -279,7 +293,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 
 - 24h stability：需要在 RCA / fix 真正关闭后重新跑完整 24h rung；旧 FAIL 不得被短跑或诊断 run 覆盖。
 - branch rename hygiene：**P2-B CLOSED**；workflow/runbook 操作性路径已统一 `main`，required context 名称未变。
-- P2-C：host1 已完成 current-SHA bundle/manifest 正式收口（§3.6）；仍欠 host2 对称 pin、双机 parity re-probe、`rust-format` grayscale。
+- P2-C：双机已对称完成 current-SHA pin/manifest 收口（§3.6/§3.7）；仍欠双机 parity re-probe（P2-C3）、`rust-format` grayscale（P2-C4）。
 - Development agent：Pi/Claude Code 项目级 auth + real model smoke 已 PASS；Claude project trust PASS；后续长写任务优先用 `_shared` runner + tmux，不再登记 agent smoke debt。
 - BMD：当前 main 的 Runtime/hardware verification **deferred / not required for P2-B/P2-C CI-only changes**；BMD deployment 需未来按 exact commit 重建后才能产生新 evidence。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
@@ -295,7 +309,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
 6. 读取 **Current Task = P2-C** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.5 / §15.6 / §15.7 / §15.8 / §15.9；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1 已 COMPLETE（§3.6），当前从 **P2-C2** 开始，按 P2-C2→C3→C4 顺序，不重新寻找 host-admin 通道；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1/P2-C2 已 COMPLETE（§3.6/§3.7），当前从 **P2-C3** 开始，按 P2-C3→C4 顺序，不重新寻找 host-admin 通道；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -309,7 +323,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - state system 已初始化；
 - P2-A 已完成；
 - P2-B 已完成并经 Actions 7/7 PASS；
-- **Current Task = P2-C rust-format single-job grayscale**；P2-C1 host1 current-SHA closure 已完成（§3.6）；当前第一个 `READY` Work Packet = **P2-C2 host2 对称 pin**；
+- **Current Task = P2-C rust-format single-job grayscale**；P2-C1/P2-C2 双机 pin 收口已完成（§3.6/§3.7）；当前第一个 `READY` Work Packet = **P2-C3 双机 parity re-probe**；
 - **Next Task = P2-D rust-clippy self-hosted grayscale**（仅 P2-C COMPLETE 后）；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
