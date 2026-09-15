@@ -459,6 +459,8 @@ P2-C 在迁 `rust-format` 前，先把两台 `vbmf-general` runner 的 Rust 从�
   free-form input，而是在受 review 的 workflow 中硬编码；`permissions: contents: read`。
 - 该 workflow 是明确的 runner maintenance plane，不是 CI result Authority，也不改变
   `ci-infra-probe.yml` 的 read-only / no-sudo 红线。
+- 为避免 general runner 对本大仓执行脆弱的 Git clone，maintenance workflow 只从
+  `raw.githubusercontent.com/<repo>/<exact GITHUB_SHA>/scripts/ci/` 拉取两份审过脚本；执行内容仍绑定 exact commit，不使用 floating `main`。
 - workflow 先执行 `sudo -n true`；无非交互维护权限时必须在系统修改前 fail-closed。
 - 两个并行 slot 用于尽量同时占用两台 general runner；实际完成后必须从 logs 核对
   `runner.name`，不能把 matrix=2 等同于“两台都改过”。若只命中同一台，幂等重跑直至
