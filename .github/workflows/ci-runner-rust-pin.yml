@@ -24,6 +24,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          filter: blob:none
+          sparse-checkout: scripts/ci
       - name: Runner identity
         run: |
           echo "runner.name=$RUNNER_NAME"
