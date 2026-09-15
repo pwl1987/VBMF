@@ -41,9 +41,9 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 — self-hosted runner 分批灰度（P2-C/P2-D 已收口，当前 P2-E1 session-lifecycle）**
+**Governance / CI Infrastructure Phase 2 — self-hosted runner 分批灰度（P2-C/P2-D/P2-E1 已收口，当前 P2-E2 architecture-portability）**
 
-当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）均已在 `main` 完成并通过真实 GitHub Actions；当前按 §15.2 阶梯继续单 job 灰度。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
+当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1（session-lifecycle 灰度+出网观察窗）均已在 `main` 完成并通过真实 GitHub Actions；当前按 §15.2 阶梯继续单 job 灰度。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
 VBMF 的永久产品定位保持：
 
@@ -183,20 +183,29 @@ Status: **COMPLETE / HOST + CI VERIFIED（2026-09-15）**
 - CI run `35027740186`（push `main` `eca00b7`）：首跑双 self-hosted job 同遇出网故障窗（21:51–21:56 双机 fetch 断）失败，窗口过后 rerun **7/7 required 全绿**；`rust-clippy` @**vbmf-ci-02**（labels self-hosted/Linux/X64/vbmf/vbmf-general），log 实证 env 契约与真实编译（22 crates，`Finished dev 28.91s`；mock 复用 target `10.50s`）；
 - **出网稳定性观察（升级为风险项）**：2026-09-15 三次故障窗（~13:12 host1、21:32–21:40 双机、21:51–21:56 双机），均表现为 runner agent 通道正常而 git fetch 新建 TLS 连接失败；影响所有 self-hosted job 首步 checkout，当前靠 rerun 收口；P2-E1 前需裁决缓解方案（job 级 git 代理与 ci-infra-probe 的 workflow-env 红线冲突，需单独决策）。
 
+### 3.11 P2-E1 — `session-lifecycle` 条件 `runs-on` self-hosted 灰度 + 出网观察窗
+
+Status: **COMPLETE / CI VERIFIED（2026-09-15）**
+
+- implementation commit `810b60c8e333a48a26055bcdaf655c6fd5b022f7`：仅改 `session-lifecycle` 单 job——条件 `runs-on` 表达式与 P2-C4/P2-D 逐字一致；dtolnay 步骤与 `actions/cache` 加 `runner.environment == 'github-hosted'` 分流，fork 路径 dtolnay 保持无 pin 参数（D2：本 job 测试断言不依赖 exact 补丁版本，不顺手改语义）；self-hosted 零 install，测试步骤内联显式 `RUSTUP_HOME=/usr/local/rustup` + `unset RUSTUP_TOOLCHAIN`（§3.6 RCA）+ checkout 外持久 `CARGO_HOME="${GITHUB_WORKSPACE%/*}/.cargo-home"`（与 clippy 共享 registry）+ **独立 `CARGO_TARGET_DIR="${GITHUB_WORKSPACE%/*}/target-session"`**（D3：clippy 与 test 构建参数不同，隔离防缓存互踩）；四条 `cargo test --features mock`（session/resource/lease/preflight）逐字不变；
+- 结构不变量本地断言 PASS：其余 6 job 与 origin/main byte-identical、job id/name 仍 `session-lifecycle`、`on:` 触发键 = {push, pull_request}、timeout 20 / concurrency / permissions 不变；
+- GitHub Actions run `35033319131`（push `main` `810b60c`）：首跑三 self-hosted job 全部命中当日第 4 个出网故障窗（~22:55–23:05 UTC，双机 fetch TLS 失败），两次 rerun 后 **7/7 required 全绿**；`session-lifecycle` job 由 **`vbmf-ci-01`** 执行，log 实证 `RUNNER_ENV: self-hosted` 分支 + env 契约 + 四条 mock 门禁测试 **50 passed / 0 failed**；
+- 出网稳定性观察（risk 8 数据）：P2-E1 验证期 1 个故障窗（当日累计第 4 个），双机命中、4 次 job 失败全部为 checkout `git fetch` 新建 TLS 连接失败、2 次 rerun 收口；runner agent 通道始终正常；数据不足以裁决缓解方案，P2-E2 继续累计。
+
 ## 4. Current Task
 
-**P2-E1 — `session-lifecycle` self-hosted grayscale + 双 runner 稳定性观察**（P2-D 已收口）
+**P2-E2 — `architecture-portability` grayscale**（P2-E1 已收口）
 
 Current Task Authority:
 
-- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6 + P2-C4/P2-D 已建立条件 `runs-on` 模式（commits `41400e1…` / `eca00b7…`）；
-- `.project/STATE.md` §3.9/§3.10（模式、env 契约、持久缓存目录设计）。
+- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6 + P2-C4/P2-D/P2-E1 已建立条件 `runs-on` 模式（commits `41400e1…` / `eca00b7…` / `810b60c…`）；
+- `.project/STATE.md` §3.9/§3.10/§3.11（模式、env 契约、持久缓存目录设计、出网观察口径）。
 
-P2-E1 要点：`session-lifecycle` 按同模式迁移（条件 `runs-on`、fork 留 GitHub-hosted、self-hosted 零 install + 显式 Rust env + checkout 外持久缓存目录）；本 job 为测试型（cargo test），关注 mock feature 构建复用 target 目录与 timeout 余量；**同时承担双 runner 稳定性观察窗口（§3.10 出网故障窗记录）**，观察期内 egress 抖动靠 rerun 收口并计数。
+P2-E2 要点：`architecture-portability`（python lint + remove-adapter cargo check proof）按同模式迁移；注意该 job 的 python3 步骤在 self-hosted 侧依赖宿主 python3（双机 parity 报告已证存在），cargo proof 步骤需 self-hosted env 契约；观察窗继续计数。
 
 ## 5. Next Task
 
-**P2-E2 — `architecture-portability` grayscale**（P2-E1 完成后）。
+**P2-E3 — `rust-test-matrix` grayscale**（P2-E2 完成后）。
 
 后续队列保持：
 
@@ -215,8 +224,8 @@ P2-M 前仍须单独裁决 DeckLink SDK 注入模式；BMD 实机永走 hardware
 | **P2-C3** | **COMPLETE（§3.8，2026-09-15）** | 双 runner read-only parity re-probe，必须实际命中 01 与 02；验证 Rust path/version、manifest、labels parity | P2-C1/C2 | 两机 evidence；`/usr/local/bin` exact 1.98.1 parity；runner identity 明确 |
 | **P2-C4** | **COMPLETE（§3.9，2026-09-15）** | 只迁现有 `rust-format` job 到条件 `runs-on`；fork PR 留 GitHub-hosted，trusted main/same-repo PR 走 `vbmf-general`；其余 6 jobs 不动 | P2-C3 | context 名仍 `rust-format`；fork boundary 不变；7 required checks PASS；实际 self-hosted runner identity evidence |
 | **P2-D** | **COMPLETE（§3.10，2026-09-15）** | 阶段1：pin/verify/collect/test 四脚本加 clippy 组件 + 双机 host-admin 幂等补装收口；阶段2：`rust-clippy` 条件 `runs-on` 迁移 | P2-C COMPLETE | V1–V5 双机 PASS；manifest 双证；7 checks PASS；runner identity；STATE |
-| **P2-E1** | **READY** | `session-lifecycle` grayscale + 双 runner 稳定性观察 | P2-D | required context 不变；调度/失败恢复 evidence |
-| **P2-E2** | **BLOCKED by P2-E1** | `architecture-portability` grayscale | P2-E1 | fork/trusted 双通道回归；7 checks PASS |
+| **P2-E1** | **COMPLETE（§3.11，2026-09-15）** | `session-lifecycle` grayscale + 双 runner 稳定性观察 | P2-D | required context 不变；调度/失败恢复 evidence |
+| **P2-E2** | **READY** | `architecture-portability` grayscale | P2-E1 | fork/trusted 双通道回归；7 checks PASS |
 | **P2-E3** | **BLOCKED by P2-E2** | `rust-test-matrix` 最后迁 general pool | P2-E2 | matrix 完整 PASS；queue/concurrency 无未解释失败 |
 | **P2-M0** | **BLOCKED by P2-E3** | DeckLink SDK 注入模式裁决；host-local 与 secret injection 二选一，禁止混用 | P2-E3 | 决策落入 CI Strategy/ADR 职责文档；安全与可重复性评审 |
 | **P2-M1** | **BLOCKED by P2-M0** | `hardware-test-compile` migration（仅 capability build，不冒充硬件验证） | P2-M0 | CI PASS；BMD hardware 仍独立人工 acceptance |
@@ -268,7 +277,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-C historical preflight probes `34920607255` / `34920611254` / `34920615247` / `34920619055`：当时两台 runner 均被命中且 `rustc/cargo` 均 MISSING；该证据只描述 pin 前基线，当前状态以下列 host execution 证据为准。
 - P2-C host-admin tooling：**IMPLEMENTATION COMPLETE / SOFTWARE VERIFIED** through `0f375c8…`；focused tests **41/41 PASS**；GitHub Actions `34934058858` / `34935730648` / `34947630667` / `34949135299` PASS。
 - P2-C host route recovery：**VERIFIED**（encrypted probe + strict host-key match + BatchMode SSH + host-admin `sudo -n`）；原 missing-host-admin blocker 已解除。
-- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity：**VERIFIED（P2-C3，§3.8；probe env 修正后两机逐字符 1.98.1 parity）**；`rust-format` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-C4，§3.9）**；`rust-clippy` self-hosted grayscale：**COMPLETE / HOST + CI VERIFIED（P2-D，§3.10；双机 V1–V5 含 clippy、run `35027740186` 7/7，`rust-clippy`→`vbmf-ci-02`）**。
+- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity：**VERIFIED（P2-C3，§3.8；probe env 修正后两机逐字符 1.98.1 parity）**；`rust-format` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-C4，§3.9）**；`rust-clippy` self-hosted grayscale：**COMPLETE / HOST + CI VERIFIED（P2-D，§3.10；双机 V1–V5 含 clippy、run `35027740186` 7/7，`rust-clippy`→`vbmf-ci-02`）**；`session-lifecycle` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-E1，§3.11；run `35033319131` 7/7，`session-lifecycle`→`vbmf-ci-01`，50 passed/0 failed）**。
 
 ### Software / Runtime
 
@@ -308,20 +317,20 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 6. **closed PR #31 / branch convergence**：PR #31 已随 2026-09-15 分支收敛关闭（head 分支已删）；它从来不是 canonical development Authority；未来若吸收 standalone product baseline，按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复任何分支。
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 
-8. **runner 出网抖动（2026-09-15 新增，升级观察）**：devbox 域到 github.com:443 存在反复故障窗（当日 3 次，双机 fetch 新建 TLS 连接失败，runner agent 通道不受影响）；影响所有 self-hosted job 的 checkout 首步，目前靠 rerun 收口；P2-E1 观察期内计数，若持续恶化需裁决缓解（job 级 git 代理与 probe 的 workflow-env 红线冲突，未裁决）。
+8. **runner 出网抖动（2026-09-15，持续观察）**：devbox 域到 github.com:443 存在反复故障窗——当日 4 次（~13:12、21:32–21:40、21:51–21:56、22:55–23:05 UTC，末次双机命中 4 次 job 失败、2 次 rerun 收口），均为双机/单机 fetch 新建 TLS 连接失败，runner agent 通道不受影响；影响所有 self-hosted job 的 checkout 首步，目前靠 rerun 收口；P2-E2 观察窗继续计数，数据充分后裁决缓解（job 级 git 代理与 probe 的 workflow-env 红线冲突，未裁决）。
 
 ### Current blockers
 
 - P2-B: **NONE / COMPLETE**.
-- P2-C/P2-D: **NONE / COMPLETE（§3.6–§3.10）**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
-- P2-E1: **NO EXTERNAL BLOCKER**；出网抖动为已知风险（见 risk 8），观察期内允许 rerun 收口并须记录。
+- P2-C/P2-D/P2-E1: **NONE / COMPLETE（§3.6–§3.11）**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
+- P2-E2: **NO EXTERNAL BLOCKER**；出网抖动为已知风险（见 risk 8），观察期内允许 rerun 收口并须记录。
 
 ## 9. Verification Debt
 
 - 24h stability：需要在 RCA / fix 真正关闭后重新跑完整 24h rung；旧 FAIL 不得被短跑或诊断 run 覆盖。
 - branch rename hygiene：**P2-B CLOSED**；workflow/runbook 操作性路径已统一 `main`，required context 名称未变。
-- P2-C/P2-D：全部收口（§3.6–§3.10）。fork `runs-on` 分支未 live 实测（无现成 fork PR），已在 §3.9 登记残余风险与核验口径。
-- runner 出网稳定性：P2-E1 观察窗计数故障窗频率；若 rerun 率不可接受，裁决缓解方案（含红线冲突裁决）后单独 change 实施。
+- P2-C/P2-D/P2-E1：全部收口（§3.6–§3.11）。fork `runs-on` 分支未 live 实测（无现成 fork PR），已在 §3.9 登记残余风险与核验口径。
+- runner 出网稳定性：P2-E1 观察窗记 1 故障窗（当日累计 4 次）；P2-E2/E3 观察窗继续计数；若 rerun 率不可接受，裁决缓解方案（含红线冲突裁决）后单独 change 实施。
 - Development agent：Pi/Claude Code 项目级 auth + real model smoke 已 PASS；Claude project trust PASS；后续长写任务优先用 `_shared` runner + tmux，不再登记 agent smoke debt。
 - BMD：当前 main 的 Runtime/hardware verification **deferred / not required for P2-B/P2-C CI-only changes**；BMD deployment 需未来按 exact commit 重建后才能产生新 evidence。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
@@ -335,9 +344,9 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = P2-E1** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6 + 条件 `runs-on` 模式（commits `41400e1…` / `eca00b7…`）；
+6. 读取 **Current Task = P2-E2** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6 + 条件 `runs-on` 模式（commits `41400e1…` / `eca00b7…` / `810b60c…`）；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D 已全部 COMPLETE（§3.6–§3.10），当前 **P2-E1**（`session-lifecycle` grayscale + 稳定性观察）为唯一 READY；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D、P2-E1 已全部 COMPLETE（§3.6–§3.11），当前 **P2-E2**（`architecture-portability` grayscale）为唯一 READY；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -351,7 +360,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - state system 已初始化；
 - P2-A 已完成；
 - P2-B 已完成并经 Actions 7/7 PASS；
-- **Current Task = P2-E1 session-lifecycle grayscale + 双 runner 稳定性观察**；P2-C/P2-D 全部收口（§3.6–§3.10，`rust-format`/`rust-clippy` 已迁 `vbmf-general` 且 CI 7/7 PASS）；当前第一个 `READY` Work Packet = **P2-E1**；
-- **Next Task = P2-E2 architecture-portability grayscale**（P2-E1 后）；
+- **Current Task = P2-E2 architecture-portability grayscale**；P2-C/P2-D/P2-E1 全部收口（§3.6–§3.11，`rust-format`/`rust-clippy`/`session-lifecycle` 已迁 `vbmf-general` 且 CI 7/7 PASS）；当前第一个 `READY` Work Packet = **P2-E2**；
+- **Next Task = P2-E3 rust-test-matrix grayscale**（P2-E2 后）；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
