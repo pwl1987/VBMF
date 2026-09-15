@@ -445,3 +445,25 @@ P2-B 冻结以下规则；本级**不修改任何 job 的 `runs-on`**，第一�
 - **required-check identity**：继续固定 7 个名称：`rust-format`、`rust-test-matrix`、
   `rust-clippy`、`hardware-test-compile`、`architecture-portability`、`gstreamer-build`、
   `session-lifecycle`。P2-C/P2-D/P2-E/P2-M 迁移不得通过新增替代 job 改变这些 context。
+
+### 15.7 P2-C system Rust pin maintenance contract
+
+P2-C 在迁 `rust-format` 前，先把两台 `vbmf-general` runner 的 Rust 从“job 不可见 + rolling stable”
+收敛为同一 system-level exact pin。当前 pin = **Rust 1.98.1**（与 P2-B GitHub-hosted
+`rust-format` run `34920528957` 的实际 stable 版本一致）。
+
+- 实现：`scripts/ci/pin-system-rust.sh`；root-only、幂等、只接受 `x.y.z` exact version；
+  固定 `RUSTUP_HOME=/usr/local/rustup`、`CARGO_HOME=/usr/local/cargo`，并只把
+  `rustup/rustc/cargo/rustfmt` 暴露到 `/usr/local/bin`。
+- 入口：`.github/workflows/ci-runner-rust-pin.yml`，**workflow_dispatch only**；版本不做
+  free-form input，而是在受 review 的 workflow 中硬编码；`permissions: contents: read`。
+- 该 workflow 是明确的 runner maintenance plane，不是 CI result Authority，也不改变
+  `ci-infra-probe.yml` 的 read-only / no-sudo 红线。
+- workflow 先执行 `sudo -n true`；无非交互维护权限时必须在系统修改前 fail-closed。
+- 两个并行 slot 用于尽量同时占用两台 general runner；实际完成后必须从 logs 核对
+  `runner.name`，不能把 matrix=2 等同于“两台都改过”。若只命中同一台，幂等重跑直至
+  `vbmf-ci-01` / `vbmf-ci-02` 都有证据。
+- provisioning 下载可按 §5 使用 `VBMF_CI_PROXY` repository variable；workflow 不设置
+  runner runtime proxy，不把 proxy 写入 systemd / runner `.env`。
+- 完成后必须重新跑 `ci-infra-probe.yml`，两机均证明 `/usr/local/bin` 下 exact Rust parity，
+  再允许修改 `media-agent.yml` 的 `rust-format.runs-on`。
