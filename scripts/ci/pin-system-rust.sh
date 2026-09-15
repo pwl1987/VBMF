@@ -45,7 +45,7 @@ fi
 
 # Idempotent: rustup toolchain install is a no-op when already installed;
 # default re-set to the exact version on every run (never rolling stable).
-run_provisioning_command "$CARGO_HOME/bin/rustup" toolchain install "$VERSION" --profile minimal --component rustfmt
+run_provisioning_command "$CARGO_HOME/bin/rustup" toolchain install "$VERSION" --profile minimal --component rustfmt --component clippy
 run_provisioning_command "$CARGO_HOME/bin/rustup" default "$VERSION"
 
 # Fail closed on exact-version semantics BEFORE exposing anything system-wide.
@@ -54,7 +54,7 @@ case "$default_toolchain" in
   "$VERSION"-*) ;;
   *) echo "rustup default not exact: got '$default_toolchain', want '$VERSION-<target>'" >&2; exit 1 ;;
 esac
-for tool in rustup rustc cargo rustfmt; do
+for tool in rustup rustc cargo rustfmt cargo-clippy clippy-driver; do
   src="$CARGO_HOME/bin/$tool"
   [ -x "$src" ] || { echo "missing installed tool: $src" >&2; exit 1; }
 done
@@ -69,7 +69,7 @@ case "$toolchain_cargo" in
   *) echo "toolchain cargo version mismatch: got '$toolchain_cargo', want '$VERSION'" >&2; exit 1 ;;
 esac
 
-for tool in rustup rustc cargo rustfmt; do
+for tool in rustup rustc cargo rustfmt cargo-clippy clippy-driver; do
   ln -sfn "$CARGO_HOME/bin/$tool" "/usr/local/bin/$tool"
 done
 
@@ -89,6 +89,11 @@ rustfmt_actual="$(/usr/local/bin/rustfmt --version)"
 case "$rustfmt_actual" in
   rustfmt*) ;;
   *) echo "rustfmt missing or not executable: got '${rustfmt_actual:-<none>}'" >&2; exit 1 ;;
+esac
+clippy_actual="$(/usr/local/bin/cargo-clippy --version)"
+case "$clippy_actual" in
+  "clippy $VERSION "*) ;;
+  *) echo "clippy version mismatch: got '${clippy_actual:-<none>}' want 'clippy $VERSION'" >&2; exit 1 ;;
 esac
 /usr/local/bin/rustup --version
 printf 'PINNED_RUST_VERSION=%s\n' "$VERSION"

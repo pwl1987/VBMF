@@ -3,14 +3,18 @@
 #
 # Contract: docs/architecture/CI_RUNNER_STRATEGY.md §15.7 / §15.8.
 # Independently audits the state produced by scripts/ci/pin-system-rust.sh:
-#   V1 rustup/rustc/cargo/rustfmt exposed under <root>/bin and symlinked into
-#      <root>/cargo/bin (install authority stays <root>/rustup + <root>/cargo)
+#   V1 rustup/rustc/cargo/rustfmt/cargo-clippy/clippy-driver exposed under
+#      <root>/bin and symlinked into <root>/cargo/bin (install authority
+#      stays <root>/rustup + <root>/cargo)
 #   V2 rustup default resolves to the exact pinned x.y.z toolchain
 #   V3 rustc --version and cargo --version match the exact pinned version
 #   V4 rustfmt present and executable (rustfmt's own version scheme never
 #      equals the rustc version; presence + execution is the check)
+#   V5 cargo-clippy present and its version matches the exact pinned version
+#      (clippy versions track the rustc version, so an exact prefix is
+#      assertable, unlike rustfmt)
 #
-# /usr/local/bin/{rustup,rustc,cargo,rustfmt} are rustup proxies: whichever
+# /usr/local/bin/{rustup,rustc,cargo,rustfmt,cargo-clippy,clippy-driver} are rustup proxies: whichever
 # RUSTUP_HOME/CARGO_HOME the caller carries decides which toolchain they
 # resolve. Every probe below therefore runs with explicit
 # RUSTUP_HOME=<root>/rustup and CARGO_HOME=<root>/cargo so caller/user rustup
@@ -62,7 +66,7 @@ FAILED=0
 echo "== System Rust Pin Gate (root=$ROOT, expect=$EXPECT_VERSION) =="
 
 # V1: exposure + install authority (read-only lstat/readlink, no mutation)
-for tool in rustup rustc cargo rustfmt; do
+for tool in rustup rustc cargo rustfmt cargo-clippy clippy-driver; do
   link="$BIN_DIR/$tool"
   target="$CARGO_HOME/bin/$tool"
   if [ ! -e "$link" ] || [ ! -x "$link" ]; then
@@ -114,6 +118,14 @@ RUSTFMT_ACTUAL="$(audit "$BIN_DIR/rustfmt" --version 2>/dev/null || true)"
 case "$RUSTFMT_ACTUAL" in
   rustfmt*) pass "V4: rustfmt executable ($RUSTFMT_ACTUAL)" ;;
   *) fail "V4: rustfmt missing or not executable: got '${RUSTFMT_ACTUAL:-<none>}'" ;;
+esac
+
+# V5: clippy present with exact pinned version (tracks the rustc version;
+# proxy must resolve via the audited RUSTUP_HOME/CARGO_HOME, not caller state)
+CLIPPY_ACTUAL="$(audit "$BIN_DIR/cargo-clippy" --version 2>/dev/null || true)"
+case "$CLIPPY_ACTUAL" in
+  "clippy $EXPECT_VERSION "*) pass "V5: clippy version exact ($CLIPPY_ACTUAL)" ;;
+  *) fail "V5: clippy version mismatch: got '${CLIPPY_ACTUAL:-<none>}' want 'clippy $EXPECT_VERSION'" ;;
 esac
 
 echo "=="

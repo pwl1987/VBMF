@@ -10,7 +10,7 @@
 #   - verify-system-rust.sh V1-V4 gates against fixture trees, happy path and
 #     each failure mode
 #   - regression: caller-level/poisoned rustup env (HOME, RUSTUP_HOME,
-#     CARGO_HOME, RUSTUP_TOOLCHAIN) cannot skew V2/V3/V4; fixture binaries
+#     CARGO_HOME, RUSTUP_TOOLCHAIN) cannot skew V2/V3/V4/V5; fixture binaries
 #     emulate real rustup proxies that resolve via those env vars
 #   - prepare-system-rust-bundle.sh §15.9 step A: exact-SHA export of the
 #     three reviewed scripts + SHA256SUMS, happy path and fail-closed modes
@@ -48,6 +48,16 @@ check "pin: bad version rejected" 2 "$PIN" --version 1.98
 check "pin: rolling stable rejected" 2 "$PIN" --version stable
 check "pin: unknown flag rejected" 2 "$PIN" --version "$V" --extra
 check "pin: --help exits 0" 0 "$PIN" --help
+if grep -q -- '--component clippy' "$PIN"; then
+  ok "pin: toolchain install includes clippy component"
+else
+  notok "pin: clippy component missing from toolchain install"
+fi
+if grep -q 'cargo-clippy clippy-driver' "$PIN"; then
+  ok "pin: exposes cargo-clippy and clippy-driver system-wide"
+else
+  notok "pin: cargo-clippy/clippy-driver exposure missing"
+fi
 
 # --- fixture builder for verify-system-rust.sh ---
 FIXTURE=""
@@ -85,6 +95,16 @@ else
   exit 1
 fi
 EOF
+  cat > "$root/cargo/bin/cargo-clippy" <<EOF2
+#!/bin/sh
+if [ "\$RUSTUP_HOME" = "$root/rustup" ] && [ "\$CARGO_HOME" = "$root/cargo" ]; then
+  echo "clippy $V (abcdef123456 2026-01-01)"
+else
+  echo "error: clippy not installed in caller toolchain" >&2
+  exit 1
+fi
+EOF2
+  cp "$root/cargo/bin/cargo-clippy" "$root/cargo/bin/clippy-driver"
   cat > "$root/cargo/bin/rustup" <<EOF
 #!/bin/sh
 if [ "\$1" = "default" ] && [ "\$RUSTUP_HOME" = "$root/rustup" ]; then
@@ -95,7 +115,7 @@ fi
 EOF
   printf '%s\n' "$V-x86_64-unknown-linux-gnu (default)" > "$root/rustup/default.txt"
   chmod +x "$root/cargo/bin/"*
-  for t in rustup rustc cargo rustfmt; do ln -s "$root/cargo/bin/$t" "$root/bin/$t"; done
+  for t in rustup rustc cargo rustfmt cargo-clippy clippy-driver; do ln -s "$root/cargo/bin/$t" "$root/bin/$t"; done
 }
 
 FIXTURE="$(mktemp -d /tmp/vbmf-rust-pin-test.XXXXXX)"
@@ -132,6 +152,14 @@ check "verify: cargo version drift fails" 1 "$VERIFY" --expect-version "$V" --ro
 NO_FMT="$FIXTURE/no-rustfmt";        make_fixture "$NO_FMT"
 rm "$NO_FMT/bin/rustfmt" "$NO_FMT/cargo/bin/rustfmt"
 check "verify: missing rustfmt fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_FMT"
+
+BAD_CLIPPY="$FIXTURE/bad-clippy";      make_fixture "$BAD_CLIPPY"
+sed -i "s/clippy $V/clippy 1.97.0/" "$BAD_CLIPPY/cargo/bin/cargo-clippy"
+check "verify: clippy version drift fails" 1 "$VERIFY" --expect-version "$V" --root "$BAD_CLIPPY"
+
+NO_CLIPPY="$FIXTURE/no-clippy";        make_fixture "$NO_CLIPPY"
+rm "$NO_CLIPPY/bin/cargo-clippy" "$NO_CLIPPY/cargo/bin/cargo-clippy"
+check "verify: missing cargo-clippy fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_CLIPPY"
 
 BAD_LINK="$FIXTURE/bad-link";        make_fixture "$BAD_LINK"
 rm "$BAD_LINK/bin/rustc"

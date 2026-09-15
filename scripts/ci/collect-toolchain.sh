@@ -31,7 +31,7 @@ ARCH="$(uname -m)"
 OS_PRETTY="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}" || echo unknown)"
 
 # idempotent marker used by both outputs
-TOOLS="git python3 rustc cargo clang pkg-config curl"
+TOOLS="git python3 rustc cargo cargo-clippy clang pkg-config curl"
 
 emit_tool_lines_yaml() {
   local t p v
