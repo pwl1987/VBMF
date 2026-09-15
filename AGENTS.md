@@ -28,3 +28,45 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - 如果配置或状态无效且没有 `nextCommand`，停止并报告原因；不要猜测另一个 workflow。
 - 不能只因为存在 active change 就把无关任务挂到该 change。Native 的未提交改动由 Native 入口检查，不由探针自动归因。
 </comet-ambient-resume>
+
+
+# VBMF Project Execution Contract
+
+## Authority and state
+- VBMF is a professional Broadcast Runtime / Fabric. Keep it standalone-first and compatible with `media-digital-*`, never dependent on them.
+- Authority order: latest explicit user instruction → frozen Architecture/Contract/ADR → `.project/STATE.md` → GitHub live `main` → real code/tests/CI/runtime/hardware evidence → Roadmap/README/history.
+- `.project/STATE.md` is the **only dynamic project-state and task-queue authority**. Do not create or maintain parallel STATUS/TODO/PROGRESS/HANDOFF/RISKS/DECISIONS files.
+- Never infer completion from README, Roadmap, old chats, branch names, agent memory, or the mere existence of tests. Reconcile conflicts against live evidence first.
+
+## Cold start / task selection
+1. Use the canonical checkout `/home/ubuntu/dev/VBMF` on the Development VM when available; read `/home/ubuntu/dev/_shared/README.md` first.
+2. Verify local HEAD, `origin/main`, GitHub live `main`, working tree, recent commits, and unpushed commits.
+3. Read `.project/STATE.md`, then select only the **first `READY` Work Packet in its Task Queue for the Current Phase**. Do not skip to `BLOCKED` or `BACKLOG` items unless the user explicitly changes priority.
+4. Read only the relevant frozen Authority, code, tests, CI/runtime evidence for that Work Packet.
+5. If Git is newer than STATE, reconcile before implementation. Already COMPLETE work must not be repeated.
+
+## Git discipline
+- `main` is the sole development branch and development Authority. Do not create feature/fix/temp/repair/experiment branches.
+- No force push, history rewrite, destructive reset, or silent overwrite/discard of existing work.
+- Verified changes go directly to `main`; finish with local/origin/GitHub live HEAD and working-tree reconciliation.
+
+
+## Runtime / environment boundary
+- Runtime owns truth. Web/agent/watchdog/services observe, command, and reconcile; they must not create a second Runtime truth.
+- Development VM = code, lint/static analysis, unit/focused/integration tests, build, CI/self-hosted runner, non-hardware software verification.
+- BMD server = actual VBMF deployment plus DeckLink/GStreamer/FFmpeg, signal/timing/switch/transport/recovery/hardware/stability acceptance. VM software PASS never substitutes for BMD hardware PASS.
+- Hardware evidence is valid only for the exact commit/binary/environment/scope that produced it. If BMD is unavailable or running a different commit, mark verification deferred.
+
+## Agent execution
+- The coordinator (ChatGPT or a user-designated orchestrator) owns Authority recovery, reconciliation, Work Packet boundaries, diff review, acceptance, Git/CI/STATE transition.
+- Pi is preferred for bounded/mechanical work; Claude Code is preferred for state machines, concurrency, recovery, cross-domain changes, and difficult RCA.
+- On this VM use `/home/ubuntu/dev/_shared/bin/run-pi-agent.sh` or `run-claude-agent.sh`; long Claude write tasks should run inside tmux. One write-capable agent per checkout at a time.
+- Every write Work Packet must state: Task ID, relevant Authority, allowed files/scope, forbidden scope, acceptance criteria, and verification environment.
+- Agent exit 0 means `EXECUTOR_DONE_NEEDS_REVIEW`, not COMPLETE. Review diff/scope/tests independently before accepting.
+- Agents must not autonomously edit frozen Architecture/Contract or advance to another Task Queue item. `.project/STATE.md` may be changed only as part of an explicitly assigned/reviewed state-transition task.
+
+## Verification / completion
+- Distinguish: implementation complete, software verified, runtime smoke verified, hardware verified, stability verified, verification deferred.
+- Failure-first: reproduce → evidence → RCA → minimal correct fix → focused tests → regression → CI/runtime/hardware validation as required. Do not weaken tests, Health criteria, or UI truthfulness to get green.
+- Commands such as start/stop/switch/route/recover/restart must distinguish requested → accepted → executing → acknowledged → actual state → succeeded/failed/timeout/reconciled. HTTP/API success alone is not Runtime success.
+- Definition of Done: Implementation + Required Verification + Evidence + `.project/STATE.md` update + commit/push `main` + required GitHub CI + final HEAD/working-tree check.
