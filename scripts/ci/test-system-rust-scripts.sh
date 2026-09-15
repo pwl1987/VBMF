@@ -9,6 +9,8 @@
 #     before the root gate; install logic itself is host-admin-only)
 #   - verify-system-rust.sh V1-V4 gates against fixture trees, happy path and
 #     each failure mode
+#   - prepare-system-rust-bundle.sh §15.9 step A: exact-SHA export of the
+#     three reviewed scripts + SHA256SUMS, happy path and fail-closed modes
 #
 # Usage: scripts/ci/test-system-rust-scripts.sh
 set -euo pipefail
@@ -119,6 +121,66 @@ check "verify: rolling stable default fails" 1 "$VERIFY" --expect-version "$V" -
 NO_DEFAULT="$FIXTURE/no-default";    make_fixture "$NO_DEFAULT"
 : > "$NO_DEFAULT/rustup/default.txt"
 check "verify: unset default toolchain fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_DEFAULT"
+
+# --- prepare-system-rust-bundle.sh (§15.9 step A; non-root, zero network) ---
+PREPARE="$HERE/prepare-system-rust-bundle.sh"
+check "bash -n prepare-system-rust-bundle.sh" 0 bash -n "$PREPARE"
+
+REPO="$(git -C "$HERE" rev-parse --show-toplevel)"
+HEAD_SHA="$(git -C "$REPO" rev-parse HEAD)"
+
+# --- prepare-system-rust-bundle.sh: argument / SHA validation (fail-closed) ---
+check "prepare: no args rejected" 2 "$PREPARE"
+check "prepare: missing --out rejected" 2 "$PREPARE" --sha "$HEAD_SHA"
+check "prepare: floating ref HEAD rejected" 2 "$PREPARE" --sha HEAD --out "$FIXTURE/prep-ref"
+check "prepare: short SHA rejected" 2 "$PREPARE" --sha "${HEAD_SHA:0:8}" --out "$FIXTURE/prep-short"
+check "prepare: unknown SHA rejected" 1 "$PREPARE" --sha 0000000000000000000000000000000000000000 --out "$FIXTURE/prep-ghost"
+
+# A commit that predates scripts/ci must fail on missing script, not silently
+# fall back to the working tree.
+FIRST_WITH_SCRIPT="$(git -C "$REPO" rev-list --reverse HEAD -- scripts/ci/pin-system-rust.sh | head -1)"
+if PRE_SHA="$(git -C "$REPO" rev-parse --verify --quiet "${FIRST_WITH_SCRIPT}^")"; then
+  check "prepare: SHA without scripts rejected" 1 "$PREPARE" --sha "$PRE_SHA" --out "$FIXTURE/prep-pre"
+else
+  ok "prepare: no pre-script commit exists (root has scripts); skipped"
+fi
+
+mkdir -p "$FIXTURE/prep-dirty" && : > "$FIXTURE/prep-dirty/leftover"
+check "prepare: non-empty output dir rejected" 1 "$PREPARE" --sha "$HEAD_SHA" --out "$FIXTURE/prep-dirty"
+
+# --- prepare-system-rust-bundle.sh: happy path + deterministic evidence ---
+B1="$FIXTURE/prep-good1"
+if "$PREPARE" --sha "$HEAD_SHA" --out "$B1" >"$FIXTURE/prep1.log" 2>&1; then
+  ok "prepare: happy path exits 0"
+else
+  notok "prepare: happy path exited non-zero"
+fi
+if grep -q "^BUNDLE_SOURCE_SHA=$HEAD_SHA\$" "$FIXTURE/prep1.log"; then
+  ok "prepare: prints exact source SHA"
+else
+  notok "prepare: source SHA line missing"
+fi
+if grep -q "^BUNDLE_DIR=" "$FIXTURE/prep1.log"; then
+  ok "prepare: prints output path"
+else
+  notok "prepare: output path line missing"
+fi
+for s in pin-system-rust.sh verify-system-rust.sh collect-toolchain.sh; do
+  if [ -x "$B1/$s" ]; then
+    ok "prepare: bundle has executable $s"
+  else
+    notok "prepare: bundle missing executable $s"
+  fi
+done
+check "prepare: SHA256SUMS verifies" 0 sh -c "cd '$B1' && sha256sum -c SHA256SUMS"
+
+B2="$FIXTURE/prep-good2"
+"$PREPARE" --sha "$HEAD_SHA" --out "$B2" >/dev/null 2>&1
+if diff -r "$B1" "$B2" >/dev/null 2>&1; then
+  ok "prepare: bundle contents deterministic across runs"
+else
+  notok "prepare: bundle contents differ across runs"
+fi
 
 printf '1..%d\n' "$((PASS_N + FAIL_N))"
 if [ "$FAIL_N" -eq 0 ]; then echo "RESULT: PASS ($PASS_N)"; else echo "RESULT: FAIL ($FAIL_N)"; exit 1; fi

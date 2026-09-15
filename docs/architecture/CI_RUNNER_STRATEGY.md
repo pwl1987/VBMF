@@ -497,16 +497,16 @@ host-admin 通道传输，宿主机只使用 bundle 内容。
 # 0) SHA 必须先由 coordinator 确认为 canonical main 的当前 tip；不得自行取 tip
 git -C /path/to/VBMF fetch origin main
 PIN_SHA="<coordinator-confirmed-exact-sha>"          # 记录进 evidence
-git -C /path/to/VBMF rev-parse "$PIN_SHA" >/dev/null 2>&1 \
-  || { echo "SHA not found locally; fetch/verify first" >&2; exit 1; }
-BUNDLE_DIR="$(mktemp -d /tmp/vbmf-pin-bundle.XXXXXX)"
-for s in pin-system-rust.sh verify-system-rust.sh collect-toolchain.sh; do
-  git -C /path/to/VBMF show "$PIN_SHA:scripts/ci/$s" > "$BUNDLE_DIR/$s"
-done
-chmod +x "$BUNDLE_DIR"/*.sh
-( cd "$BUNDLE_DIR" && sha256sum ./*.sh > SHA256SUMS )
-# 把 $PIN_SHA 与 SHA256SUMS 内容一并记录为 evidence；bundle 随后经 out-of-band
-# host-admin 通道传到两台 runner 宿主机的隔离目录（如 /tmp/vbmf-pin-bundle/）
+BUNDLE_DIR="$(mktemp -d /tmp/vbmf-pin-bundle.XXXXXX)"   # 安全创建的空目录，直接交给 helper
+/path/to/VBMF/scripts/ci/prepare-system-rust-bundle.sh \
+  --repo /path/to/VBMF --sha "$PIN_SHA" --out "$BUNDLE_DIR"
+# helper（scripts/ci/prepare-system-rust-bundle.sh）只接受 full 40-hex exact SHA
+# （拒绝 HEAD/main/前缀等 floating ref），校验 SHA 在本仓库解析为 commit 且三份
+# 脚本在该 commit 均存在，导出 byte-exact 脚本 + 确定性 SHA256SUMS，并打印
+# BUNDLE_SOURCE_SHA / BUNDLE_DIR；自身零网络、无 sudo、不 fetch。
+# 把打印出的 BUNDLE_SOURCE_SHA 与 SHA256SUMS 内容一并记录为 evidence；bundle
+# 随后经 out-of-band host-admin 通道传到两台 runner 宿主机的隔离目录
+# （如 /tmp/vbmf-pin-bundle/）
 ```
 
 **步骤 B —— 对每台 runner 宿主机（`vbmf-ci-01` 与 `vbmf-ci-02` 各一次，顺序不限）执行：**
@@ -560,4 +560,7 @@ scripts/ci/verify-runner.sh --name vbmf-ci-02
 （拒绝 rolling `stable`/非 `x.y.z`/未知参数）、verify V1-V4 各失败模式（版本漂移、
 missing rustfmt、非 symlink 暴露、rolling default、未设 default）与 happy path；
 并断言非 canonical `--root` 的成功输出带显式 TEST-ONLY / 非 acceptance evidence 标记
-（canonical `/usr/local` 验证保持普通 acceptance PASS 语义）。
+（canonical `/usr/local` 验证保持普通 acceptance PASS 语义）；并覆盖步骤 A 的
+`prepare-system-rust-bundle.sh`（exact-SHA 导出 + SHA256SUMS，happy path 与
+floating ref / 短 SHA / 未知 SHA / 无脚本 commit / 非空目标目录等 fail-closed 路径，
+bundle 内容跨 run 确定性）。
