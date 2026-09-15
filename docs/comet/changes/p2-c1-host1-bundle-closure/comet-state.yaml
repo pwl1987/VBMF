@@ -1,0 +1,94 @@
+schema: comet.native.v4
+name: p2-c1-host1-bundle-closure
+language: zh-CN
+phase: build
+status: active
+state_version: 3
+brief: brief.md
+shape_confirmation_hash: dc2c19e86e8ce7dd63784c830213f1db614e7e47781969d193b51d166f13b6c7
+spec_changes:
+  - capability: ci-runner-rust-pin-host1
+    operation: create
+    source: specs/ci-runner-rust-pin-host1/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: building
+  goal_cycle: 1
+  iteration: 1
+  attempt: 0
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: submit-builder-candidate
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: coordinator 确认的 exact SHA bundle 在 Development VM
+      上生成成功，`prepare-system-rust-bundle.sh` 打印
+      `BUNDLE_SOURCE_SHA=b0f5df3b215c536b598aed7938079572edf87395` 且
+      `SHA256SUMS` 三脚本条目完整记录为 evidence。"
+    result: pending
+    reason: null
+  - id: A2
+    source: brief.md
+    text: "Scenario: `vbmf-ci-01` 宿主机上 `sha256sum -c SHA256SUMS` 全部 PASS；随后以正式
+      bundle 复跑 `pin-system-rust.sh --version 1.98.1` 幂等（0
+      退出、`PINNED_RUST_VERSION=1.98.1` 不变）。"
+    result: pending
+    reason: null
+  - id: A3
+    source: brief.md
+    text: "Scenario: 正式 bundle 的 `verify-system-rust.sh --expect-version 1.98.1` 输出
+      `RESULT: PASS`（V1–V4 全 PASS），且调用方用户态 rustup 污染不复现。"
+    result: pending
+    reason: null
+  - id: A4
+    source: brief.md
+    text: "Scenario: 以 `vbmf-ci` 身份执行 `collect-toolchain.sh --name vbmf-ci-01`
+      成功生成/刷新 manifest（`/data/actions-runners/vbmf/manifests/vbmf-ci-01/`），记录
+      rustc/cargo 1.98.1 与 `/usr/local` 路径。"
+    result: pending
+    reason: null
+  - id: A5
+    source: brief.md
+    text: "Scenario: 管理机 `verify-runner.sh --name vbmf-ci-01` 输出 `RESULT:
+      PASS`（R1–R5 + scope），且 `.project/STATE.md` 已登记全部证据并置 P2-C1 COMPLETE /
+      P2-C2 READY。"
+    result: pending
+    reason: null
+  - id: A6
+    source: brief.md
+    text: 'Scenario: `AGENTS.md` "Agent execution" 节新增 coordination tiering 条款（强模型 =
+      coordinator；Pi = 默认 executor；executor 不写调度契约/不转正 STATE），提交在 `main` 且不包含并发
+      agent 的未提交改动。'
+    result: pending
+    reason: null
+  - id: A7
+    source: brief.md
+    text: "Scenario: 分支收敛保持：本 change 全程无新建分支/worktree，收尾时本地与远端分支仅存 `main`。"
+    result: pending
+    reason: null
+builder_handoff: null
+blockers: []
+verification: null
+history: []
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pending
+verification_report: null
+archived: false
+created_at: 2026-09-15T09:44:02.878Z

@@ -1,12 +1,33 @@
 <!-- CODEGRAPH_START -->
-## CodeGraph
+## CodeGraph (FIRST tool for code questions)
 
-In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+In any repository that has a `.codegraph/` directory at the repo root, **CodeGraph is the FIRST tool to reach for when you need to understand or locate code**. Use it BEFORE grep / find / ripgrep / reading whole files.
 
-- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
-- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+### Why first
 
-If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+- **One call** answers most code questions: the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops that grep cannot follow.
+- Returns **line-numbered, current on-disk source** (re-read every call), so the result is not a stale summary.
+- Surfaces **blast radius** (callers/callees/tests within N hops) automatically — grep cannot reconstruct dynamic dispatch or trait dispatch links.
+- Avoids the cost of opening whole files when only one symbol matters.
+
+### How to call
+
+- **MCP tool (preferred, when available)**: `codegraph_explore "<symbol names or question>"` and `codegraph_node "<symbol or file path>"`. If a symbol is listed but deferred, load it by name via tool search. Other MCP tools: `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_affected`, `codegraph_files`, `codegraph_status`.
+- **Shell (always works)**: `codegraph explore "<symbol names or question>"` prints the same output. Other shell commands: `node`, `callers`, `callees`, `impact`, `affected`, `files`, `query`, `context`, `init`, `sync`, `index`, `status`. `codegraph --help` lists all.
+
+### When CodeGraph is not available
+
+If there is **no** `.codegraph/` directory at the repo root, **skip CodeGraph entirely** — indexing is the user's decision, do not auto-init unless explicitly asked. Fall back to grep / find / read as before.
+
+### Init / refresh
+
+- Bootstrap a project's index once: `codegraph init <path>` (slow; first time).
+- Keep it current: `codegraph sync <path>` after edits, or `codegraph index <path>` for a clean rebuild.
+- Use `codegraph status <path>` to confirm the index is up to date before relying on it.
+
+### Path note for this VM
+
+The `codegraph` binary lives at `/home/ubuntu/.local/bin/codegraph`. After a fresh install on this VM, ensure both login shells and interactive bash see it: `~/.profile` (already correct) plus `~/.bashrc` line ~171 must include `/home/ubuntu/.local/bin:` in its explicit PATH string; the bun section later does not re-add it. If `codegraph: command not found`, this is the cause.
 <!-- CODEGRAPH_END -->
 
 <comet-ambient-resume>
