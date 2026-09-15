@@ -1,0 +1,378 @@
+schema: comet.native.v4
+name: p2-d-clippy-migration
+language: zh-CN
+phase: archive
+status: done
+state_version: 13
+brief: brief.md
+shape_confirmation_hash: bec6ad3aa0dbb559fc13712900120c80d2347b84b7bdbfa512384dfe58a93d2e
+spec_changes:
+  - capability: ci-clippy-grayscale
+    operation: create
+    source: specs/ci-clippy-grayscale/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 2
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: 阶段 1 脚本扩展合入 `main` 且 focused tests（shellcheck +
+      `test-system-rust-scripts.sh`）全 PASS，CI 全绿。"
+    result: passed
+    reason:
+      text: fe58aab+4afa771 script diffs verified (clippy component,
+        cargo-clippy/clippy-driver exposure, V5 gate with derived
+        0.1.<rustc-minor>, manifest TOOLS); verifier independently ran tests
+        45/45 PASS + shellcheck warning-clean; CI runs
+        35025999239/35027349065/35027740186 success on exact SHAs
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: "Scenario: 两台宿主机经 out-of-band 通道以新 bundle 幂等补装 clippy 组件： `sha256sum -c
+      SHA256SUMS` OK；pin 复跑 exit 0；扩展版 verify 全 gate PASS （含 clippy 版本 = `clippy
+      1.98.1 (…)`）；双机 manifest 含 clippy 行且 rustc/cargo/clippy 版本逐字符一致。"
+    result: passed
+    reason:
+      text: dual-host closure consistent across Builder handoff, STATE 3.10, and
+        bundle-SHA-4afa771 script logic with coherent timeline; V5 output
+        'clippy 0.1.98 (48a229ceae 2026-09-01)' matches derived gate; manifests
+        21:47:27Z/21:48:28Z cargo-clippy /usr/local/bin both; verify-runner
+        R1-R5 both; host evidence document-consistent (no SSH re-probe) recorded
+        as risk
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: "Scenario: `rust-clippy` job 迁条件 `runs-on` 后 push `main`：CI 7/7 required
+      全绿；`rust-clippy` job `runner_name` ∈ {`vbmf-ci-01`,`vbmf-ci-02`}；job log
+      显示 self-hosted 分支零 install、显式 `RUSTUP_HOME=/usr/local/rustup` + 可写
+      `CARGO_HOME`/`CARGO_TARGET_DIR` + `unset RUSTUP_TOOLCHAIN`，两次 clippy
+      （default + mock）`-D warnings` PASS。"
+    result: passed
+    reason:
+      text: rust-clippy runs-on expression identical semantics to rust-format;
+        dtolnay+actions/cache gated github-hosted (1.98.1+clippy); self-hosted
+        steps inline env contract with checkout-external persistent
+        CARGO_HOME/CARGO_TARGET_DIR + unset RUSTUP_TOOLCHAIN; run 35027740186
+        7/7, rust-clippy success @vbmf-ci-02, log shows RUNNER_ENV self-hosted
+        and Finished 28.91s/10.50s real compiles
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: "Scenario: workflow diff 审计——仅 `rust-clippy` job 变化，其余 6 job
+      byte-identical；job id/name 仍 `rust-clippy`；无 `pull_request_target`；fork 路径
+      结构保持（表达式与 P2-C4 相同语义，toolchain 步骤仅 github-hosted 执行且 pin `1.98.1`）。"
+    result: passed
+    reason:
+      text: "yaml deep-compare vs 4afa771: only rust-clippy job changed, other 6
+        deep-equal, id/name unchanged, no pull_request_target trigger,
+        permissions/concurrency/timeout 20m unchanged"
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: "Scenario: `.project/STATE.md` 更新：P2-D COMPLETE（run id、runner identity、双机
+      clippy evidence、bundle SHA）、P2-E1 变 READY。"
+    result: passed
+    reason:
+      text: git show 2ba81c3 STATE.md-only; adds 3.10 P2-D COMPLETE with run
+        ids/identity/bundle SHA/manifests; P2-E1 READY; egress risk 8 logged
+      truncated: false
+builder_handoff:
+  candidate_id: 8573e7a9-bcd2-4591-bb63-69f60002e68b
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:a894b046-7f2e-4006-9381-20a8478a345a
+  iteration: 1
+  summary:
+    text: "P2-D complete in two stages. Stage 1 scripts (fe58aab + fix 4afa771):
+      pin-system-rust.sh installs --component clippy and exposes
+      cargo-clippy/clippy-driver with a derived-version post-exposure gate;
+      verify-system-rust.sh V5 clippy gate (version scheme RCA: clippy reports
+      0.1.<rustc-minor>, e.g. 1.98.1 -> clippy 0.1.98, discovered via real host1
+      execution); collect-toolchain.sh manifests cargo-clippy; tests 45/45 PASS;
+      ShellCheck warning-level clean; CI runs 35025999239 and 35027349065 fully
+      green (first after one egress-window rerun). Stage 1 host-admin (bundle
+      source exact SHA 4afa7717615fbe161f640bdcd8f8ad640374b583, checksums
+      collect 9dbd189d / pin 6f2fdca4 / verify cff27669): both hosts checksum
+      3/3 OK, root idempotent pin rerun exit 0, extended verify V1-V5 PASS on
+      both (V5 clippy 0.1.98 (48a229ceae 2026-09-01)), vbmf-ci manifests
+      refreshed with explicit system env (host1 @2026-09-15T21:47:27Z, host2
+      @21:48:28Z, cargo-clippy /usr/local/bin identical), verify-runner.sh
+      R1-R5+scope PASS both; vbmf-ci zero new sudo, hosts zero git, all temp
+      dirs cleaned on 4 sides. New ops RCA: relay dirs created under umask 077
+      block vbmf-ci traversal - chmod 755 the directory itself, not just
+      scripts. Stage 2 workflow (eca00b7): rust-clippy conditional runs-on per
+      P2-C4 pattern; dtolnay + actions/cache gated to github-hosted with
+      toolchain pinned 1.98.1; self-hosted zero install, both clippy steps
+      inline-export RUSTUP_HOME=/usr/local/rustup plus persistent
+      checkout-external CARGO_HOME=${GITHUB_WORKSPACE%/*}/.cargo-home and
+      CARGO_TARGET_DIR=${GITHUB_WORKSPACE%/*}/target-clippy, unset
+      RUSTUP_TOOLCHAIN. CI run 35027740186: first attempt hit a dual-host egress
+      outage window (21:51-21:56, git fetch TLS failures) failing rust-format
+      and rust-clippy; after window passed, rerun 7/7 required green with
+      rust-clippy on vbmf-ci-02 (labels
+      self-hosted/Linux/X64/vbmf/vbmf-general), log shows env contract and real
+      compile (22 crates, Finished dev 28.91s; mock reused target 10.50s). STATE
+      closure commit 2ba81c3 (local, pushed at archive): section 3.10, P2-D
+      COMPLETE, P2-E1 READY, egress flakiness logged as risk 8 with three
+      same-day incident windows (13:12, 21:32-21:40, 21:51-21:56). Known limits:
+      fork branch not live-tested (standing accepted limitation); egress windows
+      require reruns and mitigation is undecided (job-level git proxy conflicts
+      with probe workflow-env red line)."
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+  checks:
+    - name:
+        text: local-script-tests
+        truncated: false
+      result: passed
+      note:
+        text: test-system-rust-scripts.sh 45/45 PASS incl new clippy
+          drift/missing/pin-grep cases; bash -n all; ShellCheck warning-level
+          clean (pre-existing SC2031 info in collect-toolchain unchanged from
+          origin/main)
+        truncated: false
+    - name:
+        text: host1-clippy-closure
+        truncated: false
+      result: passed
+      note:
+        text: bundle 4afa771 checksum 3/3; idempotent pin exit 0; verify V1-V5 PASS (V5
+          clippy 0.1.98); manifest @21:47:27Z with cargo-clippy /usr/local/bin
+        truncated: false
+    - name:
+        text: host2-clippy-closure
+        truncated: false
+      result: passed
+      note:
+        text: via devbox jump scp relay + chmod 755 dir RCA; checksum 3/3; idempotent
+          pin exit 0; verify V1-V5 PASS; manifest @21:48:28Z; verify-runner
+          R1-R5 PASS both hosts
+        truncated: false
+    - name:
+        text: ci-stage1-fe58aab
+        truncated: false
+      result: passed
+      note:
+        text: run 35025999239 7/7 after one egress rerun (rust-format fetch failure
+          21:32 window)
+        truncated: false
+    - name:
+        text: ci-stage1-4afa771
+        truncated: false
+      result: passed
+      note:
+        text: run 35027349065 7/7 first try
+        truncated: false
+    - name:
+        text: ci-stage2-eca00b7
+        truncated: false
+      result: passed
+      note:
+        text: run 35027740186 7/7 after egress-window rerun; rust-clippy @vbmf-ci-02
+          self-hosted, env contract + real compile in log
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: fork runs-on branch not live-tested (accepted)
+      truncated: false
+    - text: egress outage windows need reruns; mitigation undecided (red-line
+        conflict)
+      truncated: false
+    - text: clippy cold-build headroom untested against 20m timeout under worst egress
+        (first green run compiled in 29s+10.5s after fast fetch)
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-15T22:11:59.257Z
+blockers: []
+verification:
+  candidate_id: 8573e7a9-bcd2-4591-bb63-69f60002e68b
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:70b20634-b2b9-4ec1-9ed6-a2b48a041edf
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: ci-green-4afa771
+      name:
+        text: ci-green-4afa771
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh run view 35027349065 --repo pwl1987/VBMF --json conclusion,headSha --jq
+            '.conclusion+" "+.headSha' | grep -qx 'success
+            4afa7717615fbe161f640bdcd8f8ad640374b583'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1353
+    - id: ci-green-eca00b7
+      name:
+        text: ci-green-eca00b7
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh run view 35027740186 --repo pwl1987/VBMF --json conclusion,headSha --jq
+            '.conclusion+" "+.headSha' | grep -qx 'success
+            eca00b74bdf0529ed0dff2ae26d521850e21c461'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1361
+    - id: clippy-selfhosted-identity
+      name:
+        text: clippy-selfhosted-identity
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh api repos/pwl1987/VBMF/actions/runs/35027740186/jobs --jq '.jobs[] |
+            select(.name=="rust-clippy") | .runner_name' | grep -Ex
+            'vbmf-ci-0[12]'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1700
+    - id: workflow-diff-scope-p2d
+      name:
+        text: workflow-diff-scope-p2d
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: import
+            subprocess,yaml;d=yaml.safe_load(open('.github/workflows/media-agent.yml'));old=yaml.safe_load(subprocess.run(['git','show','4afa771:.github/workflows/media-agent.yml'],capture_output=True,text=True).stdout);exp=['rust-format','rust-test-matrix','rust-clippy','hardware-test-compile','architecture-portability','gstreamer-build','session-lifecycle'];assert
+            sorted(d['jobs'])==sorted(exp);assert
+            all(d['jobs'][k]==old['jobs'][k] for k in exp if
+            k!='rust-clippy');assert
+            d['jobs']['rust-clippy']['name']=='rust-clippy';assert
+            'vbmf-general' in d['jobs']['rust-clippy']['runs-on'] and
+            'ubuntu-latest' in
+            d['jobs']['rust-clippy']['runs-on'];print('STRUCTURE_OK')
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 97
+    - id: local-script-tests-p2d
+      name:
+        text: local-script-tests-p2d
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: "bash scripts/ci/test-system-rust-scripts.sh 2>&1 | tail -1 | grep -q
+            'RESULT: PASS (45)'"
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1508
+    - id: git-clean-except-comet-p2d
+      name:
+        text: git-clean-except-comet-p2d
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: git status --porcelain | grep -v
+            'docs/comet/changes/p2-d-clippy-migration' && exit 1 || true
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 12
+  summary:
+    text: "All 5 acceptance items pass on independently gathered evidence
+      (re-dispatched attempt after shape-cycle reset; verification substance
+      unchanged from the completed independent audit): scripts verified and
+      re-tested 45/45, three CI runs green on exact SHAs, rust-clippy migration
+      scoped and boundary-identical to P2-C4 with full env contract in-log on
+      vbmf-ci-02, STATE closure complete with P2-E1 READY. Residual risks
+      recorded."
+    truncated: false
+  risks:
+    - text: brief A2 literal 'clippy 1.98.1' superseded by derived 0.1.<minor> gate
+        (RCA in commit 4afa771 and STATE 3.10)
+      truncated: false
+    - text: dual-host provision evidence document-consistent only; no independent host
+        re-probe
+      truncated: false
+    - text: "runner egress flakiness: 3 same-day outage windows required reruns;
+        mitigation undecided (STATE risk 8)"
+      truncated: false
+    - text: fork branch not live-tested (standing accepted limitation)
+      truncated: false
+    - text: clippy cold-build headroom vs frozen 20m timeout untested under worst
+        egress
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-09-15T22:12:55.957Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Formal requirement write requested for brief.md
+      truncated: false
+    completed_at: 2026-09-15T22:08:46.689Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: "All 5 acceptance items pass on independently gathered evidence
+        (re-dispatched attempt after shape-cycle reset; verification substance
+        unchanged from the completed independent audit): scripts verified and
+        re-tested 45/45, three CI runs green on exact SHAs, rust-clippy
+        migration scoped and boundary-identical to P2-C4 with full env contract
+        in-log on vbmf-ci-02, STATE closure complete with P2-E1 READY. Residual
+        risks recorded."
+      truncated: false
+    completed_at: 2026-09-15T22:12:55.957Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-09-15T13:54:16.712Z
