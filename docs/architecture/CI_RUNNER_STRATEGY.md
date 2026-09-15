@@ -309,7 +309,7 @@ unset RUNNER_TOKEN
 
 ```bash
 scripts/ci/verify-runner.sh --name vbmf-ci-01                       # R1-R5 + scope
-gh workflow run ci-infra-probe.yml --ref master                     # R6（dispatch-only；合并后 master 才有该 workflow）
+gh workflow run ci-infra-probe.yml --ref main                       # R6（dispatch-only；canonical branch = main）
 gh pr checks <PR#>                                                  # N4
 scripts/ci/verify-runner.sh --name vbmf-ci-01 --no-regression       # N1/N2/N3
 ```
@@ -421,3 +421,22 @@ DeckLink SDK（模式待裁决）·（仅实机验收场景：BMD Desktop Video 
   `{self-hosted,Linux,X64,vbmf,vbmf-general}`，R 门双 PASS，dispatch 随机派发正常。
   **下一步 = P2-B**（fork 双通道/concurrency/timeout 裁决），任何 `runs-on` 改造
   仍须其放行。
+
+### 15.6 P2-B 安全 / 调度边界（2026-09-15）
+
+P2-B 冻结以下规则；本级**不修改任何 job 的 `runs-on`**，第一次 self-hosted 灰度仍归 P2-C：
+
+- **fork PR 双通道**：来自 fork 的 `pull_request` 代码永远留在 GitHub-hosted；禁止用
+  `pull_request_target` checkout/执行 PR 代码。P2-C 起，只有 canonical `main` push 与同仓 PR
+  才可逐 job 进入 `vbmf-general`。迁移时保持原 job id/name，required context 不改名。
+- **concurrency**：`media-agent-${{ github.event.pull_request.number || github.ref }}`，
+  `cancel-in-progress: true`；同一 PR / 同一 ref 的旧 run 可取消，避免过期队列占用 runner。
+- **timeout**：按 2026-09-11～14 最近成功 run（各 job 约 5～96s）留足冷缓存/网络余量：
+  `rust-format=10m`；`architecture-portability/rust-clippy/session-lifecycle=20m`；
+  `rust-test-matrix/hardware-test-compile/gstreamer-build=30m`。超时必须显式失败，不无限占用 runner。
+- **token 权限**：workflow 顶层 `permissions: contents: read`；当前 jobs 无写仓库需求。
+- **branch authority**：push 仅 `main`；Phase 1 历史 baseline 中的 `master` 文字保留为历史证据，
+  操作性 runbook 已统一 `--ref main`。
+- **required-check identity**：继续固定 7 个名称：`rust-format`、`rust-test-matrix`、
+  `rust-clippy`、`hardware-test-compile`、`architecture-portability`、`gstreamer-build`、
+  `session-lifecycle`。P2-C/P2-D/P2-E/P2-M 迁移不得通过新增替代 job 改变这些 context。

@@ -11,8 +11,18 @@ name: media-agent CI
 #   hardware-test-compile / architecture-portability / gstreamer-build
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   pull_request:
+
+# P2-B: fork PRs stay on GitHub-hosted runners. P2-C+ may move one required
+# job at a time to self-hosted only for trusted push/same-repository PR paths.
+# Do not use pull_request_target to execute PR code.
+permissions:
+  contents: read
+
+concurrency:
+  group: media-agent-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -23,6 +33,7 @@ jobs:
   rust-format:
     name: rust-format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -41,6 +52,7 @@ jobs:
   architecture-portability:
     name: architecture-portability
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -61,6 +73,7 @@ jobs:
   rust-clippy:
     name: rust-clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -88,6 +101,7 @@ jobs:
   session-lifecycle:
     name: session-lifecycle
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -112,6 +126,7 @@ jobs:
   rust-test-matrix:
     name: rust-test-matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -172,6 +187,7 @@ jobs:
   hardware-test-compile:
     name: hardware-test-compile
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
       DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
@@ -217,6 +233,7 @@ jobs:
   gstreamer-build:
     name: gstreamer-build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
       DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
