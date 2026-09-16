@@ -72,12 +72,20 @@ jobs:
   #   指定构建路径仍编译", 非 "整个项目完全 vendor-independent"。
   architecture-portability:
     name: architecture-portability
-    runs-on: ubuntu-latest
+    # P2-E2: conditional runner (same boundary as P2-C4/P2-D/P2-E1). Trusted
+    # events use the pinned self-hosted vbmf-general pool; fork PRs always
+    # stay GitHub-hosted (§15.6 frozen boundary).
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      # GitHub-hosted (fork) path only, kept as-is (no toolchain pin): the
+      # lint is lexical and the proof asserts "compiles without vendor
+      # adapters" — neither is patch-version sensitive (brief D2).
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.environment == 'github-hosted'
       - name: Cache cargo
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: |
@@ -85,10 +93,26 @@ jobs:
             ~/.cargo/git
             services/media-agent/target
           key: ${{ runner.os }}-cargo-arch-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      # Lint is pure python3 (host interpreter, parity-verified on both
+      # runners) — no env fork needed.
       - name: Architecture Lint (ARCH-PORTABILITY-01 lexical)
         run: python3 ${{ github.workspace }}/scripts/check_arch_portability.py
+      # Self-hosted: the proof script runs `cargo check` via subprocess in a
+      # tmp crate copy, inheriting this step's env — explicit Rust env
+      # contract (§3.6 RCA) + persistent dirs outside the checkout
+      # (target-arch separate from target-clippy/target-session; brief D3).
       - name: Architecture Proof (remove-adapter compile, P0-5)
-        run: python3 ${{ github.workspace }}/scripts/check_remove_adapters.py
+        env:
+          RUNNER_ENV: ${{ runner.environment }}
+        run: |
+          if [ "$RUNNER_ENV" = "self-hosted" ]; then
+            export RUSTUP_HOME=/usr/local/rustup
+            export CARGO_HOME="${GITHUB_WORKSPACE%/*}/.cargo-home"
+            export CARGO_TARGET_DIR="${GITHUB_WORKSPACE%/*}/target-arch"
+            unset RUSTUP_TOOLCHAIN
+            mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR"
+          fi
+          python3 ${{ github.workspace }}/scripts/check_remove_adapters.py
 
   # ── rust-clippy ──────────────────────────────────────────────────────────────
   rust-clippy:
