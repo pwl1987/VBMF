@@ -1,0 +1,221 @@
+schema: comet.native.v4
+name: p2-m0-sdk-mode-adjudication
+language: zh-CN
+phase: archive
+status: done
+state_version: 10
+brief: brief.md
+shape_confirmation_hash: 743a966a6270d1181b85a3a5ec70fd07e4c98dd588acbea01edcc362a9bd81a5
+spec_changes:
+  - capability: ci-sdk-mode-adjudication
+    operation: create
+    source: specs/ci-sdk-mode-adjudication/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 1
+  iteration: 1
+  attempt: 2
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: 'Scenario: Strategy §15.3 决策点段落更新为"已裁决 B"（含日期、理由五条、 隐含义务三条），A
+      选项标注未采纳及原因；其余章节除必要交叉引用外不变。'
+    result: passed
+    reason:
+      text: Strategy §15.3 决策段单 hunk 替换为裁决 B（日期/5 理由/3 隐含义务/A 未采纳/过渡口径齐）；b1aa041 仅触
+        Strategy+STATE+comet 产物，无代码文件。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: "Scenario: STATE 更新——risk 8 补记 2026-09-16 窗 #2/#3 四元组（当日累计 3 窗）； §3.14
+      P2-M0 COMPLETE（裁决记录）；§5.1 P2-M1 READY。"
+    result: passed
+    reason:
+      text: "STATE：§3.14 P2-M0 COMPLETE（裁决 B）；risk 8 窗 #2/#3/#4 四元组（当日 4 窗、两日 10 窗）+
+        git 代理缓解记录（红线兼容论证 + 双机 vbmf-ci 实测）；§5.1 P2-M1 READY。"
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: "Scenario: docs-only 变更，CI 7/7 required 保持全绿（无代码路径变化）。"
+    result: passed
+    reason:
+      text: docs-only：两 commit 零代码路径；run 35101465356 与 40df70a run 均 7/7 required 全绿。
+      truncated: false
+builder_handoff:
+  candidate_id: a6f81c0f-4f7c-4a05-8452-b611a022b8cb
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:3b53581d-b170-4ae0-9966-e42e90d6fffe
+  iteration: 1
+  summary:
+    text: "P2-M0 裁决落盘 docs-only：Strategy §15.3 决策段替换为裁决 B（五理由+三隐含义务+A 未采纳+过渡期口径）+
+      STATE（窗 #2/#3/#4 补记 risk 8、§3.14 COMPLETE、P2-M1 READY、git 出网缓解记录）。commits
+      b1aa041 + 40df70a，两 push CI 均 7/7 全绿（后者经授权 git 代理缓解收口窗 #4）。"
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+  checks:
+    - name:
+        text: strategy-diff-audit
+        truncated: false
+      result: passed
+      note:
+        text: git diff 8a939b1→b1aa041 仅 §15.3 决策段落变化（其余章节零改动）
+        truncated: false
+    - name:
+        text: ci-runs-green
+        truncated: false
+      result: passed
+      note:
+        text: "run 35101465356（b1aa041）经窗 #4 + git 代理缓解后 7/7；40df70a run 7/7"
+        truncated: false
+    - name:
+        text: state-assertions
+        truncated: false
+      result: passed
+      note:
+        text: "risk 8 含窗 #2/#3/#4 四元组与缓解记录；§3.14 P2-M0 COMPLETE；P2-M1 READY"
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: codeload action 下载残余面维持 rerun 口径（未豁免 systemd 红线）
+      truncated: false
+    - text: Strategy §15.11 缓解文档化随 P2-M1 落盘
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-16T23:14:37.810Z
+blockers: []
+verification:
+  candidate_id: a6f81c0f-4f7c-4a05-8452-b611a022b8cb
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:e0747c8f-f9bb-4ce4-adbd-76ca571e5f94
+  iteration: 1
+  attempt: 2
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: p2m0-chk4-strategy-v1
+      name:
+        text: strategy-adjudication-diff
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: "git diff 8a939b1..b1aa041 -- docs/architecture/CI_RUNNER_STRATEGY.md |
+            grep -q '已裁决 B' && git diff 8a939b1..b1aa041 --stat --
+            docs/architecture/CI_RUNNER_STRATEGY.md | grep -q '1 file changed'
+            && git diff 8a939b1..b1aa041 --
+            docs/architecture/CI_RUNNER_STRATEGY.md | grep -cE '^[-+]' | grep -q
+            '^[0-9]*$' && git diff 8a939b1..b1aa041 --name-only | grep -vE
+            '^(docs/architecture/CI_RUNNER_STRATEGY.md|\\.project/STATE.md|docs\
+            /comet/)' | wc -l | grep -q '^0$' && grep -q 'SDK
+            注入模式裁决（P2-M0，2026-09-16，已裁决 B'
+            docs/architecture/CI_RUNNER_STRATEGY.md && grep -q 'A（维持 secrets
+            分片注入）未采纳' docs/architecture/CI_RUNNER_STRATEGY.md && echo 'PASS:
+            adjudication recorded in §15.3 only; no stray files'"
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 25
+    - id: p2m0-chk4-ci-v1
+      name:
+        text: ci-green
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: "G(){ for i in 1 2 3 4 5; do \"$@\" && return 0; sleep 8; done; return 1;
+            }; C=$(G gh run view 35101465356 --json conclusion --jq
+            '.conclusion'); [ \"$C\" = success ] && H=$(G gh run list --branch
+            main --limit 1 --json headSha,conclusion --jq '.[0]|.headSha[0:7]+\"
+            \"+.conclusion'); echo \"$H\" | grep -q '40df70a success' && echo
+            'PASS: both head runs green'"
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 2894
+    - id: p2m0-chk4-state-v1
+      name:
+        text: state-closure
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: "grep -q '3.14 P2-M0' .project/STATE.md && grep -q '用户裁决：\\*\\*B——media
+            主机预装' .project/STATE.md && grep -q '10:09–10:22' .project/STATE.md
+            && grep -q '11:54–11:59' .project/STATE.md && grep -q '窗
+            #4（13:20–14:50+' .project/STATE.md && grep -q 'git config --system
+            http.https://github.com/.proxy' .project/STATE.md && grep -qE '\\|
+            \\*\\*P2-M1\\*\\* \\| \\*\\*READY\\*\\*' .project/STATE.md && echo
+            'PASS: adjudication B + windows 2/3/4 + mitigation + P2-M1 READY'"
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 15
+  summary:
+    text: "P2-M0 裁决落盘完成：SDK 模式 B + 窗 #2/#3/#4 + git 出网缓解记录；docs-only 双 run 全绿；独立只读
+      Verifier A1–A3 全 pass；Runtime 检查全 PASS。"
+    truncated: false
+  risks:
+    - text: codeload action 下载残余面维持 rerun 口径（用户未豁免 systemd 注入红线）
+      truncated: false
+    - text: "窗 #4 收口归因 out-of-band 代理配置，repo 内无复现证据（红线设计使然，审计依赖 STATE 记录）"
+      truncated: false
+    - text: Strategy §15.11 缓解文档化待 P2-M1 落盘
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-09-16T23:18:15.917Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: execution-error
+    unresolved_ids: []
+    summary:
+      text: "Native Verifier response was invalid: Native verification cannot pass
+        before every required check succeeds"
+      truncated: false
+    completed_at: 2026-09-16T23:17:09.670Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 2
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: "P2-M0 裁决落盘完成：SDK 模式 B + 窗 #2/#3/#4 + git 出网缓解记录；docs-only 双 run 全绿；独立只读
+        Verifier A1–A3 全 pass；Runtime 检查全 PASS。"
+      truncated: false
+    completed_at: 2026-09-16T23:18:15.917Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-09-16T13:10:03.015Z
