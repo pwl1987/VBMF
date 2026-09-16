@@ -1,5 +1,37 @@
 # ci-test-matrix-grayscale spec
 
+## 阶段 1 —— rustdoc 暴收录口（四脚本 + 双机 host-admin）
+
+### pin-system-rust.sh
+
+- `toolchain install` 增加 `--component rust-docs`（幂等；双机已有二进制，
+  本轮预期零下载）；
+- symlink 循环与工具存在性检查加入 `rustdoc`（`/usr/local/bin/rustdoc` ->
+  `/usr/local/cargo/bin/rustdoc` proxy）。
+
+### verify-system-rust.sh
+
+- V1 循环加入 `rustdoc`；
+- 新 V6：以 audited `RUSTUP_HOME/CARGO_HOME` 调 `$BIN_DIR/rustdoc --version`，
+  断言输出以 `rustdoc ` 开头即可（版本方案独立于 rustc，presence+执行，
+  同 V4 rustfmt 口径）；零 mutation 不变。
+
+### collect-toolchain.sh
+
+- `TOOLS` 追加 `rustdoc`。
+
+### test-system-rust-scripts.sh
+
+- fixture 增加 rustdoc shim；正/负 case：rustdoc 缺失 verify FAIL、pin 脚本
+  含 `--component rust-docs` 与 rustdoc 暴露断言、drift case 不回归。
+
+### Host 执行（双机，§15.9，用户已授权 D8）
+
+同 P2-D 流程：exact SHA bundle → checksum → root 幂等 pin 复跑 → V1–V6 verify
+→ `vbmf-ci` manifest 刷新（显式系统 env）→ `verify-runner.sh` R1–R5。
+
+## 阶段 2 —— workflow 迁移（media-agent.yml 仅 rust-test-matrix job）
+
 ## Authority
 
 - `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2（阶梯 P2-E 收口）、§15.6；
