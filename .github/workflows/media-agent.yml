@@ -231,12 +231,18 @@ jobs:
   # Health/Acceptance 必须仍能独立编译并测试通过 (可替换性权威证明)。
   rust-test-matrix:
     name: rust-test-matrix
-    runs-on: ubuntu-latest
+    # P2-E3: conditional runner (same boundary as P2-C4/P2-D/P2-E1/P2-E2) —
+    # last required job migrating to the general self-hosted pool.
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+      # GitHub-hosted (fork) path only, kept as-is (no toolchain pin):
+      # build/test assertions are not patch-version sensitive (brief D2).
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.environment == 'github-hosted'
       - name: Cache cargo
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: |
@@ -244,6 +250,24 @@ jobs:
             ~/.cargo/git
             services/media-agent/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('services/media-agent/Cargo.toml') }}
+      # Self-hosted env prep (brief D4): one step writes the §3.6 RCA contract
+      # into GITHUB_ENV so every subsequent cargo step inherits it. Fail-closed
+      # on a caller-provided RUSTUP_TOOLCHAIN (GITHUB_ENV cannot unset it).
+      # Persistent dirs live outside the checkout dir (brief D3), shared by
+      # this job's 6 cargo steps — same single-target semantics as the
+      # GitHub-hosted path.
+      - name: Rust env (self-hosted)
+        if: runner.environment == 'self-hosted'
+        run: |
+          if [ -n "${RUSTUP_TOOLCHAIN:-}" ]; then
+            echo "caller RUSTUP_TOOLCHAIN present; refusing" >&2
+            exit 1
+          fi
+          ws_parent="$(dirname "$GITHUB_WORKSPACE")"
+          mkdir -p "$ws_parent/.cargo-home" "$ws_parent/target-testmatrix"
+          echo "RUSTUP_HOME=/usr/local/rustup" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$ws_parent/.cargo-home" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$ws_parent/target-testmatrix" >> "$GITHUB_ENV"
       - name: Build (default)
         env:
           CARGO_TERM_COLOR: always
@@ -258,11 +282,14 @@ jobs:
         run: cargo test --features simulation
       - name: Test (mock feature) — p06-hi gates (ARCH-BACKEND-01 Mock side + gate assertions)
         run: cargo test --features mock
+      # CARGO_TARGET_DIR redirect moves the binary outside the checkout on the
+      # self-hosted side; the artifact name and consumers are unchanged (D5).
+      # Upload goes through the runner agent channel, not git egress.
       - name: Upload media-agent Linux binary (default)
         uses: actions/upload-artifact@v4
         with:
           name: media-agent-linux-default
-          path: services/media-agent/target/debug/media-agent
+          path: ${{ runner.environment == 'self-hosted' && format('{0}/../target-testmatrix/debug/media-agent', github.workspace) || 'services/media-agent/target/debug/media-agent' }}
 
   # ── hardware-test-compile ────────────────────────────────────────────────────
   # Bindgen / FFI contract build (Gate 6/7 INDEPENDENT verification).
