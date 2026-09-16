@@ -385,10 +385,31 @@ Ubuntu x64 · GStreamer 1.22+ · FFmpeg · libclang · protobuf-compiler ·
 DeckLink SDK（模式待裁决）·（仅实机验收场景：BMD Desktop Video +
 `/dev/blackmagic`，不进本 CI 面）。
 
-**SDK 注入模式决策点（P2-M 前必须二选一，不得混用）**：
+**SDK 注入模式裁决（P2-M0，2026-09-16，已裁决 B——二选一，禁止混用）**：
 
-- **A. 维持 secrets 分片注入**（`DECKLINK_SDK_HEADERS_1/2`，现状）——CI 内组装；
-- **B. media 主机预装 + 版本锁定**（Acceptance Manifest 式记录）——去 secret 化。
+- **已裁决：B. media 主机预装 + 版本锁定**（Acceptance Manifest 式记录）——
+  去 secret 化。DeckLink SDK 头文件经 §15.9 out-of-band 通道预装到 media
+  runner，版本锁定（`16.0.0`）+ verify gate + manifest 记录，与系统 Rust pin
+  同构。
+- 裁决理由：
+  1. 去 secret 化——public repo + self-hosted runner + secrets 是 GitHub 官方
+     劝退组合，B 消除该面；
+  2. 专有头文件彻底离开 GitHub 存储，license 风险面缩小；
+  3. 与已验证的 §15.9 runbook + verify + manifest 治理面同构，可审计可重复；
+  4. 消除 30KB secret 分片 hack（GitHub secret 大小限制催生的补丁）；
+  5. 系统依赖（libclang / GStreamer dev / protobuf）因 `vbmf-ci` 零 sudo 红线
+     本就必须 host 预装——SDK 预装属同一供给面，非额外负担。
+- 隐含义务（P2-M1 前执行）：
+  1. `vbmf-media` tier 供给 runbook 扩展：SDK pin/verify/collect 同构脚本 +
+     系统库清单；
+  2. workflow 删除 `DECKLINK_SDK_HEADERS_1/2` 注入与 `_private` 组装/清理
+     步骤，改宿主路径存在性门控（fork/GitHub-hosted 路径维持现状空过语义）；
+     GitHub secrets 中 SDK 分片在 P2-M1 收口时删除；
+  3. SDK 升级走 host-admin runbook（罕见事件）。
+- A（维持 secrets 分片注入）未采纳：保留 public repo + self-hosted + secrets
+  组合的安全面；分片 hack 长期背负；与 host 预装供给面重复。
+- 过渡期口径：P2-M1 实施前，workflow 现状 secrets 注入仍为唯一活通道；本裁决
+  记录迁移序列，不构成混用。
 
 ### 15.4 供给与 inventory 纪律
 
