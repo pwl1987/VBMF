@@ -3,7 +3,7 @@
 #
 # Contract: docs/architecture/CI_RUNNER_STRATEGY.md §15.7 / §15.8.
 # Independently audits the state produced by scripts/ci/pin-system-rust.sh:
-#   V1 rustup/rustc/cargo/rustfmt/cargo-clippy/clippy-driver exposed under
+#   V1 rustup/rustc/cargo/rustfmt/cargo-clippy/clippy-driver/rustdoc exposed under
 #      <root>/bin and symlinked into <root>/cargo/bin (install authority
 #      stays <root>/rustup + <root>/cargo)
 #   V2 rustup default resolves to the exact pinned x.y.z toolchain
@@ -65,7 +65,7 @@ FAILED=0
 echo "== System Rust Pin Gate (root=$ROOT, expect=$EXPECT_VERSION) =="
 
 # V1: exposure + install authority (read-only lstat/readlink, no mutation)
-for tool in rustup rustc cargo rustfmt cargo-clippy clippy-driver; do
+for tool in rustup rustc cargo rustfmt cargo-clippy clippy-driver rustdoc; do
   link="$BIN_DIR/$tool"
   target="$CARGO_HOME/bin/$tool"
   if [ ! -e "$link" ] || [ ! -x "$link" ]; then
@@ -131,6 +131,16 @@ CLIPPY_ACTUAL="$(audit "$BIN_DIR/cargo-clippy" --version 2>/dev/null || true)"
 case "$CLIPPY_ACTUAL" in
   "clippy 0.1.$CLIPPY_MINOR "*) pass "V5: clippy version exact ($CLIPPY_ACTUAL)" ;;
   *) fail "V5: clippy version mismatch: got '${CLIPPY_ACTUAL:-<none>}' want 'clippy 0.1.$CLIPPY_MINOR'" ;;
+esac
+
+# V6: rustdoc present and executes (its version scheme is independent of rustc,
+# same presence+execution contract as V4 rustfmt; doctests invoke it via PATH,
+# so the /usr/local/bin proxy must resolve — §3.13 RCA: cargo test doctest
+# stage fails with "could not execute process rustdoc" when unexposed)
+RUSTDOC_ACTUAL="$(audit "$BIN_DIR/rustdoc" --version 2>/dev/null || true)"
+case "$RUSTDOC_ACTUAL" in
+  rustdoc*) pass "V6: rustdoc executable ($RUSTDOC_ACTUAL)" ;;
+  *) fail "V6: rustdoc missing or not executable: got '${RUSTDOC_ACTUAL:-<none>}'" ;;
 esac
 
 echo "=="

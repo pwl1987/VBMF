@@ -58,6 +58,16 @@ if grep -q 'cargo-clippy clippy-driver' "$PIN"; then
 else
   notok "pin: cargo-clippy/clippy-driver exposure missing"
 fi
+if grep -q -- '--component rust-docs' "$PIN"; then
+  ok "pin: toolchain install includes rust-docs component"
+else
+  notok "pin: rust-docs component missing from toolchain install"
+fi
+if grep -q 'clippy-driver rustdoc' "$PIN"; then
+  ok "pin: exposes rustdoc system-wide (doctest dependency)"
+else
+  notok "pin: rustdoc exposure missing"
+fi
 
 # --- fixture builder for verify-system-rust.sh ---
 FIXTURE=""
@@ -105,6 +115,15 @@ else
 fi
 EOF2
   cp "$root/cargo/bin/cargo-clippy" "$root/cargo/bin/clippy-driver"
+  cat > "$root/cargo/bin/rustdoc" <<EOF3
+#!/bin/sh
+if [ "\$RUSTUP_HOME" = "$root/rustup" ] && [ "\$CARGO_HOME" = "$root/cargo" ]; then
+  echo "rustdoc 1.$(printf '%s' "$V" | cut -d. -f2).0 (abcdef12 2026-01-01)"
+else
+  echo "error: rustdoc not installed in caller toolchain" >&2
+  exit 1
+fi
+EOF3
   cat > "$root/cargo/bin/rustup" <<EOF
 #!/bin/sh
 if [ "\$1" = "default" ] && [ "\$RUSTUP_HOME" = "$root/rustup" ]; then
@@ -115,7 +134,7 @@ fi
 EOF
   printf '%s\n' "$V-x86_64-unknown-linux-gnu (default)" > "$root/rustup/default.txt"
   chmod +x "$root/cargo/bin/"*
-  for t in rustup rustc cargo rustfmt cargo-clippy clippy-driver; do ln -s "$root/cargo/bin/$t" "$root/bin/$t"; done
+  for t in rustup rustc cargo rustfmt cargo-clippy clippy-driver rustdoc; do ln -s "$root/cargo/bin/$t" "$root/bin/$t"; done
 }
 
 FIXTURE="$(mktemp -d /tmp/vbmf-rust-pin-test.XXXXXX)"
@@ -161,6 +180,10 @@ check "verify: clippy version drift fails" 1 "$VERIFY" --expect-version "$V" --r
 NO_CLIPPY="$FIXTURE/no-clippy";        make_fixture "$NO_CLIPPY"
 rm "$NO_CLIPPY/bin/cargo-clippy" "$NO_CLIPPY/cargo/bin/cargo-clippy"
 check "verify: missing cargo-clippy fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_CLIPPY"
+
+NO_RUSTDOC="$FIXTURE/no-rustdoc";      make_fixture "$NO_RUSTDOC"
+rm "$NO_RUSTDOC/bin/rustdoc" "$NO_RUSTDOC/cargo/bin/rustdoc"
+check "verify: missing rustdoc fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_RUSTDOC"
 
 BAD_LINK="$FIXTURE/bad-link";        make_fixture "$BAD_LINK"
 rm "$BAD_LINK/bin/rustc"
