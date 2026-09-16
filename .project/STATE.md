@@ -224,9 +224,19 @@ Status: **COMPLETE / ADJUDICATED（2026-09-16）**
   同构 + libclang/GStreamer dev/protobuf 清单）；workflow 删 secrets 注入改宿主
   路径门控（fork 空过语义不变）；SDK secrets 分片 P2-M1 收口时删除；
 - 出网稳定性观察（risk 8 补记）：2026-09-16 窗 #2（10:09–10:22 UTC，ci-01，
-  run `35083349130`，arch-portability×2 + session-lifecycle，2 rerun）、窗 #3
-  （11:54–11:59 UTC，ci-02，run `35091905412`，arch-portability，1 rerun）——
-  当日累计 3 窗，两日累计 9 窗；缓解裁决仍未做，与 P2-M1 供给同期为建议时点。
+  run `35083349130`，arch×2 + session-lifecycle，2 rerun）、窗 #3（11:54–11:59
+  UTC，ci-02，run `35091905412`，1 rerun）、**窗 #4（13:20–14:50+ UTC，双机，
+  run `35101465356`，10+ 次 job 失败跨 4 轮 rerun——最长窗，新签名 codeload
+  action 下载超时；由本 packet 内授权的 git 代理缓解收口，7/7 全绿）**——当日
+  累计 4 窗，两日累计 10 窗；
+- **git 出网缓解已授权并落地（2026-09-16，用户"两项都做"裁决）**：双机
+  `git config --system http.https://github.com/.proxy` 指向 devbox 8118 代理
+  （host1 本机、host2 经网关；地址不入 repo）；宿主机级 git 配置经既有
+  out-of-band 通道下发，**不触碰 systemd unit / runner .env / workflow env，
+  probe 的 proxy-env 证据面零污染（红线兼容）**；双机以 `vbmf-ci` 身份
+  `git ls-remote` 经代理实测通过；**残余面：codeload action 下载走 runner
+  HttpClient，仅进程代理可治——维持 rerun 口径（用户未豁免 systemd 注入红线）**；
+  Strategy §15.11 文档化随 P2-M1 落盘。
 
 ## 4. Current Task
 
@@ -353,7 +363,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 6. **closed PR #31 / branch convergence**：PR #31 已随 2026-09-15 分支收敛关闭（head 分支已删）；它从来不是 canonical development Authority；未来若吸收 standalone product baseline，按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复任何分支。
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 
-8. **runner 出网抖动（2026-09-15/16，持续观察）**：devbox 域到 github.com:443 反复故障窗——2026-09-15 共 **6 次**；2026-09-16 共 **3 次**（07:04–07:05 ci-01 `35066419711` 1 rerun；10:09–10:22 ci-01 `35083349130` arch×2+session 2 rerun；11:54–11:59 ci-02 `35091905412` 1 rerun）。两日累计 9 窗、14 次 job 失败、rerun 全部收口；均为 fetch 新建 TLS 连接失败，runner agent 通道不受影响；缓解裁决（job 级 git 代理 vs probe workflow-env 红线）仍未做，建议与 P2-M1 供给同期。
+8. **runner 出网抖动（2026-09-15/16）**：故障窗 2026-09-15 共 **6 次**；2026-09-16 共 **4 次**（末窗 13:20–14:50+ 双机最长，含 codeload action 下载超时新签名）。两日累计 10 窗。**git checkout 面已缓解**（宿主机级 git system proxy → devbox 8118，双机 vbmf-ci 实测通过，红线兼容——不碰 systemd/.env/workflow env；2026-09-16 用户授权落地）；**残余面：codeload action 下载**（runner HttpClient，仅进程代理可治，未豁免红线）维持 rerun 口径；runner agent 通道始终正常。
 
 ### Current blockers
 
