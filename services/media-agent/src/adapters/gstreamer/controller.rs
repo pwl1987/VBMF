@@ -487,66 +487,84 @@ impl GStreamerPipelineController {
         let stop_for_thread = stop_flag.clone();
         let p = pipeline.clone();
         let thread = std::thread::spawn(move || {
-            let ctx = glib::MainContext::default();
-            // 把 ctx 设为该线程 thread-default, 使 MainLoop(Some(&ctx)) 与 add_watch/timeout 都使用同一 ctx
-            // (GLib main loop 必须运行, 否则 watch 回调永不分发 — 用户 §五 风险点).
-            let res = ctx.with_thread_default(|| {
-                let ml = std::rc::Rc::new(glib::MainLoop::new(Some(&ctx), false));
-                let bus = match p.bus() {
-                    Some(b) => b,
-                    None => {
-                        tracing::warn!(handle = %handle.0, "pipeline 无 bus, Bus watch 未挂载");
-                        return;
-                    }
-                };
-                let tx = bus_tx.clone();
-                let h = handle;
-                // watch 回调: 把消息翻译为结构化 PipelineBusEvent 投递进 channel.
-                let _watch = bus
-                    .add_watch(move |_, msg| {
-                        // STAB-O4 E4-1: bus 消息流计数 (逐消息; 罕频——锁开销可忽略)。
-                        crate::pipeline_events::with_ingest_anatomy(&h, |a| {
-                            a.bus_msgs_total += 1
-                        });
-                        if let Some(evt) = GStreamerPipelineController::translate_bus(msg, h) {
-                            // 致命事件 (Error/EOS) 永不静默丢弃: 先存 sticky 副本 (即便 channel 满也能被读取).
-                            if evt.kind == PipelineBusEventKind::Error
-                                || evt.kind == PipelineBusEventKind::Eos
-                            {
-                                *LAST_FATAL_BUS_EVENT.lock().unwrap() = Some(evt.clone());
+            // RH-BUS-01: 每实例私有 MainContext——进程级 `MainContext::default()`
+            // 同一时刻仅一线程可持有, 双输入下第二个 watch 线程 with_thread_default
+            // 失败即静默退出 (BMD E4 实证: handle2 bus_msgs_total=0, 致命事件通道
+            // 单管线化)。新建 ctx 由本专用线程独占, 多实例互不竞争。
+            //
+            // RH-BUS-01 修复迭代 1 (协调者 crate 源 RCA): `Bus::add_watch()` 走
+            // `gst_bus_add_watch_full` = default-context watch; `timeout_add_local()`
+            // 内部显式取 `MainContext::default()`。两者都不挂本私有 ctx——MainLoop
+            // 迭代私有 ctx 而 source 落在 default ctx: 事件与 stop 计时永不分发,
+            // stop/join 挂起 (BMD 双 RH 测试实测)。故 Bus watch 与 stop 轮询均改
+            // `create_watch`/`timeout_source_new` + 显式 `attach(Some(&ctx))`,
+            // source 与迭代 ctx 同处一个上下文; with_thread_default 随之移除
+            // (无 default-context 依赖的最简所有权模型)。
+            let ctx = glib::MainContext::new();
+            let ml = glib::MainLoop::new(Some(&ctx), false);
+            let bus = match p.bus() {
+                Some(b) => b,
+                None => {
+                    tracing::warn!(handle = %handle.0, "pipeline 无 bus, Bus watch 未挂载");
+                    return;
+                }
+            };
+            let tx = bus_tx.clone();
+            let h = handle;
+            // watch 回调: 把消息翻译为结构化 PipelineBusEvent 投递进 channel.
+            // source 绑定存活至线程闭包结束 (attach 后 ctx 亦持引用, 不泄漏).
+            let _bus_source = bus.create_watch(
+                Some("rh-bus-watch"),
+                glib::Priority::DEFAULT,
+                move |_, msg| {
+                    // STAB-O4 E4-1: bus 消息流计数 (逐消息; 罕频——锁开销可忽略)。
+                    crate::pipeline_events::with_ingest_anatomy(&h, |a| {
+                        a.bus_msgs_total += 1
+                    });
+                    if let Some(evt) = GStreamerPipelineController::translate_bus(msg, h) {
+                        // 致命事件 (Error/EOS) 永不静默丢弃: 先存 sticky 副本 (即便 channel 满也能被读取).
+                        if evt.kind == PipelineBusEventKind::Error
+                            || evt.kind == PipelineBusEventKind::Eos
+                        {
+                            *LAST_FATAL_BUS_EVENT.lock().unwrap() = Some(evt.clone());
+                        }
+                        // 非阻塞投递: 满则计数丢弃 (不阻塞 GLib watch 线程); 但致命事件已留存 sticky.
+                        match tx.try_send(evt) {
+                            Ok(()) => {}
+                            Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                                DROPPED_BUS_EVENTS.fetch_add(1, Ordering::SeqCst);
+                                tracing::warn!(handle = %h.0, "Bus channel 溢出: 事件被计数为丢弃 (ERROR/EOS 已存 sticky, 不静默丢失)");
                             }
-                            // 非阻塞投递: 满则计数丢弃 (不阻塞 GLib watch 线程); 但致命事件已留存 sticky.
-                            match tx.try_send(evt) {
-                                Ok(()) => {}
-                                Err(std::sync::mpsc::TrySendError::Full(_)) => {
-                                    DROPPED_BUS_EVENTS.fetch_add(1, Ordering::SeqCst);
-                                    tracing::warn!(handle = %h.0, "Bus channel 溢出: 事件被计数为丢弃 (ERROR/EOS 已存 sticky, 不静默丢失)");
-                                }
-                                Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
-                                    tracing::warn!(handle = %h.0, "Bus channel 已断开 (controller dropped)");
-                                }
+                            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+                                tracing::warn!(handle = %h.0, "Bus channel 已断开 (controller dropped)");
                             }
                         }
-                        glib::ControlFlow::Continue
-                    })
-                    .expect("bus add_watch 失败");
-                // 周期检查 stop_flag, 置位则退出 MainLoop (recover/stop 时通知线程结束, 避免线程泄漏).
-                let ml_timeout = ml.clone();
-                let stop = stop_for_thread.clone();
-                glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
+                    }
+                    glib::ControlFlow::Continue
+                },
+            );
+            // 显式挂到私有 ctx (非 default ctx)——MainLoop 迭代的正是它.
+            _bus_source.attach(Some(&ctx));
+            // 周期检查 stop_flag, 置位则退出 MainLoop (recover/stop 时通知线程结束, 避免线程泄漏).
+            // 同样显式挂私有 ctx (旧 timeout_add_local 挂 default ctx 永不分发 = stop/join 挂起根因).
+            let ml_timeout = ml.clone();
+            let stop = stop_for_thread.clone();
+            let _stop_source = glib::timeout_source_new(
+                std::time::Duration::from_millis(200),
+                Some("rh-bus-stop-poll"),
+                glib::Priority::DEFAULT,
+                move || {
                     if stop.load(std::sync::atomic::Ordering::SeqCst) {
                         ml_timeout.quit();
                         glib::ControlFlow::Break
                     } else {
                         glib::ControlFlow::Continue
                     }
-                });
-                ml.run();
-                tracing::debug!(handle = %h.0, "GStreamer Bus watch 线程退出");
-            });
-            if let Err(e) = res {
-                tracing::warn!(error = %e, "Bus watch MainContext 推送失败");
-            }
+                },
+            );
+            _stop_source.attach(Some(&ctx));
+            ml.run();
+            tracing::debug!(handle = %h.0, "GStreamer Bus watch 线程退出");
         });
         Ok((pipeline, thread, stop_flag))
     }
@@ -1179,10 +1197,8 @@ mod diagnostic_tests {
 }
 
 // —— STAB-O4 E4-1: ingest anatomy probe 真实验证 (需 gstreamer 构建; 盒上执行) ——
-// 单测试顺序分段 (不拆多 #[test]): build_pipeline 的 Bus watch 线程用
-// `MainContext::default()`——进程级默认 context 同一时刻仅一线程可持有,
-// 并行测试的第二个 watch 线程 push 失败即无 bus watch (既有控制器形态,
-// 非本观测点引入)。顺序执行消除该竞争; anatomy pad probe 本身不依赖
+// RH-BUS-01 后 watch 线程各持私有 MainContext, 并行测试无 default-context
+// 单持有者竞争 (旧顺序分段约束解除); anatomy pad probe 本身不依赖
 // MainLoop (streaming 线程触发)。
 #[cfg(all(test, feature = "gstreamer-backend"))]
 mod e4_anatomy_tests {
@@ -1244,5 +1260,142 @@ mod e4_anatomy_tests {
             ingest_anatomy_snapshot().iter().all(|(k, _)| k != &h),
             "stop 终态注销后条目移除"
         );
+    }
+}
+
+// —— RH-BUS-01: per-pipeline MainContext / Bus-watch isolation 真实验证 ——
+// (需 gstreamer 构建) 双并发 self-test pipeline 各自收到真实 Bus 证据 +
+// stop/recover 生命周期无死 watch / 无跨 handle 投递。有界轮询 (100ms 步进,
+// 5s deadline)——Bus watch 异步分发非瞬时, 不用固定 sleep 判定。
+#[cfg(all(test, feature = "gstreamer-backend"))]
+mod rh_bus_isolation_tests {
+    use super::*;
+    use crate::contracts::backend::MediaBackend;
+    use crate::contracts::diagnostic::DiagnosticFaultInjection;
+    use crate::pipeline::PipelinePlan;
+    use crate::pipeline_events::ingest_anatomy_snapshot;
+    use std::time::{Duration, Instant};
+
+    const DEADLINE: Duration = Duration::from_secs(5);
+
+    fn bus_msgs(h: &PipelineHandle) -> u64 {
+        ingest_anatomy_snapshot()
+            .iter()
+            .find(|(k, _)| k == h)
+            .map(|(_, a)| a.bus_msgs_total)
+            .unwrap_or(0)
+    }
+
+    /// 有界轮询: bus 消息计数超过 floor 即真; deadline 到仍不满足返回 None。
+    fn wait_bus_msgs_above(h: &PipelineHandle, floor: u64) -> Option<u64> {
+        let start = Instant::now();
+        loop {
+            let cur = bus_msgs(h);
+            if cur > floor {
+                return Some(cur);
+            }
+            if start.elapsed() >= DEADLINE {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    fn wait_bus_msgs_positive(h: &PipelineHandle) -> Option<u64> {
+        wait_bus_msgs_above(h, 0)
+    }
+
+    /// channel 面有界 drain: 非空即返回 (watch 异步投递, 非瞬时)。
+    fn drain_events(
+        ctrl: &GStreamerPipelineController,
+        h: &PipelineHandle,
+    ) -> Vec<PipelineBusEvent> {
+        let start = Instant::now();
+        loop {
+            let evts = ctrl.poll_bus(h);
+            if !evts.is_empty() {
+                return evts;
+            }
+            if start.elapsed() >= DEADLINE {
+                return evts;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    // 生产缺陷回归: 双并发 pipeline 的 Bus watch 各持私有 MainContext——
+    // 缺陷形态 (default context 单持有者) 下第二 watch 静默缺席, h2 证据恒零。
+    #[test]
+    fn rh_bus_01_dual_pipelines_both_receive_bus_evidence() {
+        let ctrl = GStreamerPipelineController::new();
+        let h1 = MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("物化 h1");
+        let h2 = MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("物化 h2");
+        MediaBackend::start(&ctrl, &h1).expect("启动 h1");
+        MediaBackend::start(&ctrl, &h2).expect("启动 h2");
+        let e1 = wait_bus_msgs_positive(&h1);
+        let e2 = wait_bus_msgs_positive(&h2);
+        assert!(e1.is_some(), "h1 bus 消息计数推进 (实测 {e1:?})");
+        assert!(
+            e2.is_some(),
+            "h2 bus 消息计数推进 (实测 {e2:?}) — 缺陷回归: 双输入下第二 watch 不再静默缺席"
+        );
+        // channel 面: 各自通道事件 handle 归属正确 (无跨 handle 投递)。
+        for h in [&h1, &h2] {
+            let evts = drain_events(&ctrl, h);
+            assert!(!evts.is_empty(), "handle {h:?} channel 面有真实事件");
+            assert!(
+                evts.iter().all(|e| e.handle == *h),
+                "事件 handle 归属 {h:?}: 实得 {:?}",
+                evts.iter().map(|e| e.handle).collect::<Vec<_>>()
+            );
+        }
+        let _ = MediaBackend::stop(&ctrl, &h1);
+        let _ = MediaBackend::stop(&ctrl, &h2);
+    }
+
+    // 生命周期: recover 重建后新 watch 线程真实存活 (新实例计数器重新推进);
+    // stop 终态注销后无残留事件面; 全程邻柄互不串扰。
+    #[test]
+    fn rh_bus_01_recover_restores_watch_stop_leaves_no_residual() {
+        let ctrl = GStreamerPipelineController::new();
+        let h1 = MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("物化 h1");
+        let h2 = MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("物化 h2");
+        MediaBackend::start(&ctrl, &h1).expect("启动 h1");
+        MediaBackend::start(&ctrl, &h2).expect("启动 h2");
+        assert!(wait_bus_msgs_positive(&h1).is_some(), "h1 初始 watch 存活");
+        let b2 = wait_bus_msgs_positive(&h2).expect("h2 初始 watch 存活");
+
+        // 邻柄在册期间真实停流 (Paused) ⇒ StateChanged 经 h2 自己的 watch 计数
+        // ——与 h1 并行运行互不干扰。
+        ctrl.inject_runtime_stall(&h2).expect("h2 停流注入");
+        assert!(
+            wait_bus_msgs_above(&h2, b2).is_some(),
+            "h2 watch 在 h1 并行运行下继续交付"
+        );
+
+        // recover h1 = 旧实例销毁 + 新 watch 线程 (新私有 MainContext): 计数器
+        // 随新实例归零后必须再次推进——死 watch (线程在而 loop 不跑) 无此证据。
+        MediaBackend::recover(&ctrl, &h1).expect("recover h1");
+        assert!(
+            wait_bus_msgs_positive(&h1).is_some(),
+            "recover 后新 watch 线程存活并计数"
+        );
+
+        // stop h1 终态: 实例注销 + 事件面关闭 + anatomy 条目移除。
+        let _ = MediaBackend::stop(&ctrl, &h1);
+        assert!(
+            ctrl.instances.lock().unwrap().get(&h1).is_none(),
+            "stop 后实例注销"
+        );
+        assert!(ctrl.poll_bus(&h1).is_empty(), "stop 后无残留事件面");
+        assert_eq!(bus_msgs(&h1), 0, "stop 后 anatomy 条目移除 (计数面归零)");
+
+        // h2 不受 h1 stop 影响: recover 重建 (回 Playing) 后 watch 继续独立交付。
+        MediaBackend::recover(&ctrl, &h2).expect("recover h2");
+        assert!(
+            wait_bus_msgs_positive(&h2).is_some(),
+            "h2 在 h1 stop 后 recover 仍独立交付"
+        );
+        let _ = MediaBackend::stop(&ctrl, &h2);
     }
 }
