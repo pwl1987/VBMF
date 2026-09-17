@@ -1,0 +1,145 @@
+================================================================================
+C2-O3-1/E2 + C2-O3-2/E3A 执行证据恢复与离线分析（STAB-O3.1 窗口）
+判定词 = RECOVERED / REGISTERED（分叉证据·非因果结论·不改判 rss_bounded FAIL）
+================================================================================
+恢复日期: 2026-09-17（执行日期 2026-09-11/12·盒钟）
+执行环境: 真机 BMD 10.30.15.10（lytv）·与 24h/C2O1/C2O2 同一部署面
+恢复通道: dev VM SSH（lytv@10.30.15.10·id_pwl）只读拉取 + md5 校验
+分析面:   本地离线（会话内 python·零盒操作·零生产代码改动）
+
+--------------------------------------------------------------------------------
+§0 来源与恢复叙事（诚实披露）
+--------------------------------------------------------------------------------
+- E2（2026-09-11 22:50-01:17 盒钟·2.5h）与 E3A（2026-09-12 10:49-11:34·45m）
+  在旧环境执行于 diag 分支 `diag/c2-o3-e2-single-input` / `diag/c2-o3-e3a-selftest`；
+  两分支随 2026-09-15 单人单分支收敛删除（STATE §1），**未 merge、未开 PR**，
+  证据从未登记进 main——本文件为恢复后的首次登记。
+- 盒上证据目录完整在存（mtime 未动）；本轮只读拉取 165 文件
+  （16+114+35）+ 2 份 launch log；逐文件 md5 与盒上 md5s.txt 比对
+  **161/161 一致**；唯一偏差 = E2 observer 的 `observer-console.log`
+  md5s.txt 行为终行追加前的旧哈希（盒上现值 208db754… = 本地副本逐字节一致，
+  双端直核）——簿记时点差·非内容差。
+- 盒上文件数与本地一致（16/114/35）；观察窗/触发窗结构完整
+  （E2: main 296 + lite 883 + fastlite 1442 + 90 份 smaps；E3A: 11 份 smaps）。
+- 24h/B1 时代 build.log 均为缓存命中（"Finished 0.11s"），
+  f52b0161 对应的 Cargo.lock 依赖版本**不可重建**——见 §3 偏差披露。
+
+--------------------------------------------------------------------------------
+§1 E2（单输入差分·bin ad89c6d3）形态结论
+--------------------------------------------------------------------------------
+运行参数（header.txt）: inputs=1·cycles=315·dwell=28s·PROGRAM_SWITCH=ABSENT
+（topology-check.txt 证实 program graph 完全未构建——单输入路径按设计不接线
+ExecutionGroup/切换/selector 探针）。observer COMPLETE/exit0·覆盖 96%·gap 0·
+trig 7+/0-·tid born=0/gone=0·libc 2.43（与 C2O2 钉扎一致）。
+
+形态（smaps VMA 级·全部触发窗 PRE→TRIG 逐份 diff）:
+
+1. 增长 100% 落在**单一 64MiB 对齐 rw-p 匿名预留 VMA 0x78e338000000** 的
+   头部扩展: 0x78e33a67e000 → 0x78e33bdef000（全程 +6764kB RSS·无其他 VMA
+   同量级参与；heap 恒定；新映射仅末端簿记级 4 件 ≤100kB Rss + 一段收尾期
+   64MiB PROT_NONE 预留 0x78e32c021000——VmSize +67588kB 的主体·页面零触）。
+2. 触发序列 7 次（run_rel 1070/2255/3446/4640/5766/6959/8145s·间隔
+   1174-1194s）每次边界迁移 +976~+1028kB·与 rssd 精确相等。
+3. **填充模式 = 连续填充**: main(30s)/lite(10s)/fastlite(2s) 三档采样全程
+   零 ≥256kB 步进；斜率 0.83-0.87kB/s 恒定（306s 热身后 781036→787804kB
+   /7796s = 0.868kB/s）。边界 ~1190s 迁 1MB = top-chunk 耗尽式扩展
+   （0.87kB/s × 1190s ≈ 1035kB）。
+4. 聚合速率对比: 单输入 2.99MB/h vs 24h 双输入 5.63MB/h ÷ 2 输入 =
+   2.81MB/h——**每输入速率相等（差 6%）**。
+5. 对照双输入形态（C2-O1/C2-O2）: 同族（64MiB 对齐 rw-p 匿名预留·头部扩展
+   ·PROT_NONE 余段·不回收）·每输入一预留（双输入 2 个 M1/M2·单输入 1 个）
+   ·线程数随输入缩放（29-31 → 18·差 ≈11-13/输入）；
+   **差异 = 填充量子化**: 双输入 = 离散 5.5MB 批量触页 @~7100s（其余精确
+   平台）；单输入 = 连续涓流填充（无平台无步进）。
+
+E2 冻结判读表裁定（c2o3-allocation-path-design.txt §2）:
+
+- 主裁定 = **行1「单输入事件仍复现」成立**——reservation-family 扩展不回收
+  在单输入下持续存在 ⇒ **双输入/双实例不是必要条件**；
+  允许结论（表内原文）: 「双输入不是必要条件; 候选向 ingest/allocator/common
+  path 收敛」。
+- 附属观测 = 行3 事实（周期/量级/触页模式 workload-sensitive: ~1190s/1MB/
+  连续 vs ~7100s/5.5MB/批量）——按表规不判具体对象。
+- E2 单一问题句（冻结原文）回答: 「双输入/双实例条件是不是形成这条
+  allocation-path 的必要前提?」→ **否** → 按冻结分支转向 common ingest /
+  native allocation path·不追 program graph。
+- 附带强排除（本 run 结构性事实）: PROGRAM_SWITCH=ABSENT 且零切换命令
+  （svc.log grep switch = 0）下增长照旧 ⇒ **program graph / 切换机制 /
+  ExecutionGroup / switch_graph make_mut 探针 / selector 双分支共享全部
+  不是必要条件**（make_mut 候选维持 allocator-behavior candidate 命名·
+  降权·永不为 root cause）。
+- svc.log 17746 行: fault/recover/panic 零（7 处匹配皆良性——启动预检
+  拒绝 + 设备探测 WARN[device-number 2 被 gst-launch 历史进程占用·服务
+  绑定空闲设备 4fa33dcb]）；watchdog 全程 A+B+C 全过。
+
+--------------------------------------------------------------------------------
+§2 E3A（selftest 源族差分·同 bin ad89c6d3）形态结论
+--------------------------------------------------------------------------------
+运行参数（header.txt）: source_family=videotestsrc/audiotestsrc
+（MEDIA_AGENT_SELFTEST=1·DeckLink 源/插件/硬件全移除）·warmup 300s +
+total 2700s·VBMF_DIAG_INPUTS unset。真帧流在跑（video 81267 /
+audio 116619 frames·watchdog A+B+C 全过·5443 行零 fault）。
+
+裁定（header 预冻结四值枚举）: **SELFTEST_MORPHOLOGY_NOT_OBSERVED**
+- VmRSS 274s 起 45min 纹丝不动: 21956kB 恒定（status.csv 90 行·max=first）；
+- smaps start→end: new=0 / grown=0 / rss_up=0（11 份快照 6 种内容·
+  差异仅启动期 274s 前的一次性构造）；
+- 无 64MiB 对齐预留增长·无任何目标形态。
+
+含义（差分方向·非因果）: 移除 DeckLink 源族（源插件+管线构造随 selftest
+整体替换——归因单位 = 「DeckLink 源族配置」整体·不拆分到单一插件）后
+形态完全消失 ⇒ **DeckLink 源族配置是形态出现的必要条件之一**。
+与 E2 同 bin（ad89c6d3）⇒ 该差分无二进制混杂（clean differential）。
+
+--------------------------------------------------------------------------------
+§3 bin 偏差披露（f52b0161 → ad89c6d3·冻结条款未满足项）
+--------------------------------------------------------------------------------
+- E2 冻结约束「bin 不变 f52b0161」**未满足**: E2/E3A 实跑 bin =
+  ad89c6d3（identity /proc/exe 双源一致）。
+- 成因（build.log 证据）: E2 构建时 Cargo.lock 重解析——"Updating crates.io
+  index / Locking 51 packages"（glib 0.20.12 / gstreamer 0.23.7 /
+  gstreamer-app 0.23.5 等 semver 兼容位漂移）。仓库 main 的 Cargo.lock
+  （md5 488fd7ed…·94 包）**不含 glib/gstreamer 可选依赖条目**（历史提交
+  b76b2d0 「盒上已知可用」锁的形态）⇒ 盒上 `--features bmd,gstreamer`
+  构建必然重锁。盒树 .rs 78/78 与 main 逐字节一致（本轮 md5 全等）·
+  Cargo.toml 一致（a2b4197b…）⇒ 源码面无 diag 分支残留改动。
+- 混杂评估: E2（ad89c6d3）vs 双输入历史 run（f52b0161）的单/双对比
+  携带依赖补丁版本混杂；缓解 = (a) E2 与 E3A 同 bin 内部对照干净;
+  (b) E2 形态与双输入同族 + 每输入速率相等·跨 bin 一致;
+  (c) f52b0161 锁版本不可重建（24h/B1 build.log 均缓存命中）——如实登记
+  为不可消除的披露项，不据此下放任何因果结论。
+- 债务登记: main Cargo.lock 不含可选依赖条目 = 每次盒上 feature 构建都
+  可能重锁（本偏差的结构性根源）——修复属 STAB-O4/FIX 或独立 governance
+  项·不在本分析面。
+
+--------------------------------------------------------------------------------
+§4 候选空间更新（六环硬门前·仅为分叉/收敛登记）
+--------------------------------------------------------------------------------
+六环 = candidate → allocation path → allocator behavior → same
+reservation/arena → magnitude → repeatability。
+本轮后: same-reservation(同族 VMA) ✓ / magnitude(每输入速率相等) ✓ /
+repeatability(4 双输入 run + 1 单输入 run + 1 selftest 阴性对照) ✓；
+allocation path / allocator behavior 两环 **未证**（procfs 只读面已尽·
+禁入清单未动）。root cause 结论: **无**。
+
+排除为必要条件（累计）: 双输入/双实例·program graph·切换·ExecutionGroup·
+make_mut 探针·recover 重建（V1）·Rust 显式 retention（A 层·量级证伪）·
+selftest 源族路径（E3A 阴性）。
+收敛后的候选空间: **每输入 DeckLink 源族 ingest native 分配链**
+（decklinkvideosrc/audiosrc 插件内部缓冲·每管线 GLib bus-watch 线程的
+native 分配·Gst buffer/meta 管理）× **allocator reservation/arena 行为**
+（O2-A 结构兼容已立·ownership 未答）。
+结构性对照事实（不升级）: 预留计数 == 输入计数（双→2·单→1·跨 run ASLR
+基址不同）；线程数随输入缩放（≈11-13 线程/输入）。
+
+--------------------------------------------------------------------------------
+§5 证据清单（本轮入 repo·盒=origin md5 已核）
+--------------------------------------------------------------------------------
+2026-09-11-c2o3-e2-single-input-2p5h/          16 件（runner 面）
+2026-09-11-c2o3-e2-single-input-2p5h-observer/ 114 件（observer v2.1 面）
+2026-09-12-c2o3-e3a-selftest-45m/              35 件（harness 面）
+c2o3-e2-launch.log / c2o3-e3a-launch.log       2 件（驱动摘要·仅线索非判据）
+上游链: C2-O1 → C2-O2-A/B → C2-O3-0（c2o3-candidate-inventory.txt）→
+  本件（E2/E3A 恢复登记）。
+STATE: §3.17（STAB-O3.1 记录）·§7 Stability 追记·不改判 24h FAIL。
+================================================================================

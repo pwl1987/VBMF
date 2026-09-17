@@ -1,0 +1,9 @@
+pid=2785520
+cmdline=./target/debug/media-agent 
+exe_md5=ad89c6d3c863b3b36bde540892ffdff9
+uname=7.0.0-30-generic
+clk_tck=100 pagesize=4096 btime=1787814565 starttime_ticks=136679390
+run_t0_epoch=1789181358
+ldd (Ubuntu GLIBC 2.43-2ubuntu2.4) 2.43
+GNU_LIBC_VERSION=glibc 2.43
+env:MEDIA_AGENT_SELFTEST=1 MEDIA_AGENT_MODE=diagnostic VBMF_DIAG_INPUTS unset

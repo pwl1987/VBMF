@@ -1,0 +1,14 @@
+2026-09-11T22:50:08+08:00 target pid=2511716 ev=/home/lytv/a2-8-02i-evidence/2026-09-11-c2o3-e2-single-input-2p5h
+2026-09-11T22:50:08+08:00 topology start OK(startup)
+2026-09-11T22:50:09+08:00 T0(obs)=1789138208 run_t0=1789138202(src=proc_stat) domain=[2511716] main=30s lite=10s fast=2s+per-tid{comm,stat} watch=[6000,8700](run_rel)+120s guard base=300s win=60s trig=1024kB×max20 nominal=9200s
+2026-09-11T22:52:08+08:00 threads start snapshot taken
+2026-09-11T23:07:52+08:00 trigger #1 kind=positive pending=1024kB → topology-trig-1.smaps + threads-trig-1 (PRE=最近先行全量快照, POST=+15s)
+2026-09-11T23:27:43+08:00 trigger #2 kind=positive pending=1024kB → topology-trig-2.smaps + threads-trig-2 (PRE=最近先行全量快照, POST=+15s)
+2026-09-11T23:47:34+08:00 trigger #3 kind=positive pending=1028kB → topology-trig-3.smaps + threads-trig-3 (PRE=最近先行全量快照, POST=+15s)
+2026-09-12T00:07:28+08:00 trigger #4 kind=positive pending=1028kB → topology-trig-4.smaps + threads-trig-4 (PRE=最近先行全量快照, POST=+15s)
+2026-09-12T00:26:18+08:00 trigger #5 kind=positive pending=1024kB → topology-trig-5.smaps + threads-trig-5 (PRE=最近先行全量快照, POST=+15s)
+2026-09-12T00:30:02+08:00 watch window entered (run_rel=6000s)——fast×2s + per-tid 活动 + 密集拓扑×60s
+2026-09-12T00:46:07+08:00 trigger #6 kind=positive pending=1024kB → topology-trig-6.smaps + threads-trig-6 (PRE=最近先行全量快照, POST=+15s)
+2026-09-12T01:05:53+08:00 trigger #7 kind=positive pending=1024kB → topology-trig-7.smaps + threads-trig-7 (PRE=最近先行全量快照, POST=+15s)
+2026-09-12T01:17:47+08:00 topology end OK(shutdown 触发)
+2026-09-12T01:17:51+08:00 observer 生命周期结束 status=COMPLETE code=0 terminal=gone coverage=96% gap_max=0s main=296 lite=883 fast=1442 tid=(1442 ticks/25956 rows/born=0/gone=0/err=0) trig=(7+/0-)limit=false

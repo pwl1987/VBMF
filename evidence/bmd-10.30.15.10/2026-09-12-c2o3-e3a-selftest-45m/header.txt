@@ -1,0 +1,12 @@
+run_kind=C2-O3-2/E3A source-family differential (selftest)
+source_family=videotestsrc/audiotestsrc (DeckLink source/plugin/hardware removed)
+step15_verdict=INAPPLICABLE
+warmup_s=300
+total_s=2700
+smaps_interval_s=300
+status_interval_s=30
+bin_md5=ad89c6d3c863b3b36bde540892ffdff9
+harness_md5=1ca4262761a60fd527fec675231dbe5d
+frozen_question=does target reservation-boundary morphology persist without DeckLink source family?
+interpretation=SELFTEST_MORPHOLOGY_OBSERVED / NOT_OBSERVED / OBSERVED+WORKLOAD_SENSITIVE / INCONCLUSIVE only
+trig_positive_used=false
