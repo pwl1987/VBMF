@@ -1,0 +1,1 @@
+{"command_id": "68755d92-7058-40f0-9b98-1cfd46e2afbf", "kind": "stop_session", "requested_by": "rh-bus-01-hw", "target": {"target_type": "session_by_id", "session_id": "f8bdb702-8133-4666-84b4-d1a9a5e244c4"}}

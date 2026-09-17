@@ -1,0 +1,9 @@
+commit=9b32004fa6b9d5f1d6492bd37b15070339f7b22d
+rustc=rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo=cargo 1.98.0 (797e8a9bc 2026-08-05)
+gst=GStreamer 1.28.2
+f4bad309be6e7a8563c09f2de65a3259c9e20a145d41be2b11b3e34a92bcb2cc  target/debug/media-agent
+f4bad309be6e7a8563c09f2de65a3259c9e20a145d41be2b11b3e34a92bcb2cc  target/debug/media-agent
+dfb1246710af7080c3674bfc19d0b2306f72363e48ddc5340fcdd3715ce62979  src/adapters/gstreamer/controller.rs
+bus_context_failures=0
+e4_lines=2

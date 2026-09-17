@@ -1,0 +1,1 @@
+{"snapshot_kind":"event_projection_snapshot","total":15,"kind_counts":{"identity_resolved":2,"lease_granted":2,"resource_allocated":2,"session_created":1,"session_state_changed":6,"signal_verified":1,"source_materialized":1},"session_states":{"f8bdb702-8133-4666-84b4-d1a9a5e244c4":"running"},"session_failures":{},"has_critical":false}

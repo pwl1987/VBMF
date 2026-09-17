@@ -1,0 +1,3 @@
+[2m2026-09-17T11:22:25.208953Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m P0-7A Session create+start 全链通过 (SessionManager owner) [3msession[0m[2m=[0msession-f8bdb7028133466684b4d1a9a5e244c4
+[2m2026-09-17T11:22:57.941623Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0mf8bdb702-8133-4666-84b4-d1a9a5e244c4 [3mgraph[0m[2m=[0m3
+[2m2026-09-17T11:22:58.300071Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-02-E group watchdog: 停止旗置位, 观测线程退出
