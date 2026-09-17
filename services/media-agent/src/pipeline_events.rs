@@ -281,6 +281,13 @@ mod e4_anatomy_unit_tests {
         let entry = snap.iter().find(|(k, _)| k == &h).expect("条目在场");
         assert_eq!(entry.1.video.buffers, 1);
         assert_eq!(entry.1.bus_msgs_total, 1);
+        // recover 重置语义 = build_pipeline 对同 handle 重新 register (覆盖
+        // 旧条目 ⇒ 零计数)——确定性证明在此; 控制器测试只证重注册发生。
+        ingest_anatomy_register(h);
+        let reset = ingest_anatomy_snapshot();
+        let entry = reset.iter().find(|(k, _)| k == &h).expect("覆盖后条目在场");
+        assert_eq!(entry.1.video.buffers, 0, "register 覆盖 ⇒ 计数重置");
+        assert_eq!(entry.1.bus_msgs_total, 0);
         ingest_anatomy_remove(&h);
         assert!(ingest_anatomy_snapshot().iter().all(|(k, _)| k != &h));
     }

@@ -443,6 +443,7 @@ impl GStreamerPipelineController {
         // 固定容量计数, probe 侧零逐帧堆分配。register 于 build (recover 重建
         // 即重置——per-instance 视图, 如实披露), remove 于 stop。
         crate::pipeline_events::ingest_anatomy_register(handle);
+        use glib::translate::IntoGlib; // Type→GType 数字 id (meta 去重键; 零分配)
         for el in pipeline.iterate_elements() {
             let Ok(el) = el else { continue };
             let Some(factory) = el.factory() else {
@@ -1178,6 +1179,11 @@ mod diagnostic_tests {
 }
 
 // —— STAB-O4 E4-1: ingest anatomy probe 真实验证 (需 gstreamer 构建; 盒上执行) ——
+// 单测试顺序分段 (不拆多 #[test]): build_pipeline 的 Bus watch 线程用
+// `MainContext::default()`——进程级默认 context 同一时刻仅一线程可持有,
+// 并行测试的第二个 watch 线程 push 失败即无 bus watch (既有控制器形态,
+// 非本观测点引入)。顺序执行消除该竞争; anatomy pad probe 本身不依赖
+// MainLoop (streaming 线程触发)。
 #[cfg(all(test, feature = "gstreamer-backend"))]
 mod e4_anatomy_tests {
     use super::*;
@@ -1185,15 +1191,30 @@ mod e4_anatomy_tests {
     use crate::pipeline::PipelinePlan;
     use crate::pipeline_events::ingest_anatomy_snapshot;
 
+    fn bus_count(h: &PipelineHandle) -> u64 {
+        ingest_anatomy_snapshot()
+            .iter()
+            .find(|(k, _)| k == h)
+            .map(|(_, a)| a.bus_msgs_total)
+            .unwrap_or(0)
+    }
+
     #[test]
-    fn e4_rt_01_registry_lifecycle_and_honest_absence() {
-        // selftest (videotestsrc/audiotestsrc) 无 decklink 源 ⇒ 平面计数诚实
-        // 为零 (absence≠evidence——观测点只挂 decklink 元素); bus 消息流计数
-        // 真实推进; stop 后条目移除 (与 HEALTH_ARCS 同生命周期律)。
+    fn e4_rt_01_lifecycle_recover_reset_honest_absence() {
+        // 段1: selftest (videotestsrc/audiotestsrc) 无 decklink 源 ⇒ 平面计数
+        // 诚实为零 (absence≠evidence——观测点只挂 decklink 元素); bus 消息流
+        // 计数真实推进 (轮询有界 5s——异步状态消息分发非瞬时)。
         let ctrl = GStreamerPipelineController::new();
         let h = MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("物化");
         MediaBackend::start(&ctrl, &h).expect("启动");
-        std::thread::sleep(std::time::Duration::from_millis(800));
+        let mut before = 0u64;
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            before = bus_count(&h);
+            if before > 0 {
+                break;
+            }
+        }
         let snap = ingest_anatomy_snapshot();
         let entry = snap
             .iter()
@@ -1207,38 +1228,21 @@ mod e4_anatomy_tests {
             entry.1.audio.buffers, 0,
             "无 decklink 源 ⇒ audio 平面零观测"
         );
+        assert!(before > 0, "bus 消息流 (StateChanged 等) 应已计数");
+        // 段2: recover = 旧实例销毁 + 新实例重建 ⇒ anatomy 重注册 (新实例已
+        // Playing, 其自身启动消息即刻计数——非零是诚实的新实例视图; 重置
+        // 语义的确定性证明在中性层 register-覆盖 单元测试)。
+        MediaBackend::recover(&ctrl, &h).expect("recover 重建");
+        let snap = ingest_anatomy_snapshot();
         assert!(
-            entry.1.bus_msgs_total > 0,
-            "bus 消息流 (StateChanged 等) 应已计数"
+            snap.iter().any(|(k, _)| k == &h),
+            "recover 后条目重注册在场"
         );
+        // 段3: stop 终态注销 ⇒ 条目移除 (与 HEALTH_ARCS 同生命周期律)。
         let _ = MediaBackend::stop(&ctrl, &h);
         assert!(
             ingest_anatomy_snapshot().iter().all(|(k, _)| k != &h),
             "stop 终态注销后条目移除"
         );
-    }
-
-    #[test]
-    fn e4_rt_02_recover_resets_to_fresh_instance_view() {
-        // recover = 旧实例销毁 + 新实例重建 ⇒ anatomy 重注册为零计数
-        // (per-instance 视图——冻结设计 §1 披露)。
-        let ctrl = GStreamerPipelineController::new();
-        let h = MediaBackend::instantiate(&ctrl, &PipelinePlan::self_test()).expect("物化");
-        MediaBackend::start(&ctrl, &h).expect("启动");
-        std::thread::sleep(std::time::Duration::from_millis(800));
-        let before = ingest_anatomy_snapshot()
-            .iter()
-            .find(|(k, _)| k == &h)
-            .map(|(_, a)| a.bus_msgs_total)
-            .unwrap_or(0);
-        assert!(before > 0, "重建前 bus 已计数");
-        MediaBackend::recover(&ctrl, &h).expect("recover 重建");
-        let after = ingest_anatomy_snapshot()
-            .iter()
-            .find(|(k, _)| k == &h)
-            .map(|(_, a)| a.bus_msgs_total)
-            .expect("recover 后条目在场");
-        assert_eq!(after, 0, "recover 重注册 ⇒ 计数重置 (per-instance 视图)");
-        let _ = MediaBackend::stop(&ctrl, &h);
     }
 }
