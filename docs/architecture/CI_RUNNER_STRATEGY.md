@@ -401,7 +401,7 @@ DeckLink SDK（模式待裁决）·（仅实机验收场景：BMD Desktop Video 
      本就必须 host 预装——SDK 预装属同一供给面，非额外负担。
 - 隐含义务（P2-M1 前执行）：
   1. `vbmf-media` tier 供给 runbook 扩展：SDK pin/verify/collect 同构脚本 +
-     系统库清单；
+     系统库清单（已落 §15.10）；
   2. workflow 删除 `DECKLINK_SDK_HEADERS_1/2` 注入与 `_private` 组装/清理
      步骤，改宿主路径存在性门控（fork/GitHub-hosted 路径维持现状空过语义）；
      GitHub secrets 中 SDK 分片在 P2-M1 收口时删除；
@@ -588,3 +588,57 @@ missing rustfmt、非 symlink 暴露、rolling default、未设 default）与 ha
 `prepare-system-rust-bundle.sh`（exact-SHA 导出 + SHA256SUMS，happy path 与
 floating ref / 短 SHA / 未知 SHA / 无脚本 commit / 非空目标目录等 fail-closed 路径，
 bundle 内容跨 run 确定性）。
+
+### 15.10 P2-M media tier 供给 runbook（2026-09-16，§15.3 裁决 B 义务 1）
+
+`vbmf-ci-media`（KVM VM，devbox libvirtd，规格对齐 ci-02）供给面，与 §15.9
+同构（out-of-band host-admin、逐项授权、bundle 传输、verify gate、manifest）：
+
+1. **系统库清单**（media 主机一次性预装，`vbmf-ci` 零 sudo 红线不变）：
+   `git curl jq python3 build-essential pkg-config unzip tar` +
+   `libclang-dev`（bindgen 运行时依赖）+
+   `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev`（P2-M2 预铺）+
+   `protobuf-compiler`（P2-M2 预铺）。apt 走内网源（§15.5 运维口径）。
+2. **Rust pin**：`pin-system-rust.sh --version 1.98.1`（§15.9 步骤 A bundle
+   流程原样复用）；verify V1–V6 + manifest。
+3. **DeckLink SDK pin（裁决 B 核心）**：
+   - SDK 16.0.0 tarball（或解包目录）由管理员经 out-of-band 通道上机
+     （public repo 证据纪律：版本 + header 计数可记录，tarball hash 与
+     header 内容不得入 repo/logs/evidence）；
+   - `pin-decklink-sdk.sh --tarball <path> --version 16.0.0`（root、幂等、
+     fail-closed：tarball 内必须恰好一个 `*/Linux/include/DeckLinkAPI.h`，
+     四个必需 header 齐全才动 canonical 路径）；
+   - canonical 路径 `/usr/local/share/decklink-sdk/include/`（不带版本段；
+     版本锁由 `VERSION` 文件 + verify gate + manifest 承载）；
+   - `verify-decklink-sdk.sh --expect-version 16.0.0`（非 root、零 mutation，
+     V1 目录非空 / V2 VERSION exact / V3 四 header 在位 / V4 非 root 可读）；
+   - `collect-toolchain.sh` 记 `decklink_sdk` 段（version + header_count；
+     general 机自动记 absent）。
+   - SDK 升级 = 罕见 host-admin 事件：原路径重跑 pin + verify + manifest。
+4. **回归测试**（Development VM，非 root、零网络）：
+   `scripts/ci/test-decklink-sdk-scripts.sh`（pin 参数 fail-closed、verify
+   V1–V4 各失败模式、TEST-ONLY 标记、collect SDK 段）。
+5. **runner 注册**：`provision-runner.sh --name vbmf-ci-media --labels vbmf,vbmf-media`
+   + systemd 模板 + R1–R6（`verify-runner.sh` + probe tier=vbmf-media，
+   allowlist 已加）。
+6. **workflow 门控契约**（P2-M1 迁移形态）：self-hosted 路径 fail-closed——
+   SDK 路径/VERSION 缺失即 job 失败，不空过；github-hosted（fork）路径维持
+   空过语义。required context 名 `hardware-test-compile` 不变。
+
+### 15.11 出网缓解记录（2026-09-16，随 P2-M1 落盘）
+
+risk 8 出网故障窗（2026-09-15 六窗 / 2026-09-16 四窗，STATE risk 8 全账）的
+已授权缓解，红线兼容口径：
+
+- **git 面**：双 runner 宿主机 `git config --system
+  http.https://github.com/.proxy` 指向 devbox 8118 代理（host1 本机、host2 经
+  KVM 网关；地址不入 repo）。只动宿主机级 git 配置，**不触碰** systemd unit /
+  runner `.env` / workflow env——probe 的 job-env 代理变量取证面零污染
+  （§5 红线原文 "瞬态 env 由 runner 自持久化" 不受影响：runner 自身协议仍
+  直连，仅 `git` 子进程走代理）。实测：出网窗内 `vbmf-ci` 身份
+  `git ls-remote` 经代理成功，checkout 面故障窗消除。
+- **残余面**：codeload action 下载（actions/checkout 等 tarball）走 runner
+  进程内 HttpClient，仅进程级代理可治——需要 systemd/`.env` 注入，触碰红线，
+  **未获豁免**；维持 rerun 口径（出网窗内 rerun 至全绿，计数入 STATE risk 8）。
+- 维护：代理地址变更 = host-admin runbook 事件（双机对称、`vbmf-ci` 身份
+  `git ls-remote` 验证）；本缓解不改变 §5 任何契约条款。

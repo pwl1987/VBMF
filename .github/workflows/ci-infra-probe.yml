@@ -37,6 +37,7 @@ on:
         options:
           - vbmf-general
           - vbmf-parity-b
+          - vbmf-media
       host_route_pubkey:
         description: >-
           Optional RSA public key (PUBLIC material only) enabling the
