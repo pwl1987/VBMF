@@ -445,20 +445,28 @@ impl GStreamerPipelineController {
         crate::pipeline_events::ingest_anatomy_register(handle);
         for el in pipeline.iterate_elements() {
             let Ok(el) = el else { continue };
-            let Some(factory) = el.factory() else { continue };
+            let Some(factory) = el.factory() else {
+                continue;
+            };
             let video_plane = match factory.name().as_str() {
                 "decklinkvideosrc" => true,
                 "decklinkaudiosrc" => false,
                 _ => continue,
             };
-            let Some(src_pad) = el.static_pad("src") else { continue };
+            let Some(src_pad) = el.static_pad("src") else {
+                continue;
+            };
             let h = handle;
             src_pad.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
                 if let Some(buf) = info.buffer() {
                     let pts = buf.pts().map(|c| c.nseconds());
                     let size = buf.size() as u64;
                     crate::pipeline_events::with_ingest_anatomy(&h, |a| {
-                        let p = if video_plane { &mut a.video } else { &mut a.audio };
+                        let p = if video_plane {
+                            &mut a.video
+                        } else {
+                            &mut a.audio
+                        };
                         p.observe_buffer(size, pts);
                         buf.foreach_meta(|meta| {
                             let ty = meta.api();
@@ -1187,9 +1195,18 @@ mod e4_anatomy_tests {
         MediaBackend::start(&ctrl, &h).expect("启动");
         std::thread::sleep(std::time::Duration::from_millis(800));
         let snap = ingest_anatomy_snapshot();
-        let entry = snap.iter().find(|(k, _)| k == &h).expect("anatomy 条目在场");
-        assert_eq!(entry.1.video.buffers, 0, "无 decklink 源 ⇒ video 平面零观测");
-        assert_eq!(entry.1.audio.buffers, 0, "无 decklink 源 ⇒ audio 平面零观测");
+        let entry = snap
+            .iter()
+            .find(|(k, _)| k == &h)
+            .expect("anatomy 条目在场");
+        assert_eq!(
+            entry.1.video.buffers, 0,
+            "无 decklink 源 ⇒ video 平面零观测"
+        );
+        assert_eq!(
+            entry.1.audio.buffers, 0,
+            "无 decklink 源 ⇒ audio 平面零观测"
+        );
         assert!(
             entry.1.bus_msgs_total > 0,
             "bus 消息流 (StateChanged 等) 应已计数"

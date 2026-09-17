@@ -110,12 +110,12 @@ impl IngestAnatomyPlane {
             self.size_min_bytes = self.size_min_bytes.min(size_bytes);
             self.size_max_bytes = self.size_max_bytes.max(size_bytes);
         }
-        match self.sizes.iter_mut().find(|(s, _)| *s == size_bytes) {
-            Some((_, c)) => *c += 1,
-            None if self.sizes.len() < INGEST_ANATOMY_SIZES_CAP => {
-                self.sizes.push((size_bytes, 1));
-            }
-            None => self.sizes_overflow += 1,
+        if let Some((_, c)) = self.sizes.iter_mut().find(|(s, _)| *s == size_bytes) {
+            *c += 1;
+        } else if self.sizes.len() < INGEST_ANATOMY_SIZES_CAP {
+            self.sizes.push((size_bytes, 1));
+        } else {
+            self.sizes_overflow += 1;
         }
         match pts_ns {
             None => self.no_pts += 1,
@@ -140,12 +140,12 @@ impl IngestAnatomyPlane {
     }
 
     pub fn observe_meta(&mut self, api_id: u64, api_name: &str) {
-        match self.meta_counts.iter_mut().find(|(id, _, _)| *id == api_id) {
-            Some((_, _, c)) => *c += 1,
-            None if self.meta_counts.len() < INGEST_ANATOMY_META_CAP => {
-                self.meta_counts.push((api_id, api_name.to_string(), 1));
-            }
-            None => self.meta_overflow += 1,
+        if let Some((_, _, c)) = self.meta_counts.iter_mut().find(|(id, _, _)| *id == api_id) {
+            *c += 1;
+        } else if self.meta_counts.len() < INGEST_ANATOMY_META_CAP {
+            self.meta_counts.push((api_id, api_name.to_string(), 1));
+        } else {
+            self.meta_overflow += 1;
         }
     }
 }
@@ -265,7 +265,10 @@ mod e4_anatomy_unit_tests {
         assert_eq!(p.meta_counts.len(), INGEST_ANATOMY_META_CAP);
         // 原 id=7 占 1 席 + 新 id 共 cap; 溢出 = 新 id 数 - 空席。
         let distinct_new = (100..(100 + INGEST_ANATOMY_META_CAP as u64 + 4)).count() as u64;
-        assert_eq!(p.meta_overflow, distinct_new - (INGEST_ANATOMY_META_CAP as u64 - 1));
+        assert_eq!(
+            p.meta_overflow,
+            distinct_new - (INGEST_ANATOMY_META_CAP as u64 - 1)
+        );
     }
 
     #[test]
