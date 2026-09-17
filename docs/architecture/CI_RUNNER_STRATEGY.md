@@ -112,17 +112,19 @@ SOCKS5 代理:      10.30.5.73:1080          # 仅 ssh 等工具用；Runner 不
 
 1. **B0 连通性预检**：在 runner 宿主机先测直连 `https://api.github.com/` 与
    `https://codeload.github.com/`；单次直连成功不足以推翻已复现的故障窗。
-2. **codeload 故障窗缓解（CI-RUNNER-SEC-01 v2）**：允许 self-hosted runner 在应用目录
-   `.env` 使用 runner-managed HTTP proxy，但 `.env` 中的 `http_proxy` / `https_proxy`
-   **只能指向 `127.0.0.1:<port>` 或 `localhost:<port>`、不得含用户名/密码**；禁止把
-   LAN 地址、凭据或公网代理直接写入 `.env`，禁止 workflow env 注入代理。
-3. KVM guest 若上游代理不在本机，必须先建立 host-local loopback forward，再让 runner
-   只看 `127.0.0.1:<port>`；这样 runner 自身 setup 日志不会暴露内网拓扑。systemd unit
-   仍不写 proxy `Environment=`，生命周期模板与网络配置解耦。
+2. **codeload 主缓解（CI-RUNNER-SEC-01 v2）**：所有 self-hosted runner 必须配置
+   `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE`，缓存目录由 runner 用户独占（0700），archive
+   按 GitHub Runner 官方键 `<owner_repo>/<resolved_sha>.tar.gz` 存放；workflow 中外部
+   Action 必须 pin immutable SHA，使 cache key 可审计、可预热、不会因 tag 漂移失效。
+3. **代理只作 fallback**：允许应用目录 `.env` 使用 credential-free loopback HTTP proxy，
+   仅可指向 `127.0.0.1:<port>` / `localhost:<port>`；禁止 LAN 地址、凭据或公网代理直接
+   写入 `.env`，禁止 workflow env 注入代理。KVM guest 若需 fallback，先 host-local
+   forward；systemd unit 仍不写 proxy `Environment=`。
 4. provisioning 下载（runner tarball / rustup /任何直连 GitHub 的 curl）可经
    `VBMF_CI_PROXY` env 按命令传入；**脚本不硬编码代理地址**。
-5. `no_proxy` 至少含 `localhost,127.0.0.1`；probe 允许 direct/ABSENT 或经过严格验证的
-   loopback managed proxy，任何非 loopback、带凭据、`all_proxy` 或大小写值漂移均 fail-closed。
+5. probe 必须验证 action archive cache 路径与固定 SHA archives；proxy 允许 ABSENT 或
+   严格 loopback managed 模式，任何非 loopback、带凭据、`all_proxy` 或大小写值漂移
+   均 fail-closed。
 
 ## 6. 目录布局（冻结）
 
@@ -637,11 +639,13 @@ risk 8 出网故障窗（2026-09-15 六窗 / 2026-09-16 四窗，STATE risk 8 �
   LAN 地址不入 repo/public log。
 - **codeload 面（2026-09-17 用户授权后升级）**：多次 required job 在 `Set up job`
   阶段确定性复现 `codeload.github.com` Action archive 100s×3 超时；单纯 rerun 不再视为
-  充分缓解。采用 §5 CI-RUNNER-SEC-01 v2：runner 应用目录 `.env` 只写 loopback HTTP
-  proxy；KVM guest 先 host-local forward，上游 LAN route 留在宿主私有配置，不进 runner
-  log。试点 `vbmf-ci-01` 证明 Action setup 从分钟级 timeout 降至即时完成。
-- **probe**：job env 允许 runner 继承的 loopback proxy，但必须验证 URL 为无凭据
-  loopback HTTP、大小写值一致、`all_proxy` 缺席；否则 fail-closed。公开日志只输出
-  classification，不打印 proxy URL。
-- 维护：代理/forward 变更 = host-admin runbook 事件；三台 runner 对称验证，required
-  contexts 与业务测试语义保持不变。
+  充分缓解。官方 Runner 源码确认 `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` 会按
+  `<owner_repo>/<resolved_sha>.tar.gz` 命中本地 archive 并跳过网络下载，因此将其定为
+  **主缓解**；loopback HTTP proxy 保留为 cache miss / maintenance fallback。
+- **immutable inputs**：`media-agent.yml` 的 checkout/rust-toolchain/cache/upload-artifact
+  均 pin resolved SHA；dispatch-only `ci-runner-action-cache.yml` 零 external action，负责
+  固定 SHA 下载、tar 校验、SHA256 清单、`.env` cache path 与受控 runner restart。
+- **probe**：验证 archive cache 目录与 4 个固定 SHA tarball，proxy 仅允许 direct 或
+  credential-free loopback HTTP；公开日志不打印 proxy URL / LAN route。
+- 维护：Action SHA 更新必须同步 workflow pin + cache maintenance 清单 + probe 清单；
+  required contexts 与业务测试语义保持不变。

@@ -1,0 +1,107 @@
+name: CI Runner Action Archive Cache
+
+# Dispatch-only host maintenance. Deliberately uses zero external actions so
+# it can repair codeload outages that would otherwise fail in Set up job.
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Runner tier"
+        type: choice
+        required: true
+        options:
+          - vbmf-general
+          - vbmf-media
+      expected_runner:
+        description: "Exact runner name; mismatch fails before mutation"
+        type: choice
+        required: true
+        options:
+          - vbmf-ci-01
+          - vbmf-ci-02
+          - vbmf-ci-media
+
+permissions: {}
+
+jobs:
+  action-cache:
+    name: action-cache-maintenance
+    runs-on: ${{ fromJSON(format('["self-hosted", "Linux", "X64", "vbmf", "{0}"]', inputs.tier)) }}
+    timeout-minutes: 10
+    steps:
+      - name: Validate exact target
+        env:
+          EXPECTED_RUNNER: ${{ inputs.expected_runner }}
+          TIER: ${{ inputs.tier }}
+        run: |
+          set -euo pipefail
+          [ "$RUNNER_NAME" = "$EXPECTED_RUNNER" ] || {
+            echo "target mismatch: scheduled runner is not requested runner" >&2
+            exit 3
+          }
+          case "$EXPECTED_RUNNER:$TIER" in
+            vbmf-ci-01:vbmf-general|vbmf-ci-02:vbmf-general|vbmf-ci-media:vbmf-media) ;;
+            *) echo "runner/tier mismatch" >&2; exit 2 ;;
+          esac
+          echo "target contract: PASS"
+
+      - name: Populate immutable action archives
+        run: |
+          set -euo pipefail
+          cache="$HOME/.action-archive-cache"
+          mkdir -p "$cache"
+          chmod 700 "$cache"
+          proxy="$(git config --system --get http.https://github.com/.proxy || true)"
+          curl_args=(--fail --location --silent --show-error --retry 5 --retry-all-errors --connect-timeout 10 --max-time 180)
+          [ -z "$proxy" ] || curl_args+=(--proxy "$proxy")
+
+          fetch_action() {
+            owner="$1" repo="$2" sha="$3"
+            dir="$cache/${owner}_${repo}"
+            dest="$dir/$sha.tar.gz"
+            mkdir -p "$dir"
+            tmp="$dest.tmp.$$"
+            if [ -s "$dest" ] && tar -tzf "$dest" >/dev/null 2>&1; then
+              echo "cache hit: ${owner}/${repo}@${sha}"
+              return
+            fi
+            rm -f "$tmp"
+            curl "${curl_args[@]}" \
+              "https://codeload.github.com/${owner}/${repo}/tar.gz/${sha}" \
+              -o "$tmp"
+            tar -tzf "$tmp" >/dev/null
+            mv "$tmp" "$dest"
+            chmod 600 "$dest"
+            echo "cached: ${owner}/${repo}@${sha}"
+          }
+
+          fetch_action actions checkout fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+          fetch_action dtolnay rust-toolchain 6bed0761d98439e5a578e2877258200ad565ba87
+          fetch_action actions cache caa296126883cff596d87d8935842f9db880ef25
+          fetch_action actions upload-artifact ea165f8d65b6e75b540449e92b4886f43607fa02
+
+          find "$cache" -type f -name '*.tar.gz' -print0 \
+            | sort -z | xargs -0 sha256sum > "$cache/SHA256SUMS"
+          chmod 600 "$cache/SHA256SUMS"
+          echo "action archive cache: 4 immutable archives verified"
+
+      - name: Configure cache and schedule runner restart
+        run: |
+          set -euo pipefail
+          cache="$HOME/.action-archive-cache"
+          envfile="$HOME/.env"
+          tmp="$HOME/.env.vbmf.$$"
+          touch "$envfile"
+          grep -v '^ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE=' "$envfile" > "$tmp" || true
+          printf 'ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE=%s\n' "$cache" >> "$tmp"
+          chmod 600 "$tmp"
+          mv "$tmp" "$envfile"
+
+          listener="$(pgrep -u "$(id -u)" -f 'Runner.Listener run' | head -1 || true)"
+          [ -n "$listener" ] || { echo "Runner.Listener not found" >&2; exit 1; }
+
+          # Let this job report success first. Unset RUNNER_TRACKING_ID so the
+          # runner orphan cleaner does not kill the delayed restart helper.
+          unset RUNNER_TRACKING_ID
+          nohup bash -c "sleep 10; kill -INT $listener" >/dev/null 2>&1 &
+          echo "cache env configured; runner restart scheduled"

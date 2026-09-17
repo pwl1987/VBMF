@@ -40,11 +40,11 @@ jobs:
     runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only: install exact 1.98.1 — same version as
       # the system pin so both sides of the boundary judge formatting with
       # identical rustfmt (§15.7). Self-hosted path installs nothing.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
         with:
           toolchain: 1.98.1
@@ -78,15 +78,15 @@ jobs:
     runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only, kept as-is (no toolchain pin): the
       # lint is lexical and the proof asserts "compiles without vendor
       # adapters" — neither is patch-version sensitive (brief D2).
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
       - name: Cache cargo
         if: runner.environment == 'github-hosted'
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -124,18 +124,18 @@ jobs:
     runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only: install exact 1.98.1 — same version
       # as the system pin so both sides judge lint with identical clippy
       # (§15.7). Self-hosted path installs nothing (system pin + clippy).
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
         with:
           toolchain: 1.98.1
           components: clippy
       - name: Cache cargo
         if: runner.environment == 'github-hosted'
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -188,16 +188,16 @@ jobs:
     runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only. Kept as-is (no toolchain pin): this
       # job's test assertions do not depend on the exact rustc patch version
       # (unlike rust-format/rust-clippy), and P2-E1 does not change fork-path
       # semantics (brief D2).
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
       - name: Cache cargo
         if: runner.environment == 'github-hosted'
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -236,14 +236,14 @@ jobs:
     runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only, kept as-is (no toolchain pin):
       # build/test assertions are not patch-version sensitive (brief D2).
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
       - name: Cache cargo
         if: runner.environment == 'github-hosted'
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -290,7 +290,7 @@ jobs:
         run: cp "$CARGO_TARGET_DIR/debug/media-agent" "$GITHUB_WORKSPACE/media-agent-linux-default-bin"
       # Upload goes through the runner agent channel, not git egress.
       - name: Upload media-agent Linux binary (default)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: media-agent-linux-default
           path: ${{ runner.environment == 'self-hosted' && 'media-agent-linux-default-bin' || 'services/media-agent/target/debug/media-agent' }}
@@ -319,10 +319,10 @@ jobs:
     env:
       DECKLINK_SDK_INCLUDE_HOST: /usr/local/share/decklink-sdk/include
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only: kept for boundary parity; the SDK build
       # itself never runs there (fork PRs have no SDK source by design).
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
       - name: install libclang (bindgen runtime dependency)
         if: runner.environment == 'github-hosted'
@@ -368,13 +368,13 @@ jobs:
           find "$CARGO_TARGET_DIR" -path '*/out/bindings.rs' -exec cp {} "$GITHUB_WORKSPACE/bindings-debug/" \;
       - name: debug-upload generated FFI bindings
         if: runner.environment == 'self-hosted'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: decklink-bindings-debug
           path: bindings-debug/bindings.rs
       - name: upload media-agent-linux (hardware-test binary for BMD)
         if: runner.environment == 'self-hosted'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: media-agent-linux
           path: media-agent-linux-hwtest-bin
@@ -403,10 +403,10 @@ jobs:
       DECKLINK_SDK_INCLUDE_HOST: /usr/local/share/decklink-sdk/include
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # GitHub-hosted (fork) path only: kept for boundary parity — the build
       # itself never runs there (fork PRs have no SDK source by design).
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: runner.environment == 'github-hosted'
       - name: install system deps (GStreamer dev + bindgen + protoc)
         if: runner.environment == 'github-hosted'
@@ -453,7 +453,7 @@ jobs:
         run: cp "$CARGO_TARGET_DIR/debug/media-agent" "$GITHUB_WORKSPACE/media-agent-linux-gst-bin"
       - name: upload media-agent-gstreamer-linux
         if: runner.environment == 'self-hosted'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: media-agent-gstreamer-linux
           path: media-agent-linux-gst-bin

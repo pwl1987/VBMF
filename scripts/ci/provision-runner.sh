@@ -214,16 +214,24 @@ fi
       --name "$NAME" --labels "$LABELS" ) \
   || fail "config.sh failed (token expired/used? generate a fresh one)"
 
-if [ -n "$RUNNER_PROXY" ]; then
-  cat > "$RUNNER_DIR/.env" <<EOF
-https_proxy=$RUNNER_PROXY
-http_proxy=$RUNNER_PROXY
-no_proxy=localhost,127.0.0.1
-EOF
-  chown "$RUNNER_USER:$RUNNER_USER" "$RUNNER_DIR/.env"
-  chmod 600 "$RUNNER_DIR/.env"
-  log "managed loopback proxy persisted in runner .env (value redacted)"
+ACTION_CACHE_DIR="$RUNNER_DIR/.action-archive-cache"
+install -d -m 700 -o "$RUNNER_USER" -g "$RUNNER_USER" "$ACTION_CACHE_DIR"
+ENV_FILE="$RUNNER_DIR/.env"
+ENV_TMP="$RUNNER_DIR/.env.vbmf.$$"
+if [ -f "$ENV_FILE" ]; then
+  grep -Ev '^(ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE|http_proxy|https_proxy|HTTP_PROXY|HTTPS_PROXY|no_proxy|NO_PROXY)=' "$ENV_FILE" > "$ENV_TMP" || true
+else
+  : > "$ENV_TMP"
 fi
+printf 'ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE=%s\n' "$ACTION_CACHE_DIR" >> "$ENV_TMP"
+if [ -n "$RUNNER_PROXY" ]; then
+  printf 'https_proxy=%s\nhttp_proxy=%s\nno_proxy=localhost,127.0.0.1\n' \
+    "$RUNNER_PROXY" "$RUNNER_PROXY" >> "$ENV_TMP"
+fi
+chown "$RUNNER_USER:$RUNNER_USER" "$ENV_TMP"
+chmod 600 "$ENV_TMP"
+mv "$ENV_TMP" "$ENV_FILE"
+log "immutable action archive cache configured; optional proxy value remains redacted"
 
 # ── next steps (NOT executed here; CI-RUNNER-SYSTEMD-01) ──────────────────────
 trap 'unset RUNNER_TOKEN' EXIT

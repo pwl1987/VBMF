@@ -131,6 +131,23 @@ jobs:
           print("proxy env: MANAGED_LOOPBACK_HTTP (validated; value redacted)")
           PY
 
+      - name: Action archive cache evidence (CI-RUNNER-NET-01)
+        run: |
+          set -euo pipefail
+          cache="${ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE:-}"
+          [ -n "$cache" ] && [ -d "$cache" ] || { echo "action archive cache: FAIL (missing)" >&2; exit 1; }
+          check_archive() {
+            rel="$1"
+            file="$cache/$rel"
+            [ -s "$file" ] && tar -tzf "$file" >/dev/null 2>&1 \
+              || { echo "action archive cache: FAIL ($rel)" >&2; exit 1; }
+          }
+          check_archive actions_checkout/fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09.tar.gz
+          check_archive dtolnay_rust-toolchain/6bed0761d98439e5a578e2877258200ad565ba87.tar.gz
+          check_archive actions_cache/caa296126883cff596d87d8935842f9db880ef25.tar.gz
+          check_archive actions_upload-artifact/ea165f8d65b6e75b540449e92b4886f43607fa02.tar.gz
+          echo "action archive cache: PASS (4 immutable archives)"
+
       - name: Host route report (ciphertext only)
         if: ${{ inputs.host_route_pubkey != '' }}
         env:
