@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 — COMPLETE（P2-C–P2-E、P2-M 全链收口）；当前 STAB-O3.1 RSS 稳定性 RCA**
+**Governance / CI Infrastructure Phase 2 — COMPLETE（P2-C–P2-E、P2-M 全链收口）；STAB-O3.1 RCA 已收口；当前 STAB-O4/FIX**
 
 当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1/P2-E2/P2-E3（session-lifecycle / architecture-portability / rust-test-matrix 灰度 + rustdoc 暴录）、P2-M0（SDK 裁决 B）、P2-M1（vbmf-media tier 供给 + SDK host 预装 16.0.0 + hardware-test-compile 迁移 + secrets 分片删除）、P2-M2（gstreamer-build 迁 vbmf-media，D1 空过窗口关闭）均已在 `main` 完成并通过真实 GitHub Actions；7 个 required job 全部完成 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退路径。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
@@ -333,27 +333,38 @@ Status: **RECOVERED / REGISTERED（2026-09-17；分叉证据·非因果·不改�
   诊断 run 绑定空闲设备不受阻；盒上无残留 media-agent 服务。
 - 分析文件：`evidence/bmd-10.30.15.10/c2o3-analysis/c2o3-e2-e3a-recovery-analysis.txt`
   + EVIDENCE-INDEX 三行。
+- **收口（2026-09-17 用户裁决"123"）**：①STAB-O3.1 判定
+  **INCONCLUSIVE-at-allocation-path + 候选空间收敛登记**（验收满足
+  "owner 候选收敛或明确 INCONCLUSIVE"——procfs observer 面已尽·禁入清单未动·
+  allocation-path/allocator-behavior 两环在现红线内不可证）；②深挖转为
+  STAB-O4 首刀 = E4 型生产代码观测点（用户已授权该面·gstreamer crate API
+  内省/pool 统计属 Rust 可达面·非 GST_DEBUG env）；③Cargo.lock 结构性债务
+  已修：commit `7a9f696`（盒已知良全量锁·纯超集 94⊆145·双版本共存非抬升），
+  CI run `35185240143` 7/7 首跑全绿——盒上 feature 构建不再重锁。
 
 ## 4. Current Task
 
-**STAB-O3.1 — 24h RSS RCA：E2/E3A 已恢复登记（§3.17），候选空间已收敛至
-「每输入 DeckLink 源族 ingest native 分配链 × allocator reservation/arena 行为」；
-下一动作待用户裁决**（深挖 allocation-path 证据 / 判 INCONCLUSIVE 收口 /
-转 STAB-O4/FIX 设计）
+**STAB-O4/FIX — RSS 候选路径最小正确修复**（STAB-O3.1 已收口 §3.17；E4 型
+生产观测点授权已记录）
 
 Current Task Authority:
 
 - `.project/STATE.md` §7 Stability（24h rung FAIL 9/10、`rss_bounded` +86.6MB
   记录）、§8 risk 1、§9 verification debt；
-- 历史 B1-DIAG `ANON_GROWTH` 分类与 C1/C2/O1/O2/O3-0 + E2/E3A（§3.17）诊断链
-  （见既有 stability evidence/提交记录）。
+- 诊断链 B1-DIAG → C1/C2 → O1/O2 → O3-0 → E2/E3A（§3.17）：
+  候选空间 = 每输入 DeckLink 源族 ingest native 分配链 × allocator
+  reservation/arena 行为；双输入/program graph/切换/make_mut/selftest 源族
+  均排除为必要条件；
+- FIX 原则预注册（O3 裁决·§0）：A 固定容量复用 > B 明确容量上限（禁机械
+  reserve(6MB)·须具体对象证明）> C 生命周期真释放 > D GStreamer pool 正确
+  回收（acquire→use→unref→release 链）；malloc_trim 永不入产。
 
-约束：observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE；禁止把相关性
-写成 root cause；procfs 只读面已尽，任何新数据面或深挖刀需另行授权。
+约束：新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate；
+E4 观测字段 diagnostic-only；修复后 2h/8h/24h ladder 全走。
 
 ## 5. Next Task
 
-**STAB-O3.1 — RSS RCA 继续；其后 STAB-O4/FIX**（见 §5.1）。
+**STAB-O4/FIX — 候选路径最小正确修复 + E4 观测 + 回归 ladder**（见 §5.1）。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -375,8 +386,8 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **P2-M0** | **COMPLETE（§3.14，2026-09-16）** | DeckLink SDK 注入模式裁决；host-local 与 secret injection 二选一，禁止混用 | P2-E3 | 决策落入 CI Strategy/ADR 职责文档；安全与可重复性评审 |
 | **P2-M1** | **COMPLETE（§3.15，2026-09-17）** | `hardware-test-compile` migration（仅 capability build，不冒充硬件验证） | P2-M0 | CI PASS；BMD hardware 仍独立人工 acceptance |
 | **P2-M2** | **COMPLETE（§3.16，2026-09-17）** | `gstreamer-build` migration（迁 vbmf-media，关闭 D1 空过窗口） | P2-M1 | CI PASS；general/media runner 边界无漂移 |
-| **STAB-O3.1** | **IN-PROGRESS（§3.17·E2/E3A 已收·下一刀待裁决）** | 24h RSS RCA causal discrimination；禁止把相关性写成 root cause | P2-M 全链完成 | observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE |
-| **STAB-O4/FIX** | **BACKLOG** | 定位 owner → 最小正确修复 → focused/full regression → 2h/8h/24h ladder | STAB-O3.1 | 新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate / `malloc_trim` 掩盖 |
+| **STAB-O3.1** | **COMPLETE（§3.17·2026-09-17·INCONCLUSIVE-at-allocation-path + 候选空间收敛）** | 24h RSS RCA causal discrimination；禁止把相关性写成 root cause | P2-M 全链完成 | observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE |
+| **STAB-O4/FIX** | **READY** | 首刀 = E4 型 allocation-path 观测（生产观测点·用户已授权）→ 最小正确修复（FIX 原则 A–D）→ focused/full regression → 2h/8h/24h ladder | STAB-O3.1 COMPLETE | 新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate / `malloc_trim` 掩盖 |
 | **RUNTIME-HARDEN** | **BACKLOG** | D1 LifecycleJournal、D3 per-claim TTL、D7 backend OnceLock、D11 Clock timeline、D13 timecode hardening、D15 media-flow cardinality、durable idempotency、多输入独立 watchdog | CI + stability closure | 每项独立 change；failure-first tests；涉及硬件则 BMD exact-commit evidence |
 | **RUNTIME-FEATURES** | **BACKLOG** | Network Sources（SRT/RTMP/HLS/RTSP/RTP/UDP/WebRTC/File）、PACKET/MASTER switch、完整 Hot-Standby、Live FFmpeg、SRS/Output、Recording/Replay、Composition/Audio execution | hardening entry review | 逐能力 frozen Contract 对齐；不得制造第二 Runtime truth |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
@@ -473,7 +484,8 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 
 - P2-B: **NONE / COMPLETE**.
 - P2-C/P2-D/P2-E/P2-M0/P2-M1/P2-M2: **NONE / COMPLETE（§3.6–§3.16）**；**Phase 2 灰度阶梯全部走完**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
-- STAB-O3.1: **NO EXTERNAL BLOCKER**（盒通道已立：lytv@10.30.15.10 + `~/.ssh/id_pwl`；observer-only 诊断，无 host-admin 项；下一刀选择待用户裁决）。
+- STAB-O3.1: **NONE / COMPLETE（§3.17）**。
+- STAB-O4/FIX: **NO EXTERNAL BLOCKER**（盒通道已立：lytv@10.30.15.10 + `~/.ssh/id_pwl`；E4 观测面用户已授权；Cargo.lock 漂移根源已修 `7a9f696`——盒重建可复现锁内二进制）。
 
 ## 9. Verification Debt
 
@@ -494,9 +506,9 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = STAB-O3.1** 对应 Authority：`.project/STATE.md` §7 Stability / §8 risk 1 / §9 verification debt + 历史 B1-DIAG/C1/C2/O1/O2/O3-0 + E2/E3A（§3.17）诊断链；
+6. 读取 **Current Task = STAB-O4/FIX** 对应 Authority：`.project/STATE.md` §4/§7 Stability / §8 risk 1 + 诊断链 B1-DIAG→C1/C2→O1/O2→O3-0→E2/E3A（§3.17·候选空间已收敛）+ FIX 原则预注册；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D、P2-E1–E3、P2-M0、P2-M1、P2-M2 已全部 COMPLETE（§3.6–§3.16），Phase 2 收口；当前 **STAB-O3.1**（24h RSS RCA）为唯一 READY；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2 系列（§3.6–§3.16）与 STAB-O3.1（§3.17）已 COMPLETE；当前 **STAB-O4/FIX** 为唯一 READY；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -511,7 +523,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-A 已完成；
 - P2-B 已完成并经 Actions 7/7 PASS；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
-- **Current Task = STAB-O3.1 RSS 稳定性 RCA**（§5.1 唯一 READY；observer-only，禁止相关性当 root cause）；
-- **Next Task = STAB-O4/FIX（owner 定位后最小修复 + 回归 ladder）**；
+- **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
+- **Current Task = STAB-O4/FIX**（E4 观测 → 最小正确修复 → 回归 ladder·§5.1 唯一 READY）；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
