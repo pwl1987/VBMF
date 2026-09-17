@@ -1,0 +1,414 @@
+schema: comet.native.v4
+name: p2-m1-media-tier-hardware-compile-migration
+language: zh-CN
+phase: archive
+status: done
+state_version: 10
+brief: brief.md
+shape_confirmation_hash: ff7d4a1d4790d8ee17fb9dd9cff659e23328bb59b2a4d4de2ba42f2e3831f84e
+spec_changes: []
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 2
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: "Scenario: repo 侧四件齐——`scripts/ci/pin-decklink-sdk.sh`、
+      `verify-decklink-sdk.sh`、`test-decklink-sdk-scripts.sh` 存在且测试全 PASS （含各
+      fail-closed 路径）；`collect-toolchain.sh` 含 SDK 段且回归测试保持 全 PASS。"
+    result: passed
+    reason:
+      text: "四脚本在位；独立 Verifier 静态核验 fail-closed 逻辑与检查计数；Runtime 实跑
+        test-decklink-sdk-scripts.sh RESULT: PASS (29) +
+        test-system-rust-scripts.sh RESULT: PASS (48)"
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: "Scenario: `vbmf-ci-media` 上线——API 可见、online、labels exact
+      {self-hosted,Linux,X64,vbmf,vbmf-media}；probe（tier=vbmf-media）PASS； Rust
+      V1–V6 PASS（1.98.1）+ SDK V1–V4 PASS（16.0.0）+ manifest 双记录落盘。"
+    result: passed
+    reason:
+      text: API 证据 vbmf-ci-media online + labels exact
+        {self-hosted,Linux,X64,vbmf,vbmf-media}；probe run 35171303939 success @
+        vbmf-ci-media；host V 门与 manifest 记录见 STATE §3.15 并由 A5 生产 CI
+        实跑佐证；Runtime check m1x-runner-v2=online
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: "Scenario: workflow 迁移——条件 runs-on（vbmf-media）；`DECKLINK_SDK_HEADERS_1/2`
+      /`DECKLINK_SDK_VERSION` env、unpack、`_private` cleanup 步全删；self-hosted
+      fail-closed SDK 验证步存在；github-hosted（fork）路径空过语义不变。"
+    result: passed
+    reason:
+      text: git diff 4f07914..5007096 单 hunk 限于 hardware-test-compile：条件 runs-on
+        vbmf-media 新增；secrets env/unpack/_private cleanup 全删；fail-closed SDK
+        步在位；gstreamer-build job 体未动
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: "Scenario: GitHub secrets 三分片（`DECKLINK_SDK_HEADERS_1/2` +
+      `DECKLINK_SDK_VERSION`）已删除，`gh secret list` 留证。"
+    result: passed
+    reason:
+      text: gh secret list 空 + API total_count=0；三分片 DECKLINK_SDK_HEADERS_1/2 +
+        DECKLINK_SDK_VERSION 删除；Runtime check m1x-secrets-v2=0
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: "Scenario: 最终 HEAD CI 7/7 全绿（允许出网窗 rerun）；hardware-test-compile 实跑在
+      vbmf-ci-media——log 中 runner_name + `cargo build --features hardware-test`
+      退出 0 + `media-agent-linux` artifact 上传成功（非空过）。"
+    result: passed
+    reason:
+      text: "run 35173987951 (HEAD 5007096) 7/7 全绿且 job 名与 branch protection required
+        contexts 精确一致；run 35172539232 hardware-test-compile runner=vbmf-ci-media
+        实跑：log 'DeckLink SDK: 16.0.0 (host-preprovisioned)' + media-agent-linux
+        6495056B + decklink-bindings-debug 15872B 非空过；Runtime check
+        m1x-ci-v2=success"
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: "Scenario: Strategy §15.3 义务 1（media tier runbook）与 §15.11（出网缓解） 落盘；STATE
+      §3.15 收口 + P2-M2 转 READY；gstreamer-build 空过窗口按 D1 裁决口径显式记录，required
+      context 仍绿。"
+    result: passed
+    reason:
+      text: Strategy §15.10/§15.11 在位；STATE §3.15 COMPLETE + §5.1 P2-M1 COMPLETE/P2-M2
+        READY；gstreamer-build 空过窗口显式记录且实证（35172539232 有 gstreamer artifact
+        11683790B、最终 run 无而 context 仍绿）；Runtime check m1x-state-v2=MARKERS_OK
+      truncated: false
+builder_handoff:
+  candidate_id: 4dcc61ad-d631-4ea0-8658-e65dc6a36935
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:25ef27d2-c260-4417-bff8-5ea55d77657c
+  iteration: 1
+  summary:
+    text: P2-M1 完整实施（三段式）：段1 repo 侧 commit c351edd（SDK pin/verify/collect/test 四脚本 +
+      Strategy §15.10/§15.11 + probe allowlist += vbmf-media）；RCA 修正 commit
+      11e9dfb（DeckLinkAPIDispatch 是 .cpp 非 .h，核心四头含 DeckLinkAPITypes.h）；段2 host
+      侧五项授权操作（KVM VM vbmf-ci-media 8C16G100G、系统库
+      libclang-21/GStreamer1.28.2dev/protoc、runner 注册 labels exact、Rust 1.98.1
+      pin、SDK 16.0.0 host pin、manifest、probe PASS @ vbmf-ci-media）；段3 workflow
+      commit 7196a0a（条件 runs-on vbmf-media、删 secrets env/unpack/_private
+      cleanup、self-hosted fail-closed SDK 步、target-hwtest 外置、staging 拷贝上传）；STATE
+      收口 commit 5007096（§3.15、队列 P2-M2 READY、risk 8 补 2026-09-17 窗）。GitHub
+      secrets 三分片已删（gh secret list 空）。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+  checks:
+    - name:
+        text: test-decklink-sdk-scripts.sh
+        truncated: false
+      result: passed
+      note:
+        text: 29/29 PASS 本地 Development VM
+        truncated: false
+    - name:
+        text: test-system-rust-scripts.sh
+        truncated: false
+      result: passed
+      note:
+        text: 48/48 PASS 回归无破坏
+        truncated: false
+    - name:
+        text: verify-runner.sh --name vbmf-ci-media
+        truncated: false
+      result: passed
+      note:
+        text: R1-R5 PASS，labels exact {self-hosted,Linux,X64,vbmf,vbmf-media}
+        truncated: false
+    - name:
+        text: ci-infra-probe tier=vbmf-media
+        truncated: false
+      result: passed
+      note:
+        text: run 35171303939 success runner=vbmf-ci-media，rustc /usr/local/bin 1.98.1
+        truncated: false
+    - name:
+        text: verify-system-rust.sh on media host
+        truncated: false
+      result: passed
+      note:
+        text: V1-V6 全 PASS，幂等双 pin
+        truncated: false
+    - name:
+        text: verify-decklink-sdk.sh on media host
+        truncated: false
+      result: passed
+      note:
+        text: V1-V4 全 PASS，42 头，VERSION 16.0.0；manifest decklink_sdk 段落盘
+        truncated: false
+    - name:
+        text: CI run 35172539232
+        truncated: false
+      result: passed
+      note:
+        text: "7/7（一次出网窗 checkout GnuTLS rerun 后全绿）；hardware-test-compile @
+          vbmf-ci-media 实跑：log 'DeckLink SDK: 16.0.0 (host-preproperly
+          preprovisioned)'、media-agent-linux 6495056B、decklink-bindings-debug
+          15872B"
+        truncated: false
+    - name:
+        text: CI run 35173987951
+        truncated: false
+      result: passed
+      note:
+        text: 最终 HEAD 5007096 7/7 首跑全绿；gstreamer-build secrets 删除后空过绿（D1 裁决口径）
+        truncated: false
+    - name:
+        text: gh secret list
+        truncated: false
+      result: passed
+      note:
+        text: 空——DECKLINK_SDK_HEADERS_1/2 + DECKLINK_SDK_VERSION 已删
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: gstreamer-build 空过窗口开启至 P2-M2（用户裁决 D1）
+      truncated: false
+    - text: media VM 与双 general 机同 devbox 物理故障域（risk 3 既有口径）
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-17T02:25:57.672Z
+blockers: []
+verification:
+  candidate_id: 4dcc61ad-d631-4ea0-8658-e65dc6a36935
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:27fdb1e0-133c-48ad-bd3f-925effbc0dbb
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: chk-m1-scripts
+      name:
+        text: decklink script tests
+        truncated: false
+      argv_display:
+        - text: scripts/ci/test-decklink-sdk-scripts.sh
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 391
+    - id: chk-m1-rustreg
+      name:
+        text: system rust script regression
+        truncated: false
+      argv_display:
+        - text: scripts/ci/test-system-rust-scripts.sh
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1727
+    - id: chk-m1-runner
+      name:
+        text: vbmf-ci-media online
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh api repos/pwl1987/VBMF/actions/runners --jq '.runners[] |
+            select(.name=="vbmf-ci-media") | .status'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1063
+    - id: chk-m1-ci
+      name:
+        text: final HEAD CI conclusion
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh run view 35173987951 --json conclusion --jq .conclusion
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1507
+    - id: chk-m1-secrets
+      name:
+        text: SDK secrets total_count
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh api repos/pwl1987/VBMF/actions/secrets --jq .total_count
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1091
+    - id: chk-m1-state
+      name:
+        text: STATE closure markers
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: grep -c 'COMPLETE（§3.15' .project/STATE.md; grep -c '15.10'
+            docs/architecture/CI_RUNNER_STRATEGY.md
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 7
+    - id: m1x-scripts-v2
+      name:
+        text: decklink script tests
+        truncated: false
+      argv_display:
+        - text: scripts/ci/test-decklink-sdk-scripts.sh
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 383
+    - id: m1x-rustreg-v2
+      name:
+        text: system rust script regression
+        truncated: false
+      argv_display:
+        - text: scripts/ci/test-system-rust-scripts.sh
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1751
+    - id: m1x-runner-v2
+      name:
+        text: vbmf-ci-media online
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh api repos/pwl1987/VBMF/actions/runners --jq '.runners[] |
+            select(.name=="vbmf-ci-media") | .status'
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1027
+    - id: m1x-ci-v2
+      name:
+        text: final HEAD CI conclusion
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh run view 35173987951 --json conclusion --jq .conclusion
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1507
+    - id: m1x-secrets-v2
+      name:
+        text: SDK secrets total_count
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: gh api repos/pwl1987/VBMF/actions/secrets --jq .total_count
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1138
+    - id: m1x-state-v2
+      name:
+        text: STATE closure markers
+        truncated: false
+      argv_display:
+        - text: -c
+          truncated: false
+        - text: grep -q 'COMPLETE（§3.15' .project/STATE.md && grep -q '### 15.10'
+            docs/architecture/CI_RUNNER_STRATEGY.md && grep -q '### 15.11'
+            docs/architecture/CI_RUNNER_STRATEGY.md && echo MARKERS_OK
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 9
+  summary:
+    text: 6/6 验收独立核验通过；Runtime 6 项机械检查全过（含测试套件实跑 29/29+48/48，补齐 Verifier
+      只读约束下无法执行的缺口）。证据链：repo diff 审计 + GitHub
+      API（runner/probe/secrets/runs/artifacts/branch protection）+ Runtime 实跑。
+    truncated: false
+  risks:
+    - text: gstreamer-build 空过窗口开启至 P2-M2（用户裁决 D1）；media VM 与双 general 机同 devbox
+        物理故障域（risk 3 既有）
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-09-17T02:36:04.026Z
+history:
+  - goal_cycle: 1
+    iteration: 0
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-09-17T00:32:16.920Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 6/6 验收独立核验通过；Runtime 6 项机械检查全过（含测试套件实跑 29/29+48/48，补齐 Verifier
+        只读约束下无法执行的缺口）。证据链：repo diff 审计 + GitHub
+        API（runner/probe/secrets/runs/artifacts/branch protection）+ Runtime 实跑。
+      truncated: false
+    completed_at: 2026-09-17T02:36:04.026Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-09-17T00:23:51.668Z
