@@ -1,0 +1,1 @@
+ 992634 Sl   13-07:38:22 gst-launch-1.0 -e videotestsrc is-live=true pattern=ball ! video/x-raw,format=UYVY,width=1920,height=1080,framerate=25/1 ! decklinkvideosink device-number=2 mode=1080p25

@@ -1,0 +1,9 @@
+commit=92d60075161ef080b599ce69a89a482b3798786b
+archive_sha256=1007ac91de95a861382488abfc5051f660eb96b56e981951d94faa403504536d
+manifest
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+gst-launch-1.0 version 1.28.2
+00df7c1b349c7e414a5e2f96cb739c25635170df50fce6b5f55c7ac40f31cf0d  target/debug/media-agent
+820e7cdff9425d33d44d45864b02fa8bf4856c108ee1007bcd66ccfa1b6a161a  target/debug/media-agent-gates

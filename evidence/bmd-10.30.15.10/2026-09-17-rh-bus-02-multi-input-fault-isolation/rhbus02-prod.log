@@ -1,0 +1,155 @@
+[2m2026-09-17T14:33:12.273921Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"gstreamer" [3mmode[0m[2m=[0m"diagnostic"
+[2m2026-09-17T14:33:12.278712Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-17T14:33:12.278829Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-17T14:33:12.278870Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-17T14:33:12.278894Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-17T14:33:12.278918Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-17T14:33:12.278952Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-17T14:33:12.278992Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+[2m2026-09-17T14:33:16.646600Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m2 [3merror[0m[2m=[0mStateFailed: device-number 2: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-17T14:33:16.646697Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m3 [3merror[0m[2m=[0mStateFailed: device-number 3: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-17T14:33:16.646737Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m4 [3merror[0m[2m=[0mStateFailed: device-number 4: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-17T14:33:16.646773Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m5 [3merror[0m[2m=[0mStateFailed: device-number 5: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-17T14:33:16.646809Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m6 [3merror[0m[2m=[0mStateFailed: device-number 6: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-17T14:33:16.646845Z[0m [33m WARN[0m [2mmedia_agent[0m[2m:[0m GStreamer 单设备名 探测失败 (已分类, 不再静默丢弃) [3mdevice_number[0m[2m=[0m7 [3merror[0m[2m=[0mStateFailed: device-number 7: set_state(Playing) 同步返回失败 (无 bus 错误明细)
+[2m2026-09-17T14:33:16.647276Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m BMD SDK runtime identity (provenance) [3mdetected_sdk[0m[2m=[0msdk_include=/home/lytv/decklink-sdk-include;lib=/usr/lib/libDeckLinkAPI.so;lib_bytes=8851504
+[2m2026-09-17T14:33:16.647681Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-17T14:33:16.647765Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+WARN: sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-17T14:33:16.648630Z[0m [33m WARN[0m [2mmedia_agent::pipeline[0m[2m:[0m sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-17T14:33:16.648667Z[0m [33m WARN[0m [2mmedia_agent::pipeline[0m[2m:[0m sink.kind=rtmp 但 VBMF_OUTPUT_RTMP_URL 未设 ⇒ 降级纯分析 (fail-soft)
+[2m2026-09-17T14:33:16.868292Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m GStreamer runtime version (evidence) [3mgst_version[0m[2m=[0m(1, 28, 2, 0)
+[2m2026-09-17T14:33:16.868319Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m P0-7A Session create+start 全链通过 (SessionManager owner) [3msession[0m[2m=[0msession-954164bccb284c029b7d484cf9d958cd
+[2m2026-09-17T14:33:16.912596Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m A2-8-02-E Execution Group 就绪: ProgramExecutionRuntime 接管 (program 资源唯一 owner), MultiInputWatchdog 四观测面启动, Session 停止链经 hook 接 teardown [v1 topology=测试源仿真; 真机 SDI inter 系+MediaTap=A2-8-02-F] [3mgraph_handle[0m[2m=[0m3 [3minitial_active[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-17T14:33:16.912838Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m media-agent canonical runtime loaded (health :8080; ingest via GStreamer started on lease acquire)
+[2m2026-09-17T14:33:16.912994Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二) [3mbind[0m[2m=[0m127.0.0.1:18082
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.217: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.217: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.217: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.217: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.217: gst_video_converter_free: assertion 'convert != NULL' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.217: gst_video_converter_free: assertion 'convert != NULL' failed
+[2m2026-09-17T14:33:17.413078Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m MEDIA-RT-01 bus watch 首次接获真实 GStreamer Bus 事件 (P1-4 接线生效) [3mhandle[0m[2m=[0m1 [3mkinds[0m[2m=[0m["StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "Warning", "StateChanged", "StateChanged", "StateChanged", "StateChanged"]
+[2m2026-09-17T14:33:17.413211Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413244Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413269Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413293Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413336Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413362Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413386Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413410Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413433Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413457Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413481Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.413505Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413530Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413553Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413577Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413601Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413625Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413649Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413674Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413697Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413722Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413745Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.413769Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413793Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413817Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413847Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413872Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413896Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413920Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413944Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413968Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.413992Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.414016Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.414040Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414063Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Paused
+[2m2026-09-17T14:33:17.414087Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414115Z[0m [33m WARN[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus Warning (可恢复异常, 记录不重启) [3mhandle[0m[2m=[0m1 [3mseverity[0m[2m=[0mWarning [3mdetail[0m[2m=[0mSignal lost
+[2m2026-09-17T14:33:17.414145Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414169Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414220Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Paused
+[2m2026-09-17T14:33:17.414245Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.414317Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m MEDIA-RT-01 bus watch 首次接获真实 GStreamer Bus 事件 (P1-4 接线生效) [3mhandle[0m[2m=[0m2 [3mkinds[0m[2m=[0m["StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "StateChanged", "Warning", "StateChanged", "StateChanged", "StateChanged", "StateChanged"]
+[2m2026-09-17T14:33:17.414366Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414399Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414425Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414449Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414472Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414496Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414520Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414544Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414567Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414591Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414615Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.414639Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414662Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414686Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414710Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414733Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414757Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414781Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414805Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414828Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414852Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414876Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.414905Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.414930Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.414955Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.414979Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415003Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415026Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415050Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415074Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415097Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415121Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415144Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415168Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.415205Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Paused
+[2m2026-09-17T14:33:17.415235Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mNull -> Ready
+[2m2026-09-17T14:33:17.415260Z[0m [33m WARN[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus Warning (可恢复异常, 记录不重启) [3mhandle[0m[2m=[0m2 [3mseverity[0m[2m=[0mWarning [3mdetail[0m[2m=[0mSignal lost
+[2m2026-09-17T14:33:17.415288Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.415312Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mReady -> Paused
+[2m2026-09-17T14:33:17.415335Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Paused
+[2m2026-09-17T14:33:17.415359Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.415553Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m0 [3mbatch[0m[2m=[0m15 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mNone [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=None", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=None"]
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.729: gst_video_converter_new_with_pool: assertion 'in_info->interlace_mode == out_info->interlace_mode' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.729: gst_video_converter_frame: assertion 'convert != NULL' failed
+
+(media-agent:3345030): GStreamer-Video-CRITICAL **: 22:33:17.729: gst_video_converter_free: assertion 'convert != NULL' failed
+[2m2026-09-17T14:33:17.915937Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.916047Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.916127Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:17.916165Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m2 [3mdetail[0m[2m=[0mPaused -> Playing
+[2m2026-09-17T14:33:27.421572Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m20 [3mbatch[0m[2m=[0m0 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mSome(true) [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=Some(None)", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=Some(None)"]
+[2m2026-09-17T14:33:37.426938Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m40 [3mbatch[0m[2m=[0m0 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mSome(true) [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=Some(None)", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=Some(None)"]
+[2m2026-09-17T14:33:46.648761Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m E4_INGEST_ANATOMY [3mhandle[0m[2m=[0m2 [3manatomy[0m[2m=[0m{"video":{"buffers":722,"bytes_total":3987541440,"size_min_bytes":699840,"size_max_bytes":5529600,"sizes":[[699840,1],[5529600,721]],"sizes_overflow":0,"meta_counts":[[97043468548512,"GstReferenceTimestampMetaAPI",1444]],"meta_overflow":0,"no_pts":0,"pts_last_ns":29646512845,"pts_delta_min_ns":39986256,"pts_delta_max_ns":510201999,"pts_backward":0},"audio":{"buffers":724,"bytes_total":11118088,"size_min_bytes":12808,"size_max_bytes":15360,"sizes":[[12808,1],[15360,723]],"sizes_overflow":0,"meta_counts":[[97043468548512,"GstReferenceTimestampMetaAPI",1448]],"meta_overflow":0,"no_pts":0,"pts_last_ns":29725979166,"pts_delta_min_ns":33334399,"pts_delta_max_ns":516867600,"pts_backward":0},"bus_msgs_total":65}
+[2m2026-09-17T14:33:46.648952Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m E4_INGEST_ANATOMY [3mhandle[0m[2m=[0m1 [3manatomy[0m[2m=[0m{"video":{"buffers":722,"bytes_total":3987541440,"size_min_bytes":699840,"size_max_bytes":5529600,"sizes":[[699840,1],[5529600,721]],"sizes_overflow":0,"meta_counts":[[97043468548512,"GstReferenceTimestampMetaAPI",1444]],"meta_overflow":0,"no_pts":0,"pts_last_ns":29644246639,"pts_delta_min_ns":39988373,"pts_delta_max_ns":510283378,"pts_backward":0},"audio":{"buffers":724,"bytes_total":11118088,"size_min_bytes":12808,"size_max_bytes":15360,"sizes":[[12808,1],[15360,723]],"sizes_overflow":0,"meta_counts":[[97043468548512,"GstReferenceTimestampMetaAPI",1448]],"meta_overflow":0,"no_pts":0,"pts_last_ns":29724229166,"pts_delta_min_ns":33342776,"pts_delta_max_ns":516940602,"pts_backward":0},"bus_msgs_total":65}
+[2m2026-09-17T14:33:47.432328Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m60 [3mbatch[0m[2m=[0m0 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mSome(true) [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=Some(None)", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=Some(None)"]
+[2m2026-09-17T14:33:57.437727Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m80 [3mbatch[0m[2m=[0m0 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mSome(true) [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=Some(None)", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=Some(None)"]
+[2m2026-09-17T14:34:07.443019Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-03-01-G 组 watchdog 活体观测行 (诊断输出, 零决策语义) [3mtick[0m[2m=[0m100 [3mbatch[0m[2m=[0m0 [3mcustody_evidence[0m[2m=[0m0 [3mprogram_advancing[0m[2m=[0mSome(true) [3minputs[0m[2m=[0m["4fa33dcb-5f76-5f76-aea8-330df7ada03e observed=true advancing=true bridge=Some(true) domain=Some(None)", "6ede00d0-baf4-573f-a0dd-4a503bf7f766 observed=true advancing=true bridge=Some(true) domain=Some(None)"]
+
+(media-agent:3345030): GStreamer-CRITICAL **: 22:34:14.317: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:3345030): GStreamer-CRITICAL **: 22:34:14.317: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:3345030): GStreamer-CRITICAL **: 22:34:14.318: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+
+(media-agent:3345030): GStreamer-CRITICAL **: 22:34:14.318: gst_pad_unlink: assertion 'GST_PAD_IS_SRC (srcpad)' failed
+[2m2026-09-17T14:34:14.318689Z[0m [32m INFO[0m [2mmedia_agent::program_execution[0m[2m:[0m A2-8-02-E Program Execution Runtime teardown 完成（Program Stop→Tap Detach） [3msession[0m[2m=[0m954164bc-cb28-4c02-9b7d-484cf9d958cd [3mgraph[0m[2m=[0m3
+[2m2026-09-17T14:34:14.446766Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPlaying -> Paused
+[2m2026-09-17T14:34:14.446855Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Ready
+[2m2026-09-17T14:34:14.446893Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Null
+[2m2026-09-17T14:34:14.446929Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPlaying -> Paused
+[2m2026-09-17T14:34:14.446963Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mPaused -> Ready
+[2m2026-09-17T14:34:14.446997Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m Bus StateChanged (生命周期事件) [3mhandle[0m[2m=[0m1 [3mdetail[0m[2m=[0mReady -> Null
+[2m2026-09-17T14:34:14.447164Z[0m [32m INFO[0m [2mmedia_agent::watchdog[0m[2m:[0m A2-8-02-E group watchdog: 停止旗置位, 观测线程退出
