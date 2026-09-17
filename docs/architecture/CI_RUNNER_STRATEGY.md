@@ -215,7 +215,7 @@ VBMF CI RUNNER PHASE-1 READY
 | Job（required context） | 目标层 | 说明 |
 |---|---|---|
 | rust-format / rust-clippy / rust-test-matrix / session-lifecycle / architecture-portability | `vbmf-general` | 纯 Rust+Python3 |
-| hardware-test-compile / gstreamer-build | `vbmf-media` | 需 libclang / GStreamer dev / protobuf / DeckLink SDK 头（secret 注入） |
+| hardware-test-compile / gstreamer-build | `vbmf-media` | 需 libclang / GStreamer dev / protobuf / DeckLink SDK 头（host 预装，§15.3 裁决 B） |
 
 迁移风险清单（Phase 2 评审输入）：
 
@@ -354,8 +354,8 @@ sudo bash -c 'rm -f /data/actions-runners/vbmf/packages/actions-runner-linux-x64
 | Runner | 标签（exact set） | 职责 | 状态 |
 |---|---|---|---|
 | `vbmf-ci-01` | `self-hosted,Linux,X64,vbmf,vbmf-general` | General CI | ✅ 在役（Phase 1） |
-| `vbmf-ci-02` | 同上（parity 通过并轨后） | General 并发 / 维护冗余 / A-B parity / 滚动升级 | 🟡 规划 |
-| `vbmf-ci-media` | `self-hosted,Linux,X64,vbmf,vbmf-media` | hardware-test-compile / gstreamer-build（目标载体） | 🟡 规划 |
+| `vbmf-ci-02` | 同上（parity 通过并轨后） | General 并发 / 维护冗余 / A-B parity / 滚动升级 | ✅ 在役（P2-A 并轨） |
+| `vbmf-ci-media` | `self-hosted,Linux,X64,vbmf,vbmf-media` | hardware-test-compile / gstreamer-build（目标载体） | ✅ 在役（P2-M1/P2-M2 两 job 实跑） |
 | BMD 实机 | `hardware-acceptance`（永不写入任何 workflow） | 真硬件验收 | 🔴 永走 §9 人工线（GATE-C） |
 
 - 命名沿用 §2 冻结表（tier 语义归标签，机器名不承载路由）。
