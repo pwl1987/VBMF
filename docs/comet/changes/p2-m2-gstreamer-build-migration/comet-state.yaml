@@ -3,7 +3,7 @@ name: p2-m2-gstreamer-build-migration
 language: zh-CN
 phase: build
 status: active
-state_version: 3
+state_version: 10
 brief: brief.md
 shape_confirmation_hash: 8f2fa75b54d335cc00287347c24b9c7a6f93abab5f4fa44e1d7da123c1480f96
 spec_changes: []
@@ -13,9 +13,9 @@ workspace:
   target_branch: main
   finish: null
 loop:
-  stage: building
+  stage: repairing
   goal_cycle: 1
-  iteration: 1
+  iteration: 2
   attempt: 0
   retry_epoch: 0
   failed_iteration_count: 0
@@ -62,10 +62,142 @@ acceptance:
       COMPLETE、P2-M 全链完成登记；Current Task 指向 STAB-O3.1。"
     result: pending
     reason: null
-builder_handoff: null
+builder_handoff:
+  candidate_id: 2a61e468-83ef-4c54-b49a-07e59ca30d1e
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:34bc0be9-11fd-4385-b677-e5c10b30a894
+  iteration: 1
+  summary:
+    text: "P2-M2 单 commit 0c4bbd1（已 push，CI run 35177980436 7/7 首跑全绿零
+      rerun）。gstreamer-build 迁 vbmf-media：条件 runs-on（vbmf-media tier 表达式与 P2-M1
+      逐字同构）；secrets env（DECKLINK_SDK_HEADERS_1/2、DECKLINK_SDK_VERSION）+
+      workspace _private unpack + if:always() cleanup 全删；self-hosted fail-closed
+      门 = SDK（目录+DeckLinkAPI.h+VERSION=16.0.0）+ pkg-config
+      gstreamer-1.0/gstreamer-plugins-base-1.0（D2）；§3.6 RCA GITHUB_ENV
+      契约（RUSTUP_HOME/usr/local + checkout 外 .cargo-home + 独立 target-gstbuild +
+      DECKLINK_SDK_INCLUDE 导出 + caller RUSTUP_TOOLCHAIN 拒绝）；cargo build
+      --features bmd,gstreamer 真实构建（Finished dev 53.26s）；staging 拷贝 +
+      upload-artifact v4。fork 路径 checkout+dtolnay+apt 保留 github-hosted
+      门控（D3，语义零变化）。Strategy 事实同步：§15.1 vbmf-ci-02/vbmf-ci-media 行翻 ✅ 在役（D4）、§10
+      L218 secret 注入改 host 预装口径。实测证据：job 105063812333 @ runner
+      vbmf-ci-media（labels exact self-hosted/Linux/X64/vbmf/vbmf-media），log
+      'DeckLink SDK: 16.0.0 (host-preprovisioned); GStreamer dev:
+      1.28.2'，artifact media-agent-gstreamer-linux 12331677B 非空——D1 空过窗口关闭。无
+      host-admin 项、零脚本改动、无 BMD 硬件动作。STATE §3.16 收口按既定流程在验收接受后随 archive 落盘（P2-M1
+      同模式）。"
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+  checks:
+    - name:
+        text: "structural: other 6 jobs byte-identical vs origin/main (comment-stripped
+          job-block diff)"
+        truncated: false
+      result: passed
+      note:
+        text: diff jobs = ['gstreamer-build'] only; python jobsplit assertion
+        truncated: false
+    - name:
+        text: "structural: gstreamer-build zero secrets/_private residue + job id/name +
+          vbmf-media runs-on"
+        truncated: false
+      result: passed
+      note:
+        text: grep assertions in jobsplit script
+        truncated: false
+    - name:
+        text: "structural: yaml parse + step gates (self-hosted/github-hosted) + build
+          cmd + workflow invariants (triggers push/pull_request, permissions
+          contents:read)"
+        truncated: false
+      result: passed
+      note:
+        text: PyYAML structural checks; pull_request_target only in safety comment,
+          trigger keys verified
+        truncated: false
+    - name:
+        text: git diff --check whitespace
+        truncated: false
+      result: passed
+      note: null
+    - name:
+        text: "CI run 35177980436 (push main 0c4bbd1): 7/7 required PASS first try"
+        truncated: false
+      result: passed
+      note:
+        text: gh run watch exit 0; no rerun; zero egress window
+        truncated: false
+    - name:
+        text: gstreamer-build runner identity + fail-closed gate logs
+        truncated: false
+      result: passed
+      note:
+        text: "job 105063812333 @ vbmf-ci-media, labels exact; 'DeckLink SDK: 16.0.0
+          (host-preprovisioned); GStreamer dev: 1.28.2'; Finished dev 53.26s"
+        truncated: false
+    - name:
+        text: artifact media-agent-gstreamer-linux non-empty (D1 window closed)
+        truncated: false
+      result: passed
+      note:
+        text: 12331677B via run artifacts API
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: fork/github-hosted path verified by structure review only (no live fork PR
+        exists — same standing residual as P2-C4, first external fork PR will be
+        checked via runner_name)
+      truncated: false
+    - text: STATE/Strategy closure edits land with the archive commit after user
+        acceptance (P2-M1 pattern); A5 completion pending at handoff time
+      truncated: false
+    - text: codeload action-download egress residual unchanged (rerun protocol, risk
+        8) — not exercised this run
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-09-17T03:30:07.766Z
 blockers: []
 verification: null
-history: []
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: execution-error
+    unresolved_ids: []
+    summary:
+      text: "Native Verifier response was invalid: Native verification cannot pass
+        before every required check succeeds"
+      truncated: false
+    completed_at: 2026-09-17T03:41:37.973Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 2
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 5/5 acceptance 独立验证通过。单 commit 0c4bbd1（== HEAD == origin/main，基线
+        8238f0b）仅迁 gstreamer-build 到 vbmf-media 条件 runner（P2-M1 逐字模式），删除全部
+        secrets/_private 管线，新增 fail-closed SDK+pkg-config 门与 §3.6 GITHUB_ENV
+        Rust 契约，恢复真实 bmd,gstreamer 构建（artifact 12331677B，D1 窗口关闭）。CI 7/7 首跑全绿零
+        rerun，context 名称不变；Strategy 事实同步随 commit；STATE 收口按记录契约 deferred 到验收后
+        archive，当前无虚假声明。Runtime 5/5 检查全部 passed（含 ANSI 容错的 build-log
+        证据检查，attempt 1 的缺陷检查已被替换且其缺陷为检查侧 grep 正则，非实现缺陷）。
+      truncated: false
+    completed_at: 2026-09-17T03:49:30.791Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 2
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Observed implementation write before .project/STATE.md
+      truncated: false
+    completed_at: 2026-09-17T03:51:20.576Z
 history_overflow:
   dropped_entries: 0
   first_dropped_at: null

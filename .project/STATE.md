@@ -41,9 +41,9 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 — self-hosted runner 分批灰度（P2-C–P2-E、P2-M0、P2-M1 收口，当前 P2-M2 gstreamer-build 迁移）**
+**Governance / CI Infrastructure Phase 2 — COMPLETE（P2-C–P2-E、P2-M 全链收口）；当前 STAB-O3.1 RSS 稳定性 RCA**
 
-当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1/P2-E2/P2-E3（session-lifecycle / architecture-portability / rust-test-matrix 灰度 + rustdoc 暴录）、P2-M0（SDK 裁决 B）、P2-M1（vbmf-media tier 供给 + SDK host 预装 16.0.0 + hardware-test-compile 迁移 + secrets 分片删除）均已在 `main` 完成并通过真实 GitHub Actions；当前推进 P2-M2。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
+当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1/P2-E2/P2-E3（session-lifecycle / architecture-portability / rust-test-matrix 灰度 + rustdoc 暴录）、P2-M0（SDK 裁决 B）、P2-M1（vbmf-media tier 供给 + SDK host 预装 16.0.0 + hardware-test-compile 迁移 + secrets 分片删除）、P2-M2（gstreamer-build 迁 vbmf-media，D1 空过窗口关闭）均已在 `main` 完成并通过真实 GitHub Actions；7 个 required job 全部完成 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退路径。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
 VBMF 的永久产品定位保持：
 
@@ -272,24 +272,57 @@ Status: **COMPLETE（2026-09-17）**
   run `35172539232` 首次尝试，rerun 收口）；缓解同日扩展到 media host
   （git system proxy → 网关 8118，模式与双 general 机一致，红线兼容）。
 
+### 3.16 P2-M2 — `gstreamer-build` 迁移 vbmf-media tier（P2-M 全链收口）
+
+Status: **COMPLETE（2026-09-17）**
+
+- 单 commit `0c4bbd1`（基线 `8238f0b`）：条件 `runs-on`（vbmf-media，P2-M1 逐字
+  模式）；secrets env（`DECKLINK_SDK_HEADERS_1/2`/`DECKLINK_SDK_VERSION`）+
+  `_private` unpack + `if: always()` cleanup 全删；self-hosted fail-closed 门 =
+  SDK 16.0.0（P2-M1 同款）**+ pkg-config `gstreamer-1.0`/
+  `gstreamer-plugins-base-1.0` 门（D2 新增）**；§3.6 RCA GITHUB_ENV 契约 +
+  独立 `target-gstbuild`；staging 拷贝 + upload-artifact v4；fork 路径
+  checkout+dtolnay+apt 保留 github-hosted 门控（D3，语义零变化）；
+- Strategy 事实同步：§15.1 `vbmf-ci-02`/`vbmf-ci-media` 行翻 ✅ 在役（D4，
+  ci-02 为 P2-A 历史欠账）、§10 L218 "（secret 注入）" → "（host 预装，§15.3
+  裁决 B）"；
+- CI run `35177980436`（push main `0c4bbd1`，run_attempt 1）：**7/7 required
+  首跑全绿，零 rerun、零出网窗**；`gstreamer-build` @ **vbmf-ci-media**
+  （job `105063812333`，labels exact）；log `DeckLink SDK: 16.0.0
+  (host-preprovisioned); GStreamer dev: 1.28.2`；真实构建 109 crates
+  `Finished dev 53.26s`；
+- **D1 空过窗口关闭**：artifact `media-agent-gstreamer-linux` 恢复非空
+  （12331677B）；P2-M1 删 secrets 后的空过绿过渡态结束；
+- 结构断言：其余 6 job byte-identical（基线 `8238f0b`，comment-stripped
+  job-block diff）；workflow 级 triggers/permissions/concurrency/defaults 不变；
+- 验证：Runtime 机械检查 5/5 passed + 独立只读 Verifier 两轮（attempt 1 的
+  log-evidence 检查 grep ANSI 正则缺陷——色码位于 `Finished` 与 `` `dev` ``
+  之间；attempt 2 以 sed 去 ANSI 版替换后 5/5 passed；实现零缺陷）；用户已
+  接受验收结果；
+- **P2-M 全链完成 / Phase 2 灰度阶梯走完**：P2-M0 裁决 B → P2-M1（tier 供给 +
+  SDK 预装 + hardware-test-compile + secrets 删除）→ P2-M2（gstreamer-build）；
+  self-hosted 条件 `runs-on` 已覆盖全部 7 个 required job。
+
 ## 4. Current Task
 
-**P2-M2 — `gstreamer-build` migration（vbmf-media tier）**（P2-M1 已收口）
+**STAB-O3.1 — 24h RSS 稳定性 RCA 继续（C2-O3-0 起 causal discrimination）**（P2-M2 已收口，Phase 2 完成）
 
 Current Task Authority:
 
-- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.3（裁决 B）、§15.6、§15.10（media tier runbook）、L218 + 条件 `runs-on` 模式（commits `41400e1…` … `7196a0a`）；
-- `.project/STATE.md` §3.9–§3.15。
+- `.project/STATE.md` §7 Stability（24h rung FAIL 9/10、`rss_bounded` +86.6MB
+  记录）、§8 risk 1、§9 verification debt；
+- 历史 B1-DIAG `ANON_GROWTH` 分类与 C1/C2/O1/O2/O3-0 诊断链（见既有
+  stability evidence/提交记录）。
 
-P2-M1 要点：SDK 已 host 预装（16.0.0，verify gate + manifest）；hardware-test-compile 已在 vbmf-media 实跑；gstreamer-build 空过窗口开启（§3.15），P2-M2 迁移后恢复真实构建并关闭窗口。
+约束：observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE；禁止把相关性
+写成 root cause。
 
 ## 5. Next Task
 
-**P2-M2 — `gstreamer-build` migration**（P2-M1 已收口）。
+**STAB-O3.1 — RSS RCA 继续；其后 STAB-O4/FIX**（见 §5.1）。
 
-gstreamer-build 迁 vbmf-media（系统库已预铺：GStreamer dev / protobuf / libclang）；关闭 D1 空过窗口（恢复 `media-agent-gstreamer-linux` artifact 真实产出）；P2-M2 收口 = P2-M 全链完成。
-
-BMD 实机永走 hardware acceptance 人工线，不进入普通 PR CI。
+P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
+普通 PR CI。
 
 ### 5.1 Task Queue / Agent Work Packets
 
@@ -307,8 +340,8 @@ BMD 实机永走 hardware acceptance 人工线，不进入普通 PR CI。
 | **P2-E3** | **COMPLETE（§3.13，2026-09-16）** | `rust-test-matrix` 最后迁 general pool（含 rustdoc 暴录二阶段） | P2-E2 | matrix 完整 PASS；queue/concurrency 无未解释失败 |
 | **P2-M0** | **COMPLETE（§3.14，2026-09-16）** | DeckLink SDK 注入模式裁决；host-local 与 secret injection 二选一，禁止混用 | P2-E3 | 决策落入 CI Strategy/ADR 职责文档；安全与可重复性评审 |
 | **P2-M1** | **COMPLETE（§3.15，2026-09-17）** | `hardware-test-compile` migration（仅 capability build，不冒充硬件验证） | P2-M0 | CI PASS；BMD hardware 仍独立人工 acceptance |
-| **P2-M2** | **READY** | `gstreamer-build` migration（迁 vbmf-media，关闭 D1 空过窗口） | P2-M1 | CI PASS；general/media runner 边界无漂移 |
-| **STAB-O3.1** | **BACKLOG after P2-M** | 24h RSS RCA 从 C2-O3-0 继续 causal discrimination；禁止把相关性写成 root cause | P2-M | observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE |
+| **P2-M2** | **COMPLETE（§3.16，2026-09-17）** | `gstreamer-build` migration（迁 vbmf-media，关闭 D1 空过窗口） | P2-M1 | CI PASS；general/media runner 边界无漂移 |
+| **STAB-O3.1** | **READY** | 24h RSS RCA 从 C2-O3-0 继续 causal discrimination；禁止把相关性写成 root cause | P2-M 全链完成 | observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE |
 | **STAB-O4/FIX** | **BACKLOG** | 定位 owner → 最小正确修复 → focused/full regression → 2h/8h/24h ladder | STAB-O3.1 | 新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate / `malloc_trim` 掩盖 |
 | **RUNTIME-HARDEN** | **BACKLOG** | D1 LifecycleJournal、D3 per-claim TTL、D7 backend OnceLock、D11 Clock timeline、D13 timecode hardening、D15 media-flow cardinality、durable idempotency、多输入独立 watchdog | CI + stability closure | 每项独立 change；failure-first tests；涉及硬件则 BMD exact-commit evidence |
 | **RUNTIME-FEATURES** | **BACKLOG** | Network Sources（SRT/RTMP/HLS/RTSP/RTP/UDP/WebRTC/File）、PACKET/MASTER switch、完整 Hot-Standby、Live FFmpeg、SRS/Output、Recording/Replay、Composition/Audio execution | hardening entry review | 逐能力 frozen Contract 对齐；不得制造第二 Runtime truth |
@@ -355,7 +388,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-C historical preflight probes `34920607255` / `34920611254` / `34920615247` / `34920619055`：当时两台 runner 均被命中且 `rustc/cargo` 均 MISSING；该证据只描述 pin 前基线，当前状态以下列 host execution 证据为准。
 - P2-C host-admin tooling：**IMPLEMENTATION COMPLETE / SOFTWARE VERIFIED** through `0f375c8…`；focused tests **41/41 PASS**；GitHub Actions `34934058858` / `34935730648` / `34947630667` / `34949135299` PASS。
 - P2-C host route recovery：**VERIFIED**（encrypted probe + strict host-key match + BatchMode SSH + host-admin `sudo -n`）；原 missing-host-admin blocker 已解除。
-- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity：**VERIFIED（P2-C3，§3.8；probe env 修正后两机逐字符 1.98.1 parity）**；`rust-format` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-C4，§3.9）**；`rust-clippy` self-hosted grayscale：**COMPLETE / HOST + CI VERIFIED（P2-D，§3.10；双机 V1–V5 含 clippy、run `35027740186` 7/7，`rust-clippy`→`vbmf-ci-02`）**；`session-lifecycle` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-E1，§3.11；run `35033319131` 7/7，`session-lifecycle`→`vbmf-ci-01`，50 passed/0 failed）**；`architecture-portability` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-E2，§3.12；run `35061944269` 7/7 首跑全绿，`architecture-portability`→`vbmf-ci-01`）**；`rust-test-matrix` self-hosted grayscale：**COMPLETE / HOST + CI VERIFIED（P2-E3，§3.13；双机 V1–V6 含 rustdoc、run 7/7 首跑全绿，`rust-test-matrix`→`vbmf-ci-01`，Doc-tests 0 failed）**。
+- `vbmf-ci-01` system Rust 1.98.1：**HOST EXECUTED / FORMAL CURRENT-SHA CLOSURE VERIFIED（P2-C1 COMPLETE，§3.6）**——exact-SHA bundle checksum、幂等 pin 复跑、V1–V4 PASS、`vbmf-ci` manifest @2026-09-15T10:01:21Z、`verify-runner.sh` R1–R5+scope PASS；`vbmf-ci-02` system pin：**HOST EXECUTED / VERIFIED（P2-C2 COMPLETE，§3.7）**；双机 parity：**VERIFIED（P2-C3，§3.8；probe env 修正后两机逐字符 1.98.1 parity）**；`rust-format` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-C4，§3.9）**；`rust-clippy` self-hosted grayscale：**COMPLETE / HOST + CI VERIFIED（P2-D，§3.10；双机 V1–V5 含 clippy、run `35027740186` 7/7，`rust-clippy`→`vbmf-ci-02`）**；`session-lifecycle` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-E1，§3.11；run `35033319131` 7/7，`session-lifecycle`→`vbmf-ci-01`，50 passed/0 failed）**；`architecture-portability` self-hosted grayscale：**COMPLETE / CI VERIFIED（P2-E2，§3.12；run `35061944269` 7/7 首跑全绿，`architecture-portability`→`vbmf-ci-01`）**；`rust-test-matrix` self-hosted grayscale：**COMPLETE / HOST + CI VERIFIED（P2-E3，§3.13；双机 V1–V6 含 rustdoc、run 7/7 首跑全绿，`rust-test-matrix`→`vbmf-ci-01`，Doc-tests 0 failed）**；P2-M0：**ADJUDICATED（§3.14，裁决 B）**；`hardware-test-compile` media migration：**COMPLETE / CI VERIFIED（P2-M1，§3.15；run `35172539232` rerun 后 7/7，@vbmf-ci-media，SDK 16.0.0 host 预装）**；`gstreamer-build` media migration：**COMPLETE / CI VERIFIED（P2-M2，§3.16；run `35177980436` 7/7 首跑全绿，@vbmf-ci-media，artifact 12331677B，D1 窗口关闭）**。
 
 ### Software / Runtime
 
@@ -400,8 +433,8 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 ### Current blockers
 
 - P2-B: **NONE / COMPLETE**.
-- P2-C/P2-D/P2-E/P2-M0/P2-M1: **NONE / COMPLETE（§3.6–§3.15）**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
-- P2-M2: **NO EXTERNAL BLOCKER**（media host 系统库/SDK/Rust pin 均已就绪，无新增 host-admin 项预期）。
+- P2-C/P2-D/P2-E/P2-M0/P2-M1/P2-M2: **NONE / COMPLETE（§3.6–§3.16）**；**Phase 2 灰度阶梯全部走完**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
+- STAB-O3.1: **NO EXTERNAL BLOCKER**（observer-only 诊断，无 host-admin 项）。
 
 ## 9. Verification Debt
 
@@ -422,9 +455,9 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = P2-M2** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.3（SDK 裁决 B）、§15.6、§15.10（media tier runbook）、L218 + 既有条件 `runs-on` 模式；
-7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D、P2-E1–E3、P2-M0、P2-M1 已全部 COMPLETE（§3.6–§3.15），当前 **P2-M2**（gstreamer-build migration）为唯一 READY；
+6. 读取 **Current Task = STAB-O3.1** 对应 Authority：`.project/STATE.md` §7 Stability / §8 risk 1 / §9 verification debt + 历史 B1-DIAG/C1/C2/O1/O2/O3-0 诊断链；
+7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D、P2-E1–E3、P2-M0、P2-M1、P2-M2 已全部 COMPLETE（§3.6–§3.16），Phase 2 收口；当前 **STAB-O3.1**（24h RSS RCA）为唯一 READY；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -438,7 +471,8 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - state system 已初始化；
 - P2-A 已完成；
 - P2-B 已完成并经 Actions 7/7 PASS；
-- **Current Task = P2-M2 gstreamer-build migration**（vbmf-media；关闭 D1 空过窗口）；P2-C–P2-E、P2-M0、P2-M1 全收口（§3.6–§3.15）；当前第一个 `READY` Work Packet = **P2-M2**；
-- **Next Task = STAB-O3.1 / STAB-O4 stability backlog（P2-M 收口后）**；
+- **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
+- **Current Task = STAB-O3.1 RSS 稳定性 RCA**（§5.1 唯一 READY；observer-only，禁止相关性当 root cause）；
+- **Next Task = STAB-O4/FIX（owner 定位后最小修复 + 回归 ladder）**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
