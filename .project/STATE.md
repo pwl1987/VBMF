@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 — COMPLETE（P2-C–P2-E、P2-M 全链收口）；STAB-O3.1 RCA 已收口；当前 STAB-O4/FIX**
+**Governance / CI Infrastructure Phase 2 — COMPLETE（P2-C–P2-E、P2-M 全链收口）；STAB-O3.1/O4 RSS RCA 链收口（§3.17/§3.18·E4-1 观测完成 + NO-FIX-IN-REPO）；当前无 READY packet**
 
 当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1/P2-E2/P2-E3（session-lifecycle / architecture-portability / rust-test-matrix 灰度 + rustdoc 暴录）、P2-M0（SDK 裁决 B）、P2-M1（vbmf-media tier 供给 + SDK host 预装 16.0.0 + hardware-test-compile 迁移 + secrets 分片删除）、P2-M2（gstreamer-build 迁 vbmf-media，D1 空过窗口关闭）均已在 `main` 完成并通过真实 GitHub Actions；7 个 required job 全部完成 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退路径。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
@@ -342,29 +342,53 @@ Status: **RECOVERED / REGISTERED（2026-09-17；分叉证据·非因果·不改�
   已修：commit `7a9f696`（盒已知良全量锁·纯超集 94⊆145·双版本共存非抬升），
   CI run `35185240143` 7/7 首跑全绿——盒上 feature 构建不再重锁。
 
+### 3.18 STAB-O4/FIX 收口（2026-09-17·E4-1 观测完成 + NO-FIX-IN-REPO）
+
+**STAB-O4 首刀 E4-1 = INGEST-ANATOMY 生产观测点（已执行并判读）**
+
+- 实现：中性层 `pipeline_events::IngestAnatomy`（固定容量计数·probe 侧零逐帧
+  堆分配）+ controller decklinkvideosrc/audiosrc src pad BUFFER probe + bus
+  watch 计数 + bin 诊断模式 30s 采样线程（`E4_INGEST_ANATOMY` info 行·
+  diagnostic-only·生产模式零 spawn 零暴露·wire 契约零改动）；commits
+  `430d5e7`+`e769cb9`+`9146e1e`（CI 35189959415 7/7；盒 `cargo test e4_` 3×绿）。
+  设计先于数据冻结：`c2o3-analysis/c2o4-e4-ingest-anatomy-design.txt`。
+- 盒执行：CYCLES=315 DWELL=28 双输入（bin=9146e1e·.rs 78/78 md5==main·零重锁）
+  + observer v2.1 同面（COMPLETE/95%/trig 2+）；runner 机械 verdict
+  PASS 10/10（informational only·不入梯）。
+- 判读（冻结表机判·`c2o4-e4-ingest-anatomy-analysis.txt`）：**R-A 稳态成立**
+  ——604 快照 video 速率 24.987-25.033/s·sizes 单指纹·meta 恰
+  2.0×GstReferenceTimestampMeta/buffer·pts_backward=0·bus 线性低量 ⇒
+  重协商/meta 累积/PTS 抖动/bus 洪流四类 pad 可见异常**排除**；
+  **5.5MB 批触不在 pad 可见分配流内**（时窗三点计数全稳）；observer 逐 kB
+  对账 ΔRss==ΔVmData==ΔRssAnon·VmSize 平直·批触 = 两离散台阶
+  +5588/+5588kB（恰一台阶/输入·rel 7136/7148）落在既有 64MiB 形态匿名预留
+  ——RESERVATION-EXTENSION 第五次复现·步量与 c2o2 逐 kB 相同·每输入
+  2.50MB/h 对上历史 2.81/2.99（窗效应内差异）。六环：same-reservation/
+  magnitude/repeatability 再证；**allocation-path 收窄至 pad 面之下 native
+  分配链（仍开放）**；allocator-behavior 不可证（红线内）；root cause 未定。
+- **FIX 判定 = NO-FIX-IN-REPO（诚实缺席）**：Rust 可达面（FIX 原则 A–D 作用面：
+  显式 retention/pool acquire→release 链）在全部观测面上零表征；对 native
+  内部行为做 repo 侧修复 = 无证据投机。后果：修复后 2h/8h/24h ladder
+  **不触发**；24h rss_bounded FAIL 原样立档；stability verified 维持未标。
+  E4 观测点本身保留（diagnostic-only 诊断能力）。残留路径登记不执行：
+  SDK/插件版本变更后重跑 E3A 同构差分。
+- 附带发现（独立登记·RUNTIME-HARDEN 候选）：**MainContext::default() 单持有者
+  缺陷**——build_pipeline Bus watch 线程 push 进程级默认 context，双输入下
+  第二条管线 bus watch 静默缺席（handle2 bus_msgs_total=0 生产实证·致命事件
+  通道单管线化）；修复方向 = 每实例独立 `MainContext::new()`。
+- 证据：`2026-09-17-c2o4-e4-ingest-anatomy-2p5h{,-observer}/`（21+99 件·md5
+  盒=origin）+ 分析文件 + EVIDENCE-INDEX 三行。
+
 ## 4. Current Task
 
-**STAB-O4/FIX — RSS 候选路径最小正确修复**（STAB-O3.1 已收口 §3.17；E4 型
-生产观测点授权已记录）
-
-Current Task Authority:
-
-- `.project/STATE.md` §7 Stability（24h rung FAIL 9/10、`rss_bounded` +86.6MB
-  记录）、§8 risk 1、§9 verification debt；
-- 诊断链 B1-DIAG → C1/C2 → O1/O2 → O3-0 → E2/E3A（§3.17）：
-  候选空间 = 每输入 DeckLink 源族 ingest native 分配链 × allocator
-  reservation/arena 行为；双输入/program graph/切换/make_mut/selftest 源族
-  均排除为必要条件；
-- FIX 原则预注册（O3 裁决·§0）：A 固定容量复用 > B 明确容量上限（禁机械
-  reserve(6MB)·须具体对象证明）> C 生命周期真释放 > D GStreamer pool 正确
-  回收（acquire→use→unref→release 链）；malloc_trim 永不入产。
-
-约束：新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate；
-E4 观测字段 diagnostic-only；修复后 2h/8h/24h ladder 全走。
+**无 READY packet**——STAB-O4/FIX 已收口（§3.18：E4-1 观测完成 + FIX 判定
+NO-FIX-IN-REPO·ladder 不触发·24h rss_bounded FAIL 原样立档）。§5.1 队列当前
+Phase 无 READY 项；下一决策点 = RUNTIME-HARDEN entry review（含 §3.18 附带
+发现 MainContext bus-watch 缺陷候选）。
 
 ## 5. Next Task
 
-**STAB-O4/FIX — 候选路径最小正确修复 + E4 观测 + 回归 ladder**（见 §5.1）。
+**队列无 READY；下一决策点 = RUNTIME-HARDEN entry review（用户裁决）**。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -387,7 +411,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **P2-M1** | **COMPLETE（§3.15，2026-09-17）** | `hardware-test-compile` migration（仅 capability build，不冒充硬件验证） | P2-M0 | CI PASS；BMD hardware 仍独立人工 acceptance |
 | **P2-M2** | **COMPLETE（§3.16，2026-09-17）** | `gstreamer-build` migration（迁 vbmf-media，关闭 D1 空过窗口） | P2-M1 | CI PASS；general/media runner 边界无漂移 |
 | **STAB-O3.1** | **COMPLETE（§3.17·2026-09-17·INCONCLUSIVE-at-allocation-path + 候选空间收敛）** | 24h RSS RCA causal discrimination；禁止把相关性写成 root cause | P2-M 全链完成 | observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE |
-| **STAB-O4/FIX** | **READY** | 首刀 = E4 型 allocation-path 观测（生产观测点·用户已授权）→ 最小正确修复（FIX 原则 A–D）→ focused/full regression → 2h/8h/24h ladder | STAB-O3.1 COMPLETE | 新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate / `malloc_trim` 掩盖 |
+| **STAB-O4/FIX** | **COMPLETE（§3.18·2026-09-17·E4-1 观测完成 + NO-FIX-IN-REPO）** | 首刀 = E4 型 allocation-path 观测（生产观测点·用户已授权）→ 最小正确修复（FIX 原则 A–D）→ focused/full regression → 2h/8h/24h ladder | STAB-O3.1 COMPLETE | 新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate / `malloc_trim` 掩盖 |
 | **RUNTIME-HARDEN** | **BACKLOG** | D1 LifecycleJournal、D3 per-claim TTL、D7 backend OnceLock、D11 Clock timeline、D13 timecode hardening、D15 media-flow cardinality、durable idempotency、多输入独立 watchdog | CI + stability closure | 每项独立 change；failure-first tests；涉及硬件则 BMD exact-commit evidence |
 | **RUNTIME-FEATURES** | **BACKLOG** | Network Sources（SRT/RTMP/HLS/RTSP/RTP/UDP/WebRTC/File）、PACKET/MASTER switch、完整 Hot-Standby、Live FFmpeg、SRS/Output、Recording/Replay、Composition/Audio execution | hardening entry review | 逐能力 frozen Contract 对齐；不得制造第二 Runtime truth |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
@@ -463,6 +487,10 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
   「每输入 DeckLink 源族 ingest native 分配链 × allocator reservation/arena
   行为」；allocation-path/allocator-behavior 两环未证，root cause 未定。但 main
   上尚无经完整回归 + 新 24h rung 证明关闭该债务的最终结果。
+- STAB-O4 E4-1（2026-09-17·§3.18）：pad 可见分配流全稳 + 批触不在 pad 面
+  （两离散台阶 +5588/+5588kB·一台阶/输入·既有预留内 page-commit·第五次复现）
+  ⇒ FIX 判定 NO-FIX-IN-REPO·ladder 不触发——该 FAIL 债务在现证据下无 repo 侧
+  可修路径，维持立档直至外部变量（SDK/插件版本）变更后重开。
 
 因此不得写成“24h stability verified”。
 
@@ -485,7 +513,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-B: **NONE / COMPLETE**.
 - P2-C/P2-D/P2-E/P2-M0/P2-M1/P2-M2: **NONE / COMPLETE（§3.6–§3.16）**；**Phase 2 灰度阶梯全部走完**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
 - STAB-O3.1: **NONE / COMPLETE（§3.17）**。
-- STAB-O4/FIX: **NO EXTERNAL BLOCKER**（盒通道已立：lytv@10.30.15.10 + `~/.ssh/id_pwl`；E4 观测面用户已授权；Cargo.lock 漂移根源已修 `7a9f696`——盒重建可复现锁内二进制）。
+- STAB-O4/FIX: **NONE / COMPLETE（§3.18）**。附带登记：MainContext::default() bus-watch 单持有者缺陷（RUNTIME-HARDEN 候选·§3.18）。
 
 ## 9. Verification Debt
 
@@ -506,9 +534,9 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = STAB-O4/FIX** 对应 Authority：`.project/STATE.md` §4/§7 Stability / §8 risk 1 + 诊断链 B1-DIAG→C1/C2→O1/O2→O3-0→E2/E3A（§3.17·候选空间已收敛）+ FIX 原则预注册；
+6. 读取 **Current Task = 无 READY packet** 对应 Authority：`.project/STATE.md` §4 + 诊断链 B1-DIAG→C1/C2→O1/O2→O3-0→E2/E3A/E4-1（§3.17/§3.18·RCA 链已收口·FIX=NO-FIX-IN-REPO）；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2 系列（§3.6–§3.16）与 STAB-O3.1（§3.17）已 COMPLETE；当前 **STAB-O4/FIX** 为唯一 READY；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2 系列（§3.6–§3.16）与 STAB-O3.1/O4（§3.17/§3.18）已 COMPLETE；**当前无 READY——下一决策点 = RUNTIME-HARDEN entry review（用户裁决）**；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -524,6 +552,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - P2-B 已完成并经 Actions 7/7 PASS；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
-- **Current Task = STAB-O4/FIX**（E4 观测 → 最小正确修复 → 回归 ladder·§5.1 唯一 READY）；
+- **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
+- **Current Task = 无 READY packet**（下一决策点 = RUNTIME-HARDEN entry review·用户裁决）；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。

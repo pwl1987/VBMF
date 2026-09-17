@@ -1,0 +1,126 @@
+================================================================================
+STAB-O4 首刀 E4-1 — INGEST-ANATOMY 判读与收口（离线分析·冻结表 §2 机判）
+================================================================================
+日期: 2026-09-17（run 当日判读）
+Authority: c2o4-e4-ingest-anatomy-design.txt（设计先于数据冻结）+ STATE §4
+STAB-O4/FIX + §3.17 候选空间（每输入 DeckLink 源族 ingest native 分配链 ×
+allocator reservation/arena 行为）+ c2rules ①-④ 继承（相关性≠因果·不反向
+扩大实验强度·每层只证本层）。
+
+--------------------------------------------------------------------------------
+§0 Run card
+--------------------------------------------------------------------------------
+- workload: r64-stability-long.sh CYCLES=315 DWELL=28 replay 5 · VBMF_DIAG_INPUTS=2
+  （双输入·Step15 同构）·MEDIA_AGENT_MODE=diagnostic；盒 14:50-17:21（span 9066s
+  E4 采样覆盖 / observer span 8808s）。
+- bin: HEAD 9146e1e（E4 观测点已入 main·430d5e7+e769cb9+9146e1e）；盒构建
+  零重锁（Cargo.lock 20b184c7 == repo）；盒 .rs 78/78 聚合 md5 == main
+  （b33bea5f…）。CI run 35189959415 = 7/7。
+- runner verdict: **PASS 10/10**（informational only·非 Step15 rung·不入梯）；
+  threads spread=2（30-32）·fd 14→14·RSS 首/末 1/3 1202.1→1211.1MB·
+  switches 315/315·teardown=1。
+- observer v2.1: **COMPLETE/exit 0**·terminal=gone·覆盖 95%·gap_max=0s·
+  domain 冻结零漂移·main 295/lite 880/fastlite 1470（窗内 2s）·tid_ticks 1470
+  （born/gone/err=0）·trig 2+/0-·libc 2.43。
+- 传输核验: 118/119 件 md5 盒=本地逐字节；observer-console.log 清单行为终行
+  前旧哈希（observer 先写 md5s 再落 COMPLETE 终行——既有披露形态·双端现值
+  直核一致 2dff09a5…）。
+
+--------------------------------------------------------------------------------
+§1 E4 观测结果（604 快照·每 handle 302·run_rel 36..9066s·30s 采样）
+--------------------------------------------------------------------------------
+R-A 稳态 —— **成立**（逐项·两 handle 同形）:
+  - video 速率 24.987-25.033 buf/s（±0.13%·界 ±2% 内）·audio 同律；
+  - sizes 指纹: video 恒 {699840×1(首帧), 5529600×N}·audio 恒 {12808×1,
+    15360×N}·sizes_overflow=0·size_min/max 全程不动；
+  - meta 组成: 恰 2.0000×GstReferenceTimestampMetaAPI/buffer·首 1/3 vs 末 1/3
+    漂移 = 1.0×（R-B 阈 >2× 不触发）·meta_overflow=0·无第二 api 入库；
+  - pts_backward=0·no_pts=0·delta_min 39.98ms（video）/33.34ms（audio·48kHz
+    采样簇）= 标称帧距；delta_max 510/517ms **自首个快照起冻结不变**（启动期
+    观测窗内一次性大 delta·running-max 不再增长 ⇒ 非进行性抖动·R-D 不触发·
+    如实披露形态）；
+  - bus 线性低量: handle1 bus_msgs_total=65 恒定（启动期 StateChanged 簇后
+    零增长·2.5h 无新消息）；handle2 =0（§5 缺陷·非 R-E 形态）。
+  ⇒ 允许陈述（冻结表原文）: pad 可见逐帧分配流为稳态复用；"重协商/meta 累积/
+  PTS 抖动/bus 消息流"四类 pad 可见异常被排除；allocation-path 环仍在 pad 面
+  之下（插件/SDK native × allocator）——六环该环依旧未证·无 root cause 主张。
+
+R-B/R-C/R-E: 未触发（数值见上）。R-D: 未触发（max 冻结于启动·见披露）。
+
+批触判别行（设计 §2 末条）: 5.5MB 批触时窗 run_rel 7000-7300s 内 anatomy 计数
+全稳（pre 6996s/in 7026s/post 7326s 三点: 速率·指纹·meta 比·pts_backward·bus
+全部同值连续）⇒ **批触不在 pad 可见分配流内**——环指向 native 内部。
+
+--------------------------------------------------------------------------------
+§2 observer 形态（与 E4 采样同 run 同轴对齐）
+--------------------------------------------------------------------------------
+- 批触 = **两个离散台阶·恰一台阶/输入**:
+    rel 7136 +5588kB（handle 邻域 0x71df40000000·62MB-形态 arena 簇所在）
+    rel 7148 +5588kB（邻域 0x71df3c000000·单 arena 22580→28208kB）
+  前奏 +36kB@7080 / +40kB@7092；簇合计 11252kB。双触发与 observer
+  trigger-log 逐条同刻同量（pending 5852/5588kB·smaps trig-1/2 已抓）。
+- 逐 kB 对账: 每步 ΔRss == ΔVmData == ΔRssAnon **精确相等**（+36/+40/+5588/
+  +5588）·ΔRssFile=ΔRssShmem=0；VmSize 全窗平直 2956576kB（仅 7177s +12kB
+  瞬态回落）；[heap] 3960kB·[stack] 60kB·全部命名映射合计 21312kB 三快照恒定。
+  ⇒ 纯既有匿名预留内 page-commit·零新映射·零文件映射——c2o1 冻结机判
+  **RESERVATION-EXTENSION / BOUNDARY-MIGRATION 同形态第五次复现**；步量
+  +5588/+5588 与 c2o2 E1/E2 逐 kB 相同（同量级环·same-magnitude 再证）。
+- 批触后至 run 末（rel 7148-9079）与批触前稳态段（rel ~120-7080）: RSS 平台
+  （early 2000-6000s 斜率 15.3B/s·late 7400-8800s 8.7B/s ≈ 0.05MB/h·30s 采样
+  无 ≥256kB 步进）——双输入离散形态（对照 E2 单输入连续涓流 0.87kB/s+
+  ~1190s 边界迁移·量子化 workload-sensitive 已在 §3.17 登记·本 run 无复算）。
+
+--------------------------------------------------------------------------------
+§3 量级对账（冻结表量级义务）
+--------------------------------------------------------------------------------
+- 总斜率（main.csv·暖机 600s 后）: 1424B/s = 5.01MB/h（双输入）⇒ 每输入
+  2.50MB/h。构成: 批触簇 11252kB/9066s ≈ 4.46MB/h（占 89%）+ 平台涓流
+  ≈0.05MB/h + 杂项。
+- 对历史: 双输入历史聚合 2.81MB/h（c2o1）/单输入 2.99MB/h（E2）——本 run
+  每输入 2.50MB/h·差 11-16%·批触主导项同量级同形态 ⇒ **对上账**（离散事件
+  采样窗内命中次数的窗效应内差异·非新形态）。
+- 跨 run 首事件对齐: 7132(B1)/7142(24h)/7150(c2o1)/7149(c2o2)/7136+7148
+  （本 run）——±18s 带内再落两点。
+
+--------------------------------------------------------------------------------
+§4 六环状态更新（c2rules ①·只登记本环）
+--------------------------------------------------------------------------------
+same-reservation ✓（第五次·VmSize 平直+邻域复用）
+magnitude ✓（+5588/+5588 与 c2o2 逐 kB 同）
+repeatability ✓（B1/24h/O1/O2/E4-1 五 run 首事件 7132-7150s）
+allocation-path: **仍开放·且本次收窄**——E4 证明批触与稳态涓流均不出现在
+  pad 可见逐帧分配流（速率/指纹/meta/pts 全恒）⇒ 分配事件位于 decklink 源族
+  native 内部（插件/SDK 线程的 glibc 形态 arena），Rust 可达 pad 面之上零表征。
+allocator-behavior: 未证（禁入清单内工具不可用·维持 §3.17 结论）。
+root cause: **未定·无主张**。
+候选空间不变（§3.17 冻结）·证据指向收窄: 每输入 DeckLink 源族 ingest native
+分配链 × glibc-形态 per-thread arena 预留扩展（表述纪律: "glibc-形态"·
+STRUCTURALLY-COMPATIBLE 口径·非 "is glibc arena X"）。
+
+--------------------------------------------------------------------------------
+§5 附带发现（独立登记·非本 packet 判读对象）
+--------------------------------------------------------------------------------
+- **MainContext::default() 单持有者缺陷（生产实证）**: 双输入下 handle2
+  bus_msgs_total=0 全程——build_pipeline Bus watch 线程 push 进程级默认
+  context 失败（第二管线静默无 bus watch·致命事件通道单管线化）。预存缺陷
+  （E4 计数器首次量化暴露·盒上 e4 测试 flake 同根因已 RCA）。修复属
+  RUNTIME-HARDEN 候选（每实例独立 MainContext::new()）·不混入本 packet。
+
+--------------------------------------------------------------------------------
+§6 FIX 判定（原则 A–D 预注册口径）
+--------------------------------------------------------------------------------
+**NO-FIX-IN-REPO（诚实缺席）**。理由链:
+1. E4 全部 pad 可见计数稳态（§1）——Rust 可达面无重协商/meta 累积/PTS 抖动/
+   bus 洪泛任何一类可修目标；
+2. 批触/涓流位于 pad 面之下 native 分配链（§2/§4）——FIX 原则 A-D 的作用面
+   （Rust 显式 retention·GStreamer pool acquire→release 链）在本 run 全部
+   观测面上零表征；对 native 内部行为做 repo 侧"修复"= 无证据投机（违反
+   最小正确修复定义）；
+3. malloc_trim 仍禁入产；+50MB gate 不动；24h rss_bounded FAIL 原样立档。
+后果: 修复后 2h/8h/24h ladder **不触发**（无修复落地）；stability verified
+维持未标（新 24h 10/10 条件未满足）。E4 观测点本身保留（diagnostic-only·
+生产模式零 spawn 零暴露·CI 全矩阵单测在档）——诊断能力·非修复。
+残留路径（不扩强度·登记不执行）: allocator-behavior 环在现红线内不可证
+（§3.17 既定）；可行动的外部变量 = DeckLink SDK/插件版本变更后重跑 E1 形态
+差分（E3A 同构对照法）。
+================================================================================
