@@ -50,10 +50,10 @@ Options:
   --reinstall            full safety chain: stop unit -> config.sh remove ->
                          (API absent if gh available) -> wipe -> re-provision.
   --runner-version <ver> pin runner version (default: latest via GitHub API)
-  --runner-proxy <url>   HTTP proxy for the runner runtime (ONLY when the host
-                         cannot reach github.com directly). Transient env at
-                         config.sh time; the runner persists it itself.
-                         SOCKS is NOT supported by the runner.
+  --runner-proxy <url>   Managed HTTP proxy for runner runtime. Must be a
+                         credential-free loopback URL (127.0.0.1/localhost);
+                         KVM guests need a host-local forward first. Written
+                         to runner .env (0600). SOCKS is not supported.
 
 Env:
   RUNNER_TOKEN     registration token (required; never echoed)
@@ -88,9 +88,12 @@ if [ -n "${VBMF_CI_PROXY:-}" ]; then
   CURL_OPTS+=(--proxy "$VBMF_CI_PROXY")
 fi
 if [ -n "$RUNNER_PROXY" ]; then
-  case "$RUNNER_PROXY" in
-    socks*) fail "--runner-proxy: the Actions Runner does not support SOCKS; use the HTTP CONNECT proxy" ;;
-  esac
+  printf '%s' "$RUNNER_PROXY" | grep -Eq '^http://(127\.0\.0\.1|localhost):[0-9]{1,5}/?$' \
+    || fail "--runner-proxy must be credential-free loopback HTTP (127.0.0.1/localhost + port)"
+  _proxy_port="${RUNNER_PROXY%/}"
+  _proxy_port="${_proxy_port##*:}"
+  [ "$_proxy_port" -ge 1 ] && [ "$_proxy_port" -le 65535 ] \
+    || fail "--runner-proxy port out of range"
 fi
 
 RUNNER_DIR="${BASE_DIR}/runners/${NAME}"
@@ -199,17 +202,28 @@ chown -R "$RUNNER_USER:$RUNNER_USER" "$BASE_DIR/runners" "$BASE_DIR/manifests"
 log "running config.sh as $RUNNER_USER (labels: $LABELS; runtime proxy: ${RUNNER_PROXY:-none})"
 CONFIG_ENV=(env HOME="$RUNNER_DIR" RUNNER_TOKEN="$RUNNER_TOKEN")
 if [ -n "$RUNNER_PROXY" ]; then
-  # transient: supplied only to config.sh; the runner persists proxy config itself.
-  # Never put these into the systemd unit, .env or workflow env (CI-RUNNER-SEC-01).
+  # Registration also uses the same managed loopback route. Runtime ownership
+  # is the application-directory .env below; systemd/workflow env stay clean.
   CONFIG_ENV+=(
     http_proxy="$RUNNER_PROXY" https_proxy="$RUNNER_PROXY"
-    no_proxy="localhost,127.0.0.1,10.0.0.0/8,169.254.169.254"
+    no_proxy="localhost,127.0.0.1"
   )
 fi
 ( cd "$RUNNER_DIR" && runuser -u "$RUNNER_USER" -- "${CONFIG_ENV[@]}" \
     ./config.sh --unattended --url "$REPO_URL" --token "$RUNNER_TOKEN" \
       --name "$NAME" --labels "$LABELS" ) \
   || fail "config.sh failed (token expired/used? generate a fresh one)"
+
+if [ -n "$RUNNER_PROXY" ]; then
+  cat > "$RUNNER_DIR/.env" <<EOF
+https_proxy=$RUNNER_PROXY
+http_proxy=$RUNNER_PROXY
+no_proxy=localhost,127.0.0.1
+EOF
+  chown "$RUNNER_USER:$RUNNER_USER" "$RUNNER_DIR/.env"
+  chmod 600 "$RUNNER_DIR/.env"
+  log "managed loopback proxy persisted in runner .env (value redacted)"
+fi
 
 # ── next steps (NOT executed here; CI-RUNNER-SYSTEMD-01) ──────────────────────
 trap 'unset RUNNER_TOKEN' EXIT

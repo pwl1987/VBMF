@@ -104,17 +104,32 @@ jobs:
           ls -la "$RUNNER_TEMP" | head -20
           df -h "$RUNNER_TEMP" | tail -1
 
-      - name: Proxy environment evidence (CI-RUNNER-SEC-01)
+      - name: Proxy environment evidence (CI-RUNNER-SEC-01 v2)
         run: |
-          # Evidence only. Red line: WE never inject proxy vars via systemd
-          # unit / runner .env / workflow env. If any appear here, identify
-          # their origin before Phase 2 (runner-provided config vs host).
-          found=0
-          for v in http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY; do
-            val="$(printenv "$v" || true)"
-            if [ -n "$val" ]; then echo "proxy env PRESENT: $v (origin must be audited)"; found=1; fi
-          done
-          [ "$found" -eq 0 ] && echo "proxy env: ABSENT (red line OK)"
+          # Direct mode remains valid. Managed mode is allowed only when the
+          # runner exposes a credential-free loopback HTTP proxy. Never print
+          # the URL: this repository is public and host routes are private.
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          lower = os.getenv("https_proxy") or os.getenv("http_proxy")
+          upper = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+          all_proxy = os.getenv("all_proxy") or os.getenv("ALL_PROXY")
+          if not lower and not upper and not all_proxy:
+              print("proxy env: ABSENT (direct mode)")
+              raise SystemExit(0)
+          if all_proxy:
+              raise SystemExit("proxy env: FAIL (all_proxy forbidden)")
+          if not lower or not upper or lower != upper:
+              raise SystemExit("proxy env: FAIL (case/value mismatch)")
+          u = urlsplit(lower)
+          if u.scheme != "http" or u.hostname not in {"127.0.0.1", "localhost"}:
+              raise SystemExit("proxy env: FAIL (managed proxy must be loopback HTTP)")
+          if u.username or u.password or u.port is None or u.path not in {"", "/"}:
+              raise SystemExit("proxy env: FAIL (credentials/path/port contract)")
+          print("proxy env: MANAGED_LOOPBACK_HTTP (validated; value redacted)")
+          PY
 
       - name: Host route report (ciphertext only)
         if: ${{ inputs.host_route_pubkey != '' }}

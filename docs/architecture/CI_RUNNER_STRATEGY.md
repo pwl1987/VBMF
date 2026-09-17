@@ -110,16 +110,19 @@ SOCKS5 代理:      10.30.5.73:1080          # 仅 ssh 等工具用；Runner 不
 
 规则：
 
-1. **B0 连通性预检**：在 runner 宿主机先测直连 `https://api.github.com/`；通则 runner
-   运行时**零代理**。
-2. 直连不通 → 唯一允许路径：`config.sh` 时以**瞬态 env**（`http_proxy/https_proxy/no_proxy`）
-   传入，由 runner 自持久化到自身配置；**禁止** systemd `Environment=`、runner `.env`、
-   workflow env 注入代理（CI-RUNNER-SEC-01）。运行时只能用 8118（HTTP）；
-   1080 留给 `~/.ssh/config` / per-command 工具。
-3. provisioning 下载（runner tarball / rustup / 任何直连 GitHub 的 curl）可经
+1. **B0 连通性预检**：在 runner 宿主机先测直连 `https://api.github.com/` 与
+   `https://codeload.github.com/`；单次直连成功不足以推翻已复现的故障窗。
+2. **codeload 故障窗缓解（CI-RUNNER-SEC-01 v2）**：允许 self-hosted runner 在应用目录
+   `.env` 使用 runner-managed HTTP proxy，但 `.env` 中的 `http_proxy` / `https_proxy`
+   **只能指向 `127.0.0.1:<port>` 或 `localhost:<port>`、不得含用户名/密码**；禁止把
+   LAN 地址、凭据或公网代理直接写入 `.env`，禁止 workflow env 注入代理。
+3. KVM guest 若上游代理不在本机，必须先建立 host-local loopback forward，再让 runner
+   只看 `127.0.0.1:<port>`；这样 runner 自身 setup 日志不会暴露内网拓扑。systemd unit
+   仍不写 proxy `Environment=`，生命周期模板与网络配置解耦。
+4. provisioning 下载（runner tarball / rustup /任何直连 GitHub 的 curl）可经
    `VBMF_CI_PROXY` env 按命令传入；**脚本不硬编码代理地址**。
-4. `no_proxy` 至少含 `localhost,127.0.0.1,10.0.0.0/8,169.254.169.254`。
-5. 探针对 job env 做代理变量取证（PRESENT/ABSENT），作为红线的运行时证据。
+5. `no_proxy` 至少含 `localhost,127.0.0.1`；probe 允许 direct/ABSENT 或经过严格验证的
+   loopback managed proxy，任何非 loopback、带凭据、`all_proxy` 或大小写值漂移均 fail-closed。
 
 ## 6. 目录布局（冻结）
 
@@ -630,15 +633,15 @@ bundle 内容跨 run 确定性）。
 risk 8 出网故障窗（2026-09-15 六窗 / 2026-09-16 四窗，STATE risk 8 全账）的
 已授权缓解，红线兼容口径：
 
-- **git 面**：双 runner 宿主机 `git config --system
-  http.https://github.com/.proxy` 指向 devbox 8118 代理（host1 本机、host2 经
-  KVM 网关；地址不入 repo）。只动宿主机级 git 配置，**不触碰** systemd unit /
-  runner `.env` / workflow env——probe 的 job-env 代理变量取证面零污染
-  （§5 红线原文 "瞬态 env 由 runner 自持久化" 不受影响：runner 自身协议仍
-  直连，仅 `git` 子进程走代理）。实测：出网窗内 `vbmf-ci` 身份
-  `git ls-remote` 经代理成功，checkout 面故障窗消除。
-- **残余面**：codeload action 下载（actions/checkout 等 tarball）走 runner
-  进程内 HttpClient，仅进程级代理可治——需要 systemd/`.env` 注入，触碰红线，
-  **未获豁免**；维持 rerun 口径（出网窗内 rerun 至全绿，计数入 STATE risk 8）。
-- 维护：代理地址变更 = host-admin runbook 事件（双机对称、`vbmf-ci` 身份
-  `git ls-remote` 验证）；本缓解不改变 §5 任何契约条款。
+- **git 面**：宿主机继续使用 system Git proxy 消除 checkout/fetch 故障窗；具体
+  LAN 地址不入 repo/public log。
+- **codeload 面（2026-09-17 用户授权后升级）**：多次 required job 在 `Set up job`
+  阶段确定性复现 `codeload.github.com` Action archive 100s×3 超时；单纯 rerun 不再视为
+  充分缓解。采用 §5 CI-RUNNER-SEC-01 v2：runner 应用目录 `.env` 只写 loopback HTTP
+  proxy；KVM guest 先 host-local forward，上游 LAN route 留在宿主私有配置，不进 runner
+  log。试点 `vbmf-ci-01` 证明 Action setup 从分钟级 timeout 降至即时完成。
+- **probe**：job env 允许 runner 继承的 loopback proxy，但必须验证 URL 为无凭据
+  loopback HTTP、大小写值一致、`all_proxy` 缺席；否则 fail-closed。公开日志只输出
+  classification，不打印 proxy URL。
+- 维护：代理/forward 变更 = host-admin runbook 事件；三台 runner 对称验证，required
+  contexts 与业务测试语义保持不变。

@@ -13,9 +13,9 @@
 # %i expands to the runner directory name under
 # /data/actions-runners/vbmf/runners/ (e.g. vbmf-ci-01).
 #
-# CI-RUNNER-SEC-01: no proxy environment variables here — ever.
-# If the host cannot reach github.com directly, the proxy is configured at
-# config.sh time (transient env, persisted by the runner itself), not here.
+# CI-RUNNER-SEC-01 v2: no proxy Environment= entries here. Managed runtime
+# proxy belongs to the runner application .env and must be credential-free
+# loopback HTTP; KVM guests use a host-local forward. See strategy §5.
 
 [Unit]
 Description=VBMF self-hosted GitHub Actions runner (%i)
