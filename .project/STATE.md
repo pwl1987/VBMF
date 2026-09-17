@@ -41,9 +41,9 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Governance / CI Infrastructure Phase 2 — self-hosted runner 分批灰度（P2-C–P2-E 收口、P2-M0 已裁决，当前 P2-M1 hardware-test-compile 迁移）**
+**Governance / CI Infrastructure Phase 2 — self-hosted runner 分批灰度（P2-C–P2-E、P2-M0、P2-M1 收口，当前 P2-M2 gstreamer-build 迁移）**
 
-当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1/P2-E2/P2-E3（session-lifecycle / architecture-portability / rust-test-matrix 灰度 + rustdoc 暴录）均已在 `main` 完成并通过真实 GitHub Actions；P2-M0 SDK 模式已裁决 B（host 预装 + 版本锁定）；当前按 §15.3 裁决推进 P2-M1。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
+当前不是 Runtime / Web 新业务功能开发阶段。P2-B 安全边界冻结、P2-C 全链（双机 pin→parity→rust-format 灰度）、P2-D（clippy 组件+rust-clippy 灰度）、P2-E1/P2-E2/P2-E3（session-lifecycle / architecture-portability / rust-test-matrix 灰度 + rustdoc 暴录）、P2-M0（SDK 裁决 B）、P2-M1（vbmf-media tier 供给 + SDK host 预装 16.0.0 + hardware-test-compile 迁移 + secrets 分片删除）均已在 `main` 完成并通过真实 GitHub Actions；当前推进 P2-M2。旧 `ROADMAP.md` / `PHASE_IMPLEMENTATION_MAP.md` 中更早的 “NEXT” 不得重新成为当前任务。
 
 VBMF 的永久产品定位保持：
 
@@ -238,26 +238,58 @@ Status: **COMPLETE / ADJUDICATED（2026-09-16）**
   HttpClient，仅进程代理可治——维持 rerun 口径（用户未豁免 systemd 注入红线）**；
   Strategy §15.11 文档化随 P2-M1 落盘。
 
+### 3.15 P2-M1 — `hardware-test-compile` 迁移 vbmf-media tier（SDK host 预装落地）
+
+Status: **COMPLETE（2026-09-17）**
+
+- **段 1（repo 侧，`c351edd`）**：`pin-decklink-sdk.sh` / `verify-decklink-sdk.sh` /
+  `collect-toolchain.sh` SDK 段 / `test-decklink-sdk-scripts.sh`（29/29 PASS）；
+  Strategy §15.10（media tier 供给 runbook，§15.3 义务 1）+ §15.11（出网 git
+  代理缓解文档化，P2-M0 欠账）；probe allowlist += `vbmf-media`；
+- **段 2（host 侧，用户一次授权五项）**：KVM VM `vbmf-ci-media`（8C·16G·100G，
+  devbox libvirtd，cloud-init seed 复用 ci-02 模式）；系统库（libclang-21 /
+  GStreamer 1.28.2 dev / protoc 3.21.12 / pkg-config）；runner 注册 labels
+  exact `{self-hosted,Linux,X64,vbmf,vbmf-media}`，R1–R5 PASS；Rust 1.98.1
+  pin（幂等双跑，V1–V6 全 PASS）；**DeckLink SDK 16.0.0 host pin（zip 经
+  out-of-band 三段 md5 一致中继上机；42 头；V1–V4 全 PASS；manifest
+  `decklink_sdk` 段落盘）**；probe（tier=vbmf-media）PASS @ vbmf-ci-media；
+- **RCA（`11e9dfb`）**：必备头清单修正——SDK 16.0 的 `DeckLinkAPIDispatch`
+  是 `.cpp` sample 非 header；正确核心四头 = `DeckLinkAPI.h` /
+  `DeckLinkAPIConfiguration.h` / `DeckLinkAPITypes.h` / `DeckLinkAPIModes.h`
+  （fail-closed 预检在动 canonical 路径前拦住，零污染）；
+- **段 3（workflow，`7196a0a`）**：条件 `runs-on`（vbmf-media）；secrets
+  env/unpack/`_private` cleanup 全删；self-hosted fail-closed SDK 验证步 +
+  §3.6 RCA env 契约 + `target-hwtest` 外置 + staging 拷贝；github-hosted
+  （fork）空过语义不变；CI run `35172539232` rerun 后 **7/7 全绿**，
+  `hardware-test-compile` @ **vbmf-ci-media** 实跑（log：`DeckLink SDK:
+  16.0.0 (host-preprovisioned)`；`media-agent-linux` artifact 6495056B +
+  `decklink-bindings-debug` 15872B，非空过）；
+- **secrets 收口**：`DECKLINK_SDK_HEADERS_1/2` + `DECKLINK_SDK_VERSION` 已从
+  GitHub 删除（`gh secret list` 空）；**D1 裁决的 gstreamer-build 空过窗口
+  自此开启**（其 yaml 未动，`env != ''` 门自然为假，github-hosted 上空过绿；
+  P2-M2 迁 vbmf-media 后恢复真实构建）；
+- 出网观察：2026-09-17 窗 #1（media VM 首跑 checkout GnuTLS 失败，
+  run `35172539232` 首次尝试，rerun 收口）；缓解同日扩展到 media host
+  （git system proxy → 网关 8118，模式与双 general 机一致，红线兼容）。
+
 ## 4. Current Task
 
-**P2-M1 — `hardware-test-compile` migration（vbmf-media tier 供给 + SDK host 预装 + workflow 迁移）**（P2-M0 已裁决）
+**P2-M2 — `gstreamer-build` migration（vbmf-media tier）**（P2-M1 已收口）
 
 Current Task Authority:
 
-- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.2 / §15.6 + 条件 `runs-on` 模式（commits `41400e1…` / `eca00b7…` / `810b60c…` / `fe2e04a…` / `145669c`+`a975036`）；
-- `.project/STATE.md` §3.9–§3.13。
+- `docs/architecture/CI_RUNNER_STRATEGY.md` §15.3（裁决 B）、§15.6、§15.10（media tier runbook）、L218 + 条件 `runs-on` 模式（commits `41400e1…` … `7196a0a`）；
+- `.project/STATE.md` §3.9–§3.15。
 
-P2-M0 要点：DeckLink SDK 注入模式二选一（host-local vs secret injection），禁止混用；裁决落入 CI Strategy/ADR 职责文档；安全与可重复性评审后才进 P2-M1。
+P2-M1 要点：SDK 已 host 预装（16.0.0，verify gate + manifest）；hardware-test-compile 已在 vbmf-media 实跑；gstreamer-build 空过窗口开启（§3.15），P2-M2 迁移后恢复真实构建并关闭窗口。
 
 ## 5. Next Task
 
-**P2-M1 — `hardware-test-compile` migration**（P2-M0 裁决后）。
+**P2-M2 — `gstreamer-build` migration**（P2-M1 已收口）。
 
-后续队列保持：
+gstreamer-build 迁 vbmf-media（系统库已预铺：GStreamer dev / protobuf / libclang）；关闭 D1 空过窗口（恢复 `media-agent-gstreamer-linux` artifact 真实产出）；P2-M2 收口 = P2-M 全链完成。
 
-`P2-C rust-format → P2-D rust-clippy → P2-E session-lifecycle / architecture-portability / rust-test-matrix → P2-M media migration`。
-
-P2-M 前仍须单独裁决 DeckLink SDK 注入模式；BMD 实机永走 hardware acceptance 人工线，不进入普通 PR CI。
+BMD 实机永走 hardware acceptance 人工线，不进入普通 PR CI。
 
 ### 5.1 Task Queue / Agent Work Packets
 
@@ -274,8 +306,8 @@ P2-M 前仍须单独裁决 DeckLink SDK 注入模式；BMD 实机永走 hardware
 | **P2-E2** | **COMPLETE（§3.12，2026-09-16）** | `architecture-portability` grayscale | P2-E1 | fork/trusted 双通道回归；7 checks PASS |
 | **P2-E3** | **COMPLETE（§3.13，2026-09-16）** | `rust-test-matrix` 最后迁 general pool（含 rustdoc 暴录二阶段） | P2-E2 | matrix 完整 PASS；queue/concurrency 无未解释失败 |
 | **P2-M0** | **COMPLETE（§3.14，2026-09-16）** | DeckLink SDK 注入模式裁决；host-local 与 secret injection 二选一，禁止混用 | P2-E3 | 决策落入 CI Strategy/ADR 职责文档；安全与可重复性评审 |
-| **P2-M1** | **READY** | `hardware-test-compile` migration（仅 capability build，不冒充硬件验证） | P2-M0 | CI PASS；BMD hardware 仍独立人工 acceptance |
-| **P2-M2** | **BLOCKED by P2-M1** | `gstreamer-build` migration | P2-M1 | CI PASS；general/media runner 边界无漂移 |
+| **P2-M1** | **COMPLETE（§3.15，2026-09-17）** | `hardware-test-compile` migration（仅 capability build，不冒充硬件验证） | P2-M0 | CI PASS；BMD hardware 仍独立人工 acceptance |
+| **P2-M2** | **READY** | `gstreamer-build` migration（迁 vbmf-media，关闭 D1 空过窗口） | P2-M1 | CI PASS；general/media runner 边界无漂移 |
 | **STAB-O3.1** | **BACKLOG after P2-M** | 24h RSS RCA 从 C2-O3-0 继续 causal discrimination；禁止把相关性写成 root cause | P2-M | observer-only evidence；owner 候选收敛或明确 INCONCLUSIVE |
 | **STAB-O4/FIX** | **BACKLOG** | 定位 owner → 最小正确修复 → focused/full regression → 2h/8h/24h ladder | STAB-O3.1 | 新 24h `10/10` 前不得标 stability verified；禁止降低 +50MB gate / `malloc_trim` 掩盖 |
 | **RUNTIME-HARDEN** | **BACKLOG** | D1 LifecycleJournal、D3 per-claim TTL、D7 backend OnceLock、D11 Clock timeline、D13 timecode hardening、D15 media-flow cardinality、durable idempotency、多输入独立 watchdog | CI + stability closure | 每项独立 change；failure-first tests；涉及硬件则 BMD exact-commit evidence |
@@ -363,13 +395,13 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 6. **closed PR #31 / branch convergence**：PR #31 已随 2026-09-15 分支收敛关闭（head 分支已删）；它从来不是 canonical development Authority；未来若吸收 standalone product baseline，按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复任何分支。
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 
-8. **runner 出网抖动（2026-09-15/16）**：故障窗 2026-09-15 共 **6 次**；2026-09-16 共 **4 次**（末窗 13:20–14:50+ 双机最长，含 codeload action 下载超时新签名）。两日累计 10 窗。**git checkout 面已缓解**（宿主机级 git system proxy → devbox 8118，双机 vbmf-ci 实测通过，红线兼容——不碰 systemd/.env/workflow env；2026-09-16 用户授权落地）；**残余面：codeload action 下载**（runner HttpClient，仅进程代理可治，未豁免红线）维持 rerun 口径；runner agent 通道始终正常。
+8. **runner 出网抖动（2026-09-15/16/17）**：故障窗 2026-09-15 共 **6 次**；2026-09-16 共 **4 次**（末窗 13:20–14:50+ 双机最长，含 codeload action 下载超时新签名）；2026-09-17 **1 次**（media VM 首跑 checkout GnuTLS 失败，run `35172539232` 首次尝试，rerun 收口——新 media host 未带缓解，当日补齐）。累计 11 窗。**git checkout 面已缓解**（宿主机级 git system proxy → devbox 8118，双 general 机 + media host 三机 vbmf-ci 实测通过，红线兼容——不碰 systemd/.env/workflow env；2026-09-16 用户授权落地，2026-09-17 同模式扩展 media host）；**残余面：codeload action 下载**（runner HttpClient，仅进程代理可治，未豁免红线）维持 rerun 口径；runner agent 通道始终正常。
 
 ### Current blockers
 
 - P2-B: **NONE / COMPLETE**.
-- P2-C/P2-D/P2-E/P2-M0: **NONE / COMPLETE（§3.6–§3.14）**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
-- P2-M1: **NO EXTERNAL BLOCKER**；需 host-admin 授权项（media runner 供给 + SDK 预装）在实施时单独申请。
+- P2-C/P2-D/P2-E/P2-M0/P2-M1: **NONE / COMPLETE（§3.6–§3.15）**。`vbmf-ci` service account 继续无 generic sudo/root；禁止 job-local rolling `stable` 或绕过双机 parity。
+- P2-M2: **NO EXTERNAL BLOCKER**（media host 系统库/SDK/Rust pin 均已就绪，无新增 host-admin 项预期）。
 
 ## 9. Verification Debt
 
@@ -390,9 +422,9 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = P2-M1** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.3（SDK 裁决 B）、§15.6、§15.9、L218 + 既有条件 `runs-on` 模式；
+6. 读取 **Current Task = P2-M2** 对应 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md` §15.3（SDK 裁决 B）、§15.6、§15.10（media tier runbook）、L218 + 既有条件 `runs-on` 模式；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D、P2-E1–E3、P2-M0 已全部 COMPLETE/ADJUDICATED（§3.6–§3.14），当前 **P2-M1**（hardware-test-compile migration）为唯一 READY；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2-C1–C4、P2-D、P2-E1–E3、P2-M0、P2-M1 已全部 COMPLETE（§3.6–§3.15），当前 **P2-M2**（gstreamer-build migration）为唯一 READY；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -406,7 +438,7 @@ Current Task 专项 Authority：`docs/architecture/CI_RUNNER_STRATEGY.md`。
 - state system 已初始化；
 - P2-A 已完成；
 - P2-B 已完成并经 Actions 7/7 PASS；
-- **Current Task = P2-M1 hardware-test-compile migration**（vbmf-media 供给 + SDK host 预装 + workflow 迁移）；P2-C–P2-E 收口（§3.6–§3.13），P2-M0 已裁决 B（§3.14）；当前第一个 `READY` Work Packet = **P2-M1**；
-- **Next Task = P2-M2 gstreamer-build migration**（P2-M1 后）；
+- **Current Task = P2-M2 gstreamer-build migration**（vbmf-media；关闭 D1 空过窗口）；P2-C–P2-E、P2-M0、P2-M1 全收口（§3.6–§3.15）；当前第一个 `READY` Work Packet = **P2-M2**；
+- **Next Task = STAB-O3.1 / STAB-O4 stability backlog（P2-M 收口后）**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
