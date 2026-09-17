@@ -300,65 +300,84 @@ jobs:
   # Builds the `hardware-test` binary (implies `bmd-provider`, NOT gstreamer —
   # feature 交叉路径: 本 job 曾因 Uuid import 门控过窄而回归, 专设 required gate 防再发).
   #
-  # NOTE: the SDK header secrets are 30KB each (GitHub secret value limit < full
-  # payload, so split into _1/_2). A JOB-level `if: ${{ secrets.X != '' }}` is NOT
-  # used because GitHub evaluates that at workflow-load time and chokes on the large
-  # secret value (0s "workflow file issue"). Instead the secrets are injected as
-  # job-level env and each step is gated with `if: ${{ env.X != '' }}` (evaluated
-  # at step time).
-  #
-  # Provisioning (host with the SDK):
-  #   cd <SDK>/Linux/include
-  #   find . -name '*.h' -print0 | tar --null -cf - -T - | gzip -9 | base64 -w0 > sdk.b64
-  #   # split sdk.b64 into two ~30KB halves sdk_a.b64 / sdk_b.b64
-  #   gh secret set DECKLINK_SDK_HEADERS_1 -b"$(cat sdk_a.b64)"
-  #   gh secret set DECKLINK_SDK_HEADERS_2 -b"$(cat sdk_b.b64)"
-  #   gh secret set DECKLINK_SDK_VERSION -b"16.0.0"
-  # CI concatenates both halves, base64-decodes, untars into
-  # .github/_private/decklink-sdk (gitignored, cleaned up) and builds
-  # `hardware-test`.
+  # P2-M1 (adjudication B, §15.3/§15.10): the DeckLink SDK is host-preprovisioned
+  # on the vbmf-media runner (version-locked 16.0.0 + verify gate + manifest) —
+  # no secrets injection, no _private assembly/cleanup. The self-hosted path
+  # fails CLOSED on a missing/drifted SDK. Fork PRs stay GitHub-hosted and skip
+  # the SDK build entirely (same vacuous-skip semantics as before: fork PRs
+  # never had access to the SDK secrets either).
   #
   # CI needs NO DeckLink hardware and NO libDeckLinkAPI.so - it only verifies:
   # SDK headers -> bindgen -> generated bindings -> Rust compile.
   # The real link/open against libDeckLinkAPI.so + real enumeration is owned by BMD.
   hardware-test-compile:
     name: hardware-test-compile
-    runs-on: ubuntu-latest
+    # P2-M1: conditional runner (same frozen boundary as P2-C4…P2-E3), tier
+    # label vbmf-media.
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-media"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
-      DECKLINK_SDK_INCLUDE: ${{ github.workspace }}/.github/_private/decklink-sdk
-      DECKLINK_SDK_HEADERS_1: ${{ secrets.DECKLINK_SDK_HEADERS_1 }}
-      DECKLINK_SDK_HEADERS_2: ${{ secrets.DECKLINK_SDK_HEADERS_2 }}
-      DECKLINK_SDK_VERSION: ${{ secrets.DECKLINK_SDK_VERSION }}
+      DECKLINK_SDK_INCLUDE_HOST: /usr/local/share/decklink-sdk/include
     steps:
       - uses: actions/checkout@v5
+      # GitHub-hosted (fork) path only: kept for boundary parity; the SDK build
+      # itself never runs there (fork PRs have no SDK source by design).
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.environment == 'github-hosted'
       - name: install libclang (bindgen runtime dependency)
+        if: runner.environment == 'github-hosted'
         run: sudo apt-get update && sudo apt-get install -y libclang-dev
-      - name: unpack DeckLink SDK headers from secret
-        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
+      # Self-hosted: fail closed on the host-preprovisioned SDK — a
+      # missing/drifted SDK must fail the job, never silently skip.
+      - name: Verify DeckLink SDK (self-hosted, fail-closed)
+        if: runner.environment == 'self-hosted'
         run: |
-          mkdir -p "${{ github.workspace }}/.github/_private/decklink-sdk"
-          printf '%s%s' "$DECKLINK_SDK_HEADERS_1" "$DECKLINK_SDK_HEADERS_2" | base64 -d | tar -xz -C "${{ github.workspace }}/.github/_private/decklink-sdk"
-          echo "DeckLink SDK version: ${DECKLINK_SDK_VERSION:-<unset>}"
+          set -e
+          [ -d "$DECKLINK_SDK_INCLUDE_HOST" ] || { echo "SDK include dir missing: $DECKLINK_SDK_INCLUDE_HOST" >&2; exit 1; }
+          [ -f "$DECKLINK_SDK_INCLUDE_HOST/DeckLinkAPI.h" ] || { echo "DeckLinkAPI.h missing under $DECKLINK_SDK_INCLUDE_HOST" >&2; exit 1; }
+          ver="$(tr -d '[:space:]' < /usr/local/share/decklink-sdk/VERSION)"
+          [ "$ver" = "16.0.0" ] || { echo "SDK version drift: got '$ver' want 16.0.0" >&2; exit 1; }
+          echo "DeckLink SDK: $ver (host-preprovisioned)"
+      # Self-hosted Rust env contract (§3.6 RCA) via GITHUB_ENV (P2-E3 D4
+      # pattern) + persistent dirs outside the checkout (D3); dedicated
+      # target-hwtest keeps the FFI build cache separate per job.
+      - name: Rust env (self-hosted)
+        if: runner.environment == 'self-hosted'
+        run: |
+          if [ -n "${RUSTUP_TOOLCHAIN:-}" ]; then
+            echo "caller RUSTUP_TOOLCHAIN present; refusing" >&2
+            exit 1
+          fi
+          ws_parent="$(dirname "$GITHUB_WORKSPACE")"
+          mkdir -p "$ws_parent/.cargo-home" "$ws_parent/target-hwtest"
+          echo "RUSTUP_HOME=/usr/local/rustup" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$ws_parent/.cargo-home" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$ws_parent/target-hwtest" >> "$GITHUB_ENV"
+          echo "DECKLINK_SDK_INCLUDE=$DECKLINK_SDK_INCLUDE_HOST" >> "$GITHUB_ENV"
       - name: build --features hardware-test (bindgen parse + FFI compile)
-        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
+        if: runner.environment == 'self-hosted'
         run: cargo build --features hardware-test
+      # CARGO_TARGET_DIR redirect moves outputs outside the checkout and
+      # upload-artifact v4 rejects '..' in path patterns — stage copies into
+      # the workspace first (P2-E3 D5 pattern).
+      - name: Stage artifacts for upload (self-hosted)
+        if: runner.environment == 'self-hosted'
+        run: |
+          cp "$CARGO_TARGET_DIR/debug/media-agent" "$GITHUB_WORKSPACE/media-agent-linux-hwtest-bin"
+          mkdir -p "$GITHUB_WORKSPACE/bindings-debug"
+          find "$CARGO_TARGET_DIR" -path '*/out/bindings.rs' -exec cp {} "$GITHUB_WORKSPACE/bindings-debug/" \;
       - name: debug-upload generated FFI bindings
-        if: always()
+        if: runner.environment == 'self-hosted'
         uses: actions/upload-artifact@v4
         with:
           name: decklink-bindings-debug
-          path: services/media-agent/target/**/out/bindings.rs
+          path: bindings-debug/bindings.rs
       - name: upload media-agent-linux (hardware-test binary for BMD)
-        if: ${{ env.DECKLINK_SDK_HEADERS_1 != '' }}
+        if: runner.environment == 'self-hosted'
         uses: actions/upload-artifact@v4
         with:
           name: media-agent-linux
-          path: services/media-agent/target/debug/media-agent
-      - name: cleanup (never persist proprietary SDK assets)
-        if: always()
-        run: rm -rf "${{ github.workspace }}/.github/_private"
+          path: media-agent-linux-hwtest-bin
 
   # ── gstreamer-build ──────────────────────────────────────────────────────────
   # Canonical GStreamer runtime build (MEDIA-RT-01 accept on real BMD).
