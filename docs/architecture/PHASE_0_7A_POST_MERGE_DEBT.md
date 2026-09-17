@@ -9,7 +9,7 @@
 
 | # | 债务 | 现状 | 关闭条件 | 目标阶段 |
 |---|------|------|----------|----------|
-| D1 | **LifecycleJournal / LifecycleTransaction**：`start()` 各失败点（instantiate/allocate/start/materialize）各自手写 rollback；新增步骤需复制回滚逻辑 | 手写分段 rollback（已覆盖已知失败点，单测锁定） | `CompletedStep[]` 记录 + `rollback(reverse)` 统一引擎；0.7B 新增步骤（Normalize/Clock/Audio/Encoder/Output）接入 | 0.7B 开工前 |
+| D1 | ~~**LifecycleJournal / LifecycleTransaction**：`start()` 各失败点各自手写 rollback~~ ✅ **CLOSED @ RH-LC-01 (2026-09-18)**：`SessionManager::start()` 引入私有 `CompletedStep[]` + 单一 `rollback_start_journal()`；已实例化/已启动 handles 逆序 stop 后才释放 allocation→lease→reservation；materialize/instantiate/partial-allocation/start failure 统一入口；新增双输入第二句柄 start 失败测试机械锁定逆序 stop 与零双清理 | 统一 journal 已落地；create/stop/Program ownership 未改 | software：mock 429/429 + default 246/246 + integration 9/9+12/12 + fmt/clippy；CI `35279581145`；BMD exact-commit smoke 因当前工具通道限制 deferred | CLOSED |
 | D2 | **derive_claims FAIL 化（RESOURCE-RESOLUTION-01）**：intent 设备找不到 Resource 时 claims 为空 → Preflight 仅 WARN | WARN（legacy/无 manifest 路径兼容） | 资源解析三态 `Resolved/Missing/Ambiguous`：Missing/Ambiguous → FAIL | 0.7B |
 | D3 | **per-claim Reservation TTL**：预留过期目前以 Reserved 相位停留窗口近似（tick 驱动） | 近似实现（crash-cleanup 语义成立） | 每 claim 独立 TTL + 显式 Renew/Expire/Abort 生命周期 | 0.7B |
 

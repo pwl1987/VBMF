@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Hardening — RH-BUS chain COMPLETE；当前 RH-LC-01 READY**
+**Runtime Hardening — RH-LC-01 COMPLETE；当前 RH-RES-01A READY**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -416,17 +416,29 @@ Status: **COMPLETE / SOFTWARE + BMD HARDWARE + CI VERIFIED**。
 - 证据：`evidence/bmd-10.30.15.10/2026-09-17-rh-bus-02-multi-input-fault-isolation/`（14 件 sha256）+ `docs/superpowers/reports/2026-09-18-rh-bus-02-multi-input-bus-fault-isolation.md`。后续 `f05ec60/86669b7/94bf34e` 仅 CI infrastructure；**hardware verified 仍只归 exact Runtime commit `92d6007`**。
 - Authority/Contract：无 frozen Runtime Contract 变化；仅关闭既有多输入 failure-observation / attribution 缺口。
 
+### 3.22 RH-LC-01 收口（2026-09-18）
+
+Status: **COMPLETE / SOFTWARE + CI VERIFIED / BMD RUNTIME SMOKE DEFERRED**。
+
+- 实现 commit：`c72ce5dba94fe815299ddfbbe2921f8252df7e59`。`SessionManager::start()` 新增私有 `CompletedStep[]` journal 与单一 `rollback_start_journal()`，materialize / empty-plan / instantiate / partial-allocation / backend.start 失败统一进入同一 rollback owner；create/stop/Program ownership 不变。
+- 冻结安全序保持：全部已实例化/已启动 handles 逆序 stop → holder allocations → leases → reservations；`AllocationAcquired` 仅在首个 claim 成功后登记，journal 不记录未完成副作用。
+- failure-first：新增双输入“第二句柄 start 失败”测试，机械断言 stop 顺序 `[101,100]`、每句柄恰一次、零 lease/resource orphan、失败会话不回填 handles；既有 materialize/instantiate/instantiate-second/partial-allocation/start failure 全部继续通过。
+- Development VM：Rust 1.98.1；mock lib **429/429** + integration **9/9 + 12/12**；default lib **246/246**；fmt + default/mock clippy `-D warnings` PASS；CodeGraph 已同步。
+- CI：GitHub Actions `35279581145` @ `c72ce5d…` **7/7 success**；`gstreamer-build --features bmd,gstreamer`、`hardware-test-compile`、`session-lifecycle`、完整 `rust-test-matrix` 均 PASS。
+- BMD：exact commit archive 已复制到 `/tmp/vbmf-rh-lc01-c72ce5d`，archive sha256 `78de0709ea7e757d34e1497361cc3fbab725e972441551a6c4a1feba050fdeb9`，manifest v5 MD5 `7521d17e7fd02e50eb2b0a84374a43dd`；旧 `/opt/vbmf-dev/repo` 未改、device-number 2 未触碰。远端 build/runtime smoke 被当前工具安全层拦截，故明确 **DEFERRED**，不得继承旧硬件 PASS。
+- Authority/Contract：无 frozen Contract 变化；`PHASE_0_7A_POST_MERGE_DEBT.md` D1 标 CLOSED。验收报告：`docs/superpowers/reports/2026-09-18-rh-lc-01-lifecycle-journal.md`。
+
 ## 4. Current Task
 
-**RH-LC-01 — D1 LifecycleJournal / reverse rollback engine**。
+**RH-RES-01A — D3 per-claim Reservation TTL / Renew / Expire / Abort**。
 
-Scope：对 Session / Pipeline / Program 启动链中已经存在的资源获取与副作用建立单一 reverse-order rollback journal；失败点必须按成功动作的逆序撤销，保持 resource/lease/pipeline/program/session canonical truth 收敛。不得借本 packet 扩展 Network Source/Output、不得改变 Runtime ownership、不得改变 frozen command/wire vocabulary。
+Scope：把当前以 Session `Reserved` 停留窗口近似的 reservation expiry 收敛为每 claim 独立 TTL 与显式 Renew/Expire/Abort 生命周期；保持 Resource Registry 为资源 truth owner，不引入第二 scheduler/registry，不借本 packet 修改 backend 注入结构。
 
-Required acceptance：先做现有 start/stop/failure rollback inventory；最小 journal abstraction + 迁移真实高风险启动链；failure-point matrix 证明每一阶段失败后无 lease/resource/pipeline/program 残留；default/mock focused + regression；若触及真实 GStreamer/DeckLink 生命周期则补 BMD exact-commit acceptance，否则明确 software-only。
+Required acceptance：先做 Resource/Reservation 当前状态机与 tick/renew/expire 路径 inventory；冻结最小 per-claim TTL 数据与 owner；覆盖 Renew/Expire/Abort、部分 claim 失败、跨 session conflict、crash-cleanup 等 failure-first tests；default/mock regression + CI；若不触及真实 DeckLink/GStreamer 数据面则 BMD runtime smoke 非必需，但必须诚实登记 verification level。
 
 ## 5. Next Task
 
-**RH-RES-01 — D3 per-claim TTL + D7 backend OnceLock→direct field**：RH-LC-01 收口后按两个独立验收点继续资源/构造注入 hardening；不得一次性混成不可审 diff。
+**RH-RES-01B — D7 backend `OnceLock<Arc<dyn MediaBackend>>` → direct field**：仅在 RH-RES-01A 独立收口后执行；构造注入语义零变化，禁止与 D3 混 commit。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -453,8 +465,9 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RUNTIME-HARDEN** | **ACTIVE / DECOMPOSED（§3.19）** | umbrella；不可由 Agent 直接执行 | STAB-O4 COMPLETE | 只执行下列 bounded packet；按 dependency gate 清偿 |
 | **RH-BUS-01** | **COMPLETE（§3.20·2026-09-17）** | 每 pipeline 独立 GLib MainContext + Bus-watch lifecycle；双并发 pipeline Bus delivery | §3.18 production defect | focused/full PASS；双 handle Bus evidence；stop/recover 无残留；BMD exact-commit 双输入；CI 7/7 |
 | **RH-BUS-02** | **COMPLETE（§3.21·2026-09-18）** | Execution Group 每输入 drain Bus；Error/EOS/ClockLost canonical 归因→Supervisor；fatal overflow fallback per-handle 化 | RH-BUS-01 | focused 12/12 + full GStreamer 278/278；BMD dual-input 10/10 + live Bus 65/65；CI `35248227420` 7/7 |
-| **RH-LC-01** | **READY** | D1 LifecycleJournal / reverse rollback engine | RH-BUS closure | 启动副作用 inventory；reverse-order rollback；failure-point matrix；无资源/lease/pipeline/program 残留 |
-| **RH-RES-01** | **BACKLOG** | D3 per-claim TTL + D7 backend OnceLock→direct field（分两 commit/验收点） | RH-LC-01 | Renew/Expire/Abort failure-first；构造注入语义无漂移 |
+| **RH-LC-01** | **COMPLETE（§3.22·2026-09-18）** | D1 LifecycleJournal / reverse rollback engine | RH-BUS closure | `CompletedStep[]` + 单一 rollback；mock 429/429 + default 246/246 + integration 9/9+12/12；CI `35279581145` 7/7；BMD smoke deferred |
+| **RH-RES-01A** | **READY** | D3 per-claim Reservation TTL + Renew/Expire/Abort lifecycle | RH-LC-01 | per-claim owner/TTL；Renew/Expire/Abort failure-first；无跨 claim/session 污染；default/mock + CI |
+| **RH-RES-01B** | **BACKLOG** | D7 backend `OnceLock`→direct field | RH-RES-01A | 构造注入语义无漂移；调用点/feature matrix regression |
 | **RH-CLOCK-01** | **BACKLOG / DEFER-UNTIL-TOUCH** | D11 Clock observation timeline + D13 timecode release-build hardening | Clock/Timecode feature entry | Locked→Lost→Recovered 事件序列；release fail-closed |
 | **RH-FLOW-01** | **BACKLOG / DEFER-UNTIL-TOUCH** | D15 explicit media-flow cardinality | multi-flow Audio/Metadata entry | PortId≠flow；0/1/N flow contract/tests |
 | **RH-IDEM-01** | **BACKLOG / DEFER-UNTIL-CONTROL-PLANE** | durable idempotency | persistent external command entry | restart/replay/conflict durability；Runtime remains truth |
@@ -481,7 +494,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.21/§4；`docs/architecture/PHASE_0_7A_POST_MERGE_DEBT.md` D1；Session/Resource/Pipeline/Program 现有 frozen lifecycle contracts 与真实代码/tests。RH-LC-01 只统一既有 rollback ownership，不得新增第二 orchestration truth。CI Strategy 仅承担 required checks / runner 执行层。
+Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.22/§4；`docs/architecture/PHASE_0_7A_POST_MERGE_DEBT.md` D3；`RUNTIME_RESOURCE_MODEL.md` 的 Reservation lifecycle；`resource.rs` / `session.rs` 真实 claim/tick/renew/expire 实现与 tests。RH-RES-01A 只收敛 per-claim TTL ownership，不得新增第二 scheduler/registry。CI Strategy 仅承担 required checks / runner 执行层。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -506,15 +519,16 @@ Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.21/§4；`docs/ar
 
 ### Software / Runtime
 
-- 本轮没有 Runtime code change。
-- 本轮未执行新的 focused Rust tests / full matrix / build；不得把历史 PASS 自动宣称为本状态初始化提交的新 PASS。
-- 当前 live Runtime 代码的既有测试与硬件证据只能证明其登记时对应的 exact commit / binary / scope。
+- RH-LC-01 Runtime implementation `c72ce5d…`：**IMPLEMENTATION COMPLETE / SOFTWARE VERIFIED / CI VERIFIED**。
+- Development VM：`cargo fmt` PASS；mock lib **429/429** + integration **9/9 + 12/12**；default lib **246/246**；default/mock clippy `-D warnings` PASS。
+- GitHub Actions `35279581145` @ `c72ce5d…`：**7/7 required jobs PASS**，含真实 `gstreamer-build --features bmd,gstreamer` 与 `hardware-test-compile`。
+- 既有 RH-BUS hardware evidence 只证明其 exact commits；不得继承到 `c72ce5d`。
 
 ### Hardware
 
-- 历史 DeckLink / real-machine evidence 存在于已登记提交与 evidence 中。
-- **hardware verification for this state-init HEAD: NOT RUN / NOT REQUIRED for docs-only governance changes.**
-- 后续涉及 DeckLink/GStreamer/FFmpeg/SRT/switch/timing/failover 的 Runtime 变更必须重新按任务范围判定 hardware verification。
+- RH-LC-01 exact `c72ce5d` 已生成并复制 BMD `/tmp` archive（sha256 `78de0709…50fdeb9`），manifest v5 MD5 `7521d17e…43dd` 已核对；现存 output device-number 2 未触碰。
+- 当前远程 exact-commit build/runtime smoke 命令被工具安全层拦截，故 **RH-LC-01 BMD runtime/hardware smoke = DEFERRED**；不得写成 verified。
+- 后续涉及 DeckLink/GStreamer/FFmpeg/SRT/switch/timing/failover 的 Runtime 变更仍必须按任务范围重新做 BMD exact-commit verification。
 
 ### Stability
 
@@ -563,7 +577,8 @@ Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.21/§4；`docs/ar
 - STAB-O4/FIX: **NONE / COMPLETE（§3.18）**。
 - RH-BUS-01: **NONE / COMPLETE（§3.20）**。
 - RH-BUS-02: **NONE / COMPLETE（§3.21）**。
-- RH-LC-01: **NONE / READY**。
+- RH-LC-01: **NONE / COMPLETE（§3.22）**。
+- RH-RES-01A: **NONE / READY**。
 
 ## 9. Verification Debt
 
@@ -572,7 +587,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.21/§4；`docs/ar
 - P2-C/P2-D/P2-E：全部收口（§3.6–§3.13）。fork `runs-on` 分支未 live 实测（无现成 fork PR），已在 §3.9 登记残余风险与核验口径。
 - runner 出网稳定性：codeload 缓解已从 rerun 升级为 immutable Action archive cache，并已在 general×2 + media×1 probe 及 required CI `35248227420` 7/7 验证；残余仅为持续观察 archive cache miss/Action SHA 更新流程，不再是未实施 Verification Debt。
 - Development agent：Pi/Claude Code 项目级 auth + real model smoke 已 PASS；Claude project trust PASS；后续长写任务优先用 `_shared` runner + tmux，不再登记 agent smoke debt。
-- BMD：RH-BUS-01 exact `9b32004`（§3.20）与 RH-BUS-02 exact `92d6007`（§3.21）均已有独立 hardware evidence；实际 `/opt/vbmf-dev/repo` deployment 仍落后且带未提交 ops 改动，未做破坏性同步。后续 packet 不得继承前述硬件证据。
+- BMD：RH-BUS-01 exact `9b32004`（§3.20）与 RH-BUS-02 exact `92d6007`（§3.21）均已有独立 hardware evidence；RH-LC-01 exact `c72ce5d` archive/manifest 已准备但 runtime smoke 因当前工具通道限制 **DEFERRED**。实际 `/opt/vbmf-dev/repo` deployment 仍落后且带未提交 ops 改动，未做破坏性同步。后续 packet 不得继承前述硬件证据。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
 
 ## 10. Cold-Start Handoff
@@ -584,9 +599,9 @@ Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.21/§4；`docs/ar
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = RH-LC-01** 对应 Authority：`.project/STATE.md` §3.19/§3.21/§4 + `PHASE_0_7A_POST_MERGE_DEBT.md` D1 + Session/Resource/Pipeline/Program lifecycle contracts + 真实 start/stop/failure rollback 代码与 tests；
+6. 读取 **Current Task = RH-RES-01A** 对应 Authority：`.project/STATE.md` §3.19/§3.22/§4 + `PHASE_0_7A_POST_MERGE_DEBT.md` D3 + `RUNTIME_RESOURCE_MODEL.md` Reservation lifecycle + `resource.rs`/`session.rs` claim/tick/renew/expire 代码与 tests；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2 系列、STAB-O3.1/O4 与 RH-BUS-01/02（§3.20/§3.21）已 COMPLETE；**当前 RH-LC-01 READY**；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；P2 系列、STAB-O3.1/O4、RH-BUS-01/02 与 RH-LC-01（§3.20–§3.22）已 COMPLETE；**当前 RH-RES-01A READY**；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -603,6 +618,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.19/§3.21/§4；`docs/ar
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN entry review 已裁决（§3.19）；RH-BUS-01/02 已 exact-commit software/BMD/CI 收口（§3.20/§3.21）；Current Task = RH-LC-01，Next Task = RH-RES-01**；
+- **RUNTIME-HARDEN entry review 已裁决（§3.19）；RH-BUS-01/02 已 exact-commit software/BMD/CI 收口（§3.20/§3.21）；RH-LC-01 已 software/CI 收口且 BMD smoke deferred（§3.22）；Current Task = RH-RES-01A，Next Task = RH-RES-01B**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
