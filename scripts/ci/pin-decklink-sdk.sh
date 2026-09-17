@@ -35,7 +35,7 @@ printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
 [ -e "$TARBALL" ] || { echo "tarball/dir not found: $TARBALL" >&2; exit 1; }
 
 DEST="/usr/local/share/decklink-sdk"
-REQUIRED_HEADERS="DeckLinkAPI.h DeckLinkAPIConfiguration.h DeckLinkAPIDispatch.h DeckLinkAPIModes.h"
+REQUIRED_HEADERS="DeckLinkAPI.h DeckLinkAPIConfiguration.h DeckLinkAPITypes.h DeckLinkAPIModes.h"
 
 STAGE="$(mktemp -d /tmp/vbmf-sdk-pin.XXXXXX)"
 trap 'rm -rf "$STAGE"' EXIT

@@ -69,7 +69,7 @@ make_fixture() { # make_fixture <root> [version]
   local root="$1" ver="${2:-$V}"
   mkdir -p "$root/include"
   printf '%s\n' "$ver" > "$root/VERSION"
-  for h in DeckLinkAPI.h DeckLinkAPIConfiguration.h DeckLinkAPIDispatch.h DeckLinkAPIModes.h; do
+  for h in DeckLinkAPI.h DeckLinkAPIConfiguration.h DeckLinkAPITypes.h DeckLinkAPIModes.h; do
     printf '// fixture header %s\n' "$h" > "$root/include/$h"
   done
 }
@@ -116,7 +116,7 @@ rm "$NO_VERSION/VERSION"
 check "verify: missing VERSION fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_VERSION"
 
 NO_HEADER="$FIXTURE/no-header"; make_fixture "$NO_HEADER"
-rm "$NO_HEADER/include/DeckLinkAPIModes.h"
+rm "$NO_HEADER/include/DeckLinkAPITypes.h"
 check "verify: missing required header fails" 1 "$VERIFY" --expect-version "$V" --root "$NO_HEADER"
 
 UNREADABLE="$FIXTURE/unreadable"; make_fixture "$UNREADABLE"

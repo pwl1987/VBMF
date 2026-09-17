@@ -6,7 +6,9 @@
 #   V1 include dir exists and is non-empty
 #   V2 VERSION file matches the exact pinned x.y.z
 #   V3 required headers present (DeckLinkAPI.h / DeckLinkAPIConfiguration.h /
-#      DeckLinkAPIDispatch.h / DeckLinkAPIModes.h)
+#      DeckLinkAPITypes.h / DeckLinkAPIModes.h — the constant core every SDK
+#      ships; DeckLinkAPIDispatch is a .cpp sample, not a header, per the
+#      16.0.0 tarball RCA)
 #   V4 every header readable by non-root
 #
 # Prints the header count only — never header contents or payload hashes
@@ -41,7 +43,7 @@ printf '%s' "$EXPECT_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
 
 INC_DIR="$ROOT/include"
 VERSION_FILE="$ROOT/VERSION"
-REQUIRED_HEADERS="DeckLinkAPI.h DeckLinkAPIConfiguration.h DeckLinkAPIDispatch.h DeckLinkAPIModes.h"
+REQUIRED_HEADERS="DeckLinkAPI.h DeckLinkAPIConfiguration.h DeckLinkAPITypes.h DeckLinkAPIModes.h"
 
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; FAILED=1; }
