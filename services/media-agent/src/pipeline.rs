@@ -16,34 +16,20 @@ use crate::graph_intent::GraphRuntimeIntent;
 use crate::port::{ConnectorType, PortDirection};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
 use uuid::Uuid;
-
-// C7: 共享事件/健康类型与全局健康表 (HEALTH_ARCS/read_health/BusSeverity/PipelineBusEvent/
-// PipelineBusEventKind/bus_event_recovery_policy) 已物理迁至中性模块 `pipeline_events.rs`
-// (不依赖 vendor `gstreamer` crate, 在 default/simulation/mock 无 gstreamer 构建下也须编译).
-// 消费方 (main.rs / contracts/backend.rs / adapters/mock.rs) 直接 `use crate::pipeline_events::*`,
-// `pipeline.rs` 仅引用自身用到的 `PipelineBusEvent` (LAST_FATAL_BUS_EVENT / last_fatal_bus_event).
-use crate::pipeline_events::PipelineBusEvent;
 
 /// 全局唯一 pipeline 句柄计数器 (P1-1: 多 controller 共用全局 `HEALTH_ARCS` 时避免 handle 碰撞).
 pub(crate) static NEXT_PIPELINE_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Bus 事件因 channel 满被丢弃的累计计数 (P1 §十三: 溢出策略).
-/// 关键 ERROR/EOS 事件溢出时仍存 sticky (`LAST_FATAL_BUS_EVENT`), 此处仅计数, 不静默丢失语义.
+/// RH-BUS-02: 关键 ERROR/EOS 事件溢出时存**每实例** fatal fallback
+/// (controller `GstInstance.fatal_fallback`, `poll_bus` 原子 take)——全局单槽
+/// 已删 (多输入下互相覆盖 sticky 证据); 此处仅保留全局计数 metric.
 pub static DROPPED_BUS_EVENTS: AtomicU64 = AtomicU64::new(0);
-/// 最近一次致命 Bus 事件 (Error/EOS) 的 sticky 副本 — 即便 channel 满也不丢失,
-/// watchdog / 运维可通过 `last_fatal_bus_event()` 读取, 避免关键错误被溢出吞掉.
-pub static LAST_FATAL_BUS_EVENT: Mutex<Option<PipelineBusEvent>> = Mutex::new(None);
 
 /// Bus channel 累计丢弃事件数 (P1 §十三 溢出 metric), 由 `/health` 暴露.
 pub fn dropped_bus_events() -> u64 {
     DROPPED_BUS_EVENTS.load(Ordering::SeqCst)
-}
-
-/// 最近一次 sticky 致命 Bus 事件 (Error/EOS); channel 溢出也不会丢失. `None` 表示尚未发生过.
-pub fn last_fatal_bus_event() -> Option<PipelineBusEvent> {
-    LAST_FATAL_BUS_EVENT.lock().unwrap().clone()
 }
 
 /// ClockLost 事件累计计数 (P1-4 最低策略: ClockLost = degraded, 不自动重启; 完整 Clock Recovery 属 V0.3/P2).

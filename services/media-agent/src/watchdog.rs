@@ -96,66 +96,10 @@ pub fn spawn_ingest_watchdog(
                 }
                 g.acceptance.c_video_frames = g.video_frame_count;
                 g.acceptance.c_audio_frames = g.audio_frame_count;
-                let before = g.bus_event_count;
-                g.bus_event_count += events.len() as u64;
-                // P1-4 接线证据: 首次接获任意真实 Bus 事件时打一条 info (仅一次),
-                // 证明 Bus watch → channel → poll_bus 链路端到端生效 (非 stub).
-                if before == 0 && !events.is_empty() {
-                    let kinds: Vec<&'static str> = events
-                        .iter()
-                        .map(|e| match e.kind {
-                            crate::pipeline_events::PipelineBusEventKind::Error => "Error",
-                            crate::pipeline_events::PipelineBusEventKind::Eos => "Eos",
-                            crate::pipeline_events::PipelineBusEventKind::StateChanged => {
-                                "StateChanged"
-                            }
-                            crate::pipeline_events::PipelineBusEventKind::Warning => "Warning",
-                            crate::pipeline_events::PipelineBusEventKind::ClockLost => "ClockLost",
-                        })
-                        .collect();
-                    tracing::info!(
-                        handle = %handle.0,
-                        kinds = ?kinds,
-                        "MEDIA-RT-01 bus watch 首次接获真实 GStreamer Bus 事件 (P1-4 接线生效)"
-                    );
-                }
-                for e in &events {
-                    match e.kind {
-                        crate::pipeline_events::PipelineBusEventKind::Error => {
-                            g.acceptance.c_pipeline_errors += 1;
-                        }
-                        crate::pipeline_events::PipelineBusEventKind::Eos => {
-                            g.acceptance.c_unexpected_eos += 1;
-                        }
-                        // P1-4 最低策略映射 (bus_event_recovery_policy): ClockLost = degraded, 不自动重启.
-                        crate::pipeline_events::PipelineBusEventKind::ClockLost => {
-                            crate::pipeline::CLOCK_LOST_EVENTS
-                                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                            tracing::warn!(
-                                handle = %handle.0,
-                                severity = ?e.severity,
-                                detail = %e.detail,
-                                policy = crate::pipeline_events::bus_event_recovery_policy(e.kind),
-                                "Bus ClockLost: 标记 degraded, 不触发重启 (完整 Clock Recovery 属 V0.3/P2)"
-                            );
-                        }
-                        crate::pipeline_events::PipelineBusEventKind::Warning => {
-                            tracing::warn!(
-                                handle = %handle.0,
-                                severity = ?e.severity,
-                                detail = %e.detail,
-                                "Bus Warning (可恢复异常, 记录不重启)"
-                            );
-                        }
-                        crate::pipeline_events::PipelineBusEventKind::StateChanged => {
-                            tracing::info!(
-                                handle = %handle.0,
-                                detail = %e.detail,
-                                "Bus StateChanged (生命周期事件)"
-                            );
-                        }
-                    }
-                }
+                // RH-BUS-02 #3: Bus 计数/acceptance 折叠收敛为共享纯函数——
+                // 与组 watchdog 同一函数 (语义漂移防线); 返回值本 watchdog 不
+                // 消费 (下方谓词以 events 原批等价判定, 行为零变化)。
+                let _fatal = fold_bus_events_into_health(&handle, &mut g, &events);
                 bus_events = g.bus_event_count;
                 (
                     g.acceptance.a_pass() && g.acceptance.b_pass() && g.acceptance.c_pass(),
@@ -170,15 +114,16 @@ pub fn spawn_ingest_watchdog(
             // 归一化, C2 契约首次接线; mapper 关键字: "error"→PipelineFault{retryable},
             // "device lost"/"hotplug"→HardwareFault)。**03-01-A**: ingest 携带
             // device_uuid——故障事件携带 canonical 设备身份（非 nil, custody 可归因）。
-            // ingest 先于本 tick consume — 事件在产生当 tick 即被消费 (drain 破坏性单次),
-            // 与轮询条件 OR 后同一 if 内至多一次 report_failure, 无跨 tick 双计。
+            // **RH-BUS-02 (review fix)**: Error 与 EOS **均**经 canonical mapper
+            // (EOS 以 pipeline-error 语义观测串 ⇒ PipelineFault{pipeline=device});
+            // ingest 先于本 tick consume — 事件在产生当 tick 即被消费 (drain 破坏性
+            // 单次), 由下方 fault_from_events 驱动同一 if 内至多一次 report_failure,
+            // raw Bus 事实不再是第二 Supervisor 决策真路径, 无跨 tick 双计。
             for e in events.iter() {
-                if matches!(e.kind, crate::pipeline_events::PipelineBusEventKind::Error) {
-                    sup.lock().unwrap().ingest(
-                        events::EventSource::Upstream,
-                        device_uuid,
-                        &format!("pipeline error: {}", e.detail),
-                    );
+                if let Some(obs) = bus_fatal_observation(e) {
+                    sup.lock()
+                        .unwrap()
+                        .ingest(events::EventSource::Upstream, device_uuid, &obs);
                 }
             }
             // P0-7D-2.1: SignalVerified 点亮 — a4 (信号检出) 翻真即语义时刻 (闩锁去重;
@@ -218,17 +163,11 @@ pub fn spawn_ingest_watchdog(
             health_fold = crate::health::reduce(&health_fold, &drained_internal);
             *agent_state.lock().unwrap() = health_fold.agent;
 
-            // 错误 / 总线错误 / 事件驱动故障 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
-            if has_error
-                || fault_from_events
-                || events.iter().any(|e| {
-                    matches!(
-                        e.kind,
-                        crate::pipeline_events::PipelineBusEventKind::Error
-                            | crate::pipeline_events::PipelineBusEventKind::Eos
-                    )
-                })
-            {
+            // 错误 / 事件驱动故障 → Supervisor 决策引擎 (仅决策, 不碰 GStreamer).
+            // RH-BUS-02 (review fix): Error/EOS 走上方 canonical ingest 路径, 由
+            // fault_from_events（drained PipelineFault, exact device_uuid）触发——
+            // raw Bus 事件谓词删除, 决策真路径唯一。
+            if has_error || fault_from_events {
                 match sup
                     .lock()
                     .unwrap()
@@ -316,6 +255,7 @@ pub fn spawn_ingest_watchdog(
 
 use crate::contracts::switch::ProgramObservation;
 use crate::pipeline::{PipelineHealth, PtsMonotonicity};
+use crate::pipeline_events::{bus_event_recovery_policy, PipelineBusEvent, PipelineBusEventKind};
 use crate::switch_execution::SwitchDesired;
 
 /// 单输入一个观测 tick（watchdog 薄壳装配）。
@@ -514,6 +454,204 @@ pub fn assemble_decision_input(
     (domain, attributed)
 }
 
+// === RH-BUS-02: 多输入 Bus 事件消费 / 故障隔离（纯函数; 单/组 watchdog 共用） ===
+//
+// 四件套（组 watchdog 薄壳按 tick 顺序消费）:
+// 1. `accept_owned_events`——handle 归属校验（fail-closed, 不重归因）;
+// 2. `fold_bus_events_into_health`——拥有者 `PipelineHealth` Bus 计数/acceptance
+//    折叠（与单管线 watchdog **同一**函数——语义漂移防线; 仅计数/日志,
+//    返回 bool 不驱动组决策）;
+// 3. `bus_fatal_observation`——Error/EOS → canonical 观测串（经既有 mapper
+//    `sup.ingest` ⇒ `PipelineFault{pipeline=device}`; 不新增事件类型）;
+// 4. `canonical_fault_devices_from_events` + `union_decision_devices`——drained
+//    canonical RuntimeEvents 派生 exact-device 决策候选 ∪ fold 动作设备去重
+//    （一设备单 tick 至多一次 report_failure）。raw Bus 事实不是第二决策真路径。
+
+/// RH-BUS-02 #2: handle 归属校验（fail-closed）——`event.handle` ≠ 期望 ⇒ 拒收
+/// + 记录（绝不重归因到 drain 循环的当前设备; 错配事件不是该设备的证据）。
+// 消费点 = hw 门控组 watchdog 薄壳 + 纯函数测试; default 构建无调用点,
+// 与 pipeline_events::bus_event_recovery_policy 同律允许 dead_code。
+#[allow(dead_code)]
+pub(crate) fn accept_owned_events(
+    expected: crate::pipeline::PipelineHandle,
+    events: Vec<PipelineBusEvent>,
+) -> Vec<PipelineBusEvent> {
+    events
+        .into_iter()
+        .filter(|e| {
+            let owned = e.handle == expected;
+            if !owned {
+                tracing::warn!(
+                    expected = %expected.0,
+                    got = %e.handle.0,
+                    kind = ?e.kind,
+                    "RH-BUS-02 Bus 事件 handle 归属校验失败: 拒收 (绝不重归因到当前设备)"
+                );
+            }
+            owned
+        })
+        .collect()
+}
+
+/// RH-BUS-02 #3: 单 tick Bus 事件 → 拥有者 `PipelineHealth` Bus 计数/acceptance
+/// 折叠（单管线与组 watchdog 调用**同一**函数——语义漂移防线）。返回本批是否含
+/// 致命事件（Error/EOS——决策 union 输入）。
+///
+/// 策略不变量（P1-4 最低策略, 冻结语义零变化）:
+/// - Error/EOS: c_pipeline_errors / c_unexpected_eos 计数 + 致命返回 true;
+/// - ClockLost: `CLOCK_LOST_EVENTS` 计数 + degraded 日志, **不**致命（不自动重启）;
+/// - Warning/StateChanged: 仅记录（非重启信息路径）。
+// 消费点 = hw 门控单/组 watchdog 薄壳 + 纯函数测试; default 构建无调用点,
+// 与 pipeline_events::bus_event_recovery_policy 同律允许 dead_code。
+#[allow(dead_code)]
+pub(crate) fn fold_bus_events_into_health(
+    handle: &crate::pipeline::PipelineHandle,
+    g: &mut PipelineHealth,
+    events: &[PipelineBusEvent],
+) -> bool {
+    let before = g.bus_event_count;
+    g.bus_event_count += events.len() as u64;
+    // P1-4 接线证据: 首次接获任意真实 Bus 事件时打一条 info (仅一次)。
+    if before == 0 && !events.is_empty() {
+        let kinds: Vec<&'static str> = events
+            .iter()
+            .map(|e| match e.kind {
+                PipelineBusEventKind::Error => "Error",
+                PipelineBusEventKind::Eos => "Eos",
+                PipelineBusEventKind::StateChanged => "StateChanged",
+                PipelineBusEventKind::Warning => "Warning",
+                PipelineBusEventKind::ClockLost => "ClockLost",
+            })
+            .collect();
+        tracing::info!(
+            handle = %handle.0,
+            kinds = ?kinds,
+            "MEDIA-RT-01 bus watch 首次接获真实 GStreamer Bus 事件 (P1-4 接线生效)"
+        );
+    }
+    let mut fatal = false;
+    for e in events {
+        match e.kind {
+            PipelineBusEventKind::Error => {
+                g.acceptance.c_pipeline_errors += 1;
+                fatal = true;
+            }
+            PipelineBusEventKind::Eos => {
+                g.acceptance.c_unexpected_eos += 1;
+                fatal = true;
+            }
+            // P1-4 最低策略映射 (bus_event_recovery_policy): ClockLost = degraded, 不自动重启.
+            PipelineBusEventKind::ClockLost => {
+                crate::pipeline::CLOCK_LOST_EVENTS
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                tracing::warn!(
+                    handle = %handle.0,
+                    severity = ?e.severity,
+                    detail = %e.detail,
+                    policy = bus_event_recovery_policy(e.kind),
+                    "Bus ClockLost: 标记 degraded, 不触发重启 (完整 Clock Recovery 属 V0.3/P2)"
+                );
+            }
+            PipelineBusEventKind::Warning => {
+                tracing::warn!(
+                    handle = %handle.0,
+                    severity = ?e.severity,
+                    detail = %e.detail,
+                    "Bus Warning (可恢复异常, 记录不重启)"
+                );
+            }
+            PipelineBusEventKind::StateChanged => {
+                tracing::info!(
+                    handle = %handle.0,
+                    detail = %e.detail,
+                    "Bus StateChanged (生命周期事件)"
+                );
+            }
+        }
+    }
+    // c1/c2 派生随本批计数即时刷新（单管线原下一 tick 才翻转——同源函数后
+    // 两组 watchdog 同语义, 致命证据当 tick 即入 acceptance 面）。
+    g.acceptance.c1_no_unexpected_eos = g.acceptance.c_unexpected_eos == 0;
+    g.acceptance.c2_no_pipeline_error = g.last_error.is_none();
+    fatal
+}
+
+/// RH-BUS-02 (review fix): Error/EOS → canonical 观测串（共享归一化点——
+/// 单/组 watchdog 与测试同一函数, 语义漂移防线）。EOS 经含 pipeline-error
+/// 语义的观测串走**既有** mapper（`sup.ingest`）⇒ `PipelineFault{pipeline=device}`;
+/// 不新增事件类型。ClockLost/Warning/StateChanged 非致命（P1-4 冻结策略）,
+/// 返回 None 不入 mapper 路径。
+// 消费点 = hw 门控单/组 watchdog 薄壳 + 纯函数测试; default 构建无调用点,
+// 与 pipeline_events::bus_event_recovery_policy 同律允许 dead_code。
+#[allow(dead_code)]
+pub(crate) fn bus_fatal_observation(e: &PipelineBusEvent) -> Option<String> {
+    match e.kind {
+        PipelineBusEventKind::Error => Some(format!("pipeline error: {}", e.detail)),
+        PipelineBusEventKind::Eos => Some(format!("pipeline error: unexpected eos: {}", e.detail)),
+        _ => None,
+    }
+}
+
+/// RH-BUS-02 (review fix): drained canonical RuntimeEvents → 组决策候选设备
+/// （纯函数——Bus 致命设备的**唯一**合法来源, raw `PipelineBusEvent` 不再构成
+/// 第二 Supervisor 决策真路径）。exact-device 语义 fail-closed:
+/// - nil 拒收（未归属证据不扇出到任何组输入——与 custody 生产桥同律）;
+/// - 非本组设备拒收（unrelated 证据不牵连全组）;
+/// - `RESTART_ECHO_SUMMARY` 自回声排除（决策回声不得再次触发决策, 否则
+///   attempts/backoff 随 tick 自激翻倍——与 `fault_trigger_from_events` 同律）;
+/// - 非 fault kind 不在设备决策触发面（HealthChanged/SessionFailed 等）。
+// 消费点 = hw 门控组 watchdog 薄壳 + 纯函数测试; default 构建无调用点,
+// 与 pipeline_events::bus_event_recovery_policy 同律允许 dead_code。
+#[allow(dead_code)]
+pub(crate) fn canonical_fault_devices_from_events(
+    drained: &[crate::events::RuntimeEvent],
+    group_devices: &[uuid::Uuid],
+) -> Vec<uuid::Uuid> {
+    let mut devices: Vec<uuid::Uuid> = Vec::new();
+    for ev in drained {
+        let dev = match ev {
+            crate::events::RuntimeEvent::PipelineFault {
+                pipeline, summary, ..
+            } if summary.as_str() != crate::supervisor::RESTART_ECHO_SUMMARY => Some(*pipeline),
+            crate::events::RuntimeEvent::HardwareFault { device_id, .. } => Some(*device_id),
+            _ => None,
+        };
+        if let Some(d) = dev.filter(|d| *d != uuid::Uuid::nil() && group_devices.contains(d)) {
+            if !devices.contains(&d) {
+                devices.push(d);
+            }
+        }
+    }
+    devices
+}
+
+/// RH-BUS-02 #5: 单 tick 决策设备集（纯函数）——fold 动作设备 ∪ canonical
+/// 故障设备（`canonical_fault_devices_from_events` 派生, 非 raw Bus 事实）,
+/// 按 device_id 去重: 同一设备本 tick 至多一次 `report_failure`（Bus 致命 +
+/// 冻结计数器叠加不双计）; 独立 A+B 致命 = 两个设备各自决策。
+/// 恢复动作只查该设备自己的 handle（组输入表 exact-device 检索——跨设备
+/// 污染不可构造; nil/无关 canonical 故障证据不进入本集合, 不会牵连全组）。
+// 消费点 = hw 门控组 watchdog 薄壳 + 纯函数测试; default 构建无调用点,
+// 与 pipeline_events::bus_event_recovery_policy 同律允许 dead_code。
+#[allow(dead_code)]
+pub(crate) fn union_decision_devices(
+    actions: &[GroupAction],
+    bus_fatal: &[uuid::Uuid],
+) -> Vec<uuid::Uuid> {
+    let mut devices: Vec<uuid::Uuid> = actions
+        .iter()
+        .map(|a| match a {
+            GroupAction::ReportInputFailure { device_id, .. } => *device_id,
+        })
+        .collect();
+    for d in bus_fatal {
+        if !devices.contains(d) {
+            devices.push(*d);
+        }
+    }
+    devices
+}
+
 /// A2-8-01: MultiInputWatchdog 薄壳（hw 门控; 单实例服务整个 execution
 /// group——禁 for 循环 spawn 多 watchdog, 终裁修正方向）。
 ///
@@ -573,6 +711,31 @@ pub fn spawn_execution_group_watchdog(
                 observation.program_video_frames,
                 observation.program_audio_frames,
             ));
+            // RH-BUS-02 #2/#3 (review fix): 每 (device_id, handle) Bus drain——
+            // `ctrl.observe` 恰每 tick 每 handle 一次; 归属校验 fail-closed
+            // (handle 错配拒收, 绝不重归因); 拥有者 `PipelineHealth` Bus 计数/
+            // acceptance 经与单管线 watchdog 同一折叠函数更新（**仅计数/日志,
+            // 返回 bool 不再驱动组决策**）; Error **与** EOS → canonical
+            // `sup.ingest`（精确 canonical device_id, EOS 经 pipeline-error 语义
+            // 观测串 ⇒ PipelineFault{pipeline=device}; 先于下方 intake consume——
+            // 事件产生当 tick 即被消费, 与单管线同序）。组决策候选只在 consume
+            // 后从 drained canonical RuntimeEvents 派生（见
+            // canonical_fault_devices_from_events）——raw Gst/Bus 事实不构成第二
+            // Supervisor 决策真路径。ClockLost 只计数/记录（degraded, 不重启）。
+            for (d, h) in &group_inputs {
+                let owned = accept_owned_events(*h, ctrl.observe(h));
+                if let Some(hp) = crate::pipeline_events::HEALTH_ARCS.lock().unwrap().get(h) {
+                    let mut g = hp.lock().unwrap();
+                    fold_bus_events_into_health(h, &mut g, &owned);
+                }
+                for e in &owned {
+                    if let Some(obs) = bus_fatal_observation(e) {
+                        sup.lock()
+                            .unwrap()
+                            .ingest(events::EventSource::Upstream, *d, &obs);
+                    }
+                }
+            }
             let (desired, inputs_tick): (SwitchDesired, Vec<InputTick>) = {
                 let g = group.lock().unwrap();
                 let tick_inputs = group_inputs
@@ -622,6 +785,12 @@ pub fn spawn_execution_group_watchdog(
                 let d = g.consume();
                 (d, g.observations().failures.clone())
             };
+            // RH-BUS-02 (review fix): 组决策候选的 Bus 致命来源**只**从 drained
+            // canonical RuntimeEvents 派生（exact-device; nil/unrelated/
+            // RESTART_ECHO_SUMMARY 自回声 fail-closed 拒收）——上述 ingest 的
+            // PipelineFault 当 tick 即在本批, 时序闭合。
+            let group_devices: Vec<Uuid> = group_inputs.iter().map(|(d, _)| *d).collect();
+            let bus_fatal_devices = canonical_fault_devices_from_events(&drained, &group_devices);
             health_fold = crate::health::reduce(&health_fold, &drained);
             *agent_state.lock().unwrap() = health_fold.agent;
             // 03-01-G（R46）: 组 watchdog 真机活体观测行——**仅诊断输出,
@@ -674,21 +843,24 @@ pub fn spawn_execution_group_watchdog(
             }
             tick += 1;
             // 故障动作 → Supervisor 决策（recovery only; 切换永不在此发生）。
-            // 03-01-D/E: 每动作装配决策输入——三列进度证据（本输入 advancing
+            // 03-01-D/E: 每决策装配决策输入——三列进度证据（本输入 advancing
             // + 桥 liveness[tap 在场才有证据] + program 进度）+ custody 事件
             // 证据归因; 证据缺席 → 不分类/不归因（assemble_decision_input）。
-            for action in &folded.actions {
-                let GroupAction::ReportInputFailure { device_id, .. } = action;
+            // RH-BUS-02 #5 (review fix): 决策设备集 = fold 动作设备 ∪ canonical
+            // 故障设备（drained RuntimeEvents 派生; 去重——单设备单 tick 至多一次
+            // report_failure; 独立 A+B 致命 = 各自决策; 恢复只查该设备自己的
+            // handle, 无关证据不牵连全组）。
+            for device_id in union_decision_devices(&folded.actions, &bus_fatal_devices) {
                 let input_advancing = folded
                     .per_input
                     .iter()
-                    .find(|f| f.device_id == *device_id)
+                    .find(|f| f.device_id == device_id)
                     .map(|f| f.advancing);
                 let bridge_alive = match bridge_observation.as_ref() {
                     Some(port) => {
                         group_inputs
                             .iter()
-                            .find(|(d, _)| d == device_id)
+                            .find(|(d, _)| *d == device_id)
                             .and_then(|(_, h)| {
                                 port.bridge_liveness(
                                     h,
@@ -696,7 +868,7 @@ pub fn spawn_execution_group_watchdog(
                                 )
                                 .into_iter()
                                 .find(|l| {
-                                    l.channel == crate::program_execution::tap_channel(*device_id)
+                                    l.channel == crate::program_execution::tap_channel(device_id)
                                 })
                                 .map(|l| l.alive_in_window)
                             })
@@ -704,7 +876,7 @@ pub fn spawn_execution_group_watchdog(
                     None => None,
                 };
                 let (domain, attributed) = assemble_decision_input(
-                    *device_id,
+                    device_id,
                     input_advancing,
                     bridge_alive,
                     program_advancing,
@@ -721,10 +893,10 @@ pub fn spawn_execution_group_watchdog(
                 match sup
                     .lock()
                     .unwrap()
-                    .report_failure(device_id, domain, attributed)
+                    .report_failure(&device_id, domain, attributed)
                 {
                     Ok(supervisor::SupervisorAction::Restart) => {
-                        if !lm.is_valid(device_id) {
+                        if !lm.is_valid(&device_id) {
                             tracing::error!(device = %device_id, "recover 中止: lease 失效 (排他不变量)");
                             sink.emit(events::RuntimeEvent::HealthChanged {
                                 from: "restarting".into(),
@@ -732,16 +904,17 @@ pub fn spawn_execution_group_watchdog(
                             });
                             continue;
                         }
-                        let backoff = sup.lock().unwrap().backoff(device_id);
-                        let _ = sup.lock().unwrap().begin_restart(device_id);
+                        let backoff = sup.lock().unwrap().backoff(&device_id);
+                        let _ = sup.lock().unwrap().begin_restart(&device_id);
                         std::thread::sleep(backoff);
                         // 仅恢复故障输入自身管线（handle 来自组输入表——
                         // 归因恰好该设备, 跨设备污染不可构造）。
-                        if let Some((_, handle)) = group_inputs.iter().find(|(d, _)| d == device_id)
+                        if let Some((_, handle)) =
+                            group_inputs.iter().find(|(d, _)| *d == device_id)
                         {
                             match ctrl.recover(handle) {
                                 Ok(()) => {
-                                    sup.lock().unwrap().report_recovered(device_id).ok();
+                                    sup.lock().unwrap().report_recovered(&device_id).ok();
                                     tracing::warn!(
                                         handle = handle.0,
                                         "A2-8-01 group watchdog: 输入 recover 成功 (Supervisor→recover 闭环)"
@@ -1010,6 +1183,233 @@ mod group_fold_tests {
         assert!(
             !attr2.video_failed && !attr2.audio_failed,
             "跨设备零污染（identity correlation）"
+        );
+    }
+}
+
+// —— RH-BUS-02: 多输入 Bus 事件消费 / 故障隔离（纯函数; 无硬件可跑 = CI 全矩阵） ——
+// 覆盖: 致命 Error/EOS 恰设备归因、ClockLost 只计数不重启、handle 错配拒收、
+// Bus 致命 ∪ fold 动作去重（单设备单 tick 单决策 / 独立双致命双决策）。
+#[cfg(test)]
+mod rh_bus_02_tests {
+    use super::*;
+    use crate::events::{EventSource, RuntimeEvent, RuntimeEventLog};
+    use crate::supervisor::{RestartPolicy, Supervisor, RESTART_ECHO_SUMMARY};
+    use std::sync::atomic::Ordering;
+    use std::sync::Arc;
+
+    fn bus_evt(handle: u64, kind: PipelineBusEventKind) -> PipelineBusEvent {
+        PipelineBusEvent {
+            handle: crate::pipeline::PipelineHandle(handle),
+            kind,
+            source: format!("src-{handle}"),
+            timestamp: 0,
+            detail: format!("detail-{handle}"),
+            severity: crate::pipeline_events::BusSeverity::Error,
+        }
+    }
+
+    fn pf(pipeline: uuid::Uuid, summary: &str) -> RuntimeEvent {
+        RuntimeEvent::PipelineFault {
+            pipeline,
+            summary: summary.into(),
+            retryable: true,
+        }
+    }
+
+    /// 生产 mapper 路径夹具: Supervisor + 注入 log（ingest ⇒ mapper ⇒ sink ⇒ drain）。
+    fn sup_with_log() -> (Supervisor, Arc<RuntimeEventLog>) {
+        let log = Arc::new(RuntimeEventLog::new());
+        (Supervisor::new(RestartPolicy::default(), log.clone()), log)
+    }
+
+    #[test]
+    fn rh_bus_02_error_and_eos_map_to_exact_canonical_pipeline_fault() {
+        // review fix 硬规则: Error **与** EOS 均经既有 canonical mapper
+        // (`sup.ingest` — 与生产薄壳同一函数) ⇒ PipelineFault{pipeline=device}
+        // 精确 canonical 设备身份; 不新增事件类型。
+        let a = uuid::Uuid::new_v4();
+        let b = uuid::Uuid::new_v4();
+        let (sup, log) = sup_with_log();
+        for kind in [PipelineBusEventKind::Error, PipelineBusEventKind::Eos] {
+            let obs = bus_fatal_observation(&bus_evt(1, kind))
+                .expect("Error/Eos ⇒ canonical 观测串 (EOS 含 pipeline-error 语义)");
+            sup.ingest(EventSource::Upstream, a, &obs);
+        }
+        let drained = log.drain();
+        assert_eq!(drained.len(), 2, "Error+EOS 各产恰一条 canonical 事件");
+        assert!(
+            drained.iter().all(|ev| matches!(
+                ev,
+                RuntimeEvent::PipelineFault { pipeline, retryable: true, .. } if *pipeline == a
+            )),
+            "两条均为 exact-device PipelineFault (EOS 不再缺规范化)"
+        );
+        // exact-device: B 的 Error ⇒ pipeline=b, A 零牵连。
+        sup.ingest(
+            EventSource::Upstream,
+            b,
+            &bus_fatal_observation(&bus_evt(2, PipelineBusEventKind::Error)).unwrap(),
+        );
+        let drained_b = log.drain();
+        assert!(matches!(
+            &drained_b[0],
+            RuntimeEvent::PipelineFault { pipeline, .. } if *pipeline == b
+        ));
+        // 非致命 kind 不入 mapper 路径（ClockLost 策略不变——不重启）。
+        for kind in [
+            PipelineBusEventKind::ClockLost,
+            PipelineBusEventKind::Warning,
+            PipelineBusEventKind::StateChanged,
+        ] {
+            assert!(bus_fatal_observation(&bus_evt(1, kind)).is_none());
+        }
+    }
+
+    #[test]
+    fn rh_bus_02_canonical_events_drive_only_owning_device() {
+        // 组决策候选只从 drained canonical RuntimeEvents 派生: A 的
+        // PipelineFault ⇒ 恰 A; B 仅由自身 HardwareFault 驱动; 互不牵连。
+        let a = uuid::Uuid::new_v4();
+        let b = uuid::Uuid::new_v4();
+        let drained_a = vec![pf(a, "pipeline error: unexpected eos: x")];
+        let got = canonical_fault_devices_from_events(&drained_a, &[a, b]);
+        assert_eq!(got, vec![a], "A 的 canonical 故障 ⇒ 恰 A");
+        assert!(!got.contains(&b), "B 零决策 (无跨设备污染)");
+        let drained_ab = vec![
+            pf(a, "pipeline error: x"),
+            RuntimeEvent::HardwareFault {
+                device_id: b,
+                summary: "device lost".into(),
+            },
+        ];
+        assert_eq!(
+            canonical_fault_devices_from_events(&drained_ab, &[a, b]),
+            vec![a, b],
+            "独立 A+B canonical 故障 ⇒ 各自候选"
+        );
+    }
+
+    #[test]
+    fn rh_bus_02_nil_unrelated_echo_excluded_from_group_candidates() {
+        // fail-closed: nil（未归属不扇出全组）、unrelated（非本组设备）、
+        // RESTART_ECHO_SUMMARY 自回声（决策回声不再触发决策）、非故障 kind
+        // 均不成为组决策候选。
+        let a = uuid::Uuid::new_v4();
+        let b = uuid::Uuid::new_v4();
+        let unrelated = uuid::Uuid::new_v4();
+        let drained = vec![
+            pf(uuid::Uuid::nil(), "pipeline error: nil"),
+            pf(unrelated, "pipeline error: other group"),
+            pf(a, RESTART_ECHO_SUMMARY),
+            RuntimeEvent::HardwareFault {
+                device_id: uuid::Uuid::nil(),
+                summary: "device lost".into(),
+            },
+            RuntimeEvent::SignalVerified {
+                device_id: a,
+                port_id: None,
+            },
+            RuntimeEvent::HealthChanged {
+                from: "running".into(),
+                to: "manual_required".into(),
+            },
+        ];
+        assert!(
+            canonical_fault_devices_from_events(&drained, &[a, b]).is_empty(),
+            "nil/unrelated/自回声/非故障 kind ⇒ 零组候选"
+        );
+    }
+
+    #[test]
+    fn rh_bus_02_clock_lost_attributed_counted_no_restart() {
+        // ClockLost: 归因计数 (CLOCK_LOST_EVENTS) + 健康面记录, 但不产生
+        // 重启候选（degraded, P1-4 冻结策略）。
+        let mut h = PipelineHealth::default();
+        let before = crate::pipeline::CLOCK_LOST_EVENTS.load(Ordering::SeqCst);
+        let fatal = fold_bus_events_into_health(
+            &crate::pipeline::PipelineHandle(4),
+            &mut h,
+            &[
+                bus_evt(4, PipelineBusEventKind::ClockLost),
+                bus_evt(4, PipelineBusEventKind::ClockLost),
+            ],
+        );
+        assert!(!fatal, "ClockLost 非致命 (degraded, 不自动重启)");
+        assert_eq!(
+            crate::pipeline::CLOCK_LOST_EVENTS.load(Ordering::SeqCst),
+            before + 2,
+            "降级 metric 如实计数"
+        );
+        assert_eq!(h.acceptance.c_pipeline_errors, 0);
+        assert_eq!(h.acceptance.c_unexpected_eos, 0);
+        assert!(union_decision_devices(&[], &[]).is_empty(), "零重启候选");
+    }
+
+    #[test]
+    fn rh_bus_02_mismatched_handle_rejected_not_reattributed() {
+        // handle 错配 fail-closed: B 的事件在 A 的 drain 位被拒收, 绝不重归因。
+        let kept = accept_owned_events(
+            crate::pipeline::PipelineHandle(1),
+            vec![
+                bus_evt(2, PipelineBusEventKind::Error),
+                bus_evt(1, PipelineBusEventKind::Error),
+            ],
+        );
+        assert_eq!(kept.len(), 1, "错配事件被拒收");
+        assert_eq!(kept[0].handle, crate::pipeline::PipelineHandle(1));
+    }
+
+    #[test]
+    fn rh_bus_02_bus_fatal_and_fold_failure_dedup() {
+        // 同设备 canonical Bus 致命 + 既有健康 fold 失败 ⇒ 恰一次决策; 独立
+        // A+B 致命 ⇒ 两个设备各自决策（一设备一 tick 至多一次 report_failure）。
+        let a = uuid::Uuid::new_v4();
+        let b = uuid::Uuid::new_v4();
+        let actions = vec![GroupAction::ReportInputFailure {
+            device_id: a,
+            reason: InputFailureReason::CountersFrozen,
+        }];
+        let bus_fatal =
+            canonical_fault_devices_from_events(&[pf(a, "pipeline error: bus")], &[a, b]);
+        assert_eq!(
+            union_decision_devices(&actions, &bus_fatal),
+            vec![a],
+            "canonical Bus 致命 + 冻结计数去重 ⇒ 恰一次决策"
+        );
+        let bus_fatal_ab = canonical_fault_devices_from_events(
+            &[pf(a, "pipeline error: a"), pf(b, "pipeline error: b")],
+            &[a, b],
+        );
+        assert_eq!(
+            union_decision_devices(&actions, &bus_fatal_ab),
+            vec![a, b],
+            "独立 A+B 致命 ⇒ 两个设备各自决策"
+        );
+    }
+
+    #[test]
+    fn rh_bus_02_health_bus_counters_and_acceptance() {
+        // 计数/acceptance 与单管线 watchdog 同语义（共享折叠函数锁定）。
+        let mut h = PipelineHealth::default();
+        let fatal = fold_bus_events_into_health(
+            &crate::pipeline::PipelineHandle(3),
+            &mut h,
+            &[
+                bus_evt(3, PipelineBusEventKind::Error),
+                bus_evt(3, PipelineBusEventKind::Eos),
+                bus_evt(3, PipelineBusEventKind::Warning),
+                bus_evt(3, PipelineBusEventKind::StateChanged),
+            ],
+        );
+        assert!(fatal, "批内含 Error/EOS ⇒ 致命");
+        assert_eq!(h.bus_event_count, 4);
+        assert_eq!(h.acceptance.c_pipeline_errors, 1);
+        assert_eq!(h.acceptance.c_unexpected_eos, 1);
+        assert!(!h.acceptance.c1_no_unexpected_eos);
+        assert!(
+            h.acceptance.c2_no_pipeline_error,
+            "last_error 未设 ⇒ c2 保持"
         );
     }
 }

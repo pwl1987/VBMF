@@ -11,7 +11,7 @@
 use crate::contracts::backend::MediaBackend;
 use crate::pipeline::{
     src_props, PipelineController, PipelineError, PipelineHandle, PipelineHealth, PipelinePlan,
-    DROPPED_BUS_EVENTS, LAST_FATAL_BUS_EVENT, NEXT_PIPELINE_ID,
+    DROPPED_BUS_EVENTS, NEXT_PIPELINE_ID,
 };
 #[cfg(feature = "gstreamer-backend")]
 use glib;
@@ -114,6 +114,12 @@ struct GstInstance {
     /// 非第二 identity/execution registry; tap branch 生命周期由
     /// MediaTapPort 控制, 本字段只做簿记）。
     media_taps: Vec<crate::contracts::media_tap::MediaTapAttachment>,
+    /// RH-BUS-02: **本实例独占**的致命事件 overflow fallback 单槽（Error/EOS
+    /// 在 channel Full 时才落入; 成功 send 零 fallback——无重复投递）。
+    /// 取代进程级 `LAST_FATAL_BUS_EVENT` 全局单槽（多输入下 A 溢出会覆盖
+    /// B 的 sticky 证据）。生命周期随实例: stop/recover 销毁重建即自然
+    /// 重置。`poll_bus` 在 drain channel 后原子 `take` 本槽。
+    fatal_fallback: Arc<Mutex<Option<PipelineBusEvent>>>,
 }
 
 #[cfg(feature = "gstreamer-backend")]
@@ -126,6 +132,45 @@ impl GstInstance {
             let _ = t.join();
         }
         let _ = self.pipeline.set_state(gstreamer::State::Null);
+    }
+}
+
+/// RH-BUS-02: Bus watch 投递策略（**per-instance** fatal overflow fallback）。
+///
+/// - 成功 `try_send` ⇒ 零 fallback（无重复投递——旧全局槽在 send 成功时也
+///   写 sticky, 读侧会拿到双份语义）;
+/// - channel `Full` ⇒ 全局 `DROPPED_BUS_EVENTS` 计数 +1（溢出 metric 保留）,
+///   且**仅致命（Error/EOS）**事件落入调用方持有的本实例 fallback 单槽
+///   （非致命溢出如实丢弃——计数即可, 不伪造致命语义）;
+/// - `Disconnected` ⇒ 记录不 fallback（实例已销毁, 无人再读）。
+///
+/// 纯投递策略（std mpsc; 无 gstreamer 依赖）——`rh_bus_02_*` 单元测试直测。
+pub(crate) fn deliver_bus_event(
+    evt: PipelineBusEvent,
+    tx: &SyncSender<PipelineBusEvent>,
+    fatal_fallback: &Mutex<Option<PipelineBusEvent>>,
+) {
+    let h = evt.handle;
+    match tx.try_send(evt) {
+        Ok(()) => {}
+        Err(std::sync::mpsc::TrySendError::Full(evt)) => {
+            DROPPED_BUS_EVENTS.fetch_add(1, Ordering::SeqCst);
+            let fatal = matches!(
+                evt.kind,
+                PipelineBusEventKind::Error | PipelineBusEventKind::Eos
+            );
+            if fatal {
+                *fatal_fallback.lock().unwrap() = Some(evt);
+            }
+            tracing::warn!(
+                handle = %h.0,
+                fatal,
+                "Bus channel 溢出: 事件计数为丢弃 (致命事件已存本实例 fallback, 不静默丢失)"
+            );
+        }
+        Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+            tracing::warn!(handle = %h.0, "Bus channel 已断开 (controller dropped)");
+        }
     }
 }
 
@@ -155,7 +200,8 @@ impl PipelineController for GStreamerPipelineController {
             let handle = PipelineHandle(NEXT_PIPELINE_ID.fetch_add(1, Ordering::SeqCst));
             // 每个 pipeline 实例独占一条 bounded mpsc channel: Bus watch 投递, poll_bus 非阻塞 drain.
             let (bus_tx, bus_rx) = sync_channel::<PipelineBusEvent>(256);
-            let (pipeline, thread, stop_flag) = self.build_pipeline(plan, handle, bus_tx)?;
+            let (pipeline, thread, stop_flag, fatal_fallback) =
+                self.build_pipeline(plan, handle, bus_tx)?;
             // 注册健康 (默认全 false — P1-2; 由真实事件逐项置 true).
             HEALTH_ARCS
                 .lock()
@@ -178,6 +224,7 @@ impl PipelineController for GStreamerPipelineController {
                     stop_flag,
                     thread: Some(thread),
                     media_taps: Vec::new(),
+                    fatal_fallback,
                 },
             );
             Ok(handle)
@@ -241,7 +288,8 @@ impl PipelineController for GStreamerPipelineController {
             crate::pipeline_events::ingest_anatomy_remove(handle);
             // 重建统一 GstPipeline (新 bus channel).
             let (bus_tx, bus_rx) = sync_channel::<PipelineBusEvent>(256);
-            let (pipeline, thread, stop_flag) = self.build_pipeline(&plan, *handle, bus_tx)?;
+            let (pipeline, thread, stop_flag, fatal_fallback) =
+                self.build_pipeline(&plan, *handle, bus_tx)?;
             pipeline
                 .set_state(gstreamer::State::Playing)
                 .map_err(|e| PipelineError::StartFailed(format!("pipeline play: {e}")))?;
@@ -254,6 +302,9 @@ impl PipelineController for GStreamerPipelineController {
                     stop_flag,
                     thread: Some(thread),
                     media_taps: Vec::new(),
+                    // RH-BUS-02: 旧实例槽随实例销毁, 新实例新槽——fatal
+                    // fallback 生命周期自然重置。
+                    fatal_fallback,
                 },
             );
             if let Some(hp) = HEALTH_ARCS.lock().unwrap().get(handle) {
@@ -381,6 +432,7 @@ impl GStreamerPipelineController {
     /// GLib main loop 必须运行 (用户复核 §五): watch 回调在 `MainLoop` 迭代的 MainContext 上分发,
     /// 故 spawn 专用线程持有 `MainContext`+`MainLoop` 并 `run()`.
     #[cfg(feature = "gstreamer-backend")]
+    #[allow(clippy::type_complexity)]
     fn build_pipeline(
         &self,
         plan: &PipelinePlan,
@@ -391,6 +443,8 @@ impl GStreamerPipelineController {
             gstreamer::Pipeline,
             std::thread::JoinHandle<()>,
             Arc<std::sync::atomic::AtomicBool>,
+            // RH-BUS-02: 本实例 fatal overflow fallback 槽（随 GstInstance 存亡）。
+            Arc<Mutex<Option<PipelineBusEvent>>>,
         ),
         PipelineError,
     > {
@@ -485,6 +539,10 @@ impl GStreamerPipelineController {
         // 持有 MainContext 并 run MainLoop; 否则编译通过但事件永远不到 (用户 §五 风险点).
         let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stop_for_thread = stop_flag.clone();
+        // RH-BUS-02: 本实例 fatal fallback 槽——watch 线程写 / poll_bus 读
+        //（Arc 共享; 旧实例销毁即随 GstInstance 释放）。
+        let fatal_fallback: Arc<Mutex<Option<PipelineBusEvent>>> = Arc::new(Mutex::new(None));
+        let fallback_for_thread = std::sync::Arc::clone(&fatal_fallback);
         let p = pipeline.clone();
         let thread = std::thread::spawn(move || {
             // RH-BUS-01: 每实例私有 MainContext——进程级 `MainContext::default()`
@@ -518,27 +576,13 @@ impl GStreamerPipelineController {
                 glib::Priority::DEFAULT,
                 move |_, msg| {
                     // STAB-O4 E4-1: bus 消息流计数 (逐消息; 罕频——锁开销可忽略)。
-                    crate::pipeline_events::with_ingest_anatomy(&h, |a| {
-                        a.bus_msgs_total += 1
-                    });
+                    crate::pipeline_events::with_ingest_anatomy(&h, |a| a.bus_msgs_total += 1);
                     if let Some(evt) = GStreamerPipelineController::translate_bus(msg, h) {
-                        // 致命事件 (Error/EOS) 永不静默丢弃: 先存 sticky 副本 (即便 channel 满也能被读取).
-                        if evt.kind == PipelineBusEventKind::Error
-                            || evt.kind == PipelineBusEventKind::Eos
-                        {
-                            *LAST_FATAL_BUS_EVENT.lock().unwrap() = Some(evt.clone());
-                        }
-                        // 非阻塞投递: 满则计数丢弃 (不阻塞 GLib watch 线程); 但致命事件已留存 sticky.
-                        match tx.try_send(evt) {
-                            Ok(()) => {}
-                            Err(std::sync::mpsc::TrySendError::Full(_)) => {
-                                DROPPED_BUS_EVENTS.fetch_add(1, Ordering::SeqCst);
-                                tracing::warn!(handle = %h.0, "Bus channel 溢出: 事件被计数为丢弃 (ERROR/EOS 已存 sticky, 不静默丢失)");
-                            }
-                            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
-                                tracing::warn!(handle = %h.0, "Bus channel 已断开 (controller dropped)");
-                            }
-                        }
+                        // RH-BUS-02: 投递策略收敛于 deliver_bus_event——成功 send
+                        // 零 fallback; 仅 channel Full 时致命 (Error/EOS) 事件落入
+                        // **本实例** fallback 单槽（取代旧全局 LAST_FATAL_BUS_EVENT
+                        // ——多输入下全局单槽会互相覆盖 sticky 证据）。
+                        deliver_bus_event(evt, &tx, &fallback_for_thread);
                     }
                     glib::ControlFlow::Continue
                 },
@@ -566,7 +610,7 @@ impl GStreamerPipelineController {
             ml.run();
             tracing::debug!(handle = %h.0, "GStreamer Bus watch 线程退出");
         });
-        Ok((pipeline, thread, stop_flag))
+        Ok((pipeline, thread, stop_flag, fatal_fallback))
     }
 
     /// 将 GStreamer `Message` 翻译为结构化 `PipelineBusEvent` (P1-4).
@@ -673,11 +717,19 @@ impl GStreamerPipelineController {
 
     /// 非阻塞 drain 当前 GStreamer Bus 事件 (Bus watch 线程已投递进 bounded mpsc).
     /// watchdog 每 500ms 调用一次, 不阻塞媒体/GStreamer 线程 (用户复核 §六: 解耦节拍).
+    /// RH-BUS-02: drain 正常事件后, 在同一实例锁内**原子 take** 本 handle 自己的
+    /// fatal overflow fallback（溢出致命事件恰一次补投——take 语义无重复）。
     #[cfg(feature = "gstreamer-backend")]
     pub fn poll_bus(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent> {
         let guard = self.instances.lock().unwrap();
         match guard.get(handle) {
-            Some(inst) => inst.bus_rx.try_iter().collect(),
+            Some(inst) => {
+                let mut events: Vec<PipelineBusEvent> = inst.bus_rx.try_iter().collect();
+                if let Some(fatal) = inst.fatal_fallback.lock().unwrap().take() {
+                    events.push(fatal);
+                }
+                events
+            }
             None => Vec::new(),
         }
     }
@@ -1397,5 +1449,91 @@ mod rh_bus_isolation_tests {
             "h2 在 h1 stop 后 recover 仍独立交付"
         );
         let _ = MediaBackend::stop(&ctrl, &h2);
+    }
+}
+
+// —— RH-BUS-02: per-handle fatal overflow fallback 投递策略 ——
+// (纯 std mpsc + 单槽; 无 gstreamer 构建可跑 = CI 全矩阵) 全局 metric
+// (DROPPED_BUS_EVENTS) 断言取 delta 且测试间串行 (锁), 防并行互扰。
+#[cfg(test)]
+mod rh_bus_02_deliver_tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+
+    /// 并行测试共享全局 DROPPED_BUS_EVENTS——断言 delta 的用例持此锁串行。
+    static METRIC_LOCK: Mutex<()> = Mutex::new(());
+
+    fn evt(handle: u64, kind: PipelineBusEventKind) -> PipelineBusEvent {
+        PipelineBusEvent {
+            handle: PipelineHandle(handle),
+            kind,
+            source: format!("src-{handle}"),
+            timestamp: 0,
+            detail: format!("detail-{handle}"),
+            severity: BusSeverity::Error,
+        }
+    }
+
+    #[test]
+    fn rh_bus_02_fatal_overflow_fallback_is_per_handle() {
+        let _m = METRIC_LOCK.lock().unwrap();
+        // 双实例各自独立槽: A 溢出的致命事件只落 A 槽——不覆盖、不串投 B
+        // (旧全局 LAST_FATAL_BUS_EVENT 单槽缺陷的确定性反证)。
+        let (tx_a, rx_a) = sync_channel::<PipelineBusEvent>(1);
+        let (tx_b, rx_b) = sync_channel::<PipelineBusEvent>(1);
+        let slot_a: Mutex<Option<PipelineBusEvent>> = Mutex::new(None);
+        let slot_b: Mutex<Option<PipelineBusEvent>> = Mutex::new(None);
+        // 占满各自 channel 后再投致命事件 → Full → 各自槽。
+        deliver_bus_event(evt(1, PipelineBusEventKind::Warning), &tx_a, &slot_a);
+        deliver_bus_event(evt(1, PipelineBusEventKind::Error), &tx_a, &slot_a);
+        deliver_bus_event(evt(2, PipelineBusEventKind::Warning), &tx_b, &slot_b);
+        deliver_bus_event(evt(2, PipelineBusEventKind::Eos), &tx_b, &slot_b);
+        let fa = slot_a.lock().unwrap().clone().expect("A fallback 在场");
+        let fb = slot_b.lock().unwrap().clone().expect("B fallback 在场");
+        assert_eq!(fa.handle, PipelineHandle(1), "A 槽只收 A 的致命事件");
+        assert_eq!(fa.kind, PipelineBusEventKind::Error);
+        assert_eq!(fb.handle, PipelineHandle(2), "B 槽只收 B 的致命事件");
+        assert_eq!(fb.kind, PipelineBusEventKind::Eos);
+        // channel 面无跨 handle 投递。
+        let drained_a: Vec<_> = rx_a.try_iter().collect();
+        assert!(drained_a.iter().all(|e| e.handle == PipelineHandle(1)));
+        let drained_b: Vec<_> = rx_b.try_iter().collect();
+        assert!(drained_b.iter().all(|e| e.handle == PipelineHandle(2)));
+    }
+
+    #[test]
+    fn rh_bus_02_successful_send_no_fallback_duplicate() {
+        let _m = METRIC_LOCK.lock().unwrap();
+        // channel 有余量: 致命事件成功 send ⇒ 零 fallback (无重复投递), 零丢弃。
+        let (tx, rx) = sync_channel::<PipelineBusEvent>(4);
+        let slot: Mutex<Option<PipelineBusEvent>> = Mutex::new(None);
+        let dropped_before = DROPPED_BUS_EVENTS.load(Ordering::SeqCst);
+        deliver_bus_event(evt(7, PipelineBusEventKind::Error), &tx, &slot);
+        assert!(slot.lock().unwrap().is_none(), "成功 send 不得写 fallback");
+        assert_eq!(
+            DROPPED_BUS_EVENTS.load(Ordering::SeqCst),
+            dropped_before,
+            "成功投递不计数丢弃"
+        );
+        let drained: Vec<_> = rx.try_iter().collect();
+        assert_eq!(drained.len(), 1, "恰一次投递");
+        assert_eq!(drained[0].handle, PipelineHandle(7));
+    }
+
+    #[test]
+    fn rh_bus_02_nonfatal_overflow_is_not_fatal_fallback() {
+        let _m = METRIC_LOCK.lock().unwrap();
+        // 非致命 (Warning) 溢出: 全局计数如实 +1, 但不伪造致命 fallback。
+        let (tx, _rx) = sync_channel::<PipelineBusEvent>(1);
+        let slot: Mutex<Option<PipelineBusEvent>> = Mutex::new(None);
+        deliver_bus_event(evt(9, PipelineBusEventKind::Warning), &tx, &slot);
+        let dropped_before = DROPPED_BUS_EVENTS.load(Ordering::SeqCst);
+        deliver_bus_event(evt(9, PipelineBusEventKind::Warning), &tx, &slot);
+        assert!(slot.lock().unwrap().is_none(), "非致命溢出不落 fallback");
+        assert_eq!(
+            DROPPED_BUS_EVENTS.load(Ordering::SeqCst),
+            dropped_before + 1,
+            "溢出 metric 保留 (全局计数)"
+        );
     }
 }
