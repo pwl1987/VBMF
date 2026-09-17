@@ -1,0 +1,92 @@
+================================================================================
+STAB-O4 首刀 E4-1 — INGEST-ANATOMY 生产观测点（allocation-path 面·冻结设计）
+================================================================================
+冻结日期: 2026-09-17（实现/盒执行前冻结）
+Authority: .project/STATE.md §4 Current Task（STAB-O4/FIX）+ §3.17 收口裁定②
+（E4 型生产观测点·用户已授权·gstreamer crate API 内省属 Rust 可达面·
+非 GST_DEBUG env）+ c2o3-allocation-path-design.txt c2rules ①-④ 继承。
+上位候选空间（§3.17 冻结）: 每输入 DeckLink 源族 ingest native 分配链 ×
+allocator reservation/arena 行为；六环已过 3/6，allocation-path 未证。
+
+--------------------------------------------------------------------------------
+§0 范围与红线
+--------------------------------------------------------------------------------
+- E4-1 = 生产代码观测点（counter 面），**只观察不改动数据流**：
+  decklinkvideosrc/audiosrc src pad 上挂 BUFFER pad probe（gstreamer crate
+  API），逐 buffer 记形态；bus watch 线程记 bus 消息流计数。
+- 暴露门 = diagnostic-only：仅诊断模式 spawn 的 30s 采样线程把快照以
+  `E4_INGEST_ANATOMY` info 行落 svc.log；生产模式不 spawn、零暴露。
+  wire 契约（/health、/api/v1/*）零改动。
+- 观测代码自身服从 FIX 原则 A：全部固定容量计数（sizes ≤8、meta ≤8、
+  溢出另计），probe 内零逐帧堆分配（glib::Type Copy 匹配、name() 返回
+  静态 &str、仅首次入库物化 String）。
+- 禁入清单不动（malloc_info/gdb/pmap/perf/eBPF/LD_PRELOAD/GST_DEBUG/
+  tracer env/jemalloc/glibc-tunables 均不用）；不采样加速；不降 +50MB gate；
+  malloc_trim 永不入产。
+- c2rules 继承：①每层只证本层 ②supporting evidence 不自动升级 ③相关性
+  ≠因果 ④不反向扩大实验强度。E4-1 任何输出不得写成 root cause。
+
+--------------------------------------------------------------------------------
+§1 观测面定义（中性层 pipeline_events::IngestAnatomy）
+--------------------------------------------------------------------------------
+每 (PipelineHandle) 一条，含 video/audio 两平面 + bus 计数：
+
+IngestAnatomyPlane（probe 逐 buffer 更新）:
+  buffers / bytes_total / size_min_bytes / size_max_bytes
+  sizes: (size_bytes, count)[] 固定容量 8 + sizes_overflow
+  meta_counts: (glib Type id, api 名, count)[] 固定容量 8 + meta_overflow
+  no_pts / pts_last_ns / pts_delta_min_ns / pts_delta_max_ns / pts_backward
+IngestAnatomy:
+  video / audio / bus_msgs_total（bus watch 线程逐消息计数）
+
+挂点:
+  - probe: build_pipeline 后扫 elements，factory 名 decklinkvideosrc→video
+    平面、decklinkaudiosrc→audio 平面，各 src pad 挂 BUFFER probe；
+    recover 重建即重建（计数按管线实例重置——per-instance 视图，如实披露）。
+  - register 于 build、remove 于 stop（与 HEALTH_ARCS 同生命周期律）。
+  - 采样: bin 诊断分支 spawn 30s 线程，svc.log info 行
+    `E4_INGEST_ANATOMY handle=N anatomy={json}`。
+
+--------------------------------------------------------------------------------
+§2 冻结判读表（先于数据冻结；全部为相关性/排除陈述，非因果）
+--------------------------------------------------------------------------------
+- R-A steady（sizes 单一、meta 组成常数、buffers 速率常数 ±2%、pts delta
+  稳定、pts_backward=0、bus 线性低量）⇒ 允许陈述：pad 可见逐帧分配流为
+  稳态复用；"重协商 / meta 累积 / PTS 抖动 / bus 消息流" 四类 pad 可见
+  异常被排除；allocation-path 环仍指 pad 面之下（插件/SDK native ×
+  allocator）——六环 allocation-path 依旧未证，无 root cause 主张。
+- R-B meta 累积（某 api 的 count/buffers 比值首 1/3 vs 末 1/3 漂移 >2×）
+  ⇒ meta 附着链候选成立（correlation only；须过量级环）。
+- R-C sizes 指纹漂移（sizes_overflow 增长或每平面 >2 个 size）⇒
+  重协商/混合分配候选成立（同上，不升级）。
+- R-D PTS 异常（pts_backward 增长或 delta min/max 展布 > 中位 2×）⇒
+  时间戳路径候选成立（同上）。
+- R-E bus_msgs_total 超线性（vs 墙钟）⇒ bus 消息流候选成立（同上）。
+- 量级义务：任何候选必须给出 kB/s 估计并与已知形态对账（单输入涓流
+  0.87kB/s·边界 ~1190s 迁 ~1MB；双输入离散 5.5MB 批触 @~7100s；
+  每输入聚合 2.99 vs 2.81MB/h）。对不上账 ⇒ 如实登记不升级。
+- 5.5MB 批触事件时窗（run_rel ~7000-7300s）内 anatomy 计数若全稳 ⇒
+  批触不在 pad 可见分配流内（环仍指 native 内部）。
+
+--------------------------------------------------------------------------------
+§3 盒执行协议（实现合入 main 且 CI 7/7 后）
+--------------------------------------------------------------------------------
+- 构建: 盒上 `cargo build --features bmd,gstreamer`（Cargo.lock 已补全
+  `7a9f696`——期望零重锁；build.log 无 "Locking" 行为构建纪律核验项）。
+- 盒上单测: `cargo test --features bmd,gstreamer e4_`（anatomy 单元/控制器
+  测试真 GStreamer 环境执行）。
+- 运行: r64-stability-long.sh 同构 workload——CYCLES=315 DWELL=28
+  VBMF_DIAG_INPUTS=2（24h parity 形态；窗 9000s 覆盖批触 ~7150s）+
+  observer v2.1 同面（不扩宽）。E4 采样 30s。
+- 证据: runner 面 + observer 面 + svc.log（含 E4 行）入
+  evidence/bmd-10.30.15.10/2026-09-17-c2o4-e4-ingest-anatomy-2p5h{,-observer}/。
+- 分析: 离线对账 §2 冻结表；六环状态如实登记。
+
+--------------------------------------------------------------------------------
+§4 STOP 条件
+--------------------------------------------------------------------------------
+- 实现/CI 失败 ⇒ 修复后再上盒（不带红 CI 上盒）。
+- 盒构建重锁（lock 漂移复发）⇒ 停，先修锁再跑（bin 可复现优先于观测）。
+- observer 契约破坏（触发器/覆盖异常）⇒ 停运行登记，不带病判读。
+- 判读遇 §2 未覆盖形态 ⇒ 只登记形态，冻结补充判读表后再判（不现场发挥）。
+================================================================================

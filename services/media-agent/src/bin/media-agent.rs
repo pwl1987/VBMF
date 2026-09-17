@@ -432,6 +432,20 @@ fn main() {
                             ttl: std::time::Duration::from_secs(60),
                         });
                     }
+                    // STAB-O4 E4-1: diagnostic-only ingest anatomy 采样线程
+                    // （E4 观测字段 diagnostic-only 暴露门——生产模式不 spawn,
+                    // wire 契约零改动; 冻结设计 c2o4-e4-ingest-anatomy-design.txt）。
+                    // 30s 快照落 svc.log `E4_INGEST_ANATOMY` 行; 进程退出即终止。
+                    std::thread::spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                        for (h, a) in media_agent::pipeline_events::ingest_anatomy_snapshot() {
+                            tracing::info!(
+                                handle = h.0,
+                                anatomy = %serde_json::to_string(&a).unwrap_or_default(),
+                                "E4_INGEST_ANATOMY"
+                            );
+                        }
+                    });
                     match mgr.create(intent.clone()) {
                         Ok(sid) => match mgr.start(&sid) {
                             Ok(()) => {

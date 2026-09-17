@@ -66,6 +66,136 @@ pub fn bus_event_recovery_policy(kind: PipelineBusEventKind) -> &'static str {
     }
 }
 
+// ── STAB-O4 E4-1: ingest allocation-face anatomy (diagnostic-only exposure) ──
+// 冻结设计: evidence/bmd-10.30.15.10/c2o3-analysis/c2o4-e4-ingest-anatomy-design.txt。
+// 观测面 = decklinkvideosrc/audiosrc src pad 的 BUFFER pad probe + bus watch
+// 消息计数 (gstreamer crate 可达面)。本结构只描述形态, 永不构成因果证据
+// (c2rules ③)。观测代码自身服从 FIX 原则 A: 全部固定容量计数, 溢出另计,
+// probe 侧零逐帧堆分配。
+
+/// 单平面 anatomy 直方图容量 (size 指纹 / meta API 各 8; 超出计 overflow)。
+pub const INGEST_ANATOMY_SIZES_CAP: usize = 8;
+pub const INGEST_ANATOMY_META_CAP: usize = 8;
+
+/// 每平面 ingest anatomy (probe 逐 buffer 更新; min/max 以 buffers==1 初始化)。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IngestAnatomyPlane {
+    pub buffers: u64,
+    pub bytes_total: u64,
+    pub size_min_bytes: u64,
+    pub size_max_bytes: u64,
+    /// (size_bytes, count) 固定容量 [`INGEST_ANATOMY_SIZES_CAP`]。
+    pub sizes: Vec<(u64, u64)>,
+    pub sizes_overflow: u64,
+    /// (meta api 数字 id, api 名, count) 固定容量 [`INGEST_ANATOMY_META_CAP`]。
+    /// id 优先匹配 (probe 侧零分配); 名字仅首次入库物化。
+    pub meta_counts: Vec<(u64, String, u64)>,
+    pub meta_overflow: u64,
+    pub no_pts: u64,
+    pub pts_last_ns: Option<u64>,
+    /// 前向 delta (pts < last 记 saturating 0, 另计 pts_backward)。
+    pub pts_delta_min_ns: Option<u64>,
+    pub pts_delta_max_ns: Option<u64>,
+    pub pts_backward: u64,
+}
+
+impl IngestAnatomyPlane {
+    pub fn observe_buffer(&mut self, size_bytes: u64, pts_ns: Option<u64>) {
+        self.buffers += 1;
+        self.bytes_total += size_bytes;
+        if self.buffers == 1 {
+            self.size_min_bytes = size_bytes;
+            self.size_max_bytes = size_bytes;
+        } else {
+            self.size_min_bytes = self.size_min_bytes.min(size_bytes);
+            self.size_max_bytes = self.size_max_bytes.max(size_bytes);
+        }
+        match self.sizes.iter_mut().find(|(s, _)| *s == size_bytes) {
+            Some((_, c)) => *c += 1,
+            None if self.sizes.len() < INGEST_ANATOMY_SIZES_CAP => {
+                self.sizes.push((size_bytes, 1));
+            }
+            None => self.sizes_overflow += 1,
+        }
+        match pts_ns {
+            None => self.no_pts += 1,
+            Some(pts) => {
+                if let Some(last) = self.pts_last_ns {
+                    if pts < last {
+                        self.pts_backward += 1;
+                    }
+                    let delta = pts.saturating_sub(last);
+                    self.pts_delta_min_ns = Some(match self.pts_delta_min_ns {
+                        Some(m) => m.min(delta),
+                        None => delta,
+                    });
+                    self.pts_delta_max_ns = Some(match self.pts_delta_max_ns {
+                        Some(m) => m.max(delta),
+                        None => delta,
+                    });
+                }
+                self.pts_last_ns = Some(pts);
+            }
+        }
+    }
+
+    pub fn observe_meta(&mut self, api_id: u64, api_name: &str) {
+        match self.meta_counts.iter_mut().find(|(id, _, _)| *id == api_id) {
+            Some((_, _, c)) => *c += 1,
+            None if self.meta_counts.len() < INGEST_ANATOMY_META_CAP => {
+                self.meta_counts.push((api_id, api_name.to_string(), 1));
+            }
+            None => self.meta_overflow += 1,
+        }
+    }
+}
+
+/// 每管线 anatomy: video/audio 两平面 + bus 消息流计数。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IngestAnatomy {
+    pub video: IngestAnatomyPlane,
+    pub audio: IngestAnatomyPlane,
+    pub bus_msgs_total: u64,
+}
+
+/// E4-1 全局观测表 (probe 写入 / 诊断采样读取; 与 HEALTH_ARCS 同层中性全局;
+/// register 于 build、remove 于 stop——生命周期与实例表同律)。
+pub(crate) static INGEST_ANATOMY: LazyLock<Mutex<HashMap<PipelineHandle, IngestAnatomy>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// 诊断采样快照 (bin 侧 diagnostic-only 采样线程调用; 生产面不调用)。
+pub fn ingest_anatomy_snapshot() -> Vec<(PipelineHandle, IngestAnatomy)> {
+    INGEST_ANATOMY
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(h, a)| (*h, a.clone()))
+        .collect()
+}
+
+/// probe/bus 写入门 (controller gstreamer 层调用; 非 gstreamer 构建无调用点,
+/// 与 read_health 同律允许 dead_code)。
+#[allow(dead_code)]
+pub(crate) fn ingest_anatomy_register(handle: PipelineHandle) {
+    INGEST_ANATOMY
+        .lock()
+        .unwrap()
+        .insert(handle, IngestAnatomy::default());
+}
+
+#[allow(dead_code)]
+pub(crate) fn ingest_anatomy_remove(handle: &PipelineHandle) {
+    INGEST_ANATOMY.lock().unwrap().remove(handle);
+}
+
+#[allow(dead_code)]
+pub(crate) fn with_ingest_anatomy<R>(
+    handle: &PipelineHandle,
+    f: impl FnOnce(&mut IngestAnatomy) -> R,
+) -> Option<R> {
+    INGEST_ANATOMY.lock().unwrap().get_mut(handle).map(f)
+}
+
 /// GStreamer Bus 事件 (监控线程消费, 喂 Supervisor 决策).
 ///
 /// P1-4 改造 (用户复核 §七): 之前只有 `Error(String)` 等薄枚举, 多 pipeline 后无法诊断
@@ -82,4 +212,73 @@ pub struct PipelineBusEvent {
     pub timestamp: i64,
     pub detail: String,
     pub severity: BusSeverity,
+}
+
+// —— STAB-O4 E4-1 单元测试 (中性层; 无 gstreamer 构建可跑 = CI 全矩阵) ——
+#[cfg(test)]
+mod e4_anatomy_unit_tests {
+    use super::*;
+
+    #[test]
+    fn e4_plane_size_histogram_bounded_with_overflow() {
+        let mut p = IngestAnatomyPlane::default();
+        for i in 0..12u64 {
+            p.observe_buffer(100 + i, Some(i * 40_000_000));
+        }
+        assert_eq!(p.buffers, 12);
+        assert_eq!(p.sizes.len(), INGEST_ANATOMY_SIZES_CAP);
+        assert_eq!(p.sizes_overflow, 12 - INGEST_ANATOMY_SIZES_CAP as u64);
+        assert_eq!(p.size_min_bytes, 100);
+        assert_eq!(p.size_max_bytes, 111);
+        assert_eq!(p.bytes_total, 12 * 100 + (0..12).sum::<u64>());
+        // pts delta: 等距 40ms 单调 ⇒ min==max, 无 backward。
+        assert_eq!(p.pts_delta_min_ns, Some(40_000_000));
+        assert_eq!(p.pts_delta_max_ns, Some(40_000_000));
+        assert_eq!(p.pts_backward, 0);
+        assert_eq!(p.no_pts, 0);
+    }
+
+    #[test]
+    fn e4_plane_pts_backward_and_no_pts() {
+        let mut p = IngestAnatomyPlane::default();
+        p.observe_buffer(10, Some(1_000));
+        p.observe_buffer(10, Some(1_040)); // delta 40
+        p.observe_buffer(10, Some(1_010)); // backward ⇒ delta saturating 0
+        p.observe_buffer(10, None); // no pts
+        assert_eq!(p.pts_delta_min_ns, Some(0));
+        assert_eq!(p.pts_delta_max_ns, Some(40));
+        assert_eq!(p.pts_backward, 1);
+        assert_eq!(p.no_pts, 1);
+        assert_eq!(p.pts_last_ns, Some(1_010), "基准随最新观测推进");
+    }
+
+    #[test]
+    fn e4_plane_meta_id_first_dedup_and_capacity() {
+        let mut p = IngestAnatomyPlane::default();
+        p.observe_meta(7, "GstVideoMeta");
+        p.observe_meta(7, "ignored-name-after-first"); // id 命中 ⇒ 名字不再物化
+        assert_eq!(p.meta_counts.len(), 1);
+        assert_eq!(p.meta_counts[0], (7, "GstVideoMeta".to_string(), 2));
+        for id in 100..(100 + INGEST_ANATOMY_META_CAP as u64 + 4) {
+            p.observe_meta(id, "api");
+        }
+        assert_eq!(p.meta_counts.len(), INGEST_ANATOMY_META_CAP);
+        // 原 id=7 占 1 席 + 新 id 共 cap; 溢出 = 新 id 数 - 空席。
+        let distinct_new = (100..(100 + INGEST_ANATOMY_META_CAP as u64 + 4)).count() as u64;
+        assert_eq!(p.meta_overflow, distinct_new - (INGEST_ANATOMY_META_CAP as u64 - 1));
+    }
+
+    #[test]
+    fn e4_registry_register_write_snapshot_remove() {
+        let h = PipelineHandle(424_242);
+        ingest_anatomy_register(h);
+        with_ingest_anatomy(&h, |a| a.video.observe_buffer(5, Some(1))).unwrap();
+        with_ingest_anatomy(&h, |a| a.bus_msgs_total += 1);
+        let snap = ingest_anatomy_snapshot();
+        let entry = snap.iter().find(|(k, _)| k == &h).expect("条目在场");
+        assert_eq!(entry.1.video.buffers, 1);
+        assert_eq!(entry.1.bus_msgs_total, 1);
+        ingest_anatomy_remove(&h);
+        assert!(ingest_anatomy_snapshot().iter().all(|(k, _)| k != &h));
+    }
 }
