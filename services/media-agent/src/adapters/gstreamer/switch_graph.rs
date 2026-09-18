@@ -784,7 +784,41 @@ fn make_video_normalize_elements(
     let caps = gstreamer::Caps::from_str(&caps_text)
         .map_err(|e| SwitchError::Backend(format!("video Normalize caps 解析失败: {e}")))?;
     capsfilter.set_property("caps", caps);
-    Ok(vec![convert, scale, rate, capsfilter])
+
+    if !target.interlaced {
+        return Ok(vec![convert, scale, rate, capsfilter]);
+    }
+
+    // GStreamer video converters/scalers do not convert between interlace modes.
+    // Make the mode transition explicit: fielded input -> progressive working
+    // caps -> 1:1 interlace reconstruction -> exact target caps.
+    let deinterlace = make_element("deinterlace", &format!("{prefix}-deinterlace"))?;
+    let progressive_capsfilter = make_element("capsfilter", &format!("{prefix}-progressive-caps"))?;
+    let progressive_frame_rate_num = target
+        .frame_rate_num
+        .checked_mul(2)
+        .ok_or_else(|| SwitchError::Backend("video progressive framerate overflow".into()))?;
+    let progressive_caps_text = format!(
+        "video/x-raw,format={pixel_format},width={},height={},framerate={}/{},interlace-mode=progressive",
+        target.width, target.height, progressive_frame_rate_num, target.frame_rate_den
+    );
+    let progressive_caps = gstreamer::Caps::from_str(&progressive_caps_text)
+        .map_err(|e| SwitchError::Backend(format!("video progressive caps 解析失败: {e}")))?;
+    progressive_capsfilter.set_property("caps", progressive_caps);
+
+    let interlace = make_element("interlace", &format!("{prefix}-interlace"))?;
+    // The target contract is a 1:1 interlaced cadence, not a telecine pattern.
+    interlace.set_property_from_str("field-pattern", "1:1");
+
+    Ok(vec![
+        deinterlace,
+        convert,
+        scale,
+        rate,
+        progressive_capsfilter,
+        interlace,
+        capsfilter,
+    ])
 }
 
 fn make_audio_normalize_elements(
