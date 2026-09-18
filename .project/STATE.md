@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02 + adjudication COMPLETE；当前 Next bounded Runtime Features packet selection PLAN REQUIRED**
+**Runtime Features ACTIVE；RF-FF-02 + adjudication COMPLETE；RF-FF-03 READY / PLAN FROZEN**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -582,15 +582,26 @@ Status: **COMPLETE / SINGLE-INPUT FFMPEG EGRESS + HLS RECOVERY VERIFIED**。
 - Teardown：Released、Resource Available、Lease NONE、monitor exited、FFmpeg orphan NONE；output device-number 2 untouched；stale `/opt/vbmf-dev/repo` unused。Evidence：`evidence/bmd-10.30.15.10/2026-09-18-rf-ff-02-ffmpeg-egress/`。
 - 非本 packet：没有 RTMP server/network acceptance、multi-output、Network Source、second input、Program Switch、SRS ownership、Recording/Replay、Clock/FLOW/IDEM 扩展；24h `rss_bounded` debt 仍独立未验证。
 
+### 3.35 RF-FF-03 packet selection（2026-09-18）
+
+Status: **READY / PLAN FROZEN**。
+
+- 选择：补齐单输入 FFmpeg RTMP egress 的 runtime/recovery/teardown；使用同一 BMD FFmpeg 构建的 loopback `-rtmp_listen 1` 作为 gate-owned acceptance fixture。
+- 选择依据：RF-FF-02 已验证 HLS；FFmpeg RTMP argv 已存在但无 runtime receiver evidence；BMD 无 mediamtx/SRS/rtmpdump，capability probe 已证明同一 FFmpeg 支持 loopback listener，依赖最小。
+- Allowed：一个 `OutputPlan::Rtmp`、受控 loopback URL、producer/receiver h264+aac evidence、same-handle recovery/new child、canonical teardown。
+- Forbidden：Network Source、第二 input、Program/Packet/Master Switch、multi-output、SRS ownership、外部 RTMP server、Recording/Replay、output device-number 2、Graph/wire/Clock/FLOW/IDEM 扩展、24h stability。
+- Touch-gates：adapter argv 与 fail-closed；receiver 只绑定 loopback 且由 gate 回收；Session/Resource/Lease/RecoveryMonitor owner 不变；BMD 仍只用 exact handle `46:00000000:002e4500` / device-number 0。
+- Plan：`docs/superpowers/plans/2026-09-18-rf-ff-03-ffmpeg-rtmp-egress.md`。
+
 ## 4. Current Task
 
-**Next bounded Runtime Features packet selection — PLAN REQUIRED**
+**RF-FF-03 implementation — PLAN FROZEN**
 
-RF-FF-02 已完成并经 adjudication 接受（§3.34）：单输入 FFmpeg HLS egress、argv 校验、same-handle recovery 与 teardown 已由 VM、CI、BMD exact-commit 双侧验证。下一步只能重新选择并拆解一个有明确 Authority、allowed/forbidden scope、touch-gate 与 acceptance 的 bounded packet；不得从历史 roadmap 自行推进 Network Source、multi-output、Program multi-input 或 SRS/Recording/Replay。
+RF-FF-03 已完成候选比较与计划冻结（§3.35）。现在只实现单输入 FFmpeg RTMP loopback acceptance；完成前不得扩大到 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。
 
 ## 5. Next Task
 
-**Next bounded Runtime Features packet selection**：基于当前 frozen Contract 与真实 RF-FF-02 evidence，先做候选比较、依赖/touch-gate/验收矩阵并将下一包置 READY，之后才可实施。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被 RF-FF-02 裁决覆盖。
+**RF-FF-03 software/runtime/hardware verification**：按 §3.35 与 RF-FF-03 plan 实施并验收；完成后再更新 adjudication。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被 RF-FF-03 裁决覆盖。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -632,6 +643,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-FF-01E** | **COMPLETE（§3.30·2026-09-18）** | FFmpeg SessionManager / production composition-root single-input wiring | RF-FF-01D | final `96f8055`；focused 3/3；CI `35344678284` 7/7；BMD production no-auto-start + Session create/start/Running/stop/Released rc=0；Resource/Lease clean；no orphan |
 | **RF-FF-01F** | **COMPLETE（§3.31·2026-09-18）** | Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery | RF-FF-01E | neutral monitor no GStreamer evidence；canonical observe→Supervisor→lease recheck→recover；cancellable lifecycle；CI `35356652348` 7/7；BMD kill/recover/new child + teardown/no orphan |
 | **RF-FF-02** | **COMPLETE（§3.34·2026-09-18）** | FFmpeg 单输入 Egress / Output 生命周期（现有 Hls/Rtmp OutputPlan） | RF-FF-01F + §3.33 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35375536871` 7/7；BMD exact HLS/recovery/teardown；output device 2 untouched |
+| **RF-FF-03** | **READY（§3.35·2026-09-18）** | FFmpeg 单输入 RTMP egress / loopback receiver recovery | RF-FF-02 + RF-FF-03 plan | adapter/runtime RTMP；sender/receiver h264+aac；same-handle recovery；canonical teardown；exact-commit BMD；loopback fixture only |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
