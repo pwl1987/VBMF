@@ -1,0 +1,23 @@
+=== RF-FF-01D exact BMD acceptance summary ===
+Build: PASS (bmd,gstreamer media-agent-gates)
+L1a Identity/Binding: PASS — 2/2 production_grade
+L1b Capability(SDK mask): PASS
+L1c Signal Locked: PASS — both inputs signal=true
+L1d Port↔Resource closure: PASS
+L2a Session dual-input: PASS — started_inputs=2
+L2b MediaTap/Bridge wired: PASS — both taps frames=83
+L3 Program output advancing: PASS
+L4 Timing/switch+timeline A→B: PASS
+L5 Failure isolation/recover: PASS
+Teardown: PASS — session released / program runtime inactive
+A2-8 Dual Input Gate: ALL PASS (10/10 verdicts; L0→L5+Teardown)
+DUAL_INPUT_GATE_RC=0
+OUTPUT_PID_AFTER=992634
+LEFTOVER=NONE
+RF_FF_01D_BMD_DUAL_INPUT_PASS
+
+Observed non-fatal diagnostics:
+- GStreamer-Video converter interlace-mode CRITICAL messages occurred during gate.
+- gst_pad_unlink CRITICAL messages occurred during teardown.
+- Gate verdicts, frame/PTS advancement, recover and teardown nevertheless completed PASS.
+- These diagnostics are retained as observed runtime warnings; this packet does not reclassify them as a new failure without failing behavioral evidence.

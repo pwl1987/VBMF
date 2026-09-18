@@ -1,0 +1,14 @@
+RF-FF-01D BMD exact dual-input regression evidence
+date=2026-09-18
+exact_commit=dd0eb8ce5f6dd7925731b23cc44d542805ed43e3
+archive_sha256=e622f08337477fbb7206a8353399279f926a6b8a6ed787ad70366850ed549875
+manifest=/home/lytv/a2-8-02i-v5.manifest.json
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+build=cargo build --offline --features bmd,gstreamer --bin media-agent-gates
+gate=VBMF_A2_8_DUAL_INPUT=1 MEDIA_AGENT_DEVICE_BINDING=/home/lytv/a2-8-02i-v5.manifest.json MEDIA_AGENT_MODE=diagnostic
+result=A2-8 Dual Input Gate ALL PASS 10/10
+gate_rc=0
+output_device_2_pid_before=992634
+output_device_2_pid_after=992634
+leftover=NONE
+verification=BMD HARDWARE VERIFIED

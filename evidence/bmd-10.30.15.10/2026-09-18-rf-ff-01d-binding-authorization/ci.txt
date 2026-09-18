@@ -1,0 +1,12 @@
+GitHub Actions verification
+run_id=35342501850
+head_sha=dd0eb8ce5f6dd7925731b23cc44d542805ed43e3
+conclusion=success
+required_jobs=7/7
+rust-format=success
+gstreamer-build=success
+hardware-test-compile=success
+architecture-portability=success
+rust-clippy=success
+session-lifecycle=success
+rust-test-matrix=success
