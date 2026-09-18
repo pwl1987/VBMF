@@ -665,17 +665,28 @@ Status: **PHASE B COMPLETE / SOFTWARE + CI + BMD HARDWARE VERIFIED；RUNTIME WAR
 - Evidence：`evidence/bmd-10.30.15.10/2026-09-18-rf-norm-01-phase-b/`。
 - Runtime warning debt：setup/recover 观察到非致命 `gst_video_converter_*` assertions，teardown 观察到 `gst_pad_unlink` assertion；已如实登记，未隐藏，未改变 11/11 verdict；本包不宣称 warning-free。
 - Boundary：不启用 MASTER_SWITCH；不宣称 Network/Output/Recording/Replay/24h stability；24h `rss_bounded` 仍是独立 debt。
-- Next：先选择并冻结下一 bounded Runtime Features packet，再实施。
+- Next：RF-MASTER-01 方案已冻结，进入实现与验证。
+
+### 3.42 RF-MASTER-01 packet selection（2026-09-18）
+
+Status: **READY / PLAN FROZEN；IMPLEMENTATION NEXT**。
+
+- 选择：消费 RF-NORM-01 的 exact V+A selector-boundary evidence，在现有 GStreamer normalized Program graph 上启用 bounded MASTER_SWITCH。
+- 依据：A2-1 将 MASTER_SWITCH 定义为 normalize → unified output format → switch；RF-NORM-01 Phase B 已证明 explicit target、materialized chain 与 exact V+A evidence，但明确把 Master enablement留给后续包。
+- Allowed：内部 ExecutionGroup 允许 MASTER_SWITCH plan；GStreamer adapter 在 selector flip 前强制要求 explicit Normalize plan + evidence.complete()；复用既有双平面 selector、epoch、observed、teardown；bounded simulation/dual-input acceptance。
+- Forbidden：PACKET_SWITCH、Network Source、Hot-Standby/automatic failover、Recording/Replay、SRS/Output expansion、FFmpeg、Session/Resource/Lease/wire/command-plane exposure、Clock/Flow/Idem、24h、output device-number 2。
+- Fail-closed：缺 Normalize plan、缺任一 plane exact evidence、V/A divergence 或 backend 不支持时均不得改变 selector/bookkeeping。
+- Plan：`docs/superpowers/plans/2026-09-18-rf-master-01-master-switch-normalized-execution.md`。
 
 ## 4. Current Task
 
-**Next bounded Runtime Features packet selection — PLAN REQUIRED**
+**RF-MASTER-01 — bounded normalized MASTER_SWITCH execution — IMPLEMENTATION ACTIVE**
 
-RF-NORM-01 Phase B 已在 §3.41 完成 software/CI/BMD exact-commit acceptance。当前没有新的实施包被授权；下一步先复核 frozen SwitchPolicy、当前 switch execution、RH-CLOCK-01 与 RF-NORM evidence，选定一个 bounded packet 并冻结 allowed/forbidden scope 与 acceptance。不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay、MASTER_SWITCH 或 24h stability；24h `rss_bounded` 继续独立跟踪。
+RF-MASTER-01 方案已在 §3.42 冻结。当前只实现内部 GStreamer normalized graph 的 MasterSwitch readiness/execution；不扩大到 PacketSwitch、Network、Hot-Standby、Output、控制面或 24h stability。
 
 ## 5. Next Task
 
-Reconcile the frozen SwitchPolicy / MASTER_SWITCH boundary and select exactly one bounded Runtime Features packet. Read the A2-1 policy, current switch execution, RH-CLOCK-01 evidence and RF-NORM-01 Phase B evidence; then freeze the packet's authority, allowed/forbidden scope, implementation files and acceptance. Do not enable MASTER_SWITCH or start Network Source, Hot-Standby, Recording/Replay or Output expansion before that plan is frozen.
+Implement RF-MASTER-01 from the frozen plan. First update the domain/adapter fail-closed checks and focused simulation tests; then run software/CI acceptance; only after a green exact commit run the BMD dual-input gate with one bounded MasterSwitch transition. Preserve RF-NORM warning debt as a separate follow-up.
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -720,7 +731,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-FF-02** | **COMPLETE（§3.34·2026-09-18）** | FFmpeg 单输入 Egress / Output 生命周期（现有 Hls/Rtmp OutputPlan） | RF-FF-01F + §3.33 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35375536871` 7/7；BMD exact HLS/recovery/teardown；output device 2 untouched |
 | **RF-FF-03** | **COMPLETE（§3.36·2026-09-18）** | FFmpeg 单输入 RTMP egress / loopback receiver recovery | RF-FF-02 + §3.35 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35379282990` 7/7；BMD sender/receiver h264+aac、recovery、teardown；output device 2 untouched |
 | **RF-NORM-01** | **COMPLETE（§3.41·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A 5/5；Phase B 269/269、CI `35393863201` 7/7、BMD exact dual-input 11/11；L2c exact V+A；warnings 已登记；output device 2 untouched |
-| **RUNTIME-FEATURES-NEXT** | **ACTIVE / PLAN REQUIRED（§3.41·2026-09-18）** | 复核 canonical SwitchPolicy/MASTER_SWITCH boundary，选择并冻结一个 bounded Runtime Features packet；计划冻结前不实现 | RF-NORM-01 + RH-CLOCK-01 + RF-FF slices | Authority、allowed/forbidden scope、implementation files、software/CI/hardware acceptance 全部写入 plan；不得越界启用 MASTER_SWITCH/Network/Output expansion |
+| **RF-MASTER-01** | **ACTIVE / IMPLEMENTATION（§3.42·2026-09-18）** | 消费 RF-NORM exact V+A evidence，在 normalized GStreamer Program graph 上启用 bounded MASTER_SWITCH；保持 PACKET/Network/Output 等边界 | RF-NORM-01 + A2-1 SwitchPolicy | plan frozen；domain/adapter/simulation tests；CI 7/7；BMD exact dual-input + one MasterSwitch transition；output device 2 untouched |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -743,7 +754,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.41/§4–§5；A2-1 SwitchPolicy design/verify；RH-CLOCK-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；`CLOCK_TIMECODE_CONTRACT.md`；D11/D13 debt record；当前 switch execution 与 `switch_graph.rs` Normalize evidence path。RH-CLOCK-01 与 RF-NORM-01 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前回到下一 bounded packet selection。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.42/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan；RF-NORM-01 spec、Phase A/Phase B report；当前 switch execution SPI 与 `switch_graph.rs` Normalize evidence path。RH-CLOCK-01 与 RF-NORM-01 已完成；RF-MASTER-01 只触及内部 normalized GStreamer MasterSwitch readiness/execution，不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network/Output/Program multi-input。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
