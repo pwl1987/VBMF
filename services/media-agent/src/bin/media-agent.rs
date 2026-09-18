@@ -163,6 +163,18 @@ fn main() {
                 Ok("diagnostic") => media_agent::pipeline::MaterializeMode::Diagnostic,
                 _ => media_agent::pipeline::MaterializeMode::Production,
             };
+
+            // RF-FF-01E: FFmpeg production Session composition uses the same Bootstrap
+            // world and the neutral authorization path. Construction starts no media.
+            #[cfg(feature = "ffmpeg-backend")]
+            let ffmpeg_composition = media_agent::bootstrap::build_ffmpeg_session_composition(
+                &world,
+            )
+            .unwrap_or_else(|e| {
+                eprintln!("FFmpeg production composition failed closed: {e}");
+                std::process::exit(2);
+            });
+
             // Resolver 绑定 (物化前置): gstreamer 构建下探测并解析; 非 gstreamer 构建为空 map.
             #[cfg(feature = "gstreamer-backend")]
             let gst_probes = match media_agent::resolver::probe_gstreamer_devices(
@@ -605,12 +617,17 @@ fn main() {
                         }
                     }
                 }
-                #[cfg(not(feature = "gstreamer-backend"))]
+                #[cfg(all(not(feature = "gstreamer-backend"), feature = "ffmpeg-backend"))]
                 {
-                    let _ = &intent; // 无后端构建: 不启动 (canonical launch 待启用 feature 'gstreamer')
+                    let _ = &intent;
                     tracing::info!(
-                        "canonical 计划已物化; 真实 GStreamer launch 待启用 feature 'gstreamer'"
+                        "RF-FF-01E FFmpeg production composition 已构造；diagnostic auto-start 不属于本 packet，未启动媒体"
                     );
+                }
+                #[cfg(all(not(feature = "gstreamer-backend"), not(feature = "ffmpeg-backend")))]
+                {
+                    let _ = &intent; // 无 concrete backend 构建: 不启动媒体。
+                    tracing::info!("canonical 计划已物化; 当前构建未启用 concrete MediaBackend");
                 }
             } else {
                 // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
@@ -623,6 +640,19 @@ fn main() {
                     let (mgr, _ctrl, _media_tap_port, _bridge_observation) = composition;
                     tracing::info!(
                         "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 等待 Control Plane 显式 StartPipeline Intent (RPC transport 待接, 见 rpc.rs)"
+                    );
+                    std::thread::spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        mgr.tick();
+                    });
+                }
+                #[cfg(feature = "ffmpeg-backend")]
+                {
+                    let mgr = ffmpeg_composition.manager.clone();
+                    tracing::info!(
+                        authorized_devices = ffmpeg_composition.authorizations.len(),
+                        authorized_ports = ffmpeg_composition.registry.input_ports().len(),
+                        "RF-FF-01E production FFmpeg composition ready: authorized PortRegistry→ResourceRegistry→SessionManager→FFmpeg MediaBackend (零媒体启动)"
                     );
                     std::thread::spawn(move || loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));

@@ -145,3 +145,222 @@ pub fn build() -> BootstrapContext {
         agent_state,
     }
 }
+
+#[cfg(feature = "ffmpeg-backend")]
+pub struct FfmpegSessionComposition {
+    /// Canonical Session lifecycle owner. Production control commands must enter here.
+    pub manager: Arc<crate::session::SessionManager>,
+    /// Same concrete backend instance injected into SessionManager; exposed for
+    /// acceptance/observation only, not as a second lifecycle owner.
+    pub backend: Arc<dyn crate::contracts::backend::MediaBackend>,
+    /// Backend-neutral Port/Resource authorization view.
+    pub registry: crate::port::PortRegistry,
+    pub authorizations:
+        Arc<std::collections::HashMap<uuid::Uuid, crate::resolver::BindingAuthorization>>,
+}
+
+/// RF-FF-01E: construct the production FFmpeg Session path without starting media.
+///
+/// This is dependency construction only: manifest + live Provider identity are
+/// validated fail-closed, resources are derived from the neutral PortRegistry,
+/// and the existing SessionManager remains the sole lifecycle owner.
+#[cfg(feature = "ffmpeg-backend")]
+pub fn build_ffmpeg_session_composition(
+    world: &BootstrapContext,
+) -> Result<FfmpegSessionComposition, String> {
+    let manifest_path = world.config.device_binding_path.as_deref().ok_or_else(|| {
+        "RF-FF-01E production FFmpeg requires MEDIA_AGENT_DEVICE_BINDING".to_string()
+    })?;
+    let manifest = crate::resolver::DeviceBindingManifest::load(manifest_path)?;
+    manifest.validate_manifest()?;
+    let runtime_machine_id = crate::resolver::current_machine_id();
+    manifest.check_machine_identity(&runtime_machine_id)?;
+
+    let authorizations = crate::resolver::collect_authorizations_from_manifest(
+        &world.discovered,
+        &manifest,
+        &runtime_machine_id,
+    )?;
+    let registry = crate::port::PortRegistry::build_authorized(&world.discovered, &manifest)
+        .map_err(|e| format!("RF-FF-01E authorized PortRegistry build failed: {e:?}"))?;
+    let resources = crate::resource::SharedResourceRegistry::new(
+        crate::resource::ResourceRegistry::derive_from_discovery(&registry),
+    );
+    let backend = crate::registry::AdapterRegistry::build_ffmpeg_backend_with_manifest(
+        &world.discovered,
+        &manifest,
+    )?;
+    let authorizations = Arc::new(authorizations);
+    let manager = Arc::new(crate::session::SessionManager::new(
+        resources,
+        world.lease_manager.clone(),
+        world.supervisor.clone(),
+        backend.clone(),
+        Arc::new(world.devices.clone()),
+        authorizations.clone(),
+        Some(registry.clone()),
+        crate::pipeline::MaterializeMode::Production,
+        crate::session::SessionTuning {
+            default_lease_ttl: world.config.default_lease_ttl,
+            lease_renew_window: world.config.lease_renew_window,
+            ..crate::session::SessionTuning::default()
+        },
+        world.event_sink.clone(),
+    ));
+
+    Ok(FfmpegSessionComposition {
+        manager,
+        backend,
+        registry,
+        authorizations,
+    })
+}
+
+#[cfg(all(test, feature = "ffmpeg-backend"))]
+mod rf_ff_01e_tests {
+    use super::*;
+    use crate::contracts::provider::ProviderIdentity;
+    use crate::device::{DeviceIdentitySource, IdentityStrength};
+    use crate::events::FanoutSink;
+    use crate::port::{ConnectorType, DeviceCapabilities, PortDirection, VerificationLevel};
+    use crate::resolver::{BindingEntry, DeviceBindingManifest, PortBinding};
+    use uuid::Uuid;
+
+    fn manifest(machine_id: String, handle: &str) -> DeviceBindingManifest {
+        DeviceBindingManifest {
+            manifest_version: "2.0".into(),
+            machine_id,
+            generated_by: "rf-ff-01e-test".into(),
+            generated_at: "2026-09-18T00:00:00Z".into(),
+            bmd_sdk_version: None,
+            gst_decklink_plugin_version: None,
+            gst_runtime_version: None,
+            notes: None,
+            bindings: vec![BindingEntry {
+                label: Some("SDI-IN-1".into()),
+                bmd_device_handle: handle.into(),
+                gst_device_number: 9,
+                expected_hw_serial_number: None,
+                expected_model: None,
+                port: Some(PortBinding {
+                    connector: ConnectorType::Sdi,
+                    ordinal: 1,
+                    direction: PortDirection::Input,
+                    required: true,
+                    verification: VerificationLevel::Declared,
+                }),
+            }],
+        }
+    }
+    fn world(manifest_path: Option<String>, handle: &str) -> BootstrapContext {
+        let device_id = Uuid::new_v5(&Uuid::nil(), handle.as_bytes());
+        let device = DeviceInfo {
+            device_id,
+            model: "DeckLink test".into(),
+            display_name: "test-input".into(),
+            serial_number: None,
+            video_input_connections: 0,
+            video_output_connections: 0,
+            identity_strength: IdentityStrength::DeviceHandle,
+            identity_source: DeviceIdentitySource::RealBmd,
+            capabilities: DeviceCapabilities::default(),
+            ports: Vec::new(),
+        };
+        let discovered = vec![DiscoveredDevice {
+            device: device.clone(),
+            identity: Some(ProviderIdentity {
+                provider: "blackmagic",
+                persistent_id: None,
+                device_handle: Some(handle.into()),
+                topological_id: None,
+            }),
+        }];
+        let projection_log = Arc::new(RuntimeEventLog::new());
+        let internal_log = Arc::new(RuntimeEventLog::new());
+        let event_sink: Arc<dyn RuntimeEventSink> = Arc::new(FanoutSink::new(
+            projection_log.clone(),
+            internal_log.clone(),
+        ));
+        let event_intake = Arc::new(std::sync::Mutex::new(
+            crate::event_intake::InternalEventIntake::new(internal_log.clone()),
+        ));
+        let lease_manager = Arc::new(InMemoryLeaseManager::new());
+        let supervisor = Arc::new(std::sync::Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            event_sink.clone(),
+        )));
+        supervisor.lock().unwrap().register(device_id);
+        BootstrapContext {
+            config: Config {
+                device_binding_path: manifest_path,
+                ..Config::default()
+            },
+            discovered,
+            devices: vec![device],
+            projection_log,
+            internal_log,
+            event_intake,
+            event_sink,
+            lease_manager,
+            supervisor,
+            agent_state: Arc::new(std::sync::Mutex::new(AgentState::Ready)),
+        }
+    }
+
+    fn write_manifest(m: &DeviceBindingManifest) -> String {
+        let path = std::env::temp_dir().join(format!(
+            "vbmf-rf-ff-01e-{}-{}.json",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, serde_json::to_vec(m).unwrap()).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn rf_ff_01e_valid_manifest_builds_production_session_composition() {
+        let handle = "46:test:01e";
+        let runtime_machine_id = crate::resolver::current_machine_id();
+        let manifest_machine_id = if runtime_machine_id.is_empty() {
+            "test-host".to_string()
+        } else {
+            runtime_machine_id
+        };
+        let path = write_manifest(&manifest(manifest_machine_id, handle));
+        let w = world(Some(path.clone()), handle);
+        let composition =
+            build_ffmpeg_session_composition(&w).expect("production FFmpeg composition");
+        assert_eq!(composition.authorizations.len(), 1);
+        assert_eq!(composition.registry.input_ports().len(), 1);
+        assert!(composition
+            .registry
+            .ports
+            .iter()
+            .all(|p| p.runtime_binding.is_none()));
+        let state = composition.manager.runtime_state();
+        assert_eq!(state.resources.len(), 1);
+        assert_eq!(state.sessions.len(), 0);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn rf_ff_01e_missing_manifest_fails_closed() {
+        let w = world(None, "46:test:missing");
+        let err = build_ffmpeg_session_composition(&w)
+            .err()
+            .expect("missing manifest must fail");
+        assert!(err.contains("MEDIA_AGENT_DEVICE_BINDING"), "{err}");
+    }
+
+    #[test]
+    fn rf_ff_01e_invalid_empty_machine_manifest_fails_closed() {
+        let handle = "46:test:invalid-machine";
+        let path = write_manifest(&manifest(String::new(), handle));
+        let w = world(Some(path.clone()), handle);
+        let err = build_ffmpeg_session_composition(&w)
+            .err()
+            .expect("empty manifest machine identity must fail");
+        assert!(err.contains("machine_id"), "{err}");
+        std::fs::remove_file(path).ok();
+    }
+}

@@ -1,7 +1,8 @@
 //! VBMF Media Agent Gates — Diagnostic / Acceptance Root（A2-0 归位后形态）。
 //!
-//! 六个真机验收 env 的**唯一**入口（生产 media-agent bin 对这些 env 零 dispatch）:
+//! 真机验收 env 的**唯一**入口（生产 media-agent bin 对这些 env 零 dispatch）:
 //!   VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE /
+//!   VBMF_FFMPEG_SESSION（RF-FF-01E production Session→FFmpeg 单输入 Gate）/
 //!   VBMF_A2_8_DUAL_INPUT（A2-8-02-I 五层 Gate, 第十八轮 §十/§十五）/
 //!   VBMF_A2_8_04_OBS（A2-8-04 多场景六路观测, R52——observation only）/
 //!   VBMF_A2_8_R64_CP（R64 真服务恢复矩阵——real Control Plane + test-controlled adapter）/
@@ -43,6 +44,9 @@ fn main() {
         &_world.event_sink,
         &_world.projection_log,
     );
+
+    #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+    media_agent::gates::ffmpeg_session::run(&_world);
 
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
     media_agent::gates::session_lifecycle::run(
@@ -121,7 +125,7 @@ fn main() {
     eprintln!(
         "media-agent-gates: 未命中任何 gate env \
          (VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE / \
-         VBMF_A2_8_DUAL_INPUT / VBMF_A2_8_04_OBS / VBMF_A2_8_R64_CP / \
+         VBMF_FFMPEG_SESSION / VBMF_A2_8_DUAL_INPUT / VBMF_A2_8_04_OBS / VBMF_A2_8_R64_CP / \
          VBMF_A2_8_S15E01_RACE / VBMF_REGISTRY_ONLY)"
     );
     std::process::exit(2);
