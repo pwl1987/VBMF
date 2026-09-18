@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-01E COMPLETE；当前 RF-FF-01F READY**
+**Runtime Features ACTIVE；RF-FF-01F + adjudication COMPLETE；当前 Next bounded Runtime Features packet selection PLAN REQUIRED**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -538,17 +538,37 @@ Status: **COMPLETE / SOFTWARE + CI + BMD HARDWARE VERIFIED**。
 - historical output device-number 2 PID before/after 均 `992634`。Authority/Contract 无变化；CanonicalPipelinePlan/GraphRuntimeIntent/wire 与 Session/Resource/Lease owner 未改。Evidence：`evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01e-session-composition/`；报告：`docs/superpowers/reports/2026-09-18-rf-ff-01e-ffmpeg-session-composition.md`。
 - Post-01E reconciliation：FFmpeg `MediaBackend::observe/recover` 已存在，但 live single-input watchdog 被 `bmd-provider + gstreamer-backend` feature 锁定且混有 GStreamer `HEALTH_ARCS/appsink` acceptance bookkeeping；直接放开给 FFmpeg 会错误耦合 backend-specific health evidence。因此下一 bounded packet 必须先抽取 canonical event/recovery monitor。
 
+### 3.31 RF-FF-01F 收口（2026-09-18）
+
+Status: **COMPLETE / SOFTWARE + CI + BMD HARDWARE VERIFIED**。
+
+- Runtime commit：f868420cedca2ba38ece320ef2c9b60e48e0b6e1。新增 backend-neutral RecoveryMonitor：MediaBackend::observe → canonical PipelineBusEvent/RuntimeEvent → Supervisor single decision → Lease revalidation → same-handle MediaBackend::recover；SessionStopHook 负责 stop/cancel/join。
+- neutral monitor 不引用 GStreamer crate/element、device-number 或 vendor runtime address；现有 GStreamer watchdog 的 HEALTH_ARCS/appsink frame/PTS bookkeeping 保持原路径，未新增第二套 Session/Resource/Lease truth。
+- fail-closed：Error/EOS 只经 canonical mapper 进入 Supervisor；Lease 无效进入 ManualRequired 且不 recover；recover failure 进入 ManualRequired；stop 后 monitor exited。
+- Development VM：default 261/261；simulation 261/261；mock 446/446 + integration 9/9 + 12/12；ffmpeg-backend 278 PASS / 1 ignored 既有 real-binary hardware test；fmt、default/mock/ffmpeg clippy -D warnings、architecture lint、remove-adapters proof 全 PASS。
+- BMD exact commit：archive sha256 3ae7c8a233ec1b705e2a6685d5f39126bfd8d43d9541c9ea1aa7f1cab27cf63e；manifest /home/lytv/a2-8-02i-v5.manifest.json MD5 7521d17e7fd02e50eb2b0a84374a43dd；native bmd-provider,ffmpeg-backend release build PASS。
+- BMD failure-first gate：target 46:00000000:002e4500，真实 Session Running 后外部 SIGTERM child，canonical failure→Supervisor Recovered→new child PID，随后 stop/close；Released、Resource Available、Lease NONE、monitor exited、FFmpeg orphan NONE，marker RF_FF_01F_BMD_RECOVERY_PASS。
+- output device-number 2 未触碰；stale /opt/vbmf-dev/repo 未使用/未修改。Evidence：evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01f-recovery/；报告：docs/superpowers/reports/2026-09-18-rf-ff-01f-ffmpeg-recovery-monitor.md。
+- Authority/Contract：无 frozen Contract、CanonicalPipelinePlan、GraphRuntimeIntent/wire、Session/Resource/Lease owner 变化；RF-FF-01F 是既有 contract 的实现收敛。
+
+### 3.32 Post RF-FF-01F adjudication（2026-09-18）
+
+Status: **COMPLETE / SINGLE-INPUT LIVE FFMPEG SLICE ACCEPTED**。
+
+- 证据裁决：RF-FF-01F 已满足当前 bounded acceptance；real child termination → canonical failure → Supervisor recovery → same-handle recovery/new child → stop/close teardown 链完整，且由 VM architecture/CI 与 BMD exact-commit gate 双侧独立支撑。
+- 不新增 recovery/health follow-up packet：本 slice 的 monitor、Supervisor、lease fail-closed 与 cancellable lifecycle 已达到当前范围要求；后续只有在扩大到 multi-input、network source/output、clock/timecode 或更广 health policy 时重新拆 packet。
+- 范围裁决：不得把本裁决解释为 Network Source/Output/Program multi-input 已获准实施；必须先有明确 bounded packet、touch-gate 与 acceptance。
+- 稳定性裁决：历史 24h `rss_bounded` FAIL 仍是独立 verification debt；RF-FF-01F 不宣称 24h stability verified。
+
 ## 4. Current Task
 
-**RF-FF-01F — Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery**。
+**Next bounded Runtime Features packet selection — PLAN REQUIRED**
 
-Scope：从现有 GStreamer-only single-input watchdog 中抽取**仅依赖 `MediaBackend::observe/recover` + canonical `PipelineBusEvent/RuntimeEvent` + Supervisor/Lease** 的 backend-neutral recovery monitor。GStreamer `HEALTH_ARCS/appsink` frame/PTS/acceptance bookkeeping 继续留在 GStreamer ingest watchdog，不得伪造成 FFmpeg health evidence。Monitor 只执行 Supervisor 已裁决的 recover，不拥有 Session/Resource/Lease truth，也不得发起 source switch/fallback。必须具备明确 stop/cancellation 生命周期，Session teardown 后不得残留 monitor thread 或 recover 已停止 handle。
-
-Required acceptance：neutral monitor 源码/类型不引用 gstreamer crate/element/device-number；Error/EOS 从 `MediaBackend::observe` 进入 canonical event→Supervisor 单一决策路径；lease invalid 时 fail-closed 到 manual-required/不 recover；Restart 时重校 lease 后调用同一 backend handle 的 `recover`；stop signal 能终止 monitor。现有 GStreamer watchdog/focused regression 不漂移；default/mock/ffmpeg + architecture + CI 7/7。BMD exact-commit：真实 FFmpeg Session Running 后外部终止其 child，monitor 必须检测 canonical failure、Supervisor 裁决 Restart、FFmpeg recover 出现新 child 并恢复 alive；随后 Session stop/close 后 Resource=Available、Lease=NONE、monitor exited、FFmpeg orphan=NONE，历史 output PID 992634 不变。
+Post RF-FF-01F adjudication 已完成：当前单输入 Live FFmpeg failure-first slice 已接受，且不需要额外 recovery/health follow-up。下一步只允许先选择并拆解一个有明确 Authority、allowed scope、forbidden scope、touch-gate 与 acceptance 的 bounded packet；在该 packet 进入 READY 前，不实施 Network Source/Output/Program multi-input，也不从历史 roadmap 自行挑选功能。
 
 ## 5. Next Task
 
-**Post RF-FF-01F adjudication**：01F 收口后，再依据真实 failure/recovery 证据裁决 Live FFmpeg 是否已满足当前单输入 failure-first slice，或是否还需 bounded recovery/health packet；未完成该裁决前不得跳到 Network Source/Output/Program multi-input。
+**Next bounded Runtime Features packet selection**：基于当前 frozen Contract 与依赖关系形成下一 packet 的正式 scope；完成拆解、验证矩阵与证据路径后，才可将其置为 READY。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本裁决覆盖。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -588,7 +608,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-FF-01C** | **COMPLETE（§3.28·2026-09-18）** | FFmpeg Resolved RuntimeBinding mapping + single-input BMD parity | RF-FF-01B | focused 5/5；ffmpeg full 266 PASS + 1 ignored HW；default 252/252；mock 436/436 + 9/9+12/12；CI `35339165383` 7/7；BMD 50 frames/2s + lifecycle 1/1；output PID unchanged |
 | **RF-FF-01D** | **COMPLETE（§3.29·2026-09-18）** | Backend-neutral Session Binding Authorization extraction | RF-FF-01C | focused 6/6；default 258/258；mock 436/436 + 9/9+12/12；ffmpeg 272 PASS + 1 ignored HW；CI `35342501850` 7/7；BMD dual-input 10/10 exact commit |
 | **RF-FF-01E** | **COMPLETE（§3.30·2026-09-18）** | FFmpeg SessionManager / production composition-root single-input wiring | RF-FF-01D | final `96f8055`；focused 3/3；CI `35344678284` 7/7；BMD production no-auto-start + Session create/start/Running/stop/Released rc=0；Resource/Lease clean；no orphan |
-| **RF-FF-01F** | **READY** | Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery | RF-FF-01E | no GStreamer-specific evidence in neutral monitor；canonical observe→Supervisor→lease recheck→recover；cancellable lifecycle；CI 7/7；BMD kill/recover/new child + teardown/no orphan |
+| **RF-FF-01F** | **COMPLETE（§3.31·2026-09-18）** | Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery | RF-FF-01E | neutral monitor no GStreamer evidence；canonical observe→Supervisor→lease recheck→recover；cancellable lifecycle；CI `35356652348` 7/7；BMD kill/recover/new child + teardown/no orphan |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -611,7 +631,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_CONTRACT.md §1–§4`（尤其 §3 Backend failure→RuntimeEvent→Health/Policy→Supervisor 与 §1.1 resource ownership）；`contracts/backend.rs`；live `watchdog.rs` single-input observe/recover path、`Supervisor`、Lease、canonical `PipelineBusEvent/RuntimeEvent` 与 FFmpeg `observe/recover`。RF-FF-01F 只抽取 backend-neutral canonical event/recovery monitor 并完成 FFmpeg failure-first single-input 验证；GStreamer `HEALTH_ARCS/appsink` acceptance 继续留 GStreamer watchdog，不改 Session/Resource/Lease owner，不扩 Network Source/Output/Program multi-input。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.32/§4–§5；RF-FF-01F report/evidence；`MEDIA_BACKEND_CONTRACT.md §1–§4`（尤其 §3 Backend failure→RuntimeEvent→Health/Policy→Supervisor 与 §1.1 resource ownership）；`contracts/backend.rs`；live `watchdog.rs` single-input observe/recover path、`Supervisor`、Lease、canonical `PipelineBusEvent/RuntimeEvent` 与 FFmpeg `observe/recover`。RF-FF-01F 已完成并裁决接受；下一步必须先形成 bounded Runtime Features packet，不改 Session/Resource/Lease owner，不扩 Network Source/Output/Program multi-input。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -647,6 +667,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_
 - RF-FF-01C exact `ffee3a0…`：**IMPLEMENTATION COMPLETE / SOFTWARE + CI VERIFIED**；focused ffmpeg_rt_02 5/5；ffmpeg-backend 266 pass + 1 ignored HW；default 252/252；mock 436/436 + integration 9/9+12/12；fmt/clippy/diff + architecture lint/remove-adapters PASS；Actions `35339165383` 7/7 PASS（含 media runner bmd-provider+ffmpeg-backend no-run compile）。
 - RF-FF-01D exact `dd0eb8c…`：**IMPLEMENTATION COMPLETE / SOFTWARE + CI VERIFIED**；focused 6/6；Session focused mock 31/31；default 258/258；mock 436/436 + integration 9/9+12/12；ffmpeg-backend 272 pass + 1 ignored HW；fmt + default/mock/ffmpeg clippy + diff-check + architecture/remove-adapters PASS；Actions `35342501850` 7/7 PASS。
 - RF-FF-01E final exact `96f8055…`：**IMPLEMENTATION COMPLETE / SOFTWARE + CI VERIFIED**；focused factory 3/3；parent implementation full regression ffmpeg 275+1 ignored HW / default 258 / mock 443 + 9/9+12/12，final fix focused+clippy/fmt/diff PASS；Actions `35344678284` 7/7 PASS（含 bmd-provider,ffmpeg-backend compile）。
+- RF-FF-01F exact `f868420…`：**IMPLEMENTATION COMPLETE / SOFTWARE + CI VERIFIED**；default 261/261；simulation 261/261；mock 446/446 + integration 9/9+12/12；ffmpeg-backend 278 + 1 ignored；fmt/clippy/architecture/remove-adapters PASS；Actions `35356652348` 7/7 PASS。
 
 ### Hardware
 
@@ -659,6 +680,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_
 - RF-FF-01D exact `dd0eb8c…`：**BMD HARDWARE VERIFIED**；archive sha256 `e622f083…549875`，manifest MD5 `7521d17e…43dd`，native bmd,gstreamer build PASS，Dual Input Gate 10/10 + rc=0；L1–L5/recover/teardown PASS；output PID 992634 before/after unchanged，leftover NONE。
 - RF-FF-01C exact `ffee3a0…`：**BMD HARDWARE VERIFIED**；archive sha256 `384d7987…22e7`；authorized input `46:00000000:002e4500` direct frame probe 50 frames/2.00s/25fps rc=0；VBMF real DeckLink lifecycle 1/1 PASS（start→recover→stop）；FFmpeg leftover NONE；output PID 992634 unchanged。
 - RF-FF-01E exact `96f8055…`：**BMD HARDWARE VERIFIED**；archive sha256 `88040061…8561d`；production composition construction no-auto-start PASS；real SessionManager→FFmpeg create/Leased→start/Running/backend-alive/Resource Allocated→stop/Released/Resource Available/Lease NONE→close PASS，gate rc=0，FFmpeg leftover NONE；output PID 992634 unchanged。
+- RF-FF-01F exact `f868420…`：**BMD HARDWARE VERIFIED**；archive sha256 `3ae7c8a…cf63e`；manifest MD5 `7521d17e…43dd`；target `46:00000000:002e4500`；real child SIGTERM→canonical failure→Supervisor Recovered→new child→stop/close teardown，Released/Available/Lease NONE/monitor exited/orphan NONE；output device-number 2 untouched；evidence `evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01f-recovery/`。
 - 后续涉及 DeckLink/GStreamer/FFmpeg/SRT/switch/timing/failover 的 Runtime 变更仍必须按任务范围重新做 BMD exact-commit verification。
 
 ### Stability
@@ -717,7 +739,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_
 - RF-FF-01C: **NONE / COMPLETE（§3.28）**。
 - RF-FF-01D: **NONE / COMPLETE（§3.29）**。
 - RF-FF-01E: **NONE / COMPLETE（§3.30）**。
-- RF-FF-01F: **NONE / READY**。
+- RF-FF-01F: **NONE / COMPLETE（§3.31）**；post-01F adjudication **COMPLETE / single-input slice accepted（§3.32）**。
 
 ## 9. Verification Debt
 
@@ -727,7 +749,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_
 - runner 出网稳定性：codeload 缓解已从 rerun 升级为 immutable Action archive cache，并已在 general×2 + media×1 probe 及 required CI `35248227420` 7/7 验证；残余仅为持续观察 archive cache miss/Action SHA 更新流程，不再是未实施 Verification Debt。
 - Development agent：Pi/Claude Code 项目级 auth + real model smoke 已 PASS；Claude project trust PASS；后续长写任务优先用 `_shared` runner + tmux，不再登记 agent smoke debt。
 - BMD：RH-BUS-01 exact `9b32004`（§3.20）与 RH-BUS-02 exact `92d6007`（§3.21）均已有独立 hardware evidence；RH-LC-01 exact `c72ce5d` archive/manifest 已准备但 runtime smoke 因当前工具通道限制 **DEFERRED**。实际 `/opt/vbmf-dev/repo` deployment 仍落后且带未提交 ops 改动，未做破坏性同步。后续 packet 不得继承前述硬件证据。
-- RF-FF-01B BMD runtime smoke 已在 exact `4ad8135` 真实 FFmpeg 上验证但未触碰 DeckLink；RF-FF-01C exact `ffee3a0` 已完成 adapter-level DeckLink parity；RF-FF-01D exact `dd0eb8c` 已完成 GStreamer dual-input 10/10 regression；RF-FF-01E exact `96f8055` 已完成 production SessionManager→FFmpeg lifecycle hardware acceptance。RF-FF-01F 必须独立做 real child termination→canonical failure→Supervisor recovery→new child→teardown evidence，不能把 01C 的 direct recover 当作 failure-first production evidence。
+- RF-FF-01B BMD runtime smoke 已在 exact `4ad8135` 真实 FFmpeg 上验证但未触碰 DeckLink；RF-FF-01C exact `ffee3a0` 已完成 adapter-level DeckLink parity；RF-FF-01D exact `dd0eb8c` 已完成 GStreamer dual-input 10/10 regression；RF-FF-01E exact `96f8055` 已完成 production SessionManager→FFmpeg lifecycle hardware acceptance；RF-FF-01F exact `f868420` 已独立完成 real child termination→canonical failure→Supervisor recovery→new child→teardown evidence。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
 
 ## 10. Cold-Start Handoff
@@ -739,9 +761,9 @@ Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = RF-FF-01F** 对应 Authority：`.project/STATE.md` §3.30/§4 + `MEDIA_BACKEND_CONTRACT.md §1–§4`（尤其 §3/§1.1）+ live `watchdog.rs` single-input observe/recover path + Supervisor/Lease + canonical `PipelineBusEvent/RuntimeEvent` + FFmpeg `observe/recover`；
+6. 读取 **Current Task = Next bounded Runtime Features packet selection — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.32/§4–§5 + RF-FF-01F report/evidence + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E 已 COMPLETE；**当前 RF-FF-01F READY**；
+8. 读取 §5.1 Task Queue；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F 与 post-01F adjudication 已 COMPLETE；下一 packet 尚未拆解为 `READY`，不得自行从 umbrella 或历史 roadmap 挑选实现；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -758,6 +780,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.30/§4；`MEDIA_BACKEND_
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E 已完成（§3.25–§3.30）；Current Task = RF-FF-01F，Next Task = Post RF-FF-01F adjudication**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F 与 post-01F adjudication 已完成（§3.25–§3.32）；当前只等待下一 bounded packet 正式拆解，不能自行推进 Network Source/Output/Program multi-input**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。

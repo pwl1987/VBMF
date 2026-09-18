@@ -1,0 +1,22 @@
+RF-FF-01F backend-neutral canonical FFmpeg recovery BMD evidence
+date=2026-09-18
+host=lytv@10.30.15.10
+exact_commit=f868420cedca2ba38ece320ef2c9b60e48e0b6e1
+archive_sha256=3ae7c8a233ec1b705e2a6685d5f39126bfd8d43d9541c9ea1aa7f1cab27cf63e
+isolated_build=/tmp/vbmf-rf-ff-01f-167dd50
+build_features=bmd-provider,ffmpeg-backend
+manifest=/home/lytv/a2-8-02i-v5.manifest.json
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+target_device_handle=46:00000000:002e4500
+target_device_id=4fa33dcb-5f76-5f76-aea8-330df7ada03e
+target_port_id=e43d8f5a-94f5-5c67-8ed3-cddee15df04a
+gate=VBMF_FFMPEG_RECOVERY=1
+external_failure=SIGTERM to owned FFmpeg child
+same_handle_recovery=PASS
+canonical_failure_to_supervisor=PASS
+resource_after_stop=Available
+lease_after_stop=NONE
+monitor_after_stop=exited
+ffmpeg_orphan=NONE
+output_device_number_2=NOT_TOUCHED
+verification=BMD HARDWARE VERIFIED
