@@ -343,7 +343,7 @@ fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
     {
         let _ = fs::remove_file(entry.path());
     }
-    let mut replacement =
+    let replacement =
         RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
     wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("recovered RTMP source A/V: {e}")));
     println!(
