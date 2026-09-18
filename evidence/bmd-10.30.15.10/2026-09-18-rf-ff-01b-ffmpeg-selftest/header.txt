@@ -1,0 +1,13 @@
+RF-FF-01B BMD real FFmpeg SelfTest evidence
+date=2026-09-18
+exact_commit=4ad8135e8c4f1daa7c73cd193a888cc29a93f830
+archive_sha256=90c11f7983b8711f78bc37eee0b92e6ccb48b09de0a3ae47cd5220d560a2eca0
+scope=FFmpegBackend process lifecycle / canonical SelfTest
+decklink_hardware_exercised=false
+network_source_exercised=false
+output_device_2_pid_before=992634
+output_device_2_pid_after=992634
+ffmpeg=git-2026-08-23-1019f8f-+allcodec-20260824
+rustc=1.98.0 (88d9e12ae 2026-08-18)
+cargo=1.98.0 (797e8a9bc 2026-08-05)
+result=RF_FF_01B_BMD_REAL_FFMPEG_PASS

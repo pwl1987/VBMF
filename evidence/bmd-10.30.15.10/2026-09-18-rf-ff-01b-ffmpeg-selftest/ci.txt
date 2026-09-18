@@ -1,0 +1,16 @@
+GitHub Actions verification
+run_id=35313253516
+head_sha=4ad8135e8c4f1daa7c73cd193a888cc29a93f830
+conclusion=success
+required_jobs=7/7
+gstreamer-build=success
+rust-test-matrix=success
+session-lifecycle=success
+rust-clippy=success
+architecture-portability=success
+rust-format=success
+hardware-test-compile=success
+
+Previous implementation run 35312763403 @ 7ebd551 failed.
+RCA: architecture portability boundary exposed the concrete FFmpeg type from registry.
+Fix 4ad8135 moved concrete construction behind adapters::build_process_media_backend().
