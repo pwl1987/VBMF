@@ -135,7 +135,7 @@ impl AdapterRegistry {
     #[cfg(feature = "ffmpeg-backend")]
     pub fn build_ffmpeg_backend() -> Result<Arc<dyn MediaBackend>, String> {
         ensure_adapter_selection_safe()?;
-        Ok(Arc::new(crate::adapters::ffmpeg::FFmpegBackend::new()))
+        Ok(crate::adapters::build_process_media_backend())
     }
 
     /// 选择并构造 `HardwareProvider`。各实现返回相同 `Result<Vec<DiscoveredDevice>>` 契约。
