@@ -3,12 +3,14 @@
 //! The adapter owns FFmpeg child processes and consumes only canonical SelfTest or explicitly
 //! authorized Resolved input plans. DeckLink addressing is an adapter-local DeviceHandle view
 //! derived from provisioning manifest + live Provider identity; no shell strings, runtime device
-//! enumeration, guessed fallback, network source, or output path is accepted in this packet.
+//! enumeration, guessed fallback, or network source is accepted. RF-FF-02 consumes only the
+//! already-materialized single-output Hls/Rtmp plan through backend-owned argv.
 
 use crate::contracts::backend::MediaBackend;
 use crate::contracts::provider::DiscoveredDevice;
 use crate::pipeline::{
-    PipelineError, PipelineHandle, PipelinePlan, SourceBindingClass, NEXT_PIPELINE_ID,
+    OutputKind, OutputPlan, PipelineError, PipelineHandle, PipelinePlan, SourceBindingClass,
+    NEXT_PIPELINE_ID,
 };
 use crate::pipeline_events::{BusSeverity, PipelineBusEvent, PipelineBusEventKind};
 use crate::port::PortDirection;
@@ -171,11 +173,43 @@ impl FFmpegBackend {
         Ok(mapped)
     }
 
+    fn validate_output_plan(plan: &PipelinePlan) -> Result<(), PipelineError> {
+        if plan.outputs.len() > 1 {
+            return Err(PipelineError::PrepareFailed(
+                "RF-FF-02 accepts at most one output plan".into(),
+            ));
+        }
+        let Some(output) = plan.outputs.first() else {
+            return Ok(());
+        };
+        if output.target.is_empty() || output.target.chars().any(char::is_control) {
+            return Err(PipelineError::PrepareFailed(
+                "RF-FF-02 output target must be non-empty and free of control characters".into(),
+            ));
+        }
+        match output.kind {
+            OutputKind::Hls => {
+                if !PathBuf::from(&output.target).is_absolute() {
+                    return Err(PipelineError::PrepareFailed(
+                        "RF-FF-02 HLS output target must be an absolute directory".into(),
+                    ));
+                }
+            }
+            OutputKind::Rtmp => {
+                if !output.target.starts_with("rtmp://")
+                    || output.target.chars().any(|c| matches!(c, '"' | '\''))
+                {
+                    return Err(PipelineError::PrepareFailed(
+                        "RF-FF-02 RTMP output target must be a quoted-free rtmp:// URL".into(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn validate_self_test(plan: &PipelinePlan) -> Result<(), PipelineError> {
-        if plan.source.device_id != "self-test"
-            || plan.source.connector.is_some()
-            || !plan.outputs.is_empty()
-        {
+        if plan.source.device_id != "self-test" || plan.source.connector.is_some() {
             return Err(PipelineError::PrepareFailed(
                 "FFmpeg SelfTest plan shape is not canonical".into(),
             ));
@@ -184,11 +218,6 @@ impl FFmpegBackend {
     }
 
     fn resolved_device_name(&self, plan: &PipelinePlan) -> Result<String, PipelineError> {
-        if !plan.outputs.is_empty() {
-            return Err(PipelineError::PrepareFailed(
-                "RF-FF-01C input parity packet does not accept output plans".into(),
-            ));
-        }
         if plan.source.connector != Some(crate::port::ConnectorType::Sdi) {
             return Err(PipelineError::PrepareFailed(
                 "RF-FF-01C currently accepts only an explicitly resolved SDI input".into(),
@@ -212,6 +241,7 @@ impl FFmpegBackend {
     }
 
     fn validate_plan(&self, plan: &PipelinePlan) -> Result<(), PipelineError> {
+        Self::validate_output_plan(plan)?;
         match plan.source.binding_class {
             SourceBindingClass::SelfTest => Self::validate_self_test(plan),
             SourceBindingClass::Resolved => self.resolved_device_name(plan).map(|_| ()),
@@ -219,6 +249,68 @@ impl FFmpegBackend {
                 Err(PipelineError::PrepareFailed(
                     "RF-FF-01C accepts only canonical SelfTest or authorized Resolved input".into(),
                 ))
+            }
+        }
+    }
+
+    fn append_output_args(cmd: &mut Command, outputs: &[OutputPlan]) {
+        let Some(output) = outputs.first() else {
+            cmd.args(["-f", "null", "-"]);
+            return;
+        };
+        let video_bitrate = format!("{}k", output.video_bitrate_kbps);
+        let audio_bitrate = format!("{}b", output.audio_bitrate_bps);
+        match output.kind {
+            OutputKind::Hls => {
+                let playlist = PathBuf::from(&output.target).join("index.m3u8");
+                cmd.args([
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-tune",
+                    "zerolatency",
+                    "-b:v",
+                    &video_bitrate,
+                    "-g",
+                    "50",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    &audio_bitrate,
+                    "-f",
+                    "hls",
+                    "-hls_time",
+                    "2",
+                    "-hls_list_size",
+                    "5",
+                    "-hls_flags",
+                    "delete_segments+append_list",
+                    "-hls_segment_filename",
+                ])
+                .arg(PathBuf::from(&output.target).join("seg%05d.ts"))
+                .arg(playlist);
+            }
+            OutputKind::Rtmp => {
+                cmd.args([
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-tune",
+                    "zerolatency",
+                    "-b:v",
+                    &video_bitrate,
+                    "-g",
+                    "50",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    &audio_bitrate,
+                    "-f",
+                    "flv",
+                ])
+                .arg(&output.target);
             }
         }
     }
@@ -257,9 +349,6 @@ impl FFmpegBackend {
                     "0:v:0",
                     "-map",
                     "1:a:0",
-                    "-f",
-                    "null",
-                    "-",
                 ]);
             }
             SourceBindingClass::Resolved => {
@@ -279,12 +368,13 @@ impl FFmpegBackend {
                     "-i",
                 ])
                 .arg(device)
-                .args(["-map", "0:v:0", "-map", "0:a:0?", "-f", "null", "-"]);
+                .args(["-map", "0:v:0", "-map", "0:a:0?"]);
             }
             SourceBindingClass::Persistent | SourceBindingClass::DiagnosticFallback => {
                 unreachable!("validate_plan rejected unsupported binding class")
             }
         }
+        Self::append_output_args(&mut cmd, &plan.outputs);
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -555,6 +645,89 @@ mod tests {
             notes: None,
             bindings: entries,
         }
+    }
+
+    fn output_plan(kind: OutputKind, target: &str) -> OutputPlan {
+        OutputPlan {
+            kind,
+            video_bitrate_kbps: 6000,
+            audio_bitrate_bps: 128_000,
+            target: target.into(),
+        }
+    }
+
+    fn command_args(plan: &PipelinePlan) -> Vec<String> {
+        FFmpegBackend::with_binary("ffmpeg")
+            .command_for_plan(plan)
+            .expect("command")
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn ffmpeg_rt_03_hls_output_argv_is_backend_owned() {
+        let mut plan = PipelinePlan::self_test();
+        plan.outputs = vec![output_plan(OutputKind::Hls, "/tmp/vbmf-rf-ff-02-hls")];
+        let args = command_args(&plan);
+        assert!(args.windows(2).any(|w| w == ["-f", "hls"]));
+        assert!(args.windows(2).any(|w| w == ["-c:v", "libx264"]));
+        assert!(args
+            .iter()
+            .any(|arg| arg == "/tmp/vbmf-rf-ff-02-hls/index.m3u8"));
+        assert!(args
+            .iter()
+            .any(|arg| arg == "/tmp/vbmf-rf-ff-02-hls/seg%05d.ts"));
+        assert!(!args.iter().any(|arg| arg == "sh" || arg == "-c"));
+        assert!(!args.windows(2).any(|w| w == ["-f", "null"]));
+    }
+
+    #[test]
+    fn ffmpeg_rt_03_rtmp_output_argv_is_backend_owned() {
+        let mut plan = PipelinePlan::self_test();
+        plan.outputs = vec![output_plan(
+            OutputKind::Rtmp,
+            "rtmp://127.0.0.1:1935/vbmf/rf-ff-02",
+        )];
+        let args = command_args(&plan);
+        assert!(args.windows(2).any(|w| w == ["-f", "flv"]));
+        assert!(args
+            .iter()
+            .any(|arg| arg == "rtmp://127.0.0.1:1935/vbmf/rf-ff-02"));
+    }
+
+    #[test]
+    fn ffmpeg_rt_03_output_targets_and_cardinality_fail_closed() {
+        let mut relative = PipelinePlan::self_test();
+        relative.outputs = vec![output_plan(OutputKind::Hls, "relative/out")];
+        assert!(matches!(
+            FFmpegBackend::with_binary("ffmpeg").instantiate(&relative),
+            Err(PipelineError::PrepareFailed(_))
+        ));
+
+        let mut quoted = PipelinePlan::self_test();
+        quoted.outputs = vec![output_plan(OutputKind::Rtmp, "rtmp://host/live/\"bad\"")];
+        assert!(matches!(
+            FFmpegBackend::with_binary("ffmpeg").instantiate(&quoted),
+            Err(PipelineError::PrepareFailed(_))
+        ));
+
+        let mut multiple = PipelinePlan::self_test();
+        multiple.outputs = vec![
+            output_plan(OutputKind::Hls, "/tmp/one"),
+            output_plan(OutputKind::Rtmp, "rtmp://127.0.0.1/live/two"),
+        ];
+        assert!(matches!(
+            FFmpegBackend::with_binary("ffmpeg").instantiate(&multiple),
+            Err(PipelineError::PrepareFailed(_))
+        ));
+    }
+
+    #[test]
+    fn ffmpeg_rt_03_no_output_retains_null_sink_command() {
+        let args = command_args(&PipelinePlan::self_test());
+        assert!(args.windows(2).any(|w| w == ["-f", "null"]));
+        assert!(args.last().is_some_and(|arg| arg == "-"));
     }
 
     #[test]

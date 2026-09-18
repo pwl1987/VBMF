@@ -4,6 +4,7 @@
 //!   VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE /
 //!   VBMF_FFMPEG_SESSION（RF-FF-01E production Session→FFmpeg 单输入 Gate）/
 //!   VBMF_FFMPEG_RECOVERY（RF-FF-01F canonical failure/recovery Gate）/
+//!   VBMF_FFMPEG_OUTPUT + VBMF_FFMPEG_OUTPUT_DIR（RF-FF-02 HLS egress/recovery Gate）/
 //!   VBMF_A2_8_DUAL_INPUT（A2-8-02-I 五层 Gate, 第十八轮 §十/§十五）/
 //!   VBMF_A2_8_04_OBS（A2-8-04 多场景六路观测, R52——observation only）/
 //!   VBMF_A2_8_R64_CP（R64 真服务恢复矩阵——real Control Plane + test-controlled adapter）/
@@ -129,7 +130,8 @@ fn main() {
     eprintln!(
         "media-agent-gates: 未命中任何 gate env \
          (VBMF_CONFIG_PROBE / VBMF_RESOLVER / VBMF_LOOPBACK / VBMF_SESSION_LIFECYCLE / \
-         VBMF_FFMPEG_SESSION / VBMF_FFMPEG_RECOVERY / VBMF_A2_8_DUAL_INPUT / \
+         VBMF_FFMPEG_SESSION / VBMF_FFMPEG_RECOVERY / VBMF_FFMPEG_OUTPUT / \
+         VBMF_FFMPEG_OUTPUT_DIR / VBMF_A2_8_DUAL_INPUT / \
          VBMF_A2_8_04_OBS / VBMF_A2_8_R64_CP / \
          VBMF_A2_8_S15E01_RACE / VBMF_REGISTRY_ONLY)"
     );

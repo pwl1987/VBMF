@@ -11,21 +11,113 @@ use crate::session::SessionPhase;
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use crate::supervisor::ProcessState;
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+use std::fs;
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+use std::path::{Path, PathBuf};
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use std::process::Command;
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use std::time::Duration;
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn fail(message: impl std::fmt::Display) -> ! {
-    eprintln!("RF-FF-01F FAIL: {message}");
+    eprintln!("RF-FF-02 FAIL: {message}");
     std::process::exit(1);
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn hls_evidence(dir: &Path) -> Result<(), String> {
+    let playlist = dir.join("index.m3u8");
+    let playlist_text =
+        fs::read_to_string(&playlist).map_err(|e| format!("read {}: {e}", playlist.display()))?;
+    if !playlist_text.contains("#EXTM3U") {
+        return Err(format!("{} lacks #EXTM3U", playlist.display()));
+    }
+    let segment = fs::read_dir(dir)
+        .map_err(|e| format!("list {}: {e}", dir.display()))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("seg") && name.ends_with(".ts"))
+        })
+        .ok_or_else(|| format!("{} has no seg*.ts HLS segment", dir.display()))?;
+    let probe = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_name",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(&segment)
+        .output()
+        .map_err(|e| format!("ffprobe {}: {e}", segment.display()))?;
+    if !probe.status.success() {
+        return Err(format!(
+            "ffprobe {} exited with {}: {}",
+            segment.display(),
+            probe.status,
+            String::from_utf8_lossy(&probe.stderr).trim()
+        ));
+    }
+    let codecs = String::from_utf8_lossy(&probe.stdout);
+    for required in ["h264", "aac"] {
+        if !codecs.lines().any(|line| line.trim() == required) {
+            return Err(format!(
+                "{} codec missing from {}: {:?}",
+                required,
+                segment.display(),
+                codecs.trim()
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn wait_for_hls(dir: &Path) -> Result<(), String> {
+    let mut last_error = "no HLS evidence yet".to_string();
+    for _ in 0..80 {
+        match hls_evidence(dir) {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = error,
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    Err(format!("HLS evidence timeout: {last_error}"))
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 pub fn run(world: &crate::bootstrap::BootstrapContext) {
-    if std::env::var("VBMF_FFMPEG_RECOVERY").is_err() {
+    let output_mode = std::env::var("VBMF_FFMPEG_OUTPUT").is_ok();
+    if !output_mode && std::env::var("VBMF_FFMPEG_RECOVERY").is_err() {
         return;
     }
+    let output_dir = if output_mode {
+        let raw = std::env::var("VBMF_FFMPEG_OUTPUT_DIR")
+            .unwrap_or_else(|_| fail("VBMF_FFMPEG_OUTPUT_DIR is required"));
+        let path = PathBuf::from(raw);
+        if !path.is_absolute() {
+            fail("VBMF_FFMPEG_OUTPUT_DIR must be absolute");
+        }
+        fs::create_dir_all(&path)
+            .unwrap_or_else(|e| fail(format!("create HLS output directory: {e}")));
+        if fs::read_dir(&path)
+            .unwrap_or_else(|e| fail(format!("inspect HLS output directory: {e}")))
+            .next()
+            .is_some()
+        {
+            fail("RF-FF-02 HLS output directory must start empty");
+        }
+        std::env::set_var("VBMF_OUTPUT_KIND", "hls");
+        std::env::set_var("VBMF_OUTPUT_HLS_DIR", &path);
+        Some(path)
+    } else {
+        None
+    };
     let target_handle = std::env::var("VBMF_FFMPEG_TEST_DEVICE_HANDLE")
         .unwrap_or_else(|_| fail("VBMF_FFMPEG_TEST_DEVICE_HANDLE is required"));
     let composition = crate::bootstrap::build_ffmpeg_session_composition(world)
@@ -86,7 +178,7 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
                     port_id: Some(port_id.to_string()),
                 },
                 sink: crate::graph_intent::SinkIntent {
-                    kind: "appsink".into(),
+                    kind: if output_mode { "hls" } else { "appsink" }.into(),
                 },
             },
         }],
@@ -123,10 +215,24 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
     composition
         .manager
         .register_stop_hook(&sid, monitor.clone());
-    println!(
-        "RF-FF-01F running PASS session={sid} pipeline={} child_pid={old_pid}",
-        handle.0
-    );
+    if let Some(dir) = output_dir.as_deref() {
+        wait_for_hls(dir).unwrap_or_else(|e| fail(format!("initial HLS output: {e}")));
+        println!(
+            "RF-FF-02 output PASS dir={} playlist=index.m3u8 codecs=h264,aac",
+            dir.display()
+        );
+    }
+    if output_mode {
+        println!(
+            "RF-FF-02 running PASS session={sid} pipeline={} child_pid={old_pid} output=hls",
+            handle.0
+        );
+    } else {
+        println!(
+            "RF-FF-01F running PASS session={sid} pipeline={} child_pid={old_pid}",
+            handle.0
+        );
+    }
 
     let kill = Command::new("/bin/kill")
         .args(["-TERM", &old_pid.to_string()])
@@ -159,7 +265,18 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
     if !composition.backend.observe(&handle).is_empty() {
         fail("recovered FFmpeg child is not alive/clean");
     }
-    println!("RF-FF-01F recovery PASS old_pid={old_pid} new_pid={new_pid} canonical_failure=true supervisor=Recovered");
+    if let Some(dir) = output_dir.as_deref() {
+        wait_for_hls(dir).unwrap_or_else(|e| fail(format!("recovered HLS output: {e}")));
+        println!(
+            "RF-FF-02 output PASS after_recovery dir={} playlist=index.m3u8 codecs=h264,aac",
+            dir.display()
+        );
+    }
+    if output_mode {
+        println!("RF-FF-02 recovery PASS old_pid={old_pid} new_pid={new_pid} canonical_failure=true supervisor=Recovered output=hls");
+    } else {
+        println!("RF-FF-01F recovery PASS old_pid={old_pid} new_pid={new_pid} canonical_failure=true supervisor=Recovered");
+    }
     composition
         .manager
         .stop(&sid)
@@ -207,7 +324,12 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
     if composition.manager.status(&sid).is_some() {
         fail("Session remains after close");
     }
-    println!("RF-FF-01F teardown PASS phase=Released resources=Available lease=NONE monitor=exited ffmpeg_orphan=NONE");
-    println!("RF_FF_01F_BMD_RECOVERY_PASS");
+    if output_mode {
+        println!("RF-FF-02 teardown PASS phase=Released resources=Available lease=NONE monitor=exited ffmpeg_orphan=NONE output=hls");
+        println!("RF_FF_02_BMD_OUTPUT_RECOVERY_PASS");
+    } else {
+        println!("RF-FF-01F teardown PASS phase=Released resources=Available lease=NONE monitor=exited ffmpeg_orphan=NONE");
+        println!("RF_FF_01F_BMD_RECOVERY_PASS");
+    }
     std::process::exit(0);
 }
