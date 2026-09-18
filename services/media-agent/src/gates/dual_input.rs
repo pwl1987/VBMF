@@ -89,6 +89,31 @@ const SAMPLE_GAP_SECS: u64 = 3;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 const L5_WAIT_SECS: u64 = 5;
 
+/// RF-NORM-01 BMD acceptance target: explicit SDI RAW V+A boundary.
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+fn rf_norm_plan() -> crate::normalize_execution::NormalizePlan {
+    use crate::normalize_execution::{
+        NormalizePlan, NormalizeTarget, RawAudioFormat, RawAudioTarget, RawPixelFormat,
+        RawVideoTarget,
+    };
+    NormalizePlan::require(Some(NormalizeTarget {
+        video: RawVideoTarget {
+            width: 1920,
+            height: 1080,
+            frame_rate_num: 25,
+            frame_rate_den: 1,
+            pixel_format: RawPixelFormat::I420,
+            interlaced: true,
+        },
+        audio: RawAudioTarget {
+            format: RawAudioFormat::S16le,
+            channels: 2,
+            sample_rate: 48_000,
+        },
+    }))
+    .expect("RF-NORM-01 acceptance target is valid")
+}
+
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 fn sleep(sec: u64) {
     std::thread::sleep(std::time::Duration::from_secs(sec));
@@ -498,8 +523,9 @@ pub fn run(
             finish(&verdicts, "L2 ExecutionGroup fail-stop——L2b-L5 不执行");
         }
     };
-    let switcher: Arc<dyn SwitchExecutionAdapter> =
-        Arc::new(crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged());
+    let switcher: Arc<dyn SwitchExecutionAdapter> = Arc::new(
+        crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged_with_normalize(rf_norm_plan()),
+    );
     let tap_wirings: Vec<crate::program_execution::TapWiring> = started_inputs
         .iter()
         .map(crate::program_execution::TapWiring::for_input)

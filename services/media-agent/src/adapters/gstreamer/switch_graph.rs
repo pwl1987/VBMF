@@ -39,6 +39,10 @@ use crate::contracts::switch::{
     ProgramExecutionObservation, ProgramObservation, SwitchAnchors, SwitchExecuted,
     SwitchExecutionAdapter, TimelineExecutionFacts,
 };
+use crate::normalize_execution::{
+    NormalizeEvidence, NormalizePlan, ObservedRawAudio, ObservedRawVideo, RawAudioFormat,
+    RawPixelFormat,
+};
 use crate::pipeline::{PipelineHandle, PipelineHealth, PtsMonotonicity, NEXT_PIPELINE_ID};
 use crate::program::SwitchPolicy;
 use crate::program_timeline::{
@@ -616,6 +620,8 @@ struct SwitchGraph {
     timeline: Arc<Mutex<Option<TimelineExecutionState>>>,
     /// C-TIMELINE-01 ①: 分支观察（selector sink pad 探针写入; 锚采样读）。
     branch_obs: Arc<Mutex<BranchObservations>>,
+    /// RF-NORM-01: selector sink pad 协商 caps 的双平面真实证据。
+    normalize_evidence: Option<Arc<Mutex<NormalizeEvidence>>>,
     /// R58 步骤5.1: V+A 原子 cutover fence（单锁双面; selector 探针层
     /// Drop、appsink 消费门与下游 Segment 确认探针共享; Open=legacy 放行
     /// ——INV-F1 排空确认/INV-F2 不可复放/INV-F3 barrier 非权威）。
@@ -681,6 +687,7 @@ pub enum SwitchMaterialization {
 pub struct GStreamerSwitchAdapter {
     graphs: Mutex<HashMap<PipelineHandle, SwitchGraph>>,
     mode: SwitchMaterialization,
+    normalize_plan: Option<NormalizePlan>,
 }
 
 impl GStreamerSwitchAdapter {
@@ -693,6 +700,23 @@ impl GStreamerSwitchAdapter {
     pub fn bridged() -> Self {
         Self {
             mode: SwitchMaterialization::Bridged,
+            ..Self::default()
+        }
+    }
+
+    /// Simulation 形态 + 显式 RAW Normalize 目标（RF-NORM-01 Phase B）。
+    pub fn simulation_with_normalize(plan: NormalizePlan) -> Self {
+        Self {
+            normalize_plan: Some(plan),
+            ..Self::simulation()
+        }
+    }
+
+    /// Bridged 形态 + 显式 RAW Normalize 目标（RF-NORM-01 Phase B）。
+    pub fn bridged_with_normalize(plan: NormalizePlan) -> Self {
+        Self {
+            mode: SwitchMaterialization::Bridged,
+            normalize_plan: Some(plan),
             ..Self::default()
         }
     }
@@ -731,6 +755,141 @@ fn make_element(factory: &str, name: &str) -> Result<gstreamer::Element, SwitchE
         .name(name)
         .build()
         .map_err(|e| SwitchError::Backend(format!("{factory} 构造失败: {e}")))
+}
+
+fn make_video_normalize_elements(
+    plan: Option<NormalizePlan>,
+    prefix: &str,
+) -> Result<Vec<gstreamer::Element>, SwitchError> {
+    let Some(plan) = plan else {
+        return Ok(Vec::new());
+    };
+    let target = plan.target.video;
+    let pixel_format = match target.pixel_format {
+        RawPixelFormat::I420 => "I420",
+    };
+    let interlace_mode = if target.interlaced {
+        "interleaved"
+    } else {
+        "progressive"
+    };
+    let convert = make_element("videoconvert", &format!("{prefix}-videoconvert"))?;
+    let scale = make_element("videoscale", &format!("{prefix}-videoscale"))?;
+    let rate = make_element("videorate", &format!("{prefix}-videorate"))?;
+    let capsfilter = make_element("capsfilter", &format!("{prefix}-caps"))?;
+    let caps_text = format!(
+        "video/x-raw,format={pixel_format},width={},height={},framerate={}/{},interlace-mode={interlace_mode}",
+        target.width, target.height, target.frame_rate_num, target.frame_rate_den
+    );
+    let caps = gstreamer::Caps::from_str(&caps_text)
+        .map_err(|e| SwitchError::Backend(format!("video Normalize caps 解析失败: {e}")))?;
+    capsfilter.set_property("caps", caps);
+    Ok(vec![convert, scale, rate, capsfilter])
+}
+
+fn make_audio_normalize_elements(
+    plan: Option<NormalizePlan>,
+    prefix: &str,
+) -> Result<Vec<gstreamer::Element>, SwitchError> {
+    let Some(plan) = plan else {
+        return Ok(Vec::new());
+    };
+    let target = plan.target.audio;
+    let format = match target.format {
+        RawAudioFormat::S16le => "S16LE",
+    };
+    let convert = make_element("audioconvert", &format!("{prefix}-audioconvert"))?;
+    let resample = make_element("audioresample", &format!("{prefix}-audioresample"))?;
+    let capsfilter = make_element("capsfilter", &format!("{prefix}-caps"))?;
+    let caps_text = format!(
+        "audio/x-raw,format={format},channels={},rate={}",
+        target.channels, target.sample_rate
+    );
+    let caps = gstreamer::Caps::from_str(&caps_text)
+        .map_err(|e| SwitchError::Backend(format!("audio Normalize caps 解析失败: {e}")))?;
+    capsfilter.set_property("caps", caps);
+    Ok(vec![convert, resample, capsfilter])
+}
+
+fn caps_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+    text.split(key)
+        .nth(1)?
+        .split([',', ')', ' '])
+        .next()
+        .filter(|value| !value.is_empty())
+}
+
+fn caps_u32(text: &str, key: &str) -> Option<u32> {
+    caps_value(text, key)?.parse().ok()
+}
+
+fn observe_normalized_caps(
+    caps: &gstreamer::Caps,
+    plane: MediaPlane,
+    evidence: &Arc<Mutex<NormalizeEvidence>>,
+) {
+    let text = caps.to_string();
+    let mut evidence = evidence.lock().unwrap();
+    match plane {
+        MediaPlane::Video => {
+            let format = caps_value(&text, "format=(string)");
+            let rate = caps_value(&text, "framerate=(fraction)")
+                .and_then(|value| value.split_once('/'))
+                .and_then(|(num, den)| Some((num.parse().ok()?, den.parse().ok()?)));
+            let interlaced = caps_value(&text, "interlace-mode=(string)")
+                .map(|value| value == "interleaved" || value == "mixed");
+            let observed = match (
+                caps_u32(&text, "width=(int)"),
+                caps_u32(&text, "height=(int)"),
+                rate,
+                format,
+                interlaced,
+            ) {
+                (
+                    Some(width),
+                    Some(height),
+                    Some((frame_rate_num, frame_rate_den)),
+                    Some("I420"),
+                    Some(interlaced),
+                ) => ObservedRawVideo {
+                    width,
+                    height,
+                    frame_rate_num,
+                    frame_rate_den,
+                    pixel_format: RawPixelFormat::I420,
+                    interlaced,
+                },
+                _ => ObservedRawVideo {
+                    width: 0,
+                    height: 0,
+                    frame_rate_num: 0,
+                    frame_rate_den: 1,
+                    pixel_format: RawPixelFormat::I420,
+                    interlaced: false,
+                },
+            };
+            evidence.observe_video(observed);
+        }
+        MediaPlane::Audio => {
+            let observed = match (
+                caps_value(&text, "format=(string)"),
+                caps_u32(&text, "channels=(int)"),
+                caps_u32(&text, "rate=(int)"),
+            ) {
+                (Some("S16LE"), Some(channels), Some(sample_rate)) => ObservedRawAudio {
+                    format: RawAudioFormat::S16le,
+                    channels: channels as u16,
+                    sample_rate,
+                },
+                _ => ObservedRawAudio {
+                    format: RawAudioFormat::S16le,
+                    channels: 0,
+                    sample_rate: 0,
+                },
+            };
+            evidence.observe_audio(observed);
+        }
+    }
 }
 
 fn map_bool_err(e: glib::BoolError, what: &str) -> SwitchError {
@@ -853,6 +1012,8 @@ impl GStreamerSwitchAdapter {
         initial_active: Uuid,
         timeline: &Arc<Mutex<Option<TimelineExecutionState>>>,
         branch_obs: &Arc<Mutex<BranchObservations>>,
+        normalize_plan: Option<NormalizePlan>,
+        normalize_evidence: &Option<Arc<Mutex<NormalizeEvidence>>>,
         fences: &FencePair,
     ) -> Result<(gstreamer::Pipeline, gstreamer::Element, gstreamer::Element), SwitchError> {
         gstreamer::init().map_err(|e| SwitchError::Backend(format!("gst init: {e}")))?;
@@ -863,8 +1024,8 @@ impl GStreamerSwitchAdapter {
         let video_selector = make_element("input-selector", "program-video-selector")?;
         // capsfilter 仅 Simulation 形态（Bridged 透传输入管线实际 caps——
         // 强制 320x240 会与桥接媒体协商冲突）。
-        let v_caps = match mode {
-            SwitchMaterialization::Simulation => {
+        let v_caps = match (mode, normalize_plan) {
+            (SwitchMaterialization::Simulation, None) => {
                 let c = make_element("capsfilter", "program-video-caps")?;
                 c.set_property(
                     "caps",
@@ -873,7 +1034,7 @@ impl GStreamerSwitchAdapter {
                 );
                 Some(c)
             }
-            SwitchMaterialization::Bridged => None,
+            _ => None,
         };
         let v_queue = make_element("queue", "program-video-queue")?;
         let v_sink_el = make_element("appsink", "program-video-sink")?;
@@ -907,6 +1068,8 @@ impl GStreamerSwitchAdapter {
             }
         };
 
+        let vnorm_a = make_video_normalize_elements(normalize_plan, "program-vnorm-a")?;
+        let vnorm_b = make_video_normalize_elements(normalize_plan, "program-vnorm-b")?;
         let mut video_els: Vec<&gstreamer::Element> =
             vec![&vsrc_a, &vsrc_b, &video_selector, &v_queue, &v_sink_el];
         if let Some(c) = &v_caps {
@@ -916,6 +1079,11 @@ impl GStreamerSwitchAdapter {
             pipeline
                 .add(el)
                 .map_err(|e| map_bool_err(e, "add element"))?;
+        }
+        for el in vnorm_a.iter().chain(vnorm_b.iter()) {
+            pipeline
+                .add(el)
+                .map_err(|e| map_bool_err(e, "add video Normalize element"))?;
         }
 
         // —— audio 平面: 双源 → input-selector → appsink ——
@@ -949,17 +1117,25 @@ impl GStreamerSwitchAdapter {
                 (a, b)
             }
         };
+        let anorm_a = make_audio_normalize_elements(normalize_plan, "program-anorm-a")?;
+        let anorm_b = make_audio_normalize_elements(normalize_plan, "program-anorm-b")?;
 
         for el in [&asrc_a, &asrc_b, &audio_selector, &a_queue, &a_sink_el] {
             pipeline
                 .add(el)
                 .map_err(|e| map_bool_err(e, "add element"))?;
         }
+        for el in anorm_a.iter().chain(anorm_b.iter()) {
+            pipeline
+                .add(el)
+                .map_err(|e| map_bool_err(e, "add audio Normalize element"))?;
+        }
 
         // 链接: 源 → selector request pad（device 序 = pad 序, 请求序恰 sink_0/1）;
         // selector → queue/caps → appsink。sink pad 挂 ① 分支观察探针
         // （纯观测——last PTS+步长; 无声明时零改写）。
         let link_src = |src: &gstreamer::Element,
+                        normalize: &[gstreamer::Element],
                         selector: &gstreamer::Element,
                         idx: usize,
                         plane: MediaPlane|
@@ -972,12 +1148,25 @@ impl GStreamerSwitchAdapter {
                 format!("sink_{idx}"),
                 "request pad 命名与簿记一致（新 selector 恰按请求序编号）"
             );
-            src.static_pad("src")
-                .ok_or_else(|| SwitchError::Backend("src pad 缺失".into()))?
+            let mut chain: Vec<&gstreamer::Element> = vec![src];
+            chain.extend(normalize.iter());
+            if chain.len() > 1 {
+                gstreamer::Element::link_many(&chain)
+                    .map_err(|e| SwitchError::Backend(format!("link Normalize chain: {e:?}")))?;
+            }
+            let tail = chain.last().expect("Normalize chain 至少包含 source");
+            tail.static_pad("src")
+                .ok_or_else(|| SwitchError::Backend("Normalize chain src pad 缺失".into()))?
                 .link(&pad)
                 .map_err(|e| SwitchError::Backend(format!("link selector: {e:?}")))?;
             let obs = Arc::clone(branch_obs);
-            pad.add_probe(gstreamer::PadProbeType::BUFFER, move |_pad, info| {
+            let evidence = normalize_evidence.clone();
+            pad.add_probe(gstreamer::PadProbeType::BUFFER, move |pad, info| {
+                if let Some(evidence) = evidence.as_ref() {
+                    if let Some(caps) = pad.current_caps() {
+                        observe_normalized_caps(&caps, plane, evidence);
+                    }
+                }
                 if let Some(pts) = info.buffer().and_then(|b| b.pts()) {
                     let ns = pts.nseconds();
                     let mut all = obs.lock().unwrap();
@@ -991,10 +1180,10 @@ impl GStreamerSwitchAdapter {
             });
             Ok(())
         };
-        link_src(&vsrc_a, &video_selector, 0, MediaPlane::Video)?;
-        link_src(&vsrc_b, &video_selector, 1, MediaPlane::Video)?;
-        link_src(&asrc_a, &audio_selector, 0, MediaPlane::Audio)?;
-        link_src(&asrc_b, &audio_selector, 1, MediaPlane::Audio)?;
+        link_src(&vsrc_a, &vnorm_a, &video_selector, 0, MediaPlane::Video)?;
+        link_src(&vsrc_b, &vnorm_b, &video_selector, 1, MediaPlane::Video)?;
+        link_src(&asrc_a, &anorm_a, &audio_selector, 0, MediaPlane::Audio)?;
+        link_src(&asrc_b, &anorm_b, &audio_selector, 1, MediaPlane::Audio)?;
 
         // ④⑤⑥⑦: selector src 双探针（EVENT 自然段边界 + BUFFER 声明映射;
         // V/A 各一套——禁 audio=video 附属[第三十二轮 §八]）。handle 供
@@ -1087,6 +1276,11 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         // build_program_pipeline 内捕获同一 Arc）。
         let timeline: Arc<Mutex<Option<TimelineExecutionState>>> = Arc::default();
         let branch_obs: Arc<Mutex<BranchObservations>> = Arc::default();
+        let normalize_evidence = self.normalize_plan.map(|plan| {
+            Arc::new(Mutex::new(
+                NormalizeEvidence::new(plan.target).expect("NormalizePlan 已在构造时校验"),
+            ))
+        });
         // R58 步骤5: V+A 双面 cutover fence（Open=放行; arm/release 由编排
         // 经执行契约驱动——INV-F3 双面同装同释）。
         let fences = FencePair::new();
@@ -1097,6 +1291,8 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             initial_active,
             &timeline,
             &branch_obs,
+            self.normalize_plan,
+            &normalize_evidence,
             &fences,
         )?;
         let pad_index: HashMap<Uuid, usize> =
@@ -1117,6 +1313,7 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
                 pad_index,
                 timeline,
                 branch_obs,
+                normalize_evidence,
                 fences,
             },
         );
@@ -1562,6 +1759,14 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         ProgramExecutionObservation { program, timeline }
     }
 
+    /// RF-NORM-01: 读取 selector 边界的真实双平面 caps 证据。
+    pub(crate) fn normalize_evidence(&self, graph: &PipelineHandle) -> Option<NormalizeEvidence> {
+        let graphs = self.graphs.lock().unwrap();
+        let g = graphs.get(graph)?;
+        let evidence = g.normalize_evidence.as_ref()?;
+        Some(*evidence.lock().unwrap())
+    }
+
     fn stop_program(&self, graph: &PipelineHandle) -> Result<(), SwitchError> {
         let mut graphs = self.graphs.lock().unwrap();
         if let Some(mut g) = graphs.remove(graph) {
@@ -1657,6 +1862,69 @@ mod tests {
         assert!(g.complete_switch(b), "Observed=B 落定 Desired");
         assert_eq!(g.desired, SwitchDesired::ActiveInput(b));
 
+        adapter.stop_program(&graph).expect("停止");
+    }
+
+    #[test]
+    fn switch_graph_rf_norm_01_simulation_observes_exact_dual_plane_caps() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let plan = NormalizePlan::require(Some(crate::normalize_execution::NormalizeTarget {
+            video: crate::normalize_execution::RawVideoTarget {
+                width: 1920,
+                height: 1080,
+                frame_rate_num: 25,
+                frame_rate_den: 1,
+                pixel_format: RawPixelFormat::I420,
+                interlaced: true,
+            },
+            audio: crate::normalize_execution::RawAudioTarget {
+                format: RawAudioFormat::S16le,
+                channels: 2,
+                sample_rate: 48_000,
+            },
+        }))
+        .expect("Normalize target");
+        let mut g = group(a, b);
+        let adapter = GStreamerSwitchAdapter::simulation_with_normalize(plan);
+        let graph = adapter
+            .build_program_graph(&g)
+            .expect("Normalize program graph 物化");
+        adapter.start_program(&graph).expect("program 启动");
+        wait_frames(&adapter, &graph, 1800);
+
+        let evidence = adapter
+            .normalize_evidence(&graph)
+            .expect("Normalize evidence slot");
+        assert!(
+            evidence.complete(),
+            "selector boundary evidence: {evidence:?}"
+        );
+        assert_eq!(
+            evidence.video,
+            crate::normalize_execution::NormalizeEvidenceState::ObservedExact
+        );
+        assert_eq!(
+            evidence.audio,
+            crate::normalize_execution::NormalizeEvidenceState::ObservedExact
+        );
+
+        let switch = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::FrameSwitch,
+            })
+            .expect("计划");
+        g.begin_switch(&switch).expect("begin");
+        adapter.switch(&graph, &switch).expect("真实切换执行");
+        wait_frames(&adapter, &graph, 500);
+        assert!(
+            adapter
+                .normalize_evidence(&graph)
+                .expect("持续 evidence")
+                .complete(),
+            "切换后双平面 Normalize 证据持续完整"
+        );
         adapter.stop_program(&graph).expect("停止");
     }
 
@@ -1794,6 +2062,7 @@ mod tests {
                 pad_index: HashMap::from([(a, 0), (b, 1)]),
                 timeline: Arc::default(),
                 branch_obs,
+                normalize_evidence: None,
                 fences: FencePair::new(),
             },
         );
@@ -1882,6 +2151,7 @@ mod tests {
                 pad_index: HashMap::from([(a, 0), (b, 1)]),
                 timeline: Arc::new(Mutex::new(Some(t))),
                 branch_obs: Arc::default(),
+                normalize_evidence: None,
                 fences: FencePair::new(),
             },
         );
