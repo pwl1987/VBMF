@@ -1251,6 +1251,15 @@ impl GStreamerSwitchAdapter {
 
         Ok((pipeline, video_selector, audio_selector))
     }
+
+    /// RF-NORM-01: 读取 selector 边界的真实双平面 caps 证据。
+    pub(crate) fn normalize_evidence(&self, graph: &PipelineHandle) -> Option<NormalizeEvidence> {
+        let evidence = {
+            let graphs = self.graphs.lock().unwrap();
+            graphs.get(graph)?.normalize_evidence.clone()
+        }?;
+        Some(*evidence.lock().unwrap())
+    }
 }
 
 impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
@@ -1757,14 +1766,6 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
             }
         };
         ProgramExecutionObservation { program, timeline }
-    }
-
-    /// RF-NORM-01: 读取 selector 边界的真实双平面 caps 证据。
-    pub(crate) fn normalize_evidence(&self, graph: &PipelineHandle) -> Option<NormalizeEvidence> {
-        let graphs = self.graphs.lock().unwrap();
-        let g = graphs.get(graph)?;
-        let evidence = g.normalize_evidence.as_ref()?;
-        Some(*evidence.lock().unwrap())
     }
 
     fn stop_program(&self, graph: &PipelineHandle) -> Result<(), SwitchError> {
