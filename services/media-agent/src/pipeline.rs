@@ -5,7 +5,7 @@
 //! - 链路: `DeckLink → GStreamer → RAW → Normalize → FRAME/MASTER SWITCH → Program Master RAW
 //!   → Encode → SRS → RTMP/HLS/WHEP`. Encode 在 Switcher 之后, 不得提前.
 //! - 身份: `Device Registry`(SDK DeviceHandle) → `Resolver`(GStreamer `hw-serial-number` 解析)
-//!   → `PipelinePlan`(解析后的 `device-number`). **SDK 枚举 index ≠ GStreamer device-number**.
+//!   → `RuntimeBinding`(Backend runtime address). **SDK 枚举 index ≠ GStreamer device-number**.
 //!
 //! 当前 MEDIA-RT-01 范围: canonical ingest 首帧/PTS/稳定性验收. Normalize/Switch/Encode/SRS 为后续阶段.
 
@@ -41,42 +41,37 @@ pub fn clock_lost_events() -> u64 {
     CLOCK_LOST_EVENTS.load(Ordering::SeqCst)
 }
 
-/// 媒体源选择模式 — 决定 GStreamer `decklinkvideosrc` 的选卡属性.
-/// 语义必须无歧义 (用户复核 §五): 生产路径不得伪装成 "诊断 fallback".
+/// Canonical source 与 RuntimeBinding 的关系类别。
+///
+/// 只表达“绑定证据/用途”，**不携带任何 Backend 运行时地址**。具体 GStreamer
+/// `device-number` / `persistent-id` 等地址由 GStreamer Backend 注入的
+/// `ResolvedDeviceBinding` 解析；未来 FFmpegBackend 可消费自己的 RuntimeBinding。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SourceSelectionMode {
-    /// PersistentID 可用 → 官方首选 `persistent-id=<BMD PersistentID>` (优先级高于 device-number).
-    /// 当前硬件 (10.30.15.10) PersistentID 不支持 → 此分支本机不触发.
-    PersistentIdCanonical,
-    /// DeviceHandle 经 Resolver 解析到确定 GStreamer `device-number`
-    /// (`hw-serial-number` 探测匹配) — **当前硬件的正式生产物化路径**, 不是诊断 fallback.
-    DeviceHandleResolved,
-    /// Diagnostic 显式模式: `device-number=<resolved>` (videosrc 含 connection=sdi; audiosrc 无此属性) — 仅验证/排障用, 非静默.
+pub enum SourceBindingClass {
+    /// 稳定持久身份已被 Resolver/Provider 证明；Backend 可优先消费其持久 runtime binding。
+    Persistent,
+    /// 稳定设备身份已解析到 Backend runtime binding。
+    Resolved,
+    /// 显式 Diagnostic 模式；允许已解析 binding，缺席时保留历史 device-0 诊断 fallback。
     DiagnosticFallback,
-    /// MEDIA-RT-01 自测: videotestsrc/audiotestsrc (不依赖 DeckLink).
+    /// MEDIA-RT-01 自测源；无需任何硬件 RuntimeBinding。
     SelfTest,
 }
 
-/// 物化后的单路采集源计划 (GStreamer 选卡属性).
+/// 物化后的 canonical 单路采集源计划。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourcePlan {
+    /// Canonical DeviceId 字符串；SelfTest 使用固定哨兵。
     pub device_id: String,
-    /// Provider 侧持久标识 (P0-1 中立化: 经 Resolver 绑定从 ProviderIdentity 证据透传;
-    /// PersistentIdCanonical 模式使用; 否则 `None`. 字段名不冠 vendor 专名).
-    pub provider_persistent_id: Option<i64>,
-    /// Resolver 解析后的 GStreamer `device-number` (DeviceHandleResolved/DiagnosticFallback 使用).
-    pub device_number: u32,
-    /// 物理连接器类型 (由 PortRegistry 经 Manifest 声明 + 运行时探测推导得到). 决定 GStreamer
-    /// `decklinkvideosrc` 的 `connection=<...>` 属性; `None`/无对应枚举的连接器 → 不显式指定, 由插件默认探测.
-    /// **绝不硬编码** 成 `sdi` (见 `src_props`).
+    /// Canonical 物理连接器语义；不是 Backend runtime address。
     pub connector: Option<ConnectorType>,
-    pub selection_mode: SourceSelectionMode,
+    /// Backend-neutral 绑定类别；实际地址不进入 PipelinePlan。
+    pub binding_class: SourceBindingClass,
 }
 
-/// 物化后的管线计划 (控制面只给 VBMF `device_id`; provider_persistent_id / device-number 由 materialize 解析).
+/// 物化后的 canonical 管线计划；Backend runtime address 不进入本类型。
 ///
-/// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
-/// `persistent-id` 仅在 PersistentID 可用时由 `materialize` 填 (当前硬件走 device-number 路径).
+/// RuntimeBinding 由 Backend 组合根注入；PipelinePlan 仅携带 canonical source semantics.
 /// P1a: 物化后的输出计划（domain 持有; controller 纯执行, 不硬编码 element 名）。
 ///
 /// 词表封闭: `Hls | Rtmp`。`appsink` = 纯分析 = 无输出段（不入此 enum, 现行为默认）;
@@ -132,10 +127,9 @@ pub enum TimelinePolicy {
     ProgramTimelineMapped,
 }
 
-/// 物化后的管线计划 (控制面只给 VBMF `device_id`; provider_persistent_id / device-number 由 materialize 解析).
+/// 物化后的 canonical 管线计划；Backend runtime address 不进入本类型。
 ///
-/// 注: `pipeline.rs` 只消费 **Resolver 解析后的 `device-number`** (绝不 SDK 枚举序号);
-/// `persistent-id` 仅在 PersistentID 可用时由 `materialize` 填 (当前硬件走 device-number 路径).
+/// RuntimeBinding 由 Backend 组合根注入；PipelinePlan 仅携带 canonical source semantics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelinePlan {
     pub source: SourcePlan,
@@ -222,10 +216,8 @@ impl PipelinePlan {
         PipelinePlan {
             source: SourcePlan {
                 device_id: "self-test".into(),
-                provider_persistent_id: None,
-                device_number: 0,
                 connector: None,
-                selection_mode: SourceSelectionMode::SelfTest,
+                binding_class: SourceBindingClass::SelfTest,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
@@ -519,7 +511,10 @@ pub struct PipelineHandle(pub u64);
 ///   确定的 GStreamer `device-number` → `decklinkvideosrc device-number=<n>`.
 /// - `hw-serial-number` 是 **GStreamer 侧** 硬件序列号/硬件 ID 探测属性 (只读), 与 "BMD PersistentID"
 ///   是两回事; 它不是 PersistentID 的别名. SDK 枚举 index 绝不直接当 device-number.
-pub(crate) fn src_props(plan: &PipelinePlan) -> Result<(String, String), PipelineError> {
+pub(crate) fn src_props(
+    plan: &PipelinePlan,
+    bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+) -> Result<(String, String), PipelineError> {
     // 连接类型 → GStreamer `connection=` 属性. 仅 decklinkvideosrc 需要; decklinkaudiosrc 无此属性
     // (音频内嵌于视频 SDI/HDMI 流, 跟随视频连接). `None` 或无对应枚举的连接器 → 不显式指定, 由插件默认
     // (auto) 探测, 绝不硬编码 `connection=sdi`.
@@ -533,40 +528,63 @@ pub(crate) fn src_props(plan: &PipelinePlan) -> Result<(String, String), Pipelin
         | Some(ConnectorType::Unknown)
         | None => "",
     };
-    let (video_src, audio_src) = match plan.source.selection_mode {
-        // PersistentID 可用 → 官方首选 `persistent-id`.
-        SourceSelectionMode::PersistentIdCanonical => {
-            // 02-I 前置（第十七轮 §七①）belt: materialize 已拒绝无证据的
-            // PersistentIdCanonical; 此处 launch 串拼装是最后一道防线——伪造/未来
-            // 生产者也无法把 None 物化成 persistent-id=0 (盲开 device 0)。
-            let pid = plan.source.provider_persistent_id.ok_or_else(|| {
+    let binding_for_device =
+        || -> Result<&crate::resolver::ResolvedDeviceBinding, PipelineError> {
+            let device_id = Uuid::parse_str(&plan.source.device_id).map_err(|e| {
                 PipelineError::IdentityUnresolved(format!(
-                    "PersistentIdCanonical 但 provider_persistent_id=None (device_id={}); 拒绝生成 persistent-id=0",
+                    "canonical device_id 解析失败 {}: {e}",
+                    plan.source.device_id
+                ))
+            })?;
+            bindings.get(&device_id).ok_or_else(|| {
+                PipelineError::IdentityUnresolved(format!(
+                    "device_id={} 缺少 RuntimeBinding",
+                    plan.source.device_id
+                ))
+            })
+        };
+
+    let (video_src, audio_src) = match plan.source.binding_class {
+        SourceBindingClass::Persistent => {
+            let binding = binding_for_device()?;
+            let pid = binding.persistent_id.ok_or_else(|| {
+                PipelineError::IdentityUnresolved(format!(
+                    "Persistent binding 缺少 persistent_id (device_id={})",
                     plan.source.device_id
                 ))
             })?;
             (
                 format!("decklinkvideosrc persistent-id={pid}{connection}"),
-                // 注: decklinkaudiosrc 无 `connection` 属性 (音频内嵌于 SDI 视频流, 跟随视频连接),
-                // 绝不可像 videosrc 那样设 `connection=sdi`, 否则 launch 串解析失败 (MEDIA-RT-01 真机实测).
                 format!("decklinkaudiosrc persistent-id={pid}"),
             )
         }
-        // DeviceHandle 经 Resolver 解析到确定 device-number (当前硬件正式生产路径).
-        // 注: `hw-serial-number` 是 GStreamer 侧硬件序列号/硬件 ID 探测属性 (只读),
-        // 与 "BMD PersistentID" 是两回事; 此处经 Resolver 已映射到 device-number.
-        SourceSelectionMode::DeviceHandleResolved | SourceSelectionMode::DiagnosticFallback => (
-            format!(
-                "decklinkvideosrc device-number={}{}",
-                plan.source.device_number, connection
-            ),
-            // 同上: decklinkaudiosrc 无 `connection` 属性, 仅 device-number 选卡, 音频跟随视频 SDI 连接.
-            format!(
-                "decklinkaudiosrc device-number={}",
-                plan.source.device_number
-            ),
-        ),
-        SourceSelectionMode::SelfTest => (
+        SourceBindingClass::Resolved => {
+            let binding = binding_for_device()?;
+            (
+                format!(
+                    "decklinkvideosrc device-number={}{}",
+                    binding.device_number, connection
+                ),
+                format!("decklinkaudiosrc device-number={}", binding.device_number),
+            )
+        }
+        SourceBindingClass::DiagnosticFallback => {
+            let device_id = Uuid::parse_str(&plan.source.device_id).map_err(|e| {
+                PipelineError::IdentityUnresolved(format!(
+                    "diagnostic canonical device_id 解析失败 {}: {e}",
+                    plan.source.device_id
+                ))
+            })?;
+            let device_number = bindings
+                .get(&device_id)
+                .map(|b| b.device_number)
+                .unwrap_or(0);
+            (
+                format!("decklinkvideosrc device-number={device_number}{connection}"),
+                format!("decklinkaudiosrc device-number={device_number}"),
+            )
+        }
+        SourceBindingClass::SelfTest => (
             "videotestsrc is-live=true pattern=ball".to_string(),
             "audiotestsrc is-live=true".to_string(),
         ),
@@ -622,7 +640,7 @@ pub fn materialize_with_output(
         let binding = bindings.get(&info.device_id);
         let resolved_device_number = binding.map(|b| b.device_number);
         // 身份层级状态机: 严格按 identity_strength (provider 自证), 绝不默认.
-        let selection_mode = match info.identity_strength {
+        let binding_class = match info.identity_strength {
             IdentityStrength::PersistentId => {
                 // 02-I 前置（第十七轮 §七①）: PersistentIdCanonical 是最高档选卡路径,
                 // 证据必须闭合——binding 在且 persistent_id=Some 才可成计划。缺失即
@@ -631,7 +649,7 @@ pub fn materialize_with_output(
                 // 降级 device-number 路径仍是盲 0, 故不降级。
                 if binding.and_then(|b| b.persistent_id).is_some() {
                     // 官方首选: persistent-id (优先级高于 device-number).
-                    SourceSelectionMode::PersistentIdCanonical
+                    SourceBindingClass::Persistent
                 } else {
                     return Err(PipelineError::IdentityUnresolved(format!(
                         "{}: PersistentId 档位但 persistent_id 证据缺失 (binding 存在={}); 拒绝生成 persistent-id=0",
@@ -642,7 +660,7 @@ pub fn materialize_with_output(
             }
             IdentityStrength::DeviceHandle if resolved_device_number.is_some() => {
                 // 当前硬件正式路径: DeviceHandle → Resolver → 确定 GStreamer device-number.
-                SourceSelectionMode::DeviceHandleResolved
+                SourceBindingClass::Resolved
             }
             IdentityStrength::TopologicalId if resolved_device_number.is_some() => {
                 // 拓扑敏感: 仅 Diagnostic 显式模式允许, 生产拒绝 (猜设备风险高).
@@ -653,7 +671,7 @@ pub fn materialize_with_output(
                             d.device_id
                         )));
                     }
-                    MaterializeMode::Diagnostic => SourceSelectionMode::DiagnosticFallback,
+                    MaterializeMode::Diagnostic => SourceBindingClass::DiagnosticFallback,
                 }
             }
             _ => {
@@ -666,7 +684,7 @@ pub fn materialize_with_output(
                             d.device_id, info.identity_strength, resolved_device_number
                         )));
                     }
-                    MaterializeMode::Diagnostic => SourceSelectionMode::DiagnosticFallback,
+                    MaterializeMode::Diagnostic => SourceBindingClass::DiagnosticFallback,
                 }
             }
         };
@@ -713,10 +731,8 @@ pub fn materialize_with_output(
 
         let source = SourcePlan {
             device_id: d.device_id.clone(),
-            provider_persistent_id: binding.and_then(|b| b.persistent_id),
-            device_number: resolved_device_number.unwrap_or(0),
             connector,
-            selection_mode,
+            binding_class,
         };
         // P1a: sink.kind 第一次被消费——输出意图 → 输出物化（词表 appsink/hls/rtmp）。
         // Alpha-1 单输出承诺（design D3）: **仅首设备**保留输出段; 次设备词表校验照常
@@ -816,6 +832,25 @@ mod tests {
             video_output_connections: 0,
             ports: Vec::new(),
         }
+    }
+
+    fn runtime_bindings(
+        device_id: Uuid,
+        device_number: u32,
+        persistent_id: Option<i64>,
+    ) -> std::collections::HashMap<Uuid, ResolvedDeviceBinding> {
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(
+            device_id,
+            ResolvedDeviceBinding {
+                device_number,
+                hw_serial_number: None,
+                persistent_id,
+                confidence: Confidence::High,
+                match_kind: ResolverMatch::ManifestVerified,
+            },
+        );
+        bindings
     }
 
     fn intent_with_port(device_id: &str, port_id: Option<&str>) -> GraphRuntimeIntent {
@@ -1072,10 +1107,8 @@ mod tests {
         PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                provider_persistent_id: None,
-                device_number: 0,
                 connector: None,
-                selection_mode: SourceSelectionMode::SelfTest,
+                binding_class: SourceBindingClass::SelfTest,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
@@ -1192,10 +1225,8 @@ mod tests {
         let plan = PipelinePlan {
             source: SourcePlan {
                 device_id: "d".into(),
-                provider_persistent_id: None,
-                device_number: 0,
                 connector: None,
-                selection_mode: SourceSelectionMode::SelfTest,
+                binding_class: SourceBindingClass::SelfTest,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
@@ -1218,20 +1249,35 @@ mod tests {
 
     #[test]
     fn src_props_sdi_uses_connection_sdi() {
-        // canonical 边界回归: SDI ⇒ decklinkvideosrc connection=sdi, audiosrc 无 connection.
+        let device_id = Uuid::new_v4();
+        let bindings = runtime_bindings(device_id, 2, None);
         let plan = PipelinePlan {
             source: SourcePlan {
-                device_id: "d".into(),
-                provider_persistent_id: None,
-                device_number: 2,
+                device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Sdi),
-                selection_mode: SourceSelectionMode::DeviceHandleResolved,
+                binding_class: SourceBindingClass::Resolved,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let (v, a) = src_props(&plan).expect("src_props");
+        let json = serde_json::to_value(&plan).expect("serialize canonical plan");
+        let source = json
+            .get("source")
+            .and_then(|v| v.as_object())
+            .expect("source object");
+        for forbidden in [
+            "device_number",
+            "provider_persistent_id",
+            "persistent_id",
+            "gstreamer",
+        ] {
+            assert!(
+                !source.contains_key(forbidden),
+                "canonical source leaked {forbidden}: {json}"
+            );
+        }
+        let (v, a) = src_props(&plan, &bindings).expect("src_props");
         assert!(
             v.contains("decklinkvideosrc device-number=2 connection=sdi"),
             "video={v}"
@@ -1242,20 +1288,19 @@ mod tests {
 
     #[test]
     fn src_props_optical_uses_connection_optical_sdi() {
-        // canonical 边界回归: Optical ⇒ connection=optical-sdi (绝非 optical).
+        let device_id = Uuid::new_v4();
+        let bindings = runtime_bindings(device_id, 3, None);
         let plan = PipelinePlan {
             source: SourcePlan {
-                device_id: "d".into(),
-                provider_persistent_id: None,
-                device_number: 3,
+                device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Optical),
-                selection_mode: SourceSelectionMode::DeviceHandleResolved,
+                binding_class: SourceBindingClass::Resolved,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let (v, _) = src_props(&plan).expect("src_props");
+        let (v, _) = src_props(&plan, &bindings).expect("src_props");
         assert!(
             v.contains("connection=optical-sdi"),
             "video={v} (不得 optical)"
@@ -1264,20 +1309,19 @@ mod tests {
 
     #[test]
     fn src_props_unknown_has_no_connection() {
-        // canonical 边界回归: Unknown 连接器 ⇒ 不显式指定 connection (由插件 auto 探测).
+        let device_id = Uuid::new_v4();
+        let bindings = runtime_bindings(device_id, 4, None);
         let plan = PipelinePlan {
             source: SourcePlan {
-                device_id: "d".into(),
-                provider_persistent_id: None,
-                device_number: 4,
+                device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Unknown),
-                selection_mode: SourceSelectionMode::DeviceHandleResolved,
+                binding_class: SourceBindingClass::Resolved,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let (v, _) = src_props(&plan).expect("src_props");
+        let (v, _) = src_props(&plan, &bindings).expect("src_props");
         assert!(
             !v.contains("connection"),
             "Unknown 不得显式 connection: {v}"
@@ -1358,11 +1402,10 @@ mod tests {
         )
         .expect("证据齐备的 PersistentId 档应物化");
         assert_eq!(
-            plans[0].source.selection_mode,
-            SourceSelectionMode::PersistentIdCanonical
+            plans[0].source.binding_class,
+            SourceBindingClass::Persistent
         );
-        assert_eq!(plans[0].source.provider_persistent_id, Some(77));
-        let (v, a) = src_props(&plans[0]).expect("src_props");
+        let (v, a) = src_props(&plans[0], &bindings).expect("src_props");
         assert!(v.contains("persistent-id=77"), "video={v}");
         assert!(a.contains("persistent-id=77"), "audio={a}");
         assert!(!v.contains("persistent-id=0"), "绝不盲 0: {v}");
@@ -1370,26 +1413,89 @@ mod tests {
 
     #[test]
     fn src_props_persistent_id_canonical_without_evidence_rejected() {
-        // belt: 伪造 plan（PersistentIdCanonical + None）在 launch 串拼装层也被拒,
-        // 任何未来生产者都无法把 None 物化成 persistent-id=0。
+        let device_id = Uuid::new_v4();
+        let bindings = runtime_bindings(device_id, 0, None);
         let plan = PipelinePlan {
             source: SourcePlan {
-                device_id: "d".into(),
-                provider_persistent_id: None,
-                device_number: 0,
+                device_id: device_id.to_string(),
                 connector: None,
-                selection_mode: SourceSelectionMode::PersistentIdCanonical,
+                binding_class: SourceBindingClass::Persistent,
             },
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
         };
-        let err = src_props(&plan).expect_err("None 证据必须拒绝");
+        let err = src_props(&plan, &bindings).expect_err("persistent_id=None 必须拒绝");
         assert!(
             matches!(err, PipelineError::IdentityUnresolved(_))
-                && err.to_string().contains("persistent-id=0"),
+                && err.to_string().contains("persistent_id"),
             "{err:?}"
         );
+    }
+
+    #[test]
+    fn src_props_resolved_missing_binding_fails_closed() {
+        let device_id = Uuid::new_v4();
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: device_id.to_string(),
+                connector: Some(ConnectorType::Sdi),
+                binding_class: SourceBindingClass::Resolved,
+            },
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        };
+        let err = src_props(&plan, &std::collections::HashMap::new())
+            .expect_err("Resolved source 缺 RuntimeBinding 必须 fail-closed");
+        assert!(
+            matches!(err, PipelineError::IdentityUnresolved(_)),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("RuntimeBinding"), "{err:?}");
+    }
+
+    #[test]
+    fn src_props_diagnostic_fallback_uses_binding_then_device_zero_only_when_absent() {
+        let device_id = Uuid::new_v4();
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: device_id.to_string(),
+                connector: Some(ConnectorType::Sdi),
+                binding_class: SourceBindingClass::DiagnosticFallback,
+            },
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        };
+        let bindings = runtime_bindings(device_id, 7, None);
+        let (bound_v, _) = src_props(&plan, &bindings).expect("diagnostic resolved binding");
+        assert!(bound_v.contains("device-number=7"), "{bound_v}");
+
+        let (fallback_v, _) =
+            src_props(&plan, &std::collections::HashMap::new()).expect("diagnostic fallback");
+        assert!(fallback_v.contains("device-number=0"), "{fallback_v}");
+    }
+
+    #[test]
+    fn src_props_diagnostic_fallback_rejects_noncanonical_device_id() {
+        let plan = PipelinePlan {
+            source: SourcePlan {
+                device_id: "not-a-canonical-uuid".into(),
+                connector: None,
+                binding_class: SourceBindingClass::DiagnosticFallback,
+            },
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        };
+        let err = src_props(&plan, &std::collections::HashMap::new())
+            .expect_err("非法 canonical device_id 不得退化到 device 0");
+        assert!(
+            matches!(err, PipelineError::IdentityUnresolved(_)),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("device_id"), "{err:?}");
     }
 
     #[test]
@@ -1661,17 +1767,14 @@ mod tests {
     fn media_rt_01_self_test_plan_is_canonical() {
         let plan = PipelinePlan::self_test();
         assert_eq!(plan.source.device_id, "self-test");
-        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert_eq!(plan.source.binding_class, SourceBindingClass::SelfTest);
         assert_eq!(
             plan.timeline_policy,
             TimelinePolicy::ProgramTimelineMapped,
             "原 normalize:true 声明意图迁移（IMP-1）"
         );
         assert_eq!(plan.switch_mode, crate::program::SwitchPolicy::FrameSwitch);
-        // 自测哨兵: 无真实设备, `device_number: 0` 是占位, 不违反
-        // "device-number 绝不默认 0" (该约束针对真实选卡不得静默落到 DeckLink 0 号).
-        assert_eq!(plan.source.device_number, 0);
-        assert!(plan.source.provider_persistent_id.is_none());
+        // SelfTest canonical plan 不携带任何 Backend runtime address。
     }
 
     // ── p06-hi ARCH-BACKEND-01 gate (Test C 延伸到 Backend 侧) ─────────────────────
@@ -1697,7 +1800,7 @@ mod tests {
         // P1-1: 句柄与生产同源分配 (NEXT_PIPELINE_ID, 从 1 起), 绝不为 0 哨兵.
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
-        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert_eq!(plan.source.binding_class, SourceBindingClass::SelfTest);
         assert_eq!(plan.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
     }
 
@@ -1716,7 +1819,7 @@ mod tests {
         // 句柄为运行时实例标识, 不得与 Mock 固定哨兵冲突.
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
-        assert_eq!(plan.source.selection_mode, SourceSelectionMode::SelfTest);
+        assert_eq!(plan.source.binding_class, SourceBindingClass::SelfTest);
         assert_eq!(plan.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
     }
 }

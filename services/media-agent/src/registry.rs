@@ -20,7 +20,11 @@ use std::boxed::Box;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use crate::contracts::backend::MediaBackend;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+use std::collections::HashMap;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use std::sync::Arc;
+#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+use uuid::Uuid;
 
 use crate::contracts::provider::HardwareProvider;
 
@@ -152,6 +156,15 @@ impl AdapterRegistry {
         Ok(Self::build_media_adapter_bundle()?.backend)
     }
 
+    /// 真实硬件路径：把 Resolver 的 authoritative RuntimeBinding view 注入
+    /// 与 MediaTap/Diagnostic views 同源的唯一 controller。
+    #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+    pub fn build_media_backend_with_bindings(
+        runtime_bindings: Arc<HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>>,
+    ) -> Result<Arc<dyn MediaBackend>, String> {
+        Ok(Self::build_media_adapter_bundle_with_bindings(runtime_bindings)?.backend)
+    }
+
     /// A2-8-02-F-01（第九轮终裁）: 同源 runtime adapter bundle——
     /// **同一 concrete `GStreamerPipelineController` 的双 trait view**
     /// （`MediaBackend` + `MediaTapPort` 指向同一对象; 禁二次构造——两个
@@ -160,9 +173,19 @@ impl AdapterRegistry {
     /// `MediaBackend`（Session 抽象边界不破）。
     #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
     pub fn build_media_adapter_bundle() -> Result<MediaAdapterBundle, String> {
+        Self::build_media_adapter_bundle_with_bindings(Arc::new(HashMap::new()))
+    }
+
+    /// Production/hardware path. Empty-binding bundle remains intentionally available
+    /// only for SelfTest/structure-only tests.
+    #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+    pub fn build_media_adapter_bundle_with_bindings(
+        runtime_bindings: Arc<HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>>,
+    ) -> Result<MediaAdapterBundle, String> {
         ensure_adapter_selection_safe()?;
         #[cfg(feature = "mock")]
         {
+            let _ = &runtime_bindings;
             // Mock 世界无共享 instances 表——独立实例语义等价; 桥观测与
             // tap 同实例（MockMediaTapPort 双 trait 实现）。
             let tap = Arc::new(crate::adapters::mock::MockMediaTapPort::new());
@@ -180,8 +203,11 @@ impl AdapterRegistry {
             // 单次构造 concrete controller → 各 view clone 各自 coerce——
             // 全部 trait object 同源同一对象（结构保证 + 行为证明见
             // registry_rt_01_bundle_dual_view_same_controller）。
-            let controller =
-                Arc::new(crate::adapters::gstreamer::GStreamerPipelineController::new());
+            let controller = Arc::new(
+                crate::adapters::gstreamer::GStreamerPipelineController::with_runtime_bindings(
+                    runtime_bindings,
+                ),
+            );
             Ok(MediaAdapterBundle {
                 backend: controller.clone(),
                 media_tap: Some(controller.clone()),

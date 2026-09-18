@@ -93,7 +93,10 @@ pub fn run(
             crate::resource::ResourceRegistry::derive_from_discovery(&registry),
         );
         let ctrl: std::sync::Arc<dyn MediaBackend> =
-            crate::registry::AdapterRegistry::build_media_backend().unwrap_or_else(|e| {
+            crate::registry::AdapterRegistry::build_media_backend_with_bindings(
+                std::sync::Arc::new(bindings.clone()),
+            )
+            .unwrap_or_else(|e| {
                 eprintln!("adapter feature 冲突 (fail-closed): {e}");
                 std::process::exit(2);
             });

@@ -292,7 +292,9 @@ fn main() {
                 // view（backend→SessionManager; media_tap→Program 装配）——
                 // 全仓库唯一 controller 构造路径, 禁二次构造。
                 let adapter_bundle =
-                    media_agent::registry::AdapterRegistry::build_media_adapter_bundle()
+                    media_agent::registry::AdapterRegistry::build_media_adapter_bundle_with_bindings(
+                        std::sync::Arc::new(bindings.clone()),
+                    )
                         .unwrap_or_else(|e| {
                             eprintln!("adapter feature 冲突 (fail-closed): {e}");
                             std::process::exit(2);

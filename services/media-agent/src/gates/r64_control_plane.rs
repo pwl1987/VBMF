@@ -745,7 +745,9 @@ pub(crate) fn build_gate_world(
     }
     let resource_registry = crate::resource::ResourceRegistry::derive_from_discovery(&registry);
     let resources = crate::resource::SharedResourceRegistry::new(resource_registry);
-    let bundle = match crate::registry::AdapterRegistry::build_media_adapter_bundle() {
+    let bundle = match crate::registry::AdapterRegistry::build_media_adapter_bundle_with_bindings(
+        Arc::new(bindings.clone()),
+    ) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("adapter feature 冲突 (fail-closed): {e}");

@@ -30,6 +30,9 @@ use std::sync::Mutex;
 use crate::pipeline_events::{BusSeverity, PipelineBusEvent, PipelineBusEventKind, HEALTH_ARCS};
 /// GStreamer 实现 (feature `gstreamer`).
 pub struct GStreamerPipelineController {
+    /// Backend-owned RuntimeBinding view. Canonical PipelinePlan 不携带任何
+    /// GStreamer runtime address；instantiate 时按 canonical device_id 解析。
+    runtime_bindings: Arc<HashMap<uuid::Uuid, crate::resolver::ResolvedDeviceBinding>>,
     /// 运行时 pipeline 实例 (GStreamer Bin 对 + 物化计划), 供 start/recover 操作 (P0-2 修复核心:
     /// 旧 `launch()` 内部 Bin 未留存, start/recover 无对象可操作). 非 gstreamer 构建无此字段.
     #[cfg(feature = "gstreamer-backend")]
@@ -175,8 +178,17 @@ pub(crate) fn deliver_bus_event(
 }
 
 impl GStreamerPipelineController {
+    /// SelfTest / structure-only controller: no hardware RuntimeBinding.
     pub fn new() -> Self {
+        Self::with_runtime_bindings(Arc::new(HashMap::new()))
+    }
+
+    /// Production / hardware-gate constructor: inject the authoritative Resolver result.
+    pub fn with_runtime_bindings(
+        runtime_bindings: Arc<HashMap<uuid::Uuid, crate::resolver::ResolvedDeviceBinding>>,
+    ) -> Self {
         Self {
+            runtime_bindings,
             #[cfg(feature = "gstreamer-backend")]
             instances: Mutex::new(HashMap::new()),
             #[cfg(feature = "gstreamer-backend")]
@@ -449,7 +461,7 @@ impl GStreamerPipelineController {
         PipelineError,
     > {
         gstreamer::init().map_err(|e| PipelineError::StartFailed(format!("gst init: {e}")))?;
-        let (video_src, audio_src) = src_props(plan)?;
+        let (video_src, audio_src) = src_props(plan, &self.runtime_bindings)?;
         // P1a: 有输出段 ⇒ plan.output_launch 全串（tee 双分支: 分析 + 编码输出）;
         // 无输出段 ⇒ 今日串逐字节不变（纯分析, 向后兼容承诺）。controller 纯拼接执行,
         // 不在此出现任何编码/输出 element 名（用户边界修正: 输出物化在 pipeline.rs domain 层）。

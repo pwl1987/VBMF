@@ -303,7 +303,9 @@ pub fn run(
     // ── 接线（与 dual_input L2 同源: Diagnostic 诊断 world; 不写 agent_state）──
     let resource_registry = crate::resource::ResourceRegistry::derive_from_discovery(&registry);
     let resources = crate::resource::SharedResourceRegistry::new(resource_registry);
-    let bundle = match crate::registry::AdapterRegistry::build_media_adapter_bundle() {
+    let bundle = match crate::registry::AdapterRegistry::build_media_adapter_bundle_with_bindings(
+        Arc::new(bindings.clone()),
+    ) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("adapter feature 冲突 (fail-closed): {e}");

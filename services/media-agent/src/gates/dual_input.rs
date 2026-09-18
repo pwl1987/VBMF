@@ -385,7 +385,9 @@ pub fn run(
 
     // ── L2: Execution（双输入 Session + MediaTap + Program Graph）──
     let resources = crate::resource::SharedResourceRegistry::new(resource_registry);
-    let bundle = match crate::registry::AdapterRegistry::build_media_adapter_bundle() {
+    let bundle = match crate::registry::AdapterRegistry::build_media_adapter_bundle_with_bindings(
+        Arc::new(bindings.clone()),
+    ) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("adapter feature 冲突 (fail-closed): {e}");
