@@ -1,0 +1,14 @@
+RF-FF-01A exact-commit BMD acceptance
+Date: 2026-09-18
+BMD: lytv / 10.30.15.10
+Runtime commit: 0dd37bc1215677cdd2c823d31e9ca3eb307dde26
+Archive SHA256: d9ec96bd91d437024dae2e2b91f931521c7202adebbf90198788374b43514401
+Manifest: /home/lytv/a2-8-02i-v5.manifest.json
+Manifest MD5: 7521d17e7fd02e50eb2b0a84374a43dd
+Gates binary SHA256: 4e80d9aad6521c7f3506dd5168c3156e8893c6e48d663dbd1a2b3fc48bd14560
+Dual-input log SHA256: d60e9a5abe068eaf7edacc98c8941235c0eadeded3c45d3ad61fe49a5d44ea08
+Build: cargo build --features bmd,gstreamer --bin media-agent-gates => PASS
+Gate: VBMF_A2_8_DUAL_INPUT=1 MEDIA_AGENT_DEVICE_BINDING=/home/lytv/a2-8-02i-v5.manifest.json MEDIA_AGENT_MODE=diagnostic => ALL PASS 10/10, rc=0
+Inputs: gst device-number 0 + 1, production binding 2/2, signal Locked
+Historical output device-number 2 process PID before/after: 992634 / 992634 (untouched)
+Stale /opt/vbmf-dev/repo not modified.

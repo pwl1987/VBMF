@@ -1,0 +1,3 @@
+7a52b498517a81201e5f11599066093c73245964358d8678842d100b863340c6  evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01a-runtime-binding/a2-8-02i-v5.manifest.json
+d60e9a5abe068eaf7edacc98c8941235c0eadeded3c45d3ad61fe49a5d44ea08  evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01a-runtime-binding/dual-input.log
+64560cfde5ed713a385bb6c97e27fb9b585e6809b23e7afea310807b275acef6  evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01a-runtime-binding/header.txt
