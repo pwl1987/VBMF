@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + adjudication COMPLETE；当前 Next bounded Runtime Features packet selection PLAN REQUIRED**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + adjudication COMPLETE；RH-CLOCK-01 READY / PLAN FROZEN**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -605,15 +605,26 @@ Status: **COMPLETE / SINGLE-INPUT FFMPEG RTMP LOOPBACK + RECOVERY VERIFIED**。
 - Teardown：Released、Resource Available、Lease NONE、monitor exited、FFmpeg orphan NONE；port 19350 无 listener；output device-number 2 untouched；evidence `evidence/bmd-10.30.15.10/2026-09-18-rf-ff-03-ffmpeg-rtmp-egress/`。
 - 非本 packet：没有 SRS ownership、外部 RTMP server、Network Source、multi-output、second input、Program Switch、Recording/Replay、Clock/FLOW/IDEM 扩展；24h `rss_bounded` debt 仍独立未验证。
 
+## 3.37 RH-CLOCK-01 packet selection（2026-09-18）
+
+Status: **READY / PLAN FROZEN**。
+
+- 候选比较已完成：Network Source、PACKET/MASTER、Hot-Standby、Recording/Replay、SRS/Output 均存在新的 source/switch/flow/external ownership 依赖；FFmpeg 当前 single-input output/recovery slice 已在 RF-FF-03 收口。
+- 唯一 READY 包 = `RH-CLOCK-01`：D11 bounded Clock observation timeline + D13 timecode release-build fail-closed。
+- Authority / plan：`docs/superpowers/specs/2026-09-18-rh-clock-01-clock-timeline-timecode-release-hardening.md`、`CLOCK_TIMECODE_CONTRACT.md`、D11/D13 debt record。
+- Scope：仅 canonical Clock/Timecode observation semantics；不改 GraphIntent、wire、Session/Resource/Lease、Backend/provider、BMD handle/device-number、Program/Packet/Master、Network Source、D15 flow、24h RSS。
+- Acceptance：`Locked → ClockLost → ClockRecovered` timeline；容量满显式失败且不静默丢事件；非法 transitional timecode 在 debug/release 均 fail-closed；focused/default/release/mock/simulation/format/clippy/architecture/diff + CI 7/7。
+- Hardware boundary：不触碰 provider/backend/DeckLink path，本包不新增 BMD hardware claim；clock/timecode hardware probe 仍 NOT IMPLEMENTED/NOT VERIFIED。
+
 ## 4. Current Task
 
-**Next bounded Runtime Features packet selection — PLAN REQUIRED**
+**RH-CLOCK-01 — D11 Clock observation timeline + D13 timecode release-build hardening（READY / PLAN FROZEN）**
 
-RF-FF-03 已完成并经 adjudication 接受（§3.36）：单输入 FFmpeg RTMP loopback egress、receiver h264/aac、same-handle recovery 与 teardown 已由 VM、CI、BMD exact-commit 双侧验证。下一步只能重新选择并拆解一个有明确 Authority、allowed/forbidden scope、touch-gate 与 acceptance 的 bounded packet；不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。
+RF-FF-03 已完成并经 adjudication 接受（§3.36）。下一执行包已冻结为 RH-CLOCK-01；必须严格按 §3.37 plan 实施，完成软件验证、CI 与 STATE/GitHub sync 后才能转 COMPLETE。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
 
 ## 5. Next Task
 
-**Next bounded Runtime Features packet selection**：基于当前 frozen Contract 与 RF-FF-03 evidence，先做候选比较、依赖/touch-gate/验收矩阵并将下一包置 READY，之后才可实施。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被 RF-FF-03 裁决覆盖。
+实施 RH-CLOCK-01：先完成 canonical Clock/Timecode 代码与 focused tests，再运行 release/default/full software matrix；不得越过 §3.37 forbidden scope。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -643,7 +654,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RH-LC-01** | **COMPLETE（§3.22·2026-09-18）** | D1 LifecycleJournal / reverse rollback engine | RH-BUS closure | `CompletedStep[]` + 单一 rollback；mock 429/429 + default 246/246 + integration 9/9+12/12；CI `35279581145` 7/7；BMD smoke deferred |
 | **RH-RES-01A** | **COMPLETE（§3.23·2026-09-18）** | D3 per-claim Reservation TTL + Renew/Expire/Abort lifecycle | RH-LC-01 | Resource 7/7 + Session 6/6；mock 432/432 + 9/9 + 12/12；default 248/248；CI `35293309933` 7/7；BMD not required |
 | **RH-RES-01B** | **COMPLETE（§3.24·2026-09-18）** | D7 backend `OnceLock`→direct field | RH-RES-01A | one-file +5/-19；set_backend caller=0；mock 433/433 + 9/9+12/12；default 249/249；CI `35293860197` 7/7 |
-| **RH-CLOCK-01** | **BACKLOG / DEFER-UNTIL-TOUCH** | D11 Clock observation timeline + D13 timecode release-build hardening | Clock/Timecode feature entry | Locked→Lost→Recovered 事件序列；release fail-closed |
+| **RH-CLOCK-01** | **READY / PLAN FROZEN（§3.37·2026-09-18）** | D11 Clock observation timeline + D13 timecode release-build hardening | Clock/Timecode feature entry | Locked→Lost→Recovered 事件序列；release fail-closed；plan=`docs/superpowers/specs/2026-09-18-rh-clock-01-clock-timeline-timecode-release-hardening.md` |
 | **RH-FLOW-01** | **BACKLOG / DEFER-UNTIL-TOUCH** | D15 explicit media-flow cardinality | multi-flow Audio/Metadata entry | PortId≠flow；0/1/N flow contract/tests |
 | **RH-IDEM-01** | **BACKLOG / DEFER-UNTIL-CONTROL-PLANE** | durable idempotency | persistent external command entry | restart/replay/conflict durability；Runtime remains truth |
 | **RUNTIME-FEATURES** | **ACTIVE / DECOMPOSED（§3.25）** | Network Sources、PACKET/MASTER、Hot-Standby、Live FFmpeg、SRS/Output、Recording/Replay、Composition/Audio execution | immediate hardening gates complete | 只执行 bounded packet；先修 frozen Backend contract 的 RuntimeBinding 实现漂移 |
@@ -678,7 +689,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.36/§4–§5；RF-FF-01F report/evidence；RF-FF-02/RF-FF-03 plan/evidence；`MEDIA_BACKEND_CONTRACT.md §1–§4`（尤其 §3 Backend failure→RuntimeEvent→Health/Policy→Supervisor 与 §1.1 resource ownership）；`contracts/backend.rs`；`pipeline.rs` canonical OutputPlan；FFmpeg `observe/recover` 与 Session composition。RF-FF-03 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前回到下一 bounded packet selection。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.37/§4–§5；RH-CLOCK-01 plan；`CLOCK_TIMECODE_CONTRACT.md`；D11/D13 debt record；`clock.rs` / `timecode.rs` canonical observation types。RF-FF-03 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前只实施 RH-CLOCK-01。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
