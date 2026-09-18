@@ -800,7 +800,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.43/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；当前 switch execution SPI 与 `switch_graph.rs` Normalize evidence path。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 已完成；当前回到下一 bounded packet selection，不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network/Output/Program multi-input。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.46/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker 与 RF-SRC-RTMP-01 boundary plan；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / MEDIA_BACKEND_CONTRACT。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 已完成；当前只做 NetworkSourceId/RuntimeBinding/Resource/Session boundary design，不直接扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent 或 Network runtime。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -935,7 +935,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.43/§4–§5；
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = RF-SRC-RTMP-01 boundary design — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.43/§4–§5 + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
+6. 读取 **Current Task = RF-SRC-RTMP-01 boundary design — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.46/§4–§5 + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01/RF-SRC-RTMP-01 plans + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
 8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；RF-SRC-RTMP-01 因 device-bound owner 设计缺口 PLAN REQUIRED；当前没有 READY Runtime Features implementation packet，必须先完成 boundary design；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
@@ -954,6 +954,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.43/§4–§5；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01 已完成（§3.25–§3.43）；当前只允许先选择下一 bounded packet，不能越界推进 Network Source/Program multi-input/Output expansion 或 24h stability**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01 已完成（§3.25–§3.43）；RF-SRC-01 因 SRT capability 缺失 BLOCKED，RF-SRC-RTMP-01 因 device-bound owner boundary 未冻结而 PLAN REQUIRED；当前不能直接推进 Network runtime/Program multi-input/Output expansion 或 24h stability**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
