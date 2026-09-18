@@ -17,6 +17,7 @@ use crate::lease::InMemoryLeaseManager;
 use crate::pipeline::PipelineHandle;
 use crate::pipeline_events::{PipelineBusEvent, PipelineBusEventKind};
 use crate::session::SessionStopHook;
+use crate::source::{LeaseKey, NetworkSourceId};
 use crate::supervisor::{fault_trigger_from_events, Supervisor, SupervisorAction};
 
 struct StopSignal {
@@ -100,20 +101,57 @@ pub fn spawn(
     supervisor: Arc<Mutex<Supervisor>>,
     leases: Arc<InMemoryLeaseManager>,
 ) -> Arc<RecoveryMonitorHandle> {
-    spawn_with_interval(
+    spawn_with_key(
         backend,
         handle,
-        device_id,
+        LeaseKey::Device(device_id),
         supervisor,
         leases,
         Duration::from_millis(50),
     )
 }
 
+/// Spawn the same recovery monitor for a typed NetworkSource lease.
+pub fn spawn_network(
+    backend: Arc<dyn MediaBackend>,
+    handle: PipelineHandle,
+    source_id: NetworkSourceId,
+    supervisor: Arc<Mutex<Supervisor>>,
+    leases: Arc<InMemoryLeaseManager>,
+) -> Arc<RecoveryMonitorHandle> {
+    spawn_with_key(
+        backend,
+        handle,
+        LeaseKey::Network(source_id),
+        supervisor,
+        leases,
+        Duration::from_millis(50),
+    )
+}
+
+#[cfg(test)]
 fn spawn_with_interval(
     backend: Arc<dyn MediaBackend>,
     handle: PipelineHandle,
     device_id: Uuid,
+    supervisor: Arc<Mutex<Supervisor>>,
+    leases: Arc<InMemoryLeaseManager>,
+    interval: Duration,
+) -> Arc<RecoveryMonitorHandle> {
+    spawn_with_key(
+        backend,
+        handle,
+        LeaseKey::Device(device_id),
+        supervisor,
+        leases,
+        interval,
+    )
+}
+
+fn spawn_with_key(
+    backend: Arc<dyn MediaBackend>,
+    handle: PipelineHandle,
+    lease_key: LeaseKey,
     supervisor: Arc<Mutex<Supervisor>>,
     leases: Arc<InMemoryLeaseManager>,
     interval: Duration,
@@ -131,7 +169,7 @@ fn spawn_with_interval(
         .name("vbmf-recovery-monitor".into())
         .spawn(move || {
             run(
-                backend, handle, device_id, supervisor, leases, stop, recoveries, exited, interval,
+                backend, handle, lease_key, supervisor, leases, stop, recoveries, exited, interval,
             );
         })
         .expect("recovery monitor thread must start");
@@ -142,7 +180,7 @@ fn spawn_with_interval(
 fn run(
     backend: Arc<dyn MediaBackend>,
     handle: PipelineHandle,
-    device_id: Uuid,
+    lease_key: LeaseKey,
     supervisor: Arc<Mutex<Supervisor>>,
     leases: Arc<InMemoryLeaseManager>,
     stop: Arc<StopSignal>,
@@ -150,6 +188,10 @@ fn run(
     exited: Arc<AtomicBool>,
     interval: Duration,
 ) {
+    let device_id = match lease_key {
+        LeaseKey::Device(device_id) => device_id,
+        LeaseKey::Network(source_id) => source_id.0,
+    };
     while !stop.wait_or_stopped(interval) {
         let events = backend.observe(&handle);
         let Some(event) = events.into_iter().find(|event| {
@@ -183,7 +225,7 @@ fn run(
             .report_failure(&device_id, None, None);
         match action {
             Ok(SupervisorAction::Restart) => {
-                if !leases.is_valid(&device_id) {
+                if !leases.is_key_valid(&lease_key) {
                     tracing::error!(
                         device = %device_id,
                         "recovery monitor stopped: lease invalid; manual intervention required"

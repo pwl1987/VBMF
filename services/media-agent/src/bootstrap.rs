@@ -220,6 +220,47 @@ pub fn build_ffmpeg_session_composition(
     })
 }
 
+/// Build the same production FFmpeg backend with a single explicitly registered
+/// NetworkSource resource. Hardware discovery remains diagnostic context only;
+/// the Network Session owns its typed resource and lease.
+#[cfg(feature = "ffmpeg-backend")]
+pub fn build_ffmpeg_network_source_composition(
+    world: &BootstrapContext,
+    source_id: crate::source::NetworkSourceId,
+) -> Result<FfmpegSessionComposition, String> {
+    let base = build_ffmpeg_session_composition(world)?;
+    let mut resources = crate::resource::ResourceRegistry::new();
+    resources.register_network_source(source_id);
+    let resources = crate::resource::SharedResourceRegistry::new(resources);
+
+    // RecoveryMonitor uses the same Supervisor namespace for both source domains.
+    world.supervisor.lock().unwrap().register(source_id.0);
+    let manager = Arc::new(crate::session::SessionManager::new(
+        resources,
+        world.lease_manager.clone(),
+        world.supervisor.clone(),
+        base.backend.clone(),
+        Arc::new(world.devices.clone()),
+        Arc::new(std::collections::HashMap::new()),
+        None,
+        crate::pipeline::MaterializeMode::Production,
+        crate::session::SessionTuning {
+            default_lease_ttl: world.config.default_lease_ttl,
+            lease_renew_window: world.config.lease_renew_window,
+            ..crate::session::SessionTuning::default()
+        },
+        world.event_sink.clone(),
+    ));
+
+    Ok(FfmpegSessionComposition {
+        manager,
+        backend: base.backend,
+        process_inspector: base.process_inspector,
+        registry: crate::port::PortRegistry::default(),
+        authorizations: Arc::new(std::collections::HashMap::new()),
+    })
+}
+
 #[cfg(all(test, feature = "ffmpeg-backend"))]
 mod rf_ff_01e_tests {
     use super::*;

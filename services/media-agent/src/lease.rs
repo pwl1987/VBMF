@@ -166,10 +166,24 @@ impl InMemoryLeaseManager {
     /// Re-validate a lease. Called by Supervisor before re-entering CAPTURING
     /// after a DeckLink drop / restart. Returns false if absent or expired.
     pub fn is_valid(&self, device_id: &Uuid) -> bool {
-        let guard = self.leases.lock().unwrap();
-        match guard.get(device_id) {
-            Some(l) => !is_expired(l),
-            None => false,
+        self.is_key_valid(&LeaseKey::Device(*device_id))
+    }
+
+    /// Re-validate either a hardware or network lease before recovery.
+    pub fn is_key_valid(&self, key: &LeaseKey) -> bool {
+        match key {
+            LeaseKey::Device(device_id) => self
+                .leases
+                .lock()
+                .unwrap()
+                .get(device_id)
+                .is_some_and(|lease| !is_expired(lease)),
+            LeaseKey::Network(_) => self
+                .runtime_leases
+                .lock()
+                .unwrap()
+                .get(key)
+                .is_some_and(|lease| !runtime_is_expired(lease)),
         }
     }
 }

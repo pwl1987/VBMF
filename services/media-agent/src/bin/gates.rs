@@ -6,6 +6,7 @@
 //!   VBMF_FFMPEG_RECOVERY（RF-FF-01F canonical failure/recovery Gate）/
 //!   VBMF_FFMPEG_OUTPUT + VBMF_FFMPEG_OUTPUT_DIR（RF-FF-02 HLS egress/recovery Gate）/
 //!   VBMF_FFMPEG_RTMP_OUTPUT + VBMF_FFMPEG_RTMP_URL（RF-FF-03 RTMP loopback/recovery Gate）/
+//!   VBMF_FFMPEG_RTMP_SOURCE + VBMF_FFMPEG_RTMP_SOURCE_URL + VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR（RF-SRC-RTMP-01 source/recovery Gate）/
 //!   VBMF_A2_8_DUAL_INPUT（A2-8-02-I 五层 Gate, 第十八轮 §十/§十五）/
 //!   VBMF_A2_8_04_OBS（A2-8-04 多场景六路观测, R52——observation only）/
 //!   VBMF_A2_8_R64_CP（R64 真服务恢复矩阵——real Control Plane + test-controlled adapter）/

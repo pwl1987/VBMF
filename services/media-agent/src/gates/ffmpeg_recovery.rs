@@ -166,7 +166,240 @@ fn wait_for_rtmp_receiver(child: Child) -> Result<(), String> {
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn parse_loopback_source_url(raw: &str) -> Result<crate::source::NetworkEndpoint, String> {
+    let rest = raw
+        .strip_prefix("rtmp://127.0.0.1:")
+        .ok_or_else(|| "RTMP source URL must use rtmp://127.0.0.1:<port>/<path>".to_string())?;
+    let (port, path) = rest
+        .split_once('/')
+        .ok_or_else(|| "RTMP source URL must include a path".to_string())?;
+    let endpoint = crate::source::NetworkEndpoint {
+        protocol: crate::source::NetworkProtocol::Rtmp,
+        host: "127.0.0.1".into(),
+        port: port
+            .parse()
+            .map_err(|_| "RTMP source URL port is invalid".to_string())?,
+        path: format!("/{path}"),
+    };
+    endpoint.validate_loopback()?;
+    if raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("RTMP source URL must be whitespace-free".into());
+    }
+    Ok(endpoint)
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn spawn_rtmp_source_publisher(url: &str) -> Result<Child, String> {
+    parse_loopback_source_url(url)?;
+    Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-re",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=320x180:rate=25",
+            "-re",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:sample_rate=48000",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-tune",
+            "zerolatency",
+            "-c:a",
+            "aac",
+            "-f",
+            "flv",
+        ])
+        .arg(url)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("spawn RTMP source publisher: {e}"))
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
+    let raw_url = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_URL")
+        .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_SOURCE_URL is required"));
+    let endpoint =
+        parse_loopback_source_url(&raw_url).unwrap_or_else(|e| fail(format!("RTMP source: {e}")));
+    let hls_dir = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR")
+        .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR is required"));
+    let hls_dir = PathBuf::from(hls_dir);
+    if !hls_dir.is_absolute() {
+        fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must be absolute");
+    }
+    fs::create_dir_all(&hls_dir)
+        .unwrap_or_else(|e| fail(format!("create RTMP source HLS directory: {e}")));
+    if fs::read_dir(&hls_dir)
+        .unwrap_or_else(|e| fail(format!("inspect RTMP source HLS directory: {e}")))
+        .next()
+        .is_some()
+    {
+        fail("RTMP source HLS directory must start empty");
+    }
+    std::env::set_var("VBMF_OUTPUT_KIND", "hls");
+    std::env::set_var("VBMF_OUTPUT_HLS_DIR", &hls_dir);
+
+    let source_id =
+        crate::source::NetworkSourceId(uuid::Uuid::new_v5(&uuid::Uuid::nil(), raw_url.as_bytes()));
+    let composition = crate::bootstrap::build_ffmpeg_network_source_composition(world, source_id)
+        .unwrap_or_else(|e| fail(format!("network source composition: {e}")));
+    let intent = crate::graph_intent::GraphRuntimeIntent {
+        version: "1.0".into(),
+        devices: vec![crate::graph_intent::DeviceIntent {
+            // Graph node label only; the source identity is source_id.
+            device_id: "network-source-node".into(),
+            role: "CAPTURE".into(),
+            pipeline: crate::graph_intent::PipelineIntent {
+                source: crate::graph_intent::SourceIntent::rtmp(source_id, endpoint),
+                sink: crate::graph_intent::SinkIntent { kind: "hls".into() },
+            },
+        }],
+    };
+
+    let sid = composition
+        .manager
+        .create(intent)
+        .unwrap_or_else(|e| fail(format!("RTMP source Session create: {e}")));
+    composition
+        .manager
+        .start(&sid)
+        .unwrap_or_else(|e| fail(format!("RTMP source Session start: {e}")));
+    let running = composition
+        .manager
+        .status(&sid)
+        .expect("running source session");
+    if running.phase != SessionPhase::Running || running.inputs.len() != 1 {
+        fail(format!(
+            "RTMP source expected Running/1, got {:?}/{}",
+            running.phase,
+            running.inputs.len()
+        ));
+    }
+    let handle = running.pipeline.expect("running source pipeline");
+    let old_consumer_pid = composition
+        .process_inspector
+        .running_child_pid(&handle)
+        .unwrap_or_else(|| fail("initial RTMP source consumer PID is absent"));
+    let monitor = crate::recovery_monitor::spawn_network(
+        composition.backend.clone(),
+        handle,
+        source_id,
+        world.supervisor.clone(),
+        world.lease_manager.clone(),
+    );
+    composition
+        .manager
+        .register_stop_hook(&sid, monitor.clone());
+
+    let mut publisher =
+        RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
+    wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("initial RTMP source A/V: {e}")));
+    println!(
+        "RF-SRC-RTMP-01 source PASS session={sid} source_id={source_id}          codecs=h264,aac loopback=true"
+    );
+
+    let old_publisher = publisher
+        .take()
+        .expect("publisher guard owns initial source fixture");
+    let mut old_publisher = old_publisher;
+    let _ = old_publisher.kill();
+    let _ = old_publisher.wait();
+
+    let mut recovered = false;
+    for _ in 0..120 {
+        if monitor.recovery_count() >= 1 {
+            recovered = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    if !recovered {
+        fail("RTMP source recovery did not create a new consumer generation");
+    }
+    let new_consumer_pid = composition
+        .process_inspector
+        .running_child_pid(&handle)
+        .unwrap_or_else(|| fail("recovered RTMP source consumer PID is absent"));
+    if new_consumer_pid == old_consumer_pid {
+        fail("RTMP source recovery reused the old consumer process identity");
+    }
+    for entry in fs::read_dir(&hls_dir)
+        .unwrap_or_else(|e| fail(format!("inspect recovered HLS directory: {e}")))
+        .filter_map(Result::ok)
+    {
+        let _ = fs::remove_file(entry.path());
+    }
+    let mut replacement =
+        RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
+    wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("recovered RTMP source A/V: {e}")));
+    println!(
+        "RF-SRC-RTMP-01 recovery PASS old_consumer_pid={old_consumer_pid}          new_consumer_pid={new_consumer_pid} canonical_failure=true          supervisor=Recovered codecs=h264,aac"
+    );
+
+    composition
+        .manager
+        .stop(&sid)
+        .unwrap_or_else(|e| fail(format!("RTMP source Session stop: {e}")));
+    if !monitor.is_exited() {
+        fail("RTMP source recovery monitor did not exit during stop");
+    }
+    drop(replacement);
+    let released = composition
+        .manager
+        .status(&sid)
+        .expect("released source session");
+    if released.phase != SessionPhase::Released
+        || released.pipeline.is_some()
+        || !released.inputs.is_empty()
+    {
+        fail("RTMP source Session did not converge to Released");
+    }
+    let state = composition.manager.runtime_state();
+    if state.resources.iter().any(|resource| {
+        resource.owner == crate::source::ResourceOwner::Network(source_id)
+            && resource.state != ResourceState::Available
+    }) {
+        fail("RTMP source Resource remains claimed after teardown");
+    }
+    if world
+        .lease_manager
+        .is_key_active(&crate::source::LeaseKey::Network(source_id))
+    {
+        fail("RTMP source Lease remains after teardown");
+    }
+    composition
+        .manager
+        .close(&sid)
+        .unwrap_or_else(|e| fail(format!("RTMP source Session close: {e}")));
+    if composition.manager.status(&sid).is_some() {
+        fail("RTMP source Session remains after close");
+    }
+    println!(
+        "RF-SRC-RTMP-01 teardown PASS phase=Released resource=Available          lease=NONE monitor=exited publisher_orphan=NONE"
+    );
+    println!("RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS");
+    std::process::exit(0);
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 pub fn run(world: &crate::bootstrap::BootstrapContext) {
+    if std::env::var("VBMF_FFMPEG_RTMP_SOURCE").is_ok() {
+        run_rtmp_source(world);
+    }
     let output_mode = std::env::var("VBMF_FFMPEG_OUTPUT").is_ok();
     let rtmp_mode = std::env::var("VBMF_FFMPEG_RTMP_OUTPUT").is_ok();
     if output_mode && rtmp_mode {

@@ -395,6 +395,8 @@ impl FFmpegBackend {
                     "-nostats",
                     "-loglevel",
                     "error",
+                    "-rtmp_listen",
+                    "1",
                     "-i",
                 ])
                 .arg(url)
@@ -717,6 +719,7 @@ mod tests {
     #[test]
     fn rf_src_rtmp_uses_controlled_url_and_audio_video_maps() {
         let args = command_args(&network_plan());
+        assert!(args.windows(2).any(|w| w == ["-rtmp_listen", "1"]));
         assert!(args
             .windows(2)
             .any(|w| w == ["-i", "rtmp://127.0.0.1:1935/live/source"]));
