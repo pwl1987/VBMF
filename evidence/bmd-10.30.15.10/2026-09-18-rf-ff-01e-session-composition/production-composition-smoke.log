@@ -1,0 +1,22 @@
+=== Production composition smoke ===
+build_features=bmd-provider,ffmpeg-backend
+media-agent exact commit=96f8055e1a9fa791cdbed8146fbd2b8eedfc9495
+MEDIA_AGENT_DEVICE_BINDING=/home/lytv/a2-8-02i-v5.manifest.json
+VBMF_MACHINE_ID=10.30.15.10
+MEDIA_AGENT_HEALTH_BIND=127.0.0.1:18081
+timeout_seconds=4
+expected_process_timeout_rc=124
+observed_process_timeout_rc=124
+
+Observed required logs:
+- provider="blackmagic" backend="ffmpeg" mode="production"
+- device discovery complete count=3
+- RF-FF-01E production FFmpeg composition ready: authorized_devices=2 authorized_ports=2
+- production runtime ready: manifest validated, no media pipeline auto-started
+- media lifecycle remains Session/MediaBackend owned
+
+During the entire construction smoke:
+- no ffmpeg process for 46:00000000:002e4500 appeared
+- historical DeckLink output PID 992634 remained unchanged
+
+RF_FF_01E_PRODUCTION_COMPOSITION_PASS

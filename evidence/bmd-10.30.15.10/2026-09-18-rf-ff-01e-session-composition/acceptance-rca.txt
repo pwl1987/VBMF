@@ -1,0 +1,9 @@
+=== Acceptance RCA ===
+initial_runtime_commit=265667817bb9e3f4e50a404f6c4ee8af525593a9
+initial_runtime_core_lifecycle=create/start/Running/stop/Released PASS
+initial_gate_process_rc=2
+root_cause=ffmpeg_session gate returned after success and fell through to the generic no-gate footer, which exits 2
+fix_commit=96f8055e1a9fa791cdbed8146fbd2b8eedfc9495
+fix=explicit success exit(0); also removed bmd+ffmpeg unused diagnostic variable and stale GStreamer-specific startup log
+retest_exact_fix_commit=PASS rc=0
+runtime_contract_change=NONE

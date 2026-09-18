@@ -1,0 +1,16 @@
+RF-FF-01E production FFmpeg Session composition BMD evidence
+date=2026-09-18
+exact_commit=96f8055e1a9fa791cdbed8146fbd2b8eedfc9495
+archive_sha256=880400611a073d8a2b5715c12e090d52365a250f19e80c1783f52765ed38561d
+manifest=/home/lytv/a2-8-02i-v5.manifest.json
+manifest_md5=7521d17e7fd02e50eb2b0a84374a43dd
+target_device_handle=46:00000000:002e4500
+target_device_id=4fa33dcb-5f76-5f76-aea8-330df7ada03e
+target_port_id=e43d8f5a-94f5-5c67-8ed3-cddee15df04a
+output_device_2_pid_before=992634
+output_device_2_pid_after=992634
+ffmpeg_leftover=NONE
+production_composition_smoke=PASS
+session_gate_rc=0
+session_gate=PASS
+verification=BMD HARDWARE VERIFIED
