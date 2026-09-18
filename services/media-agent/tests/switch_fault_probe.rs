@@ -74,10 +74,12 @@ fn dual_group(session_id: SessionId, a: Uuid, b: Uuid) -> ExecutionGroup {
         session_id,
         vec![
             SessionInput {
+                source_ref: media_agent::source::SourceRef::Device(a),
                 device_id: a,
                 handle: h1,
             },
             SessionInput {
+                source_ref: media_agent::source::SourceRef::Device(b),
                 device_id: b,
                 handle: h2,
             },

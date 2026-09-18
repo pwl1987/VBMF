@@ -533,11 +533,10 @@ mod lifecycle {
                 device_id: dev.device_id.to_string(),
                 role: "CAPTURE".into(),
                 pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: dev.device_id.to_string(),
-                        port_id: None,
-                    },
+                    source: crate::graph_intent::SourceIntent::decklink(
+                        dev.device_id.to_string(),
+                        None,
+                    ),
                     sink: crate::graph_intent::SinkIntent {
                         kind: "appsink".into(),
                     },

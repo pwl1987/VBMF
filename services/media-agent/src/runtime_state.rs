@@ -462,11 +462,7 @@ mod tests {
                     device_id: "d".into(),
                     role: "CAPTURE".into(),
                     pipeline: crate::graph_intent::PipelineIntent {
-                        source: crate::graph_intent::SourceIntent {
-                            kind: "decklink".into(),
-                            device_id: "d".into(),
-                            port_id: None,
-                        },
+                        source: crate::graph_intent::SourceIntent::decklink("d", None),
                         sink: crate::graph_intent::SinkIntent { kind: kind.into() },
                     },
                 }],
@@ -475,6 +471,7 @@ mod tests {
             output_ports: vec![],
             resource_claims: vec![],
             leases: vec![],
+            runtime_leases: vec![],
             pipeline: None,
             outputs: outputs.iter().map(|s| s.to_string()).collect(),
             inputs: Vec::new(),
@@ -515,10 +512,12 @@ mod tests {
         let mut s = session_with_materialized("appsink", &[]);
         s.inputs = vec![
             crate::session::SessionInput {
+                source_ref: crate::source::SourceRef::Device(Uuid::new_v4()),
                 device_id: Uuid::new_v4(),
                 handle: crate::pipeline::PipelineHandle(7),
             },
             crate::session::SessionInput {
+                source_ref: crate::source::SourceRef::Device(Uuid::new_v4()),
                 device_id: Uuid::new_v4(),
                 handle: crate::pipeline::PipelineHandle(8),
             },

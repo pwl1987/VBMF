@@ -1133,10 +1133,12 @@ mod tests {
             session_id,
             vec![
                 SessionInput {
+                    source_ref: crate::source::SourceRef::Device(a),
                     device_id: a,
                     handle: h1,
                 },
                 SessionInput {
+                    source_ref: crate::source::SourceRef::Device(b),
                     device_id: b,
                     handle: h2,
                 },

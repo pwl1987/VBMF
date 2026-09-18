@@ -27,12 +27,13 @@ use crate::contracts::backend::MediaBackend;
 use crate::device::DeviceInfo;
 use crate::events::{RuntimeEvent, RuntimeEventSink};
 use crate::graph_intent::GraphRuntimeIntent;
-use crate::lease::{DeviceLease, LeaseManager};
-use crate::pipeline::{MaterializeMode, PipelineHandle};
+use crate::lease::{DeviceLease, LeaseManager, RuntimeLease};
+use crate::pipeline::{MaterializeMode, PipelineHandle, SourcePlan};
 use crate::port::PortRegistry;
 use crate::preflight::{PreflightInputs, PreflightReport};
 use crate::resolver::BindingAuthorization;
 use crate::resource::{AcquisitionRequest, SharedResourceRegistry};
+use crate::source::{LeaseKey, ResourceOwner, SourceRef};
 use crate::supervisor::Supervisor;
 
 /// 会话 ID (canonical; 独立于硬件身份, 模型 §2)。
@@ -175,6 +176,8 @@ pub struct MediaSession {
     pub output_ports: Vec<Uuid>,
     pub resource_claims: Vec<ResourceClaim>,
     pub leases: Vec<DeviceLease>,
+    /// Typed runtime leases for Network sources; Device leases remain in `leases` for wire compatibility.
+    pub runtime_leases: Vec<RuntimeLease>,
     /// Backend 所拥有的 pipeline 实例句柄 (Handle 链接 Session↔对象)。
     /// Alpha-1 兼容保留 = 首输入主句柄（= `inputs.first()`）。
     pub pipeline: Option<PipelineHandle>,
@@ -191,7 +194,9 @@ pub struct MediaSession {
 /// Alpha-1: 会话输入摘要（D10 每管线句柄表行）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionInput {
-    /// canonical 设备身份（materialize 解析后所绑设备）。
+    /// Canonical source identity; this is authoritative for Device/Network/SelfTest.
+    pub source_ref: SourceRef,
+    /// Legacy hardware projection; Network/SelfTest use nil and never use it for ownership.
     pub device_id: Uuid,
     pub handle: PipelineHandle,
 }
@@ -366,14 +371,25 @@ impl SessionManager {
         let mut claims = Vec::new();
         self.resources.with_inner(|reg| {
             for d in &intent.devices {
-                let Ok(u) = Uuid::parse_str(&d.device_id) else {
-                    continue;
+                let owner = match &d.pipeline.source {
+                    crate::graph_intent::SourceIntent::Rtmp { source_id, .. } => {
+                        ResourceOwner::Network(*source_id)
+                    }
+                    crate::graph_intent::SourceIntent::Decklink { .. } => {
+                        let Ok(device_id) = Uuid::parse_str(&d.device_id) else {
+                            continue;
+                        };
+                        ResourceOwner::Device(device_id)
+                    }
+                    crate::graph_intent::SourceIntent::SelfTest => continue,
                 };
-                if let Some(res) = reg
-                    .resources
-                    .iter()
-                    .find(|r| r.device_id == u && r.capability.ends_with("-input"))
-                {
+                if let Some(res) = reg.resources.iter().find(|r| {
+                    let legacy_device_match = match owner {
+                        ResourceOwner::Device(device_id) => r.device_id == device_id,
+                        ResourceOwner::Network(_) => false,
+                    };
+                    (r.owner == owner || legacy_device_match) && r.capability.ends_with("-input")
+                }) {
                     claims.push(AcquisitionRequest {
                         holder,
                         resource_id: res.id,
@@ -404,6 +420,7 @@ impl SessionManager {
                     output_ports: Vec::new(),
                     resource_claims: Vec::new(),
                     leases: Vec::new(),
+                    runtime_leases: Vec::new(),
                     pipeline: None,
                     outputs: Vec::new(),
                     inputs: Vec::new(),
@@ -420,6 +437,9 @@ impl SessionManager {
             if let Some(inner) = mgr.sessions.lock().unwrap().remove(&sid) {
                 for l in &inner.session.leases {
                     let _ = mgr.leases.release(l);
+                }
+                for l in &inner.session.runtime_leases {
+                    let _ = mgr.leases.release_key(l);
                 }
             }
         };
@@ -487,26 +507,44 @@ impl SessionManager {
         // 步 4: Lease (owner = session id 字符串)。**事务式** (P0-1):
         // 多设备逐台 acquire, 任一台失败 → 逆序释放已获取的全部租约 (绝不留部分成功孤儿)。
         let mut leases: Vec<DeviceLease> = Vec::new();
+        let mut runtime_leases: Vec<RuntimeLease> = Vec::new();
         for d in &intent.devices {
-            let u = Uuid::parse_str(&d.device_id)
-                .map_err(|e| SessionError::InvalidTransition(format!("device_id 解析失败: {e}")))?;
-            match self
-                .leases
-                .acquire(&u, &session_id.to_string(), self.tuning.default_lease_ttl)
-            {
-                Ok(l) => leases.push(l),
-                Err(e) => {
-                    for l in &leases {
-                        let _ = self.leases.release(l);
-                    }
-                    return Err(e.into());
+            let result = match &d.pipeline.source {
+                crate::graph_intent::SourceIntent::Rtmp { source_id, .. } => self
+                    .leases
+                    .acquire_key(
+                        &LeaseKey::Network(*source_id),
+                        &session_id.to_string(),
+                        self.tuning.default_lease_ttl,
+                    )
+                    .map(|lease| {
+                        runtime_leases.push(lease);
+                    }),
+                crate::graph_intent::SourceIntent::Decklink { .. } => {
+                    let Ok(u) = Uuid::parse_str(&d.device_id) else {
+                        return Err(SessionError::InvalidTransition("device_id 解析失败".into()));
+                    };
+                    self.leases
+                        .acquire(&u, &session_id.to_string(), self.tuning.default_lease_ttl)
+                        .map(|lease| leases.push(lease))
                 }
+                crate::graph_intent::SourceIntent::SelfTest => Ok(()),
+            };
+            if let Err(e) = result {
+                for l in &leases {
+                    let _ = self.leases.release(l);
+                }
+                for l in &runtime_leases {
+                    let _ = self.leases.release_key(l);
+                }
+                return Err(e.into());
             }
         }
         {
             let mut guard = self.sessions.lock().unwrap();
             let inner = guard.get_mut(session_id).expect("session registered");
             inner.session.leases = leases.clone();
+            inner.session.runtime_leases = runtime_leases.clone();
             for l in &leases {
                 self.emit(RuntimeEvent::LeaseGranted {
                     device_id: l.device_id,
@@ -670,9 +708,20 @@ impl SessionManager {
             match backend.instantiate(plan) {
                 Ok(h) => {
                     journal.push(CompletedStep::Instantiated(h));
+                    let source_ref = match &plan.source {
+                        SourcePlan::Device { device_id, .. } => SourceRef::Device(
+                            Uuid::parse_str(device_id).unwrap_or_else(|_| Uuid::nil()),
+                        ),
+                        SourcePlan::Network { source_id, .. } => SourceRef::Network(*source_id),
+                        SourcePlan::SelfTest => SourceRef::SelfTest,
+                    };
+                    let device_id = match source_ref {
+                        SourceRef::Device(device_id) => device_id,
+                        SourceRef::Network(_) | SourceRef::SelfTest => Uuid::nil(),
+                    };
                     inputs.push(SessionInput {
-                        device_id: Uuid::parse_str(&plan.source.device_id)
-                            .unwrap_or_else(|_| Uuid::nil()),
+                        source_ref,
+                        device_id,
                         handle: h,
                     });
                 }
@@ -883,6 +932,9 @@ impl SessionManager {
             for l in &inner.session.leases {
                 let _ = self.leases.release(l);
             }
+            for l in &inner.session.runtime_leases {
+                let _ = self.leases.release_key(l);
+            }
         }
         // A2-8-02-E E-6（第九轮终裁）: close 是独立终态路径（Released 之外
         // 还有 Terminated/ProvisioningFailed/BindingFailed/StartFailed）——
@@ -988,20 +1040,24 @@ impl SessionManager {
                 continue;
             }
 
-            let leases = self
+            let (leases, runtime_leases) = self
                 .sessions
                 .lock()
                 .unwrap()
                 .get(&sid)
-                .map(|i| i.session.leases.clone())
+                .map(|i| (i.session.leases.clone(), i.session.runtime_leases.clone()))
                 .unwrap_or_default();
             for l in &leases {
                 let _ = self.leases.release(l);
+            }
+            for l in &runtime_leases {
+                let _ = self.leases.release_key(l);
             }
             {
                 let mut guard = self.sessions.lock().unwrap();
                 if let Some(inner) = guard.get_mut(&sid) {
                     inner.session.leases.clear();
+                    inner.session.runtime_leases.clear();
                 }
             }
             let _ = self.set_phase(&sid, SessionPhase::Terminated);
@@ -1066,6 +1122,52 @@ impl SessionManager {
                                 .find(|l| l.device_id == device_id)
                             {
                                 *l = updated;
+                            }
+                        }
+                    }
+                }
+
+                // Network sources use the same watchdog cadence, but renew
+                // through the typed key API so Device and Network ownership
+                // cannot be conflated.
+                let network_targets: Vec<(LeaseKey, String)> = self
+                    .sessions
+                    .lock()
+                    .unwrap()
+                    .get(&sid)
+                    .map(|inner| {
+                        inner
+                            .session
+                            .runtime_leases
+                            .iter()
+                            .filter_map(|lease| {
+                                let remaining = lease
+                                    .acquired_at
+                                    .timestamp_millis()
+                                    .checked_add_unsigned(lease.ttl.as_millis() as u64)
+                                    .unwrap_or(i64::MAX)
+                                    - Self::now_ms() as i64;
+                                ((remaining as u64)
+                                    < self.tuning.lease_renew_window.as_millis() as u64)
+                                    .then(|| (lease.key, lease.owner.clone()))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                for (key, owner) in network_targets {
+                    if let Ok(updated) =
+                        self.leases
+                            .renew_key(&key, &owner, self.tuning.default_lease_ttl)
+                    {
+                        let mut guard = self.sessions.lock().unwrap();
+                        if let Some(inner) = guard.get_mut(&sid) {
+                            if let Some(lease) = inner
+                                .session
+                                .runtime_leases
+                                .iter_mut()
+                                .find(|lease| lease.key == key)
+                            {
+                                *lease = updated;
                             }
                         }
                     }
@@ -1197,21 +1299,25 @@ impl SessionManager {
 
     /// start 失败回滚 (全部租约 + reservation; allocation 已由调用方处理)。
     fn rollback_lease_and_reservation(&self, id: &SessionId, holder: &Uuid) {
-        let leases = self
+        let (leases, runtime_leases) = self
             .sessions
             .lock()
             .unwrap()
             .get(id)
-            .map(|i| i.session.leases.clone())
+            .map(|i| (i.session.leases.clone(), i.session.runtime_leases.clone()))
             .unwrap_or_default();
         for l in &leases {
             let _ = self.leases.release(l);
+        }
+        for l in &runtime_leases {
+            let _ = self.leases.release_key(l);
         }
         // P0-1: 会话副本同步清空 (快照与租约表一致)。
         {
             let mut guard = self.sessions.lock().unwrap();
             if let Some(inner) = guard.get_mut(id) {
                 inner.session.leases.clear();
+                inner.session.runtime_leases.clear();
             }
         }
         self.resources.abort_reservations_of(*holder);
@@ -1281,11 +1387,10 @@ mod tests {
                 device_id: dev.device_id.to_string(),
                 role: "CAPTURE".into(),
                 pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: dev.device_id.to_string(),
-                        port_id: None,
-                    },
+                    source: crate::graph_intent::SourceIntent::decklink(
+                        dev.device_id.to_string(),
+                        None,
+                    ),
                     sink: crate::graph_intent::SinkIntent {
                         kind: "appsink".into(),
                     },
@@ -1329,11 +1434,10 @@ mod tests {
                     device_id: dev.device_id.to_string(),
                     role: "CAPTURE".into(),
                     pipeline: crate::graph_intent::PipelineIntent {
-                        source: crate::graph_intent::SourceIntent {
-                            kind: "decklink".into(),
-                            device_id: dev.device_id.to_string(),
-                            port_id: None,
-                        },
+                        source: crate::graph_intent::SourceIntent::decklink(
+                            dev.device_id.to_string(),
+                            None,
+                        ),
                         sink: crate::graph_intent::SinkIntent {
                             kind: "appsink".into(),
                         },
@@ -1373,6 +1477,122 @@ mod tests {
 
     fn mock_manager(devices: &[DeviceInfo], lm: Arc<dyn LmTrait>) -> SessionManager {
         manager_with(Arc::new(MockBackend), devices, lm, SessionTuning::default())
+    }
+
+    fn network_manager(
+        source_id: crate::source::NetworkSourceId,
+        lm: Arc<InMemoryLm>,
+    ) -> (SessionManager, SharedResourceRegistry) {
+        let mut registry = ResourceRegistry::new();
+        registry.register_network_source(source_id);
+        let resources = SharedResourceRegistry::new(registry);
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
+        let sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
+        )));
+        let manager = SessionManager::new(
+            resources.clone(),
+            lm,
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(Vec::new()),
+            Arc::new(HashMap::new()),
+            None,
+            MaterializeMode::Diagnostic,
+            SessionTuning::default(),
+            event_log,
+        );
+        (manager, resources)
+    }
+
+    fn rtmp_intent(source_id: crate::source::NetworkSourceId) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![crate::graph_intent::DeviceIntent {
+                // This is only the graph-node label; it is not a hardware identity.
+                device_id: "network-source-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: crate::graph_intent::PipelineIntent {
+                    source: crate::graph_intent::SourceIntent::rtmp(
+                        source_id,
+                        crate::source::NetworkEndpoint {
+                            protocol: crate::source::NetworkProtocol::Rtmp,
+                            host: "127.0.0.1".into(),
+                            port: 1935,
+                            path: "/live/source".into(),
+                        },
+                    ),
+                    sink: crate::graph_intent::SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_session_owns_network_resource_and_lease_end_to_end() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let lm = Arc::new(InMemoryLm::new());
+        let (manager, resources) = network_manager(source_id, lm.clone());
+
+        let session_id = manager
+            .create(rtmp_intent(source_id))
+            .expect("network source should pass typed preflight");
+        let reserved = manager.status(&session_id).expect("session exists");
+        assert_eq!(reserved.runtime_leases.len(), 1);
+        assert!(reserved.leases.is_empty());
+        assert_eq!(reserved.inputs.len(), 0);
+        assert!(lm.is_key_active(&crate::source::LeaseKey::Network(source_id)));
+        resources.with_inner(|registry| {
+            assert_eq!(registry.resources.len(), 1);
+            assert_eq!(
+                registry.resources[0].owner,
+                crate::source::ResourceOwner::Network(source_id)
+            );
+            assert_eq!(
+                registry.resources[0].state,
+                crate::resource::ResourceState::Reserved
+            );
+        });
+
+        manager
+            .start(&session_id)
+            .expect("mock network backend starts");
+        let running = manager.status(&session_id).expect("running session exists");
+        assert_eq!(running.phase, SessionPhase::Running);
+        assert_eq!(running.inputs.len(), 1);
+        assert_eq!(
+            running.inputs[0].source_ref,
+            crate::source::SourceRef::Network(source_id)
+        );
+        assert_eq!(running.inputs[0].device_id, Uuid::nil());
+        resources.with_inner(|registry| {
+            assert_eq!(
+                registry.resources[0].state,
+                crate::resource::ResourceState::Allocated
+            );
+        });
+
+        manager
+            .stop(&session_id)
+            .expect("stop releases network session");
+        let released = manager
+            .status(&session_id)
+            .expect("released session exists");
+        assert_eq!(released.phase, SessionPhase::Released);
+        assert!(!lm.is_key_active(&crate::source::LeaseKey::Network(source_id)));
+        resources.with_inner(|registry| {
+            assert_eq!(
+                registry.resources[0].state,
+                crate::resource::ResourceState::Available
+            );
+            assert!(registry.resources[0].reservation.is_none());
+        });
+
+        manager.close(&session_id).expect("close released session");
+        assert!(manager.status(&session_id).is_none());
     }
 
     #[test]
@@ -1436,11 +1656,10 @@ mod tests {
                     device_id: d.device_id.to_string(),
                     role: "CAPTURE".into(),
                     pipeline: crate::graph_intent::PipelineIntent {
-                        source: crate::graph_intent::SourceIntent {
-                            kind: "decklink".into(),
-                            device_id: d.device_id.to_string(),
-                            port_id: None,
-                        },
+                        source: crate::graph_intent::SourceIntent::decklink(
+                            d.device_id.to_string(),
+                            None,
+                        ),
                         sink: crate::graph_intent::SinkIntent {
                             kind: "appsink".into(),
                         },

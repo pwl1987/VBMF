@@ -746,6 +746,7 @@ mod tests {
 
     fn input(device_id: Uuid, handle: u64) -> SessionInput {
         SessionInput {
+            source_ref: crate::source::SourceRef::Device(device_id),
             device_id,
             handle: PipelineHandle(handle),
         }
@@ -970,14 +971,18 @@ mod tests {
 
     #[test]
     fn switch_rt_01_session_input_keyset_locked() {
-        // T9: SessionInput 键集恰 {device_id, handle}——active/is_active 等
+        // T9: SessionInput 键集恰 {source_ref, device_id, handle}——active/is_active 等
         // switch state 字段蔓延在此锁死（switch state 与 Session lifecycle
-        // 状态空间绝对分离, 终裁 §7.4; wire 面键集锁 = 字段蔓延防线）。
+        // 状态空间绝对分离, 终裁 §7.4; source_ref is the canonical identity boundary）。
         let json = serde_json::to_value(input(Uuid::new_v4(), 7)).expect("序列化");
         let map = json.as_object().expect("SessionInput 序列化为对象");
         let mut keys: Vec<&str> = map.keys().map(|k| k.as_str()).collect();
         keys.sort();
-        assert_eq!(keys, vec!["device_id", "handle"], "键集锁死（恰两键）");
+        assert_eq!(
+            keys,
+            vec!["device_id", "handle", "source_ref"],
+            "键集锁死（身份与兼容投影分离）"
+        );
     }
 
     #[test]

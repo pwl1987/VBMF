@@ -60,13 +60,62 @@ pub enum SourceBindingClass {
 
 /// 物化后的 canonical 单路采集源计划。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SourcePlan {
-    /// Canonical DeviceId 字符串；SelfTest 使用固定哨兵。
-    pub device_id: String,
-    /// Canonical 物理连接器语义；不是 Backend runtime address。
-    pub connector: Option<ConnectorType>,
-    /// Backend-neutral 绑定类别；实际地址不进入 PipelinePlan。
-    pub binding_class: SourceBindingClass,
+pub enum SourcePlan {
+    /// Hardware input; runtime device address is resolved only by the backend.
+    Device {
+        device_id: String,
+        connector: Option<ConnectorType>,
+        binding_class: SourceBindingClass,
+    },
+    /// Network input; no DeviceId/PortId projection exists in this variant.
+    Network {
+        source_id: crate::source::NetworkSourceId,
+        endpoint: crate::source::NetworkEndpoint,
+    },
+    /// MEDIA-RT-01 self-test source.
+    SelfTest,
+}
+
+impl SourcePlan {
+    pub fn device_id(&self) -> Option<&str> {
+        match self {
+            Self::Device { device_id, .. } => Some(device_id),
+            Self::Network { .. } | Self::SelfTest => None,
+        }
+    }
+
+    pub fn connector(&self) -> Option<ConnectorType> {
+        match self {
+            Self::Device { connector, .. } => *connector,
+            Self::Network { .. } | Self::SelfTest => None,
+        }
+    }
+
+    pub fn binding_class(&self) -> SourceBindingClass {
+        match self {
+            Self::Device { binding_class, .. } => *binding_class,
+            Self::Network { .. } => SourceBindingClass::Resolved,
+            Self::SelfTest => SourceBindingClass::SelfTest,
+        }
+    }
+
+    #[cfg(test)]
+    fn device_mut(
+        &mut self,
+    ) -> Option<(
+        &mut String,
+        &mut Option<ConnectorType>,
+        &mut SourceBindingClass,
+    )> {
+        match self {
+            Self::Device {
+                device_id,
+                connector,
+                binding_class,
+            } => Some((device_id, connector, binding_class)),
+            Self::Network { .. } | Self::SelfTest => None,
+        }
+    }
 }
 
 /// 物化后的 canonical 管线计划；Backend runtime address 不进入本类型。
@@ -214,11 +263,7 @@ impl PipelinePlan {
     /// MEDIA-RT-01 自测计划 (videotestsrc/audiotestsrc, 不依赖 DeckLink).
     pub fn self_test() -> PipelinePlan {
         PipelinePlan {
-            source: SourcePlan {
-                device_id: "self-test".into(),
-                connector: None,
-                binding_class: SourceBindingClass::SelfTest,
-            },
+            source: SourcePlan::SelfTest,
             timeline_policy: TimelinePolicy::ProgramTimelineMapped,
             switch_mode: crate::program::SwitchPolicy::FrameSwitch,
             outputs: Vec::new(),
@@ -515,10 +560,19 @@ pub(crate) fn src_props(
     plan: &PipelinePlan,
     bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
 ) -> Result<(String, String), PipelineError> {
+    if matches!(plan.source, SourcePlan::Network { .. }) {
+        return Err(PipelineError::PrepareFailed(
+            "GStreamer DeckLink src_props cannot consume a Network source; use FFmpeg network input"
+                .into(),
+        ));
+    }
+    let device_id = plan.source.device_id().ok_or_else(|| {
+        PipelineError::IdentityUnresolved("source plan has no hardware device identity".into())
+    })?;
     // 连接类型 → GStreamer `connection=` 属性. 仅 decklinkvideosrc 需要; decklinkaudiosrc 无此属性
     // (音频内嵌于视频 SDI/HDMI 流, 跟随视频连接). `None` 或无对应枚举的连接器 → 不显式指定, 由插件默认
     // (auto) 探测, 绝不硬编码 `connection=sdi`.
-    let connection = match plan.source.connector {
+    let connection = match plan.source.connector() {
         Some(ConnectorType::Sdi) => " connection=sdi",
         Some(ConnectorType::Hdmi) => " connection=hdmi",
         // GStreamer `decklinkvideosrc` 连接枚举 nick 为 "optical-sdi" (对应 BMD bmdVideoConnectionOpticalSDI), 绝非 "optical".
@@ -530,27 +584,24 @@ pub(crate) fn src_props(
     };
     let binding_for_device =
         || -> Result<&crate::resolver::ResolvedDeviceBinding, PipelineError> {
-            let device_id = Uuid::parse_str(&plan.source.device_id).map_err(|e| {
+            let device_id = Uuid::parse_str(device_id).map_err(|e| {
                 PipelineError::IdentityUnresolved(format!(
-                    "canonical device_id 解析失败 {}: {e}",
-                    plan.source.device_id
+                    "canonical device_id 解析失败 {device_id}: {e}"
                 ))
             })?;
             bindings.get(&device_id).ok_or_else(|| {
                 PipelineError::IdentityUnresolved(format!(
-                    "device_id={} 缺少 RuntimeBinding",
-                    plan.source.device_id
+                    "device_id={device_id} 缺少 RuntimeBinding"
                 ))
             })
         };
 
-    let (video_src, audio_src) = match plan.source.binding_class {
+    let (video_src, audio_src) = match plan.source.binding_class() {
         SourceBindingClass::Persistent => {
             let binding = binding_for_device()?;
             let pid = binding.persistent_id.ok_or_else(|| {
                 PipelineError::IdentityUnresolved(format!(
-                    "Persistent binding 缺少 persistent_id (device_id={})",
-                    plan.source.device_id
+                    "Persistent binding 缺少 persistent_id (device_id={device_id})"
                 ))
             })?;
             (
@@ -569,14 +620,13 @@ pub(crate) fn src_props(
             )
         }
         SourceBindingClass::DiagnosticFallback => {
-            let device_id = Uuid::parse_str(&plan.source.device_id).map_err(|e| {
+            let device_uuid = Uuid::parse_str(device_id).map_err(|e| {
                 PipelineError::IdentityUnresolved(format!(
-                    "diagnostic canonical device_id 解析失败 {}: {e}",
-                    plan.source.device_id
+                    "diagnostic canonical device_id 解析失败 {device_id}: {e}"
                 ))
             })?;
             let device_number = bindings
-                .get(&device_id)
+                .get(&device_uuid)
                 .map(|b| b.device_number)
                 .unwrap_or(0);
             (
@@ -630,6 +680,31 @@ pub fn materialize_with_output(
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
     let mut plans = Vec::new();
     for d in &intent.devices {
+        if let crate::graph_intent::SourceIntent::Rtmp {
+            source_id,
+            endpoint,
+        } = &d.pipeline.source
+        {
+            endpoint
+                .validate_loopback()
+                .map_err(PipelineError::IdentityUnresolved)?;
+            let outputs = if plans.is_empty() {
+                materialize_outputs(&d.pipeline.sink.kind, cfg)?
+            } else {
+                Vec::new()
+            };
+            plans.push(PipelinePlan {
+                source: SourcePlan::Network {
+                    source_id: *source_id,
+                    endpoint: endpoint.clone(),
+                },
+                timeline_policy: TimelinePolicy::ProgramTimelineMapped,
+                switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+                outputs,
+            });
+            continue;
+        }
+
         let info = devices
             .iter()
             .find(|x| x.device_id.to_string() == d.device_id)
@@ -680,7 +755,7 @@ pub fn materialize_with_output(
 
         // 连接类型: 优先按 Control Plane 显式声明的 `port_id` 精确定位端口; 否则回退到该设备
         // 的首个输入端口. 显式 `port_id` 在 Discovery 无对应端口 ⇒ 生产失败闭合 (绝不静默回退 auto 探测).
-        let connector = match &d.pipeline.source.port_id {
+        let connector = match d.pipeline.source.port_id() {
             Some(pid) => {
                 let u = match Uuid::parse_str(pid) {
                     Ok(u) => u,
@@ -718,7 +793,7 @@ pub fn materialize_with_output(
             }),
         };
 
-        let source = SourcePlan {
+        let source = SourcePlan::Device {
             device_id: d.device_id.clone(),
             connector,
             binding_class,
@@ -849,11 +924,7 @@ mod tests {
                 device_id: device_id.into(),
                 role: "CAPTURE".into(),
                 pipeline: PipelineIntent {
-                    source: SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: device_id.into(),
-                        port_id: port_id.map(|s| s.into()),
-                    },
+                    source: SourceIntent::decklink(device_id, port_id.map(|s| s.into())),
                     sink: SinkIntent {
                         kind: "appsink".into(),
                     },
@@ -888,11 +959,7 @@ mod tests {
                 device_id: device_id.into(),
                 role: "CAPTURE".into(),
                 pipeline: PipelineIntent {
-                    source: SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: device_id.into(),
-                        port_id: None,
-                    },
+                    source: SourceIntent::decklink(device_id, None),
                     sink: SinkIntent { kind: kind.into() },
                 },
             }],
@@ -991,11 +1058,7 @@ mod tests {
                     device_id: id.clone(),
                     role: "CAPTURE".into(),
                     pipeline: PipelineIntent {
-                        source: SourceIntent {
-                            kind: "decklink".into(),
-                            device_id: id.clone(),
-                            port_id: None,
-                        },
+                        source: SourceIntent::decklink(id.clone(), None),
                         sink: SinkIntent { kind: "hls".into() },
                     },
                 })
@@ -1096,7 +1159,7 @@ mod tests {
 
     fn analysis_only_plan() -> PipelinePlan {
         PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: "d".into(),
                 connector: None,
                 binding_class: SourceBindingClass::SelfTest,
@@ -1214,7 +1277,7 @@ mod tests {
     fn pipeline_rt_01_switch_mode_wire_compat_anchor() {
         // A2-1 wire 兼容锚: 类型化后序列化值不变（"FRAME_SWITCH" 在 JSON 中逐字保留）。
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: "d".into(),
                 connector: None,
                 binding_class: SourceBindingClass::SelfTest,
@@ -1243,7 +1306,7 @@ mod tests {
         let device_id = Uuid::new_v4();
         let bindings = runtime_bindings(device_id, 2, None);
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Sdi),
                 binding_class: SourceBindingClass::Resolved,
@@ -1282,7 +1345,7 @@ mod tests {
         let device_id = Uuid::new_v4();
         let bindings = runtime_bindings(device_id, 3, None);
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Optical),
                 binding_class: SourceBindingClass::Resolved,
@@ -1303,7 +1366,7 @@ mod tests {
         let device_id = Uuid::new_v4();
         let bindings = runtime_bindings(device_id, 4, None);
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Unknown),
                 binding_class: SourceBindingClass::Resolved,
@@ -1396,7 +1459,7 @@ mod tests {
         )
         .expect("证据齐备的 PersistentId 档应物化");
         assert_eq!(
-            plans[0].source.binding_class,
+            plans[0].source.binding_class(),
             SourceBindingClass::Persistent
         );
         let (v, a) = src_props(&plans[0], &bindings).expect("src_props");
@@ -1410,7 +1473,7 @@ mod tests {
         let device_id = Uuid::new_v4();
         let bindings = runtime_bindings(device_id, 0, None);
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: device_id.to_string(),
                 connector: None,
                 binding_class: SourceBindingClass::Persistent,
@@ -1431,7 +1494,7 @@ mod tests {
     fn src_props_resolved_missing_binding_fails_closed() {
         let device_id = Uuid::new_v4();
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Sdi),
                 binding_class: SourceBindingClass::Resolved,
@@ -1453,7 +1516,7 @@ mod tests {
     fn src_props_diagnostic_fallback_uses_binding_then_device_zero_only_when_absent() {
         let device_id = Uuid::new_v4();
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: device_id.to_string(),
                 connector: Some(ConnectorType::Sdi),
                 binding_class: SourceBindingClass::DiagnosticFallback,
@@ -1474,7 +1537,7 @@ mod tests {
     #[test]
     fn src_props_diagnostic_fallback_rejects_noncanonical_device_id() {
         let plan = PipelinePlan {
-            source: SourcePlan {
+            source: SourcePlan::Device {
                 device_id: "not-a-canonical-uuid".into(),
                 connector: None,
                 binding_class: SourceBindingClass::DiagnosticFallback,
@@ -1552,7 +1615,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(plans.len(), 1);
-        assert_eq!(plans[0].source.connector, Some(ConnectorType::Sdi));
+        assert_eq!(plans[0].source.connector(), Some(ConnectorType::Sdi));
     }
 
     #[test]
@@ -1760,10 +1823,50 @@ mod tests {
     }
 
     #[test]
+    fn rf_src_rtmp_materializes_without_device_registry() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let endpoint = crate::source::NetworkEndpoint {
+            protocol: crate::source::NetworkProtocol::Rtmp,
+            host: "127.0.0.1".into(),
+            port: 1935,
+            path: "/live/source".into(),
+        };
+        let intent = GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![DeviceIntent {
+                device_id: "network-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: PipelineIntent {
+                    source: SourceIntent::rtmp(source_id, endpoint.clone()),
+                    sink: SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        };
+        let plans = materialize_with_output(
+            &intent,
+            &[],
+            MaterializeMode::Production,
+            &std::collections::HashMap::new(),
+            None,
+            &output_cfg_with(None, None, 6000, 128_000),
+        )
+        .expect("network source does not require a hardware registry");
+        assert!(matches!(
+            &plans[0].source,
+            SourcePlan::Network {
+                source_id: actual,
+                endpoint: actual_endpoint,
+            } if *actual == source_id && actual_endpoint == &endpoint
+        ));
+    }
+
+    #[test]
     fn media_rt_01_self_test_plan_is_canonical() {
         let plan = PipelinePlan::self_test();
-        assert_eq!(plan.source.device_id, "self-test");
-        assert_eq!(plan.source.binding_class, SourceBindingClass::SelfTest);
+        assert!(matches!(plan.source, SourcePlan::SelfTest));
+        assert_eq!(plan.source.binding_class(), SourceBindingClass::SelfTest);
         assert_eq!(
             plan.timeline_policy,
             TimelinePolicy::ProgramTimelineMapped,
@@ -1796,7 +1899,7 @@ mod tests {
         // P1-1: 句柄与生产同源分配 (NEXT_PIPELINE_ID, 从 1 起), 绝不为 0 哨兵.
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
-        assert_eq!(plan.source.binding_class, SourceBindingClass::SelfTest);
+        assert_eq!(plan.source.binding_class(), SourceBindingClass::SelfTest);
         assert_eq!(plan.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
     }
 
@@ -1815,7 +1918,7 @@ mod tests {
         // 句柄为运行时实例标识, 不得与 Mock 固定哨兵冲突.
         assert_ne!(handle, PipelineHandle(0));
         // canonical 字段未被 backend 回写.
-        assert_eq!(plan.source.binding_class, SourceBindingClass::SelfTest);
+        assert_eq!(plan.source.binding_class(), SourceBindingClass::SelfTest);
         assert_eq!(plan.timeline_policy, TimelinePolicy::ProgramTimelineMapped);
     }
 }

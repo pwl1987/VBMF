@@ -17,6 +17,7 @@ use crate::lease::LeaseManager;
 use crate::port::PortRegistry;
 use crate::resolver::BindingAuthorization;
 use crate::resource::{preflight, AcquisitionRequest, ResourceRegistry};
+use crate::source::{LeaseKey, ResourceOwner};
 
 /// 设备输入能力三态（D6 判定用; ProbeFailed→Unknown, absence≠evidence）。
 fn project_input_capability(
@@ -134,10 +135,16 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
             .devices
             .iter()
             .filter(|d| {
-                !inputs
-                    .devices
-                    .iter()
-                    .any(|x| x.device_id.to_string() == d.device_id)
+                match &d.pipeline.source {
+                    // Network and SelfTest sources intentionally do not have a
+                    // hardware DeviceInfo entry.
+                    crate::graph_intent::SourceIntent::Rtmp { .. }
+                    | crate::graph_intent::SourceIntent::SelfTest => false,
+                    crate::graph_intent::SourceIntent::Decklink { .. } => !inputs
+                        .devices
+                        .iter()
+                        .any(|x| x.device_id.to_string() == d.device_id),
+                }
             })
             .map(|d| d.device_id.as_str())
             .collect();
@@ -145,7 +152,10 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
             report.push(
                 PreflightStage::Graph,
                 StageLevel::Pass,
-                format!("{} 设备引用均已在 Registry", inputs.intent.devices.len()),
+                format!(
+                    "{} source reference(s) are structurally resolvable",
+                    inputs.intent.devices.len()
+                ),
             );
         } else {
             report.push(
@@ -171,11 +181,18 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
             };
             let mut failures: Vec<String> = Vec::new();
             for d in &inputs.intent.devices {
+                if matches!(
+                    d.pipeline.source,
+                    crate::graph_intent::SourceIntent::Rtmp { .. }
+                        | crate::graph_intent::SourceIntent::SelfTest
+                ) {
+                    continue;
+                }
                 let Ok(u) = Uuid::parse_str(&d.device_id) else {
                     failures.push(format!("设备 {} id 不可解析", d.device_id));
                     continue;
                 };
-                match &d.pipeline.source.port_id {
+                match d.pipeline.source.port_id() {
                     Some(pid) => {
                         let parsed = Uuid::parse_str(pid).ok();
                         let matched = parsed.and_then(|pu| {
@@ -234,17 +251,27 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
     let registry_empty = inputs.resources.resources.is_empty();
     let mut resolution_failures: Vec<String> = Vec::new();
     for d in &inputs.intent.devices {
-        let Ok(u) = Uuid::parse_str(&d.device_id) else {
-            continue;
+        let resource_present = match &d.pipeline.source {
+            crate::graph_intent::SourceIntent::Rtmp { source_id, .. } => {
+                inputs.resources.resources.iter().any(|r| {
+                    r.owner == ResourceOwner::Network(*source_id) && r.capability == "rtmp-input"
+                })
+            }
+            crate::graph_intent::SourceIntent::Decklink { .. } => {
+                let Ok(u) = Uuid::parse_str(&d.device_id) else {
+                    continue;
+                };
+                inputs.resources.resources.iter().any(|r| {
+                    (r.owner == ResourceOwner::Device(u) || r.device_id == u)
+                        && r.capability.ends_with("-input")
+                })
+            }
+            crate::graph_intent::SourceIntent::SelfTest => true,
         };
-        if !inputs
-            .resources
-            .resources
-            .iter()
-            .any(|r| r.device_id == u && r.capability.ends_with("-input"))
-        {
+        if !resource_present {
             resolution_failures.push(format!(
-                "设备 {u} 无派生 input 资源 (declared capability missing)"
+                "source {} 无派生 input 资源 (declared capability missing)",
+                d.device_id
             ));
         }
     }
@@ -293,37 +320,60 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
         }
     }
 
-    // 4. LeaseConflict — 目标设备未被其他 owner 持有 (本会话尚未 acquire, 任何现存租约即冲突)。
-    // P0-4 judge-only: 用 list_active 纯读 (health() 会清扫过期租约 = 副作用)。
-    let held: Vec<Uuid> = inputs
-        .leases
-        .list_active()
-        .into_iter()
-        .map(|l| l.device_id)
-        .collect();
-    let conflicts: Vec<Uuid> = inputs
+    // 4. LeaseConflict — typed Device/Network keys are judged read-only before acquire.
+    let conflicts: Vec<String> = inputs
         .intent
         .devices
         .iter()
-        .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
-        .filter(|u| held.contains(u))
+        .filter_map(|d| match &d.pipeline.source {
+            crate::graph_intent::SourceIntent::Rtmp { source_id, .. } => {
+                let key = LeaseKey::Network(*source_id);
+                inputs
+                    .leases
+                    .is_key_active(&key)
+                    .then(|| format!("network source {source_id}"))
+            }
+            crate::graph_intent::SourceIntent::Decklink { .. } => {
+                let Ok(device_id) = Uuid::parse_str(&d.device_id) else {
+                    return None;
+                };
+                let key = LeaseKey::Device(device_id);
+                inputs
+                    .leases
+                    .is_key_active(&key)
+                    .then(|| format!("device {device_id}"))
+            }
+            crate::graph_intent::SourceIntent::SelfTest => None,
+        })
         .collect();
     if conflicts.is_empty() {
         report.push(
             PreflightStage::LeaseConflict,
             StageLevel::Pass,
-            "目标设备无现存租约冲突",
+            "目标 source key 无现存租约冲突",
         );
     } else {
         report.push(
             PreflightStage::LeaseConflict,
             StageLevel::Fail,
-            format!("设备已被租约持有: {conflicts:?}"),
+            format!("source key 已被租约持有: {conflicts:?}"),
         );
     }
 
-    // 5. IdentityBinding — 只判 backend-neutral authorization；runtime address 不得进入 Preflight truth。
-    if inputs.authorizations.is_empty() {
+    // 5. IdentityBinding — only hardware sources need a production binding.
+    let needs_hardware_binding = inputs.intent.devices.iter().any(|d| {
+        matches!(
+            d.pipeline.source,
+            crate::graph_intent::SourceIntent::Decklink { .. }
+        )
+    });
+    if !needs_hardware_binding {
+        report.push(
+            PreflightStage::IdentityBinding,
+            StageLevel::Pass,
+            "Network/SelfTest source has no hardware identity binding requirement",
+        );
+    } else if inputs.authorizations.is_empty() {
         let level = if inputs.require_authorization {
             StageLevel::Fail
         } else {
@@ -343,6 +393,12 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
             .intent
             .devices
             .iter()
+            .filter(|d| {
+                matches!(
+                    d.pipeline.source,
+                    crate::graph_intent::SourceIntent::Decklink { .. }
+                )
+            })
             .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
             .filter(|u| {
                 !inputs
@@ -457,11 +513,7 @@ mod tests {
                 device_id: id.to_string(),
                 role: "CAPTURE".into(),
                 pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: id.to_string(),
-                        port_id: None,
-                    },
+                    source: crate::graph_intent::SourceIntent::decklink(id.to_string(), None),
                     sink: crate::graph_intent::SinkIntent {
                         kind: "appsink".into(),
                     },
@@ -699,7 +751,8 @@ mod tests {
         // (b) 显式 port_id 指向 Output 端口 ⇒ FAIL。
         let pid = out_only.ports[0].identity.port_id.unwrap();
         let mut it_bad = intent(&id);
-        it_bad.devices[0].pipeline.source.port_id = Some(pid.to_string());
+        it_bad.devices[0].pipeline.source =
+            crate::graph_intent::SourceIntent::decklink(id.to_string(), Some(pid.to_string()));
         let r2 = with_inputs(
             &it_bad,
             &devices,
@@ -720,7 +773,8 @@ mod tests {
         };
         let in_pid = in_reg.ports[0].identity.port_id.unwrap();
         let mut it_good = intent(&id);
-        it_good.devices[0].pipeline.source.port_id = Some(in_pid.to_string());
+        it_good.devices[0].pipeline.source =
+            crate::graph_intent::SourceIntent::decklink(id.to_string(), Some(in_pid.to_string()));
         let r3 = with_inputs(
             &it_good,
             &devices,
@@ -734,7 +788,10 @@ mod tests {
             .iter()
             .any(|s| s.stage == PreflightStage::PortAvailability && s.level == StageLevel::Pass));
         let mut it_ghost = intent(&id);
-        it_ghost.devices[0].pipeline.source.port_id = Some(Uuid::new_v4().to_string());
+        it_ghost.devices[0].pipeline.source = crate::graph_intent::SourceIntent::decklink(
+            id.to_string(),
+            Some(Uuid::new_v4().to_string()),
+        );
         let r4 = with_inputs(
             &it_ghost,
             &devices,

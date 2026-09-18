@@ -49,6 +49,21 @@ pub trait LeaseManager: Send + Sync {
     /// 纯读快照 (P0-7A Preflight judge-only): 返回当前表中全部租约
     /// (**含已过期但未清扫的**)。绝不修改存储 — Preflight 判定专用。
     fn list_active(&self) -> Vec<DeviceLease>;
+
+    /// Typed, side-effect-free lease conflict query used by preflight.
+    /// The default preserves legacy implementations: Device keys are projected
+    /// from `list_active`, while Network keys remain unsupported until an
+    /// implementation opts into the typed store.
+    fn is_key_active(&self, key: &LeaseKey) -> bool {
+        match key {
+            LeaseKey::Device(device_id) => self
+                .list_active()
+                .into_iter()
+                .any(|lease| lease.device_id == *device_id),
+            LeaseKey::Network(_) => false,
+        }
+    }
+
     /// Renew (extend) a lease held by `owner` (RUNTIME_RESOURCE_MODEL §4.1 Renew op;
     /// P0-7A Session Runtime). Fails `NotFound` if absent; `AlreadyLeased` if held by
     /// a different owner (绝不可借 renew 抢占他人租约).
@@ -309,10 +324,17 @@ impl LeaseManager for InMemoryLeaseManager {
         self.leases.lock().unwrap().values().cloned().collect()
     }
 
+    fn is_key_active(&self, key: &LeaseKey) -> bool {
+        match key {
+            LeaseKey::Device(device_id) => self.leases.lock().unwrap().contains_key(device_id),
+            LeaseKey::Network(_) => self.runtime_leases.lock().unwrap().contains_key(key),
+        }
+    }
+
     fn health(&self) -> Vec<DeviceLease> {
         let mut guard = self.leases.lock().unwrap();
         let now = Utc::now();
-        // 自动清理过期租约(对应状态机 "租约过期 → RECOVERING/READY")。
+        // 自动清理过期硬件租约(对应状态机 "租约过期 → RECOVERING/READY")。
         guard.retain(|_, l| {
             let expiry = l
                 .acquired_at
@@ -320,7 +342,14 @@ impl LeaseManager for InMemoryLeaseManager {
                 .unwrap_or(now);
             now <= expiry
         });
-        guard.values().cloned().collect()
+        drop(guard);
+
+        // Network leases live in the typed table and must share the same
+        // watchdog cleanup boundary, even though the legacy health return
+        // type only exposes DeviceLease projections.
+        let mut runtime_guard = self.runtime_leases.lock().unwrap();
+        runtime_guard.retain(|_, lease| !runtime_is_expired(lease));
+        self.leases.lock().unwrap().values().cloned().collect()
     }
 }
 
@@ -405,6 +434,17 @@ mod tests {
             lm.renew_key(&key, "session-a", std::time::Duration::from_secs(30)),
             Err(LeaseError::NotFoundKey(k)) if k == key
         ));
+    }
+
+    #[test]
+    fn health_cleans_expired_network_leases() {
+        let lm = InMemoryLeaseManager::new();
+        let key = LeaseKey::Network(crate::source::NetworkSourceId(Uuid::new_v4()));
+        lm.acquire_key(&key, "a", std::time::Duration::ZERO)
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let _ = lm.health();
+        assert!(!lm.is_key_active(&key));
     }
 
     #[test]

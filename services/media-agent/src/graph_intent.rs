@@ -26,18 +26,63 @@ pub struct PipelineIntent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SourceIntent {
-    pub kind: String,
-    /// VBMF canonical device identity (DeviceHandle 派生 UUID). **不**携带任何
-    /// GStreamer 专属属性 (如 `device-number` / `persistent-id`); 这些由 Media
-    /// Agent 经 Device Registry 物化得到 (见 `pipeline::materialize`). Control
-    /// Plane 无需感知底层采集硬件选择细节.
-    pub device_id: String,
-    /// VBMF 物理端口身份 (port_id, UUIDv5 over `device_id+connector+ordinal`).
-    /// 同样绝不携带 GStreamer `device-number`; 端口物化由 Media Agent 经
-    /// Port Registry 完成 (见 `port::PortRegistry`). Control Plane 仅声明
-    /// "用哪块设备的哪个端口", 不关心底层 runtime 地址.
-    pub port_id: Option<String>,
+#[serde(tag = "kind")]
+pub enum SourceIntent {
+    /// Existing DeckLink wire shape remains `{kind, device_id, port_id}`.
+    #[serde(rename = "decklink")]
+    Decklink {
+        device_id: String,
+        port_id: Option<String>,
+    },
+    /// Network source identity is independent of hardware DeviceId/PortId.
+    #[serde(rename = "rtmp")]
+    Rtmp {
+        source_id: crate::source::NetworkSourceId,
+        endpoint: crate::source::NetworkEndpoint,
+    },
+    #[serde(rename = "self_test")]
+    SelfTest,
+}
+
+impl SourceIntent {
+    pub fn decklink(device_id: impl Into<String>, port_id: Option<String>) -> Self {
+        Self::Decklink {
+            device_id: device_id.into(),
+            port_id,
+        }
+    }
+
+    pub fn rtmp(
+        source_id: crate::source::NetworkSourceId,
+        endpoint: crate::source::NetworkEndpoint,
+    ) -> Self {
+        Self::Rtmp {
+            source_id,
+            endpoint,
+        }
+    }
+
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Decklink { .. } => "decklink",
+            Self::Rtmp { .. } => "rtmp",
+            Self::SelfTest => "self_test",
+        }
+    }
+
+    pub fn device_id(&self) -> Option<&str> {
+        match self {
+            Self::Decklink { device_id, .. } => Some(device_id),
+            Self::Rtmp { .. } | Self::SelfTest => None,
+        }
+    }
+
+    pub fn port_id(&self) -> Option<&str> {
+        match self {
+            Self::Decklink { port_id, .. } => port_id.as_deref(),
+            Self::Rtmp { .. } | Self::SelfTest => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -76,9 +121,34 @@ mod tests {
         let d = &intent.devices[0];
         assert_eq!(d.device_id, "decklink-0");
         assert_eq!(d.role, "CAPTURE");
-        assert_eq!(d.pipeline.source.kind, "decklink");
-        assert_eq!(d.pipeline.source.device_id, "dev-a");
+        assert_eq!(d.pipeline.source.kind(), "decklink");
+        assert_eq!(d.pipeline.source.device_id(), Some("dev-a"));
         assert_eq!(d.pipeline.sink.kind, "rtmp");
+    }
+
+    #[test]
+    fn network_source_uses_typed_identity_and_credential_free_wire_shape() {
+        let source_id = crate::source::NetworkSourceId(uuid::Uuid::new_v4());
+        let source = SourceIntent::rtmp(
+            source_id,
+            crate::source::NetworkEndpoint {
+                protocol: crate::source::NetworkProtocol::Rtmp,
+                host: "127.0.0.1".into(),
+                port: 1935,
+                path: "/live/input".into(),
+            },
+        );
+        assert_eq!(source.kind(), "rtmp");
+        assert_eq!(source.device_id(), None);
+        assert_eq!(source.port_id(), None);
+        let json = serde_json::to_value(&source).unwrap();
+        assert_eq!(json["kind"], "rtmp");
+        assert!(json.get("device_id").is_none());
+        assert!(json.get("port_id").is_none());
+        assert_eq!(
+            serde_json::from_value::<SourceIntent>(json).unwrap(),
+            source
+        );
     }
 
     #[test]

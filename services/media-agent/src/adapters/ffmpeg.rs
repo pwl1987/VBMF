@@ -10,7 +10,7 @@ use crate::contracts::backend::MediaBackend;
 use crate::contracts::provider::DiscoveredDevice;
 use crate::pipeline::{
     OutputKind, OutputPlan, PipelineError, PipelineHandle, PipelinePlan, SourceBindingClass,
-    NEXT_PIPELINE_ID,
+    SourcePlan, NEXT_PIPELINE_ID,
 };
 use crate::pipeline_events::{BusSeverity, PipelineBusEvent, PipelineBusEventKind};
 use crate::port::PortDirection;
@@ -209,7 +209,7 @@ impl FFmpegBackend {
     }
 
     fn validate_self_test(plan: &PipelinePlan) -> Result<(), PipelineError> {
-        if plan.source.device_id != "self-test" || plan.source.connector.is_some() {
+        if !matches!(plan.source, SourcePlan::SelfTest) {
             return Err(PipelineError::PrepareFailed(
                 "FFmpeg SelfTest plan shape is not canonical".into(),
             ));
@@ -218,15 +218,26 @@ impl FFmpegBackend {
     }
 
     fn resolved_device_name(&self, plan: &PipelinePlan) -> Result<String, PipelineError> {
-        if plan.source.connector != Some(crate::port::ConnectorType::Sdi) {
+        let SourcePlan::Device {
+            device_id,
+            connector,
+            binding_class,
+        } = &plan.source
+        else {
+            return Err(PipelineError::PrepareFailed(
+                "RF-FF-01C hardware input requires a Device source plan".into(),
+            ));
+        };
+        if *connector != Some(crate::port::ConnectorType::Sdi)
+            || *binding_class != SourceBindingClass::Resolved
+        {
             return Err(PipelineError::PrepareFailed(
                 "RF-FF-01C currently accepts only an explicitly resolved SDI input".into(),
             ));
         }
-        let device_id = Uuid::parse_str(&plan.source.device_id).map_err(|e| {
+        let device_id = Uuid::parse_str(device_id).map_err(|e| {
             PipelineError::IdentityUnresolved(format!(
-                "canonical device_id parse failed {}: {e}",
-                plan.source.device_id
+                "canonical device_id parse failed {device_id}: {e}"
             ))
         })?;
         self.runtime_bindings
@@ -234,22 +245,25 @@ impl FFmpegBackend {
             .cloned()
             .ok_or_else(|| {
                 PipelineError::IdentityUnresolved(format!(
-                    "device_id={} lacks an authorized FFmpeg RuntimeBinding",
-                    plan.source.device_id
+                    "device_id={device_id} lacks an authorized FFmpeg RuntimeBinding"
                 ))
             })
     }
 
     fn validate_plan(&self, plan: &PipelinePlan) -> Result<(), PipelineError> {
         Self::validate_output_plan(plan)?;
-        match plan.source.binding_class {
-            SourceBindingClass::SelfTest => Self::validate_self_test(plan),
-            SourceBindingClass::Resolved => self.resolved_device_name(plan).map(|_| ()),
-            SourceBindingClass::Persistent | SourceBindingClass::DiagnosticFallback => {
-                Err(PipelineError::PrepareFailed(
-                    "RF-FF-01C accepts only canonical SelfTest or authorized Resolved input".into(),
-                ))
-            }
+        match &plan.source {
+            SourcePlan::SelfTest => Self::validate_self_test(plan),
+            SourcePlan::Device {
+                binding_class: SourceBindingClass::Resolved,
+                ..
+            } => self.resolved_device_name(plan).map(|_| ()),
+            SourcePlan::Network { endpoint, .. } => endpoint
+                .validate_loopback()
+                .map_err(PipelineError::PrepareFailed),
+            SourcePlan::Device { .. } => Err(PipelineError::PrepareFailed(
+                "RF-FF-01C accepts only canonical SelfTest, RTMP Network, or authorized Resolved input".into(),
+            )),
         }
     }
 
@@ -327,8 +341,8 @@ impl FFmpegBackend {
             return Ok(cmd);
         }
 
-        match plan.source.binding_class {
-            SourceBindingClass::SelfTest => {
+        match &plan.source {
+            SourcePlan::SelfTest => {
                 cmd.args([
                     "-hide_banner",
                     "-nostdin",
@@ -351,7 +365,10 @@ impl FFmpegBackend {
                     "1:a:0",
                 ]);
             }
-            SourceBindingClass::Resolved => {
+            SourcePlan::Device {
+                binding_class: SourceBindingClass::Resolved,
+                ..
+            } => {
                 let device = self.resolved_device_name(plan)?;
                 cmd.args([
                     "-hide_banner",
@@ -370,8 +387,21 @@ impl FFmpegBackend {
                 .arg(device)
                 .args(["-map", "0:v:0", "-map", "0:a:0?"]);
             }
-            SourceBindingClass::Persistent | SourceBindingClass::DiagnosticFallback => {
-                unreachable!("validate_plan rejected unsupported binding class")
+            SourcePlan::Network { endpoint, .. } => {
+                let url = endpoint.as_url().map_err(PipelineError::PrepareFailed)?;
+                cmd.args([
+                    "-hide_banner",
+                    "-nostdin",
+                    "-nostats",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                ])
+                .arg(url)
+                .args(["-map", "0:v:0", "-map", "0:a:0?"]);
+            }
+            SourcePlan::Device { .. } => {
+                unreachable!("validate_plan rejected unsupported device binding class")
             }
         }
         Self::append_output_args(&mut cmd, &plan.outputs);
@@ -587,9 +617,11 @@ mod tests {
 
     fn resolved_plan(device_id: Uuid) -> PipelinePlan {
         let mut plan = PipelinePlan::self_test();
-        plan.source.device_id = device_id.to_string();
-        plan.source.connector = Some(crate::port::ConnectorType::Sdi);
-        plan.source.binding_class = SourceBindingClass::Resolved;
+        plan.source = SourcePlan::Device {
+            device_id: device_id.to_string(),
+            connector: Some(crate::port::ConnectorType::Sdi),
+            binding_class: SourceBindingClass::Resolved,
+        };
         plan
     }
 
@@ -663,6 +695,34 @@ mod tests {
             .get_args()
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect()
+    }
+
+    fn network_plan() -> PipelinePlan {
+        PipelinePlan {
+            source: SourcePlan::Network {
+                source_id: crate::source::NetworkSourceId(Uuid::new_v4()),
+                endpoint: crate::source::NetworkEndpoint {
+                    protocol: crate::source::NetworkProtocol::Rtmp,
+                    host: "127.0.0.1".into(),
+                    port: 1935,
+                    path: "/live/source".into(),
+                },
+            },
+            timeline_policy: crate::pipeline::TimelinePolicy::ProgramTimelineMapped,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_uses_controlled_url_and_audio_video_maps() {
+        let args = command_args(&network_plan());
+        assert!(args
+            .windows(2)
+            .any(|w| w == ["-i", "rtmp://127.0.0.1:1935/live/source"]));
+        assert!(args.windows(2).any(|w| w == ["-map", "0:v:0"]));
+        assert!(args.windows(2).any(|w| w == ["-map", "0:a:0?"]));
+        assert!(!args.iter().any(|arg| arg == "decklink"));
     }
 
     #[test]
@@ -807,7 +867,11 @@ mod tests {
     fn ffmpeg_rt_01_rejects_non_selftest_plan() {
         let backend = FFmpegBackend::with_test_command("/bin/true", &[]);
         let mut plan = PipelinePlan::self_test();
-        plan.source.binding_class = SourceBindingClass::Resolved;
+        plan.source = SourcePlan::Device {
+            device_id: "not-a-device".into(),
+            connector: None,
+            binding_class: SourceBindingClass::Resolved,
+        };
         assert!(matches!(
             backend.instantiate(&plan),
             Err(PipelineError::PrepareFailed(_))

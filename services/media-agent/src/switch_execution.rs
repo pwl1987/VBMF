@@ -252,6 +252,7 @@ mod tests {
 
     fn input(device_id: Uuid, handle: u64) -> SessionInput {
         SessionInput {
+            source_ref: crate::source::SourceRef::Device(device_id),
             device_id,
             handle: PipelineHandle(handle),
         }
