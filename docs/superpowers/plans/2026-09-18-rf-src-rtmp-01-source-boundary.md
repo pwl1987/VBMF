@@ -1,7 +1,7 @@
 # RF-SRC-RTMP-01 — single-input RTMP source boundary and FFmpeg runtime
 
 - Date: 2026-09-18
-- Status: PLAN REQUIRED after boundary inventory; implementation not started
+- Status: DESIGN FROZEN; implementation READY
 - Branch: main
 - Authority: MEDIA_BACKEND_CONTRACT §1/§1.1/§4; RUNTIME_BINDING_MODEL;
   live GraphRuntimeIntent, PipelinePlan, FFmpegBackend, Session/RecoveryMonitor;

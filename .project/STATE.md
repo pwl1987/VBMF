@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-01 PLAN REQUIRED**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-01 IMPLEMENTATION READY**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -721,15 +721,26 @@ Status: **PLAN REQUIRED / DESIGN BLOCKER FOUND**
 - 已完成：SRT blocker 证据、RTMP protocol/FLV/H.264/AAC capability 证据、RTMP plan 初稿；未改 runtime code。
 - 下一步：补 boundary design/acceptance，再决定实现包；当前没有 READY Runtime Features 实施包。
 
+### 3.47 RF-SRC-RTMP-01 boundary design 收口（2026-09-18）
+
+Status: **DESIGN FROZEN / IMPLEMENTATION READY**
+
+- 设计：NetworkSourceId、SourceRef、ResourceOwner、LeaseKey、SessionInput 类型化；保留 DeckLink 旧 JSON 语义兼容，网络源不再借用 device_id。
+- Ownership：ResourceRegistry 仍唯一修改 Resource；LeaseManager 仍唯一修改 Lease；SessionManager 仍唯一创建/销毁 Session；Backend 只消费已授权 binding，不自行 acquire。
+- Lifecycle：Network Source 必须在组合根注册 Network Resource + RuntimeBinding；Preflight → Reservation → Lease → instantiate → allocation → start → recover/stop/release 全部沿既有 Session journal。
+- Security：RTMP endpoint 在 binding 前校验，禁止凭据；canonical state/log/health/evidence 不输出 URL secret。
+- Plan：docs/superpowers/plans/2026-09-18-rf-src-rtmp-01-boundary-design.md；实现包唯一 ID = RF-SRC-RTMP-01-IMPLEMENTATION。
+- 当前没有改 runtime code；设计验收后开始实现，禁止另开 Network/Output/Program 包。
+
 ## 4. Current Task
 
-**RF-SRC-RTMP-01 boundary design — PLAN REQUIRED**
+**RF-SRC-RTMP-01-IMPLEMENTATION — READY**
 
-RF-SRC-01 已在 §3.45 以真实能力证据 BLOCKED：BMD FFmpeg 无 SRT protocol。RTMP 能力存在，但 §3.46 inventory 发现现有 Session/Resource/Lease 仍是 device-bound；在 NetworkSourceId、授权 RuntimeBinding/resource reference 和 ownership 设计冻结前，不开始 runtime code。warning debt 与 24h `rss_bounded` 独立跟踪。
+RF-SRC-01 已在 §3.45 以真实能力证据 BLOCKED：BMD FFmpeg 无 SRT protocol。RTMP 能力存在，§3.46 的 device-bound owner 缺口已由 §3.47 设计冻结解决；现在开始唯一 RTMP 实现包。warning debt 与 24h `rss_bounded` 独立跟踪。
 
 ## 5. Next Task
 
-Freeze the backend-neutral NetworkSourceId / RuntimeBinding / Resource / Session ownership boundary for RF-SRC-RTMP-01, update its acceptance matrix and implementation file list, then create exactly one READY implementation packet. Do not add a URL field to the existing device-bound SourcePlan and do not start another Runtime Features packet in parallel.
+Implement RF-SRC-RTMP-01 from docs/superpowers/plans/2026-09-18-rf-src-rtmp-01-boundary-design.md, in order: contract/type tests, Resource/Lease/Session ownership adapters, materialize/preflight, FFmpeg RTMP argv/lifecycle, loopback A/V recovery/teardown, software matrix, CI, evidence and STATE synchronization. Do not start another Runtime Features packet in parallel.
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -776,8 +787,9 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-NORM-01** | **COMPLETE（§3.41·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A 5/5；Phase B 269/269、CI `35393863201` 7/7、BMD exact dual-input 11/11；L2c exact V+A；warnings 已登记；output device 2 untouched |
 | **RF-MASTER-01** | **COMPLETE（§3.43·2026-09-18）** | 消费 RF-NORM exact V+A evidence，在 normalized GStreamer Program graph 上启用 bounded MASTER_SWITCH；保持 PACKET/Network/Output 等边界 | RF-NORM-01 + A2-1 SwitchPolicy | default 269/269；mock 455/455；CI `35400579632` 7/7；BMD exact L2c + L4 MASTER_SWITCH + L5/recovery/teardown 11/11；warnings 已登记；output device 2 untouched |
 | **RF-SRC-01** | **BLOCKED（§3.45·2026-09-18）** | SRT source boundary + FFmpeg runtime；BMD FFmpeg 无 SRT protocol，保持 blocker 记录，不替换协议冒充完成 | RF-FF-01A–01F + capability | 无代码；需有 SRT-capable runtime 才能继续；不以 RTMP 证据继承 |
-| **RF-SRC-RTMP-01** | **PLAN REQUIRED / DESIGN BLOCKER（§3.46·2026-09-18）** | RTMP source boundary + FFmpeg runtime；先冻结 NetworkSourceId、authorized RuntimeBinding/resource reference、Session ownership/release；暂不实现 | RF-FF slices + §3.46 | boundary design、resource/lease/session ownership、canonical failure/recovery mapping；完成后再开 READY implementation packet |
-| **RUNTIME-FEATURES-NEXT** | **ACTIVE / PLAN REQUIRED（§3.46·2026-09-18）** | 先完成 RTMP source boundary design，再选择唯一 READY implementation packet | RF-SRC-RTMP-01 boundary design | 不并行开第二包；不得越过 device-bound owner 设计直接加 URL |
+| **RF-SRC-RTMP-01** | **READY / DESIGN FROZEN（§3.47·2026-09-18）** | 单协议单输入 RTMP source boundary + FFmpeg runtime/lifecycle；按 SourceRef/ResourceOwner/LeaseKey/SessionInput 设计实现 | RF-FF slices + §3.47 | DeckLink wire compatibility；typed ownership；loopback A/V；recovery/teardown；security redaction；7/7 CI；不得扩展其他协议/Network umbrella |
+| **RF-SRC-RTMP-01-IMPLEMENTATION** | **READY / FIRST** | 先执行 contract/type/ownership tests，再实现 materialize/preflight、FFmpeg RTMP、loopback recovery/teardown | RF-SRC-RTMP-01 design | exact commit、software/CI/runtime evidence、STATE/GitHub sync |
+| **RUNTIME-FEATURES-NEXT** | **PENDING / AFTER RF-SRC-RTMP-01** | RTMP packet 完成后重新选择下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 不并行开第二包；重新读取 live evidence 后再冻结 |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -800,7 +812,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.46/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker 与 RF-SRC-RTMP-01 boundary plan；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / MEDIA_BACKEND_CONTRACT。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 已完成；当前只做 NetworkSourceId/RuntimeBinding/Resource/Session boundary design，不直接扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent 或 Network runtime。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.47/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker 与 RF-SRC-RTMP-01 boundary plan；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / MEDIA_BACKEND_CONTRACT。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 已完成；当前只做 NetworkSourceId/RuntimeBinding/Resource/Session boundary design，不直接扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent 或 Network runtime。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -935,9 +947,9 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.46/§4–§5；
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = RF-SRC-RTMP-01 boundary design — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.46/§4–§5 + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01/RF-SRC-RTMP-01 plans + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
+6. 读取 **Current Task = RF-SRC-RTMP-01-IMPLEMENTATION — READY** 对应 Authority：`.project/STATE.md` §3.31–§3.46/§4–§5 + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01/RF-SRC-RTMP-01 plans + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；RF-SRC-RTMP-01 因 device-bound owner 设计缺口 PLAN REQUIRED；当前没有 READY Runtime Features implementation packet，必须先完成 boundary design；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；当前唯一 READY packet 是 RF-SRC-RTMP-01-IMPLEMENTATION，必须按 §3.47 设计顺序执行；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
