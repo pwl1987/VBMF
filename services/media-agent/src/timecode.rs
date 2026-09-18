@@ -19,6 +19,7 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Timecode 状态 — **#148 冻结词表** + Unknown (无观测源前置态; 真机合法)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +58,23 @@ pub struct TimecodeValue {
 pub struct TimecodeEvidence {
     pub code: String,
     pub detail: String,
+}
+
+/// Transitional observation 输入错误。release 构建同样拒绝非法 presence。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimecodeObservationError {
+    InvalidTransitionalPresence(TimecodePresence),
+}
+
+impl fmt::Display for TimecodeObservationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidTransitionalPresence(presence) => write!(
+                f,
+                "observe_transitional requires discontinuous or recovered, got {presence:?}"
+            ),
+        }
+    }
 }
 
 /// Canonical Timecode — 媒体帧携带的时间标签。
@@ -137,15 +155,16 @@ impl CanonicalTimecode {
         presence: TimecodePresence,
         code: impl Into<String>,
         detail: impl Into<String>,
-    ) -> Self {
-        debug_assert!(
-            matches!(
+    ) -> Result<Self, TimecodeObservationError> {
+        if !matches!(
+            presence,
+            TimecodePresence::Discontinuous | TimecodePresence::Recovered
+        ) {
+            return Err(TimecodeObservationError::InvalidTransitionalPresence(
                 presence,
-                TimecodePresence::Discontinuous | TimecodePresence::Recovered
-            ),
-            "observe_transitional 仅接受 Discontinuous/Recovered"
-        );
-        Self {
+            ));
+        }
+        Ok(Self {
             presence,
             format: TimecodeFormat::Unknown,
             value: None,
@@ -154,7 +173,7 @@ impl CanonicalTimecode {
                 code: code.into(),
                 detail: detail.into(),
             }],
-        }
+        })
     }
 }
 
@@ -287,16 +306,35 @@ mod tests {
             TimecodePresence::Discontinuous,
             "jump_detected",
             "frame index regressed",
-        );
+        )
+        .expect("discontinuous is a legal transitional observation");
         assert_eq!(d.presence, TimecodePresence::Discontinuous);
         assert_eq!(d.value, None);
         let r = CanonicalTimecode::observe_transitional(
             TimecodePresence::Recovered,
             "stream_relocked",
             "label continuity restored",
-        );
+        )
+        .expect("recovered is a legal transitional observation");
         assert_eq!(r.presence, TimecodePresence::Recovered);
         assert_eq!(r.value, None);
+    }
+
+    #[test]
+    fn timecode_rt_02_invalid_transitional_presence_fails_closed() {
+        for presence in [
+            TimecodePresence::Present,
+            TimecodePresence::Absent,
+            TimecodePresence::Invalid,
+            TimecodePresence::Unknown,
+        ] {
+            assert_eq!(
+                CanonicalTimecode::observe_transitional(presence, "invalid", "must reject"),
+                Err(TimecodeObservationError::InvalidTransitionalPresence(
+                    presence
+                ))
+            );
+        }
     }
 
     #[test]

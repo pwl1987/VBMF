@@ -11,6 +11,7 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
 
 /// Clock 观测态 — **冻结词表 #147** + Unknown (观测前置态)。
@@ -61,6 +62,67 @@ pub struct ClockEvidence {
     pub detail: String,
 }
 
+/// 单次 Clock 观测事实。时间线只保留顺序与证据，不解释状态也不产生动作。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClockObservation {
+    pub observed_at_ms: i64,
+    pub state: ClockObservationState,
+    pub evidence: Vec<ClockEvidence>,
+}
+
+/// Clock 观测时间线错误。容量耗尽时 fail-closed，禁止静默丢失旧观测。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClockTimelineError {
+    ZeroCapacity,
+    CapacityExceeded,
+}
+
+impl fmt::Display for ClockTimelineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroCapacity => {
+                f.write_str("clock observation timeline capacity must be positive")
+            }
+            Self::CapacityExceeded => f.write_str("clock observation timeline capacity exceeded"),
+        }
+    }
+}
+
+/// 有界、append-only 的 Clock 观测时间线。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClockObservationTimeline {
+    capacity: usize,
+    observations: Vec<ClockObservation>,
+}
+
+impl ClockObservationTimeline {
+    pub fn new(capacity: usize) -> Result<Self, ClockTimelineError> {
+        if capacity == 0 {
+            return Err(ClockTimelineError::ZeroCapacity);
+        }
+        Ok(Self {
+            capacity,
+            observations: Vec::with_capacity(capacity),
+        })
+    }
+
+    pub fn append(&mut self, observation: ClockObservation) -> Result<(), ClockTimelineError> {
+        if self.observations.len() >= self.capacity {
+            return Err(ClockTimelineError::CapacityExceeded);
+        }
+        self.observations.push(observation);
+        Ok(())
+    }
+
+    pub fn observations(&self) -> &[ClockObservation] {
+        &self.observations
+    }
+
+    pub fn latest(&self) -> Option<&ClockObservation> {
+        self.observations.last()
+    }
+}
+
 /// Canonical Clock Domain — **只描述观测, 绝不决策**。
 ///
 /// 0.7B-2A 只会产出 Unknown 组合 (无探针): kind/reference/state/confidence 全 Unknown
@@ -102,6 +164,61 @@ mod tests {
     const PUBLIC_SURFACE_ALLOWLIST: &[&str] = &[
         "unknown", // CanonicalClockDomain::unknown (0.7B-2A 唯一构造器)
     ];
+
+    #[test]
+    fn clock_timeline_rt_01_preserves_locked_lost_recovered_order() {
+        let mut timeline = ClockObservationTimeline::new(3).expect("positive capacity");
+        for (at, state) in [
+            (100_i64, ClockObservationState::Locked),
+            (200, ClockObservationState::ClockLost),
+            (300, ClockObservationState::ClockRecovered),
+        ] {
+            timeline
+                .append(ClockObservation {
+                    observed_at_ms: at,
+                    state,
+                    evidence: Vec::new(),
+                })
+                .expect("timeline has room");
+        }
+        assert_eq!(
+            timeline
+                .observations()
+                .iter()
+                .map(|item| item.state)
+                .collect::<Vec<_>>(),
+            vec![
+                ClockObservationState::Locked,
+                ClockObservationState::ClockLost,
+                ClockObservationState::ClockRecovered
+            ]
+        );
+        assert_eq!(timeline.latest().map(|item| item.observed_at_ms), Some(300));
+    }
+
+    #[test]
+    fn clock_timeline_rt_02_capacity_is_fail_closed_without_mutation() {
+        assert_eq!(
+            ClockObservationTimeline::new(0),
+            Err(ClockTimelineError::ZeroCapacity)
+        );
+        let mut timeline = ClockObservationTimeline::new(1).expect("positive capacity");
+        let observation = ClockObservation {
+            observed_at_ms: 100,
+            state: ClockObservationState::Locked,
+            evidence: Vec::new(),
+        };
+        timeline.append(observation.clone()).expect("first append");
+        assert_eq!(
+            timeline.append(observation),
+            Err(ClockTimelineError::CapacityExceeded)
+        );
+        assert_eq!(timeline.observations().len(), 1);
+        assert_eq!(
+            timeline.observations()[0].state,
+            ClockObservationState::Locked
+        );
+    }
 
     #[test]
     fn clock_semantics_01_frozen_state_vocabulary_complete() {
