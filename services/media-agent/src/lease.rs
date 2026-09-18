@@ -8,10 +8,24 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use uuid::Uuid;
 
+use crate::source::LeaseKey;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceLease {
     pub device_id: Uuid,
     pub owner: String, // agent session / pipeline id
+    pub acquired_at: DateTime<Utc>,
+    pub ttl: std::time::Duration,
+}
+
+/// Runtime lease keyed by a typed Device or Network identity.
+///
+/// `DeviceLease` remains the wire-compatible hardware projection; this type is
+/// the ownership value used by the network-source migration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeLease {
+    pub key: LeaseKey,
+    pub owner: String,
     pub acquired_at: DateTime<Utc>,
     pub ttl: std::time::Duration,
 }
@@ -44,6 +58,61 @@ pub trait LeaseManager: Send + Sync {
         owner: &str,
         ttl: std::time::Duration,
     ) -> Result<DeviceLease, LeaseError>;
+
+    /// Acquire a lease for a typed runtime identity. Device keys use the
+    /// legacy implementation; Network keys use the typed implementation.
+    fn acquire_key(
+        &self,
+        key: &LeaseKey,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<RuntimeLease, LeaseError> {
+        match key {
+            LeaseKey::Device(device_id) => {
+                self.acquire(device_id, owner, ttl)
+                    .map(|lease| RuntimeLease {
+                        key: *key,
+                        owner: lease.owner,
+                        acquired_at: lease.acquired_at,
+                        ttl: lease.ttl,
+                    })
+            }
+            LeaseKey::Network(_) => Err(LeaseError::UnsupportedKey(*key)),
+        }
+    }
+
+    /// Release a typed runtime lease.
+    fn release_key(&self, lease: &RuntimeLease) -> Result<(), LeaseError> {
+        match lease.key {
+            LeaseKey::Device(device_id) => self.release(&DeviceLease {
+                device_id,
+                owner: lease.owner.clone(),
+                acquired_at: lease.acquired_at,
+                ttl: lease.ttl,
+            }),
+            LeaseKey::Network(_) => Err(LeaseError::UnsupportedKey(lease.key)),
+        }
+    }
+
+    /// Renew a typed runtime lease.
+    fn renew_key(
+        &self,
+        key: &LeaseKey,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<RuntimeLease, LeaseError> {
+        match key {
+            LeaseKey::Device(device_id) => {
+                self.renew(device_id, owner, ttl).map(|lease| RuntimeLease {
+                    key: *key,
+                    owner: lease.owner,
+                    acquired_at: lease.acquired_at,
+                    ttl: lease.ttl,
+                })
+            }
+            LeaseKey::Network(_) => Err(LeaseError::UnsupportedKey(*key)),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -52,6 +121,12 @@ pub enum LeaseError {
     AlreadyLeased(Uuid),
     #[error("device {0} not found")]
     NotFound(Uuid),
+    #[error("runtime key {0:?} already leased")]
+    AlreadyLeasedKey(LeaseKey),
+    #[error("runtime key {0:?} not found")]
+    NotFoundKey(LeaseKey),
+    #[error("runtime key {0:?} is not supported by this lease manager")]
+    UnsupportedKey(LeaseKey),
     #[error("lease expired")]
     Expired,
 }
@@ -62,12 +137,14 @@ pub enum LeaseError {
 /// MUST 用 `is_valid` 重新校验租约仍在有效期内 —— 绝不在无有效租约时采集。
 pub struct InMemoryLeaseManager {
     leases: Mutex<HashMap<Uuid, DeviceLease>>,
+    runtime_leases: Mutex<HashMap<LeaseKey, RuntimeLease>>,
 }
 
 impl InMemoryLeaseManager {
     pub fn new() -> Self {
         Self {
             leases: Mutex::new(HashMap::new()),
+            runtime_leases: Mutex::new(HashMap::new()),
         }
     }
 
@@ -96,7 +173,90 @@ fn is_expired(l: &DeviceLease) -> bool {
     Utc::now() > expiry
 }
 
+fn runtime_is_expired(l: &RuntimeLease) -> bool {
+    let expiry = l
+        .acquired_at
+        .checked_add_signed(Duration::from_std(l.ttl).unwrap_or(Duration::MAX))
+        .unwrap_or(Utc::now());
+    Utc::now() > expiry
+}
+
 impl LeaseManager for InMemoryLeaseManager {
+    fn acquire_key(
+        &self,
+        key: &LeaseKey,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<RuntimeLease, LeaseError> {
+        if let LeaseKey::Device(device_id) = key {
+            let lease = self.acquire(device_id, owner, ttl)?;
+            return Ok(RuntimeLease {
+                key: *key,
+                owner: lease.owner,
+                acquired_at: lease.acquired_at,
+                ttl: lease.ttl,
+            });
+        }
+
+        let mut guard = self.runtime_leases.lock().unwrap();
+        if guard.contains_key(key) {
+            return Err(LeaseError::AlreadyLeasedKey(*key));
+        }
+        let lease = RuntimeLease {
+            key: *key,
+            owner: owner.to_string(),
+            acquired_at: Utc::now(),
+            ttl,
+        };
+        guard.insert(*key, lease.clone());
+        Ok(lease)
+    }
+
+    fn release_key(&self, lease: &RuntimeLease) -> Result<(), LeaseError> {
+        if let LeaseKey::Device(device_id) = lease.key {
+            return self.release(&DeviceLease {
+                device_id,
+                owner: lease.owner.clone(),
+                acquired_at: lease.acquired_at,
+                ttl: lease.ttl,
+            });
+        }
+        let mut guard = self.runtime_leases.lock().unwrap();
+        if guard.remove(&lease.key).is_some() {
+            Ok(())
+        } else {
+            Err(LeaseError::NotFoundKey(lease.key))
+        }
+    }
+
+    fn renew_key(
+        &self,
+        key: &LeaseKey,
+        owner: &str,
+        ttl: std::time::Duration,
+    ) -> Result<RuntimeLease, LeaseError> {
+        if let LeaseKey::Device(device_id) = key {
+            let lease = self.renew(device_id, owner, ttl)?;
+            return Ok(RuntimeLease {
+                key: *key,
+                owner: lease.owner,
+                acquired_at: lease.acquired_at,
+                ttl: lease.ttl,
+            });
+        }
+        let mut guard = self.runtime_leases.lock().unwrap();
+        match guard.get_mut(key) {
+            None => Err(LeaseError::NotFoundKey(*key)),
+            Some(lease) if lease.owner != owner => Err(LeaseError::AlreadyLeasedKey(*key)),
+            Some(lease) if runtime_is_expired(lease) => Err(LeaseError::Expired),
+            Some(lease) => {
+                lease.acquired_at = Utc::now();
+                lease.ttl = ttl;
+                Ok(lease.clone())
+            }
+        }
+    }
+
     fn acquire(
         &self,
         device_id: &Uuid,
@@ -217,6 +377,33 @@ mod tests {
                 std::time::Duration::from_secs(60)
             ),
             Err(LeaseError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn network_key_lease_is_exclusive_and_typed() {
+        let lm = InMemoryLeaseManager::new();
+        let key = LeaseKey::Network(crate::source::NetworkSourceId(Uuid::new_v4()));
+        let lease = lm
+            .acquire_key(&key, "session-a", std::time::Duration::from_secs(30))
+            .unwrap();
+        assert_eq!(lease.key, key);
+        assert!(matches!(
+            lm.acquire_key(&key, "session-b", std::time::Duration::from_secs(30)),
+            Err(LeaseError::AlreadyLeasedKey(k)) if k == key
+        ));
+        assert!(matches!(
+            lm.renew_key(&key, "session-b", std::time::Duration::from_secs(30)),
+            Err(LeaseError::AlreadyLeasedKey(k)) if k == key
+        ));
+        let renewed = lm
+            .renew_key(&key, "session-a", std::time::Duration::from_secs(60))
+            .unwrap();
+        assert_eq!(renewed.ttl, std::time::Duration::from_secs(60));
+        lm.release_key(&renewed).unwrap();
+        assert!(matches!(
+            lm.renew_key(&key, "session-a", std::time::Duration::from_secs(30)),
+            Err(LeaseError::NotFoundKey(k)) if k == key
         ));
     }
 

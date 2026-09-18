@@ -69,6 +69,7 @@ pub mod runtime_query; // P0.7C-2: Runtime Query Model (Pure Read / Snapshot Sem
 pub mod runtime_state; // 0.7C-1: Canonical Runtime State 聚合 (组合非展开; D14 观察信封)
 pub mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner; D10 多输入)
 pub mod signal; // 信号探测 + 亮度黑场检测
+pub mod source; // RF-SRC-RTMP-01: typed Device/Network source identity boundary
 pub mod supervisor; // Gate 6/7: Runtime Supervisor — 恢复决策引擎（只决策, 不碰 GStreamer）
 pub mod switch_dispatch_plane; // A2-8-05 v0.2: SwitchProgram 执行平面 + program_switch 回读平面（命令/查询双 trait 类型级隔离; 核心四零触碰）
 pub mod switch_execution; // A2-8-01: Switch Execution 执行面（ExecutionGroup/Intent/Plan; 纯模型零 GStreamer, probe §7 冻结）

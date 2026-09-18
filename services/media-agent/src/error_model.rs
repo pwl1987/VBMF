@@ -65,6 +65,11 @@ pub fn classify_session_error(err: &SessionError) -> ErrorClassification {
         SessionError::Lease(LeaseError::AlreadyLeased(_)) => ErrorClassification::RetryableFailure,
         SessionError::Lease(LeaseError::Expired) => ErrorClassification::RetryableFailure,
         SessionError::Lease(LeaseError::NotFound(_)) => ErrorClassification::PermanentFailure,
+        SessionError::Lease(LeaseError::AlreadyLeasedKey(_)) => {
+            ErrorClassification::RetryableFailure
+        }
+        SessionError::Lease(LeaseError::NotFoundKey(_)) => ErrorClassification::PermanentFailure,
+        SessionError::Lease(LeaseError::UnsupportedKey(_)) => ErrorClassification::PermanentFailure,
         // 目标会话不存在（ghost）; 真机 ERROR-MODEL-RT-01 探针实证项。
         SessionError::UnknownSession(_) => ErrorClassification::PermanentFailure,
         // 会话状态机白名单拒绝（如 close Released 会话）。

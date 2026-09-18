@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::port::PortRegistry;
+use crate::source::{NetworkSourceId, ResourceOwner};
 
 /// 资源状态机 (V0.2 §3.11)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,8 +86,11 @@ pub struct Resource {
     pub capability: String,
     /// 可并发分配数 (端口类资源通常为 1)。
     pub capacity: u32,
-    /// 所属设备 ID (由 Discovery 派生; `Resource::new` 默认 nil, 供独立构造/测试)。
+    /// 所属设备 ID 的兼容投影；Network 资源不使用该字段。
     pub device_id: Uuid,
+    /// 资源的权威归属域；Network 资源不得伪装成 Device。
+    #[serde(default)]
+    pub owner: ResourceOwner,
     pub state: ResourceState,
     /// 当前预留 (仅 `Reserved` 态存在)。
     pub reservation: Option<Reservation>,
@@ -104,6 +108,8 @@ pub struct ResourceStateError {
 
 impl Resource {
     /// 构造一个 `Available` 资源。
+    ///
+    /// 旧 Device 资源保留 `device_id` 兼容投影；正式归属由 `owner` 表达。
     pub fn new(
         id: Uuid,
         name: impl Into<String>,
@@ -116,11 +122,39 @@ impl Resource {
             capability: capability.into(),
             capacity: capacity.max(1),
             device_id: Uuid::nil(),
+            owner: ResourceOwner::Device(Uuid::nil()),
             state: ResourceState::Available,
             reservation: None,
             allocated_to: None,
         }
     }
+
+    /// 构造一个 Network 资源；它没有硬件 DeviceId。
+    pub fn network(
+        id: Uuid,
+        name: impl Into<String>,
+        capability: impl Into<String>,
+        source_id: NetworkSourceId,
+    ) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            capability: capability.into(),
+            capacity: 1,
+            device_id: Uuid::nil(),
+            owner: ResourceOwner::Network(source_id),
+            state: ResourceState::Available,
+            reservation: None,
+            allocated_to: None,
+        }
+    }
+
+    /// 给 Discovery 派生的 Device 资源设置权威归属。
+    pub fn set_device_owner(&mut self, device_id: Uuid) {
+        self.device_id = device_id;
+        self.owner = ResourceOwner::Device(device_id);
+    }
+
     /// 执行状态迁移 (白名单校验); 非法迁移返回 `ResourceStateError`。
     pub fn transition(&mut self, to: ResourceState) -> Result<(), ResourceStateError> {
         if !self.state.can_transition_to(to) {
@@ -248,10 +282,32 @@ pub fn input_resource_id_for_port(port_id: Uuid) -> Uuid {
     Uuid::new_v5(&port_resource_ns(port_id), "input".as_bytes())
 }
 
+/// Stable Resource ID for a configured network source.
+pub fn network_resource_id_for_source(source_id: NetworkSourceId) -> Uuid {
+    Uuid::new_v5(&source_id.0, b"vbmf:resource:network-input")
+}
+
 impl ResourceRegistry {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Register one network-source Resource in the same registry/state machine
+    /// used by hardware inputs. Re-registering the same source is idempotent.
+    pub fn register_network_source(&mut self, source_id: NetworkSourceId) -> Uuid {
+        let resource_id = network_resource_id_for_source(source_id);
+        if self.resources.iter().any(|r| r.id == resource_id) {
+            return resource_id;
+        }
+        self.resources.push(Resource::network(
+            resource_id,
+            format!("rtmp-input-{source_id}"),
+            "rtmp-input",
+            source_id,
+        ));
+        resource_id
+    }
+
     /// 按 ID 查找 (可变)。
     pub fn get_mut(&mut self, id: &Uuid) -> Option<&mut Resource> {
         self.resources.iter_mut().find(|r| &r.id == id)
@@ -306,7 +362,7 @@ impl ResourceRegistry {
             let cap_base = format!("{:?}", port.identity.connector).to_lowercase();
             let mk = |capability: &str, name: String, id: Uuid| {
                 let mut r = Resource::new(id, name, capability, 1);
-                r.device_id = port.device_id; // Discovery 派生 → 记录所属设备 (供 Preflight 按设备校验)
+                r.set_device_owner(port.device_id); // Discovery 派生 → 记录所属设备 (供 Preflight 按设备校验)
                 r
             };
             if port.direction == crate::port::PortDirection::Input
@@ -612,6 +668,25 @@ mod tests {
         let reg = PortRegistry::default(); // 空
         let rr = ResourceRegistry::derive_from_discovery(&reg);
         assert!(rr.resources.is_empty());
+    }
+
+    #[test]
+    fn network_resource_has_typed_owner_and_shared_state_machine() {
+        let source_id = NetworkSourceId(Uuid::new_v4());
+        let mut rr = ResourceRegistry::new();
+        let resource_id = rr.register_network_source(source_id);
+        assert_eq!(rr.register_network_source(source_id), resource_id);
+        let resource = rr.resources.iter().find(|r| r.id == resource_id).unwrap();
+        assert_eq!(resource.owner, ResourceOwner::Network(source_id));
+        assert_eq!(resource.device_id, Uuid::nil());
+        assert_eq!(resource.capability, "rtmp-input");
+
+        let req = AcquisitionRequest {
+            holder: Uuid::nil(),
+            resource_id,
+            expected_capability: "rtmp-input".into(),
+        };
+        preflight(&rr, &req).expect("network resource should use normal preflight");
     }
 
     #[test]
