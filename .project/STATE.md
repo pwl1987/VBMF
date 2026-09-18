@@ -640,15 +640,26 @@ Status: **READY / PLAN FROZEN；IMPLEMENTATION NEXT**。
 - Plan：`docs/superpowers/specs/2026-09-18-rf-norm-01-normalize-execution.md`。
 - Hardware boundary：因触及 canonical GStreamer graph，软件与 CI 全绿后必须用 exact commit 做 BMD 双输入 acceptance；output device-number 2 保持 untouched。
 
+## 3.40 RF-NORM-01 Phase A 收口（2026-09-18）
+
+Status: **PHASE A COMPLETE / SOFTWARE + CI VERIFIED；GSTREAMER/BMD EXECUTION NOT YET**。
+
+- Implementation：exact `324c70a3758deca5902e9b4d3311dab90fff349c`；新增 vendor-neutral `normalize_execution.rs` 与 Phase A plan/report；未改 GStreamer/FFmpeg/硬件 path。
+- Domain：显式 video/audio RAW target；缺 target、非法尺寸/速率/声道 fail-closed；双 plane evidence 独立追踪，必须 V/A 均 `ObservedExact` 才 complete。
+- Development VM：focused 5/5；default library 269/269；fmt/clippy/architecture/remove-adapters/diff-check PASS。
+- CI：Actions `35389637837`，7/7 required contexts success；包含 default/simulation/mock/ffmpeg-backend compile/test 与 hardware/gstreamer build compile。
+- Boundary：本阶段不宣称 Normalize GStreamer execution 或 BMD hardware verification；Phase B 才触及 canonical GStreamer graph，届时必须 exact-commit BMD 双输入 acceptance；output device-number 2 继续 untouched。
+- Evidence：`docs/superpowers/reports/2026-09-18-rf-norm-01-phase-a.md`。
+
 ## 4. Current Task
 
-**RF-NORM-01 — explicit RAW Normalize execution — IMPLEMENTATION READY**
+**RF-NORM-01 Phase B — GStreamer per-plane Normalize chain — IMPLEMENTATION ACTIVE**
 
-RH-CLOCK-01 已完成并经软件/CI adjudication 接受（§3.38）。候选比较已完成并在 §3.39 冻结唯一 READY 包；下一步进入 RF-NORM-01 Phase A。不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
+RH-CLOCK-01 已完成并经软件/CI adjudication 接受（§3.38）。RF-NORM-01 Phase A 已在 §3.40 完成软件与 CI 验证；当前进入 Phase B。不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
 
 ## 5. Next Task
 
-执行 RF-NORM-01 Phase A：加入显式 target/plan/evidence 的最小 typed domain 与 failure-first 测试；不得在 target 缺失时引入默认值，不得提前启用 MASTER_SWITCH。完成 Phase A 软件验证后再进入 GStreamer chain。
+执行 RF-NORM-01 Phase B：将显式 Normalize plan 接入 GStreamer per-plane source→normalize→caps→selector 链，并在 selector boundary 产生真实 caps evidence；保持 FrameSwitch 唯一可执行 policy，MASTER_SWITCH 继续 fail-closed。先完成 simulation/software acceptance，再跑 CI，最后用 exact commit 做 BMD 双输入 acceptance。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -692,7 +703,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-FF-01F** | **COMPLETE（§3.31·2026-09-18）** | Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery | RF-FF-01E | neutral monitor no GStreamer evidence；canonical observe→Supervisor→lease recheck→recover；cancellable lifecycle；CI `35356652348` 7/7；BMD kill/recover/new child + teardown/no orphan |
 | **RF-FF-02** | **COMPLETE（§3.34·2026-09-18）** | FFmpeg 单输入 Egress / Output 生命周期（现有 Hls/Rtmp OutputPlan） | RF-FF-01F + §3.33 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35375536871` 7/7；BMD exact HLS/recovery/teardown；output device 2 untouched |
 | **RF-FF-03** | **COMPLETE（§3.36·2026-09-18）** | FFmpeg 单输入 RTMP egress / loopback receiver recovery | RF-FF-02 + §3.35 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35379282990` 7/7；BMD sender/receiver h264+aac、recovery、teardown；output device 2 untouched |
-| **RF-NORM-01** | **READY / PLAN FROZEN（§3.39·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A typed target/plan/evidence + failure-first；Phase B exact target caps/elements + simulation；CI 7/7；exact-commit BMD dual-input acceptance；output device 2 untouched |
+| **RF-NORM-01** | **ACTIVE / PHASE B（§3.40·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A 5/5 + default 269/269 + CI `35389637837` 7/7；Phase B exact target caps/elements + simulation；再 CI 7/7；exact-commit BMD dual-input acceptance；output device 2 untouched |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
