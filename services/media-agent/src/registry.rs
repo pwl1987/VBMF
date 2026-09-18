@@ -155,13 +155,7 @@ impl AdapterRegistry {
     pub(crate) fn build_backend_with_manifest(
         discovered: &[crate::contracts::provider::DiscoveredDevice],
         manifest: &crate::resolver::DeviceBindingManifest,
-    ) -> Result<
-        (
-            Arc<dyn crate::contracts::backend::MediaBackend>,
-            Arc<dyn crate::contracts::backend::BackendProcessInspector>,
-        ),
-        String,
-    > {
+    ) -> Result<crate::contracts::backend::BackendWithInspector, String> {
         ensure_adapter_selection_safe()?;
         crate::adapters::build_process_backend_with_manifest(discovered, manifest)
     }

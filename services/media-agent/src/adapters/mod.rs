@@ -31,13 +31,7 @@ pub(crate) fn build_process_media_backend_with_manifest(
 pub(crate) fn build_process_backend_with_manifest(
     discovered: &[crate::contracts::provider::DiscoveredDevice],
     manifest: &crate::resolver::DeviceBindingManifest,
-) -> Result<
-    (
-        std::sync::Arc<dyn crate::contracts::backend::MediaBackend>,
-        std::sync::Arc<dyn crate::contracts::backend::BackendProcessInspector>,
-    ),
-    String,
-> {
+) -> Result<crate::contracts::backend::BackendWithInspector, String> {
     let concrete = std::sync::Arc::new(ffmpeg::FFmpegBackend::with_authorized_manifest(
         discovered, manifest,
     )?);

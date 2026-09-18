@@ -13,8 +13,6 @@ use crate::supervisor::ProcessState;
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use std::process::Command;
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
-use std::sync::Arc;
-#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use std::time::Duration;
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
@@ -112,7 +110,7 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
     }
     let handle = running.pipeline.expect("Running must expose pipeline");
     let old_pid = composition
-        .backend
+        .process_inspector
         .running_child_pid(&handle)
         .unwrap_or_else(|| fail("running FFmpeg child PID is absent"));
     let monitor = crate::recovery_monitor::spawn(
@@ -149,7 +147,7 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
         fail("monitor did not observe failure and recover within 6s");
     }
     let new_pid = composition
-        .backend
+        .process_inspector
         .running_child_pid(&handle)
         .unwrap_or_else(|| fail("recovery did not create a new FFmpeg child"));
     if new_pid == old_pid {

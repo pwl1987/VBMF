@@ -36,3 +36,10 @@ pub trait MediaBackend: Send + Sync {
     /// 观测运行时事件（契约: `observe`；vendor-neutral 统一事件载荷, 非 Bus Message 语义）。
     fn observe(&self, handle: &PipelineHandle) -> Vec<PipelineBusEvent>;
 }
+
+/// One concrete backend instance exposed through its lifecycle SPI and its
+/// acceptance-only process inspector.
+pub type BackendWithInspector = (
+    std::sync::Arc<dyn MediaBackend>,
+    std::sync::Arc<dyn BackendProcessInspector>,
+);
