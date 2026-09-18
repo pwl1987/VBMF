@@ -44,8 +44,15 @@ pub enum SwitchError {
     InitialActiveNotInGroup(Uuid),
     #[error("switch target {0} not in execution group")]
     TargetNotInGroup(Uuid),
-    #[error("switch policy {0:?} not supported in first version (FRAME_SWITCH only)")]
+    #[error("switch policy {0:?} not supported by this execution adapter")]
     UnsupportedPolicy(SwitchPolicy),
+    #[error("MASTER_SWITCH requires an explicit Normalize plan and exact V+A evidence")]
+    NormalizeEvidenceRequired,
+    #[error("MASTER_SWITCH Normalize evidence incomplete (video={video:?}, audio={audio:?})")]
+    NormalizeEvidenceIncomplete {
+        video: crate::normalize_execution::NormalizeEvidenceState,
+        audio: crate::normalize_execution::NormalizeEvidenceState,
+    },
     #[error("target {0} is already the active source")]
     TargetAlreadyActive(Uuid),
     #[error("desired state is not an active source (switching in progress: {0:?})")]
@@ -150,13 +157,13 @@ impl ExecutionGroup {
     }
 
     /// 校验并产出切换计划（Intent→Plan 单向装配, 全 fail-closed）:
-    /// target ∈ 组 / policy == FRAME_SWITCH（首版）/ Desired 为 Active /
+    /// target ∈ 组 / PACKET_SWITCH fail-closed / Desired 为 Active /
     /// target ≠ 当前 active。**不改变任何状态**（begin 才推进）。
     pub fn plan_switch(&self, intent: &SwitchIntent) -> Result<SwitchExecutionPlan, SwitchError> {
         if !self.contains(intent.target) {
             return Err(SwitchError::TargetNotInGroup(intent.target));
         }
-        if intent.policy != SwitchPolicy::FrameSwitch {
+        if intent.policy == SwitchPolicy::PacketSwitch {
             return Err(SwitchError::UnsupportedPolicy(intent.policy));
         }
         let from = match self.desired {
@@ -302,18 +309,32 @@ mod tests {
     }
 
     #[test]
-    fn switch_rt_01_packet_master_fail_closed() {
+    fn switch_rt_01_packet_fail_closed() {
         let (a, _b, g) = dual_group();
         let peer = group_peer(&g, a);
-        for policy in [SwitchPolicy::PacketSwitch, SwitchPolicy::MasterSwitch] {
-            let err = g
-                .plan_switch(&SwitchIntent {
-                    target: peer,
-                    policy,
-                })
-                .expect_err("首版仅 FRAME_SWITCH, 其余 fail-closed 拒收");
-            assert_eq!(err, SwitchError::UnsupportedPolicy(policy));
-        }
+        let err = g
+            .plan_switch(&SwitchIntent {
+                target: peer,
+                policy: SwitchPolicy::PacketSwitch,
+            })
+            .expect_err("PACKET_SWITCH 仍 fail-closed");
+        assert_eq!(
+            err,
+            SwitchError::UnsupportedPolicy(SwitchPolicy::PacketSwitch)
+        );
+    }
+
+    #[test]
+    fn switch_rt_01_master_plan_is_explicitly_admitted() {
+        let (a, _b, g) = dual_group();
+        let peer = group_peer(&g, a);
+        let plan = g
+            .plan_switch(&SwitchIntent {
+                target: peer,
+                policy: SwitchPolicy::MasterSwitch,
+            })
+            .expect("MASTER_SWITCH plan 由 adapter readiness gate 约束");
+        assert_eq!(plan.policy, SwitchPolicy::MasterSwitch);
     }
 
     #[test]

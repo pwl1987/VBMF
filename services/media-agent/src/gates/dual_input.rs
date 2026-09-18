@@ -756,7 +756,7 @@ pub fn run(
     let target_b = started_inputs[1].device_id;
     let switch_res = rt.switch_program(&crate::switch_execution::SwitchIntent {
         target: target_b,
-        policy: crate::program::SwitchPolicy::FrameSwitch,
+        policy: crate::program::SwitchPolicy::MasterSwitch,
     });
     let mut l4 = false;
     let l4_detail: String;
@@ -878,7 +878,7 @@ pub fn run(
     }
     record(
         &mut verdicts,
-        "L4 Timing/switch+timeline(A→B)",
+        "L4 MASTER_SWITCH timing/switch+timeline(A→B)",
         l4,
         l4_detail,
     );

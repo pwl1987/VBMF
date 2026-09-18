@@ -1408,8 +1408,22 @@ impl SwitchExecutionAdapter for GStreamerSwitchAdapter {
         if !g.devices.contains(&plan.target) {
             return Err(SwitchError::TargetNotInGroup(plan.target));
         }
-        if plan.policy != SwitchPolicy::FrameSwitch {
+        if plan.policy == SwitchPolicy::PacketSwitch {
             return Err(SwitchError::UnsupportedPolicy(plan.policy));
+        }
+        // RF-MASTER-01: MASTER_SWITCH 只允许消费显式 Normalize plan 的
+        // selector-boundary exact V+A evidence；在任何 selector mutation 前检查。
+        if plan.policy == SwitchPolicy::MasterSwitch {
+            let Some(evidence) = g.normalize_evidence.as_ref() else {
+                return Err(SwitchError::NormalizeEvidenceRequired);
+            };
+            let evidence = *evidence.lock().unwrap();
+            if !evidence.complete() {
+                return Err(SwitchError::NormalizeEvidenceIncomplete {
+                    video: evidence.video,
+                    audio: evidence.audio,
+                });
+            }
         }
         // R63-A 新鲜度谓词: 重放已执行世代（<= av_epoch）拒收; 精确锁步
         // 不再要求——begin 后失败留下合法 epoch 间隙（组已消费, adapter
@@ -1961,6 +1975,130 @@ mod tests {
                 .complete(),
             "切换后双平面 Normalize 证据持续完整"
         );
+        adapter.stop_program(&graph).expect("停止");
+    }
+
+    #[test]
+    fn switch_graph_rf_master_01_requires_explicit_normalize_plan() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut g = group(a, b);
+        let adapter = GStreamerSwitchAdapter::simulation();
+        let graph = adapter.build_program_graph(&g).expect("program graph");
+        adapter.start_program(&graph).expect("program 启动");
+        wait_frames(&adapter, &graph, 300);
+
+        let before = adapter.observe(&graph).program;
+        let switch = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::MasterSwitch,
+            })
+            .expect("MASTER_SWITCH plan");
+        let err = adapter
+            .switch(&graph, &switch)
+            .expect_err("无 Normalize plan 必须拒收");
+        assert_eq!(err, SwitchError::NormalizeEvidenceRequired);
+        let after = adapter.observe(&graph).program;
+        assert_eq!(after.observed_active, before.observed_active);
+        assert_eq!(after.switch_epoch, before.switch_epoch);
+        adapter.stop_program(&graph).expect("停止");
+    }
+
+    #[test]
+    fn switch_graph_rf_master_01_requires_exact_dual_plane_evidence() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let plan = NormalizePlan::require(Some(crate::normalize_execution::NormalizeTarget {
+            video: crate::normalize_execution::RawVideoTarget {
+                width: 1920,
+                height: 1080,
+                frame_rate_num: 25,
+                frame_rate_den: 1,
+                pixel_format: RawPixelFormat::I420,
+                interlaced: true,
+            },
+            audio: crate::normalize_execution::RawAudioTarget {
+                format: RawAudioFormat::S16le,
+                channels: 2,
+                sample_rate: 48_000,
+            },
+        }))
+        .expect("Normalize target");
+        let mut g = group(a, b);
+        let adapter = GStreamerSwitchAdapter::simulation_with_normalize(plan);
+        let graph = adapter.build_program_graph(&g).expect("program graph");
+        adapter.start_program(&graph).expect("program 启动");
+
+        let switch = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::MasterSwitch,
+            })
+            .expect("MASTER_SWITCH plan");
+        let err = adapter
+            .switch(&graph, &switch)
+            .expect_err("evidence 尚未完整时必须拒收");
+        assert!(matches!(
+            err,
+            SwitchError::NormalizeEvidenceIncomplete { .. }
+        ));
+        assert_eq!(
+            adapter.observe(&graph).program.observed_active,
+            Some(a),
+            "证据不足不得改变 selector"
+        );
+        adapter.stop_program(&graph).expect("停止");
+    }
+
+    #[test]
+    fn switch_graph_rf_master_01_executes_after_exact_dual_plane_evidence() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let plan = NormalizePlan::require(Some(crate::normalize_execution::NormalizeTarget {
+            video: crate::normalize_execution::RawVideoTarget {
+                width: 1920,
+                height: 1080,
+                frame_rate_num: 25,
+                frame_rate_den: 1,
+                pixel_format: RawPixelFormat::I420,
+                interlaced: true,
+            },
+            audio: crate::normalize_execution::RawAudioTarget {
+                format: RawAudioFormat::S16le,
+                channels: 2,
+                sample_rate: 48_000,
+            },
+        }))
+        .expect("Normalize target");
+        let mut g = group(a, b);
+        let adapter = GStreamerSwitchAdapter::simulation_with_normalize(plan);
+        let graph = adapter.build_program_graph(&g).expect("program graph");
+        adapter.start_program(&graph).expect("program 启动");
+        wait_frames(&adapter, &graph, 1800);
+        assert!(
+            adapter
+                .normalize_evidence(&graph)
+                .expect("evidence slot")
+                .complete(),
+            "必须先观察到 exact V+A evidence"
+        );
+
+        let switch = g
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::MasterSwitch,
+            })
+            .expect("MASTER_SWITCH plan");
+        g.begin_switch(&switch).expect("begin");
+        let executed = adapter.switch(&graph, &switch).expect("MASTER_SWITCH 执行");
+        assert_eq!(executed.av_epoch, 1);
+        wait_frames(&adapter, &graph, 500);
+        let observed = adapter.observe(&graph).program;
+        assert_eq!(observed.observed_active, Some(b));
+        assert_eq!(observed.video_active, Some(b));
+        assert_eq!(observed.audio_active, Some(b));
+        assert!(g.complete_switch(b));
         adapter.stop_program(&graph).expect("停止");
     }
 
@@ -3846,15 +3984,22 @@ mod tests {
             Err(SwitchError::TargetAlreadyActive(a)),
             "fail-closed: 切当前 active（组级）"
         );
-        // 3) PACKET/MASTER。
-        for policy in [SwitchPolicy::PacketSwitch, SwitchPolicy::MasterSwitch] {
-            assert_eq!(
-                group.plan_switch(&SwitchIntent { target: b, policy }),
-                Err(SwitchError::UnsupportedPolicy(policy)),
-                "fail-closed: {policy:?}（组级）"
-            );
-        }
-        // 4) 伪造 plan 打真适配器: 组外/duplicate/错 epoch/非 FRAME——
+        // 3) PACKET 仍 fail-closed；MASTER 由 adapter Normalize readiness gate 约束。
+        assert_eq!(
+            group.plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::PacketSwitch
+            }),
+            Err(SwitchError::UnsupportedPolicy(SwitchPolicy::PacketSwitch)),
+            "fail-closed: PACKET（组级）"
+        );
+        group
+            .plan_switch(&SwitchIntent {
+                target: b,
+                policy: SwitchPolicy::MasterSwitch,
+            })
+            .expect("MASTER plan 进入 adapter readiness gate");
+        // 4) 伪造 plan 打真适配器: 组外/duplicate/错 epoch/非 PACKET——
         //    adapter 纵深重校验（不信任调用方）。
         let forged = |target: Uuid, policy: SwitchPolicy, epoch: u64| SwitchExecutionPlan {
             from: a,
@@ -3894,8 +4039,8 @@ mod tests {
                 &graph,
                 &forged(b, SwitchPolicy::MasterSwitch, epoch_before + 1)
             ),
-            Err(SwitchError::UnsupportedPolicy(SwitchPolicy::MasterSwitch)),
-            "fail-closed: MASTER（适配器纵深）"
+            Err(SwitchError::NormalizeEvidenceRequired),
+            "fail-closed: MASTER 缺 Normalize evidence（适配器纵深）"
         );
         // 状态零变（Desired/epoch/observed/帧仍推进）。
         assert_eq!(group.desired, desired_before, "拒收后 Desired 零变");
