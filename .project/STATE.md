@@ -651,15 +651,31 @@ Status: **PHASE A COMPLETE / SOFTWARE + CI VERIFIED；GSTREAMER/BMD EXECUTION NO
 - Boundary：本阶段不宣称 Normalize GStreamer execution 或 BMD hardware verification；Phase B 才触及 canonical GStreamer graph，届时必须 exact-commit BMD 双输入 acceptance；output device-number 2 继续 untouched。
 - Evidence：`docs/superpowers/reports/2026-09-18-rf-norm-01-phase-a.md`。
 
+### 3.41 RF-NORM-01 Phase B 收口（2026-09-18）
+
+Status: **PHASE B COMPLETE / SOFTWARE + CI + BMD HARDWARE VERIFIED；RUNTIME WARNINGS REGISTERED**。
+
+- Implementation chain：`721a8ea` 补齐 progressive/interlaced Normalize chain；`75e7159` 保留 interlaced probe caps；`cb14014` 将 selector boundary exact V+A evidence 接入 L2c hard gate。
+- Interlaced target 路径：deinterlace → videoconvert → videoscale → videorate → 2x progressive rate → interlace field-pattern=1:1 → exact interleaved target caps；progressive target 保持 direct normalized chain。
+- Development VM：cargo test **269/269**；fmt、clippy `-D warnings`、diff-check PASS。
+- CI：Actions `35393863201`，7/7 required contexts PASS。
+- BMD exact acceptance：source archive SHA-256 `7999e2fe1b59493db3d02b3b54abf69f080cb74860e8ce26d72f694a0b8a99f1`；native build PASS；binary SHA-256 `c25b146df2bc8391607c4940a392c9ae20b2f00b61896c5a95bfc5451b840444`；manifest MD5 `7521d17e7fd02e50eb2b0a84374a43dd`。
+- BMD inputs：`46:00000000:002e4500` / device-number 0 与 `46:00000000:002e4400` / device-number 1；output device-number 2 未触碰。
+- Gate：**11/11 PASS**；L2c = `video=ObservedExact audio=ObservedExact complete=true`；L4/L5/恢复/teardown PASS；output PID `992634` unchanged；无 orphan/残留。
+- Evidence：`evidence/bmd-10.30.15.10/2026-09-18-rf-norm-01-phase-b/`。
+- Runtime warning debt：setup/recover 观察到非致命 `gst_video_converter_*` assertions，teardown 观察到 `gst_pad_unlink` assertion；已如实登记，未隐藏，未改变 11/11 verdict；本包不宣称 warning-free。
+- Boundary：不启用 MASTER_SWITCH；不宣称 Network/Output/Recording/Replay/24h stability；24h `rss_bounded` 仍是独立 debt。
+- Next：先选择并冻结下一 bounded Runtime Features packet，再实施。
+
 ## 4. Current Task
 
-**RF-NORM-01 Phase B — GStreamer per-plane Normalize chain — IMPLEMENTATION ACTIVE**
+**Next bounded Runtime Features packet selection — PLAN REQUIRED**
 
-RH-CLOCK-01 已完成并经软件/CI adjudication 接受（§3.38）。RF-NORM-01 Phase A 已在 §3.40 完成软件与 CI 验证；当前进入 Phase B。不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
+RF-NORM-01 Phase B 已在 §3.41 完成 software/CI/BMD exact-commit acceptance。当前没有新的实施包被授权；下一步先复核 frozen SwitchPolicy、当前 switch execution、RH-CLOCK-01 与 RF-NORM evidence，选定一个 bounded packet 并冻结 allowed/forbidden scope 与 acceptance。不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay、MASTER_SWITCH 或 24h stability；24h `rss_bounded` 继续独立跟踪。
 
 ## 5. Next Task
 
-执行 RF-NORM-01 Phase B：将显式 Normalize plan 接入 GStreamer per-plane source→normalize→caps→selector 链，并在 selector boundary 产生真实 caps evidence；保持 FrameSwitch 唯一可执行 policy，MASTER_SWITCH 继续 fail-closed。先完成 simulation/software acceptance，再跑 CI，最后用 exact commit 做 BMD 双输入 acceptance。
+Reconcile the frozen SwitchPolicy / MASTER_SWITCH boundary and select exactly one bounded Runtime Features packet. Read the A2-1 policy, current switch execution, RH-CLOCK-01 evidence and RF-NORM-01 Phase B evidence; then freeze the packet's authority, allowed/forbidden scope, implementation files and acceptance. Do not enable MASTER_SWITCH or start Network Source, Hot-Standby, Recording/Replay or Output expansion before that plan is frozen.
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -703,7 +719,8 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-FF-01F** | **COMPLETE（§3.31·2026-09-18）** | Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery | RF-FF-01E | neutral monitor no GStreamer evidence；canonical observe→Supervisor→lease recheck→recover；cancellable lifecycle；CI `35356652348` 7/7；BMD kill/recover/new child + teardown/no orphan |
 | **RF-FF-02** | **COMPLETE（§3.34·2026-09-18）** | FFmpeg 单输入 Egress / Output 生命周期（现有 Hls/Rtmp OutputPlan） | RF-FF-01F + §3.33 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35375536871` 7/7；BMD exact HLS/recovery/teardown；output device 2 untouched |
 | **RF-FF-03** | **COMPLETE（§3.36·2026-09-18）** | FFmpeg 单输入 RTMP egress / loopback receiver recovery | RF-FF-02 + §3.35 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35379282990` 7/7；BMD sender/receiver h264+aac、recovery、teardown；output device 2 untouched |
-| **RF-NORM-01** | **ACTIVE / PHASE B（§3.40·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A 5/5 + default 269/269 + CI `35389637837` 7/7；Phase B exact target caps/elements + simulation；再 CI 7/7；exact-commit BMD dual-input acceptance；output device 2 untouched |
+| **RF-NORM-01** | **COMPLETE（§3.41·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A 5/5；Phase B 269/269、CI `35393863201` 7/7、BMD exact dual-input 11/11；L2c exact V+A；warnings 已登记；output device 2 untouched |
+| **RUNTIME-FEATURES-NEXT** | **ACTIVE / PLAN REQUIRED（§3.41·2026-09-18）** | 复核 canonical SwitchPolicy/MASTER_SWITCH boundary，选择并冻结一个 bounded Runtime Features packet；计划冻结前不实现 | RF-NORM-01 + RH-CLOCK-01 + RF-FF slices | Authority、allowed/forbidden scope、implementation files、software/CI/hardware acceptance 全部写入 plan；不得越界启用 MASTER_SWITCH/Network/Output expansion |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -726,7 +743,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.38/§4–§5；RH-CLOCK-01 plan/report；`CLOCK_TIMECODE_CONTRACT.md`；D11/D13 debt record；`clock.rs` / `timecode.rs` canonical observation types。RH-CLOCK-01 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前回到下一 bounded packet selection。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.41/§4–§5；A2-1 SwitchPolicy design/verify；RH-CLOCK-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；`CLOCK_TIMECODE_CONTRACT.md`；D11/D13 debt record；当前 switch execution 与 `switch_graph.rs` Normalize evidence path。RH-CLOCK-01 与 RF-NORM-01 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前回到下一 bounded packet selection。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -861,7 +878,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.38/§4–§5；
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = Next bounded Runtime Features packet selection — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.36/§4–§5 + RF-FF-02/RF-FF-03 plan/evidence + RF-FF-01F report/evidence + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
+6. 读取 **Current Task = Next bounded Runtime Features packet selection — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.41/§4–§5 + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
 8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03 与对应 adjudication 已 COMPLETE；当前没有 READY packet，必须先完成下一 bounded packet selection；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
@@ -880,6 +897,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.38/§4–§5；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS 与 RF-FF-03 RTMP 单输入 egress/recovery 已完成（§3.25–§3.36）；当前只允许先选择下一 bounded packet，不能越界推进 Network Source/Program multi-input**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B 已完成（§3.25–§3.41）；当前只允许先选择下一 bounded packet，不能越界推进 Network Source/Program multi-input 或 MASTER_SWITCH**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。

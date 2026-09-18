@@ -1,0 +1,3 @@
+c25b146df2bc8391607c4940a392c9ae20b2f00b61896c5a95bfc5451b840444  /tmp/vbmf-rf-norm-01-cb14014/services/media-agent/target/debug/media-agent-gates
+7521d17e7fd02e50eb2b0a84374a43dd  /home/lytv/a2-8-02i-v5.manifest.json
+ 992634 Sl   gst-launch-1.0 -e videotestsrc is-live=true pattern=ball ! video/x-raw,format=UYVY,width=1920,height=1080,framerate=25/1 ! decklinkvideosink device-number=2 mode=1080p25
