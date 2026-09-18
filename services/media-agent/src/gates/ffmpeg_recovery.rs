@@ -370,8 +370,7 @@ fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
     }
     let state = composition.manager.runtime_state();
     if state.resources.iter().any(|resource| {
-        resource.owner == crate::source::ResourceOwner::Network(source_id)
-            && resource.state != ResourceState::Available
+        resource.capability == "rtmp-input" && resource.state != ResourceState::Available
     }) {
         fail("RTMP source Resource remains claimed after teardown");
     }
@@ -500,11 +499,10 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
             device_id: target_id.to_string(),
             role: "CAPTURE".into(),
             pipeline: crate::graph_intent::PipelineIntent {
-                source: crate::graph_intent::SourceIntent {
-                    kind: "decklink".into(),
-                    device_id: target_id.to_string(),
-                    port_id: Some(port_id.to_string()),
-                },
+                source: crate::graph_intent::SourceIntent::decklink(
+                    target_id.to_string(),
+                    Some(port_id.to_string()),
+                ),
                 sink: crate::graph_intent::SinkIntent {
                     kind: if output_mode {
                         "hls"

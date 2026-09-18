@@ -84,11 +84,10 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
             device_id: target_id.to_string(),
             role: "CAPTURE".into(),
             pipeline: crate::graph_intent::PipelineIntent {
-                source: crate::graph_intent::SourceIntent {
-                    kind: "decklink".into(),
-                    device_id: target_id.to_string(),
-                    port_id: Some(port_id.to_string()),
-                },
+                source: crate::graph_intent::SourceIntent::decklink(
+                    target_id.to_string(),
+                    Some(port_id.to_string()),
+                ),
                 sink: crate::graph_intent::SinkIntent {
                     kind: "appsink".into(),
                 },
