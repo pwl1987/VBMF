@@ -76,7 +76,7 @@ simulation = []
 # 规范名 (C1 Phase 0.6):
 bmd-provider = ["dep:bindgen"]
 gstreamer-backend = ["dep:gstreamer", "dep:gstreamer-app", "dep:glib"]
-# Live FFmpeg backend: std::process lifecycle only; no Rust FFmpeg binding dependency.
+# Live FFmpeg backend: std::process-owned SelfTest + authorized DeckLink input; no Rust FFmpeg binding dependency.
 ffmpeg-backend = []
 # 兼容别名: 盒上旧命令 `--features bmd,gstreamer` 仍可用 (Phase 0.6 迁移期).
 bmd = ["bmd-provider"]

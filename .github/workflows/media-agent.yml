@@ -360,6 +360,9 @@ jobs:
       - name: build --features hardware-test (bindgen parse + FFI compile)
         if: runner.environment == 'self-hosted'
         run: cargo build --features hardware-test
+      - name: compile tests --features bmd-provider,ffmpeg-backend
+        if: runner.environment == 'self-hosted'
+        run: cargo test --no-run --features bmd-provider,ffmpeg-backend
       # CARGO_TARGET_DIR redirect moves outputs outside the checkout and
       # upload-artifact v4 rejects '..' in path patterns — stage copies into
       # the workspace first (P2-E3 D5 pattern).

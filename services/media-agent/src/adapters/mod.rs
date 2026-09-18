@@ -13,6 +13,18 @@ pub(crate) fn build_process_media_backend(
 ) -> std::sync::Arc<dyn crate::contracts::backend::MediaBackend> {
     std::sync::Arc::new(ffmpeg::FFmpegBackend::new())
 }
+
+/// RF-FF-01C: construct the process backend from an already-authorized provisioning
+/// manifest plus live Provider identity. Concrete FFmpeg binding types stay in this layer.
+#[cfg(feature = "ffmpeg-backend")]
+pub(crate) fn build_process_media_backend_with_manifest(
+    discovered: &[crate::contracts::provider::DiscoveredDevice],
+    manifest: &crate::resolver::DeviceBindingManifest,
+) -> Result<std::sync::Arc<dyn crate::contracts::backend::MediaBackend>, String> {
+    Ok(std::sync::Arc::new(
+        ffmpeg::FFmpegBackend::with_authorized_manifest(discovered, manifest)?,
+    ))
+}
 pub mod gstreamer;
 #[cfg(feature = "mock")]
 pub mod mock; // C3: 纯 Rust Mock Provider/Backend (无 BMD/无 GStreamer), 解锁 ARCH-PORTABILITY-01 Mock 侧.

@@ -138,6 +138,17 @@ impl AdapterRegistry {
         Ok(crate::adapters::build_process_media_backend())
     }
 
+    /// RF-FF-01C production/hardware constructor: the registry stays vendor-neutral;
+    /// the adapter layer converts authorized Provider identity into its private FFmpeg binding view.
+    #[cfg(feature = "ffmpeg-backend")]
+    pub fn build_ffmpeg_backend_with_manifest(
+        discovered: &[crate::contracts::provider::DiscoveredDevice],
+        manifest: &crate::resolver::DeviceBindingManifest,
+    ) -> Result<Arc<dyn MediaBackend>, String> {
+        ensure_adapter_selection_safe()?;
+        crate::adapters::build_process_media_backend_with_manifest(discovered, manifest)
+    }
+
     /// 选择并构造 `HardwareProvider`。各实现返回相同 `Result<Vec<DiscoveredDevice>>` 契约。
     ///
     /// 优先级(高→低): `mock` > `simulation` > `bmd-provider` > `default`(filesystem)。
