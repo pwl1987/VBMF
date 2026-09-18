@@ -1,0 +1,18 @@
+RF-FF-01C — FFmpeg Resolved RuntimeBinding + single-input DeckLink parity
+date=2026-09-18
+runtime_commit=ffee3a057d7d4bebde26a7bf9a6294501047a021
+archive_sha256=384d798791174bc851116202f401d8b41ff82dabdee24e910ce59c0da90022e7
+bmd_host=10.30.15.10
+manifest=/home/lytv/a2-8-02i-v5.manifest.json
+target_device_handle=46:00000000:002e4500
+direct_frame_probe=50 frames / 2.00s / 25fps / rc=0
+detected_mode=1920x1080 25.00 interlaced
+audio=pcm_s16le 48000Hz stereo
+vbmf_backend_lifecycle=start -> observe -> recover -> observe -> stop
+vbmf_backend_test=1 passed / 0 failed
+ffmpeg_leftover=NONE
+historical_output_device_2_pid_before=992634
+historical_output_device_2_pid_after=992634
+github_actions_run=35339165383
+github_actions_required_jobs=7/7 success
+verification=BMD HARDWARE VERIFIED for RF-FF-01C exact runtime commit
