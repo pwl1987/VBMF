@@ -1,0 +1,21 @@
+RF-FF-02 BMD evidence
+Date: 2026-09-18 UTC
+Source commit: a2715b3 (main)
+BMD archive root: /tmp/vbmf-rf-ff-02-a2715b3
+Build features: bmd-provider,ffmpeg-backend
+Build env: DECKLINK_SDK_INCLUDE=/home/lytv/decklink-sdk-include; LIBCLANG_PATH=/usr/lib/llvm-21/lib
+Binary: target/release/media-agent-gates
+Manifest: /home/lytv/a2-8-02i-v5.manifest.json
+Manifest MD5: 7521d17e7fd02e50eb2b0a84374a43dd
+Exact target DeviceHandle: 46:00000000:002e4500
+Target manifest device-number: 0 (input)
+Other manifest input device-number: 1 (not touched)
+Output device-number: 2 (not touched)
+Gate env: VBMF_FFMPEG_OUTPUT=1
+HLS output dir: /tmp/rf-ff-02-hls-a2715b3
+HLS evidence: index.m3u8 + seg00000.ts; codecs h264,aac
+Recovery evidence: old_pid=3400656; new_pid=3400805
+Pre-fix diagnosis: ae8a2ce rejected FFmpeg audio bitrate `128000b`; fixed in a2715b3 to pass `128000` bit/s.
+Teardown: Released; Resource Available; Lease NONE; monitor exited; FFmpeg orphan NONE
+Final marker: RF_FF_02_BMD_OUTPUT_RECOVERY_PASS
+Stale /opt/vbmf-dev/repo: unused
