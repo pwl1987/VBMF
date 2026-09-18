@@ -628,15 +628,28 @@ Status: **COMPLETE / SOFTWARE VERIFIED**。
 - Scope：GraphIntent/wire/Session/Resource/Lease/Backend/provider/BMD path 零改动；本包不需要新的 BMD hardware acceptance；clock/timecode hardware probe 仍 NOT IMPLEMENTED/NOT VERIFIED。
 - Evidence：`docs/superpowers/reports/2026-09-18-rh-clock-01-verify.md`。
 
+## 3.39 RF-NORM-01 packet selection（2026-09-18）
+
+Status: **READY / PLAN FROZEN；IMPLEMENTATION NEXT**。
+
+- 候选裁决：Network Source、PACKET/MASTER、Hot-Standby、Recording/Replay、SRS/Output 仍分别受 source/switch/normalize/external ownership 依赖；直接推进会越过当前边界。
+- 唯一 READY 包：`RF-NORM-01`——显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane execution/evidence。
+- Live comprehension：`normalize.rs` 目前是纯 Raw→Canonical 描述层；`TimelinePolicy`/`program_timeline.rs` 是时间线映射层；Program GStreamer graph 仍是 raw branch→selector，FrameSwitch 是唯一可执行 switch policy，Packet/Master fail-closed。
+- 初始 bounded target 沿用既有 SDI acceptance shape：video I420 1920×1080 25/1 interleaved；audio S16LE 2ch 48000Hz。该 target 必须显式传入，缺失不得默认。
+- Scope：先建立 typed target/plan/evidence，再物化 GStreamer Normalize chain；不启用 MASTER_SWITCH，不改 FFmpeg/Network/Output/Session/Resource/Lease/Clock/Flow/Idem/24h。
+- Plan：`docs/superpowers/specs/2026-09-18-rf-norm-01-normalize-execution.md`。
+- Hardware boundary：因触及 canonical GStreamer graph，软件与 CI 全绿后必须用 exact commit 做 BMD 双输入 acceptance；output device-number 2 保持 untouched。
+
 ## 4. Current Task
 
-**Next bounded Runtime Features packet selection — PLAN REQUIRED**
+**RF-NORM-01 — explicit RAW Normalize execution — IMPLEMENTATION READY**
 
-RH-CLOCK-01 已完成并经软件/CI adjudication 接受（§3.38）。下一步必须重新比较候选、确认依赖/touch-gate/验收并冻结唯一 READY 包；不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
+RH-CLOCK-01 已完成并经软件/CI adjudication 接受（§3.38）。候选比较已完成并在 §3.39 冻结唯一 READY 包；下一步进入 RF-NORM-01 Phase A。不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
 
 ## 5. Next Task
 
-重新完成下一 bounded packet 的候选比较与计划冻结；当前不允许直接实施 BACKLOG 项。
+执行 RF-NORM-01 Phase A：加入显式 target/plan/evidence 的最小 typed domain 与 failure-first 测试；不得在 target 缺失时引入默认值，不得提前启用 MASTER_SWITCH。完成 Phase A 软件验证后再进入 GStreamer chain。
+
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -679,6 +692,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-FF-01F** | **COMPLETE（§3.31·2026-09-18）** | Backend-neutral canonical event/recovery monitor extraction + FFmpeg failure-first recovery | RF-FF-01E | neutral monitor no GStreamer evidence；canonical observe→Supervisor→lease recheck→recover；cancellable lifecycle；CI `35356652348` 7/7；BMD kill/recover/new child + teardown/no orphan |
 | **RF-FF-02** | **COMPLETE（§3.34·2026-09-18）** | FFmpeg 单输入 Egress / Output 生命周期（现有 Hls/Rtmp OutputPlan） | RF-FF-01F + §3.33 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35375536871` 7/7；BMD exact HLS/recovery/teardown；output device 2 untouched |
 | **RF-FF-03** | **COMPLETE（§3.36·2026-09-18）** | FFmpeg 单输入 RTMP egress / loopback receiver recovery | RF-FF-02 + §3.35 | focused 4/4；ffmpeg 282+1 ignored；default/simulation 261/261；mock 446+9/9+12/12；CI `35379282990` 7/7；BMD sender/receiver h264+aac、recovery、teardown；output device 2 untouched |
+| **RF-NORM-01** | **READY / PLAN FROZEN（§3.39·2026-09-18）** | 显式 Program RAW target + backend-neutral Normalize execution contract + bounded GStreamer per-plane chain/evidence；不启用 MASTER_SWITCH | RF-ENTRY-01 + current FrameSwitch/GStreamer path | Phase A typed target/plan/evidence + failure-first；Phase B exact target caps/elements + simulation；CI 7/7；exact-commit BMD dual-input acceptance；output device 2 untouched |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |

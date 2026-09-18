@@ -52,6 +52,7 @@ pub mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
 pub mod idempotency; // P0.7C-4: Idempotency (D9-A~E: 同一命令语义 + 原子 claim + replay/conflict)
 pub mod lease;
 pub mod normalize; // P0.7B-1: Normalize Foundation — Raw → CanonicalMediaDescriptor (纯函数)
+pub mod normalize_execution; // RF-NORM-01: explicit RAW target/plan/evidence domain
 pub mod pipeline;
 pub mod pipeline_events; // C7: 中性共享事件/健康类型模块 (不依赖 gstreamer crate)
 pub mod port; // 五层模型: Device → Port → Capability → Runtime Binding → Signal
