@@ -1258,7 +1258,8 @@ impl GStreamerSwitchAdapter {
             let graphs = self.graphs.lock().unwrap();
             graphs.get(graph)?.normalize_evidence.clone()
         }?;
-        Some(*evidence.lock().unwrap())
+        let snapshot = *evidence.lock().unwrap();
+        Some(snapshot)
     }
 }
 
