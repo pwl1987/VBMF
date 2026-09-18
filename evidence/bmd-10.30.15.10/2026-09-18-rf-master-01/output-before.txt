@@ -1,0 +1,2 @@
+992634 gst-launch-1.0 -e videotestsrc is-live=true pattern=ball ! video/x-raw,format=UYVY,width=1920,height=1080,framerate=25/1 ! decklinkvideosink device-number=2 mode=1080p25
+3424234 bash -c rm -rf /tmp/vbmf-rf-master-01-9981273 && mkdir -p /tmp/vbmf-rf-master-01-9981273 && pgrep -af decklinkvideosink > /tmp/vbmf-rf-master-01-before-output.txt && cat /tmp/vbmf-rf-master-01-before-output.txt
