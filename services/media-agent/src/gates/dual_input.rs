@@ -523,9 +523,10 @@ pub fn run(
             finish(&verdicts, "L2 ExecutionGroup fail-stop——L2b-L5 不执行");
         }
     };
-    let switcher: Arc<dyn SwitchExecutionAdapter> = Arc::new(
+    let gstreamer_switcher = Arc::new(
         crate::adapters::gstreamer::GStreamerSwitchAdapter::bridged_with_normalize(rf_norm_plan()),
     );
+    let switcher: Arc<dyn SwitchExecutionAdapter> = gstreamer_switcher.clone();
     let tap_wirings: Vec<crate::program_execution::TapWiring> = started_inputs
         .iter()
         .map(crate::program_execution::TapWiring::for_input)
@@ -602,6 +603,27 @@ pub fn run(
         // H1 fail-stop（§三链）: L2b 失败 → 完整 Teardown 后终裁, 不进入 L3-L5。
         teardown(&mut verdicts);
         finish(&verdicts, "L2b fail-stop——L3-L5 不执行（H1）");
+    }
+
+    // RF-NORM-01 Phase B: selector 边界必须真实观察到精确双平面目标；
+    // 仅有 program 帧计数不等价于 Normalize 完成。
+    let normalize_evidence = gstreamer_switcher.normalize_evidence(&graph);
+    let (l2c, l2c_detail) = match normalize_evidence {
+        Some(evidence) => (
+            evidence.complete(),
+            format!(
+                "video={:?} audio={:?} complete={}",
+                evidence.video,
+                evidence.audio,
+                evidence.complete()
+            ),
+        ),
+        None => (false, "normalize evidence unavailable".to_string()),
+    };
+    record(&mut verdicts, "L2c RF-NORM-01 exact V+A", l2c, l2c_detail);
+    if !l2c {
+        teardown(&mut verdicts);
+        finish(&verdicts, "L2c fail-stop——Normalize 证据不足, L3-L5 不执行");
     }
 
     // ── L3: Output（帧计数与 PTS 真实增长——非 PLAYING 态）──
