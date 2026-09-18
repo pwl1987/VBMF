@@ -43,34 +43,28 @@ fn hls_evidence(dir: &Path) -> Result<(), String> {
                 .is_some_and(|name| name.starts_with("seg") && name.ends_with(".ts"))
         })
         .ok_or_else(|| format!("{} has no seg*.ts HLS segment", dir.display()))?;
-    let probe = Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "stream=codec_name",
-            "-of",
-            "csv=p=0",
-        ])
-        .arg(&segment)
-        .output()
-        .map_err(|e| format!("ffprobe {}: {e}", segment.display()))?;
-    if !probe.status.success() {
-        return Err(format!(
-            "ffprobe {} exited with {}: {}",
-            segment.display(),
-            probe.status,
-            String::from_utf8_lossy(&probe.stderr).trim()
-        ));
-    }
-    let codecs = String::from_utf8_lossy(&probe.stdout);
-    for required in ["h264", "aac"] {
-        if !codecs.lines().any(|line| line.trim() == required) {
+    for (stream, codec_label) in [("0:v:0", "Video: h264"), ("0:a:0", "Audio: aac")] {
+        let probe = Command::new("ffmpeg")
+            .args(["-hide_banner", "-loglevel", "info", "-i"])
+            .arg(&segment)
+            .args(["-map", stream, "-f", "null", "-"])
+            .output()
+            .map_err(|e| format!("ffmpeg probe {}: {e}", segment.display()))?;
+        let diagnostics = String::from_utf8_lossy(&probe.stderr);
+        if !probe.status.success() {
             return Err(format!(
-                "{} codec missing from {}: {:?}",
-                required,
+                "ffmpeg probe {} exited with {}: {}",
                 segment.display(),
-                codecs.trim()
+                probe.status,
+                diagnostics.trim()
+            ));
+        }
+        if !diagnostics.contains(codec_label) {
+            return Err(format!(
+                "{} missing from {}: {:?}",
+                codec_label,
+                segment.display(),
+                diagnostics.trim()
             ));
         }
     }
