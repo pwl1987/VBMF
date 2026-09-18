@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + adjudication COMPLETE；RH-CLOCK-01 READY / PLAN FROZEN**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 COMPLETE；当前 Next bounded Runtime Features packet selection PLAN REQUIRED**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -616,15 +616,27 @@ Status: **READY / PLAN FROZEN**。
 - Acceptance：`Locked → ClockLost → ClockRecovered` timeline；容量满显式失败且不静默丢事件；非法 transitional timecode 在 debug/release 均 fail-closed；focused/default/release/mock/simulation/format/clippy/architecture/diff + CI 7/7。
 - Hardware boundary：不触碰 provider/backend/DeckLink path，本包不新增 BMD hardware claim；clock/timecode hardware probe 仍 NOT IMPLEMENTED/NOT VERIFIED。
 
+## 3.38 RH-CLOCK-01 收口（2026-09-18）
+
+Status: **COMPLETE / SOFTWARE VERIFIED**。
+
+- Implementation：exact `6433afb63f73cc28a9fe14390d0152210e961466`；仅 `clock.rs` / `timecode.rs` 改动。
+- D11：bounded append-only Clock observation timeline；`Locked → ClockLost → ClockRecovered` 顺序与容量溢出 fail-closed 均通过。
+- D13：`observe_transitional` 非法 presence 改为 Result；debug/release 均 fail-closed，合法 Discontinuous/Recovered observation 与零 action 语义保持。
+- Software：focused Clock 2/2 + Timecode 1/1；debug default 264/264；simulation 264/264；mock 449/449 + 9/9 + 12/12；release focused 2/2 + 1/1；release default 264/264；fmt/clippy/architecture/remove-adapters/diff-check PASS。
+- CI：Actions `35387811774`，7/7 required contexts PASS。
+- Scope：GraphIntent/wire/Session/Resource/Lease/Backend/provider/BMD path 零改动；本包不需要新的 BMD hardware acceptance；clock/timecode hardware probe 仍 NOT IMPLEMENTED/NOT VERIFIED。
+- Evidence：`docs/superpowers/reports/2026-09-18-rh-clock-01-verify.md`。
+
 ## 4. Current Task
 
-**RH-CLOCK-01 — D11 Clock observation timeline + D13 timecode release-build hardening（READY / PLAN FROZEN）**
+**Next bounded Runtime Features packet selection — PLAN REQUIRED**
 
-RF-FF-03 已完成并经 adjudication 接受（§3.36）。下一执行包已冻结为 RH-CLOCK-01；必须严格按 §3.37 plan 实施，完成软件验证、CI 与 STATE/GitHub sync 后才能转 COMPLETE。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
+RH-CLOCK-01 已完成并经软件/CI adjudication 接受（§3.38）。下一步必须重新比较候选、确认依赖/touch-gate/验收并冻结唯一 READY 包；不得从历史 roadmap 自行推进 Network Source、multi-input、SRS/Recording/Replay 或 24h stability。24h `rss_bounded` 稳定性债务继续独立跟踪，不得被本包裁决覆盖。
 
 ## 5. Next Task
 
-实施 RH-CLOCK-01：先完成 canonical Clock/Timecode 代码与 focused tests，再运行 release/default/full software matrix；不得越过 §3.37 forbidden scope。
+重新完成下一 bounded packet 的候选比较与计划冻结；当前不允许直接实施 BACKLOG 项。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -654,7 +666,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RH-LC-01** | **COMPLETE（§3.22·2026-09-18）** | D1 LifecycleJournal / reverse rollback engine | RH-BUS closure | `CompletedStep[]` + 单一 rollback；mock 429/429 + default 246/246 + integration 9/9+12/12；CI `35279581145` 7/7；BMD smoke deferred |
 | **RH-RES-01A** | **COMPLETE（§3.23·2026-09-18）** | D3 per-claim Reservation TTL + Renew/Expire/Abort lifecycle | RH-LC-01 | Resource 7/7 + Session 6/6；mock 432/432 + 9/9 + 12/12；default 248/248；CI `35293309933` 7/7；BMD not required |
 | **RH-RES-01B** | **COMPLETE（§3.24·2026-09-18）** | D7 backend `OnceLock`→direct field | RH-RES-01A | one-file +5/-19；set_backend caller=0；mock 433/433 + 9/9+12/12；default 249/249；CI `35293860197` 7/7 |
-| **RH-CLOCK-01** | **READY / PLAN FROZEN（§3.37·2026-09-18）** | D11 Clock observation timeline + D13 timecode release-build hardening | Clock/Timecode feature entry | Locked→Lost→Recovered 事件序列；release fail-closed；plan=`docs/superpowers/specs/2026-09-18-rh-clock-01-clock-timeline-timecode-release-hardening.md` |
+| **RH-CLOCK-01** | **COMPLETE（§3.38·2026-09-18）** | D11 Clock observation timeline + D13 timecode release-build hardening | Clock/Timecode feature entry | Locked→Lost→Recovered；release fail-closed；software/CI verified；report=`docs/superpowers/reports/2026-09-18-rh-clock-01-verify.md` |
 | **RH-FLOW-01** | **BACKLOG / DEFER-UNTIL-TOUCH** | D15 explicit media-flow cardinality | multi-flow Audio/Metadata entry | PortId≠flow；0/1/N flow contract/tests |
 | **RH-IDEM-01** | **BACKLOG / DEFER-UNTIL-CONTROL-PLANE** | durable idempotency | persistent external command entry | restart/replay/conflict durability；Runtime remains truth |
 | **RUNTIME-FEATURES** | **ACTIVE / DECOMPOSED（§3.25）** | Network Sources、PACKET/MASTER、Hot-Standby、Live FFmpeg、SRS/Output、Recording/Replay、Composition/Audio execution | immediate hardening gates complete | 只执行 bounded packet；先修 frozen Backend contract 的 RuntimeBinding 实现漂移 |
@@ -689,7 +701,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.37/§4–§5；RH-CLOCK-01 plan；`CLOCK_TIMECODE_CONTRACT.md`；D11/D13 debt record；`clock.rs` / `timecode.rs` canonical observation types。RF-FF-03 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前只实施 RH-CLOCK-01。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.38/§4–§5；RH-CLOCK-01 plan/report；`CLOCK_TIMECODE_CONTRACT.md`；D11/D13 debt record；`clock.rs` / `timecode.rs` canonical observation types。RH-CLOCK-01 已完成且不扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、Network Source/Program multi-input；当前回到下一 bounded packet selection。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 

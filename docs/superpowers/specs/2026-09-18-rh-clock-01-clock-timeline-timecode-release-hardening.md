@@ -52,3 +52,15 @@
 ## 6. Exit criteria
 
 只有同时满足实现、软件矩阵、CI、diff 复核和 STATE/GitHub sync，`RH-CLOCK-01` 才能从 READY 转 COMPLETE。若实现发现 timeline 所需契约超出上述 canonical observation 边界，立即停回 PLAN REQUIRED，不得临时扩 scope。
+## 7. Verification result
+
+Status: **COMPLETE / SOFTWARE VERIFIED（2026-09-18）**。
+
+- Implementation commit: `6433afb63f73cc28a9fe14390d0152210e961466`。
+- Focused: Clock timeline 2/2；Timecode release-hardening 1/1。
+- Debug full default: 264/264；simulation: 264/264；mock: 449/449 + integration 9/9 + 12/12。
+- Release: focused Clock 2/2 + Timecode 1/1；full default 264/264。
+- `cargo fmt -- --check`、clippy `-D warnings`、architecture portability、remove-adapters、`git diff --check` 全部 PASS。
+- GitHub Actions run `35387811774`：7/7 required contexts PASS。
+- Scope audit：仅 `clock.rs` / `timecode.rs` 改动；Graph/wire/Session/Resource/Lease/Backend/provider/BMD path 零改动。
+- Hardware boundary：本包未触碰 provider/backend/DeckLink path，BMD hardware acceptance **NOT REQUIRED BY SCOPE**；clock/timecode hardware probe 仍 NOT IMPLEMENTED/NOT VERIFIED。
