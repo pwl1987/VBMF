@@ -1253,7 +1253,7 @@ impl GStreamerSwitchAdapter {
     }
 
     /// RF-NORM-01: 读取 selector 边界的真实双平面 caps 证据。
-    pub(crate) fn normalize_evidence(&self, graph: &PipelineHandle) -> Option<NormalizeEvidence> {
+    pub fn normalize_evidence(&self, graph: &PipelineHandle) -> Option<NormalizeEvidence> {
         let evidence = {
             let graphs = self.graphs.lock().unwrap();
             graphs.get(graph)?.normalize_evidence.clone()
