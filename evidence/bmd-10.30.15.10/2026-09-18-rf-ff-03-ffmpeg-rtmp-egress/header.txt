@@ -1,0 +1,27 @@
+RF-FF-03 BMD evidence
+Date: 2026-09-18
+Source commit: c03976d
+Source archive sha256 (git archive): 24e4b5abc7000e4ab962e2e68ba0f54275c56c00da2cae01d339a24426073007
+BMD build root: /tmp/vbmf-rf-ff-03-c03976d
+BMD binary: target/release/media-agent-gates
+BMD binary sha256: 2b8beacb6bf15d05a8f11174ce919bd1213a499cf0a22b6d8a813ef32bc7ecaa
+Build env: DECKLINK_SDK_INCLUDE=/home/lytv/decklink-sdk-include
+Build env: LIBCLANG_PATH=/usr/lib/llvm-21/lib
+Manifest: /home/lytv/a2-8-02i-v5.manifest.json
+Manifest md5: 7521d17e7fd02e50eb2b0a84374a43dd
+Target handle: 46:00000000:002e4500
+Target manifest gst_device_number: 0
+Other input handle: 46:00000000:002e4400 / gst_device_number 1
+Output gst_device_number 2: not present and not touched
+FFmpeg output URL: rtmp://127.0.0.1:19350/live/rf-ff-03
+Receiver fixture: same BMD FFmpeg build, -rtmp_listen 1, loopback only
+Initial producer PID: 3403465
+Recovered producer PID: 3403611
+Gate result: RF_FF_03_BMD_RTMP_OUTPUT_RECOVERY_PASS
+Initial receiver: h264/aac PASS
+Recovered receiver: h264/aac PASS
+Teardown: Released / Resource Available / Lease NONE / monitor exited / ffmpeg_orphan NONE
+Post-gate exact media-agent-gates and ffmpeg process check: none
+Post-gate TCP 19350 listener check: none
+Stale /opt/vbmf-dev/repo: unused
+Non-claims: no SRS ownership, external RTMP server, Network Source, multi-output, multi-input, Recording/Replay, Clock/FLOW/IDEM expansion, or 24h rss_bounded stability claim.
