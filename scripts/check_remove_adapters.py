@@ -4,7 +4,7 @@
 与 `check_arch_portability.py` (Architecture **Lint**, 词法层防回渗) 互补:
 本脚本是 Architecture **Proof** —— 结构层真实验证:
 
-    真实移除 adapters/blackmagic + adapters/gstreamer 目录
+    真实移除 adapters/blackmagic + adapters/gstreamer + adapters/ffmpeg concrete adapters
       → 修补 mod.rs / 双 bin 引用
       → cargo check (simulation / mock, 无厂商 feature)
     ⇒ 证明 Domain / Contracts / Runtime 层不依赖任何 concrete adapter。
@@ -25,6 +25,7 @@ MINIMAL_PATCHES: dict[str, list[tuple[str, str]]] = {
     # 移除两个 adapter 目录后的最小引用修补 (精确到唯一匹配, 多处匹配即失败 → 保持诚实)
     "src/adapters/mod.rs": [
         ("pub mod blackmagic;\n", ""),
+        ('#[cfg(feature = "ffmpeg-backend")]\npub mod ffmpeg;\n', ""),
         ("pub mod gstreamer;\n", ""),
     ],
 }
@@ -71,12 +72,16 @@ def check_crate(crate: Path, cargo: str, features: list[str]) -> None:
     work = tmp / "media-agent"
     try:
         shutil.copytree(crate, work, ignore=shutil.ignore_patterns("target", ".cargo"))
-        # 1. 真删两个 concrete adapter 目录
+        # 1. 真删 concrete adapters（目录 + 单文件）
         for sub in ("blackmagic", "gstreamer"):
             d = work / "src" / "adapters" / sub
             if not d.is_dir():
                 raise RuntimeError(f"expected adapter dir missing in copy: {sub}")
             shutil.rmtree(d)
+        ffmpeg_rs = work / "src" / "adapters" / "ffmpeg.rs"
+        if not ffmpeg_rs.is_file():
+            raise RuntimeError("expected adapter file missing in copy: ffmpeg.rs")
+        ffmpeg_rs.unlink()
         # 2. 最小引用修补 (mod 声明)
         for rel, patches in MINIMAL_PATCHES.items():
             f = work / rel

@@ -3,6 +3,8 @@
 //! 仅此目录下的子模块允许引用 vendor crate (`decklink` / `gstreamer`) 顶层。
 //! Domain / Contract / Runtime 层不得直接 `use decklink::` / `use gstreamer::`。
 pub mod blackmagic;
+#[cfg(feature = "ffmpeg-backend")]
+pub mod ffmpeg;
 pub mod gstreamer;
 #[cfg(feature = "mock")]
 pub mod mock; // C3: 纯 Rust Mock Provider/Backend (无 BMD/无 GStreamer), 解锁 ARCH-PORTABILITY-01 Mock 侧.

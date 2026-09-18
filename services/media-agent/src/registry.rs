@@ -6,7 +6,7 @@
 //!
 //! 选择优先级(与 C2c 接线一致):
 //! - HardwareProvider: `mock` > `simulation` > `bmd-provider` > `default`(filesystem)。
-//! - MediaBackend:     `mock` > `gstreamer-backend`。
+//! - MediaBackend:     `mock` > `gstreamer-backend | ffmpeg-backend`（真实 backend 单选）。
 //!
 //! **P0-4 fail-closed**: `mock` 与真实实现 (`bmd-provider`/`gstreamer-backend`) 同时编译时,
 //! **生产模式**下不得静默按优先级取 Mock (历史部署事故来源) —— 构造函数返回 `Err`,
@@ -17,11 +17,17 @@
 
 use std::boxed::Box;
 
-#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+#[cfg(any(
+    feature = "ffmpeg-backend",
+    all(feature = "bmd-provider", feature = "gstreamer-backend")
+))]
 use crate::contracts::backend::MediaBackend;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use std::collections::HashMap;
-#[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
+#[cfg(any(
+    feature = "ffmpeg-backend",
+    all(feature = "bmd-provider", feature = "gstreamer-backend")
+))]
 use std::sync::Arc;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
 use uuid::Uuid;
@@ -32,6 +38,10 @@ use crate::contracts::provider::HardwareProvider;
 pub fn mock_real_conflict() -> Option<&'static str> {
     #[cfg(feature = "mock")]
     {
+        #[cfg(feature = "ffmpeg-backend")]
+        {
+            return Some("mock + ffmpeg-backend");
+        }
         #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
         {
             return Some("mock + bmd-provider + gstreamer-backend");
@@ -97,11 +107,17 @@ pub fn active_adapters() -> (&'static str, &'static str) {
     };
     let backend = if cfg!(all(
         feature = "mock",
-        any(feature = "bmd-provider", feature = "gstreamer-backend")
+        any(
+            feature = "bmd-provider",
+            feature = "gstreamer-backend",
+            feature = "ffmpeg-backend"
+        )
     )) {
         "mock"
     } else if cfg!(feature = "gstreamer-backend") {
         "gstreamer"
+    } else if cfg!(feature = "ffmpeg-backend") {
+        "ffmpeg"
     } else if cfg!(feature = "mock") {
         "mock"
     } else {
@@ -114,6 +130,14 @@ pub fn active_adapters() -> (&'static str, &'static str) {
 pub struct AdapterRegistry;
 
 impl AdapterRegistry {
+    /// RF-FF-01B: concrete FFmpeg backend constructor. This packet is SelfTest-only;
+    /// production main wiring / DeckLink parity remain explicitly out of scope.
+    #[cfg(feature = "ffmpeg-backend")]
+    pub fn build_ffmpeg_backend() -> Result<Arc<dyn MediaBackend>, String> {
+        ensure_adapter_selection_safe()?;
+        Ok(Arc::new(crate::adapters::ffmpeg::FFmpegBackend::new()))
+    }
+
     /// 选择并构造 `HardwareProvider`。各实现返回相同 `Result<Vec<DiscoveredDevice>>` 契约。
     ///
     /// 优先级(高→低): `mock` > `simulation` > `bmd-provider` > `default`(filesystem)。
@@ -238,6 +262,18 @@ pub struct MediaAdapterBundle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(all(feature = "ffmpeg-backend", not(feature = "mock")))]
+    #[test]
+    fn registry_rt_01_ffmpeg_backend_is_constructible_from_same_spi() {
+        let backend = AdapterRegistry::build_ffmpeg_backend().expect("ffmpeg backend");
+        let handle = backend
+            .instantiate(&crate::pipeline::PipelinePlan::self_test())
+            .expect("same canonical SelfTest plan");
+        assert!(handle.0 > 0);
+        backend.stop(&handle).expect("prepared instance cleanup");
+        assert_eq!(active_adapters().1, "ffmpeg");
+    }
 
     #[test]
     fn registry_fail_closed_gate_consistent_with_feature_set() {

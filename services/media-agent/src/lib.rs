@@ -23,6 +23,13 @@
 #[cfg(all(feature = "hardware-test", feature = "gstreamer-backend"))]
 compile_error!("hardware-test SDK 探针与 canonical GStreamer 运行时互斥; 生产运行不得同时启用 (避免双采/争用同一块 DeckLink)");
 
+// RF-FF-01B: GStreamer / FFmpeg 是同一 MediaBackend 替换轴；同一构建不得双选，
+// 避免组合根产生两个 backend truth/owner。
+#[cfg(all(feature = "gstreamer-backend", feature = "ffmpeg-backend"))]
+compile_error!(
+    "gstreamer-backend 与 ffmpeg-backend 属同一 MediaBackend 替换轴; 单一 Runtime 构建只能选择一个"
+);
+
 pub mod adapters;
 pub mod api_boundary; // P0.7C-7: External API Foundation (API Boundary Model + Idempotency 契约; 非 Web Server)
 pub mod audio; // P0.7B-2B: Canonical Audio Semantics (是什么, 非怎么处理)

@@ -160,7 +160,7 @@ jobs:
             mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR"
           fi
           cargo clippy --all-targets -- -D warnings
-      - name: Clippy (mock, -D warnings)
+      - name: Clippy (mock + ffmpeg-backend, -D warnings)
         env:
           RUNNER_ENV: ${{ runner.environment }}
         run: |
@@ -172,6 +172,7 @@ jobs:
             mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR"
           fi
           cargo clippy --all-targets --features mock -- -D warnings
+          cargo clippy --all-targets --features ffmpeg-backend -- -D warnings
       # bmd/gstreamer 组合 clippy 由盒上 (10.30.15.10) ACCEPTANCE 承担 —
       # CI 无 GStreamer dev / DeckLink SDK, 不重复。
 
@@ -282,6 +283,8 @@ jobs:
         run: cargo test --features simulation
       - name: Test (mock feature) — p06-hi gates (ARCH-BACKEND-01 Mock side + gate assertions)
         run: cargo test --features mock
+      - name: Test (ffmpeg-backend feature) — RF-FF-01B process lifecycle
+        run: cargo test --features ffmpeg-backend
       # CARGO_TARGET_DIR redirect moves the binary outside the checkout on
       # the self-hosted side, and upload-artifact v4 rejects '..' in path
       # patterns — copy the binary into the workspace first (brief D5).
