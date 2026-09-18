@@ -222,7 +222,8 @@ pub enum SessionError {
 pub struct SessionTuning {
     pub default_lease_ttl: Duration,
     pub lease_renew_window: Duration,
-    /// Reserved 相位最大停留时长 (超时 → 预留过期 + Terminated; crash-cleanup 近似)。
+    /// 每个 Resource claim 的 Reservation TTL（ms）。保留既有配置字段名，
+    /// RH-RES-01A 起语义由 Resource Registry per-claim TTL 持有，不再用 Session 创建时间近似。
     pub reservation_window_ms: u64,
 }
 
@@ -242,7 +243,6 @@ struct SessionInner {
     session: MediaSession,
     /// 资源/租约 holder (= session_id.0)。
     holder: Uuid,
-    created_at_ms: u64,
 }
 
 /// D1 (RH-LC-01): start() CompletedStep 日志 — 每完成一步即追加;
@@ -425,13 +425,12 @@ impl SessionManager {
                     created_at: Self::now_ms() as i64,
                 },
                 holder,
-                created_at_ms: Self::now_ms(),
             },
         );
 
         let cleanup = |mgr: &Self, sid: SessionId, holder: Uuid| {
-            // create 阶段回滚: 释放预留/全部租约 → 移除表项 (零孤儿)。
-            mgr.resources.release_reservations(holder);
+            // create 阶段 Abort: 撤销 holder 名下仍处 Reserved 的 claims，再释放租约并移除表项。
+            mgr.resources.abort_reservations_of(holder);
             if let Some(inner) = mgr.sessions.lock().unwrap().remove(&sid) {
                 for l in &inner.session.leases {
                     let _ = mgr.leases.release(l);
@@ -474,9 +473,11 @@ impl SessionManager {
                     holder: *holder,
                     ..claim.clone()
                 };
-                self.resources.acquire(&req).map_err(|e| {
-                    SessionError::ResourceConflict(format!("{}: {e}", claim.resource_id))
-                })?;
+                self.resources
+                    .acquire(&req, Self::now_ms(), self.tuning.reservation_window_ms)
+                    .map_err(|e| {
+                        SessionError::ResourceConflict(format!("{}: {e}", claim.resource_id))
+                    })?;
                 reserved.push(req);
             }
             let mut guard = self.sessions.lock().unwrap();
@@ -569,6 +570,34 @@ impl SessionManager {
             }
         }
         self.set_phase(session_id, SessionPhase::Binding)?;
+
+        // RH-RES-01A Renew: Binding 验证完成是一次真实进度点；在进入 Leased 前
+        // 原子续期本 Session 的全部 Reserved claims。若任一 claim 已不再由本 holder
+        // 持有，fail-closed，由 create() 外层 cleanup 执行 Abort + lease 回收。
+        let claim_ids: Vec<Uuid> = self
+            .sessions
+            .lock()
+            .unwrap()
+            .get(session_id)
+            .map(|i| {
+                i.session
+                    .resource_claims
+                    .iter()
+                    .map(|c| c.resource_id)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !self.resources.renew_claims(
+            *holder,
+            &claim_ids,
+            Self::now_ms(),
+            self.tuning.reservation_window_ms,
+        ) {
+            return Err(SessionError::ResourceConflict(
+                "reservation renew rejected (missing/wrong-holder/expired claim)".into(),
+            ));
+        }
+
         self.set_phase(session_id, SessionPhase::Leased)?;
         Ok(())
     }
@@ -864,7 +893,7 @@ impl SessionManager {
         if let Some(inner) = self.sessions.lock().unwrap().remove(id) {
             // 兜底零孤儿 (终态正常已释放; 防御性回收)。
             self.resources.release_allocation(inner.holder);
-            self.resources.release_reservations(inner.holder);
+            self.resources.abort_reservations_of(inner.holder);
             for l in &inner.session.leases {
                 let _ = self.leases.release(l);
             }
@@ -924,12 +953,81 @@ impl SessionManager {
     }
 
     /// 周期维护 (health 端点/watchdog tick 借用驱动; 无后台线程):
-    /// (a) lease 续期 (剩余 < renew_window → renew); (b) Reserved 相位超时 → 预留过期 +
-    /// Terminated (crash-cleanup 近似); (c) 过期租约清扫 (leases.health())。
+    /// (a) per-claim Reservation TTL 到期 → Registry Expire + Session crash-cleanup；
+    /// (b) lease 续期 (剩余 < renew_window → renew); (c) 过期租约清扫 (leases.health())。
     pub fn tick(&self) {
         // (c) 过期租约清扫 (内部 retain)。
         let _ = self.leases.health();
         let now = Self::now_ms();
+
+        // (a) Resource Registry 是 Reservation TTL truth owner。先全局扫描各 claim 自己的
+        // expires_at，再按 holder 收敛 Session；任一 claim 到期都会 Abort 同 holder
+        // 其余 Reserved claims，避免多资源 Session 留下半套预留。
+        let expired = self.resources.expire_due(now);
+        let mut expired_by_holder: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        for item in expired {
+            expired_by_holder
+                .entry(item.holder)
+                .or_default()
+                .push(item.resource_id);
+        }
+        for (holder, expired_ids) in expired_by_holder {
+            // 余下未到期 Reserved claims 属同一 Session transaction，统一 Abort。
+            let _ = self.resources.abort_reservations_of(holder);
+            for rid in &expired_ids {
+                self.events
+                    .emit(RuntimeEvent::ResourceReservationExpired { resource_id: *rid });
+            }
+
+            let sid = self
+                .sessions
+                .lock()
+                .unwrap()
+                .values()
+                .find(|i| i.holder == holder)
+                .map(|i| i.session.session_id);
+            let Some(sid) = sid else {
+                continue;
+            };
+            let phase = self
+                .sessions
+                .lock()
+                .unwrap()
+                .get(&sid)
+                .map(|i| i.session.phase);
+            if !matches!(
+                phase,
+                Some(SessionPhase::Provisioning | SessionPhase::Binding | SessionPhase::Leased)
+            ) {
+                continue;
+            }
+
+            let leases = self
+                .sessions
+                .lock()
+                .unwrap()
+                .get(&sid)
+                .map(|i| i.session.leases.clone())
+                .unwrap_or_default();
+            for l in &leases {
+                let _ = self.leases.release(l);
+            }
+            {
+                let mut guard = self.sessions.lock().unwrap();
+                if let Some(inner) = guard.get_mut(&sid) {
+                    inner.session.leases.clear();
+                }
+            }
+            let _ = self.set_phase(&sid, SessionPhase::Terminated);
+            self.emit(RuntimeEvent::SessionFailed {
+                session_id: sid.0,
+                reason: format!(
+                    "reservation claim TTL expired (crash-cleanup): {:?}",
+                    expired_ids
+                ),
+            });
+        }
+
         let holders: Vec<(SessionId, Uuid, SessionPhase)> = self
             .sessions
             .lock()
@@ -937,7 +1035,7 @@ impl SessionManager {
             .values()
             .map(|i| (i.session.session_id, i.holder, i.session.phase))
             .collect();
-        for (sid, holder, phase) in holders {
+        for (sid, _holder, phase) in holders {
             // (a) 续期: 锁内判定窗口, 锁外 renew, 成功后回写会话副本 (快照与租约表一致)。
             if matches!(
                 phase,
@@ -985,46 +1083,6 @@ impl SessionManager {
                             }
                         }
                     }
-                }
-            }
-            // (b) Reserved 停留超时 → 预留过期 + Terminated (不 Running 的滞留会话)。
-            if phase == SessionPhase::Provisioning || phase == SessionPhase::Leased {
-                let stale = self
-                    .sessions
-                    .lock()
-                    .unwrap()
-                    .get(&sid)
-                    .map(|i| now - i.created_at_ms > self.tuning.reservation_window_ms)
-                    .unwrap_or(false);
-                if stale {
-                    // P0-7D: 逐资源发射 ResourceReservationExpired (词表在册, 原零生产)。
-                    for rid in self.resources.expire_reservations_of(holder) {
-                        self.events
-                            .emit(RuntimeEvent::ResourceReservationExpired { resource_id: rid });
-                    }
-                    // 全部租约一并回收 (Terminated 零孤儿; RESOURCE-RT-01 crash cleanup)。
-                    let leases = self
-                        .sessions
-                        .lock()
-                        .unwrap()
-                        .get(&sid)
-                        .map(|i| i.session.leases.clone())
-                        .unwrap_or_default();
-                    for l in &leases {
-                        let _ = self.leases.release(l);
-                    }
-                    {
-                        let mut guard = self.sessions.lock().unwrap();
-                        if let Some(inner) = guard.get_mut(&sid) {
-                            inner.session.leases.clear();
-                        }
-                    }
-                    // set_phase 需重新获取 sessions 锁 — 先释放 (防自死锁)。
-                    let _ = self.set_phase(&sid, SessionPhase::Terminated);
-                    self.emit(RuntimeEvent::SessionFailed {
-                        session_id: sid.0,
-                        reason: "reserved 相位超时 (crash-cleanup)".into(),
-                    });
                 }
             }
         }
@@ -1168,7 +1226,7 @@ impl SessionManager {
                 inner.session.leases.clear();
             }
         }
-        self.resources.release_reservations(*holder);
+        self.resources.abort_reservations_of(*holder);
     }
 
     /// create 前段失败回滚 (由 create 的 cleanup 闭包统一处理)。
@@ -1826,17 +1884,17 @@ mod tests {
 
     #[test]
     fn resource_rt_01_tick_expires_stale_reserved_session() {
-        // crash-cleanup 近似: Reserved 滞留超过窗口 → 预留过期 + Terminated。
+        // RH-RES-01A: per-claim TTL 到期 → Registry Expire + Session Terminated。
         let devices = mock_devices();
         let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
         let tuning = SessionTuning {
-            reservation_window_ms: 0,
+            reservation_window_ms: 20,
             ..SessionTuning::default()
         };
         let mgr = manager_with(Arc::new(MockBackend), &devices, lm.clone(), tuning);
         let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
-        // 窗口=0: 需保证 tick 时 created_at 已成过去 (毫秒精度竞态防护)。
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        // 短 TTL: create/Binding Renew 成功后等待跨过 claim deadline，再由 tick Expire。
+        std::thread::sleep(std::time::Duration::from_millis(40));
         mgr.tick();
         let s = mgr.status(&sid).expect("会话保留");
         assert_eq!(s.phase, SessionPhase::Terminated);
@@ -1846,6 +1904,57 @@ mod tests {
             .create(intent_for(&devices[0]))
             .expect("过期释放后应可重占");
         assert_ne!(s2, sid);
+    }
+
+    #[test]
+    fn resource_rt_01_one_claim_expiry_aborts_siblings_and_session() {
+        let devices = two_devices();
+        let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
+        let tuning = SessionTuning {
+            reservation_window_ms: 60_000,
+            ..SessionTuning::default()
+        };
+        let mgr = manager_with(Arc::new(MockBackend), &devices, lm.clone(), tuning);
+        let sid = mgr.create(intent_for_all(&devices)).expect("create 应通过");
+        let claims = mgr.status(&sid).expect("status").resource_claims;
+        assert!(
+            claims.len() >= 2,
+            "前置: 多设备会话应持有多个 resource claims"
+        );
+
+        let now = SessionManager::now_ms();
+        mgr.resources.with_inner_mut(|registry| {
+            for (index, claim) in claims.iter().enumerate() {
+                let reservation = registry
+                    .get_mut(&claim.resource_id)
+                    .and_then(|r| r.reservation.as_mut())
+                    .expect("claim 应仍为 Reserved");
+                reservation.expires_at_ms = Some(if index == 0 {
+                    now.saturating_sub(1)
+                } else {
+                    now.saturating_add(60_000)
+                });
+            }
+        });
+
+        mgr.tick();
+        let session = mgr.status(&sid).expect("失败会话保留供诊断");
+        assert_eq!(session.phase, SessionPhase::Terminated);
+        assert_zero_orphans(&mgr, &lm);
+        mgr.resources.with_inner(|registry| {
+            for claim in &claims {
+                assert_eq!(
+                    registry
+                        .resources
+                        .iter()
+                        .find(|r| r.id == claim.resource_id)
+                        .expect("resource")
+                        .state,
+                    crate::resource::ResourceState::Available,
+                    "任一 TTL 到期后同 Session 其余 claim 必须 Abort"
+                );
+            }
+        });
     }
 
     #[test]
@@ -2031,13 +2140,13 @@ mod tests {
         let devices = mock_devices();
         let lm: Arc<InMemoryLm> = Arc::new(InMemoryLm::new());
         let tuning = SessionTuning {
-            reservation_window_ms: 0,
+            reservation_window_ms: 20,
             ..SessionTuning::default()
         };
         let mgr = manager_with(Arc::new(MockBackend), &devices, lm, tuning);
         let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        mgr.tick(); // Reserved 滞留 → Terminated (白名单迁移)
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        mgr.tick(); // claim TTL 到期 → Terminated (白名单迁移)
         assert_eq!(
             mgr.status(&sid).unwrap().phase,
             SessionPhase::Terminated,
@@ -2331,7 +2440,7 @@ mod tests {
             event_log.clone(),
         )));
         let tuning = SessionTuning {
-            reservation_window_ms: 0,
+            reservation_window_ms: 20,
             ..SessionTuning::default()
         };
         let mgr = SessionManager::new(
@@ -2347,7 +2456,7 @@ mod tests {
             event_log.clone(),
         );
         let sid = mgr.create(intent_for(&devices[0])).expect("create 应通过");
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(40));
         mgr.tick();
         assert_eq!(
             mgr.status(&sid).expect("会话保留").phase,

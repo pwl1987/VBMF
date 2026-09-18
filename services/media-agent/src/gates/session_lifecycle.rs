@@ -176,7 +176,7 @@ pub fn run(
                             );
                         }
                         // P0-7D-4.3 (E5): 生产同款 5s tick 线程 — 真实驱动 lease 续期 /
-                        // 预留过期 (expire_reservations_of → ResourceReservationExpired)。
+                        // 预留过期 (expire_due → ResourceReservationExpired)。
                         let tick_mgr = mgr.clone();
                         std::thread::spawn(move || loop {
                             std::thread::sleep(std::time::Duration::from_secs(5));
@@ -221,7 +221,7 @@ pub fn run(
                 // P0-7D-4.3 EVENT-INTEGRATION-RT-01 (E5): 真实 tick 驱动预留过期 —
                 // 第二会话只 create 不 start (停留 Provisioning, 持真实预留/租约),
                 // 超过 reservation_window (默认 30s) 由上方 5s tick 线程驱动
-                // expire_reservations_of → 逐资源发射 ResourceReservationExpired,
+                // expire_due → 逐资源发射 ResourceReservationExpired,
                 // 随后 Terminated 零孤儿 (RESOURCE-RT-01 crash cleanup 同路径)。
                 println!(
                     "EVENT-INTEGRATION-RT-01 step=E5 create (不 start, 等 tick 过期, ~42s) ..."

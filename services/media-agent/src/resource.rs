@@ -62,13 +62,17 @@ impl ResourceState {
 
 /// 预留 (reservation): 某 session 在物化前持有的占用凭据。
 ///
-/// 无时钟依赖 (TTL 判定由调用方/Supervisor 负责, 触发 `expire_reservation`), 保持本模块可离线测试。
+/// RH-RES-01A: TTL truth 与 claim 同驻 Resource Registry；`expires_at_ms` 为
+/// Runtime 内部生命周期数据，不扩展既有序列化/wire vocabulary。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reservation {
     /// 持有者 (session/plan) 的 canonical ID。
     pub holder: Uuid,
     /// 预留凭据 (诊断用; 非身份)。
     pub token: String,
+    /// 该 claim 的绝对过期时刻（Unix epoch ms）；仅 Registry 生命周期使用。
+    #[serde(skip)]
+    pub(crate) expires_at_ms: Option<u64>,
 }
 
 /// 资源 (Capability 的抽象; 一个 Device 可暴露多个 Resource)。
@@ -128,18 +132,60 @@ impl Resource {
         self.state = to;
         Ok(())
     }
-    /// 预留 (Available → Reserved), 绑定持有者与凭据。
+    /// Reserve: Available → Reserved；TTL 绑定到**本 claim**，由 Registry 持有 truth。
     pub fn reserve(
         &mut self,
         holder: Uuid,
         token: impl Into<String>,
+        now_ms: u64,
+        ttl_ms: u64,
     ) -> Result<(), ResourceStateError> {
         self.transition(ResourceState::Reserved)?;
         self.reservation = Some(Reservation {
             holder,
             token: token.into(),
+            expires_at_ms: Some(now_ms.saturating_add(ttl_ms)),
         });
         Ok(())
+    }
+
+    /// Renew: 仅当前 Reserved holder 可续期；错 holder/非 Reserved fail-closed 且零修改。
+    pub fn renew_reservation(&mut self, holder: Uuid, now_ms: u64, ttl_ms: u64) -> bool {
+        if self.state != ResourceState::Reserved {
+            return false;
+        }
+        let Some(reservation) = self.reservation.as_mut() else {
+            return false;
+        };
+        if reservation.holder != holder
+            || reservation
+                .expires_at_ms
+                .is_none_or(|expires_at_ms| now_ms >= expires_at_ms)
+        {
+            return false;
+        }
+        reservation.expires_at_ms = Some(now_ms.saturating_add(ttl_ms));
+        true
+    }
+
+    /// 当前 claim 是否已到 TTL；Allocated/Available 等非 Reserved 恒 false。
+    pub fn reservation_due(&self, now_ms: u64) -> bool {
+        self.state == ResourceState::Reserved
+            && self
+                .reservation
+                .as_ref()
+                .and_then(|r| r.expires_at_ms)
+                .is_some_and(|expires_at_ms| now_ms >= expires_at_ms)
+    }
+
+    /// Abort: 仅持有者可主动撤销 Reserved claim；错 holder fail-closed。
+    pub fn abort_reservation(&mut self, holder: Uuid) -> bool {
+        if self.state != ResourceState::Reserved
+            || self.reservation.as_ref().map(|r| r.holder) != Some(holder)
+        {
+            return false;
+        }
+        self.expire_reservation().is_ok()
     }
     /// 确认分配 (Reserved → Allocated)。
     pub fn allocate(&mut self) -> Result<(), ResourceStateError> {
@@ -381,9 +427,15 @@ pub fn resolve_identity(
 /// 线程安全注册表句柄 + **原子占用原语** (P1-4: preflight+reserve 在同一锁内完成,
 /// 消除 "A preflight → B preflight → A reserve → B reserve" 竞态窗口)。
 ///
-/// 完整 Resource Orchestration (bind→instantiate 全链编排 / TTL 管理 / 跨 session 协调)
-/// 属 0.7 范围 (见 p06-final-merge-hardening proposal 非目标); 本原语只保证
-/// "校验通过即占用" 的原子性与失败回滚路径。
+/// RH-RES-01A 起，Reservation TTL/Renew/Expire/Abort 也由本 Registry 锁域持有；
+/// Scheduler / Placement / 全局策略仍不在此层。本原语保证 claim 生命周期原子性，
+/// 不产生第二套资源 truth。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ExpiredReservation {
+    pub resource_id: Uuid,
+    pub holder: Uuid,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct SharedResourceRegistry(std::sync::Arc<std::sync::Mutex<ResourceRegistry>>);
 
@@ -392,35 +444,96 @@ impl SharedResourceRegistry {
     pub fn new(inner: ResourceRegistry) -> Self {
         Self(std::sync::Arc::new(std::sync::Mutex::new(inner)))
     }
-    /// 原子占用: 锁内 `preflight` + `reserve`。任一步失败 → 返回错误且不留半占用态。
-    pub fn acquire(&self, req: &AcquisitionRequest) -> Result<PreflightOutcome, PreflightError> {
+    /// Reserve: 锁内 `preflight + reserve` 原子执行；每个 claim 必须显式带 TTL。
+    pub fn acquire(
+        &self,
+        req: &AcquisitionRequest,
+        now_ms: u64,
+        ttl_ms: u64,
+    ) -> Result<PreflightOutcome, PreflightError> {
         let mut g = self.0.lock().unwrap();
         let out = preflight(&g, req)?;
         if let Some(res) = g.get_mut(&req.resource_id) {
-            res.reserve(req.holder, format!("preflight-{}", req.holder))
-                .map_err(|e| {
-                    PreflightError::NotAcquirable(format!(
-                        "resource {} reserve failed after preflight: {e:?}",
-                        req.resource_id
-                    ))
-                })?;
+            res.reserve(
+                req.holder,
+                format!("preflight-{}", req.holder),
+                now_ms,
+                ttl_ms,
+            )
+            .map_err(|e| {
+                PreflightError::NotAcquirable(format!(
+                    "resource {} reserve failed after preflight: {e:?}",
+                    req.resource_id
+                ))
+            })?;
         }
         Ok(out)
     }
-    /// 物化失败回滚: 释放 `holder` 名下仍处 Reserved 的资源 (Reserved → Available)。
-    /// 返回释放数; Allocated/Releasing 等在途态不在此处理 (属 Supervisor 生命周期)。
-    pub fn release_reservations(&self, holder: Uuid) -> usize {
+
+    /// Renew: 对 Session 声明的 expected claims 做同锁域全量校验；任一 claim
+    /// 缺失/错 holder/已到 TTL，则零修改 fail-closed；全部通过后才统一续期。
+    pub fn renew_claims(
+        &self,
+        holder: Uuid,
+        resource_ids: &[Uuid],
+        now_ms: u64,
+        ttl_ms: u64,
+    ) -> bool {
         let mut g = self.0.lock().unwrap();
-        let mut released = 0;
-        for res in g.resources.iter_mut() {
-            if res.state == ResourceState::Reserved
-                && res.reservation.as_ref().map(|r| r.holder) == Some(holder)
-                && res.expire_reservation().is_ok()
+        for resource_id in resource_ids {
+            let Some(res) = g.resources.iter().find(|r| r.id == *resource_id) else {
+                return false;
+            };
+            if res.state != ResourceState::Reserved
+                || res.reservation.as_ref().map(|r| r.holder) != Some(holder)
+                || res.reservation_due(now_ms)
             {
-                released += 1;
+                return false;
             }
         }
-        released
+        for resource_id in resource_ids {
+            let res = g
+                .get_mut(resource_id)
+                .expect("renew validation 已确认 resource 存在");
+            if !res.renew_reservation(holder, now_ms, ttl_ms) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Abort: 主动撤销 holder 名下全部仍处 Reserved 的 claims；返回实际撤销资源 ID。
+    pub fn abort_reservations_of(&self, holder: Uuid) -> Vec<Uuid> {
+        let mut g = self.0.lock().unwrap();
+        let mut aborted = Vec::new();
+        for res in g.resources.iter_mut() {
+            if res.abort_reservation(holder) {
+                aborted.push(res.id);
+            }
+        }
+        aborted
+    }
+
+    /// Expire: 只扫描**各 claim 自己**的 TTL；返回 expired claim + holder，供 Session
+    /// 编排层做租约/Session 收敛。Registry 是唯一 Resource state mutation owner。
+    pub(crate) fn expire_due(&self, now_ms: u64) -> Vec<ExpiredReservation> {
+        let mut g = self.0.lock().unwrap();
+        let mut expired = Vec::new();
+        for res in g.resources.iter_mut() {
+            if !res.reservation_due(now_ms) {
+                continue;
+            }
+            let Some(holder) = res.reservation.as_ref().map(|r| r.holder) else {
+                continue;
+            };
+            if res.expire_reservation().is_ok() {
+                expired.push(ExpiredReservation {
+                    resource_id: res.id,
+                    holder,
+                });
+            }
+        }
+        expired
     }
     /// 确认分配 (Reserved → Allocated; Backend.instantiate 成功后调用, P0-7A 编排)。
     pub fn allocate_for(&self, resource_id: &Uuid, holder: Uuid) -> Result<(), ResourceStateError> {
@@ -429,23 +542,6 @@ impl SharedResourceRegistry {
     /// 释放 holder 名下全部 Allocated 资源 (stop 路径); 返回释放数。
     pub fn release_allocation(&self, holder: Uuid) -> usize {
         self.0.lock().unwrap().release_allocation(holder)
-    }
-    /// 过期扫描入口 (Manager.tick 驱动): 将超时未确认的 Reserved 打回 Available,
-    /// 返回过期资源 ID 集; 事件 `ResourceReservationExpired` 由调用方逐资源发射
-    /// (P0-7D: 返回 `Vec<Uuid>` 供逐资源 emit, 不再是裸计数)。
-    /// 0.7A 以 tick 周期近似 TTL。
-    pub fn expire_reservations_of(&self, holder: Uuid) -> Vec<Uuid> {
-        let mut g = self.0.lock().unwrap();
-        let mut expired = Vec::new();
-        for res in g.resources.iter_mut() {
-            if res.state == ResourceState::Reserved
-                && res.reservation.as_ref().map(|r| r.holder) == Some(holder)
-                && res.expire_reservation().is_ok()
-            {
-                expired.push(res.id);
-            }
-        }
-        expired
     }
     /// 只读快照访问 (诊断/证据)。
     pub fn with_inner<R>(&self, f: impl for<'a> FnOnce(&'a ResourceRegistry) -> R) -> R {
@@ -470,7 +566,7 @@ mod tests {
     #[test]
     fn state_machine_allows_white_listed_transitions() {
         let mut r = res();
-        r.reserve(Uuid::nil(), "tok").unwrap();
+        r.reserve(Uuid::nil(), "tok", 0, 1_000).unwrap();
         assert_eq!(r.state, ResourceState::Reserved);
         r.allocate().unwrap();
         assert_eq!(r.state, ResourceState::Allocated);
@@ -490,7 +586,7 @@ mod tests {
         ));
         // Releasing 不能到 Faulted。
         let mut r2 = res();
-        r2.reserve(Uuid::nil(), "t").unwrap();
+        r2.reserve(Uuid::nil(), "t", 0, 1_000).unwrap();
         r2.allocate().unwrap();
         r2.begin_release().unwrap();
         assert!(!r2.state.can_transition_to(ResourceState::Faulted));
@@ -499,7 +595,7 @@ mod tests {
     #[test]
     fn fault_then_manual_recover() {
         let mut r = res();
-        r.reserve(Uuid::nil(), "t").unwrap();
+        r.reserve(Uuid::nil(), "t", 0, 1_000).unwrap();
         r.allocate().unwrap();
         r.fault().unwrap();
         assert_eq!(r.state, ResourceState::Faulted);
@@ -562,7 +658,9 @@ mod tests {
             Err(PreflightError::ResourceUnavailable(_))
         ));
         // 已被占用 (Reserved) → 不抢占。
-        rr.resources[0].reserve(Uuid::new_v4(), "t").unwrap();
+        rr.resources[0]
+            .reserve(Uuid::new_v4(), "t", 0, 1_000)
+            .unwrap();
         assert!(matches!(
             preflight(
                 &rr,
@@ -583,7 +681,9 @@ mod tests {
         let mut rr = ResourceRegistry::new();
         let id = Uuid::new_v4();
         rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
-        rr.resources[0].reserve(Uuid::new_v4(), "t").unwrap();
+        rr.resources[0]
+            .reserve(Uuid::new_v4(), "t", 0, 1_000)
+            .unwrap();
         rr.resources[0].allocate().unwrap();
         rr.resources[0].fault().unwrap();
         assert_eq!(rr.resources[0].state, ResourceState::Faulted);
@@ -600,7 +700,7 @@ mod tests {
         ));
         // Releasing 态不可被新占用 (不抢占在途释放).
         let mut r2 = Resource::new(Uuid::nil(), "r2", "sdi-input", 1);
-        r2.reserve(Uuid::new_v4(), "t").unwrap();
+        r2.reserve(Uuid::new_v4(), "t", 0, 1_000).unwrap();
         r2.allocate().unwrap();
         r2.begin_release().unwrap();
         assert_eq!(r2.state, ResourceState::Releasing);
@@ -645,33 +745,45 @@ mod tests {
         let shared = SharedResourceRegistry::new(rr);
         let holder = Uuid::new_v4();
         let out = shared
-            .acquire(&AcquisitionRequest {
-                holder,
-                resource_id: id,
-                expected_capability: "sdi-input".into(),
-            })
+            .acquire(
+                &AcquisitionRequest {
+                    holder,
+                    resource_id: id,
+                    expected_capability: "sdi-input".into(),
+                },
+                100,
+                1_000,
+            )
             .expect("acquire 应通过并原子占用");
         assert_eq!(out.granted, vec![id]);
         // 占用生效: 同资源再次 acquire (不同 holder) 必须失败 (无竞态窗口).
         assert!(matches!(
-            shared.acquire(&AcquisitionRequest {
-                holder: Uuid::new_v4(),
-                resource_id: id,
-                expected_capability: "sdi-input".into()
-            }),
+            shared.acquire(
+                &AcquisitionRequest {
+                    holder: Uuid::new_v4(),
+                    resource_id: id,
+                    expected_capability: "sdi-input".into(),
+                },
+                100,
+                1_000,
+            ),
             Err(PreflightError::NotAcquirable(_))
         ));
         // 回滚: 释放 holder 的 Reserved; 之后可被重新 acquire.
-        assert_eq!(shared.release_reservations(holder), 1);
+        assert_eq!(shared.abort_reservations_of(holder).len(), 1);
         assert!(shared
-            .acquire(&AcquisitionRequest {
-                holder: Uuid::new_v4(),
-                resource_id: id,
-                expected_capability: "sdi-input".into()
-            })
+            .acquire(
+                &AcquisitionRequest {
+                    holder: Uuid::new_v4(),
+                    resource_id: id,
+                    expected_capability: "sdi-input".into(),
+                },
+                100,
+                1_000,
+            )
             .is_ok());
         // 无名下预留 → 回滚 0.
-        assert_eq!(shared.release_reservations(holder), 0);
+        assert_eq!(shared.abort_reservations_of(holder).len(), 0);
     }
 
     #[test]
@@ -681,7 +793,7 @@ mod tests {
         let id = Uuid::new_v4();
         rr.resources.push(Resource::new(id, "r", "sdi-input", 1));
         let holder = Uuid::new_v4();
-        rr.resources[0].reserve(holder, "tok").unwrap();
+        rr.resources[0].reserve(holder, "tok", 0, 1_000).unwrap();
         // 越权 allocate (非预留持有者) 拒绝。
         assert!(rr.allocate_for(&id, Uuid::new_v4()).is_err());
         assert_eq!(rr.resources[0].state, ResourceState::Reserved);
@@ -695,7 +807,29 @@ mod tests {
     }
 
     #[test]
-    fn resource_01_expire_reservations_of_scoped_to_holder() {
+    fn resource_01_per_claim_expire_is_independent() {
+        let mut rr = ResourceRegistry::new();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        rr.resources.push(Resource::new(a, "ra", "sdi-input", 1));
+        rr.resources.push(Resource::new(b, "rb", "sdi-input", 1));
+        let holder = Uuid::new_v4();
+        rr.resources[0].reserve(holder, "t1", 100, 10).unwrap();
+        rr.resources[1].reserve(holder, "t2", 100, 30).unwrap();
+        let shared = SharedResourceRegistry::new(rr);
+
+        let expired = shared.expire_due(110);
+        assert_eq!(expired.len(), 1);
+        assert_eq!(expired[0].resource_id, a);
+        assert_eq!(expired[0].holder, holder);
+        shared.with_inner(|g| {
+            assert_eq!(g.resources[0].state, ResourceState::Available);
+            assert_eq!(g.resources[1].state, ResourceState::Reserved);
+        });
+    }
+
+    #[test]
+    fn resource_01_renew_and_abort_are_holder_scoped() {
         let mut rr = ResourceRegistry::new();
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
@@ -703,14 +837,74 @@ mod tests {
         rr.resources.push(Resource::new(b, "rb", "sdi-input", 1));
         let h1 = Uuid::new_v4();
         let h2 = Uuid::new_v4();
-        rr.resources[0].reserve(h1, "t1").unwrap();
-        rr.resources[1].reserve(h2, "t2").unwrap();
+        rr.resources[0].reserve(h1, "t1", 100, 10).unwrap();
+        rr.resources[1].reserve(h2, "t2", 100, 10).unwrap();
         let shared = SharedResourceRegistry::new(rr);
-        // 只过期 h1 的预留, 不碰 h2。
-        assert_eq!(shared.expire_reservations_of(h1).len(), 1);
+
+        assert!(
+            !shared.renew_claims(h2, &[a], 105, 50),
+            "错 holder 不得跨 claim Renew"
+        );
+        assert!(shared.renew_claims(h1, &[a], 105, 50));
+        assert!(
+            !shared.renew_claims(h2, &[b], 110, 50),
+            "TTL 已到但尚未 scan 的 claim 不得被 Renew 复活"
+        );
+        let expired = shared.expire_due(110);
+        assert_eq!(expired.len(), 1);
+        assert_eq!(expired[0].resource_id, b);
+        assert_eq!(expired[0].holder, h2);
+
+        assert_eq!(shared.abort_reservations_of(h1), vec![a]);
+        assert!(shared.abort_reservations_of(h1).is_empty());
         shared.with_inner(|g| {
             assert_eq!(g.resources[0].state, ResourceState::Available);
-            assert_eq!(g.resources[1].state, ResourceState::Reserved);
+            assert_eq!(g.resources[1].state, ResourceState::Available);
         });
+    }
+
+    #[test]
+    fn resource_01_renew_claims_is_all_or_none_when_one_claim_expired() {
+        let mut rr = ResourceRegistry::new();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let holder = Uuid::new_v4();
+        rr.resources.push(Resource::new(a, "ra", "sdi-input", 1));
+        rr.resources.push(Resource::new(b, "rb", "sdi-input", 1));
+        rr.resources[0].reserve(holder, "a", 100, 10).unwrap();
+        rr.resources[1].reserve(holder, "b", 100, 30).unwrap();
+        let shared = SharedResourceRegistry::new(rr);
+
+        assert!(!shared.renew_claims(holder, &[a, b], 110, 50));
+        shared.with_inner(|registry| {
+            assert_eq!(
+                registry.resources[0]
+                    .reservation
+                    .as_ref()
+                    .unwrap()
+                    .expires_at_ms,
+                Some(110)
+            );
+            assert_eq!(
+                registry.resources[1]
+                    .reservation
+                    .as_ref()
+                    .unwrap()
+                    .expires_at_ms,
+                Some(130),
+                "Renew 失败不得部分延长 sibling claim"
+            );
+        });
+    }
+
+    #[test]
+    fn resource_01_reservation_ttl_is_runtime_internal_not_wire_shape() {
+        let mut r = Resource::new(Uuid::new_v4(), "r", "sdi-input", 1);
+        r.reserve(Uuid::new_v4(), "tok", 100, 50).unwrap();
+        let json = serde_json::to_value(&r).expect("resource serialize");
+        assert!(
+            json.pointer("/reservation/expires_at_ms").is_none(),
+            "RH-RES-01A 不扩展既有 wire vocabulary"
+        );
     }
 }
