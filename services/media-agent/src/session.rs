@@ -19,7 +19,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -286,7 +286,7 @@ pub struct SessionManager {
     /// registry**。
     stop_hooks: Mutex<HashMap<SessionId, std::sync::Arc<dyn SessionStopHook>>>,
     sup: Arc<Mutex<Supervisor>>,
-    backend: OnceLock<Arc<dyn MediaBackend>>,
+    backend: Arc<dyn MediaBackend>,
     devices: Arc<Vec<DeviceInfo>>,
     bindings: Arc<HashMap<Uuid, ResolvedDeviceBinding>>,
     registry: Option<PortRegistry>,
@@ -316,14 +316,12 @@ impl SessionManager {
         tuning: SessionTuning,
         events: Arc<dyn RuntimeEventSink>,
     ) -> Self {
-        let b = OnceLock::new();
-        let _ = b.set(backend);
         Self {
             resources,
             leases,
             stop_hooks: Mutex::new(HashMap::new()),
             sup,
-            backend: b,
+            backend,
             devices,
             bindings,
             registry,
@@ -358,18 +356,6 @@ impl SessionManager {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0)
-    }
-
-    fn backend(&self) -> Result<Arc<dyn MediaBackend>, SessionError> {
-        self.backend
-            .get()
-            .cloned()
-            .ok_or_else(|| SessionError::BackendUnavailable("backend 未注入".into()))
-    }
-
-    /// 依赖注入 Backend (main 真机路径: AdapterRegistry::build_media_backend 的结果)。
-    pub fn set_backend(&self, backend: Arc<dyn MediaBackend>) {
-        let _ = self.backend.set(backend);
     }
 
     /// 由 intent + 资源注册表推导目标资源占用请求 (每个设备 1 个 `-input` 资源;
@@ -606,7 +592,7 @@ impl SessionManager {
     /// (冻结顺序; 失败统一走 D1 LifecycleJournal 逆序回滚:
     /// stop 全部句柄(逆序) → release allocation → release lease → release reservation)。
     pub fn start(&self, id: &SessionId) -> Result<(), SessionError> {
-        let backend = self.backend()?;
+        let backend = Arc::clone(&self.backend);
         let (intent, holder, mode) = {
             let guard = self.sessions.lock().unwrap();
             let inner = guard.get(id).ok_or(SessionError::UnknownSession(*id))?;
@@ -825,7 +811,7 @@ impl SessionManager {
         // 无论 backend 结果如何都必须归还, 否则停止失败会让整个资源生命周期卡死。
         let mut stop_error: Option<crate::pipeline::PipelineError> = None;
         for h in handles.iter().rev() {
-            if let Err(e) = self.backend()?.stop(h) {
+            if let Err(e) = self.backend.stop(h) {
                 tracing::warn!(error = %e, "backend.stop 失败; 仍继续释放 Session 层资源 (P0-2)");
                 stop_error = Some(e);
             }
