@@ -269,7 +269,7 @@ pub fn probe_combined(device_number: u32, sample_frames: u32) -> (SignalProbeRes
     use gstreamer::prelude::*;
     // 强制 mode=1080i50 与对端 render 一致, 使采集格式确定 (验收硬门比对依据).
     let desc = format!(
-        "decklinkvideosrc name=decklinkvideosrc0 device-number={dev} mode=1080i50 ! videoconvert ! video/x-raw,format=I420 ! appsink name=probe max-buffers=8 drop=false \
+        "decklinkvideosrc name=decklinkvideosrc0 device-number={dev} mode=1080i50 ! videoconvert ! video/x-raw,format=I420,interlace-mode=interleaved ! appsink name=probe max-buffers=8 drop=false \
          decklinkaudiosrc name=decklinkaudiosrc0 device-number={dev} ! audioconvert ! appsink name=aprobe max-buffers=4 drop=false",
         dev = device_number,
     );
