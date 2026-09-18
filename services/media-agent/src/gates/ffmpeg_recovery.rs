@@ -15,13 +15,18 @@ use std::fs;
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use std::path::{Path, PathBuf};
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 use std::time::Duration;
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn fail(message: impl std::fmt::Display) -> ! {
-    eprintln!("RF-FF-02 FAIL: {message}");
+    let marker = if std::env::var_os("VBMF_FFMPEG_RTMP_OUTPUT").is_some() {
+        "RF-FF-03"
+    } else {
+        "RF-FF-02"
+    };
+    eprintln!("{marker} FAIL: {message}");
     std::process::exit(1);
 }
 
@@ -85,11 +90,107 @@ fn wait_for_hls(dir: &Path) -> Result<(), String> {
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn spawn_rtmp_receiver(url: &str) -> Result<Child, String> {
+    if !url.starts_with("rtmp://127.0.0.1:")
+        || url
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '"' | '\'' | ' '))
+    {
+        return Err("RF-FF-03 RTMP receiver URL must be a quoted-free loopback URL".into());
+    }
+    Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "info",
+            "-rtmp_listen",
+            "1",
+            "-i",
+        ])
+        .arg(url)
+        .args([
+            "-t", "3", "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn RTMP receiver: {e}"))
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+struct RtmpReceiverGuard(Option<Child>);
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+impl RtmpReceiverGuard {
+    fn new(child: Child) -> Self {
+        Self(Some(child))
+    }
+
+    fn take(&mut self) -> Option<Child> {
+        self.0.take()
+    }
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+impl Drop for RtmpReceiverGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.0.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn wait_for_rtmp_receiver(child: Child) -> Result<(), String> {
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("wait for RTMP receiver: {e}"))?;
+    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success() {
+        return Err(format!(
+            "RTMP receiver exited with {}: {}",
+            output.status,
+            diagnostics.trim()
+        ));
+    }
+    for codec_label in ["Video: h264", "Audio: aac"] {
+        if !diagnostics.contains(codec_label) {
+            return Err(format!(
+                "RTMP receiver diagnostics missing {codec_label}: {}",
+                diagnostics.trim()
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 pub fn run(world: &crate::bootstrap::BootstrapContext) {
     let output_mode = std::env::var("VBMF_FFMPEG_OUTPUT").is_ok();
-    if !output_mode && std::env::var("VBMF_FFMPEG_RECOVERY").is_err() {
+    let rtmp_mode = std::env::var("VBMF_FFMPEG_RTMP_OUTPUT").is_ok();
+    if output_mode && rtmp_mode {
+        fail("RF-FF-03 HLS and RTMP output modes are mutually exclusive");
+    }
+    if !output_mode && !rtmp_mode && std::env::var("VBMF_FFMPEG_RECOVERY").is_err() {
         return;
     }
+    let rtmp_url = if rtmp_mode {
+        let url = std::env::var("VBMF_FFMPEG_RTMP_URL")
+            .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_URL is required"));
+        if !url.starts_with("rtmp://127.0.0.1:")
+            || url
+                .chars()
+                .any(|c| c.is_control() || matches!(c, '"' | '\'' | ' '))
+        {
+            fail("RF-FF-03 RTMP output URL must be a quoted-free loopback URL");
+        }
+        std::env::set_var("VBMF_OUTPUT_KIND", "rtmp");
+        std::env::set_var("VBMF_OUTPUT_RTMP_URL", &url);
+        Some(url)
+    } else {
+        None
+    };
     let output_dir = if output_mode {
         let raw = std::env::var("VBMF_FFMPEG_OUTPUT_DIR")
             .unwrap_or_else(|_| fail("VBMF_FFMPEG_OUTPUT_DIR is required"));
@@ -172,10 +273,25 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
                     port_id: Some(port_id.to_string()),
                 },
                 sink: crate::graph_intent::SinkIntent {
-                    kind: if output_mode { "hls" } else { "appsink" }.into(),
+                    kind: if output_mode {
+                        "hls"
+                    } else if rtmp_mode {
+                        "rtmp"
+                    } else {
+                        "appsink"
+                    }
+                    .into(),
                 },
             },
         }],
+    };
+    let mut initial_receiver = if rtmp_mode {
+        Some(RtmpReceiverGuard::new(
+            spawn_rtmp_receiver(rtmp_url.as_deref().expect("RTMP URL validated"))
+                .unwrap_or_else(|e| fail(e)),
+        ))
+    } else {
+        None
     };
     let sid = composition
         .manager
@@ -216,10 +332,24 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
             dir.display()
         );
     }
+    if let Some(receiver) = initial_receiver.as_mut().and_then(RtmpReceiverGuard::take) {
+        wait_for_rtmp_receiver(receiver)
+            .unwrap_or_else(|e| fail(format!("initial RTMP output: {e}")));
+        println!(
+            "RF-FF-03 receiver PASS url={} codecs=h264,aac",
+            rtmp_url.as_deref().expect("RTMP URL validated")
+        );
+    }
     if output_mode {
         println!(
             "RF-FF-02 running PASS session={sid} pipeline={} child_pid={old_pid} output=hls",
             handle.0
+        );
+    } else if rtmp_mode {
+        println!(
+            "RF-FF-03 running PASS session={sid} pipeline={} child_pid={old_pid} output=rtmp url={}",
+            handle.0,
+            rtmp_url.as_deref().expect("RTMP URL validated")
         );
     } else {
         println!(
@@ -235,6 +365,14 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
     if !kill.success() {
         fail(format!("external child termination exited with {kill}"));
     }
+    let mut recovered_receiver = if rtmp_mode {
+        Some(RtmpReceiverGuard::new(
+            spawn_rtmp_receiver(rtmp_url.as_deref().expect("RTMP URL validated"))
+                .unwrap_or_else(|e| fail(e)),
+        ))
+    } else {
+        None
+    };
     let mut recovered = false;
     for _ in 0..120 {
         if monitor.recovery_count() >= 1 {
@@ -266,8 +404,21 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
             dir.display()
         );
     }
+    if let Some(receiver) = recovered_receiver
+        .as_mut()
+        .and_then(RtmpReceiverGuard::take)
+    {
+        wait_for_rtmp_receiver(receiver)
+            .unwrap_or_else(|e| fail(format!("recovered RTMP output: {e}")));
+        println!(
+            "RF-FF-03 receiver PASS after_recovery url={} codecs=h264,aac",
+            rtmp_url.as_deref().expect("RTMP URL validated")
+        );
+    }
     if output_mode {
         println!("RF-FF-02 recovery PASS old_pid={old_pid} new_pid={new_pid} canonical_failure=true supervisor=Recovered output=hls");
+    } else if rtmp_mode {
+        println!("RF-FF-03 recovery PASS old_pid={old_pid} new_pid={new_pid} canonical_failure=true supervisor=Recovered output=rtmp");
     } else {
         println!("RF-FF-01F recovery PASS old_pid={old_pid} new_pid={new_pid} canonical_failure=true supervisor=Recovered");
     }
@@ -321,6 +472,9 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
     if output_mode {
         println!("RF-FF-02 teardown PASS phase=Released resources=Available lease=NONE monitor=exited ffmpeg_orphan=NONE output=hls");
         println!("RF_FF_02_BMD_OUTPUT_RECOVERY_PASS");
+    } else if rtmp_mode {
+        println!("RF-FF-03 teardown PASS phase=Released resources=Available lease=NONE monitor=exited ffmpeg_orphan=NONE output=rtmp");
+        println!("RF_FF_03_BMD_RTMP_OUTPUT_RECOVERY_PASS");
     } else {
         println!("RF-FF-01F teardown PASS phase=Released resources=Available lease=NONE monitor=exited ffmpeg_orphan=NONE");
         println!("RF_FF_01F_BMD_RECOVERY_PASS");
