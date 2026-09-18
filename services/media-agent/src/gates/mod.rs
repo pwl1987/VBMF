@@ -11,6 +11,7 @@
 pub mod a204_obs;
 pub mod config_probe;
 pub mod dual_input;
+pub mod ffmpeg_recovery;
 pub mod ffmpeg_session;
 pub mod loopback;
 pub mod r64_control_plane;

@@ -173,11 +173,16 @@ impl Supervisor {
     /// `report_failure` 决策句柄同源; nil 仅在调用方确无设备上下文时出现
     /// = 未归属, custody 生产桥拒收——fail-closed 不放宽）。
     /// Adapter 可提供专属 `RuntimeEventMapper` 消化 vendor 细节; 此处兜底使用默认映射器。
-    pub fn ingest(&self, source: EventSource, device: Uuid, observation: &str) {
+    pub fn ingest(
+        &self,
+        source: EventSource,
+        device: Uuid,
+        observation: &str,
+    ) -> Option<RuntimeEvent> {
         let mapper = crate::events::DefaultRuntimeEventMapper;
-        if let Some(ev) = mapper.map_upstream_for_device(source, device, observation) {
-            self.sink.emit(ev);
-        }
+        let ev = mapper.map_upstream_for_device(source, device, observation)?;
+        self.sink.emit(ev.clone());
+        Some(ev)
     }
 
     /// Register a handle as Running.
@@ -486,7 +491,7 @@ mod tests {
     fn ingest_normalizes_upstream_observation_via_mapper() {
         let (s, log) = sup_with_log(RestartPolicy::default());
         let dev = Uuid::new_v4();
-        s.ingest(
+        let _ = s.ingest(
             EventSource::Upstream,
             dev,
             "hardware: device lost (no hotplug)",
@@ -498,13 +503,13 @@ mod tests {
             "03-01-A: HardwareFault 携带 canonical 设备身份"
         );
         // 03-01-A: 管线级故障携带设备身份（非 nil——custody 可归因）。
-        s.ingest(EventSource::Upstream, dev, "pipeline error: gst bus");
+        let _ = s.ingest(EventSource::Upstream, dev, "pipeline error: gst bus");
         let ev2 = log.drain();
         assert!(
             matches!(&ev2[0], RuntimeEvent::PipelineFault { pipeline, .. } if *pipeline == dev)
         );
         // 无故障语义的观测不产生事件 (不伪造)。
-        s.ingest(EventSource::Upstream, dev, "all nominal");
+        let _ = s.ingest(EventSource::Upstream, dev, "all nominal");
         assert!(log.drain().is_empty());
     }
 

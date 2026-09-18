@@ -14,10 +14,17 @@
 use crate::pipeline::{PipelineError, PipelineHandle, PipelinePlan};
 use crate::pipeline_events::PipelineBusEvent;
 
+/// Acceptance-only process observation for a process-owned backend.
+/// This surface is intentionally separate from lifecycle control.
+#[allow(dead_code)]
+pub trait BackendProcessInspector: Send + Sync {
+    /// Return the currently owned child for an acceptance injection.
+    fn running_child_pid(&self, handle: &PipelineHandle) -> Option<u32>;
+}
+
 /// Media Runtime 契约：从同一 `PipelinePlan` 物化并管理管线生命周期。
 ///
 /// `Send + Sync` 以便跨运行时线程（Supervisor / watchdog）持有。
-// SPI 方法在无调用点的组合下可能未消费; 与 HardwareProvider 一致在 trait 级允许 dead_code.
 #[allow(dead_code)]
 pub trait MediaBackend: Send + Sync {
     /// 从 canonical `PipelinePlan` 物化管线实例（契约: `instantiate`）。

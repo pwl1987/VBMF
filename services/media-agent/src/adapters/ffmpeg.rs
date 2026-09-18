@@ -347,14 +347,27 @@ impl FFmpegBackend {
         }
     }
 
-    #[cfg(test)]
-    fn child_pid(&self, handle: &PipelineHandle) -> Option<u32> {
+    /// Acceptance-only observation of the concrete child process. The monitor and
+    /// SessionManager still own lifecycle; the gate uses this only to inject an
+    /// external termination and prove that recovery creates a new child.
+    pub(crate) fn running_child_pid(&self, handle: &PipelineHandle) -> Option<u32> {
         self.instances
             .lock()
             .unwrap()
             .get(handle)
             .and_then(|i| i.child.as_ref())
             .map(Child::id)
+    }
+
+    #[cfg(test)]
+    fn child_pid(&self, handle: &PipelineHandle) -> Option<u32> {
+        self.running_child_pid(handle)
+    }
+}
+
+impl crate::contracts::backend::BackendProcessInspector for FFmpegBackend {
+    fn running_child_pid(&self, handle: &PipelineHandle) -> Option<u32> {
+        FFmpegBackend::running_child_pid(self, handle)
     }
 }
 

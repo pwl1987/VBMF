@@ -149,6 +149,23 @@ impl AdapterRegistry {
         crate::adapters::build_process_media_backend_with_manifest(discovered, manifest)
     }
 
+    /// Neutral acceptance view exposes one backend plus one process inspector;
+    /// both point to the same concrete adapter instance.
+    #[cfg(feature = "ffmpeg-backend")]
+    pub(crate) fn build_backend_with_manifest(
+        discovered: &[crate::contracts::provider::DiscoveredDevice],
+        manifest: &crate::resolver::DeviceBindingManifest,
+    ) -> Result<
+        (
+            Arc<dyn crate::contracts::backend::MediaBackend>,
+            Arc<dyn crate::contracts::backend::BackendProcessInspector>,
+        ),
+        String,
+    > {
+        ensure_adapter_selection_safe()?;
+        crate::adapters::build_process_backend_with_manifest(discovered, manifest)
+    }
+
     /// 选择并构造 `HardwareProvider`。各实现返回相同 `Result<Vec<DiscoveredDevice>>` 契约。
     ///
     /// 优先级(高→低): `mock` > `simulation` > `bmd-provider` > `default`(filesystem)。

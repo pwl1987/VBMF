@@ -180,7 +180,7 @@ mod tests {
         // 携带身份的生产上游故障（03-01-A: 身份不再在 mapper 边界丢失）。
         sup.register(dev);
         sup.report_failure(&dev, None, None).unwrap();
-        sup.ingest(
+        let _ = sup.ingest(
             EventSource::Upstream,
             dev,
             "pipeline error: upstream decode",

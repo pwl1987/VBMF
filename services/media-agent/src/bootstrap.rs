@@ -150,9 +150,11 @@ pub fn build() -> BootstrapContext {
 pub struct FfmpegSessionComposition {
     /// Canonical Session lifecycle owner. Production control commands must enter here.
     pub manager: Arc<crate::session::SessionManager>,
-    /// Same concrete backend instance injected into SessionManager; exposed for
+    /// Backend instance injected into SessionManager; exposed for
     /// acceptance/observation only, not as a second lifecycle owner.
     pub backend: Arc<dyn crate::contracts::backend::MediaBackend>,
+    /// Acceptance-only process observation view of the same backend instance.
+    pub process_inspector: Arc<dyn crate::contracts::backend::BackendProcessInspector>,
     /// Backend-neutral Port/Resource authorization view.
     pub registry: crate::port::PortRegistry,
     pub authorizations:
@@ -186,10 +188,11 @@ pub fn build_ffmpeg_session_composition(
     let resources = crate::resource::SharedResourceRegistry::new(
         crate::resource::ResourceRegistry::derive_from_discovery(&registry),
     );
-    let backend = crate::registry::AdapterRegistry::build_ffmpeg_backend_with_manifest(
-        &world.discovered,
-        &manifest,
-    )?;
+    let (backend, process_inspector) =
+        crate::registry::AdapterRegistry::build_backend_with_manifest(
+            &world.discovered,
+            &manifest,
+        )?;
     let authorizations = Arc::new(authorizations);
     let manager = Arc::new(crate::session::SessionManager::new(
         resources,
@@ -211,6 +214,7 @@ pub fn build_ffmpeg_session_composition(
     Ok(FfmpegSessionComposition {
         manager,
         backend,
+        process_inspector,
         registry,
         authorizations,
     })

@@ -121,9 +121,11 @@ pub fn spawn_ingest_watchdog(
             // raw Bus 事实不再是第二 Supervisor 决策真路径, 无跨 tick 双计。
             for e in events.iter() {
                 if let Some(obs) = bus_fatal_observation(e) {
-                    sup.lock()
-                        .unwrap()
-                        .ingest(events::EventSource::Upstream, device_uuid, &obs);
+                    let _ = sup.lock().unwrap().ingest(
+                        events::EventSource::Upstream,
+                        device_uuid,
+                        &obs,
+                    );
                 }
             }
             // P0-7D-2.1: SignalVerified 点亮 — a4 (信号检出) 翻真即语义时刻 (闩锁去重;
@@ -730,7 +732,8 @@ pub fn spawn_execution_group_watchdog(
                 }
                 for e in &owned {
                     if let Some(obs) = bus_fatal_observation(e) {
-                        sup.lock()
+                        let _ = sup
+                            .lock()
                             .unwrap()
                             .ingest(events::EventSource::Upstream, *d, &obs);
                     }
@@ -1234,7 +1237,7 @@ mod rh_bus_02_tests {
         for kind in [PipelineBusEventKind::Error, PipelineBusEventKind::Eos] {
             let obs = bus_fatal_observation(&bus_evt(1, kind))
                 .expect("Error/Eos ⇒ canonical 观测串 (EOS 含 pipeline-error 语义)");
-            sup.ingest(EventSource::Upstream, a, &obs);
+            let _ = sup.ingest(EventSource::Upstream, a, &obs);
         }
         let drained = log.drain();
         assert_eq!(drained.len(), 2, "Error+EOS 各产恰一条 canonical 事件");
@@ -1246,7 +1249,7 @@ mod rh_bus_02_tests {
             "两条均为 exact-device PipelineFault (EOS 不再缺规范化)"
         );
         // exact-device: B 的 Error ⇒ pipeline=b, A 零牵连。
-        sup.ingest(
+        let _ = sup.ingest(
             EventSource::Upstream,
             b,
             &bus_fatal_observation(&bus_evt(2, PipelineBusEventKind::Error)).unwrap(),
