@@ -259,7 +259,7 @@ impl FFmpegBackend {
             return;
         };
         let video_bitrate = format!("{}k", output.video_bitrate_kbps);
-        let audio_bitrate = format!("{}b", output.audio_bitrate_bps);
+        let audio_bitrate = output.audio_bitrate_bps.to_string();
         match output.kind {
             OutputKind::Hls => {
                 let playlist = PathBuf::from(&output.target).join("index.m3u8");
@@ -672,6 +672,7 @@ mod tests {
         let args = command_args(&plan);
         assert!(args.windows(2).any(|w| w == ["-f", "hls"]));
         assert!(args.windows(2).any(|w| w == ["-c:v", "libx264"]));
+        assert!(args.windows(2).any(|w| w == ["-b:a", "128000"]));
         assert!(args
             .iter()
             .any(|arg| arg == "/tmp/vbmf-rf-ff-02-hls/index.m3u8"));
