@@ -318,7 +318,9 @@ fn main() {
                         sup.clone(),
                         ctrl.clone(),
                         std::sync::Arc::new(devices.clone()),
-                        std::sync::Arc::new(bindings.clone()),
+                        std::sync::Arc::new(
+                            media_agent::resolver::authorizations_from_runtime_bindings(&bindings),
+                        ),
                         registry.clone(),
                         mode,
                         media_agent::session::SessionTuning::default(),

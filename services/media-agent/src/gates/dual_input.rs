@@ -406,7 +406,9 @@ pub fn run(
         _sup.clone(),
         ctrl.clone(),
         Arc::new(devices.to_vec()),
-        Arc::new(bindings.clone()),
+        Arc::new(crate::resolver::authorizations_from_runtime_bindings(
+            &bindings,
+        )),
         Some(registry.clone()),
         crate::pipeline::MaterializeMode::Diagnostic,
         crate::session::SessionTuning::default(),

@@ -339,6 +339,29 @@ pub struct PortRegistry {
 }
 
 impl PortRegistry {
+    /// RF-FF-01D: 仅由 canonical Provider discovery + provisioning manifest 构建 Session/Resource
+    /// 所需的端口授权视图。concrete GStreamer RuntimeBinding 与 signal probe 明确缺席。
+    pub fn build_authorized(
+        devices: &[crate::contracts::provider::DiscoveredDevice],
+        manifest: &DeviceBindingManifest,
+    ) -> Result<PortRegistry, DiscoveryMismatch> {
+        let empty_probes: Vec<GStreamerDeviceProbe> = Vec::new();
+        let empty_bindings: HashMap<Uuid, ResolvedDeviceBinding> = HashMap::new();
+        let mut registry = Self::build(devices, &empty_probes, manifest, &empty_bindings)?;
+        for port in &mut registry.ports {
+            port.runtime_binding = None;
+            // 未执行 concrete backend signal probe = Unknown，不得误报 ProbeFailed。
+            if port.signal.state == SignalState::ProbeFailed {
+                port.signal.state = SignalState::Unknown;
+                port.signal.video_locked = None;
+                port.signal.audio_locked = None;
+                port.signal.video_format = None;
+                port.content = VideoContentState::Unknown;
+            }
+        }
+        Ok(registry)
+    }
+
     /// 仅输入端口.
     pub fn input_ports(&self) -> Vec<&PortInfo> {
         self.ports
@@ -997,6 +1020,25 @@ mod tests {
         assert_ne!(zero, unknown);
         assert!(zero.is_supported());
         assert!(!unknown.is_supported());
+    }
+
+    #[test]
+    fn rf_ff_01d_authorized_registry_has_no_backend_runtime_address() {
+        let d = dev("46:00000000:002e4500");
+        let manifest = base_manifest(vec![manifest_entry(
+            "46:00000000:002e4500",
+            7,
+            PortDirection::Input,
+        )]);
+        let reg = PortRegistry::build_authorized(&[d], &manifest).expect("authorized registry");
+        assert_eq!(reg.ports.len(), 1);
+        let p = &reg.ports[0];
+        assert!(
+            p.runtime_binding.is_none(),
+            "neutral registry must not carry gst address"
+        );
+        assert_eq!(p.signal.state, SignalState::Unknown);
+        assert_eq!(p.signal.video_locked, None);
     }
 
     #[test]

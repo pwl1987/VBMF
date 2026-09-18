@@ -550,16 +550,24 @@ pub fn identity_handle(dev: &DiscoveredDevice) -> Option<String> {
 pub struct ResolvedDeviceBinding {
     pub device_number: u32,
     pub hw_serial_number: Option<String>,
-    /// Provider 侧持久标识 (P0-1: 从 ProviderIdentity 证据透传, 供 PersistentIdCanonical 选卡路径).
+    /// Provider 侧持久标识 (P0-1: 从 ProviderIdentity 证据透传, 供 concrete RuntimeBinding).
     pub persistent_id: Option<i64>,
     pub confidence: Confidence,
     pub match_kind: ResolverMatch,
 }
 
-impl ResolvedDeviceBinding {
-    /// **D5 (IDENTITY-BINDING-01, p07c-runtime-state)**: 生产级绑定实查——
-    /// HIGH 置信 且 匹配种类为精确匹配（PersistentId/Serial/DeviceHandle）或
-    /// ManifestVerified（权威路径）。key-existence 不等于 verified。
+/// RF-FF-01D: Session/Preflight/Canonical Runtime 只需要“该 canonical Device
+/// 是否已经被授权到 production-grade physical resource”这一事实，绝不能把
+/// GStreamer device-number / FFmpeg DeviceHandle 当成上层 binding truth。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BindingAuthorization {
+    pub confidence: Confidence,
+    pub match_kind: ResolverMatch,
+    /// 仅表达“持久身份已获授权并有证据”，不携带 provider/backend runtime address。
+    pub persistent_identity: bool,
+}
+
+impl BindingAuthorization {
     pub fn is_production_grade(&self) -> bool {
         self.confidence == Confidence::High
             && matches!(
@@ -570,6 +578,38 @@ impl ResolvedDeviceBinding {
                     | ResolverMatch::ManifestVerified
             )
     }
+}
+
+impl From<&ResolvedDeviceBinding> for BindingAuthorization {
+    fn from(binding: &ResolvedDeviceBinding) -> Self {
+        Self {
+            confidence: binding.confidence,
+            match_kind: binding.match_kind,
+            persistent_identity: binding.persistent_id.is_some(),
+        }
+    }
+}
+
+impl ResolvedDeviceBinding {
+    /// RuntimeBinding 自身的 production-grade 判定与中性 authorization 必须同源。
+    pub fn is_production_grade(&self) -> bool {
+        BindingAuthorization::from(self).is_production_grade()
+    }
+}
+
+/// 从 concrete RuntimeBinding 投影中性 Session authorization；不复制任何 runtime address。
+pub fn authorizations_from_runtime_bindings(
+    bindings: &HashMap<Uuid, ResolvedDeviceBinding>,
+) -> HashMap<Uuid, BindingAuthorization> {
+    bindings
+        .iter()
+        .filter_map(|(device_id, binding)| {
+            let authorization = BindingAuthorization::from(binding);
+            authorization
+                .is_production_grade()
+                .then_some((*device_id, authorization))
+        })
+        .collect()
 }
 
 /// 收集生产绑定: 仅接受 HIGH 置信 (PersistentId/Serial/DeviceHandle 精确匹配).
@@ -862,6 +902,66 @@ impl DeviceBindingManifest {
     }
 }
 
+/// RF-FF-01D: 从 Provisioning manifest + live Provider identity 生成 backend-neutral
+/// Session authorization。此路径不读取/复制 gst_device_number，也不产生 FFmpeg address。
+pub fn collect_authorizations_from_manifest(
+    devices: &[DiscoveredDevice],
+    manifest: &DeviceBindingManifest,
+    runtime_machine_id: &str,
+) -> Result<HashMap<Uuid, BindingAuthorization>, String> {
+    manifest.validate_manifest()?;
+    manifest.check_machine_identity(runtime_machine_id)?;
+    let mut out = HashMap::new();
+    for entry in &manifest.bindings {
+        let is_input = entry.port.as_ref().is_some_and(|p| {
+            matches!(
+                p.direction,
+                PortDirection::Input | PortDirection::Bidirectional
+            )
+        });
+        if !is_input {
+            continue;
+        }
+        let matches: Vec<&DiscoveredDevice> = devices
+            .iter()
+            .filter(|d| {
+                d.device.identity_source == crate::device::DeviceIdentitySource::RealBmd
+                    && d.identity.as_ref().is_some_and(|identity| {
+                        identity.provider == "blackmagic"
+                            && identity.device_handle.as_deref()
+                                == Some(entry.bmd_device_handle.as_str())
+                    })
+            })
+            .collect();
+        if matches.len() != 1 {
+            return Err(format!(
+                "BindingAuthorization: provider handle '{}' live match count={} (expected exactly 1)",
+                entry.bmd_device_handle,
+                matches.len()
+            ));
+        }
+        let dev = matches[0];
+        let authorization = BindingAuthorization {
+            confidence: Confidence::High,
+            // The neutral authorization proves an exact live Provider DeviceHandle match.
+            // It does NOT claim that any concrete backend runtime address was opened/verified.
+            match_kind: ResolverMatch::DeviceHandleExact,
+            persistent_identity: dev
+                .identity
+                .as_ref()
+                .and_then(|i| i.persistent_id)
+                .is_some(),
+        };
+        if out.insert(dev.device.device_id, authorization).is_some() {
+            return Err(format!(
+                "BindingAuthorization: duplicate canonical device {} in input manifest",
+                dev.device.device_id
+            ));
+        }
+    }
+    Ok(out)
+}
+
 /// 声明式 (ops 在 Provisioning 时经 env 显式声明) 的 BMD SDK 版本, 用于与 Manifest `bmd_sdk_version`
 /// 做一致性软校验. 这不是运行时真实探测 —— 真实探测见 `detected_bmd_sdk_version`
 /// (P1-1 整改: 二者概念不能都叫 "actual"). 默认 "unknown" (未声明).
@@ -1135,6 +1235,74 @@ mod tests {
             notes: None,
             bindings: entries,
         }
+    }
+
+    fn v2_input_manifest(handle: &str, gst_device_number: u32) -> DeviceBindingManifest {
+        let mut entry = manifest_entry(handle, gst_device_number);
+        entry.port = Some(PortBinding {
+            connector: ConnectorType::Sdi,
+            ordinal: 1,
+            direction: PortDirection::Input,
+            required: true,
+            verification: VerificationLevel::Declared,
+        });
+        let mut manifest = base_manifest(vec![entry]);
+        manifest.manifest_version = "2.0".into();
+        manifest
+    }
+
+    #[test]
+    fn rf_ff_01d_authorization_is_independent_of_gst_runtime_address() {
+        let handle = "46:00000000:002e4500";
+        let devices = vec![dev(handle)];
+        let a =
+            collect_authorizations_from_manifest(&devices, &v2_input_manifest(handle, 0), "box-a")
+                .expect("authorization from manifest A");
+        let b =
+            collect_authorizations_from_manifest(&devices, &v2_input_manifest(handle, 7), "box-a")
+                .expect("authorization from manifest B");
+        assert_eq!(
+            a, b,
+            "gst runtime address must not change Session authorization"
+        );
+        let auth = a
+            .get(&devices[0].device.device_id)
+            .expect("authorized input");
+        assert!(auth.is_production_grade());
+        assert!(!auth.persistent_identity);
+    }
+
+    #[test]
+    fn rf_ff_01d_authorization_missing_live_provider_fails_closed() {
+        let manifest = v2_input_manifest("46:missing", 0);
+        let err = collect_authorizations_from_manifest(&[], &manifest, "box-a")
+            .expect_err("missing live provider must fail");
+        assert!(err.contains("live match count=0"), "{err}");
+    }
+
+    #[test]
+    fn rf_ff_01d_authorization_ambiguous_live_provider_fails_closed() {
+        let handle = "46:ambiguous";
+        let manifest = v2_input_manifest(handle, 0);
+        let err =
+            collect_authorizations_from_manifest(&[dev(handle), dev(handle)], &manifest, "box-a")
+                .expect_err("duplicate live provider identity must fail");
+        assert!(err.contains("live match count=2"), "{err}");
+    }
+
+    #[test]
+    fn rf_ff_01d_authorization_rejects_non_blackmagic_provider_identity() {
+        let handle = "46:not-blackmagic";
+        let manifest = v2_input_manifest(handle, 0);
+        let mut device = dev(handle);
+        device
+            .identity
+            .as_mut()
+            .expect("provider identity")
+            .provider = "simulation";
+        let err = collect_authorizations_from_manifest(&[device], &manifest, "box-a")
+            .expect_err("foreign provider identity must not authorize BMD manifest");
+        assert!(err.contains("live match count=0"), "{err}");
     }
 
     #[test]

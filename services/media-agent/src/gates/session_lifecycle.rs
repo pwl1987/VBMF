@@ -106,7 +106,9 @@ pub fn run(
             sup.clone(),
             ctrl.clone(),
             std::sync::Arc::new(devices.to_vec()),
-            std::sync::Arc::new(bindings.clone()),
+            std::sync::Arc::new(crate::resolver::authorizations_from_runtime_bindings(
+                &bindings,
+            )),
             Some(registry),
             crate::pipeline::MaterializeMode::Diagnostic,
             crate::session::SessionTuning::default(),

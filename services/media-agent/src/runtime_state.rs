@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::device::{DeviceInfo, IdentityStrength};
 use crate::port::{ConnectorType, PortDirection, PortInfo, PortRegistry};
-use crate::resolver::{Confidence, ResolvedDeviceBinding, ResolverMatch};
+use crate::resolver::{BindingAuthorization, Confidence, ResolverMatch};
 use crate::resource::{ResourceRegistry, ResourceState};
 use crate::session::{MediaSession, SessionId, SessionPhase, SessionState};
 
@@ -161,7 +161,7 @@ impl CanonicalRuntimeState {
         devices: &[DeviceInfo],
         registry: &PortRegistry,
         resources: &ResourceRegistry,
-        bindings: &std::collections::HashMap<Uuid, ResolvedDeviceBinding>,
+        authorizations: &std::collections::HashMap<Uuid, BindingAuthorization>,
         sessions: &[MediaSession],
         obs: &SnapshotObservation,
     ) -> Self {
@@ -171,12 +171,12 @@ impl CanonicalRuntimeState {
                 device_id: d.device_id,
                 model: d.model.clone(),
                 identity_strength: d.identity_strength,
-                binding: bindings
+                binding: authorizations
                     .get(&d.device_id)
-                    .filter(|b| b.is_production_grade())
-                    .map(|b| BindingStatus {
-                        match_kind: b.match_kind,
-                        confidence: b.confidence,
+                    .filter(|a| a.is_production_grade())
+                    .map(|a| BindingStatus {
+                        match_kind: a.match_kind,
+                        confidence: a.confidence,
                     }),
                 capabilities: project_capabilities(&d.capabilities),
             })
@@ -390,12 +390,10 @@ mod tests {
         let mut bindings = HashMap::new();
         bindings.insert(
             dev,
-            ResolvedDeviceBinding {
-                device_number: 1,
-                hw_serial_number: None,
-                persistent_id: None,
+            BindingAuthorization {
                 confidence: Confidence::Medium, // 非 High
                 match_kind: ResolverMatch::TopologicalIdGuess,
+                persistent_identity: false,
             },
         );
         let state = CanonicalRuntimeState::assemble(
@@ -412,12 +410,10 @@ mod tests {
         );
         bindings.insert(
             dev,
-            ResolvedDeviceBinding {
-                device_number: 1,
-                hw_serial_number: None,
-                persistent_id: None,
+            BindingAuthorization {
                 confidence: Confidence::High,
                 match_kind: ResolverMatch::ManifestVerified,
+                persistent_identity: false,
             },
         );
         let state = CanonicalRuntimeState::assemble(

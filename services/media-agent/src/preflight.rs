@@ -15,7 +15,7 @@ use crate::device::DeviceInfo;
 use crate::graph_intent::GraphRuntimeIntent;
 use crate::lease::LeaseManager;
 use crate::port::PortRegistry;
-use crate::resolver::ResolvedDeviceBinding;
+use crate::resolver::BindingAuthorization;
 use crate::resource::{preflight, AcquisitionRequest, ResourceRegistry};
 
 /// 设备输入能力三态（D6 判定用; ProbeFailed→Unknown, absence≠evidence）。
@@ -105,8 +105,10 @@ pub struct PreflightInputs<'a> {
     /// 目标资源占用请求 (由 SessionManager 依 intent→registry 解析得出)。
     pub claims: &'a [AcquisitionRequest],
     pub leases: &'a dyn LeaseManager,
-    /// 已解析绑定 (无 gstreamer/manifest 路径为空 map → IdentityBinding 记 WARN)。
-    pub bindings: &'a HashMap<Uuid, ResolvedDeviceBinding>,
+    /// Backend-neutral production authorization；不携带任何 concrete runtime address。
+    pub authorizations: &'a HashMap<Uuid, BindingAuthorization>,
+    /// Production 必须在 Preflight 阶段已有 authorization；Diagnostic 可显式 WARN fallback。
+    pub require_authorization: bool,
     /// Backend 能力报告 (无 provider 时为空切片 → WARN)。
     pub capabilities: &'a [CapabilityReport],
     pub registry: Option<&'a PortRegistry>,
@@ -320,12 +322,23 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
         );
     }
 
-    // 5. IdentityBinding — 生产绑定在场; 无绑定 (非 gstreamer/legacy) 记 WARN 不阻塞。
-    if inputs.bindings.is_empty() {
-        report.push(PreflightStage::IdentityBinding, StageLevel::Warn, "无已解析绑定 (legacy/非 gstreamer 路径); materialize 将按 identity_strength fail-closed");
+    // 5. IdentityBinding — 只判 backend-neutral authorization；runtime address 不得进入 Preflight truth。
+    if inputs.authorizations.is_empty() {
+        let level = if inputs.require_authorization {
+            StageLevel::Fail
+        } else {
+            StageLevel::Warn
+        };
+        report.push(
+            PreflightStage::IdentityBinding,
+            level,
+            if inputs.require_authorization {
+                "Production 缺少 binding authorization；Preflight fail-closed"
+            } else {
+                "Diagnostic 缺少 binding authorization；显式 WARN fallback"
+            },
+        );
     } else {
-        // **D5 (IDENTITY-BINDING-01, p07c-runtime-state): 实查强度**——key-existence
-        // 不等于 verified: 须 is_production_grade()（HIGH + 精确匹配/ManifestVerified）。
         let unresolved = inputs
             .intent
             .devices
@@ -333,22 +346,22 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
             .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
             .filter(|u| {
                 !inputs
-                    .bindings
+                    .authorizations
                     .get(u)
-                    .is_some_and(|b| b.is_production_grade())
+                    .is_some_and(|a| a.is_production_grade())
             })
             .collect::<Vec<_>>();
         if unresolved.is_empty() {
             report.push(
                 PreflightStage::IdentityBinding,
                 StageLevel::Pass,
-                "目标设备均有生产级绑定 (HIGH + 精确匹配/ManifestVerified)",
+                "目标设备均有 production-grade binding authorization",
             );
         } else {
             report.push(
                 PreflightStage::IdentityBinding,
                 StageLevel::Fail,
-                format!("目标设备缺少生产级绑定 (非 HIGH/非精确匹配): {unresolved:?}"),
+                format!("目标设备缺少 production-grade binding authorization: {unresolved:?}"),
             );
         }
     }
@@ -479,7 +492,8 @@ mod tests {
             resources: &resources,
             claims: &claims,
             leases: &leases,
-            bindings: &bindings,
+            authorizations: &bindings,
+            require_authorization: false,
             capabilities: &caps,
             registry: None,
         };
@@ -500,7 +514,8 @@ mod tests {
             resources: &resources,
             claims: &claims,
             leases: &leases,
-            bindings: &bindings,
+            authorizations: &bindings,
+            require_authorization: false,
             capabilities: &caps,
             registry: None,
         };
@@ -511,6 +526,39 @@ mod tests {
             .stages
             .iter()
             .any(|s| s.stage == PreflightStage::Graph && s.level == StageLevel::Fail));
+    }
+
+    #[test]
+    fn rf_ff_01d_production_missing_authorization_fails_preflight() {
+        let id = Uuid::new_v4();
+        let devices = vec![device(id)];
+        let it = intent(&id);
+        let mut resources = ResourceRegistry::new();
+        let mut res = crate::resource::Resource::new(id, "r", "sdi-input", 1);
+        res.device_id = id;
+        resources.resources.push(res);
+        let leases = InMemoryLeaseManager::new();
+        let authorizations = HashMap::new();
+        let caps: Vec<CapabilityReport> = Vec::new();
+        let claims: Vec<AcquisitionRequest> = Vec::new();
+        let inputs = PreflightInputs {
+            intent: &it,
+            devices: &devices,
+            resources: &resources,
+            claims: &claims,
+            leases: &leases,
+            authorizations: &authorizations,
+            require_authorization: true,
+            capabilities: &caps,
+            registry: None,
+        };
+        let report = run(&inputs);
+        assert_eq!(report.verdict, Verdict::Fail);
+        assert!(report.stages.iter().any(|s| {
+            s.stage == PreflightStage::IdentityBinding
+                && s.level == StageLevel::Fail
+                && s.detail.contains("Production")
+        }));
     }
 
     #[test]
@@ -539,7 +587,8 @@ mod tests {
             resources: &resources,
             claims: &claims,
             leases: &leases,
-            bindings: &bindings,
+            authorizations: &bindings,
+            require_authorization: false,
             capabilities: &caps,
             registry: None,
         };
@@ -580,7 +629,7 @@ mod tests {
         devices: &[DeviceInfo],
         resources: &ResourceRegistry,
         registry: Option<&crate::port::PortRegistry>,
-        bindings: &HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+        bindings: &HashMap<Uuid, crate::resolver::BindingAuthorization>,
         f: impl FnOnce(&PreflightInputs<'_>) -> T,
     ) -> T {
         let leases = InMemoryLeaseManager::new();
@@ -592,7 +641,8 @@ mod tests {
             resources,
             claims: &claims,
             leases: &leases,
-            bindings,
+            authorizations: bindings,
+            require_authorization: false,
             capabilities: &caps,
             registry,
         };
@@ -712,12 +762,10 @@ mod tests {
         let mut bindings = HashMap::new();
         bindings.insert(
             id,
-            crate::resolver::ResolvedDeviceBinding {
-                device_number: 3,
-                hw_serial_number: None,
-                persistent_id: None,
+            crate::resolver::BindingAuthorization {
                 confidence: crate::resolver::Confidence::Medium,
                 match_kind: crate::resolver::ResolverMatch::TopologicalIdGuess,
+                persistent_identity: false,
             },
         );
         let it = intent(&id);
@@ -725,16 +773,14 @@ mod tests {
         assert!(r.stages.iter().any(|s| {
             s.stage == PreflightStage::IdentityBinding
                 && s.level == StageLevel::Fail
-                && s.detail.contains("非 HIGH/非精确匹配")
+                && s.detail.contains("production-grade binding authorization")
         }));
         bindings.insert(
             id,
-            crate::resolver::ResolvedDeviceBinding {
-                device_number: 3,
-                hw_serial_number: None,
-                persistent_id: None,
+            crate::resolver::BindingAuthorization {
                 confidence: crate::resolver::Confidence::High,
                 match_kind: crate::resolver::ResolverMatch::ManifestVerified,
+                persistent_identity: false,
             },
         );
         let r2 = with_inputs(&it, &devices, &resources, None, &bindings, run);

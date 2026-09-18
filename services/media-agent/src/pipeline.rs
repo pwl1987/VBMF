@@ -148,11 +148,11 @@ impl PipelinePlan {
     pub fn from_intent(
         intent: &GraphRuntimeIntent,
         devices: &[DeviceInfo],
-        bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+        authorizations: &std::collections::HashMap<Uuid, crate::resolver::BindingAuthorization>,
         mode: MaterializeMode,
         registry: Option<&crate::port::PortRegistry>,
     ) -> Result<Vec<PipelinePlan>, PipelineError> {
-        materialize(intent, devices, mode, bindings, registry)
+        materialize(intent, devices, mode, authorizations, registry)
     }
 
     /// P1a: 输出物化 launch 全串（含 tee 双分支; 空 outputs ⇒ `""`, controller 走今日串）。
@@ -598,13 +598,13 @@ pub(crate) fn src_props(
 /// P0-1: 强度由 Provider 在 discovery 时按自身证据自证 (Domain 无 vendor 字段可伪造,
 /// filesystem 合成身份强度恒为 Enumeration); 合成身份在生产路径必须拒绝.
 ///
-/// 关键不变量: `materialize` 只消费 **Resolver 解析后的 `device-number`**, 绝不 (在生产/已解析时)
-/// 直接用 SDK 枚举序号; `device-number` 默认 0 在 DeviceHandle/Diagnostic 路径下由 resolved 覆盖.
+/// 关键不变量: `materialize` 只消费 backend-neutral BindingAuthorization，绝不读取
+/// GStreamer device-number / FFmpeg DeviceHandle 等执行地址；concrete RuntimeBinding 由 Backend 持有。
 pub fn materialize(
     intent: &GraphRuntimeIntent,
     devices: &[DeviceInfo],
     mode: MaterializeMode,
-    bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+    authorizations: &std::collections::HashMap<Uuid, crate::resolver::BindingAuthorization>,
     registry: Option<&crate::port::PortRegistry>,
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
     // P1a: env 读取在 materialize 内（签名零改动）——**显式 demo 层缝**, 正式配置模型阶段收口
@@ -613,7 +613,7 @@ pub fn materialize(
         intent,
         devices,
         mode,
-        bindings,
+        authorizations,
         registry,
         &crate::config::PrototypeOutputConfig::from_env(),
     )
@@ -624,7 +624,7 @@ pub fn materialize_with_output(
     intent: &GraphRuntimeIntent,
     devices: &[DeviceInfo],
     mode: MaterializeMode,
-    bindings: &std::collections::HashMap<Uuid, crate::resolver::ResolvedDeviceBinding>,
+    authorizations: &std::collections::HashMap<Uuid, crate::resolver::BindingAuthorization>,
     registry: Option<&crate::port::PortRegistry>,
     cfg: &crate::config::PrototypeOutputConfig,
 ) -> Result<Vec<PipelinePlan>, PipelineError> {
@@ -637,37 +637,27 @@ pub fn materialize_with_output(
                 PipelineError::IdentityUnresolved(format!("设备未注册: {}", d.device_id))
             })?;
 
-        let binding = bindings.get(&info.device_id);
-        let resolved_device_number = binding.map(|b| b.device_number);
-        // 身份层级状态机: 严格按 identity_strength (provider 自证), 绝不默认.
+        let authorization = authorizations.get(&info.device_id);
+        let production_authorized = authorization.is_some_and(|a| a.is_production_grade());
+        // 身份层级状态机只消费 authorization fact；concrete runtime address 不参与 canonical 物化。
         let binding_class = match info.identity_strength {
             IdentityStrength::PersistentId => {
-                // 02-I 前置（第十七轮 §七①）: PersistentIdCanonical 是最高档选卡路径,
-                // 证据必须闭合——binding 在且 persistent_id=Some 才可成计划。缺失即
-                // IdentityUnresolved, 绝不让 src_props 把 None 物化成 persistent-id=0
-                // (盲开 device 0)。生产/诊断一致: 无 binding 时 device_number 同样无据,
-                // 降级 device-number 路径仍是盲 0, 故不降级。
-                if binding.and_then(|b| b.persistent_id).is_some() {
-                    // 官方首选: persistent-id (优先级高于 device-number).
+                if production_authorized && authorization.is_some_and(|a| a.persistent_identity) {
                     SourceBindingClass::Persistent
                 } else {
                     return Err(PipelineError::IdentityUnresolved(format!(
-                        "{}: PersistentId 档位但 persistent_id 证据缺失 (binding 存在={}); 拒绝生成 persistent-id=0",
-                        d.device_id,
-                        binding.is_some()
+                        "{}: PersistentId 档位缺少 production-grade persistent authorization",
+                        d.device_id
                     )));
                 }
             }
-            IdentityStrength::DeviceHandle if resolved_device_number.is_some() => {
-                // 当前硬件正式路径: DeviceHandle → Resolver → 确定 GStreamer device-number.
-                SourceBindingClass::Resolved
-            }
-            IdentityStrength::TopologicalId if resolved_device_number.is_some() => {
-                // 拓扑敏感: 仅 Diagnostic 显式模式允许, 生产拒绝 (猜设备风险高).
+            IdentityStrength::DeviceHandle if production_authorized => SourceBindingClass::Resolved,
+            IdentityStrength::TopologicalId if authorization.is_some() => {
+                // 拓扑敏感: 即使有 authorization evidence，也仅 Diagnostic 显式模式允许。
                 match mode {
                     MaterializeMode::Production => {
                         return Err(PipelineError::IdentityUnresolved(format!(
-                            "{}: TopologicalId 身份强度不足, 生产路径拒绝 (需 PersistentId/DeviceHandle+Resolver)",
+                            "{}: TopologicalId 身份强度不足, 生产路径拒绝 (需 production-grade authorization)",
                             d.device_id
                         )));
                     }
@@ -675,13 +665,12 @@ pub fn materialize_with_output(
                 }
             }
             _ => {
-                // Enumeration 身份 (filesystem 合成) 或 (DeviceHandle/TopologicalId 无 Resolver 绑定):
-                // 生产路径直接 IdentityUnresolved, 绝不 unwrap_or(0) 盲开 device 0.
+                // Enumeration / 未授权 DeviceHandle / 无 authorization：生产拒绝；Diagnostic 明确 fallback。
                 match mode {
                     MaterializeMode::Production => {
                         return Err(PipelineError::IdentityUnresolved(format!(
-                            "{}: 身份未解析 (identity_strength={:?}, Resolver 绑定={:?}); 生产拒绝 device 0",
-                            d.device_id, info.identity_strength, resolved_device_number
+                            "{}: 身份未获 production authorization (identity_strength={:?}, authorization_present={}); 生产拒绝",
+                            d.device_id, info.identity_strength, authorization.is_some()
                         )));
                     }
                     MaterializeMode::Diagnostic => SourceBindingClass::DiagnosticFallback,
@@ -943,11 +932,12 @@ mod tests {
                 match_kind: ResolverMatch::ManifestVerified,
             },
         );
+        let authorizations = crate::resolver::authorizations_from_runtime_bindings(&bindings);
         materialize_with_output(
             &intent_with_sink(&did, kind),
             &devices,
             MaterializeMode::Diagnostic,
-            &bindings,
+            &authorizations,
             None,
             cfg,
         )
@@ -1011,11 +1001,12 @@ mod tests {
                 })
                 .collect(),
         };
+        let authorizations = crate::resolver::authorizations_from_runtime_bindings(&bindings);
         let plans = materialize_with_output(
             &intent,
             &devs,
             MaterializeMode::Diagnostic,
-            &bindings,
+            &authorizations,
             None,
             &cfg,
         )
@@ -1350,8 +1341,8 @@ mod tests {
             .expect_err("无 binding 的 PersistentId 档必须拒绝");
             assert!(
                 matches!(err, PipelineError::IdentityUnresolved(_))
-                    && err.to_string().contains("persistent-id=0"),
-                "拒绝信息锚定盲 0: {err:?}"
+                    && err.to_string().contains("persistent authorization"),
+                "拒绝信息必须锚定缺失的中性持久授权: {err:?}"
             );
         }
         // binding 在但 persistent_id=None（证据断链）:
@@ -1366,9 +1357,11 @@ mod tests {
                 match_kind: ResolverMatch::ManifestVerified,
             },
         );
+        let authorizations = crate::resolver::authorizations_from_runtime_bindings(&bindings);
         for mode in [MaterializeMode::Production, MaterializeMode::Diagnostic] {
             assert!(
-                materialize_with_output(&intent, &devices, mode, &bindings, None, &cfg).is_err(),
+                materialize_with_output(&intent, &devices, mode, &authorizations, None, &cfg)
+                    .is_err(),
                 "persistent_id=None 同样拒绝 ({mode:?})"
             );
         }
@@ -1392,11 +1385,12 @@ mod tests {
                 match_kind: ResolverMatch::PersistentIdExact,
             },
         );
+        let authorizations = crate::resolver::authorizations_from_runtime_bindings(&bindings);
         let plans = materialize_with_output(
             &intent_with_sink(&did, "appsink"),
             &devices,
             MaterializeMode::Production,
-            &bindings,
+            &authorizations,
             None,
             &output_cfg_with(None, None, 6000, 128_000),
         )
@@ -1518,11 +1512,12 @@ mod tests {
         );
         let other = Uuid::new_v4();
         let registry = registry_with_port(dev_id, other, ConnectorType::Sdi);
+        let authorizations = crate::resolver::authorizations_from_runtime_bindings(&bindings);
         let res = materialize(
             &intent,
             &[dev],
             MaterializeMode::Production,
-            &bindings,
+            &authorizations,
             Some(&registry),
         );
         assert!(res.is_err(), "显式 port_id 缺失须被生产拒绝: {res:?}");
@@ -1547,11 +1542,12 @@ mod tests {
             },
         );
         let registry = registry_with_port(dev_id, pid, ConnectorType::Sdi);
+        let authorizations = crate::resolver::authorizations_from_runtime_bindings(&bindings);
         let plans = materialize(
             &intent,
             &[dev],
             MaterializeMode::Production,
-            &bindings,
+            &authorizations,
             Some(&registry),
         )
         .unwrap();

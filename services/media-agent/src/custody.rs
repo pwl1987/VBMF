@@ -584,7 +584,9 @@ mod lifecycle {
             sup,
             Arc::new(MockBackend),
             Arc::new(devices),
-            Arc::new(bindings),
+            Arc::new(crate::resolver::authorizations_from_runtime_bindings(
+                &bindings,
+            )),
             None,
             MaterializeMode::Diagnostic,
             SessionTuning::default(),

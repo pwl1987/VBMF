@@ -247,6 +247,24 @@ def main():
                 if re.search(tok, stripped):
                     bs_errors.append((rel, i, tok))
 
+    # RF-FF-01D: Session authorization is backend-neutral. These orchestration/state
+    # modules must never regain a dependency on concrete ResolvedDeviceBinding runtime addresses.
+    neutral_binding_errors = []
+    for rel in ("session.rs", "preflight.rs", "runtime_state.rs"):
+        p = SRC / rel
+        if not p.is_file():
+            continue
+        for lineno, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if "ResolvedDeviceBinding" in line:
+                neutral_binding_errors.append((rel, lineno))
+
+    if neutral_binding_errors:
+        print("FAIL — RF-FF-01D backend-neutral Session Binding Authorization: "
+              "orchestration/state layer references ResolvedDeviceBinding:")
+        for rel, lineno in neutral_binding_errors:
+            print(f"  {rel}:{lineno}: concrete RuntimeBinding type leaked above adapter/materialization boundary")
+        sys.exit(1)
+
     if all_errors:
         print("FAIL — ARCH-PORTABILITY-01 门禁: "
               f"{len(all_errors)} 处受保护层出现厂商引用:")

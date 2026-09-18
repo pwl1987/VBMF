@@ -31,7 +31,7 @@ use crate::lease::{DeviceLease, LeaseManager};
 use crate::pipeline::{MaterializeMode, PipelineHandle};
 use crate::port::PortRegistry;
 use crate::preflight::{PreflightInputs, PreflightReport};
-use crate::resolver::ResolvedDeviceBinding;
+use crate::resolver::BindingAuthorization;
 use crate::resource::{AcquisitionRequest, SharedResourceRegistry};
 use crate::supervisor::Supervisor;
 
@@ -288,7 +288,7 @@ pub struct SessionManager {
     sup: Arc<Mutex<Supervisor>>,
     backend: Arc<dyn MediaBackend>,
     devices: Arc<Vec<DeviceInfo>>,
-    bindings: Arc<HashMap<Uuid, ResolvedDeviceBinding>>,
+    authorizations: Arc<HashMap<Uuid, BindingAuthorization>>,
     registry: Option<PortRegistry>,
     mode: MaterializeMode,
     tuning: SessionTuning,
@@ -310,7 +310,7 @@ impl SessionManager {
         sup: Arc<Mutex<Supervisor>>,
         backend: Arc<dyn MediaBackend>,
         devices: Arc<Vec<DeviceInfo>>,
-        bindings: Arc<HashMap<Uuid, ResolvedDeviceBinding>>,
+        authorizations: Arc<HashMap<Uuid, BindingAuthorization>>,
         registry: Option<PortRegistry>,
         mode: MaterializeMode,
         tuning: SessionTuning,
@@ -323,7 +323,7 @@ impl SessionManager {
             sup,
             backend,
             devices,
-            bindings,
+            authorizations,
             registry,
             mode,
             tuning,
@@ -515,9 +515,9 @@ impl SessionManager {
             }
         }
 
-        // 步 5: Binding verify (bindings 为空 = legacy/simulation 路径, 跳过; 非空则目标设备须在场)。
+        // 步 5: Binding authorization verify（backend-neutral；不读取 concrete runtime address）。
         // 相位序 (Addendum §4.3): Provisioning → Binding → Leased (租约已持 + 绑定已验 = 就绪可 start)。
-        if !self.bindings.is_empty() {
+        if !self.authorizations.is_empty() {
             // D5: 实查强度 (key-existence ≠ verified)。
             let missing: Vec<Uuid> = intent
                 .devices
@@ -525,9 +525,9 @@ impl SessionManager {
                 .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
                 .filter(|u| {
                     !self
-                        .bindings
+                        .authorizations
                         .get(u)
-                        .is_some_and(|b| b.is_production_grade())
+                        .is_some_and(|a| a.is_production_grade())
                 })
                 .collect();
             if !missing.is_empty() {
@@ -545,9 +545,9 @@ impl SessionManager {
                 .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
             {
                 let confidence = self
-                    .bindings
+                    .authorizations
                     .get(&u)
-                    .map(|b| format!("{:?}/{:?}", b.confidence, b.match_kind).to_lowercase())
+                    .map(|a| format!("{:?}/{:?}", a.confidence, a.match_kind).to_lowercase())
                     .unwrap_or_else(|| "unverified".to_string());
                 self.events.emit(RuntimeEvent::IdentityResolved {
                     device_id: u,
@@ -624,7 +624,7 @@ impl SessionManager {
             &intent,
             &self.devices,
             mode,
-            &self.bindings,
+            &self.authorizations,
             self.registry.as_ref(),
         ) {
             Ok(p) => p,
@@ -918,7 +918,7 @@ impl SessionManager {
             &self.devices,
             &registry,
             &resources,
-            &self.bindings,
+            &self.authorizations,
             &sessions,
             &crate::runtime_state::SnapshotObservation {
                 revision: rev,
@@ -1081,11 +1081,12 @@ impl SessionManager {
         intent: &GraphRuntimeIntent,
         claims: &[AcquisitionRequest],
     ) -> PreflightReport {
-        let empty: HashMap<Uuid, ResolvedDeviceBinding> = HashMap::new();
-        let bindings: &HashMap<Uuid, ResolvedDeviceBinding> = if self.bindings.is_empty() {
+        let empty: HashMap<Uuid, BindingAuthorization> = HashMap::new();
+        let authorizations: &HashMap<Uuid, BindingAuthorization> = if self.authorizations.is_empty()
+        {
             &empty
         } else {
-            &self.bindings
+            &self.authorizations
         };
         let caps: Vec<crate::contracts::provider::CapabilityReport> = Vec::new();
         // 判定输入取资源表快照 (judge-only; ResourceRegistry: Clone, 规模为端口数级)。
@@ -1096,7 +1097,8 @@ impl SessionManager {
             resources: &snapshot,
             claims,
             leases: self.leases.as_ref(),
-            bindings,
+            authorizations,
+            require_authorization: matches!(self.mode, MaterializeMode::Production),
             capabilities: &caps,
             registry: self.registry.as_ref(),
         };
@@ -1371,6 +1373,47 @@ mod tests {
 
     fn mock_manager(devices: &[DeviceInfo], lm: Arc<dyn LmTrait>) -> SessionManager {
         manager_with(Arc::new(MockBackend), devices, lm, SessionTuning::default())
+    }
+
+    #[test]
+    fn rf_ff_01d_production_missing_authorization_fails_before_reserve_or_lease() {
+        let devices = mock_devices();
+        let registry = port_registry_for_devices(&devices);
+        let resources =
+            SharedResourceRegistry::new(ResourceRegistry::derive_from_discovery(&registry));
+        let lm = Arc::new(InMemoryLm::new());
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
+        let sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
+        )));
+        let mgr = SessionManager::new(
+            resources.clone(),
+            lm.clone(),
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(devices.clone()),
+            Arc::new(HashMap::new()),
+            Some(registry),
+            MaterializeMode::Production,
+            SessionTuning::default(),
+            event_log,
+        );
+
+        let err = mgr
+            .create(intent_for(&devices[0]))
+            .expect_err("production missing authorization must fail at preflight");
+        assert!(matches!(err, SessionError::PreflightFailed(_)));
+        assert!(
+            lm.list_active().is_empty(),
+            "preflight failure must precede lease"
+        );
+        resources.with_inner(|registry| {
+            assert!(
+                registry.resources.iter().all(|r| r.reservation.is_none()),
+                "preflight failure must precede reservation"
+            );
+        });
     }
 
     // ── Alpha-1: 多输入多管线（D10 激活） ────────────────────────────────────────
@@ -2348,17 +2391,15 @@ mod tests {
             sink.clone(),
         )));
         // 生产级绑定 (D5: High + DeviceHandleExact) — 使 binding verify 步点亮 IdentityResolved。
-        let bindings: HashMap<Uuid, crate::resolver::ResolvedDeviceBinding> = devices
+        let authorizations: HashMap<Uuid, crate::resolver::BindingAuthorization> = devices
             .iter()
             .map(|d| {
                 (
                     d.device_id,
-                    crate::resolver::ResolvedDeviceBinding {
-                        device_number: 0,
-                        hw_serial_number: None,
-                        persistent_id: None,
+                    crate::resolver::BindingAuthorization {
                         confidence: crate::resolver::Confidence::High,
                         match_kind: crate::resolver::ResolverMatch::DeviceHandleExact,
+                        persistent_identity: false,
                     },
                 )
             })
@@ -2369,7 +2410,7 @@ mod tests {
             sup,
             Arc::new(MockBackend),
             Arc::new(devices.clone()),
-            Arc::new(bindings),
+            Arc::new(authorizations),
             None,
             MaterializeMode::Diagnostic,
             SessionTuning::default(),
