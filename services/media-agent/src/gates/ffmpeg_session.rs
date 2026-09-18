@@ -186,4 +186,5 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
 
     println!("RF-FF-01E stop PASS phase=Released resources=Available lease=NONE");
     println!("RF_FF_01E_BMD_SESSION_PASS");
+    std::process::exit(0);
 }

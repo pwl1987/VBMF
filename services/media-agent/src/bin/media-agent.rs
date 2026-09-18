@@ -383,6 +383,7 @@ fn main() {
                         diag_ids.push(d.device_id.to_string());
                     }
                 }
+                #[cfg(feature = "gstreamer-backend")]
                 let first_id = diag_ids.first().cloned().unwrap_or_else(|| {
                     devices
                         .first()
@@ -707,7 +708,9 @@ fn main() {
         }
     });
 
-    tracing::info!("media-agent canonical runtime loaded (health :8080; ingest via GStreamer started on lease acquire)");
+    tracing::info!(
+        "media-agent canonical runtime loaded; media lifecycle remains Session/MediaBackend owned"
+    );
     // 常驻以便 health 探测 (Gate 2.4 演示); 生产由 supervisor 管理生命周期.
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
