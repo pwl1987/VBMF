@@ -87,8 +87,11 @@ The frozen validation rules are:
 - Ports must be explicit, in `1024..65535`; privileged ports `<1024` are
   rejected, including an otherwise valid explicit port.
 - Public unicast, link-local (`169.254.0.0/16`, IPv6 link-local), multicast and
-  broadcast addresses are rejected. Private IPv4 and IPv6 ULA addresses are
-  eligible only when D5 proves that the exact address belongs to this host.
+  broadcast addresses are rejected. So are IPv4-mapped IPv6 (`::ffff:a.b.c.d`),
+  CGNAT (`100.64.0.0/10`) and documentation addresses (`192.0.2.0/24`,
+  `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`): any address outside the
+  explicitly allowed classes is rejected. Private IPv4 and IPv6 ULA addresses
+  are eligible only when D5 proves that the exact address belongs to this host.
 - Loopback is reserved for the existing local fixture and regression tests. A
   production LAN claim must use an explicit non-loopback address and Tier 1 or
   Tier 2 evidence; a loopback listener must not be reported as cross-host
@@ -140,9 +143,16 @@ Contract rules:
   fail-closed.
 - The manifest must be a regular file with mode `0600`; any group/other bit or
   unreadable state rejects loading. No permissive fallback is allowed.
+- Loading is race-free on a single file descriptor: `open` (with `O_NOFOLLOW`,
+  rejecting symlinks) → `fstat` → verify regular file, owner is exactly the
+  service-running user, and mode `0600` → `read` → `parse`, all on that one
+  already-opened descriptor. Checking the path first and then reopening the file
+  is forbidden (file-swap race); every metadata check must guard the same bytes
+  that are actually parsed.
 - The loader reads the manifest exactly once during process startup. There is no
-  hot reload. A manifest change, machine address change or NIC change takes
-  effect only after service restart.
+  hot reload, and the loader does not follow file replacement. A manifest
+  change, machine address change or NIC change takes effect only after service
+  restart.
 - Loading also runs D5 for every entry before any Network Resource is registered.
 
 `SourceIntent::Rtmp` keeps its existing `source_id` and endpoint fields. The
