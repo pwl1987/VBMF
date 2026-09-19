@@ -51,6 +51,7 @@ pub mod health;
 pub mod hw_port_01; // HW-PORT-01 Gate: 端口级绑定闭环验收
 pub mod idempotency; // P0.7C-4: Idempotency (D9-A~E: 同一命令语义 + 原子 claim + replay/conflict)
 pub mod lease;
+pub mod network_binding; // RF-SRC-RTMP-02 TG-1: NetworkSourceBinding startup manifest (D3/INV-3)
 pub mod normalize; // P0.7B-1: Normalize Foundation — Raw → CanonicalMediaDescriptor (纯函数)
 pub mod normalize_execution; // RF-NORM-01: explicit RAW target/plan/evidence domain
 pub mod pipeline;

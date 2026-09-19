@@ -47,6 +47,11 @@ gstreamer-app = { version = "0.23", optional = true }
 # P1-4: Bus watch 需要 GLib MainContext/MainLoop 管理 (与 gstreamer 同版本配套).
 glib = { version = "0.20", optional = true }
 
+# RF-SRC-RTMP-02 TG-1: NetworkSourceBinding manifest loader 需要 `O_NOFOLLOW` 与
+# `geteuid` (plan D3/INV-3: 防竞态单 fd 加载 + owner=服务用户校验). Linux-only runtime.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 # Reserved for Gate 2 unit tests (lease state machine, supervisor restart policy)
 

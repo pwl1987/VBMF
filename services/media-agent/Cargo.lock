@@ -537,6 +537,7 @@ dependencies = [
  "glib",
  "gstreamer",
  "gstreamer-app",
+ "libc",
  "libloading",
  "serde",
  "serde_json",
