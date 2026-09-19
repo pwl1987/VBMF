@@ -167,30 +167,52 @@ fn wait_for_rtmp_receiver(child: Child) -> Result<(), String> {
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn parse_loopback_source_url(raw: &str) -> Result<crate::source::NetworkEndpoint, String> {
-    let rest = raw
-        .strip_prefix("rtmp://127.0.0.1:")
-        .ok_or_else(|| "RTMP source URL must use rtmp://127.0.0.1:<port>/<path>".to_string())?;
-    let (port, path) = rest
-        .split_once('/')
-        .ok_or_else(|| "RTMP source URL must include a path".to_string())?;
-    let endpoint = crate::source::NetworkEndpoint {
-        protocol: crate::source::NetworkProtocol::Rtmp,
-        host: "127.0.0.1".into(),
-        port: port
-            .parse()
-            .map_err(|_| "RTMP source URL port is invalid".to_string())?,
-        path: format!("/{path}"),
-    };
-    endpoint.validate_loopback()?;
+    parse_source_url(raw, false)
+}
+
+/// RF-SRC-RTMP-02 TG-6: source URL fixture parser. `lan_ok` widens the
+/// fixture boundary from the historical loopback-only form to any D2
+/// canonical eligible endpoint (plan D2/D5 — Tier 1 LAN fixtures on the BMD
+/// box); the canonical spelling itself is enforced by `to_canonical`.
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn parse_source_url(raw: &str, lan_ok: bool) -> Result<crate::source::NetworkEndpoint, String> {
     if raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err("RTMP source URL must be whitespace-free".into());
+    }
+    let rest = raw.strip_prefix("rtmp://").ok_or_else(|| {
+        "RTMP source URL must use rtmp://<canonical-ip>:<port>/<path>".to_string()
+    })?;
+    let (authority, path) = rest
+        .split_once('/')
+        .ok_or_else(|| "RTMP source URL must include a path".to_string())?;
+    let Some((host, port)) = authority.rsplit_once(':') else {
+        return Err("RTMP source URL must carry an explicit port".into());
+    };
+    let port: u16 = port
+        .parse()
+        .map_err(|_| "RTMP source URL port is invalid".to_string())?;
+    let host = host
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .unwrap_or(host);
+    let endpoint = crate::source::NetworkEndpoint {
+        protocol: crate::source::NetworkProtocol::Rtmp,
+        host: host.into(),
+        port,
+        path: format!("/{path}"),
+    };
+    let canonical = endpoint
+        .to_canonical()
+        .map_err(|e| format!("RTMP source URL is not a canonical endpoint: {e}"))?;
+    if !lan_ok && !canonical.ip().is_loopback() {
+        return Err("RTMP source URL must use rtmp://127.0.0.1:<port>/<path>".into());
     }
     Ok(endpoint)
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn spawn_rtmp_source_publisher(url: &str) -> Result<Child, String> {
-    parse_loopback_source_url(url)?;
+    parse_source_url(url, std::env::var("VBMF_FFMPEG_RTMP_SOURCE_LAN").is_ok())?;
     Command::new("ffmpeg")
         .args([
             "-hide_banner",
@@ -263,8 +285,11 @@ fn write_network_binding_manifest(
 fn run_rtmp_source() {
     let raw_url = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_URL")
         .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_SOURCE_URL is required"));
+    // TG-6 Tier 1: VBMF_FFMPEG_RTMP_SOURCE_LAN=1 widens the fixture to a
+    // canonical eligible LAN endpoint (D2/D5); default stays loopback.
+    let lan_ok = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_LAN").is_ok();
     let endpoint =
-        parse_loopback_source_url(&raw_url).unwrap_or_else(|e| fail(format!("RTMP source: {e}")));
+        parse_source_url(&raw_url, lan_ok).unwrap_or_else(|e| fail(format!("RTMP source: {e}")));
     let hls_dir = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR")
         .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR is required"));
     let hls_dir = PathBuf::from(hls_dir);
