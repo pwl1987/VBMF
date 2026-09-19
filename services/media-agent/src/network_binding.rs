@@ -13,6 +13,10 @@
 //!   canonical `CanonicalRtmpEndpoint` URLs; `source_id ↔ endpoint` is
 //!   bidirectionally 1:1 and one `(protocol, ip, port)` may appear once
 //!   regardless of path;
+//! * plan D5: after strict parsing, every entry IP must be currently owned
+//!   by a local network interface (enumerated once via `getifaddrs` at
+//!   startup); an eligible-but-not-local address fails the ENTIRE load —
+//!   private/ULA classification alone never substitutes for ownership;
 //! * `machine_id` is pinned to this host via the existing DeviceBindingManifest
 //!   identity mechanism (`resolver::current_machine_id`); a mismatch or an
 //!   unresolvable runtime identity rejects fail-closed.
@@ -74,6 +78,8 @@ pub enum NetworkBindingError {
     ListenerConflict,
     InvalidSourceId,
     InvalidEndpoint,
+    AddressEnumerationFailed,
+    AddressNotLocal,
     UnauthorizedSource,
     EndpointMismatch,
 }
@@ -108,6 +114,12 @@ impl fmt::Display for NetworkBindingError {
             }
             Self::InvalidSourceId => "network binding manifest entry source_id is invalid",
             Self::InvalidEndpoint => "network binding manifest entry endpoint is invalid",
+            Self::AddressEnumerationFailed => {
+                "local interface address enumeration failed; cannot verify ownership"
+            }
+            Self::AddressNotLocal => {
+                "network binding manifest endpoint address is not owned by a local interface"
+            }
             Self::UnauthorizedSource => "source_id is not authorized by the network binding",
             Self::EndpointMismatch => "endpoint does not exactly match the authorized binding",
         };
@@ -118,13 +130,21 @@ impl fmt::Display for NetworkBindingError {
 impl std::error::Error for NetworkBindingError {}
 
 /// fstat identity snapshot used to prove the file did not change across the
-/// single-descriptor load (INV-3 race guard).
+/// single-descriptor load (INV-3 race guard). Beyond `dev/ino/size` this
+/// snapshots nanosecond-resolution `mtime`/`ctime` and the security-relevant
+/// `uid`/`mode`, so an in-load rewrite, truncate, chmod or chown — even within
+/// the same whole second, even if size is restored — is detected fail-closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FileIdentity {
     dev: u64,
     ino: u64,
     size: u64,
     mtime: i64,
+    mtime_nsec: i64,
+    ctime: i64,
+    ctime_nsec: i64,
+    uid: u32,
+    mode: u32,
 }
 
 impl FileIdentity {
@@ -134,8 +154,21 @@ impl FileIdentity {
             ino: meta.ino(),
             size: meta.size(),
             mtime: meta.mtime(),
+            mtime_nsec: meta.mtime_nsec(),
+            ctime: meta.ctime(),
+            ctime_nsec: meta.ctime_nsec(),
+            uid: meta.uid(),
+            // Full st_mode (type bits included); compared verbatim.
+            mode: std::os::unix::fs::PermissionsExt::mode(&meta.permissions()),
         }
     }
+}
+
+/// INV-3 load-state guard: the before/after snapshots on the SAME descriptor
+/// must be identical and the byte count actually read must equal the file
+/// size. Pure function so the transition logic is deterministically testable.
+fn load_state_unchanged(before: &FileIdentity, after: &FileIdentity, bytes_read: usize) -> bool {
+    before == after && after.size == bytes_read as u64
 }
 
 /// INV-3 owner rule: the file must belong to the uid the service actually runs
@@ -181,17 +214,25 @@ pub struct NetworkSourceBinding {
 }
 
 impl NetworkSourceBinding {
-    /// Startup-only load using the existing machine-identity mechanism.
+    /// Production startup-only load: machine identity from the existing
+    /// resolver plus a one-shot `getifaddrs` snapshot of the addresses
+    /// currently owned by local interfaces (plan D5). Both are captured once
+    /// here — there is no watch, no re-enumeration, no reload; an interface
+    /// or manifest change requires a service restart.
     pub fn load(path: &Path) -> Result<Self, NetworkBindingError> {
         let runtime_machine_id = current_machine_id();
-        Self::load_with_machine_id(path, &runtime_machine_id)
+        let local_ips = local_interface_addresses()?;
+        Self::load_verified(path, &runtime_machine_id, &local_ips)
     }
 
-    /// Testable core: same load, with the runtime machine id supplied by the
-    /// caller (so tests never mutate process environment).
-    pub fn load_with_machine_id(
+    /// Fully determined load with caller-supplied machine id and local
+    /// address set. Internal seam so tests inject the interface snapshot
+    /// instead of depending on the Development VM's live NICs; production
+    /// code must use [`NetworkSourceBinding::load`].
+    pub fn load_verified(
         path: &Path,
         runtime_machine_id: &str,
+        local_ips: &[std::net::IpAddr],
     ) -> Result<Self, NetworkBindingError> {
         let file = std::fs::OpenOptions::new()
             .read(true)
@@ -204,10 +245,6 @@ impl NetworkSourceBinding {
                     NetworkBindingError::OpenRejected
                 }
             })?;
-        let before = file
-            .metadata()
-            .map(|meta| FileIdentity::of(&meta))
-            .map_err(|_| NetworkBindingError::OpenRejected)?;
         let meta = file
             .metadata()
             .map_err(|_| NetworkBindingError::OpenRejected)?;
@@ -220,6 +257,7 @@ impl NetworkSourceBinding {
         if !owner_is_service_user(meta.uid(), effective_uid()) {
             return Err(NetworkBindingError::OwnerNotServiceUser);
         }
+        let before = FileIdentity::of(&meta);
         if before.size == 0 {
             return Err(NetworkBindingError::EmptyFile);
         }
@@ -236,23 +274,30 @@ impl NetworkSourceBinding {
             return Err(NetworkBindingError::TooLarge);
         }
 
+        // Second fstat on the SAME descriptor: every security-relevant field
+        // (owner, mode, timestamps at nanosecond resolution, size, identity)
+        // must be unchanged and must match exactly the bytes just parsed.
         let after = file
             .metadata()
             .map(|meta| FileIdentity::of(&meta))
             .map_err(|_| NetworkBindingError::ReadFailed)?;
-        if after != before || after.size != buf.len() as u64 {
+        if !load_state_unchanged(&before, &after, buf.len()) {
             return Err(NetworkBindingError::ModifiedDuringLoad);
         }
 
-        Self::from_bytes(buf, runtime_machine_id)
+        Self::from_bytes(&buf, runtime_machine_id, local_ips)
     }
 
-    fn from_bytes(buf: Vec<u8>, runtime_machine_id: &str) -> Result<Self, NetworkBindingError> {
+    fn from_bytes(
+        buf: &[u8],
+        runtime_machine_id: &str,
+        local_ips: &[std::net::IpAddr],
+    ) -> Result<Self, NetworkBindingError> {
         // serde_json rejects trailing non-whitespace data; the derived
         // structs reject duplicate fields and (deny_unknown_fields) unknown
         // fields.
         let parsed: ManifestFile =
-            serde_json::from_slice(&buf).map_err(|_| NetworkBindingError::ParseFailed)?;
+            serde_json::from_slice(buf).map_err(|_| NetworkBindingError::ParseFailed)?;
         if parsed.version != MANIFEST_VERSION {
             return Err(NetworkBindingError::UnknownVersion);
         }
@@ -289,6 +334,13 @@ impl NetworkSourceBinding {
                 None => {
                     seen_listener_keys.insert(listener, endpoint.path().as_str().to_string());
                 }
+            }
+            // Plan D5 (last per-entry check, after all structural rejections):
+            // the exact endpoint IP must be owned by a local interface in the
+            // startup snapshot. One not-local address fails the ENTIRE load —
+            // private/ULA class eligibility never substitutes for ownership.
+            if !local_ips.contains(&endpoint.ip().as_ip_addr()) {
+                return Err(NetworkBindingError::AddressNotLocal);
             }
             entries.push(BindingEntry {
                 source_id: NetworkSourceId(uuid),
@@ -352,6 +404,49 @@ fn effective_uid() -> u32 {
     unsafe { libc::geteuid() }
 }
 
+/// Plan D5 production enumerator: one read-only `getifaddrs` snapshot of the
+/// unicast addresses currently assigned to local interfaces. No DNS, no
+/// watch, no refresh — callers use it exactly once at startup. Only AF_INET
+/// and AF_INET6 families are collected; scope ids are ignored (zone ids are
+/// rejected by `CanonicalIp` anyway).
+#[cfg(target_os = "linux")]
+fn local_interface_addresses() -> Result<Vec<std::net::IpAddr>, NetworkBindingError> {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    let mut ifap: *mut libc::ifaddrs = std::ptr::null_mut();
+    // SAFETY: getifaddrs allocates the list; it is fully walked and freed
+    // below on every path after a zero return code.
+    if unsafe { libc::getifaddrs(&mut ifap) } != 0 {
+        return Err(NetworkBindingError::AddressEnumerationFailed);
+    }
+
+    let mut addresses = Vec::new();
+    let mut cursor = ifap;
+    while !cursor.is_null() {
+        // SAFETY: cursor walks the libc-owned linked list returned above.
+        let ifa = unsafe { &*cursor };
+        let addr = ifa.ifa_addr;
+        if !addr.is_null() {
+            // SAFETY: the kernel-provided sockaddr is at least the family
+            // field; family gates the wider struct interpretations below.
+            let family = unsafe { (*addr).sa_family as libc::c_int };
+            if family == libc::AF_INET {
+                // SAFETY: AF_INET sockaddr per the family check.
+                let sa = unsafe { &*(addr as *const libc::sockaddr_in) };
+                addresses.push(IpAddr::V4(Ipv4Addr::from(u32::from_be(sa.sin_addr.s_addr))));
+            } else if family == libc::AF_INET6 {
+                // SAFETY: AF_INET6 sockaddr per the family check.
+                let sa = unsafe { &*(addr as *const libc::sockaddr_in6) };
+                addresses.push(IpAddr::V6(Ipv6Addr::from(sa.sin6_addr.s6_addr)));
+            }
+        }
+        cursor = ifa.ifa_next;
+    }
+    // SAFETY: releases the list allocated by getifaddrs.
+    unsafe { libc::freeifaddrs(ifap) };
+    Ok(addresses)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,6 +489,12 @@ mod tests {
         }
     }
 
+    /// Injected D5 interface snapshot — tests never touch the Development
+    /// VM's live NICs.
+    fn local(ips: &[&str]) -> Vec<std::net::IpAddr> {
+        ips.iter().map(|s| s.parse().unwrap()).collect()
+    }
+
     fn write_manifest(dir: &TempDir, name: &str, body: &str, mode: u32) -> PathBuf {
         let path = dir.path(name);
         std::fs::write(&path, body).unwrap();
@@ -423,7 +524,8 @@ mod tests {
             &valid_body("rtmp://10.30.15.10:19350/live/probe"),
             0o600,
         );
-        let binding = NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap();
+        let binding =
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.30.15.10"])).unwrap();
         assert_eq!(binding.len(), 1);
         assert_eq!(binding.authorized_sources(), vec![source_one()]);
         let ok = binding.authorize(
@@ -447,7 +549,8 @@ mod tests {
             &valid_body("rtmp://10.30.15.10:19350/live/probe"),
             0o600,
         );
-        let binding = NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap();
+        let binding =
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.30.15.10"])).unwrap();
         let other = NetworkSourceId(Uuid::new_v4());
         assert_eq!(
             binding.authorize(&other, &wire_endpoint("10.30.15.10", 19350, "/live/probe")),
@@ -484,7 +587,8 @@ mod tests {
                 &valid_body("rtmp://10.30.15.10:19350/live/probe"),
                 mode,
             );
-            let result = NetworkSourceBinding::load_with_machine_id(&path, "box-a");
+            let result =
+                NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.30.15.10"]));
             if mode == 0o600 {
                 assert!(result.is_ok());
             } else {
@@ -505,12 +609,12 @@ mod tests {
         let link = dir.path("link.json");
         std::os::unix::fs::symlink(&real, &link).unwrap();
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&link, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&link, "box-a", &[]).unwrap_err(),
             NetworkBindingError::SymlinkRejected
         );
         // a directory is not a regular file
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&dir.0, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&dir.0, "box-a", &[]).unwrap_err(),
             NetworkBindingError::NotRegularFile
         );
     }
@@ -520,7 +624,7 @@ mod tests {
         let dir = TempDir::new("size");
         let empty = write_manifest(&dir, "empty.json", "", 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&empty, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&empty, "box-a", &[]).unwrap_err(),
             NetworkBindingError::EmptyFile
         );
         let mut big = String::from("{\"version\":1,\"machine_id\":\"box-a\",\"entries\":[");
@@ -538,7 +642,7 @@ mod tests {
         big.push_str("]}");
         let big_path = write_manifest(&dir, "big.json", &big, 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&big_path, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&big_path, "box-a", &[]).unwrap_err(),
             NetworkBindingError::TooLarge
         );
     }
@@ -567,7 +671,7 @@ mod tests {
         ] {
             let path = write_manifest(&dir, name, body, 0o600);
             assert_eq!(
-                NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+                NetworkSourceBinding::load_verified(&path, "box-a", &[]).unwrap_err(),
                 NetworkBindingError::ParseFailed,
                 "{name}"
             );
@@ -581,7 +685,7 @@ mod tests {
             .replace("\"version\":1", "\"version\":2");
         let path = write_manifest(&dir, "v2.json", &v2, 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&path, "box-a", &[]).unwrap_err(),
             NetworkBindingError::UnknownVersion
         );
         let ok_path = write_manifest(
@@ -591,11 +695,11 @@ mod tests {
             0o600,
         );
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&ok_path, "box-b").unwrap_err(),
+            NetworkSourceBinding::load_verified(&ok_path, "box-b", &[]).unwrap_err(),
             NetworkBindingError::MachineIdMismatch
         );
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&ok_path, "").unwrap_err(),
+            NetworkSourceBinding::load_verified(&ok_path, "", &[]).unwrap_err(),
             NetworkBindingError::MachineIdUnresolved
         );
     }
@@ -606,7 +710,7 @@ mod tests {
         let empty_entries = r#"{"version":1,"machine_id":"box-a","entries":[]}"#;
         let path = write_manifest(&dir, "empty.json", empty_entries, 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&path, "box-a", &[]).unwrap_err(),
             NetworkBindingError::EmptyEntries
         );
 
@@ -616,7 +720,8 @@ mod tests {
         );
         let path = write_manifest(&dir, "dupsrc.json", &dup_source, 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.0.0.1", "10.0.0.2"]))
+                .unwrap_err(),
             NetworkBindingError::DuplicateSourceId
         );
 
@@ -627,7 +732,8 @@ mod tests {
         );
         let path = write_manifest(&dir, "dupend.json", &dup_endpoint, 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.0.0.1", "10.0.0.2"]))
+                .unwrap_err(),
             NetworkBindingError::DuplicateEndpoint
         );
 
@@ -639,7 +745,8 @@ mod tests {
         );
         let path = write_manifest(&dir, "conflict.json", &conflict, 0o600);
         assert_eq!(
-            NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.0.0.1", "10.0.0.2"]))
+                .unwrap_err(),
             NetworkBindingError::ListenerConflict
         );
     }
@@ -657,7 +764,7 @@ mod tests {
             );
             let path = write_manifest(&dir, "id.json", &body, 0o600);
             assert_eq!(
-                NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+                NetworkSourceBinding::load_verified(&path, "box-a", &[]).unwrap_err(),
                 NetworkBindingError::InvalidSourceId,
                 "{bad_id}"
             );
@@ -675,7 +782,7 @@ mod tests {
             );
             let path = write_manifest(&dir, "end.json", &body, 0o600);
             assert_eq!(
-                NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap_err(),
+                NetworkSourceBinding::load_verified(&path, "box-a", &[]).unwrap_err(),
                 NetworkBindingError::InvalidEndpoint,
                 "{bad_endpoint}"
             );
@@ -683,28 +790,182 @@ mod tests {
     }
 
     #[test]
-    fn rf_src_rtmp_02_race_guards_detect_state_change() {
-        // INV-3 single-fd race guard: any identity drift rejects the load.
+    fn rf_src_rtmp_02_identity_transition_guard_detects_metadata_drift() {
+        // INV-3 single-fd race guard, tested as DETERMINISTIC identity
+        // transitions on a real file (no concurrent writer is involved —
+        // this is a guard unit test, not a concurrency race injection):
+        // any drift in size, nanosecond timestamps, owner bits, mode or
+        // inode between the two same-fd snapshots rejects the load.
+        let dir = TempDir::new("guard");
+        let path = write_manifest(
+            &dir,
+            "ok.json",
+            &valid_body("rtmp://10.30.15.10:19350/live/probe"),
+            0o600,
+        );
+        let snapshot = |p: &Path| {
+            let meta = std::fs::metadata(p).unwrap();
+            FileIdentity::of(&meta)
+        };
+
+        let before = snapshot(&path);
+        let bytes = before.size as usize;
+        assert!(load_state_unchanged(&before, &before, bytes));
+        assert!(!load_state_unchanged(&before, &before, bytes - 1));
+
+        // mode drift (chmod during load)
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let drifted = snapshot(&path);
+        assert_ne!(before, drifted);
+        assert!(!load_state_unchanged(&before, &drifted, bytes));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+        // size drift: growth and truncation
+        let grown = snapshot_after(&path, |p| {
+            let mut f = std::fs::OpenOptions::new().append(true).open(p).unwrap();
+            std::io::Write::write_all(&mut f, b"x").unwrap();
+        });
+        assert!(!load_state_unchanged(&before, &grown, bytes));
+        let truncated = snapshot_after(&path, |p| {
+            let f = std::fs::OpenOptions::new().write(true).open(p).unwrap();
+            f.set_len(bytes as u64 - 1).unwrap();
+        });
+        assert!(!load_state_unchanged(&before, &truncated, bytes));
+
+        // same-size rewrite drift via explicit mtime change (deterministic on
+        // any filesystem; a real same-second rewrite shows up through
+        // mtime_nsec/ctime_nsec, which the identity carries)
+        let rewritten = snapshot_after(&path, |p| {
+            let f = std::fs::OpenOptions::new().write(true).open(p).unwrap();
+            f.set_times(std::fs::FileTimes::new().set_modified(
+                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1),
+            ))
+            .unwrap();
+        });
+        assert!(!load_state_unchanged(&before, &rewritten, bytes));
+
+        // structural pure-field transitions (replacement / cross-device swap)
         let a = FileIdentity {
             dev: 1,
             ino: 2,
             size: 100,
             mtime: 3,
+            mtime_nsec: 0,
+            ctime: 3,
+            ctime_nsec: 0,
+            uid: 1000,
+            mode: 0o100600,
         };
-        assert_eq!(a, FileIdentity { size: 100, ..a });
         for mutated in [
-            FileIdentity { size: 99, ..a },  // truncation
-            FileIdentity { size: 101, ..a }, // growth
-            FileIdentity { mtime: 4, ..a },  // rewrite
-            FileIdentity { ino: 9, ..a },    // replacement (rename-over)
-            FileIdentity { dev: 7, ..a },    // cross-device swap
+            FileIdentity { size: 99, ..a },      // truncation
+            FileIdentity { size: 101, ..a },     // growth
+            FileIdentity { mtime: 4, ..a },      // rewrite (seconds)
+            FileIdentity { mtime_nsec: 1, ..a }, // same-second rewrite
+            FileIdentity { ctime_nsec: 1, ..a }, // metadata change
+            FileIdentity { uid: 0, ..a },        // chown mid-load
+            FileIdentity {
+                mode: 0o100644,
+                ..a
+            }, // chmod mid-load
+            FileIdentity { ino: 9, ..a },        // replacement (rename-over)
+            FileIdentity { dev: 7, ..a },        // cross-device swap
         ] {
             assert_ne!(a, mutated);
+            assert!(!load_state_unchanged(&a, &mutated, 100));
         }
         // owner rule
         assert!(owner_is_service_user(1000, 1000));
         assert!(!owner_is_service_user(0, 1000));
         assert!(!owner_is_service_user(1000, 0));
+    }
+
+    /// Snapshot a real file after deterministically mutating it.
+    fn snapshot_after(p: &Path, mutate: impl FnOnce(&Path)) -> FileIdentity {
+        mutate(p);
+        let meta = std::fs::metadata(p).unwrap();
+        FileIdentity::of(&meta)
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_d5_requires_every_endpoint_ip_on_a_local_interface() {
+        // Plan D5 allow/reject matrix with an INJECTED interface snapshot:
+        // eligibility (private class) never substitutes for local ownership.
+        let dir = TempDir::new("d5");
+        let path = write_manifest(
+            &dir,
+            "ok.json",
+            &valid_body("rtmp://10.30.15.10:19350/live/probe"),
+            0o600,
+        );
+        // allow: the exact manifest IP is in the local snapshot
+        let ok = NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.30.15.10"]));
+        assert!(ok.is_ok());
+        // reject: same eligible private class, but not this host's address
+        for snapshot in [
+            local(&["10.30.15.11"]),         // neighbour host
+            local(&["127.0.0.1"]),           // loopback is local but not the claim
+            local(&["fd00::10", "fd00::1"]), // v6-only snapshot cannot satisfy a v4 claim
+        ] {
+            assert_eq!(
+                NetworkSourceBinding::load_verified(&path, "box-a", &snapshot).unwrap_err(),
+                NetworkBindingError::AddressNotLocal
+            );
+        }
+        // empty snapshot (no interfaces): fail-closed, not permissive
+        assert_eq!(
+            NetworkSourceBinding::load_verified(&path, "box-a", &[]).unwrap_err(),
+            NetworkBindingError::AddressNotLocal
+        );
+
+        // one not-local entry fails the ENTIRE load — no partial acceptance
+        let mixed = format!(
+            "{{\"version\":1,\"machine_id\":\"box-a\",\"entries\":[{{\"source_id\":\"{A}\",\"endpoint\":\"rtmp://10.30.15.10:19350/live/probe\"}},{{\"source_id\":\"{B}\",\"endpoint\":\"rtmp://10.30.15.99:19350/live/probe\"}}]}}",
+            A = "11111111-1111-1111-1111-111111111111",
+            B = "22222222-2222-2222-2222-222222222222"
+        );
+        let mixed_path = write_manifest(&dir, "mixed.json", &mixed, 0o600);
+        assert_eq!(
+            NetworkSourceBinding::load_verified(&mixed_path, "box-a", &local(&["10.30.15.10"]))
+                .unwrap_err(),
+            NetworkBindingError::AddressNotLocal
+        );
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_d5_production_enumerator_snapshots_local_interfaces() {
+        // The REAL getifaddrs enumerator (the production D5 source): every
+        // Linux host — including CI runners — owns 127.0.0.1 on `lo`, so the
+        // snapshot must be non-empty and contain loopback. This is the only
+        // assertion that does not depend on host-specific addressing.
+        let snapshot = local_interface_addresses().unwrap();
+        assert!(snapshot.contains(&std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)));
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_manifest_rejects_noncanonical_port_spellings() {
+        // D2 tightening through the manifest path: the explicit port text
+        // must be the canonical decimal spelling.
+        let dir = TempDir::new("port");
+        for bad_endpoint in [
+            "rtmp://10.0.0.1:01935/a", // leading zero
+            "rtmp://10.0.0.1:+1935/a", // plus sign
+            "rtmp://10.0.0.1:-1935/a", // minus sign
+            "rtmp://10.0.0.1: 1935/a", // whitespace
+            "rtmp://10.0.0.1:1935x/a", // trailing junk
+            "rtmp://10.0.0.1:/a",      // empty port
+        ] {
+            let body = format!(
+                r#"{{"version":1,"machine_id":"box-a","entries":[{{"source_id":"{ID}","endpoint":"{bad_endpoint}"}}]}}"#,
+                ID = "11111111-1111-1111-1111-111111111111"
+            );
+            let path = write_manifest(&dir, "p.json", &body, 0o600);
+            assert_eq!(
+                NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.0.0.1"]))
+                    .unwrap_err(),
+                NetworkBindingError::InvalidEndpoint,
+                "{bad_endpoint}"
+            );
+        }
     }
 
     #[test]
@@ -721,7 +982,8 @@ mod tests {
             &valid_body("rtmp://10.30.15.10:19350/live/probe"),
             0o600,
         );
-        let binding = NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap();
+        let binding =
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.30.15.10"])).unwrap();
         let decision: Result<CanonicalRtmpEndpoint, NetworkBindingError> = binding.authorize(
             &source_one(),
             &wire_endpoint("10.30.15.10", 19350, "/live/probe"),
@@ -742,7 +1004,8 @@ mod tests {
             &valid_body("rtmp://10.30.15.10:19350/live/probe"),
             0o600,
         );
-        let binding = NetworkSourceBinding::load_with_machine_id(&path, "box-a").unwrap();
+        let binding =
+            NetworkSourceBinding::load_verified(&path, "box-a", &local(&["10.30.15.10"])).unwrap();
         assert!(binding
             .authorize(
                 &source_one(),

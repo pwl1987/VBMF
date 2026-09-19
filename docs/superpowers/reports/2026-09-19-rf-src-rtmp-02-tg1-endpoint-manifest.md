@@ -2,8 +2,9 @@
 
 - Date: 2026-09-19
 - Packet: `RF-SRC-RTMP-02-IMPLEMENTATION` Step 1 / TG-1
-- Design authority: `docs/superpowers/plans/2026-09-19-rf-src-rtmp-02-production-rtmp-input-boundary.md`（D2/D3/D11 + Implementation Invariants INV-3）
+- Design authority: `docs/superpowers/plans/2026-09-19-rf-src-rtmp-02-production-rtmp-input-boundary.md`（D2/D3/D5/D11 + Implementation Invariants INV-3）
 - Scope（本轮允许清单）: `source.rs` canonical 类型；`NetworkSourceBinding` manifest 加载器（新模块 `network_binding.rs` + `lib.rs` 模块声明 + `Cargo.toml` linux `libc` 依赖）。未触碰 FFmpeg adapter、preflight/session/bootstrap、recovery/supervisor、Web/API、BMD、DeckLink/SRT、D7/D8。
+- Reconciliation: §1–§2 记录 `8b8aa32` 原始交付；**§4 记录其后的 reconciliation 增量**（D5 补齐、D2 收紧、INV-3 加强、测试口径纠正），当前事实以 §4 为准。
 
 ## 1. 交付内容
 
@@ -48,10 +49,52 @@
 | remove-adapters proof（simulation/mock） | PROOF OK |
 | `git diff --check` | PASS |
 
-测试矩阵覆盖用户要求的全部负向族：canonical IPv4/IPv6 表示与类别拒绝（mapped/CGNAT/doc/公网/链路本地/组播/广播/通配）、无端口/隐式端口/错误方括号/hostname、path 空值/点段/query/fragment/反斜杠/百分号编码/空白/控制字符/非法字符、source_id 归属匹配与不匹配、同 ip:port 不同 path 拒绝、文件替换/截断竞态（FileIdentity 守卫 + symlink/O_NOFOLLOW + 实文件模式矩阵）、manifest 不生成 SourceIntent、path 仅路由标识非认证。
+测试矩阵覆盖用户要求的全部负向族：canonical IPv4/IPv6 表示与类别拒绝（mapped/CGNAT/doc/公网/链路本地/组播/广播/通配）、无端口/隐式端口/错误方括号/hostname、path 空值/点段/query/fragment/反斜杠/百分号编码/空白/控制字符/非法字符、source_id 归属匹配与不匹配、同 ip:port 不同 path 拒绝、文件替换/截断竞态（FileIdentity 守卫 + symlink/O_NOFOLLOW + 实文件模式矩阵；**措辞修正见 §4.r4——该覆盖为 identity-transition guard 单测与确定性元数据转换，非并发竞态注入实测**）、manifest 不生成 SourceIntent、path 仅路由标识非认证。
 
 ## 3. 边界与遗留
 
 - 本轮未把 canonical 授权接线进 preflight/session（属 TG-2+ 生产组合路径）；`NetworkEndpoint` wire 值与既有 loopback 强制/argv 路径原样保留（既有测试全部通过 = 零回归）。
 - 唯一登记事项：INV-3 owner 校验以当前 euid 实现（本 runtime 直接以服务用户运行）；若未来引入特权启动序列，加载顺序必须移到降权之后（模块头注释已锚定）。
 - 下一步 = TG-2：无设备副作用的网络源生产组合路径（bootstrap/config 接线 + preflight Production 授权匹配）。
+
+## 4. Reconciliation（`8b8aa32` 之后的增量提交，不抹除历史）
+
+独立复核确认 `8b8aa32` 的主体方向、scope discipline、canonical 强类型与 fail-closed 语义保留；以下四项为复核发现的硬缺口/收紧项，全部按冻结契约补齐（改动仍限 `source.rs` + `network_binding.rs` 两文件，无新依赖）：
+
+### r1 — D5 本机地址归属检查（硬缺口补齐）
+
+- 冻结 D3 要求加载时对每个 entry 执行 D5、D5 要求 exact endpoint IP 当前真实存在于本机 network interface——原实现缺失，已补齐。
+- 生产入口 `NetworkSourceBinding::load()`：启动一次性 `getifaddrs`（libc，只读接口枚举；AF_INET/AF_INET6）取得本机地址快照 + `resolver::current_machine_id()`，随后进入核心加载。无 DNS、无 watch、无 reload；接口/manifest 变更仅重启生效。
+- `from_bytes` 在全部结构性拒绝（uuid/endpoint/重复/冲突）之后、按 entry 末位执行 `local_ips.contains(endpoint.ip)` 精确比对；任一 eligible-but-not-local 地址 → `AddressNotLocal`，**整个 load 失败，绝无部分接受**（混合 entry 测试锚定）。
+- 可注入内部 seam：`load_verified(path, machine_id, local_ips)`——测试注入接口快照，禁止依赖 Development VM 当前 IP。枚举失败 → `AddressEnumerationFailed` fail-closed。
+
+### r2 — D2 strict canonical 边界收紧
+
+- host text `<= 255` 字节显式检查（`MAX_HOST_TEXT_BYTES`），置于 `CanonicalIp::parse_strict` 首位——先于任何地址解析操作，URL/wire/manifest 三条路径全部生效。
+- 端口文本 canonical 形式：`parse_port_strict` 仅接受纯 ASCII 十进制数字且 `port.to_string() == port_text`——`01935`（前导零）、`+1935`/`-1935`（符号）、空白、尾随垃圾、全角数字、空端口全部拒绝；合法范围 `1024..=65535` 不变。新增 source.rs 直测 + manifest 路径 `InvalidEndpoint` 测试。
+
+### r3 — INV-3 second-fstat race guard 加强
+
+- `FileIdentity` 由 `dev/ino/size/mtime(sec)` 扩展为 `dev/ino/size/mtime/mtime_nsec/ctime/ctime_nsec/uid/mode` 九元快照：同秒改写（nsec）、读中 chmod/chown（mode/uid 直接进入同一 fd 的 before/after 全等比较）全部 fail-closed → `ModifiedDuringLoad`。
+- 守卫逻辑提纯为 `load_state_unchanged(before, after, bytes_read)`（快照全等 + size == 实际读得字节数）；仍绑定同一 `O_NOFOLLOW` fd 与实际解析 bytes，无路径二次 stat、无 reopen。原实现的双重首 fstat 冗余已清理为单次快照。
+
+### r4 — 测试/证据口径纠正
+
+- D5：真实生产枚举器 focused test（getifaddrs 快照必含 `127.0.0.1`，唯一不依赖宿主特定编址的断言）+ 注入式 allow/reject 矩阵（邻居地址/loopback 非 claim/v6-only 快照对 v4 claim/空快照/混合 entry 整体失败）。
+- **口径修正**：原"文件替换/截断竞态"覆盖重新定性为 **identity-transition guard 单测 + 实文件确定性元数据转换**（chmod/append/truncate/set_times 驱动 before/after 快照漂移检测 + 九字段纯结构转换矩阵），非并发竞态注入实测——未做并发写入注入，故不作此宣称。
+- 新增负向族：host >255（三条路径的错误信息级断言）、non-canonical 端口拼写（source + manifest 双路径）、读中 uid/mode 漂移（identity 字段 + 守卫函数）。既有全部回归保持，无任何测试标准降低。
+
+### r5 — Reconciliation 验证矩阵（Development VM, Rust 1.98.1）
+
+| 项 | 结果 |
+|---|---|
+| focused `source::` | **27 passed**（+2：端口文本 canonical、host>255） |
+| focused `network_binding::` | **15 passed**（+3：D5 矩阵、生产枚举器、端口拼写 manifest 路径；race-guard 测试重写为确定性 identity-transition guard） |
+| default lib | **301/301** |
+| mock lib + integration | **488/488** + **9/9 + 12/12** |
+| simulation lib | **301/301** |
+| ffmpeg-backend lib | **323 passed / 1 ignored**（既有 ignored 项保持） |
+| clippy `-D warnings` | default / mock / ffmpeg-backend 三档 PASS |
+| `cargo fmt` / `check --all-targets` | PASS / PASS |
+| architecture lint + remove-adapters proof | PASS / PROOF OK |
+| `git diff --check` | PASS（改动仅 `source.rs` + `network_binding.rs`） |

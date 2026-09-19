@@ -131,6 +131,9 @@ impl fmt::Display for NetworkSourceId {
 /// Lowest listener port; privileged ports (<1024) are rejected (plan D2).
 pub const MIN_LISTENER_PORT: u16 = 1024;
 
+/// D2: host text byte limit, enforced before any address parsing operation.
+pub const MAX_HOST_TEXT_BYTES: usize = 255;
+
 /// Canonical IP literal — only the strict canonical spelling parses; nothing
 /// is normalized on accept. IPv4 is strict dotted decimal without leading
 /// zeros; IPv6 is the lowercase compressed RFC 5952 form.
@@ -147,8 +150,12 @@ enum IpRepr {
 
 impl CanonicalIp {
     /// Strict parse. Hostnames/DNS names, zone ids, mapped/non-canonical
-    /// spellings and malformed literals are rejected.
+    /// spellings and malformed literals are rejected. Host text longer than
+    /// [`MAX_HOST_TEXT_BYTES`] is rejected before any address parse.
     pub fn parse_strict(text: &str) -> Result<Self, String> {
+        if text.len() > MAX_HOST_TEXT_BYTES {
+            return Err("endpoint host text exceeds 255 bytes".into());
+        }
         if let Ok(v4) = text.parse::<std::net::Ipv4Addr>() {
             if v4.to_string() != text {
                 return Err("ipv4 literal must use canonical spelling".into());
@@ -200,6 +207,15 @@ impl CanonicalIp {
         match &self.repr {
             IpRepr::V4(v4) => v4.to_string(),
             IpRepr::V6(v6) => format!("[{v6}]"),
+        }
+    }
+
+    /// Standard-library view of the same address (D5 local-interface
+    /// ownership comparison). Same value, different currency; no re-parse.
+    pub fn as_ip_addr(&self) -> std::net::IpAddr {
+        match &self.repr {
+            IpRepr::V4(v4) => std::net::IpAddr::V4(*v4),
+            IpRepr::V6(v6) => std::net::IpAddr::V6(*v6),
         }
     }
 }
@@ -300,6 +316,21 @@ pub struct CanonicalRtmpEndpoint {
 }
 
 impl CanonicalRtmpEndpoint {
+    /// D2 canonical port text: plain ASCII decimal digits only, spelling
+    /// exactly the canonical decimal (`01935`/`+1935`-style forms reject).
+    fn parse_port_strict(text: &str) -> Result<u16, String> {
+        if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+            return Err("endpoint port must be plain decimal digits".into());
+        }
+        let port: u16 = text
+            .parse()
+            .map_err(|_| "endpoint port must be a decimal u16".to_string())?;
+        if port.to_string() != text {
+            return Err("endpoint port must use canonical decimal spelling".into());
+        }
+        Ok(port)
+    }
+
     /// Strict D2 parse of the full URL form (manifest entries). IPv6 hosts
     /// must be bracketed; the port is explicit (implicit 1935 rejected);
     /// userinfo/query/fragment cannot be represented.
@@ -329,9 +360,7 @@ impl CanonicalRtmpEndpoint {
                 None => return Err("explicit port is required (implicit port rejected)".into()),
             }
         };
-        let port: u16 = port_text
-            .parse()
-            .map_err(|_| "endpoint port must be a decimal u16".to_string())?;
+        let port: u16 = Self::parse_port_strict(port_text)?;
         if port < MIN_LISTENER_PORT {
             return Err("privileged ports below 1024 are rejected".into());
         }
@@ -540,6 +569,60 @@ mod tests {
         assert!(canonical("rtmp://10.0.0.5:65536/live/source").is_err());
         assert!(canonical("rtmp://10.0.0.5:1024/live/source").is_ok());
         assert!(canonical("rtmp://10.0.0.5:65535/live/source").is_ok());
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_endpoint_port_text_must_be_canonical_decimal() {
+        // only the plain canonical decimal spelling of the port parses;
+        // leading zeros, signs, whitespace and junk are rejected even though
+        // u16::from_str would accept some of them.
+        for bad in [
+            "rtmp://10.0.0.5:019350/live/source",
+            "rtmp://10.0.0.5:01024/live/source",
+            "rtmp://10.0.0.5:+1935/live/source",
+            "rtmp://10.0.0.5:-1935/live/source",
+            "rtmp://10.0.0.5: 1935/live/source",
+            "rtmp://10.0.0.5:1935x/live/source",
+            "rtmp://10.0.0.5:x1935/live/source",
+            "rtmp://10.0.0.5:１９３５/live/source", // fullwidth digits
+            "rtmp://10.0.0.5:/live/source",
+            "rtmp://[fd00::10]:019350/live/source",
+        ] {
+            let err = canonical(bad).unwrap_err();
+            assert!(
+                err.contains("port"),
+                "{bad}: unexpected rejection reason: {err}"
+            );
+        }
+        // the canonical spelling still parses
+        assert!(canonical("rtmp://10.0.0.5:19350/live/source").is_ok());
+        assert!(canonical("rtmp://10.0.0.5:1024/live/source").is_ok());
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_host_text_over_255_bytes_rejected_before_parse() {
+        // D2: overlong host text is rejected by the byte-limit check itself,
+        // before any address parsing operation, on every entry path.
+        let overlong = "h".repeat(MAX_HOST_TEXT_BYTES + 1);
+        assert_eq!(
+            CanonicalIp::parse_strict(&overlong).unwrap_err(),
+            "endpoint host text exceeds 255 bytes"
+        );
+        let url = format!("rtmp://{overlong}:19350/live/source");
+        assert_eq!(
+            canonical(&url).unwrap_err(),
+            "endpoint host text exceeds 255 bytes"
+        );
+        let wire = NetworkEndpoint {
+            protocol: NetworkProtocol::Rtmp,
+            host: overlong,
+            port: 19350,
+            path: "/live/source".into(),
+        };
+        assert_eq!(
+            wire.to_canonical().unwrap_err(),
+            "endpoint host text exceeds 255 bytes"
+        );
     }
 
     #[test]
