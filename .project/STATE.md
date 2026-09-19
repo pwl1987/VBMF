@@ -877,15 +877,27 @@ Status: **TG-2 COMPLETE / SOFTWARE VERIFIED；TG-3 NEXT**
 - 软件（Development VM）：focused preflight **12** / session(mock) **36** / bootstrap(ffmpeg) **7**；default **304/304**；simulation **304/304**；mock **494/494 + 9/9 + 12/12**；ffmpeg-backend **330 passed/1 ignored**；clippy 四档 `-D warnings`、fmt、`check --all-targets`(default+mock)、architecture lint、remove-adapters proof、diff-check 全 PASS；既有 loopback/Diagnostic/生命周期回归零降低。
 - 报告：`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-tg2-network-composition.md`。
 
+### 3.55 RF-SRC-RTMP-02 TG-3 收口（2026-09-19）— listener argv + 有界 stderr + 有限归因
+
+Status: **TG-3 COMPLETE / SOFTWARE VERIFIED；TG-4 NEXT**
+
+- 实现（仅 `adapters/ffmpeg.rs` + `pipeline.rs`，后者按冻结审计附录"经 D2–D5 放宽"指令）：
+  - **argv**：`SourcePlan::Network` 输入改为 strict canonical（`to_canonical().to_url()`，IPv6 方括号）→ `-rtmp_listen 1 -i <url>`；OS bind() 最终权威（D6）；非 canonical 在 argv 前 `PrepareFailed`；argv URL 为 D9 例外绝不 log。
+  - **物化放宽**：pipeline Network 分支恒过 `to_canonical()`；Diagnostic 锁 loopback（fixture 回归保留）；Production 接受 eligible 类别（LAN 打开；准入在 TG-2 Session 层）。计划形态 wire endpoint 不变（D11）。
+  - **D9 stderr**：StderrRing（≤64KiB/≤256 行/行 512B UTF-8 边界截断/FIFO）+ 独立 reader 线程持续排空（network 子进程 stderr=piped，其余 null）；reaper 排序 stop/recover/observe/Drop 统一 = terminate+wait → join reader → 释放 ring（无 child/reader 遗漏，测试探针锚定）。
+  - **有限归因**：`NetworkExitClass` 冻结四类；`classify_network_exit`：bind 错误文本→BindFailure（D6 列举）；其余→UnknownExit；**INV-1：PublisherDisconnected 绝不从 stderr 关键词单独归因**（正向归因需 canonical signal 历史，构造点属 TG-4，枚举位预留注释锚定）；退出事件 detail 仅类别名，raw stderr 永不出 adapter（e2e 断言）。
+- 软件：focused `rf_src_rtmp_02_tg3` **9**（ffmpeg-backend 6 + default 3）；default **307/307**；simulation **307/307**；ffmpeg-backend **339 passed/1 ignored**；mock **497/497 + 9/9 + 12/12**；clippy 三档 `-D warnings`、fmt、`check --all-targets`、architecture lint、remove-adapters proof、diff-check 全 PASS；既有回归（loopback fixture/Diagnostic/生命周期）零降低。
+- 报告：`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-tg3-listener-stderr.md`。
+
 ## 4. Current Task
 
-**RF-SRC-RTMP-02-IMPLEMENTATION — IN PROGRESS（TG-0/TG-1/TG-2 PASS·§3.52/§3.53/§3.54）**
+**RF-SRC-RTMP-02-IMPLEMENTATION — IN PROGRESS（TG-0…TG-3 PASS·§3.52–§3.55）**
 
-TG-0 capability probe、TG-1（canonical endpoint + NetworkSourceBinding，含 reconciliation `a29da14`）与 TG-2（network-only 生产组合 + Preflight/Session 五元组授权接线 + D10 零设备副作用）已完成。下一步执行 TG-3：FFmpeg `-rtmp_listen` 显式 bind argv + 有界 stderr reader + 有限失败归因（adapters/ffmpeg.rs；Production 非 loopback materialize 打开随本步），随后 TG-4…TG-6 按冻结顺序推进。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
+TG-0 探针、TG-1（含 reconciliation `a29da14`）、TG-2（network-only 组合 + 五元组授权，`ae8a93d`）与 TG-3（canonical listener argv + D9 有界 stderr reader/reaper + 有限归因）已完成。下一步执行 TG-4：recovery_monitor/supervisor 接 D7/D8（Waiting 非故障、SignalVerified 清零、BindFailure/UnknownExit 不计预算直接 ManualRequired、重启前 lease/claim 重验证、INV-2 代际隔离、PublisherDisconnected 正向归因），随后 TG-5/TG-6 按冻结顺序。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
 
 ## 5. Next Task
 
-执行 `RF-SRC-RTMP-02-IMPLEMENTATION` TG-3（TG-0/TG-1/TG-2 已 PASS·§3.52–§3.54）：FFmpeg listener argv（canonical endpoint 显式 bind 输入）+ stderr 有界捕获 reader 线程 + child/reaper 排序 + 有限失败归因；bind() 为最终权威；随后 TG-4…TG-6 按冻结顺序；严格按 §3.51 design authority、allowed/forbidden scope、acceptance 与 stop conditions 推进；实现包完成前不得打开其它 Runtime Features packet。
+执行 `RF-SRC-RTMP-02-IMPLEMENTATION` TG-4（TG-0…TG-3 已 PASS·§3.52–§3.55）：D7/D8 经既有 SessionManager/RecoveryMonitor/Supervisor 接线（不绕过 SessionManager、不造第二 owner）；INV-1/INV-2 实现与测试；随后 TG-5 redaction 负向套件与 TG-6 BMD Tier 1/Tier 2 exact-commit 验收；严格按 §3.51 design authority、allowed/forbidden scope、acceptance 与 stop conditions 推进；实现包完成前不得打开其它 Runtime Features packet。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -934,7 +946,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-SRC-01** | **BLOCKED（§3.45·2026-09-18）** | SRT source boundary + FFmpeg runtime；BMD FFmpeg 无 SRT protocol，保持 blocker 记录，不替换协议冒充完成 | RF-FF-01A–01F + capability | 无代码；需有 SRT-capable runtime 才能继续；不以 RTMP 证据继承 |
 | **RF-SRC-RTMP-01** | **COMPLETE（§3.49·2026-09-19；ffd8889）** | 单协议单输入 RTMP source boundary + FFmpeg runtime/lifecycle；typed ownership/session、CI 与 BMD source recovery/teardown 已验收 | RF-FF slices + §3.47 | DeckLink wire compatibility；typed ownership；BMD loopback A/V；recovery/teardown；security redaction；7/7 CI；不得扩展其他协议/Network umbrella |
 | **RF-SRC-RTMP-01-IMPLEMENTATION** | **COMPLETE（§3.49·2026-09-19）** | typed source/resource/lease/session + materialize/preflight + FFmpeg RTMP argv + BMD source recovery/teardown 已完成 | RF-SRC-RTMP-01 design | exact commit `ffd8889`；software matrix PASS；BMD source evidence；CI `35407985671` 7/7；STATE/GitHub sync |
-| **RF-SRC-RTMP-02-IMPLEMENTATION** | **IN PROGRESS（TG-0/TG-1/TG-2 PASS·§3.52–§3.54·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；不改 `SourceIntent::Rtmp` wire | RF-SRC-RTMP-02 design | TG-0 已过（探针①②③）；TG-1 已过并经 reconciliation 补齐 D5/收紧 D2/加强 INV-3（`a29da14` CI 7/7）；TG-2 已过（network-only 组合 + Preflight/Session 五元组授权 + D10 负向，default 304/mock 494/ffmpeg 330+1 ignored、clippy×4、arch lint、remove-adapters 全绿）；后续：TG-3 listener argv/stderr reader；Tier 1/Tier 2 按实证声明；exact commit 7/7 CI；STATE/GitHub sync |
+| **RF-SRC-RTMP-02-IMPLEMENTATION** | **IN PROGRESS（TG-0…TG-3 PASS·§3.52–§3.55·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；不改 `SourceIntent::Rtmp` wire | RF-SRC-RTMP-02 design | TG-0–TG-2 已过（§3.52–§3.54）；TG-3 已过（canonical argv + D9 stderr ring/reader/reaper + 有限归因，default 307/mock 497/ffmpeg 339+1 ignored、clippy×3、arch lint、remove-adapters 全绿）；后续：TG-4 D7/D8 recovery 接线；TG-5 redaction；TG-6 BMD Tier 1/Tier 2 exact-commit；STATE/GitHub sync |
 | **RUNTIME-FEATURES-NEXT** | **SUPERSEDED BY RF-SRC-RTMP-02（§3.51·2026-09-19）** | 从 live evidence 重新冻结下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 已由 RF-SRC-RTMP-02 design authority、scope、touch-gates、acceptance、verification 接替；不从 BACKLOG 越级 |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |

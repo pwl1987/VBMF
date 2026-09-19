@@ -15,7 +15,8 @@ use crate::pipeline::{
 use crate::pipeline_events::{BusSeverity, PipelineBusEvent, PipelineBusEventKind};
 use crate::port::PortDirection;
 use crate::resolver::{current_machine_id, DeviceBindingManifest};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::Ordering;
@@ -23,11 +24,127 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
+// ── RF-SRC-RTMP-02 TG-3 (plan D9): bounded stderr capture ─────────────────────
+
+/// Ring bounds (plan D9): at most 64 KiB total, at most 256 lines, every
+/// line truncated to 512 bytes before it enters the ring.
+const STDERR_RING_MAX_BYTES: usize = 64 * 1024;
+const STDERR_RING_MAX_LINES: usize = 256;
+const STDERR_LINE_MAX_BYTES: usize = 512;
+
+/// Byte-precise truncation on a UTF-8 char boundary.
+fn truncate_bytes(text: &mut String, max: usize) {
+    if text.len() <= max {
+        return;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text.truncate(end);
+}
+
+/// Bounded stderr ring. Adapter-internal: the raw text is NEVER copied into
+/// a canonical event, error, `Debug`, health, evidence or panic message; it
+/// is only ever reduced to [`NetworkExitClass`].
+#[derive(Default)]
+struct StderrRing {
+    lines: VecDeque<String>,
+    total_bytes: usize,
+}
+
+impl StderrRing {
+    fn push_line(&mut self, mut line: String) {
+        truncate_bytes(&mut line, STDERR_LINE_MAX_BYTES);
+        while self.total_bytes + line.len() > STDERR_RING_MAX_BYTES && self.lines.len() > 1 {
+            if let Some(evicted) = self.lines.pop_front() {
+                self.total_bytes -= evicted.len();
+            }
+        }
+        if self.total_bytes + line.len() > STDERR_RING_MAX_BYTES {
+            // a single line can never exceed the ring (512 ≤ 64 KiB), but
+            // fail-closed on the impossible case anyway
+            return;
+        }
+        if self.lines.len() == STDERR_RING_MAX_LINES {
+            if let Some(evicted) = self.lines.pop_front() {
+                self.total_bytes -= evicted.len();
+            }
+        }
+        self.total_bytes += line.len();
+        self.lines.push_back(line);
+    }
+
+    /// Adapter-internal diagnostic view (classification input only).
+    fn recent_text(&self) -> String {
+        self.lines.iter().cloned().collect::<Vec<_>>().join("\n")
+    }
+}
+
+/// D9 finite attribution categories. These are the only observable products
+/// of the captured stderr; vendor text never leaves the adapter.
+/// `PublisherDisconnected`/`SpawnFailure` are constructed by the TG-4
+/// recovery wiring (INV-1 positive attribution combines canonical signal
+/// history; spawn failures map at the Session layer) — reserved here so the
+/// category set is the frozen four from day one.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NetworkExitClass {
+    BindFailure,
+    PublisherDisconnected,
+    SpawnFailure,
+    UnknownExit,
+}
+
+impl std::fmt::Display for NetworkExitClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::BindFailure => "BindFailure",
+            Self::PublisherDisconnected => "PublisherDisconnected",
+            Self::SpawnFailure => "SpawnFailure",
+            Self::UnknownExit => "UnknownExit",
+        };
+        f.write_str(name)
+    }
+}
+
+/// Reader-thread products: the bounded ring plus its join handle (D9).
+type StderrCapture = (Arc<Mutex<StderrRing>>, std::thread::JoinHandle<()>);
+
+/// Classify a network-listener child exit (plan D6/D9 + INV-1).
+///
+/// * `BindFailure` — the OS bind error surfaces on ffmpeg stderr (plan D6
+///   explicitly classifies "Address already in use" and equivalents this way).
+/// * `PublisherDisconnected` is deliberately NOT attributed here: INV-1
+///   forbids stderr keywords alone; the positive attribution combines exit
+///   status with canonical signal history and lands with the TG-4 recovery
+///   wiring.
+/// * everything else is `UnknownExit` (D7/D8: ManualRequired, never an
+///   exploratory restart).
+fn classify_network_exit(status: &ExitStatus, ring: &StderrRing) -> NetworkExitClass {
+    let _ = status;
+    let text = ring.recent_text();
+    const BIND_ERROR_MARKERS: [&str; 4] = [
+        "Address already in use",
+        "address in use",
+        "Address in use",
+        "Failed to bind",
+    ];
+    if BIND_ERROR_MARKERS.iter().any(|m| text.contains(m)) {
+        return NetworkExitClass::BindFailure;
+    }
+    NetworkExitClass::UnknownExit
+}
+
 struct FfmpegInstance {
     plan: PipelinePlan,
     child: Option<Child>,
     started: bool,
     observe_error_reported: bool,
+    /// TG-3: network-listener children get a piped stderr drained by an
+    /// independent reader thread into this bounded ring (D9).
+    stderr_ring: Option<Arc<Mutex<StderrRing>>>,
+    stderr_reader: Option<std::thread::JoinHandle<()>>,
 }
 
 /// Concrete live FFmpeg backend. One instance owns one child-process table.
@@ -258,9 +375,14 @@ impl FFmpegBackend {
                 binding_class: SourceBindingClass::Resolved,
                 ..
             } => self.resolved_device_name(plan).map(|_| ()),
-            SourcePlan::Network { endpoint, .. } => endpoint
-                .validate_loopback()
-                .map_err(PipelineError::PrepareFailed),
+            // TG-3 (plan D2/D5): the listener address comes from the strict
+            // canonical endpoint (eligible classes incl. production LAN);
+            // the loopback-only gate is replaced by D2 canonical validation —
+            // Production admission happened at the Session layer (TG-2).
+            SourcePlan::Network { endpoint, .. } => {
+                endpoint.to_canonical().map_err(PipelineError::PrepareFailed)?;
+                Ok(())
+            }
             SourcePlan::Device { .. } => Err(PipelineError::PrepareFailed(
                 "RF-FF-01C accepts only canonical SelfTest, RTMP Network, or authorized Resolved input".into(),
             )),
@@ -388,7 +510,13 @@ impl FFmpegBackend {
                 .args(["-map", "0:v:0", "-map", "0:a:0?"]);
             }
             SourcePlan::Network { endpoint, .. } => {
-                let url = endpoint.as_url().map_err(PipelineError::PrepareFailed)?;
+                // TG-3: argv consumes the strict canonical URL (explicit
+                // bind input — the OS bind() on this address/port is the
+                // final authority, plan D6). D9 escape hatch: never log it.
+                let canonical = endpoint
+                    .to_canonical()
+                    .map_err(PipelineError::PrepareFailed)?;
+                let url = canonical.to_url();
                 cmd.args([
                     "-hide_banner",
                     "-nostdin",
@@ -413,13 +541,68 @@ impl FFmpegBackend {
         Ok(cmd)
     }
 
-    fn spawn_plan(&self, plan: &PipelinePlan) -> Result<Child, PipelineError> {
-        self.command_for_plan(plan)?.spawn().map_err(|e| {
+    /// TG-3 (plan D9): independent reader thread continuously draining the
+    /// child stderr pipe into the bounded ring (prevents pipe deadlock).
+    /// The thread exits at EOF (child exit closes the write end).
+    fn spawn_stderr_reader(
+        pipe: std::process::ChildStderr,
+    ) -> (Arc<Mutex<StderrRing>>, std::thread::JoinHandle<()>) {
+        let ring = Arc::new(Mutex::new(StderrRing::default()));
+        let sink = Arc::clone(&ring);
+        let reader = std::thread::Builder::new()
+            .name("ffmpeg-stderr-reader".into())
+            .spawn(move || {
+                let mut reader = std::io::BufReader::new(pipe);
+                let mut line = String::new();
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) => {
+                            let cleaned = line.trim_end_matches(['\n', '\r']).to_string();
+                            if let Ok(mut ring) = sink.lock() {
+                                ring.push_line(cleaned);
+                            }
+                        }
+                    }
+                }
+            })
+            .expect("spawn ffmpeg stderr reader");
+        (ring, reader)
+    }
+
+    /// D9 reaping order: the child is terminated and reaped FIRST, then the
+    /// reader thread is joined (EOF guarantees its exit) so stop/recover/
+    /// close/Drop never leave a reader or child behind.
+    fn reap_reader(instance: &mut FfmpegInstance) {
+        if let Some(reader) = instance.stderr_reader.take() {
+            let _ = reader.join();
+        }
+    }
+
+    fn spawn_plan(
+        &self,
+        plan: &PipelinePlan,
+    ) -> Result<(Child, Option<StderrCapture>), PipelineError> {
+        let mut cmd = self.command_for_plan(plan)?;
+        let network_listener = matches!(plan.source, SourcePlan::Network { .. });
+        if network_listener {
+            // D9: network-listener children get a piped stderr drained by the
+            // independent reader thread; all other plans keep null stderr.
+            cmd.stderr(Stdio::piped());
+        }
+        let mut child = cmd.spawn().map_err(|e| {
             PipelineError::StartFailed(format!(
                 "ffmpeg spawn failed (binary={}): {e}",
                 self.binary.display()
             ))
-        })
+        })?;
+        let reader_parts = if network_listener {
+            child.stderr.take().map(Self::spawn_stderr_reader)
+        } else {
+            None
+        };
+        Ok((child, reader_parts))
     }
 
     fn terminate(child: &mut Child) -> std::io::Result<()> {
@@ -485,6 +668,16 @@ impl FFmpegBackend {
     fn child_pid(&self, handle: &PipelineHandle) -> Option<u32> {
         self.running_child_pid(handle)
     }
+
+    /// TG-3 test probe: (reader still present, ring still present) — both
+    /// false after the D9 reap path proves the reader thread was joined.
+    #[cfg(test)]
+    fn tg3_reader_state(&self, handle: &PipelineHandle) -> (bool, bool) {
+        match self.instances.lock().unwrap().get(handle) {
+            Some(i) => (i.stderr_reader.is_some(), i.stderr_ring.is_some()),
+            None => (false, false),
+        }
+    }
 }
 
 impl crate::contracts::backend::BackendProcessInspector for FFmpegBackend {
@@ -501,6 +694,9 @@ impl Drop for FFmpegBackend {
                     let _ = Self::terminate(child);
                 }
                 instance.child = None;
+                // D9: no reader left behind on drop either.
+                Self::reap_reader(instance);
+                instance.stderr_ring = None;
             }
             instances.clear();
         }
@@ -518,6 +714,8 @@ impl MediaBackend for FFmpegBackend {
                 child: None,
                 started: false,
                 observe_error_reported: false,
+                stderr_ring: None,
+                stderr_reader: None,
             },
         );
         Ok(handle)
@@ -533,8 +731,12 @@ impl MediaBackend for FFmpegBackend {
                 "FFmpeg handle already started: {handle:?}"
             )));
         }
-        let child = self.spawn_plan(&instance.plan)?;
+        let (child, reader_parts) = self.spawn_plan(&instance.plan)?;
         instance.child = Some(child);
+        if let Some((ring, reader)) = reader_parts {
+            instance.stderr_ring = Some(ring);
+            instance.stderr_reader = Some(reader);
+        }
         instance.started = true;
         instance.observe_error_reported = false;
         Ok(())
@@ -549,7 +751,10 @@ impl MediaBackend for FFmpegBackend {
             Self::terminate(child)
                 .map_err(|e| PipelineError::StopFailed(format!("ffmpeg stop/reap failed: {e}")))?;
         }
+        // D9 order: child reaped, then reader joined — no reader left behind.
+        Self::reap_reader(instance);
         instance.child = None;
+        instance.stderr_ring = None;
         instances.remove(handle);
         Ok(())
     }
@@ -569,9 +774,15 @@ impl MediaBackend for FFmpegBackend {
                 PipelineError::StartFailed(format!("ffmpeg recover stop/reap failed: {e}"))
             })?;
         }
+        Self::reap_reader(instance);
         instance.child = None;
-        let child = self.spawn_plan(&instance.plan)?;
+        instance.stderr_ring = None;
+        let (child, reader_parts) = self.spawn_plan(&instance.plan)?;
         instance.child = Some(child);
+        if let Some((ring, reader)) = reader_parts {
+            instance.stderr_ring = Some(ring);
+            instance.stderr_reader = Some(reader);
+        }
         instance.observe_error_reported = false;
         Ok(())
     }
@@ -588,7 +799,29 @@ impl MediaBackend for FFmpegBackend {
             Ok(None) => Vec::new(),
             Ok(Some(status)) => {
                 instance.child = None;
-                vec![Self::exit_event(*handle, status)]
+                // D9: reader joined after reaping; the bounded ring reduces to
+                // a finite classification — raw stderr never leaves here.
+                Self::reap_reader(instance);
+                let ring = instance.stderr_ring.take();
+                let event = match (&instance.plan.source, ring) {
+                    (SourcePlan::Network { .. }, Some(ring)) => {
+                        let class = classify_network_exit(&status, &ring.lock().unwrap());
+                        Self::event(
+                            *handle,
+                            PipelineBusEventKind::Error,
+                            BusSeverity::Error,
+                            format!("network listener exit classified: {class}"),
+                        )
+                    }
+                    (SourcePlan::Network { .. }, None) => Self::event(
+                        *handle,
+                        PipelineBusEventKind::Error,
+                        BusSeverity::Error,
+                        "network listener exit classified: UnknownExit".to_string(),
+                    ),
+                    _ => Self::exit_event(*handle, status),
+                };
+                vec![event]
             }
             Err(e) if !instance.observe_error_reported => {
                 instance.observe_error_reported = true;
@@ -726,6 +959,191 @@ mod tests {
         assert!(args.windows(2).any(|w| w == ["-map", "0:v:0"]));
         assert!(args.windows(2).any(|w| w == ["-map", "0:a:0?"]));
         assert!(!args.iter().any(|arg| arg == "decklink"));
+    }
+
+    // ── RF-SRC-RTMP-02 TG-3 (plan D2/D6/D9) ────────────────────────────────────
+
+    fn network_plan_with(host: &str, port: u16, path: &str) -> PipelinePlan {
+        PipelinePlan {
+            source: SourcePlan::Network {
+                source_id: crate::source::NetworkSourceId(Uuid::new_v4()),
+                endpoint: crate::source::NetworkEndpoint {
+                    protocol: crate::source::NetworkProtocol::Rtmp,
+                    host: host.into(),
+                    port,
+                    path: path.into(),
+                },
+            },
+            ..network_plan()
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_listener_argv_consumes_canonical_endpoint() {
+        // Production LAN endpoint: argv uses the canonical URL (explicit
+        // bind input; the OS bind() on it is the final authority, plan D6).
+        let args = command_args(&network_plan_with("10.30.15.10", 19350, "/live/source"));
+        assert!(args
+            .windows(2)
+            .any(|w| w == ["-i", "rtmp://10.30.15.10:19350/live/source"]));
+        assert!(args.windows(2).any(|w| w == ["-rtmp_listen", "1"]));
+        // bracketed canonical ipv6
+        let args = command_args(&network_plan_with("[fd00::10]", 19350, "/live/source"));
+        assert!(args
+            .windows(2)
+            .any(|w| w == ["-i", "rtmp://[fd00::10]:19350/live/source"]));
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_non_canonical_endpoint_rejects_before_argv() {
+        for (host, port, path) in [
+            ("localhost", 19350, "/live/source"),  // hostname
+            ("8.8.8.8", 19350, "/live/source"),    // ineligible class
+            ("10.30.15.10", 1023, "/live/source"), // privileged port
+            ("10.30.15.10", 19350, "/live/a b"),   // non-canonical path
+        ] {
+            let err = FFmpegBackend::with_binary("ffmpeg")
+                .command_for_plan(&network_plan_with(host, port, path))
+                .err()
+                .unwrap_or_else(|| panic!("non-canonical {host}:{port}{path} must reject"));
+            assert!(matches!(err, PipelineError::PrepareFailed(_)), "{err:?}");
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_stderr_ring_bounds() {
+        // 512-byte per-line truncation on a UTF-8 boundary
+        let mut ring = StderrRing::default();
+        let long_line = format!("{}é", "x".repeat(STDERR_LINE_MAX_BYTES));
+        assert!(long_line.len() > STDERR_LINE_MAX_BYTES);
+        ring.push_line(long_line.clone());
+        {
+            let stored = ring.lines.back().unwrap();
+            assert!(stored.len() <= STDERR_LINE_MAX_BYTES);
+            assert!(stored.is_char_boundary(stored.len()));
+            assert!(stored.starts_with(&"x".repeat(STDERR_LINE_MAX_BYTES - 2)));
+        }
+
+        // 256-line cap with FIFO eviction
+        let mut ring = StderrRing::default();
+        for i in 0..(STDERR_RING_MAX_LINES + 10) {
+            ring.push_line(format!("line-{i}"));
+        }
+        assert_eq!(ring.lines.len(), STDERR_RING_MAX_LINES);
+        assert_eq!(ring.lines.front().unwrap(), "line-10");
+        assert_eq!(
+            ring.lines.back().unwrap(),
+            &format!("line-{}", STDERR_RING_MAX_LINES + 9)
+        );
+
+        // 64 KiB total cap: pushing a long series evicts oldest lines
+        let mut ring = StderrRing::default();
+        let chunk = "y".repeat(1024);
+        for _ in 0..(STDERR_RING_MAX_BYTES / 1024 + 8) {
+            ring.push_line(chunk.clone());
+        }
+        assert!(ring.total_bytes <= STDERR_RING_MAX_BYTES);
+        assert!(ring.lines.len() <= STDERR_RING_MAX_LINES);
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_exit_classification_is_finite_and_redacted() {
+        // bind errors (plan D6) classify as BindFailure from the bounded ring
+        let mut ring = StderrRing::default();
+        ring.push_line("rtmp: Address already in use".into());
+        let status = Command::new("/bin/true")
+            .status()
+            .expect("run /bin/true for an ExitStatus");
+        assert_eq!(
+            classify_network_exit(&status, &ring),
+            NetworkExitClass::BindFailure
+        );
+        // INV-1: no stderr keyword alone may claim PublisherDisconnected —
+        // unknown evidence stays UnknownExit (ManualRequired per D7/D8).
+        let mut ring = StderrRing::default();
+        ring.push_line("some vendor noise about disconnect".into());
+        assert_eq!(
+            classify_network_exit(&status, &ring),
+            NetworkExitClass::UnknownExit
+        );
+        let empty = StderrRing::default();
+        assert_eq!(
+            classify_network_exit(&status, &empty),
+            NetworkExitClass::UnknownExit
+        );
+        // Display carries the category name only — never vendor text
+        for class in [
+            NetworkExitClass::BindFailure,
+            NetworkExitClass::PublisherDisconnected,
+            NetworkExitClass::SpawnFailure,
+            NetworkExitClass::UnknownExit,
+        ] {
+            let text = class.to_string();
+            assert_eq!(
+                text,
+                format!("{class:?}"),
+                "Display must equal the variant name"
+            );
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_reader_drains_classifies_and_reaps_without_leak() {
+        // real child with piped stderr through the network-listener path
+        // (test argv list; the echo is redirected to stderr explicitly)
+        let backend = FFmpegBackend::with_test_command(
+            "/bin/sh",
+            &["-c", "echo 'rtmp: Address already in use' >&2; exit 1"],
+        );
+        let plan = network_plan();
+        let handle = backend.instantiate(&plan).expect("instantiate listener");
+        backend.start(&handle).expect("start listener child");
+        assert_eq!(backend.tg3_reader_state(&handle), (true, true));
+
+        // poll observe until the child exit is reaped
+        let mut exit_event = None;
+        for _ in 0..100 {
+            for event in backend.observe(&handle) {
+                if event.kind == PipelineBusEventKind::Error {
+                    exit_event = Some(event);
+                }
+            }
+            if exit_event.is_some() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        let event = exit_event.expect("exit event observed");
+        assert!(
+            event.detail.contains("BindFailure"),
+            "classification surfaced: {}",
+            event.detail
+        );
+        // D9 redaction: raw vendor stderr never appears in the canonical event
+        assert!(
+            !event.detail.contains("Address already in use"),
+            "raw stderr must not be observable: {}",
+            event.detail
+        );
+        // reader joined + ring dropped after the reap path
+        assert_eq!(backend.tg3_reader_state(&handle), (false, false));
+        let _ = backend.stop(&handle);
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_stop_joins_reader_for_live_listener_child() {
+        // a live network-listener child stopped by the operator: kill → wait
+        // → reader join must complete (no reader/child leak); the test would
+        // hang if the join were missing or deadlockable.
+        let backend = FFmpegBackend::with_test_command("/bin/sleep", &["100"]);
+        let plan = network_plan();
+        let handle = backend.instantiate(&plan).expect("instantiate listener");
+        backend.start(&handle).expect("start listener child");
+        assert_eq!(backend.tg3_reader_state(&handle), (true, true));
+        backend
+            .stop(&handle)
+            .expect("stop reaps child and joins reader");
+        assert_eq!(backend.tg3_reader_state(&handle), (false, false));
     }
 
     #[test]

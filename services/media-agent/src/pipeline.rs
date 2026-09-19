@@ -685,9 +685,18 @@ pub fn materialize_with_output(
             endpoint,
         } = &d.pipeline.source
         {
-            endpoint
-                .validate_loopback()
+            // RF-SRC-RTMP-02 TG-3: widen the old loopback-only gate through
+            // D2 canonical validation (frozen audit appendix directive).
+            // Production admission (five-tuple binding) already happened at
+            // the Session layer; Diagnostic network fixtures stay loopback.
+            let canonical = endpoint
+                .to_canonical()
                 .map_err(PipelineError::IdentityUnresolved)?;
+            if mode == MaterializeMode::Diagnostic && !canonical.ip().is_loopback() {
+                return Err(PipelineError::IdentityUnresolved(
+                    "diagnostic network fixtures must stay loopback (plan D2)".into(),
+                ));
+            }
             let outputs = if plans.is_empty() {
                 materialize_outputs(&d.pipeline.sink.kind, cfg)?
             } else {
@@ -1860,6 +1869,138 @@ mod tests {
                 endpoint: actual_endpoint,
             } if *actual == source_id && actual_endpoint == &endpoint
         ));
+    }
+
+    // ── RF-SRC-RTMP-02 TG-3: materialize widens through D2 canonical ───────────
+
+    fn rtmp_lan_intent() -> GraphRuntimeIntent {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let endpoint = crate::source::NetworkEndpoint {
+            protocol: crate::source::NetworkProtocol::Rtmp,
+            host: "10.30.15.10".into(),
+            port: 19350,
+            path: "/live/source".into(),
+        };
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![DeviceIntent {
+                device_id: "network-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: PipelineIntent {
+                    source: SourceIntent::rtmp(source_id, endpoint),
+                    sink: SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_production_materializes_canonical_lan() {
+        // Production: eligible LAN endpoint materializes (admission happened
+        // at the Session layer); plan keeps the wire endpoint shape.
+        let plans = materialize_with_output(
+            &rtmp_lan_intent(),
+            &[],
+            MaterializeMode::Production,
+            &std::collections::HashMap::new(),
+            None,
+            &output_cfg_with(None, None, 6000, 128_000),
+        )
+        .expect("production LAN endpoint materializes through D2 canonical");
+        assert!(matches!(&plans[0].source, SourcePlan::Network { .. }));
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_diagnostic_fixtures_stay_loopback() {
+        // Diagnostic keeps the loopback fixture boundary (plan D2).
+        let err = match materialize_with_output(
+            &rtmp_lan_intent(),
+            &[],
+            MaterializeMode::Diagnostic,
+            &std::collections::HashMap::new(),
+            None,
+            &output_cfg_with(None, None, 6000, 128_000),
+        ) {
+            Ok(_) => panic!("diagnostic LAN endpoint must reject"),
+            Err(e) => e,
+        };
+        assert!(
+            matches!(err, PipelineError::IdentityUnresolved(_)),
+            "{err:?}"
+        );
+
+        // loopback regression: the existing Diagnostic loopback fixture path
+        // still materializes unchanged.
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let endpoint = crate::source::NetworkEndpoint {
+            protocol: crate::source::NetworkProtocol::Rtmp,
+            host: "127.0.0.1".into(),
+            port: 1935,
+            path: "/live/source".into(),
+        };
+        let intent = GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![DeviceIntent {
+                device_id: "network-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: PipelineIntent {
+                    source: SourceIntent::rtmp(source_id, endpoint.clone()),
+                    sink: SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        };
+        let plans = materialize_with_output(
+            &intent,
+            &[],
+            MaterializeMode::Diagnostic,
+            &std::collections::HashMap::new(),
+            None,
+            &output_cfg_with(None, None, 6000, 128_000),
+        )
+        .expect("diagnostic loopback fixture regression");
+        assert!(matches!(&plans[0].source, SourcePlan::Network { .. }));
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg3_non_canonical_wire_endpoint_rejects_in_both_modes() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let endpoint = crate::source::NetworkEndpoint {
+            protocol: crate::source::NetworkProtocol::Rtmp,
+            host: "010.030.015.010".into(), // leading-zero spelling
+            port: 19350,
+            path: "/live/source".into(),
+        };
+        let intent = GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![DeviceIntent {
+                device_id: "network-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: PipelineIntent {
+                    source: SourceIntent::rtmp(source_id, endpoint),
+                    sink: SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        };
+        for mode in [MaterializeMode::Production, MaterializeMode::Diagnostic] {
+            assert!(
+                materialize_with_output(
+                    &intent,
+                    &[],
+                    mode,
+                    &std::collections::HashMap::new(),
+                    None,
+                    &output_cfg_with(None, None, 6000, 128_000),
+                )
+                .is_err(),
+                "non-canonical endpoint must reject in {mode:?}"
+            );
+        }
     }
 
     #[test]
