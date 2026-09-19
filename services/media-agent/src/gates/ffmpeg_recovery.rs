@@ -320,7 +320,7 @@ fn run_rtmp_source() {
             device_id: "network-source-node".into(),
             role: "CAPTURE".into(),
             pipeline: crate::graph_intent::PipelineIntent {
-                source: crate::graph_intent::SourceIntent::rtmp(source_id, endpoint),
+                source: crate::graph_intent::SourceIntent::rtmp(source_id, endpoint.clone()),
                 sink: crate::graph_intent::SinkIntent { kind: "hls".into() },
             },
         }],
@@ -365,8 +365,21 @@ fn run_rtmp_source() {
     let mut publisher =
         RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
     wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("initial RTMP source A/V: {e}")));
+    // TG-4 (plan D7/INV-1): a completed publisher connection that produced
+    // verified A/V is the SignalVerified evidence — recorded BEFORE the
+    // disconnect leg so the exit attributes as PublisherDisconnected.
+    monitor.report_signal_verified();
+    let listener_class = if endpoint
+        .to_canonical()
+        .map(|c| c.ip().is_loopback())
+        .unwrap_or(false)
+    {
+        "loopback"
+    } else {
+        "lan"
+    };
     println!(
-        "RF-SRC-RTMP-01 source PASS session={sid} source_id={source_id}          codecs=h264,aac loopback=true"
+        "RF-SRC-RTMP-01 source PASS session={sid} source_id={source_id}          codecs=h264,aac listener={listener_class} signal_verified=true"
     );
 
     let old_publisher = publisher
@@ -403,8 +416,17 @@ fn run_rtmp_source() {
     let replacement =
         RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
     wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("recovered RTMP source A/V: {e}")));
+    let supervisor_state = format!(
+        "{:?}",
+        composition
+            .supervisor
+            .lock()
+            .unwrap()
+            .status(&source_id.0)
+            .expect("supervisor watches the source")
+    );
     println!(
-        "RF-SRC-RTMP-01 recovery PASS old_consumer_pid={old_consumer_pid}          new_consumer_pid={new_consumer_pid} canonical_failure=true          supervisor=Recovered codecs=h264,aac"
+        "RF-SRC-RTMP-01 recovery PASS old_consumer_pid={old_consumer_pid}          new_consumer_pid={new_consumer_pid} attributed=PublisherDisconnected          supervisor={supervisor_state} codecs=h264,aac"
     );
 
     composition
