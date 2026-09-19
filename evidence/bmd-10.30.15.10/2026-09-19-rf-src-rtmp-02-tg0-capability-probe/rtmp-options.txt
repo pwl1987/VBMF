@@ -1,0 +1,25 @@
+  -timeout           <int>        ED......... set timeout of socket I/O operations (from -1 to INT_MAX) (default -1)
+  -listen            <int>        ED......... listen on HTTP (from 0 to 2) (default 0)
+  -listen            <int>        ED......... listen on HTTP (from 0 to 2) (default 0)
+  -rtmp_app          <string>     ED......... Name of application to connect to on the RTMP server
+  -rtmp_buffer       <int>        ED......... Set buffer time in milliseconds. The default is 3000. (from 0 to INT_MAX) (default 3000)
+  -rtmp_conn         <string>     ED......... Append arbitrary AMF data to the Connect message
+  -rtmp_flashver     <string>     ED......... Version of the Flash plugin used to run the SWF player.
+  -rtmp_flush_interval <int>        E.......... Number of packets flushed in the same request (RTMPT only). (from 0 to INT_MAX) (default 10)
+  -rtmp_enhanced_codecs <string>     E.......... Specify the codec(s) to use in an enhanced rtmp live stream
+  -rtmp_live         <int>        .D......... Specify that the media is a live stream. (from INT_MIN to INT_MAX) (default any)
+  -rtmp_pageurl      <string>     .D......... URL of the web page in which the media was embedded. By default no value will be sent.
+  -rtmp_playpath     <string>     ED......... Stream identifier to play or to publish
+  -rtmp_subscribe    <string>     .D......... Name of live stream to subscribe to. Defaults to rtmp_playpath.
+  -rtmp_swfhash      <binary>     .D......... SHA256 hash of the decompressed SWF file (32 bytes).
+  -rtmp_swfsize      <int>        .D......... Size of the decompressed SWF file, required for SWFVerification. (from 0 to INT_MAX) (default 0)
+  -rtmp_swfurl       <string>     ED......... URL of the SWF player. By default no value will be sent
+  -rtmp_swfverify    <string>     .D......... URL to player swf file, compute hash/size automatically.
+  -rtmp_tcurl        <string>     ED......... URL of the target stream. Defaults to proto://host[:port]/app.
+  -rtmp_listen       <int>        .D......... Listen for incoming rtmp connections (from INT_MIN to INT_MAX) (default 0)
+  -listen            <int>        .D......... Listen for incoming rtmp connections (from INT_MIN to INT_MAX) (default 0)
+  -timeout           <int>        .D......... Maximum timeout (in seconds) to wait for incoming connections. -1 is infinite. Implies -rtmp_listen 1 (from INT_MIN to INT_MAX) (default -1)
+  -rtmp_app          <string>     ED......... Name of application to connect to on the RTMP server
+  -rtmp_buffer       <int>        ED......... Set buffer time in milliseconds. The default is 3000. (from 0 to INT_MAX) (default 3000)
+  -rtmp_conn         <string>     ED......... Append arbitrary AMF data to the Connect message
+  -rtmp_flashver     <string>     ED......... Version of the Flash plugin used to run the SWF player.

@@ -1,0 +1,1 @@
+target=rtmp://10.30.15.10:19351/live/probe

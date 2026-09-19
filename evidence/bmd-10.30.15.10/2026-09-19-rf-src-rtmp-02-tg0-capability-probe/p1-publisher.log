@@ -1,0 +1,4 @@
+
+Enter command: <target>|all <time>|-1 <command>[ <argument>]
+
+Parse error, at least 3 arguments were expected, only 1 given in string 'ho "publisher_rc=$?" > "$OUT/p1-rc.txt"'

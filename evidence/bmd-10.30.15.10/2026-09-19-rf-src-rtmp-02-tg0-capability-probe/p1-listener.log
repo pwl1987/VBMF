@@ -1,0 +1,42 @@
+[h264 @ 0x61242460bfc0] Reinit context to 320x240, pix_fmt: yuv420p
+Input #0, flv, from 'rtmp://10.30.15.10:19351/live/probe':
+  Metadata:
+    encoder         : Lavf63.6.100
+  Duration: 00:00:04.00, start: 0.000000, bitrate: N/A
+  Stream #0:0: Video: h264 (Constrained Baseline), 1 reference frame, yuv420p(progressive, left), 320x240 [SAR 1:1 DAR 4:3], 15 fps, 15 tbr, 1k tbn, start 0.023000
+  Stream #0:1: Audio: aac (LC), 44100 Hz, mono, fltp, 69 kb/s
+[out#0/mpegts @ 0x612424711c40] No explicit maps, mapping streams automatically...
+[vost#0:0/copy @ 0x61242460b100] Created video stream from input stream 0:0
+[aost#0:1/copy @ 0x61242460b3c0] Created audio stream from input stream 0:1
+Stream mapping:
+  Stream #0:0 -> #0:0 (copy)
+  Stream #0:1 -> #0:1 (copy)
+[mpegts @ 0x61242460d4c0] service 1 using PCR in pid=256, pcr_period=67ms
+[mpegts @ 0x61242460d4c0] muxrate VBR, sdt every 500 ms, pat/pmt every 100 ms
+Output #0, mpegts, to '/tmp/tg0-rf-src-rtmp-02/p1-out.ts':
+  Metadata:
+    encoder         : Lavf63.6.100
+  Stream #0:0: Video: h264 (Constrained Baseline), 1 reference frame, yuv420p(progressive, left), 320x240 [SAR 1:1 DAR 4:3], q=2-31, 15 fps, 15 tbr, 90k tbn
+  Stream #0:1: Audio: aac (LC), 44100 Hz, mono, fltp, 69 kb/s
+[out#0/mpegts @ 0x612424711c40] Starting thread...
+[in#0/flv @ 0x6124245f9480] Starting thread...
+Press [q] to stop, [?] for help
+Automatically inserted bitstream filter 'h264_mp4toannexb'; args=''
+frame=   48 fps=0.0 q=-1.0 size=     250KiB time=00:00:03.22 bitrate= 634.8kbits/s speed=6.44x elapsed=0:00:00.50    frame=   56 fps= 56 q=-1.0 size=     256KiB time=00:00:03.75 bitrate= 558.3kbits/s speed=3.76x elapsed=0:00:01.00    [in#0/flv @ 0x6124245f9480] Error during demuxing: Input/output error
+[in#0/flv @ 0x6124245f9480] Terminating thread with success
+[out#0/mpegts @ 0x612424711c40] All streams finished
+[out#0/mpegts @ 0x612424711c40] Terminating thread with success
+[AVIOContext @ 0x612424656b00] Statistics: 332008 bytes written, 0 seeks, 2 writeouts
+[out#0/mpegts @ 0x612424711c40] Output file #0 (/tmp/tg0-rf-src-rtmp-02/p1-out.ts):
+[out#0/mpegts @ 0x612424711c40]   Output stream #0:0 (video): 60 packets muxed (272949 bytes); 
+[out#0/mpegts @ 0x612424711c40]   Output stream #0:1 (audio): 174 packets muxed (29147 bytes); 
+[out#0/mpegts @ 0x612424711c40]   Total: 234 packets (302096 bytes) muxed
+[out#0/mpegts @ 0x612424711c40] video:267KiB audio:28KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 9.901488%
+frame=   60 fps= 43 q=-1.0 Lsize=     324KiB time=00:00:04.04 bitrate= 657.4kbits/s speed=2.89x elapsed=0:00:01.39    
+[in#0/flv @ 0x6124245f9480] Input file #0 (rtmp://10.30.15.10:19351/live/probe):
+[in#0/flv @ 0x6124245f9480]   Input stream #0:0 (video): 60 packets read (272949 bytes); 
+[in#0/flv @ 0x6124245f9480]   Input stream #0:1 (audio): 174 packets read (29147 bytes); 
+[in#0/flv @ 0x6124245f9480]   Total: 234 packets (302096 bytes) demuxed
+[AVIOContext @ 0x61242460b940] Statistics: 306673 bytes read, 0 seeks
+
+Exiting with exit code 0

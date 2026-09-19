@@ -1,0 +1,4 @@
+target=rtmp://10.30.15.10:19364/live/probe puburl=rtmp://10.30.15.10:19364/live/probe?x=1
+publisher_rc=0
+listener_rc=0
+out_bytes=244776 muxed_lines=2

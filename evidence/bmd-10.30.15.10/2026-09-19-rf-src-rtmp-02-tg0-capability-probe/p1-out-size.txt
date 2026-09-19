@@ -1,0 +1,1 @@
+-rw-rw-r-- 1 lytv lytv 332008 Sep 19 15:59 /tmp/tg0-rf-src-rtmp-02/p1-out.ts
