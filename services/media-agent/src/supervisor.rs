@@ -311,6 +311,49 @@ impl Supervisor {
         self.policy.backoff_for(attempts.saturating_sub(1))
     }
 
+    /// Read-only attempt counter (D8 budget observability; tests anchor the
+    /// "SignalVerified-only reset" invariant with it).
+    pub fn attempts(&self, handle: &Uuid) -> Option<u32> {
+        self.states.get(handle).map(|s| s.attempts)
+    }
+
+    /// RF-SRC-RTMP-02 TG-4 (plan D7/D8): typed network-listener exit decision.
+    ///
+    /// * `BindFailure` / `SpawnFailure` / `UnknownExit` → **Escalate
+    ///   (ManualRequired) immediately, WITHOUT consuming recovery budget and
+    ///   without any retry** (D6/D7/D8; INV-1 "never an exploratory restart").
+    /// * `PublisherDisconnected` (the only positively-attributed recovery
+    ///   class, INV-1) → the existing budgeted `report_failure` path.
+    pub fn report_network_exit(
+        &mut self,
+        handle: &Uuid,
+        class: crate::pipeline_events::NetworkExitClass,
+    ) -> Result<SupervisorAction, SupervisorError> {
+        use crate::pipeline_events::NetworkExitClass;
+        match class {
+            NetworkExitClass::BindFailure
+            | NetworkExitClass::SpawnFailure
+            | NetworkExitClass::UnknownExit => {
+                self.escalate(handle).map(|_| SupervisorAction::Escalate)
+            }
+            NetworkExitClass::PublisherDisconnected => self.report_failure(handle, None, None),
+        }
+    }
+
+    /// RF-SRC-RTMP-02 TG-4 (plan D8): a completed automatic restart returns the
+    /// watched process to Running WITHOUT resetting the budget — only a
+    /// signal-verified publisher connection ([`Self::report_recovered`]) or an
+    /// operator stop/close (fresh registration) resets it. "Listener creation
+    /// alone does not reset the budget."
+    pub fn report_restart_completed(&mut self, handle: &Uuid) -> Result<(), SupervisorError> {
+        let st = self
+            .states
+            .get_mut(handle)
+            .ok_or(SupervisorError::UnknownHandle)?;
+        st.state = ProcessState::Running;
+        Ok(())
+    }
+
     /// Force escalation (FI-08/09 manual-intervention path).
     ///
     /// 0.6D: 发射 `HealthChanged{.. manual_required}` 事件。
@@ -652,5 +695,50 @@ mod tests {
         // 未注册句柄读取 = None。
         assert_eq!(s.last_decision_domain(&Uuid::new_v4()), None);
         assert_eq!(s.last_decision_attribution(&Uuid::new_v4()), None);
+    }
+
+    // ── RF-SRC-RTMP-02 TG-4 (plan D7/D8): typed network exit decisions ────────
+
+    #[test]
+    fn rf_src_rtmp_02_tg4_manual_classes_never_consume_budget() {
+        use crate::pipeline_events::NetworkExitClass;
+        let (mut s, _log) = sup_with_log(RestartPolicy::default());
+        let h = Uuid::new_v4();
+        s.register(h);
+        for class in [
+            NetworkExitClass::BindFailure,
+            NetworkExitClass::SpawnFailure,
+            NetworkExitClass::UnknownExit,
+        ] {
+            assert_eq!(
+                s.report_network_exit(&h, class).unwrap(),
+                SupervisorAction::Escalate,
+                "{class}"
+            );
+            assert_eq!(s.status(&h), Some(ProcessState::ManualRequired), "{class}");
+            assert_eq!(s.attempts(&h), Some(0), "{class}: budget untouched");
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg4_publisher_disconnected_is_the_budgeted_path() {
+        use crate::pipeline_events::NetworkExitClass;
+        let (mut s, _log) = sup_with_log(RestartPolicy::default());
+        let h = Uuid::new_v4();
+        s.register(h);
+        assert_eq!(
+            s.report_network_exit(&h, NetworkExitClass::PublisherDisconnected)
+                .unwrap(),
+            SupervisorAction::Restart
+        );
+        assert_eq!(s.attempts(&h), Some(1));
+        // restart completed: Running again, budget NOT reset (D8).
+        s.report_restart_completed(&h).unwrap();
+        assert_eq!(s.status(&h), Some(ProcessState::Running));
+        assert_eq!(s.attempts(&h), Some(1));
+        // only SignalVerified (report_recovered) resets the budget.
+        s.report_recovered(&h).unwrap();
+        assert_eq!(s.attempts(&h), Some(0));
+        assert_eq!(s.status(&h), Some(ProcessState::Recovered));
     }
 }

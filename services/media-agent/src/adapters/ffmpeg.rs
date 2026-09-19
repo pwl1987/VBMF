@@ -12,7 +12,10 @@ use crate::pipeline::{
     OutputKind, OutputPlan, PipelineError, PipelineHandle, PipelinePlan, SourceBindingClass,
     SourcePlan, NEXT_PIPELINE_ID,
 };
-use crate::pipeline_events::{BusSeverity, PipelineBusEvent, PipelineBusEventKind};
+use crate::pipeline_events::{
+    BusSeverity, NetworkExitClass, PipelineBusEvent, PipelineBusEventKind,
+    NETWORK_EXIT_DETAIL_PREFIX,
+};
 use crate::port::PortDirection;
 use crate::resolver::{current_machine_id, DeviceBindingManifest};
 use std::collections::{HashMap, VecDeque};
@@ -81,33 +84,6 @@ impl StderrRing {
     }
 }
 
-/// D9 finite attribution categories. These are the only observable products
-/// of the captured stderr; vendor text never leaves the adapter.
-/// `PublisherDisconnected`/`SpawnFailure` are constructed by the TG-4
-/// recovery wiring (INV-1 positive attribution combines canonical signal
-/// history; spawn failures map at the Session layer) — reserved here so the
-/// category set is the frozen four from day one.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NetworkExitClass {
-    BindFailure,
-    PublisherDisconnected,
-    SpawnFailure,
-    UnknownExit,
-}
-
-impl std::fmt::Display for NetworkExitClass {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            Self::BindFailure => "BindFailure",
-            Self::PublisherDisconnected => "PublisherDisconnected",
-            Self::SpawnFailure => "SpawnFailure",
-            Self::UnknownExit => "UnknownExit",
-        };
-        f.write_str(name)
-    }
-}
-
 /// Reader-thread products: the bounded ring plus its join handle (D9).
 type StderrCapture = (Arc<Mutex<StderrRing>>, std::thread::JoinHandle<()>);
 
@@ -117,8 +93,8 @@ type StderrCapture = (Arc<Mutex<StderrRing>>, std::thread::JoinHandle<()>);
 ///   explicitly classifies "Address already in use" and equivalents this way).
 /// * `PublisherDisconnected` is deliberately NOT attributed here: INV-1
 ///   forbids stderr keywords alone; the positive attribution combines exit
-///   status with canonical signal history and lands with the TG-4 recovery
-///   wiring.
+///   status with canonical signal history and is finalized by the TG-4
+///   recovery monitor (which owns the signal history).
 /// * everything else is `UnknownExit` (D7/D8: ManualRequired, never an
 ///   exploratory restart).
 fn classify_network_exit(status: &ExitStatus, ring: &StderrRing) -> NetworkExitClass {
@@ -810,14 +786,17 @@ impl MediaBackend for FFmpegBackend {
                             *handle,
                             PipelineBusEventKind::Error,
                             BusSeverity::Error,
-                            format!("network listener exit classified: {class}"),
+                            format!("{NETWORK_EXIT_DETAIL_PREFIX}{class}"),
                         )
                     }
                     (SourcePlan::Network { .. }, None) => Self::event(
                         *handle,
                         PipelineBusEventKind::Error,
                         BusSeverity::Error,
-                        "network listener exit classified: UnknownExit".to_string(),
+                        format!(
+                            "{NETWORK_EXIT_DETAIL_PREFIX}{}",
+                            NetworkExitClass::UnknownExit
+                        ),
                     ),
                     _ => Self::exit_event(*handle, status),
                 };

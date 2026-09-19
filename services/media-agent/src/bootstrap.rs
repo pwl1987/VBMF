@@ -241,6 +241,9 @@ pub struct FfmpegNetworkComposition {
     /// Same lease-manager instance wired into the manager (acceptance
     /// assertions only; lifecycle stays owned by the manager).
     pub lease_manager: Arc<InMemoryLeaseManager>,
+    /// Same resource registry wired into the manager (TG-4 recovery claim
+    /// revalidation input; read-only observation, not a second truth).
+    pub resources: Arc<crate::resource::SharedResourceRegistry>,
     /// Startup-loaded, D5-verified binding — the sole Network authorization
     /// truth for this manager (plan D3/D11).
     pub binding: Arc<crate::network_binding::NetworkSourceBinding>,
@@ -307,7 +310,7 @@ pub fn build_ffmpeg_network_only_composition_with(
     let (backend, process_inspector) =
         crate::registry::AdapterRegistry::build_network_process_backend()?;
     let manager = Arc::new(crate::session::SessionManager::new(
-        resources,
+        resources.clone(),
         lease_manager.clone(),
         supervisor.clone(),
         backend.clone(),
@@ -336,6 +339,7 @@ pub fn build_ffmpeg_network_only_composition_with(
         process_inspector,
         supervisor,
         lease_manager,
+        resources: Arc::new(resources),
         binding,
     })
 }

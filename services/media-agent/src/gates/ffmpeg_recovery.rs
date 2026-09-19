@@ -336,6 +336,7 @@ fn run_rtmp_source() {
         source_id,
         composition.supervisor.clone(),
         composition.lease_manager.clone(),
+        composition.resources.clone(),
     );
     composition
         .manager

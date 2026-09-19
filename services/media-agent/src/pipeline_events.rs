@@ -66,6 +66,50 @@ pub fn bus_event_recovery_policy(kind: PipelineBusEventKind) -> &'static str {
     }
 }
 
+// ── RF-SRC-RTMP-02 TG-4 (plan D9/D7/D8): finite network exit attribution ──────
+
+/// The only observable products of captured listener stderr (plan D9): the
+/// frozen four categories. Vendor text never crosses this vocabulary.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NetworkExitClass {
+    BindFailure,
+    PublisherDisconnected,
+    SpawnFailure,
+    UnknownExit,
+}
+
+impl std::fmt::Display for NetworkExitClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::BindFailure => "BindFailure",
+            Self::PublisherDisconnected => "PublisherDisconnected",
+            Self::SpawnFailure => "SpawnFailure",
+            Self::UnknownExit => "UnknownExit",
+        };
+        f.write_str(name)
+    }
+}
+
+/// Frozen event-detail format the FFmpeg adapter emits on a network-listener
+/// child exit (raw stderr is never in the detail — category name only).
+pub const NETWORK_EXIT_DETAIL_PREFIX: &str = "network listener exit classified: ";
+
+/// Parse the finite classification back out of a canonical event detail.
+/// Single producer (ffmpeg adapter) + single parser share the frozen prefix;
+/// anything unparseable is `None` and the recovery side must treat it as
+/// `UnknownExit` (plan INV-1: never an exploratory restart).
+pub fn network_exit_class_from_detail(detail: &str) -> Option<NetworkExitClass> {
+    let class = detail.strip_prefix(NETWORK_EXIT_DETAIL_PREFIX)?;
+    match class {
+        "BindFailure" => Some(NetworkExitClass::BindFailure),
+        "PublisherDisconnected" => Some(NetworkExitClass::PublisherDisconnected),
+        "SpawnFailure" => Some(NetworkExitClass::SpawnFailure),
+        "UnknownExit" => Some(NetworkExitClass::UnknownExit),
+        _ => None,
+    }
+}
+
 // ── STAB-O4 E4-1: ingest allocation-face anatomy (diagnostic-only exposure) ──
 // 冻结设计: evidence/bmd-10.30.15.10/c2o3-analysis/c2o4-e4-ingest-anatomy-design.txt。
 // 观测面 = decklinkvideosrc/audiosrc src pad 的 BUFFER pad probe + bus watch
@@ -290,5 +334,32 @@ mod e4_anatomy_unit_tests {
         assert_eq!(entry.1.bus_msgs_total, 0);
         ingest_anatomy_remove(&h);
         assert!(ingest_anatomy_snapshot().iter().all(|(k, _)| k != &h));
+    }
+
+    // ── RF-SRC-RTMP-02 TG-4 (plan D9/INV-1): finite detail parsing ─────────────
+
+    #[test]
+    fn rf_src_rtmp_02_tg4_exit_class_detail_roundtrip_and_fail_closed() {
+        use super::NetworkExitClass;
+        for class in [
+            NetworkExitClass::BindFailure,
+            NetworkExitClass::PublisherDisconnected,
+            NetworkExitClass::SpawnFailure,
+            NetworkExitClass::UnknownExit,
+        ] {
+            let detail = format!("{NETWORK_EXIT_DETAIL_PREFIX}{class}");
+            assert_eq!(network_exit_class_from_detail(&detail), Some(class));
+        }
+        // fail-closed: anything not exactly the frozen vocabulary is None —
+        // the recovery side must treat that as UnknownExit (INV-1).
+        for junk in [
+            "",
+            "network listener exit classified: ", // truncated
+            "network listener exit classified: PublisherDisconnect",
+            "pipeline error: vendor noise",
+            "network listener exit classified: UnknownExit ",
+        ] {
+            assert_eq!(network_exit_class_from_detail(junk), None, "{junk:?}");
+        }
     }
 }
