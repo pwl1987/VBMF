@@ -587,6 +587,7 @@ mod lifecycle {
                 &bindings,
             )),
             None,
+            None,
             MaterializeMode::Diagnostic,
             SessionTuning::default(),
             sink,

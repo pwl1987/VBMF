@@ -860,16 +860,32 @@ Status: **TG-1 COMPLETE / SOFTWARE VERIFIED（含 reconciliation 增量）；TG-
   - **INV-3 加强**：`FileIdentity` 扩为 dev/ino/size/mtime/mtime_nsec/ctime/ctime_nsec/uid/mode 九元——同秒改写、读中 chmod/chown 全部在同一 `O_NOFOLLOW` fd 的 before/after 全等比较中 fail-closed；守卫提纯为 `load_state_unchanged`（快照全等 + size==读得字节数）；清理原双重首 fstat。
   - **口径纠正**：竞态覆盖定性为 **identity-transition guard 单测 + 实文件确定性元数据转换**（chmod/append/truncate/set_times + 九字段结构矩阵），非并发竞态注入实测；STATE/报告不再使用"竞态实测"表述。
   - 软件（reconciliation 后全量重跑）：focused source **27** / network_binding **15**；default **301/301**；mock **488/488 + 9/9 + 12/12**；simulation **301/301**；ffmpeg-backend **323 passed/1 ignored**；clippy×3 `-D warnings`、fmt、`check --all-targets`、architecture lint、remove-adapters proof、diff-check（仅 `source.rs`+`network_binding.rs` 两文件）全 PASS。
+  - Reconciliation 提交 = `a29da14`（`8b8aa32` 之后增量，无 amend/rebase/reset/force-push）；exact-commit CI run `35443669027` **7/7 required PASS**；local/origin/GitHub 三方对齐。
+
+### 3.54 RF-SRC-RTMP-02 TG-2 收口（2026-09-19）— network-only 生产组合 + 五元组授权接线
+
+Status: **TG-2 COMPLETE / SOFTWARE VERIFIED；TG-3 NEXT**
+
+- 实现（核心：`config.rs`/`preflight.rs`/`session.rs`/`bootstrap.rs`/`gates/ffmpeg_recovery.rs` + 组合所需 neutral factory `adapters/mod.rs`/`registry.rs` + `SessionManager::new` 签名引发的 13 处 1 行 `None` 机械适配）：
+  - **D10 组合**：拆掉旧 `build_ffmpeg_network_source_composition()`（依赖 DeviceBindingManifest + bootstrap 占位 Device lease 的冻结错误路径）；新 `build_ffmpeg_network_only_composition()`——生产 `NetworkSourceBinding::load()`（D5 getifaddrs + machine pin + 0600 单 fd）启动加载一次；无 discovery/无 DeviceBindingManifest/零占位 Device lease；仅按 authorized sources 注册 Network `rtmp-input` Resource；SessionManager=Production + `network_binding` 类型化字段 + device authorizations map 刻意为空（D11：Network 授权绝不入 device map）；同实例暴露 supervisor/lease_manager 供 acceptance 接线（非第二 owner）。
+  - **Config**：`network_binding_path`（`MEDIA_AGENT_NETWORK_BINDING`）startup-only 入口；缺失 → 生产 network 组合拒启。
+  - **Preflight**：IdentityBinding 重构——Production + RTMP 无 binding = FAIL（终结"Network/SelfTest 自动 PASS"）；有 binding = 五元组逐 source 精确授权（redaction-safe detail）；Diagnostic 无 binding = loopback fixture Pass-with-note（回归保留）；硬件分支逻辑不变，混合 intent 单条合并结论。
+  - **Session**：`create_inner` 步 5 二次核验（BindingFailed fail-closed）；授权先于任何 spawn 路径。
+  - **gate 迁移**：`ffmpeg_recovery` 改走新组合（gate 自写 0600/machine-pin loopback manifest → 真实生产准入）；`bmd-provider,ffmpeg-backend` 交叉 cfg 本 VM/CI 均不编译，已用临时 cfg 降级完成编译验证后原样恢复（披露于报告 §1），最终权威 = TG-6 BMD native build。
+  - `SourceIntent::Rtmp` wire 不变；pipeline.rs/FFmpeg argv/stderr/recovery 未触碰（TG-3/TG-4）：Production LAN endpoint 在 start 的 loopback 校验处继续 fail-closed，不会误启 FFmpeg。
+- D10 负向测试（bootstrap::rf_src_rtmp_02_tg2_tests）：仅 Network Resource（device_id=nil/Available）、devices 空、DeviceLease 集合构造前后均为空、manifest 字节不变、五元组 create 仅 `LeaseKey::Network`、失配 PreflightFailed 且资源回 Available；单测不 start（真 start 会 spawn listener child，属 TG-3/BMD）；input 0/1 与 output device-number 2 零动作 = 结构性（无 discovery/无 device plane），硬件级证据按冻结设计属 TG-6。
+- 软件（Development VM）：focused preflight **12** / session(mock) **36** / bootstrap(ffmpeg) **7**；default **304/304**；simulation **304/304**；mock **494/494 + 9/9 + 12/12**；ffmpeg-backend **330 passed/1 ignored**；clippy 四档 `-D warnings`、fmt、`check --all-targets`(default+mock)、architecture lint、remove-adapters proof、diff-check 全 PASS；既有 loopback/Diagnostic/生命周期回归零降低。
+- 报告：`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-tg2-network-composition.md`。
 
 ## 4. Current Task
 
-**RF-SRC-RTMP-02-IMPLEMENTATION — IN PROGRESS（TG-0/TG-1 PASS·§3.52/§3.53）**
+**RF-SRC-RTMP-02-IMPLEMENTATION — IN PROGRESS（TG-0/TG-1/TG-2 PASS·§3.52/§3.53/§3.54）**
 
-TG-0 capability probe 与 TG-1（canonical endpoint 强类型 + `NetworkSourceBinding` 加载器，D2/D3/INV-3 全量软件验证）已完成。下一步执行 TG-2：无设备副作用的网络源生产组合路径（`bootstrap.rs`/`config.rs` 接线 + `preflight.rs`/`session.rs` Production 五元组授权匹配 + D10 零 DeckLink 副作用断言），随后 TG-3…TG-6 按冻结顺序推进。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
+TG-0 capability probe、TG-1（canonical endpoint + NetworkSourceBinding，含 reconciliation `a29da14`）与 TG-2（network-only 生产组合 + Preflight/Session 五元组授权接线 + D10 零设备副作用）已完成。下一步执行 TG-3：FFmpeg `-rtmp_listen` 显式 bind argv + 有界 stderr reader + 有限失败归因（adapters/ffmpeg.rs；Production 非 loopback materialize 打开随本步），随后 TG-4…TG-6 按冻结顺序推进。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
 
 ## 5. Next Task
 
-执行 `RF-SRC-RTMP-02-IMPLEMENTATION` TG-2（TG-0/TG-1 已 PASS·§3.52/§3.53）：无设备副作用的网络源生产组合路径 + preflight/session Production 五元组授权，随后 TG-3…TG-6 按冻结顺序；严格按 §3.51 design authority、allowed/forbidden scope、acceptance 与 stop conditions 推进；实现包完成前不得打开其它 Runtime Features packet。
+执行 `RF-SRC-RTMP-02-IMPLEMENTATION` TG-3（TG-0/TG-1/TG-2 已 PASS·§3.52–§3.54）：FFmpeg listener argv（canonical endpoint 显式 bind 输入）+ stderr 有界捕获 reader 线程 + child/reaper 排序 + 有限失败归因；bind() 为最终权威；随后 TG-4…TG-6 按冻结顺序；严格按 §3.51 design authority、allowed/forbidden scope、acceptance 与 stop conditions 推进；实现包完成前不得打开其它 Runtime Features packet。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -918,7 +934,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-SRC-01** | **BLOCKED（§3.45·2026-09-18）** | SRT source boundary + FFmpeg runtime；BMD FFmpeg 无 SRT protocol，保持 blocker 记录，不替换协议冒充完成 | RF-FF-01A–01F + capability | 无代码；需有 SRT-capable runtime 才能继续；不以 RTMP 证据继承 |
 | **RF-SRC-RTMP-01** | **COMPLETE（§3.49·2026-09-19；ffd8889）** | 单协议单输入 RTMP source boundary + FFmpeg runtime/lifecycle；typed ownership/session、CI 与 BMD source recovery/teardown 已验收 | RF-FF slices + §3.47 | DeckLink wire compatibility；typed ownership；BMD loopback A/V；recovery/teardown；security redaction；7/7 CI；不得扩展其他协议/Network umbrella |
 | **RF-SRC-RTMP-01-IMPLEMENTATION** | **COMPLETE（§3.49·2026-09-19）** | typed source/resource/lease/session + materialize/preflight + FFmpeg RTMP argv + BMD source recovery/teardown 已完成 | RF-SRC-RTMP-01 design | exact commit `ffd8889`；software matrix PASS；BMD source evidence；CI `35407985671` 7/7；STATE/GitHub sync |
-| **RF-SRC-RTMP-02-IMPLEMENTATION** | **IN PROGRESS（TG-0/TG-1 PASS·§3.52/§3.53·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；不改 `SourceIntent::Rtmp` wire | RF-SRC-RTMP-02 design | TG-0 已过（探针①②③）；TG-1 已过并经 reconciliation 补齐 D5 本机归属/收紧 D2（host≤255、canonical 端口文本）/加强 INV-3（九元 FileIdentity；口径=identity-transition guard 单测）（canonical 类型 + manifest 加载器，default 301/mock 488/sim 301/ffmpeg 323+1 ignored、clippy×3、arch lint、remove-adapters 全绿）；后续：TG-2 组合路径与授权接线；Tier 1/Tier 2 按实证声明；D10 零 DeckLink 副作用；exact commit 7/7 CI；STATE/GitHub sync |
+| **RF-SRC-RTMP-02-IMPLEMENTATION** | **IN PROGRESS（TG-0/TG-1/TG-2 PASS·§3.52–§3.54·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；不改 `SourceIntent::Rtmp` wire | RF-SRC-RTMP-02 design | TG-0 已过（探针①②③）；TG-1 已过并经 reconciliation 补齐 D5/收紧 D2/加强 INV-3（`a29da14` CI 7/7）；TG-2 已过（network-only 组合 + Preflight/Session 五元组授权 + D10 负向，default 304/mock 494/ffmpeg 330+1 ignored、clippy×4、arch lint、remove-adapters 全绿）；后续：TG-3 listener argv/stderr reader；Tier 1/Tier 2 按实证声明；exact commit 7/7 CI；STATE/GitHub sync |
 | **RUNTIME-FEATURES-NEXT** | **SUPERSEDED BY RF-SRC-RTMP-02（§3.51·2026-09-19）** | 从 live evidence 重新冻结下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 已由 RF-SRC-RTMP-02 design authority、scope、touch-gates、acceptance、verification 接替；不从 BACKLOG 越级 |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
@@ -1080,7 +1096,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.51/§4–§5；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
 6. 读取 **Current Task = RF-SRC-RTMP-02-IMPLEMENTATION — READY** 对应 Authority：`.project/STATE.md` §3.31–§3.51/§4–§5 + `docs/superpowers/plans/2026-09-19-rf-src-rtmp-02-production-rtmp-input-boundary.md` + `docs/superpowers/plans/2026-09-19-runtime-features-next-candidate-review.md` + RF-SRC-RTMP-01 两份 plan/evidence + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01 SRT blocker + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；当前唯一活跃实施包 = RF-SRC-RTMP-02-IMPLEMENTATION（TG-0 已 PASS·§3.52，只能按 §3.51 设计 + §3.52 探针结论执行）；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；当前唯一活跃实施包 = RF-SRC-RTMP-02-IMPLEMENTATION（TG-0/TG-1/TG-2 已 PASS·§3.52–§3.54，只能按 §3.51 设计 + §3.52 探针结论执行，下一步 TG-3 listener argv/stderr reader）；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -1097,6 +1113,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.51/§4–§5；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；RF-SRC-RTMP-02 已在 §3.51 冻结为唯一 READY implementation packet，其 TG-0 capability probe 已 PASS（§3.52：①LAN 绑定 PASS·②path=routing label only·③source_id PASS），下一步 = Step 1 / TG-1；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；RF-SRC-RTMP-02 唯一活跃 implementation packet：TG-0 PASS（§3.52）、TG-1 PASS + reconciliation（§3.53）、TG-2 PASS（§3.54），下一步 = TG-3；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。

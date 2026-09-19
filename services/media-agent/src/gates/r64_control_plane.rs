@@ -765,6 +765,7 @@ pub(crate) fn build_gate_world(
         Arc::new(crate::resolver::authorizations_from_runtime_bindings(
             &bindings,
         )),
+        None,
         Some(registry.clone()),
         crate::pipeline::MaterializeMode::Diagnostic,
         crate::session::SessionTuning::default(),

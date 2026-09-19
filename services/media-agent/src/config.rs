@@ -33,6 +33,11 @@ pub struct Config {
     /// 生产模式缺失 → 失败闭合 (拒绝 materialize, 绝不回退 legacy 盲猜, 用户 §四).
     /// 仅 `MEDIA_AGENT_MODE=diagnostic` 允许缺失时回退 legacy auto-resolver (排障用).
     pub device_binding_path: Option<String>,
+    /// RF-SRC-RTMP-02 (plan D3): NetworkSourceBinding manifest 路径 — 生产 RTMP
+    /// 网络源授权的**唯一**入口。startup-only：仅在进程启动时加载一次 (0600/machine-pin/
+    /// D5 本机地址归属全 fail-closed)，无热加载、无 watch、无第二套 endpoint truth。
+    /// 生产 network-only 组合缺失此路径 → 拒启。
+    pub network_binding_path: Option<String>,
     /// `/health` 管理面监听地址 (默认 `127.0.0.1:8080`, 仅本机回环). 生产部署应经 Node/Fastify /
     /// Nginx 反向代理 + 认证后暴露, 绝不直接裸露公网 (用户 §二十二 P1 Security). 可由
     /// `MEDIA_AGENT_HEALTH_BIND` 覆盖为内网接口地址或 Unix socket 路径.
@@ -49,6 +54,7 @@ impl Default for Config {
             health_poll_interval: Duration::from_secs(5),
             max_recover_attempts: 5,
             device_binding_path: None,
+            network_binding_path: None,
             health_bind: "127.0.0.1:8080".to_string(),
         }
     }
@@ -65,6 +71,7 @@ impl Config {
     /// - `MEDIA_AGENT_HEALTH_POLL_SECS`
     /// - `MEDIA_AGENT_MAX_RECOVER_ATTEMPTS`
     /// - `MEDIA_AGENT_DEVICE_BINDING` (path to DeviceBindingManifest JSON)
+    /// - `MEDIA_AGENT_NETWORK_BINDING` (path to NetworkSourceBinding JSON; startup-only)
     /// - `MEDIA_AGENT_HEALTH_BIND` (`/health` bind address; default `127.0.0.1:8080`)
     pub fn from_env() -> Self {
         let d = Config::default();
@@ -99,6 +106,7 @@ impl Config {
                 .and_then(|v| v.parse::<u32>().ok())
                 .unwrap_or(d.max_recover_attempts),
             device_binding_path: get("MEDIA_AGENT_DEVICE_BINDING"),
+            network_binding_path: get("MEDIA_AGENT_NETWORK_BINDING"),
             health_bind: get("MEDIA_AGENT_HEALTH_BIND").unwrap_or(d.health_bind),
         }
     }

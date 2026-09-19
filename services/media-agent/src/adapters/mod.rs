@@ -40,6 +40,19 @@ pub(crate) fn build_process_backend_with_manifest(
         concrete;
     Ok((backend, inspector))
 }
+
+/// RF-SRC-RTMP-02 TG-2: manifest-free process backend twin views. The
+/// network-only production composition deliberately has no
+/// DeviceBindingManifest and performs no device discovery, so it builds the
+/// same concrete backend through this neutral surface instead.
+#[cfg(feature = "ffmpeg-backend")]
+pub(crate) fn build_process_backend() -> crate::contracts::backend::BackendWithInspector {
+    let concrete = std::sync::Arc::new(ffmpeg::FFmpegBackend::new());
+    let backend: std::sync::Arc<dyn crate::contracts::backend::MediaBackend> = concrete.clone();
+    let inspector: std::sync::Arc<dyn crate::contracts::backend::BackendProcessInspector> =
+        concrete;
+    (backend, inspector)
+}
 pub mod gstreamer;
 #[cfg(feature = "mock")]
 pub mod mock; // C3: 纯 Rust Mock Provider/Backend (无 BMD/无 GStreamer), 解锁 ARCH-PORTABILITY-01 Mock 侧.

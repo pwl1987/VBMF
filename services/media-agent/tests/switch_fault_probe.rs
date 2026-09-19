@@ -780,6 +780,7 @@ fn session_mgr() -> Arc<SessionManager> {
         Arc::new(MockBackend),
         Arc::new(devices),
         Arc::new(std::collections::HashMap::new()),
+        None,
         Some(registry),
         media_agent::pipeline::MaterializeMode::Diagnostic,
         media_agent::session::SessionTuning::default(),

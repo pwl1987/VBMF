@@ -160,6 +160,16 @@ impl AdapterRegistry {
         crate::adapters::build_process_backend_with_manifest(discovered, manifest)
     }
 
+    /// RF-SRC-RTMP-02 TG-2: manifest-free backend twin views for the
+    /// network-only production composition (no DeviceBindingManifest, no
+    /// device discovery by design — plan D10).
+    #[cfg(feature = "ffmpeg-backend")]
+    pub(crate) fn build_network_process_backend(
+    ) -> Result<crate::contracts::backend::BackendWithInspector, String> {
+        ensure_adapter_selection_safe()?;
+        Ok(crate::adapters::build_process_backend())
+    }
+
     /// 选择并构造 `HardwareProvider`。各实现返回相同 `Result<Vec<DiscoveredDevice>>` 契约。
     ///
     /// 优先级(高→低): `mock` > `simulation` > `bmd-provider` > `default`(filesystem)。

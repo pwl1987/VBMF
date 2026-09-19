@@ -294,6 +294,11 @@ pub struct SessionManager {
     backend: Arc<dyn MediaBackend>,
     devices: Arc<Vec<DeviceInfo>>,
     authorizations: Arc<HashMap<Uuid, BindingAuthorization>>,
+    /// RF-SRC-RTMP-02 (plan D11): 生产 RTMP 准入唯一授权真值（startup-only，
+    /// 由组合根加载后注入；Network source 绝不进入上面的 device
+    /// `authorizations` map）。None = 本 manager 无网络授权（Production RTMP
+    /// fail-closed；Diagnostic 保持 loopback fixture 语义）。
+    network_binding: Option<Arc<crate::network_binding::NetworkSourceBinding>>,
     registry: Option<PortRegistry>,
     mode: MaterializeMode,
     tuning: SessionTuning,
@@ -316,6 +321,7 @@ impl SessionManager {
         backend: Arc<dyn MediaBackend>,
         devices: Arc<Vec<DeviceInfo>>,
         authorizations: Arc<HashMap<Uuid, BindingAuthorization>>,
+        network_binding: Option<Arc<crate::network_binding::NetworkSourceBinding>>,
         registry: Option<PortRegistry>,
         mode: MaterializeMode,
         tuning: SessionTuning,
@@ -329,6 +335,7 @@ impl SessionManager {
             backend,
             devices,
             authorizations,
+            network_binding,
             registry,
             mode,
             tuning,
@@ -591,6 +598,46 @@ impl SessionManager {
                     device_id: u,
                     confidence,
                 });
+            }
+        }
+
+        // RF-SRC-RTMP-02 TG-2 (plan D11): Production 网络准入第二道闸 —
+        // 五元组 (source_id, protocol, canonical ip, port, exact path) 必须
+        // 对 startup binding 精确授权，fail-closed 发生在任何 spawn 之前
+        // (步 1 Preflight 已判一次; 此处 lease/reservation 建立后再核一次)。
+        // 错误经 NetworkBindingError 的 redaction-safe Display 呈现。
+        let has_rtmp_source = intent.devices.iter().any(|d| {
+            matches!(
+                d.pipeline.source,
+                crate::graph_intent::SourceIntent::Rtmp { .. }
+            )
+        });
+        if has_rtmp_source {
+            match &self.network_binding {
+                Some(binding) => {
+                    for d in &intent.devices {
+                        if let crate::graph_intent::SourceIntent::Rtmp {
+                            source_id,
+                            endpoint,
+                        } = &d.pipeline.source
+                        {
+                            if let Err(e) = binding.authorize(source_id, endpoint) {
+                                let _ = self.set_phase(session_id, SessionPhase::BindingFailed);
+                                return Err(SessionError::InvalidTransition(format!(
+                                    "network source admission rejected: {e}"
+                                )));
+                            }
+                        }
+                    }
+                }
+                None if matches!(self.mode, MaterializeMode::Production) => {
+                    let _ = self.set_phase(session_id, SessionPhase::BindingFailed);
+                    return Err(SessionError::InvalidTransition(
+                        "Production RTMP source requires NetworkSourceBinding admission (fail-closed)"
+                            .into(),
+                    ));
+                }
+                None => {}
             }
         }
         self.set_phase(session_id, SessionPhase::Binding)?;
@@ -1200,6 +1247,7 @@ impl SessionManager {
             claims,
             leases: self.leases.as_ref(),
             authorizations,
+            network_binding: self.network_binding.as_deref(),
             require_authorization: matches!(self.mode, MaterializeMode::Production),
             capabilities: &caps,
             registry: self.registry.as_ref(),
@@ -1469,6 +1517,7 @@ mod tests {
             Arc::new(devices.to_vec()),
             Arc::new(HashMap::new()),
             None,
+            None,
             MaterializeMode::Diagnostic,
             tuning,
             event_log,
@@ -1498,6 +1547,7 @@ mod tests {
             Arc::new(MockBackend),
             Arc::new(Vec::new()),
             Arc::new(HashMap::new()),
+            None,
             None,
             MaterializeMode::Diagnostic,
             SessionTuning::default(),
@@ -1595,6 +1645,159 @@ mod tests {
         assert!(manager.status(&session_id).is_none());
     }
 
+    // ── RF-SRC-RTMP-02 TG-2: Production 五元组准入（fail-closed）────────────────
+
+    fn production_network_manager(
+        binding: Option<std::sync::Arc<crate::network_binding::NetworkSourceBinding>>,
+        source_id: crate::source::NetworkSourceId,
+        lm: Arc<InMemoryLm>,
+    ) -> (SessionManager, SharedResourceRegistry) {
+        let mut registry = ResourceRegistry::new();
+        registry.register_network_source(source_id);
+        let resources = SharedResourceRegistry::new(registry);
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
+        let sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
+        )));
+        let manager = SessionManager::new(
+            resources.clone(),
+            lm,
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(Vec::new()),
+            Arc::new(HashMap::new()),
+            binding,
+            None,
+            MaterializeMode::Production,
+            SessionTuning::default(),
+            event_log,
+        );
+        (manager, resources)
+    }
+
+    fn loopback_binding(
+        source_id: crate::source::NetworkSourceId,
+        port: u16,
+    ) -> std::sync::Arc<crate::network_binding::NetworkSourceBinding> {
+        let body = format!(
+            r#"{{"version":1,"machine_id":"box-a","entries":[{{"source_id":"{source_id}","endpoint":"rtmp://127.0.0.1:{port}/live/source"}}]}}"#
+        );
+        let path = std::env::temp_dir().join(format!(
+            "vbmf-session-tg2-{}-{}.json",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, body).unwrap();
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let local: Vec<std::net::IpAddr> = vec!["127.0.0.1".parse().unwrap()];
+        std::sync::Arc::new(
+            crate::network_binding::NetworkSourceBinding::load_verified(&path, "box-a", &local)
+                .expect("valid test binding"),
+        )
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_production_network_without_binding_fails_closed() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let lm = Arc::new(InMemoryLm::new());
+        let (manager, resources) = production_network_manager(None, source_id, lm.clone());
+
+        let err = manager
+            .create(rtmp_intent(source_id))
+            .expect_err("Production RTMP without a binding must fail at preflight");
+        assert!(matches!(err, SessionError::PreflightFailed(_)));
+        let report = match err {
+            SessionError::PreflightFailed(r) => r,
+            _ => unreachable!(),
+        };
+        assert!(
+            report.stages.iter().any(|s| s.stage
+                == crate::preflight::PreflightStage::IdentityBinding
+                && s.detail.contains("NetworkSourceBinding")),
+            "IdentityBinding fail must name the missing binding"
+        );
+        assert!(!lm.is_key_active(&crate::source::LeaseKey::Network(source_id)));
+        resources.with_inner(|registry| {
+            assert_eq!(
+                registry.resources[0].state,
+                crate::resource::ResourceState::Available
+            );
+        });
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_production_network_exact_five_tuple_session_lifecycle() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let lm = Arc::new(InMemoryLm::new());
+        let binding = loopback_binding(source_id, 1935);
+        let (manager, resources) = production_network_manager(Some(binding), source_id, lm.clone());
+
+        let session_id = manager
+            .create(rtmp_intent(source_id))
+            .expect("exact five-tuple authorizes the production network session");
+        let reserved = manager.status(&session_id).expect("session exists");
+        assert_eq!(reserved.runtime_leases.len(), 1);
+        assert!(
+            reserved.leases.is_empty(),
+            "network session never takes device leases"
+        );
+        assert!(lm.is_key_active(&crate::source::LeaseKey::Network(source_id)));
+        assert!(
+            lm.list_active().is_empty(),
+            "no DeviceLease may exist on the network plane"
+        );
+
+        // loopback wire endpoint still materializes under Production until
+        // the TG-3 listener argv path widens non-loopback LAN endpoints.
+        manager
+            .start(&session_id)
+            .expect("mock network backend starts under Production");
+        let running = manager.status(&session_id).expect("running session exists");
+        assert_eq!(running.phase, SessionPhase::Running);
+
+        manager
+            .stop(&session_id)
+            .expect("stop releases network session");
+        assert!(!lm.is_key_active(&crate::source::LeaseKey::Network(source_id)));
+        resources.with_inner(|registry| {
+            assert_eq!(
+                registry.resources[0].state,
+                crate::resource::ResourceState::Available
+            );
+        });
+        manager.close(&session_id).expect("close released session");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_production_network_rejects_endpoint_mismatch_fail_closed() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let lm = Arc::new(InMemoryLm::new());
+        // binding authorizes port 1935; the intent claims 1936.
+        let binding = loopback_binding(source_id, 1935);
+        let (manager, resources) = production_network_manager(Some(binding), source_id, lm.clone());
+        let mut intent = rtmp_intent(source_id);
+        if let crate::graph_intent::SourceIntent::Rtmp { endpoint, .. } =
+            &mut intent.devices[0].pipeline.source
+        {
+            endpoint.port = 1936;
+        }
+
+        let err = manager
+            .create(intent)
+            .expect_err("endpoint mismatch must fail closed");
+        assert!(matches!(err, SessionError::PreflightFailed(_)));
+        assert!(!lm.is_key_active(&crate::source::LeaseKey::Network(source_id)));
+        resources.with_inner(|registry| {
+            assert_eq!(
+                registry.resources[0].state,
+                crate::resource::ResourceState::Available
+            );
+            assert!(registry.resources[0].reservation.is_none());
+        });
+    }
+
     #[test]
     fn rf_ff_01d_production_missing_authorization_fails_before_reserve_or_lease() {
         let devices = mock_devices();
@@ -1614,6 +1817,7 @@ mod tests {
             Arc::new(MockBackend),
             Arc::new(devices.clone()),
             Arc::new(HashMap::new()),
+            None,
             Some(registry),
             MaterializeMode::Production,
             SessionTuning::default(),
@@ -2631,6 +2835,7 @@ mod tests {
             Arc::new(devices.clone()),
             Arc::new(authorizations),
             None,
+            None,
             MaterializeMode::Diagnostic,
             SessionTuning::default(),
             sink,
@@ -2696,6 +2901,7 @@ mod tests {
             Arc::new(MockBackend),
             Arc::new(devices.clone()),
             Arc::new(HashMap::new()),
+            None,
             None,
             MaterializeMode::Diagnostic,
             tuning,

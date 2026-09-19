@@ -230,7 +230,37 @@ fn spawn_rtmp_source_publisher(url: &str) -> Result<Child, String> {
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
-fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
+fn write_network_binding_manifest(
+    source_id: uuid::Uuid,
+    endpoint: &crate::source::NetworkEndpoint,
+) -> PathBuf {
+    let machine_id = crate::resolver::current_machine_id();
+    if machine_id.is_empty() {
+        fail("machine identity unresolved; cannot pin network binding manifest");
+    }
+    let url = format!(
+        "rtmp://{}:{}{}",
+        endpoint.host, endpoint.port, endpoint.path
+    );
+    let body = format!(
+        "{{\"version\":1,\"machine_id\":\"{machine_id}\",\"entries\":[{{\"source_id\":\"{source_id}\",\"endpoint\":\"{url}\"}}]}}"
+    );
+    let path = std::env::temp_dir().join(format!(
+        "vbmf-ffmpeg-recovery-network-binding-{}-{}.json",
+        std::process::id(),
+        source_id
+    ));
+    fs::write(&path, body).unwrap_or_else(|e| fail(format!("write network binding manifest: {e}")));
+    fs::set_permissions(
+        &path,
+        <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o600),
+    )
+    .unwrap_or_else(|e| fail(format!("chmod 0600 network binding manifest: {e}")));
+    path
+}
+
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn run_rtmp_source() {
     let raw_url = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_URL")
         .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_SOURCE_URL is required"));
     let endpoint =
@@ -255,8 +285,14 @@ fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
 
     let source_id =
         crate::source::NetworkSourceId(uuid::Uuid::new_v5(&uuid::Uuid::nil(), raw_url.as_bytes()));
-    let composition = crate::bootstrap::build_ffmpeg_network_source_composition(world, source_id)
-        .unwrap_or_else(|e| fail(format!("network source composition: {e}")));
+    // RF-SRC-RTMP-02 TG-2: the gate now exercises the REAL production
+    // admission path — a 0600/machine-pinned NetworkSourceBinding loaded by
+    // the network-only composition (no DeviceBindingManifest, no device
+    // leases, zero DeckLink side effects by construction).
+    let binding_path = write_network_binding_manifest(source_id.0, &endpoint);
+    std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", &binding_path);
+    let composition = crate::bootstrap::build_ffmpeg_network_only_composition()
+        .unwrap_or_else(|e| fail(format!("network-only composition: {e}")));
     let intent = crate::graph_intent::GraphRuntimeIntent {
         version: "1.0".into(),
         devices: vec![crate::graph_intent::DeviceIntent {
@@ -298,8 +334,8 @@ fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
         composition.backend.clone(),
         handle,
         source_id,
-        world.supervisor.clone(),
-        world.lease_manager.clone(),
+        composition.supervisor.clone(),
+        composition.lease_manager.clone(),
     );
     composition
         .manager
@@ -374,7 +410,7 @@ fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
     }) {
         fail("RTMP source Resource remains claimed after teardown");
     }
-    if world
+    if composition
         .lease_manager
         .is_key_active(&crate::source::LeaseKey::Network(source_id))
     {
@@ -397,7 +433,7 @@ fn run_rtmp_source(world: &crate::bootstrap::BootstrapContext) {
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 pub fn run(world: &crate::bootstrap::BootstrapContext) {
     if std::env::var("VBMF_FFMPEG_RTMP_SOURCE").is_ok() {
-        run_rtmp_source(world);
+        run_rtmp_source();
     }
     let output_mode = std::env::var("VBMF_FFMPEG_OUTPUT").is_ok();
     let rtmp_mode = std::env::var("VBMF_FFMPEG_RTMP_OUTPUT").is_ok();

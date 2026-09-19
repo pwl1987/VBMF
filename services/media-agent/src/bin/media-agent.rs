@@ -333,6 +333,7 @@ fn main() {
                         std::sync::Arc::new(
                             media_agent::resolver::authorizations_from_runtime_bindings(&bindings),
                         ),
+                        None,
                         registry.clone(),
                         mode,
                         media_agent::session::SessionTuning::default(),

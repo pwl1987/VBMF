@@ -201,6 +201,7 @@ pub fn build_ffmpeg_session_composition(
         backend.clone(),
         Arc::new(world.devices.clone()),
         authorizations.clone(),
+        None,
         Some(registry.clone()),
         crate::pipeline::MaterializeMode::Production,
         crate::session::SessionTuning {
@@ -220,44 +221,122 @@ pub fn build_ffmpeg_session_composition(
     })
 }
 
-/// Build the same production FFmpeg backend with a single explicitly registered
-/// NetworkSource resource. Hardware discovery remains diagnostic context only;
-/// the Network Session owns its typed resource and lease.
+/// RF-SRC-RTMP-02 TG-2: production network-only composition result.
+///
+/// Same runtime primitives as the device composition (single SessionManager
+/// lifecycle ownership, in-memory lease manager, Supervisor, FanoutSink) —
+/// but constructed WITHOUT device discovery, WITHOUT the
+/// DeviceBindingManifest and WITHOUT bootstrap device leases (plan D10).
 #[cfg(feature = "ffmpeg-backend")]
-pub fn build_ffmpeg_network_source_composition(
-    world: &BootstrapContext,
-    source_id: crate::source::NetworkSourceId,
-) -> Result<FfmpegSessionComposition, String> {
-    let base = build_ffmpeg_session_composition(world)?;
+pub struct FfmpegNetworkComposition {
+    /// Canonical Session lifecycle owner. Production control commands must enter here.
+    pub manager: Arc<crate::session::SessionManager>,
+    /// Backend instance injected into SessionManager; acceptance/observation only.
+    pub backend: Arc<dyn crate::contracts::backend::MediaBackend>,
+    /// Acceptance-only process observation view of the same backend instance.
+    pub process_inspector: Arc<dyn crate::contracts::backend::BackendProcessInspector>,
+    /// Same Supervisor instance wired into the manager (acceptance/recovery
+    /// wiring; NOT a second decision owner).
+    pub supervisor: Arc<std::sync::Mutex<Supervisor>>,
+    /// Same lease-manager instance wired into the manager (acceptance
+    /// assertions only; lifecycle stays owned by the manager).
+    pub lease_manager: Arc<InMemoryLeaseManager>,
+    /// Startup-loaded, D5-verified binding — the sole Network authorization
+    /// truth for this manager (plan D3/D11).
+    pub binding: Arc<crate::network_binding::NetworkSourceBinding>,
+}
+
+/// Build the production network-only composition from configuration.
+///
+/// The `NetworkSourceBinding` manifest is loaded exactly once here via the
+/// production entry (`getifaddrs` D5 snapshot + machine pin + 0600/race-free
+/// single-fd checks — all fail-closed; plan D3/D5). There is no reload, no
+/// watch and no second endpoint truth; any manifest or interface change
+/// requires a service restart.
+#[cfg(feature = "ffmpeg-backend")]
+pub fn build_ffmpeg_network_only_composition() -> Result<FfmpegNetworkComposition, String> {
+    let config = Config::from_env();
+    let binding_path = config.network_binding_path.as_deref().ok_or_else(|| {
+        "RF-SRC-RTMP-02 production network composition requires MEDIA_AGENT_NETWORK_BINDING (fail-closed)"
+            .to_string()
+    })?;
+    let binding =
+        crate::network_binding::NetworkSourceBinding::load(std::path::Path::new(binding_path))
+            .map_err(|e| format!("network binding manifest rejected (fail-closed): {e}"))?;
+    build_ffmpeg_network_only_composition_with(&config, Arc::new(binding))
+}
+
+/// Deterministic core with a pre-verified binding (test seam; production
+/// goes through [`build_ffmpeg_network_only_composition`]).
+///
+/// Plan D10 invariants hold by construction: no provider discovery, no
+/// `DeviceBindingManifest`, no bootstrap placeholder device leases; only
+/// Network `rtmp-input` Resources — one per authorized source — are
+/// registered, and only `LeaseKey::Network` can ever be acquired through
+/// this manager.
+#[cfg(feature = "ffmpeg-backend")]
+pub fn build_ffmpeg_network_only_composition_with(
+    config: &Config,
+    binding: Arc<crate::network_binding::NetworkSourceBinding>,
+) -> Result<FfmpegNetworkComposition, String> {
+    let authorized = binding.authorized_sources();
     let mut resources = crate::resource::ResourceRegistry::new();
-    resources.register_network_source(source_id);
+    for source_id in &authorized {
+        resources.register_network_source(*source_id);
+    }
     let resources = crate::resource::SharedResourceRegistry::new(resources);
 
-    // RecoveryMonitor uses the same Supervisor namespace for both source domains.
-    world.supervisor.lock().unwrap().register(source_id.0);
+    // Shared runtime primitives (same types as build()), fresh instances:
+    // the network plane owns no device state.
+    let projection_log = Arc::new(RuntimeEventLog::new());
+    let internal_log = Arc::new(RuntimeEventLog::new());
+    let event_sink: Arc<dyn RuntimeEventSink> = Arc::new(crate::events::FanoutSink::new(
+        projection_log.clone(),
+        internal_log.clone(),
+    ));
+    let lease_manager = Arc::new(InMemoryLeaseManager::new());
+    let supervisor = Arc::new(std::sync::Mutex::new(Supervisor::new(
+        crate::supervisor::RestartPolicy::default(),
+        event_sink.clone(),
+    )));
+    for source_id in &authorized {
+        // RecoveryMonitor uses the same Supervisor namespace for both source domains.
+        supervisor.lock().unwrap().register(source_id.0);
+    }
+
+    let (backend, process_inspector) =
+        crate::registry::AdapterRegistry::build_network_process_backend()?;
     let manager = Arc::new(crate::session::SessionManager::new(
         resources,
-        world.lease_manager.clone(),
-        world.supervisor.clone(),
-        base.backend.clone(),
-        Arc::new(world.devices.clone()),
+        lease_manager.clone(),
+        supervisor.clone(),
+        backend.clone(),
+        // No devices by construction: network-only composition performs no
+        // hardware discovery and cannot touch DeckLink input 0/1 or output
+        // device-number 2.
+        Arc::new(Vec::new()),
+        // Device authorizations stay empty: Network admission NEVER flows
+        // through the device BindingAuthorization map (plan D11).
         Arc::new(std::collections::HashMap::new()),
+        Some(binding.clone()),
+        // PortRegistry is a device-port concept; the network plane has none.
         None,
         crate::pipeline::MaterializeMode::Production,
         crate::session::SessionTuning {
-            default_lease_ttl: world.config.default_lease_ttl,
-            lease_renew_window: world.config.lease_renew_window,
+            default_lease_ttl: config.default_lease_ttl,
+            lease_renew_window: config.lease_renew_window,
             ..crate::session::SessionTuning::default()
         },
-        world.event_sink.clone(),
+        event_sink,
     ));
 
-    Ok(FfmpegSessionComposition {
+    Ok(FfmpegNetworkComposition {
         manager,
-        backend: base.backend,
-        process_inspector: base.process_inspector,
-        registry: crate::port::PortRegistry::default(),
-        authorizations: Arc::new(std::collections::HashMap::new()),
+        backend,
+        process_inspector,
+        supervisor,
+        lease_manager,
+        binding,
     })
 }
 
@@ -407,5 +486,211 @@ mod rf_ff_01e_tests {
             .expect("empty manifest machine identity must fail");
         assert!(err.contains("machine_id"), "{err}");
         std::fs::remove_file(path).ok();
+    }
+}
+
+#[cfg(all(test, feature = "ffmpeg-backend"))]
+mod rf_src_rtmp_02_tg2_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt as _;
+    use std::path::PathBuf;
+
+    /// Minimal temp-dir helper (mirrors network_binding tests; no tempfile
+    /// dev-dependency in this crate).
+    struct TempDir(PathBuf);
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "vbmf-tg2-{}-{}-{}",
+                tag,
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_binding(dir: &TempDir, entries: &[(uuid::Uuid, &str)]) -> PathBuf {
+        let entries_text = entries
+            .iter()
+            .map(|(id, url)| format!(r#"{{"source_id":"{id}","endpoint":"{url}"}}"#))
+            .collect::<Vec<_>>()
+            .join(",");
+        let body = format!(r#"{{"version":1,"machine_id":"box-a","entries":[{entries_text}]}}"#);
+        let path = dir.0.join("network-binding.json");
+        std::fs::write(&path, body).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        path
+    }
+
+    fn loaded_binding(
+        path: &std::path::Path,
+    ) -> std::sync::Arc<crate::network_binding::NetworkSourceBinding> {
+        let local: Vec<std::net::IpAddr> = vec!["127.0.0.1".parse().unwrap()];
+        std::sync::Arc::new(
+            crate::network_binding::NetworkSourceBinding::load_verified(path, "box-a", &local)
+                .expect("valid test binding"),
+        )
+    }
+
+    fn rtmp_intent(
+        source_id: crate::source::NetworkSourceId,
+        port: u16,
+    ) -> crate::graph_intent::GraphRuntimeIntent {
+        crate::graph_intent::GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![crate::graph_intent::DeviceIntent {
+                device_id: "network-source-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: crate::graph_intent::PipelineIntent {
+                    source: crate::graph_intent::SourceIntent::rtmp(
+                        source_id,
+                        crate::source::NetworkEndpoint {
+                            protocol: crate::source::NetworkProtocol::Rtmp,
+                            host: "127.0.0.1".into(),
+                            port,
+                            path: "/live/source".into(),
+                        },
+                    ),
+                    sink: crate::graph_intent::SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_only_composition_is_device_side_effect_free() {
+        // Plan D10 (baseline-difference assertions): construction registers
+        // ONLY Network Resources, holds zero Device leases, exposes no
+        // devices, and never touches the binding file.
+        let dir = TempDir::new("d10");
+        let source_a = uuid::Uuid::new_v4();
+        let source_b = uuid::Uuid::new_v4();
+        let path = write_binding(
+            &dir,
+            &[
+                (source_a, "rtmp://127.0.0.1:19350/live/a"),
+                (source_b, "rtmp://127.0.0.1:19351/live/b"),
+            ],
+        );
+        let before = std::fs::read(&path).unwrap();
+
+        let composition =
+            build_ffmpeg_network_only_composition_with(&Config::default(), loaded_binding(&path))
+                .expect("network-only composition");
+
+        let state = composition.manager.runtime_state();
+        // zero device plane: no devices, no device-owned resources
+        assert!(state.devices.is_empty(), "no discovery, no device plane");
+        assert_eq!(
+            state.resources.len(),
+            2,
+            "one Network Resource per authorized source"
+        );
+        for resource in &state.resources {
+            assert_eq!(resource.capability, "rtmp-input");
+            assert_eq!(resource.device_id, uuid::Uuid::nil());
+            assert_eq!(resource.state, crate::resource::ResourceState::Available);
+        }
+        assert!(state.sessions.is_empty());
+        // zero device leases (bootstrap placeholder leases never existed here)
+        assert!(
+            composition.lease_manager.list_active().is_empty(),
+            "network-only composition must hold zero DeviceLease"
+        );
+        // binding file untouched by construction
+        let after = std::fs::read(&path).unwrap();
+        assert_eq!(before, after, "manifest digest must be unchanged");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_only_composition_create_uses_five_tuple_only() {
+        // D10 + D11 through a real create on the production composition:
+        // exact five-tuple authorizes and takes ONLY LeaseKey::Network.
+        // (No start here: under ffmpeg-backend a real start would spawn a
+        // listener child — that belongs to TG-3/BMD gates, not this test.)
+        let dir = TempDir::new("create");
+        let source_id = uuid::Uuid::new_v4();
+        let path = write_binding(&dir, &[(source_id, "rtmp://127.0.0.1:19350/live/source")]);
+        let composition =
+            build_ffmpeg_network_only_composition_with(&Config::default(), loaded_binding(&path))
+                .expect("network-only composition");
+        let sid = crate::source::NetworkSourceId(source_id);
+
+        let session = composition
+            .manager
+            .create(rtmp_intent(sid, 19350))
+            .expect("exact five-tuple authorizes");
+        let status = composition
+            .manager
+            .status(&session)
+            .expect("session exists");
+        assert_eq!(status.runtime_leases.len(), 1);
+        assert!(
+            status.leases.is_empty(),
+            "no DeviceLease on the network plane"
+        );
+        assert!(composition
+            .lease_manager
+            .is_key_active(&crate::source::LeaseKey::Network(sid)));
+        assert!(composition.lease_manager.list_active().is_empty());
+        let state = composition.manager.runtime_state();
+        assert!(state.resources.iter().all(|r| r.capability == "rtmp-input"));
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_only_composition_rejects_mismatch_fail_closed() {
+        // Same composition, fresh state: an endpoint mismatch fails closed —
+        // no lease, its Network Resource stays Available, zero device leases.
+        let dir = TempDir::new("mismatch");
+        let source_id = uuid::Uuid::new_v4();
+        let path = write_binding(&dir, &[(source_id, "rtmp://127.0.0.1:19350/live/source")]);
+        let composition =
+            build_ffmpeg_network_only_composition_with(&Config::default(), loaded_binding(&path))
+                .expect("network-only composition");
+        let sid = crate::source::NetworkSourceId(source_id);
+
+        let err = composition
+            .manager
+            .create(rtmp_intent(sid, 19351))
+            .expect_err("mismatched endpoint must fail closed");
+        assert!(matches!(
+            err,
+            crate::session::SessionError::PreflightFailed(_)
+        ));
+        assert!(!composition
+            .lease_manager
+            .is_key_active(&crate::source::LeaseKey::Network(sid)));
+        assert!(composition.lease_manager.list_active().is_empty());
+        let state = composition.manager.runtime_state();
+        let resource_id = crate::resource::network_resource_id_for_source(sid);
+        let resource = state
+            .resources
+            .iter()
+            .find(|r| r.resource_id == resource_id)
+            .expect("network resource registered");
+        assert_eq!(resource.state, crate::resource::ResourceState::Available);
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_only_composition_requires_binding_config() {
+        // fail-closed startup wiring: no MEDIA_AGENT_NETWORK_BINDING → refuse
+        std::env::remove_var("MEDIA_AGENT_NETWORK_BINDING");
+        let err = match build_ffmpeg_network_only_composition() {
+            Ok(_) => panic!("missing network binding config must fail closed"),
+            Err(e) => e,
+        };
+        assert!(err.contains("MEDIA_AGENT_NETWORK_BINDING"), "{err}");
     }
 }

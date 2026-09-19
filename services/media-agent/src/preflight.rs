@@ -108,6 +108,10 @@ pub struct PreflightInputs<'a> {
     pub leases: &'a dyn LeaseManager,
     /// Backend-neutral production authorization；不携带任何 concrete runtime address。
     pub authorizations: &'a HashMap<Uuid, BindingAuthorization>,
+    /// RF-SRC-RTMP-02 (plan D11): 生产 RTMP 准入唯一授权源。Production 模式下
+    /// RTMP source 必须在此完成五元组精确授权；None = 无网络授权（Production
+    /// RTMP fail-closed，Diagnostic 保持 loopback fixture 语义）。
+    pub network_binding: Option<&'a crate::network_binding::NetworkSourceBinding>,
     /// Production 必须在 Preflight 阶段已有 authorization；Diagnostic 可显式 WARN fallback。
     pub require_authorization: bool,
     /// Backend 能力报告 (无 provider 时为空切片 → WARN)。
@@ -360,66 +364,127 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
         );
     }
 
-    // 5. IdentityBinding — only hardware sources need a production binding.
+    // 5. IdentityBinding — hardware sources need a production device binding;
+    //    RTMP network sources need exact five-tuple admission via the
+    //    NetworkSourceBinding (RF-SRC-RTMP-02 plan D11). SelfTest needs nothing.
+    let mut identity_failures: Vec<String> = Vec::new();
+    let mut identity_details: Vec<String> = Vec::new();
+    let mut identity_warn: Option<String> = None;
+
+    // 5a. Hardware (Decklink) sources: existing production-grade logic.
     let needs_hardware_binding = inputs.intent.devices.iter().any(|d| {
         matches!(
             d.pipeline.source,
             crate::graph_intent::SourceIntent::Decklink { .. }
         )
     });
-    if !needs_hardware_binding {
+    if needs_hardware_binding {
+        if inputs.authorizations.is_empty() {
+            if inputs.require_authorization {
+                identity_failures
+                    .push("Production 缺少 binding authorization；Preflight fail-closed".into());
+            } else {
+                identity_warn =
+                    Some("Diagnostic 缺少 binding authorization；显式 WARN fallback".into());
+            }
+        } else {
+            let unresolved = inputs
+                .intent
+                .devices
+                .iter()
+                .filter(|d| {
+                    matches!(
+                        d.pipeline.source,
+                        crate::graph_intent::SourceIntent::Decklink { .. }
+                    )
+                })
+                .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
+                .filter(|u| {
+                    !inputs
+                        .authorizations
+                        .get(u)
+                        .is_some_and(|a| a.is_production_grade())
+                })
+                .collect::<Vec<_>>();
+            if unresolved.is_empty() {
+                identity_details.push("目标设备均有 production-grade binding authorization".into());
+            } else {
+                identity_failures.push(format!(
+                    "目标设备缺少 production-grade binding authorization: {unresolved:?}"
+                ));
+            }
+        }
+    }
+
+    // 5b. RTMP network sources: exact five-tuple admission
+    //     (source_id, protocol, canonical_ip, port, exact_path) against the
+    //     startup binding. Production without a binding is fail-closed;
+    //     Diagnostic keeps the loopback-fixture semantics.
+    let rtmp_sources: Vec<(
+        &crate::source::NetworkSourceId,
+        &crate::source::NetworkEndpoint,
+    )> = inputs
+        .intent
+        .devices
+        .iter()
+        .filter_map(|d| match &d.pipeline.source {
+            crate::graph_intent::SourceIntent::Rtmp {
+                source_id,
+                endpoint,
+            } => Some((source_id, endpoint)),
+            _ => None,
+        })
+        .collect();
+    if !rtmp_sources.is_empty() {
+        match inputs.network_binding {
+            Some(binding) => {
+                let mut rejected = 0usize;
+                for (source_id, endpoint) in &rtmp_sources {
+                    // Redaction-safe: NetworkBindingError carries no endpoint content.
+                    if let Err(e) = binding.authorize(source_id, endpoint) {
+                        rejected += 1;
+                        identity_failures.push(format!("network source admission rejected: {e}"));
+                    }
+                }
+                if rejected == 0 {
+                    identity_details.push(format!(
+                        "{} network source(s) authorized by exact five-tuple admission",
+                        rtmp_sources.len()
+                    ));
+                }
+            }
+            None => {
+                if inputs.require_authorization {
+                    identity_failures.push(
+                        "Production RTMP source requires NetworkSourceBinding admission (fail-closed)"
+                            .into(),
+                    );
+                } else {
+                    identity_details.push(
+                        "Diagnostic network source keeps loopback fixture semantics (no binding)"
+                            .into(),
+                    );
+                }
+            }
+        }
+    }
+
+    // 5c. Combine into exactly one stage outcome: Fail beats Warn beats Pass;
+    //     details join so mixed hardware/network intents stay one verdict.
+    if !identity_failures.is_empty() {
+        report.push(
+            PreflightStage::IdentityBinding,
+            StageLevel::Fail,
+            identity_failures.join("; "),
+        );
+    } else if let Some(warn) = identity_warn {
+        report.push(PreflightStage::IdentityBinding, StageLevel::Warn, warn);
+    } else if !identity_details.is_empty() {
         report.push(
             PreflightStage::IdentityBinding,
             StageLevel::Pass,
-            "Network/SelfTest source has no hardware identity binding requirement",
+            identity_details.join("; "),
         );
-    } else if inputs.authorizations.is_empty() {
-        let level = if inputs.require_authorization {
-            StageLevel::Fail
-        } else {
-            StageLevel::Warn
-        };
-        report.push(
-            PreflightStage::IdentityBinding,
-            level,
-            if inputs.require_authorization {
-                "Production 缺少 binding authorization；Preflight fail-closed"
-            } else {
-                "Diagnostic 缺少 binding authorization；显式 WARN fallback"
-            },
-        );
-    } else {
-        let unresolved = inputs
-            .intent
-            .devices
-            .iter()
-            .filter(|d| {
-                matches!(
-                    d.pipeline.source,
-                    crate::graph_intent::SourceIntent::Decklink { .. }
-                )
-            })
-            .filter_map(|d| Uuid::parse_str(&d.device_id).ok())
-            .filter(|u| {
-                !inputs
-                    .authorizations
-                    .get(u)
-                    .is_some_and(|a| a.is_production_grade())
-            })
-            .collect::<Vec<_>>();
-        if unresolved.is_empty() {
-            report.push(
-                PreflightStage::IdentityBinding,
-                StageLevel::Pass,
-                "目标设备均有 production-grade binding authorization",
-            );
-        } else {
-            report.push(
-                PreflightStage::IdentityBinding,
-                StageLevel::Fail,
-                format!("目标设备缺少 production-grade binding authorization: {unresolved:?}"),
-            );
-        }
     }
 
     // 6. BackendCapability — **D6 (BACKEND-CAPABILITY-01, p07c-runtime-query): 硬判定**——
@@ -490,6 +555,7 @@ pub fn run(inputs: &PreflightInputs<'_>) -> PreflightReport {
 mod tests {
     use super::*;
     use crate::lease::InMemoryLeaseManager;
+    use std::os::unix::fs::PermissionsExt as _;
 
     fn device(id: Uuid) -> DeviceInfo {
         DeviceInfo {
@@ -545,6 +611,7 @@ mod tests {
             claims: &claims,
             leases: &leases,
             authorizations: &bindings,
+            network_binding: None,
             require_authorization: false,
             capabilities: &caps,
             registry: None,
@@ -567,6 +634,7 @@ mod tests {
             claims: &claims,
             leases: &leases,
             authorizations: &bindings,
+            network_binding: None,
             require_authorization: false,
             capabilities: &caps,
             registry: None,
@@ -600,6 +668,7 @@ mod tests {
             claims: &claims,
             leases: &leases,
             authorizations: &authorizations,
+            network_binding: None,
             require_authorization: true,
             capabilities: &caps,
             registry: None,
@@ -640,6 +709,7 @@ mod tests {
             claims: &claims,
             leases: &leases,
             authorizations: &bindings,
+            network_binding: None,
             require_authorization: false,
             capabilities: &caps,
             registry: None,
@@ -694,6 +764,7 @@ mod tests {
             claims: &claims,
             leases: &leases,
             authorizations: bindings,
+            network_binding: None,
             require_authorization: false,
             capabilities: &caps,
             registry,
@@ -873,5 +944,213 @@ mod tests {
         let _ = with_inputs(&it, &devices, &resources, None, &bindings, run);
         assert_eq!(leases.list_active().len(), 1, "Preflight 不得修改租约存储");
         assert!(leases.health().is_empty(), "health() 才负责清扫 (职责分离)");
+    }
+
+    // ── RF-SRC-RTMP-02 TG-2 (plan D11): Production 五元组准入 ──────────────────
+
+    fn temp_manifest(body: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "vbmf-preflight-tg2-{}-{}.json",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, body).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        path
+    }
+
+    fn network_binding_for(
+        source_id: Uuid,
+        endpoint: &str,
+    ) -> (
+        std::path::PathBuf,
+        crate::network_binding::NetworkSourceBinding,
+    ) {
+        let body = format!(
+            r#"{{"version":1,"machine_id":"box-a","entries":[{{"source_id":"{source_id}","endpoint":"{endpoint}"}}]}}"#
+        );
+        let path = temp_manifest(&body);
+        let local: Vec<std::net::IpAddr> = vec!["127.0.0.1".parse().unwrap()];
+        let binding =
+            crate::network_binding::NetworkSourceBinding::load_verified(&path, "box-a", &local)
+                .expect("valid test binding");
+        (path, binding)
+    }
+
+    fn rtmp_intent_for(source_id: Uuid, host: &str, port: u16, path: &str) -> GraphRuntimeIntent {
+        GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![crate::graph_intent::DeviceIntent {
+                device_id: "network-source-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: crate::graph_intent::PipelineIntent {
+                    source: crate::graph_intent::SourceIntent::rtmp(
+                        crate::source::NetworkSourceId(source_id),
+                        crate::source::NetworkEndpoint {
+                            protocol: crate::source::NetworkProtocol::Rtmp,
+                            host: host.into(),
+                            port,
+                            path: path.into(),
+                        },
+                    ),
+                    sink: crate::graph_intent::SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        }
+    }
+
+    fn identity_stage(report: &PreflightReport) -> &StageOutcome {
+        report
+            .stages
+            .iter()
+            .find(|s| s.stage == PreflightStage::IdentityBinding)
+            .expect("IdentityBinding stage present")
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_preflight_production_rtmp_without_binding_fails_closed() {
+        let source_id = Uuid::new_v4();
+        let it = rtmp_intent_for(source_id, "127.0.0.1", 19350, "/live/source");
+        let devices: Vec<DeviceInfo> = Vec::new();
+        let resources = ResourceRegistry::new();
+        let mut resources = resources;
+        resources.register_network_source(crate::source::NetworkSourceId(source_id));
+        let leases = InMemoryLeaseManager::new();
+        let bindings = HashMap::new();
+        let caps: Vec<CapabilityReport> = Vec::new();
+        let claims: Vec<AcquisitionRequest> = Vec::new();
+        let inputs = PreflightInputs {
+            intent: &it,
+            devices: &devices,
+            resources: &resources,
+            claims: &claims,
+            leases: &leases,
+            authorizations: &bindings,
+            network_binding: None,
+            require_authorization: true,
+            capabilities: &caps,
+            registry: None,
+        };
+        let report = run(&inputs);
+        assert_eq!(report.verdict, Verdict::Fail);
+        let stage = identity_stage(&report);
+        assert_eq!(stage.level, StageLevel::Fail);
+        assert!(
+            stage.detail.contains("NetworkSourceBinding"),
+            "{}",
+            stage.detail
+        );
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_preflight_diagnostic_rtmp_without_binding_keeps_loopback_fixture() {
+        // Loopback regression preserved: Diagnostic network fixtures stay
+        // Pass-with-note when no binding is wired.
+        let source_id = Uuid::new_v4();
+        let it = rtmp_intent_for(source_id, "127.0.0.1", 19350, "/live/source");
+        let devices: Vec<DeviceInfo> = Vec::new();
+        let mut resources = ResourceRegistry::new();
+        resources.register_network_source(crate::source::NetworkSourceId(source_id));
+        let leases = InMemoryLeaseManager::new();
+        let bindings = HashMap::new();
+        let caps: Vec<CapabilityReport> = Vec::new();
+        let claims: Vec<AcquisitionRequest> = Vec::new();
+        let inputs = PreflightInputs {
+            intent: &it,
+            devices: &devices,
+            resources: &resources,
+            claims: &claims,
+            leases: &leases,
+            authorizations: &bindings,
+            network_binding: None,
+            require_authorization: false,
+            capabilities: &caps,
+            registry: None,
+        };
+        let report = run(&inputs);
+        let stage = identity_stage(&report);
+        assert_eq!(stage.level, StageLevel::Pass);
+        assert!(
+            stage.detail.contains("loopback fixture"),
+            "{}",
+            stage.detail
+        );
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_preflight_production_five_tuple_exact_admission_matrix() {
+        let source_id = Uuid::new_v4();
+        let (_path, binding) = network_binding_for(source_id, "rtmp://127.0.0.1:19350/live/source");
+        let devices: Vec<DeviceInfo> = Vec::new();
+
+        let run_identity = |host: &str, port: u16, path: &str, sid: Uuid| {
+            let it = rtmp_intent_for(sid, host, port, path);
+            let mut resources = ResourceRegistry::new();
+            resources.register_network_source(crate::source::NetworkSourceId(sid));
+            let leases = InMemoryLeaseManager::new();
+            let bindings = HashMap::new();
+            let caps: Vec<CapabilityReport> = Vec::new();
+            let claims: Vec<AcquisitionRequest> = Vec::new();
+            let inputs = PreflightInputs {
+                intent: &it,
+                devices: &devices,
+                resources: &resources,
+                claims: &claims,
+                leases: &leases,
+                authorizations: &bindings,
+                network_binding: Some(&binding),
+                require_authorization: true,
+                capabilities: &caps,
+                registry: None,
+            };
+            identity_stage(&run(&inputs)).clone()
+        };
+
+        // exact five-tuple passes
+        let ok = run_identity("127.0.0.1", 19350, "/live/source", source_id);
+        assert_eq!(ok.level, StageLevel::Pass, "{}", ok.detail);
+        assert!(ok.detail.contains("five-tuple"), "{}", ok.detail);
+
+        // any single component mismatch fails, redaction-safe (no endpoint
+        // literals in the detail)
+        for (host, port, path, label) in [
+            ("127.0.0.1", 19351, "/live/source", "port"),
+            ("127.0.0.1", 19350, "/live/other", "path"),
+            ("127.0.0.2", 19350, "/live/source", "host"),
+        ] {
+            let stage = run_identity(host, port, path, source_id);
+            assert_eq!(stage.level, StageLevel::Fail, "{label}: {}", stage.detail);
+            assert!(
+                stage.detail.contains("admission rejected"),
+                "{label}: {}",
+                stage.detail
+            );
+            assert!(
+                !stage.detail.contains("19350"),
+                "redaction: {}",
+                stage.detail
+            );
+            assert!(
+                !stage.detail.contains("/live"),
+                "redaction: {}",
+                stage.detail
+            );
+        }
+
+        // unknown source_id is not authorized
+        let unknown = run_identity("127.0.0.1", 19350, "/live/source", Uuid::new_v4());
+        assert_eq!(unknown.level, StageLevel::Fail);
+        assert!(
+            unknown.detail.contains("not authorized"),
+            "{}",
+            unknown.detail
+        );
+
+        // non-canonical wire endpoint rejects as invalid before matching
+        let invalid = run_identity("localhost", 19350, "/live/source", source_id);
+        assert_eq!(invalid.level, StageLevel::Fail);
+        assert!(invalid.detail.contains("invalid"), "{}", invalid.detail);
     }
 }

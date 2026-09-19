@@ -144,6 +144,7 @@ mod tests {
             std::sync::Arc::new(crate::adapters::mock::MockBackend),
             std::sync::Arc::new(devices),
             std::sync::Arc::new(std::collections::HashMap::new()),
+            None,
             Some(registry),
             crate::pipeline::MaterializeMode::Diagnostic,
             SessionTuning::default(),

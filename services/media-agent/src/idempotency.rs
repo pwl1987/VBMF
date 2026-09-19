@@ -275,6 +275,7 @@ mod tests {
             Arc::new(crate::adapters::mock::MockBackend),
             Arc::new(devices),
             Arc::new(std::collections::HashMap::new()),
+            None,
             Some(registry),
             crate::pipeline::MaterializeMode::Diagnostic,
             crate::session::SessionTuning::default(),
