@@ -165,11 +165,6 @@ fn wait_for_rtmp_receiver(child: Child) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
-fn parse_loopback_source_url(raw: &str) -> Result<crate::source::NetworkEndpoint, String> {
-    parse_source_url(raw, false)
-}
-
 /// RF-SRC-RTMP-02 TG-6: source URL fixture parser. `lan_ok` widens the
 /// fixture boundary from the historical loopback-only form to any D2
 /// canonical eligible endpoint (plan D2/D5 — Tier 1 LAN fixtures on the BMD
