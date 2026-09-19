@@ -316,6 +316,50 @@ added for credentials, manifest entries, listener mode, port ownership, path
 authentication or recovery budget. Production authorization remains a server-side
 `NetworkSourceBinding` manifest loaded at startup.
 
+### Implementation Invariants (pre-implementation amendment, 2026-09-19)
+
+These invariants refine D3/D7/D8 for implementers. They do not change D1–D11
+direction, scope or stop conditions.
+
+**INV-1 — recovery triggers only on an exited child with a positive
+`PublisherDisconnected` classification.**
+
+- The FFmpeg child is still alive and back in the listen/waiting state: no
+  restart and no recovery event (D7 `Running / Waiting`).
+- The child has exited **and** the classification — derived from exit status
+  plus existing canonical events plus the bounded stderr evidence, never from
+  an stderr keyword alone — is `PublisherDisconnected`: enter the D8 recovery
+  cycle after lease/claim revalidation.
+- `UnknownExit`, a stderr reader failure, or any state that cannot be
+  positively determined: `ManualRequired` immediately; never an exploratory
+  restart.
+
+**INV-2 — recovery actions are generation-isolated.**
+
+Every recovery task captures the session/lease generation (or the existing
+equivalent epoch/cancellation token — this adds no new truth store) at the
+moment it is scheduled. When `stop`, `close` or `ManualRequired` invalidates
+that generation, all late events, timers and restart actions from the old
+generation are discarded. A stopped or manually-held Session can never be
+re-spawned by a stale background recovery worker.
+
+**INV-3 — manifest parsing is strict and race-free end to end.**
+
+Building on D3:
+
+- The manifest file is rejected when larger than 1 MiB.
+- The JSON parser must reject duplicate object fields, unknown fields and any
+  trailing data after the top-level value; no permissive fallback.
+- `source_id` must be the canonical UUID textual representation; any
+  non-canonical spelling is invalid.
+- After `read` and before parse-accept, `fstat` the same descriptor again and
+  require the size and file state to be unchanged; any change rejects loading.
+- Owner and permission checks are evaluated for the actual service-running
+  user identity after privilege drop. If the process starts privileged, the
+  documented load order must place manifest loading after the drop (or verify
+  explicitly against the final service uid); the checks never pass merely
+  because a privileged loader can read the file.
+
 ## 3. Capability probe and BMD evidence levels
 
 The implementation package begins with **Step 0**, a BMD read-only capability
@@ -326,8 +370,12 @@ Step 0 must verify both:
 
 1. The BMD FFmpeg binary can use `-rtmp_listen 1` to bind an explicit
    non-loopback LAN address.
-2. In listen mode, the BMD FFmpeg build actually enforces the intended RTMP
-   `app`/path, or clearly demonstrates that it does not.
+2. In listen mode, the BMD FFmpeg build's `app`/path behavior is determined
+   with a negative matrix, not only the happy path. The probe must cover:
+   correct address + correct path; correct address + wrong path; correct
+   address + an extra trailing `/`; and query/fragment/percent-encoded
+   variants. The outcome is recorded definitively as either "path enforced"
+   or "path is a routing label only".
 
 If either probe fails, the implementation package returns to `PLAN REQUIRED`.
 If path/app is not enforced, the design remains technically admissible only with
@@ -345,6 +393,24 @@ Evidence levels are frozen:
 
 The preferred fixture is Development VM → BMD LAN address. If only Tier 1 is
 completed, all reports and STATE entries must remain at Tier 1 wording.
+
+### Deferred production risks (registered by this freeze)
+
+The following network-ingress resource-exhaustion exposures are registered as
+explicit deferred risks. If the BMD FFmpeg build cannot provide the matching
+control, that fact is not a packet blocker, but it must be annotated in the BMD
+acceptance report and carried in `.project/STATE.md` §9:
+
+- RTMP handshake timeout: an idle or malicious half-connection may hold the
+  single listener slot indefinitely.
+- An unauthorized publisher can occupy the unique `(protocol, ip, port)`
+  listener; D4 already states that path is not authentication.
+- High-rate FFmpeg stderr output (bounded by the D9 ring, but the drain cost
+  is real).
+- Process-exit ordering: kill, `wait`, stderr-reader join and socket release
+  must happen in an order that never leaks a child, reader or listener socket.
+- Host firewalling is a deployment recommendation only; it never substitutes
+  for VBMF-internal authorization and must not be reported as one.
 
 ## 4. Implementation packet boundary (pre-registered; not executed here)
 
@@ -431,7 +497,16 @@ The focused suite must reject, fail-closed and cover all of the following:
   reap completion, finite attribution and the unified negative redaction matrix;
 - D10: no `DeviceLease`, no `LeaseKey::Device`, Device Resources remain
   `Available`, Network-only registration only, input 0/1 and output 2 untouched,
-  and manifest digest unchanged.
+  and manifest digest unchanged;
+- strong canonical types are the only endpoint currency: parsing, manifest
+  matching, Registry deduplication and FFmpeg argv generation all accept only
+  the canonical newtype (e.g. `CanonicalRtmpEndpoint` / `CanonicalIp` /
+  `CanonicalPath` / a network binding-key type); no raw string-comparison path
+  may bypass D2 validation;
+- wording discipline: no acceptance test, log line, evidence text or
+  operator-facing string may equate "authorized endpoint" with "authenticated
+  publisher"; when probe ② shows path is not enforced, no output may call it
+  path authentication.
 
 Run the existing mock/default/FFmpeg feature matrix, `fmt`, `clippy`,
 architecture-portability, remove-adapters and diff checks. A passing unit test
@@ -452,6 +527,10 @@ On the exact implementation commit, perform:
 7. D10 before/after evidence: zero new DeviceLease, Device Resource
    `Available`, input 0/1 unchanged, output device-number 2 unchanged, and the
    binding-manifest MD5 unchanged.
+8. Deferred-risk annotation: observed FFmpeg-side limits on handshake timeout,
+   connection control or path enforcement are recorded in the report per §3
+   deferred risks and carried into `.project/STATE.md` §9; the absence of such
+   limits is recorded explicitly too.
 
 The report must use the correct evidence claim. Tier 1 must never be promoted to
 “cross-host third-party push verified.”

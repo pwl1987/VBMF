@@ -798,6 +798,20 @@ Status: **READY / PLAN FROZEN；IMPLEMENTATION NOT STARTED**
   `bootstrap.rs:50` / `99-120` and
   `build_ffmpeg_network_source_composition` `227-234` side effects are an
   explicit implementation audit item。
+- Pre-implementation amendment（2026-09-19 第二轮审阅）：设计文档补入
+  **Implementation Invariants**——INV-1 恢复触发 = 子进程已退出且经"退出状态 +
+  既有事件 + 有界 stderr"正向归因 `PublisherDisconnected`（子进程存活回到
+  Waiting 不重启；UnknownExit/stderr reader 异常/状态不可确认直接
+  ManualRequired）；INV-2 recovery generation 隔离（恢复任务携带启动时
+  session/lease generation，stop/close/ManualRequired 后迟到事件与重启动作全部
+  丢弃，复用既有 epoch/cancellation，不新增 truth store）；INV-3 manifest 严格
+  解析（≤1 MiB、拒绝重复字段/未知字段/尾随数据、source_id 用 canonical UUID
+  表示、read 后同 fd 再 fstat 复核、owner/权限校验在降权后的实际服务用户身份
+  上执行）。同轮：探针②扩展为负向矩阵（错误 path / 尾部 `/` / query /
+  fragment / 编码变体，结论二选一登记 "path enforced" 或 "path is a routing
+  label only"）；§3 登记 deferred ingress risks（见 §9）；§6 验收新增强类型
+  endpoint 唯一流通（禁止裸 String 比较绕过 D2）与 "authorized endpoint ≠
+  authenticated publisher" 文案纪律。
 - Scope：本节只冻结设计文档与 STATE；runtime 实现、BMD Step 0、LAN fixture
   与 implementation acceptance 尚未启动。
 
@@ -1007,6 +1021,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.51/§4–§5；
 - BMD：RH-BUS-01 exact `9b32004`（§3.20）与 RH-BUS-02 exact `92d6007`（§3.21）均已有独立 hardware evidence；RH-LC-01 exact `c72ce5d` archive/manifest 已准备但 runtime smoke 因当前工具通道限制 **DEFERRED**。实际 `/opt/vbmf-dev/repo` deployment 仍落后且带未提交 ops 改动，未做破坏性同步。RF-SRC-RTMP-01 已在 §3.49 完成 BMD source-side loopback/recovery/teardown 与 output safety evidence；仍不得触碰 output device-number 2。
 - RF-FF-01B BMD runtime smoke 已在 exact `4ad8135` 真实 FFmpeg 上验证但未触碰 DeckLink；RF-FF-01C exact `ffee3a0` 已完成 adapter-level DeckLink parity；RF-FF-01D exact `dd0eb8c` 已完成 GStreamer dual-input 10/10 regression；RF-FF-01E exact `96f8055` 已完成 production SessionManager→FFmpeg lifecycle hardware acceptance；RF-FF-01F exact `f868420` 已独立完成 real child termination→canonical failure→Supervisor recovery→new child→teardown evidence。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
+- RF-SRC-RTMP-02 deferred ingress risks（2026-09-19 冻结时登记，plan §3）：RTMP 握手超时（空闲/恶意半连接可长期占用唯一 listener slot）、非法 publisher 占用唯一 `(protocol, ip, port)` listener、高流速 FFmpeg stderr 排空成本、进程退出顺序（kill/wait/reader join/socket 释放不得泄漏）。BMD FFmpeg 若无法提供对应控制**不阻塞**实现包，但 BMD 验收报告必须逐项标注（含"未观察到限制"也要显式记录）并留档于本节；主机防火墙仅为部署建议，绝不替代 VBMF 内部授权、不得如此上报。
 
 ## 10. Cold-Start Handoff
 
