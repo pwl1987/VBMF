@@ -755,15 +755,25 @@ Status: **COMPLETE / SOFTWARE + CI + BMD SOURCE RUNTIME VERIFIED**
 - Safety boundary: manifest MD5 `7521d17e7fd02e50eb2b0a84374a43dd`；output device-number 2 PID `992634` 与完整命令 before/after unchanged；只使用 loopback fixture，不继承 RF-FF-03 egress 作为 source evidence。
 - Evidence：`docs/superpowers/reports/2026-09-18-rf-src-rtmp-01-verify.md` 与 `evidence/bmd-10.30.15.10/2026-09-18-rf-src-rtmp-01/`。
 
+### 3.50 Runtime Features next candidate review（2026-09-19）
+
+Status: **PLAN REQUIRED / NO READY PACKET**
+
+- RF-SRC-RTMP-01 已完成；live §5.1 没有新的 READY Work Packet，只有 `RUNTIME-FEATURES-NEXT` 占位。
+- SRT 仍是 capability BLOCKED；RTMP 非 loopback 扩展、PACKET/Program、Hot-Standby、Recording/Replay、SRS/Output 均需要新的 bounded design/ownership/acceptance，不能从 BACKLOG 直接实施。
+- RH-FLOW-01 继续 DEFER-UNTIL-TOUCH；RH-IDEM-01 继续 DEFER-UNTIL-CONTROL-PLANE；24h RSS 是独立 verification debt。
+- Candidate review：`docs/superpowers/plans/2026-09-19-runtime-features-next-candidate-review.md`。
+- 决定：冻结下一个 bounded packet 前不改代码、不扩 scope；下一包必须先有 Authority、allowed/forbidden、touch-gates 与 acceptance。
+
 ## 4. Current Task
 
-**RF-SRC-RTMP-01 — COMPLETE**
+**RUNTIME-FEATURES-NEXT — PLAN REQUIRED**
 
-RF-SRC-01 已在 §3.45 以真实能力证据 BLOCKED：BMD FFmpeg 无 SRT protocol。RTMP source packet 已按 §3.49 完成 typed ownership/session、software matrix、CI 7/7、BMD source recovery/teardown 与 output-device safety acceptance；warning debt 与 24h `rss_bounded` 仍独立跟踪。
+RF-SRC-RTMP-01 已按 §3.49 完成。§3.50 已确认当前没有可直接执行的 READY packet；先冻结下一 bounded Runtime Features 方案，再开始代码。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
 
 ## 5. Next Task
 
-RF-SRC-RTMP-01 已完成并记录于 §3.49。下一步重新读取 live evidence 与 frozen queue，选择下一个 bounded Runtime Features packet；不得把 SRT、24h stability、multi-input、Program/Switch、SRS/Network umbrella 或 output expansion 混入下一包。
+先按 §3.50 的 candidate review 冻结下一个 bounded Runtime Features packet；在新 packet 具备 Authority、allowed/forbidden scope、touch-gates、acceptance 与 verification plan 前，不直接实施代码。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -812,7 +822,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-SRC-01** | **BLOCKED（§3.45·2026-09-18）** | SRT source boundary + FFmpeg runtime；BMD FFmpeg 无 SRT protocol，保持 blocker 记录，不替换协议冒充完成 | RF-FF-01A–01F + capability | 无代码；需有 SRT-capable runtime 才能继续；不以 RTMP 证据继承 |
 | **RF-SRC-RTMP-01** | **COMPLETE（§3.49·2026-09-19；ffd8889）** | 单协议单输入 RTMP source boundary + FFmpeg runtime/lifecycle；typed ownership/session、CI 与 BMD source recovery/teardown 已验收 | RF-FF slices + §3.47 | DeckLink wire compatibility；typed ownership；BMD loopback A/V；recovery/teardown；security redaction；7/7 CI；不得扩展其他协议/Network umbrella |
 | **RF-SRC-RTMP-01-IMPLEMENTATION** | **COMPLETE（§3.49·2026-09-19）** | typed source/resource/lease/session + materialize/preflight + FFmpeg RTMP argv + BMD source recovery/teardown 已完成 | RF-SRC-RTMP-01 design | exact commit `ffd8889`；software matrix PASS；BMD source evidence；CI `35407985671` 7/7；STATE/GitHub sync |
-| **RUNTIME-FEATURES-NEXT** | **PENDING / AFTER RF-SRC-RTMP-01** | RTMP packet 完成后重新选择下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 不并行开第二包；重新读取 live evidence 后再冻结 |
+| **RUNTIME-FEATURES-NEXT** | **PLAN REQUIRED（§3.50·2026-09-19）** | 从 live evidence 重新冻结下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 新 packet 必须有 Authority、scope、touch-gates、acceptance、verification；不从 BACKLOG 越级 |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -970,9 +980,9 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.47/§4–§5；
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = RF-SRC-RTMP-01 — COMPLETE** 对应 Authority：`.project/STATE.md` §3.31–§3.49/§4–§5 + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01/RF-SRC-RTMP-01 plans + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
+6. 读取 **Current Task = RUNTIME-FEATURES-NEXT — PLAN REQUIRED** 对应 Authority：`.project/STATE.md` §3.31–§3.50/§4–§5 + `docs/superpowers/plans/2026-09-19-runtime-features-next-candidate-review.md` + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01/RF-SRC-RTMP-01 plans + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；下一包必须重新读取 live queue 后冻结；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；§3.50 candidate review 显示当前无 READY packet，必须先冻结下一包；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -989,6 +999,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.47/§4–§5；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；当前不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；§3.50 显示下一包尚未 READY，当前不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
