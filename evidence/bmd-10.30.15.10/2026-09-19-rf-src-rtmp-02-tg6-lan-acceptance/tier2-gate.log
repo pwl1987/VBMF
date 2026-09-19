@@ -1,0 +1,13 @@
+2026-09-19T14:42:44.659573Z  INFO media_agent::bootstrap: adapter selection (P0-4 运维可见) provider="blackmagic" backend="ffmpeg" mode="production"
+2026-09-19T14:42:44.664166Z  INFO media_agent::bootstrap: device discovery complete count=3
+2026-09-19T14:42:44.664343Z  INFO media_agent::bootstrap: lease acquired device=4fa33dcb-5f76-5f76-aea8-330df7ada03e
+2026-09-19T14:42:44.664379Z  INFO media_agent::bootstrap: lease acquired device=6ede00d0-baf4-573f-a0dd-4a503bf7f766
+2026-09-19T14:42:44.664402Z  INFO media_agent::bootstrap: lease acquired device=1afe2dcc-6d85-5b46-b7d6-e14102501c77
+2026-09-19T14:42:44.664426Z  INFO media_agent::bootstrap: lease re-acquire correctly rejected error=device 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+2026-09-19T14:42:44.664463Z  INFO media_agent::bootstrap: supervisor initialized watched=3
+2026-09-19T14:42:44.664511Z  INFO media_agent_gates: SDK libDeckLinkAPI.so reachable, entry symbols present
+RF-SRC-RTMP-01 source PASS session=session-e08f771fe2444b64ab8a3e8b9b670610 source_id=293a9db2-b17c-5d7b-843c-44afeeedcd84          codecs=h264,aac listener=lan signal_verified=true
+RF-SRC-RTMP-01 external-leg A/V verified; awaiting external publisher disconnect
+RF-SRC-RTMP-01 recovery PASS old_consumer_pid=3460834          new_consumer_pid=3461243 attributed=PublisherDisconnected          supervisor=Running codecs=h264,aac
+RF-SRC-RTMP-01 teardown PASS phase=Released resource=Available          lease=NONE monitor=exited publisher_orphan=NONE
+RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS

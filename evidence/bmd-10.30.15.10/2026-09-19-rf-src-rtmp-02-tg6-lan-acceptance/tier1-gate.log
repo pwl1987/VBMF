@@ -1,0 +1,22 @@
+Rule deleted
+0
+UFW-CLEANED
+29570aa7ac8a89aa2ebc7ba9227d4fc1  /tmp/vbmf-ffmpeg-recovery-network-binding-3454658-a765ad69-7f45-5fdf-8a23-faf8b9e6688a.json
+cdd8d08ee290045e1647ec2405d9c5d7  /tmp/vbmf-ffmpeg-recovery-network-binding-3457213-293a9db2-b17c-5d7b-843c-44afeeedcd84.json
+cdd8d08ee290045e1647ec2405d9c5d7  /tmp/vbmf-ffmpeg-recovery-network-binding-3457718-293a9db2-b17c-5d7b-843c-44afeeedcd84.json
+cdd8d08ee290045e1647ec2405d9c5d7  /tmp/vbmf-ffmpeg-recovery-network-binding-3458477-293a9db2-b17c-5d7b-843c-44afeeedcd84.json
+cdd8d08ee290045e1647ec2405d9c5d7  /tmp/vbmf-ffmpeg-recovery-network-binding-3459052-293a9db2-b17c-5d7b-843c-44afeeedcd84.json
+cdd8d08ee290045e1647ec2405d9c5d7  /tmp/vbmf-ffmpeg-recovery-network-binding-3459924-293a9db2-b17c-5d7b-843c-44afeeedcd84.json
+cdd8d08ee290045e1647ec2405d9c5d7  /tmp/vbmf-ffmpeg-recovery-network-binding-3460828-293a9db2-b17c-5d7b-843c-44afeeedcd84.json
+2026-09-19T14:22:34.086253Z  INFO media_agent::bootstrap: adapter selection (P0-4 运维可见) provider="blackmagic" backend="ffmpeg" mode="production"
+2026-09-19T14:22:34.090943Z  INFO media_agent::bootstrap: device discovery complete count=3
+2026-09-19T14:22:34.091083Z  INFO media_agent::bootstrap: lease acquired device=4fa33dcb-5f76-5f76-aea8-330df7ada03e
+2026-09-19T14:22:34.091121Z  INFO media_agent::bootstrap: lease acquired device=6ede00d0-baf4-573f-a0dd-4a503bf7f766
+2026-09-19T14:22:34.091145Z  INFO media_agent::bootstrap: lease acquired device=1afe2dcc-6d85-5b46-b7d6-e14102501c77
+2026-09-19T14:22:34.091170Z  INFO media_agent::bootstrap: lease re-acquire correctly rejected error=device 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+2026-09-19T14:22:34.091220Z  INFO media_agent::bootstrap: supervisor initialized watched=3
+2026-09-19T14:22:34.091253Z  INFO media_agent_gates: SDK libDeckLinkAPI.so reachable, entry symbols present
+RF-SRC-RTMP-01 source PASS session=session-0e94085c27f74f8f82bda364b6c103e9 source_id=a765ad69-7f45-5fdf-8a23-faf8b9e6688a          codecs=h264,aac listener=lan signal_verified=true
+RF-SRC-RTMP-01 recovery PASS old_consumer_pid=3454663          new_consumer_pid=3454862 attributed=PublisherDisconnected          supervisor=Running codecs=h264,aac
+RF-SRC-RTMP-01 teardown PASS phase=Released resource=Available          lease=NONE monitor=exited publisher_orphan=NONE
+RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS
