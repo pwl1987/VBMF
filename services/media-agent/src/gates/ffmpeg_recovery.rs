@@ -362,8 +362,15 @@ fn run_rtmp_source() {
         .manager
         .register_stop_hook(&sid, monitor.clone());
 
-    let mut publisher =
-        RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
+    let external_publisher = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_EXTERNAL").is_ok();
+    let publisher = if external_publisher {
+        None
+    } else {
+        Some(RtmpReceiverGuard::new(
+            spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)),
+        ))
+    };
+    let mut publisher = publisher;
     wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("initial RTMP source A/V: {e}")));
     // TG-4 (plan D7/INV-1): a completed publisher connection that produced
     // verified A/V is the SignalVerified evidence — recorded BEFORE the
@@ -382,12 +389,17 @@ fn run_rtmp_source() {
         "RF-SRC-RTMP-01 source PASS session={sid} source_id={source_id}          codecs=h264,aac listener={listener_class} signal_verified=true"
     );
 
-    let old_publisher = publisher
-        .take()
-        .expect("publisher guard owns initial source fixture");
-    let mut old_publisher = old_publisher;
-    let _ = old_publisher.kill();
-    let _ = old_publisher.wait();
+    if external_publisher {
+        println!(
+            "RF-SRC-RTMP-01 external-leg A/V verified; awaiting external publisher disconnect"
+        );
+    }
+    if let Some(mut guard) = publisher.take() {
+        if let Some(mut old_publisher) = guard.take() {
+            let _ = old_publisher.kill();
+            let _ = old_publisher.wait();
+        }
+    }
 
     let mut recovered = false;
     for _ in 0..120 {
@@ -413,8 +425,13 @@ fn run_rtmp_source() {
     {
         let _ = fs::remove_file(entry.path());
     }
-    let replacement =
-        RtmpReceiverGuard::new(spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)));
+    let replacement = if external_publisher {
+        None
+    } else {
+        Some(RtmpReceiverGuard::new(
+            spawn_rtmp_source_publisher(&raw_url).unwrap_or_else(|e| fail(e)),
+        ))
+    };
     wait_for_hls(&hls_dir).unwrap_or_else(|e| fail(format!("recovered RTMP source A/V: {e}")));
     let supervisor_state = format!(
         "{:?}",
