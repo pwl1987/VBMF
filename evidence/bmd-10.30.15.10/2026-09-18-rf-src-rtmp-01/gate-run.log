@@ -1,0 +1,7 @@
+RF-SRC-RTMP-01 source PASS session=session-296e500df9e840dd88b6b5a76841e73d source_id=1f31780d-eb68-59db-9985-ce4ee0ec3e0e codecs=h264,aac loopback=true
+RF-SRC-RTMP-01 recovery PASS old_consumer_pid=3436259 new_consumer_pid=3436455 canonical_failure=true supervisor=Recovered codecs=h264,aac
+RF-SRC-RTMP-01 teardown PASS phase=Released resource=Available lease=NONE monitor=exited publisher_orphan=NONE
+RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS
+RF_SRC_RTMP_01_OUTPUT_BEFORE=992634 gst-launch-1.0 -e videotestsrc is-live=true pattern=ball ! video/x-raw,format=UYVY,width=1920,height=1080,framerate=25/1 ! decklinkvideosink device-number=2 mode=1080p25
+RF_SRC_RTMP_01_OUTPUT_AFTER=992634 gst-launch-1.0 -e videotestsrc is-live=true pattern=ball ! video/x-raw,format=UYVY,width=1920,height=1080,framerate=25/1 ! decklinkvideosink device-number=2 mode=1080p25
+RF_SRC_RTMP_01_MANIFEST_MD5=7521d17e7fd02e50eb2b0a84374a43dd

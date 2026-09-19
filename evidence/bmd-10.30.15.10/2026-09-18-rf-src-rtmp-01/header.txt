@@ -1,0 +1,12 @@
+RF-SRC-RTMP-01 BMD source acceptance
+Date: 2026-09-19
+Implementation commit: ffd8889
+CI run: 35407985671 (7/7 required checks PASS)
+BMD build source: final-code overlay in /tmp/vbmf-rf-src-rtmp-0c22e4d
+Binary SHA256: 17b55178cc9c6168eae86a710a6f9f3db1476187c770eeb32829d63aba4901e7
+Manifest MD5: 7521d17e7fd02e50eb2b0a84374a43dd
+Provider/backend: blackmagic / ffmpeg
+Endpoint: rtmp://127.0.0.1:19461/live/source
+Fixture: FFmpeg RTMP publisher; Session FFmpeg ingress listener; HLS observation only
+Output device 2: PID 992634 unchanged
+Final marker: RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS
