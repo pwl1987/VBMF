@@ -744,7 +744,11 @@ impl SessionManager {
                 .first()
                 .and_then(|d| Uuid::parse_str(&d.device_id).ok())
                 .unwrap_or(Uuid::nil()),
-            pipeline: Uuid::new_v5(&Uuid::nil(), format!("{:?}", plan).as_bytes()),
+            // RF-SRC-RTMP-02 TG-5 (plan D9): identity hash input is the
+            // endpoint-free rendering — the derived `Debug` of a Network
+            // plan would put endpoint text into the hash (endpoint-dependent
+            // identity leakage).
+            pipeline: Uuid::new_v5(&Uuid::nil(), plan.redacted_debug().as_bytes()),
         });
 
         // 步 2 (Alpha-1 / D10 激活): Backend.instantiate **全部** plans（逐个; 多输入会话
@@ -1796,6 +1800,226 @@ mod tests {
             );
             assert!(registry.resources[0].reservation.is_none());
         });
+    }
+
+    // ── RF-SRC-RTMP-02 TG-5 (plan D9): unified redaction negative suite ────────
+
+    /// Distinctive endpoint literals that must never appear on any canonical
+    /// surface (host/port/path/URL scheme).
+    const TG5_FORBIDDEN: [&str; 4] = ["10.30.15.10", "19350", "/live/source", "rtmp://"];
+
+    fn assert_no_endpoint_literals(text: &str, surface: &str) {
+        for literal in TG5_FORBIDDEN {
+            assert!(
+                !text.contains(literal),
+                "{surface} leaked endpoint literal {literal:?}: {text}"
+            );
+        }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg5_unified_redaction_negative_suite() {
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let lm = Arc::new(InMemoryLm::new());
+        // binding authorizes the LAN endpoint; the Production session runs on
+        // the mock backend with distinctive literals.
+        let body = format!(
+            r#"{{"version":1,"machine_id":"box-a","entries":[{{"source_id":"{source_id}","endpoint":"rtmp://10.30.15.10:19350/live/source"}}]}}"#
+        );
+        let path = std::env::temp_dir().join(format!(
+            "vbmf-session-tg5-{}-{}.json",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        std::fs::write(&path, body).unwrap();
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let local: Vec<std::net::IpAddr> = vec!["10.30.15.10".parse().unwrap()];
+        let binding = std::sync::Arc::new(
+            crate::network_binding::NetworkSourceBinding::load_verified(&path, "box-a", &local)
+                .expect("valid test binding"),
+        );
+        let event_log = Arc::new(crate::events::RuntimeEventLog::new());
+        let mut registry = ResourceRegistry::new();
+        registry.register_network_source(source_id);
+        let resources = SharedResourceRegistry::new(registry);
+        let sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            event_log.clone(),
+        )));
+        let manager = SessionManager::new(
+            resources,
+            lm,
+            sup,
+            Arc::new(MockBackend),
+            Arc::new(Vec::new()),
+            Arc::new(HashMap::new()),
+            Some(binding),
+            None,
+            MaterializeMode::Production,
+            SessionTuning::default(),
+            event_log.clone(),
+        );
+        let intent = GraphRuntimeIntent {
+            version: "1.0".into(),
+            devices: vec![crate::graph_intent::DeviceIntent {
+                device_id: "network-source-node".into(),
+                role: "CAPTURE".into(),
+                pipeline: crate::graph_intent::PipelineIntent {
+                    source: crate::graph_intent::SourceIntent::rtmp(
+                        source_id,
+                        crate::source::NetworkEndpoint {
+                            protocol: crate::source::NetworkProtocol::Rtmp,
+                            host: "10.30.15.10".into(),
+                            port: 19350,
+                            path: "/live/source".into(),
+                        },
+                    ),
+                    sink: crate::graph_intent::SinkIntent {
+                        kind: "appsink".into(),
+                    },
+                },
+            }],
+        };
+
+        let session_id = manager
+            .create(intent)
+            .expect("authorized LAN session creates under Production");
+        manager
+            .start(&session_id)
+            .expect("mock backend starts the LAN listener plan");
+        manager
+            .stop(&session_id)
+            .expect("stop for the failure-free leg");
+
+        // (1) runtime_state projection (serialized) — no endpoint literals.
+        let state = serde_json::to_string(&manager.runtime_state()).unwrap();
+        assert_no_endpoint_literals(&state, "runtime_state");
+
+        // (2) the canonical strong types never print endpoint content.
+        let wire = crate::source::NetworkEndpoint {
+            protocol: crate::source::NetworkProtocol::Rtmp,
+            host: "10.30.15.10".into(),
+            port: 19350,
+            path: "/live/source".into(),
+        };
+        let canonical = wire.to_canonical().unwrap();
+        for text in [
+            format!("{:?}", canonical),
+            format!("{:?}", canonical.ip()),
+            format!("{:?}", canonical.path()),
+            format!("{:?}", canonical.listener_key()),
+        ] {
+            assert!(
+                text.contains("redacted"),
+                "canonical Debug redacted: {text}"
+            );
+            assert_no_endpoint_literals(&text, "canonical Debug");
+        }
+
+        // (3) the identity-hash input rendering is endpoint-free and stable.
+        let plan = crate::pipeline::PipelinePlan {
+            source: crate::pipeline::SourcePlan::Network {
+                source_id,
+                endpoint: wire.clone(),
+            },
+            timeline_policy: crate::pipeline::TimelinePolicy::ProgramTimelineMapped,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: Vec::new(),
+        };
+        assert_no_endpoint_literals(&plan.redacted_debug(), "redacted_debug");
+        let mut other_endpoint = wire.clone();
+        other_endpoint.port = 19351;
+        let other_plan = crate::pipeline::PipelinePlan {
+            source: crate::pipeline::SourcePlan::Network {
+                source_id,
+                endpoint: other_endpoint,
+            },
+            ..plan.clone()
+        };
+        assert_eq!(
+            plan.redacted_debug(),
+            other_plan.redacted_debug(),
+            "identity hashing must not depend on endpoint content"
+        );
+
+        // (4) failure path: unauthorized five-tuple → the serialized
+        // PreflightReport and the SessionError Display stay endpoint-free.
+        let stranger = crate::source::NetworkSourceId(Uuid::new_v4());
+        let fail_log = Arc::new(crate::events::RuntimeEventLog::new());
+        let mut fail_registry = ResourceRegistry::new();
+        fail_registry.register_network_source(stranger);
+        let fail_sup = Arc::new(Mutex::new(Supervisor::new(
+            crate::supervisor::RestartPolicy::default(),
+            fail_log,
+        )));
+        let fail_manager = SessionManager::new(
+            SharedResourceRegistry::new(fail_registry),
+            Arc::new(InMemoryLm::new()),
+            fail_sup,
+            Arc::new(MockBackend),
+            Arc::new(Vec::new()),
+            Arc::new(HashMap::new()),
+            None,
+            None,
+            MaterializeMode::Production,
+            SessionTuning::default(),
+            event_log.clone(),
+        );
+        let mut bad = rtmp_intent(stranger);
+        if let crate::graph_intent::SourceIntent::Rtmp { endpoint, .. } =
+            &mut bad.devices[0].pipeline.source
+        {
+            *endpoint = wire;
+        }
+        let err = fail_manager
+            .create(bad)
+            .expect_err("no binding must fail closed");
+        assert!(matches!(err, SessionError::PreflightFailed(_)));
+        if let SessionError::PreflightFailed(report) = &err {
+            let report_json = serde_json::to_string(report).unwrap();
+            assert_no_endpoint_literals(&report_json, "PreflightReport");
+        }
+        assert_no_endpoint_literals(&err.to_string(), "SessionError Display");
+
+        // (5) NetworkBindingError Display sweep: no variant carries content.
+        use crate::network_binding::NetworkBindingError as Nbe;
+        for variant in [
+            Nbe::OpenRejected,
+            Nbe::SymlinkRejected,
+            Nbe::NotRegularFile,
+            Nbe::ModeNotExact0600,
+            Nbe::OwnerNotServiceUser,
+            Nbe::EmptyFile,
+            Nbe::TooLarge,
+            Nbe::ReadFailed,
+            Nbe::ModifiedDuringLoad,
+            Nbe::ParseFailed,
+            Nbe::UnknownVersion,
+            Nbe::MachineIdUnresolved,
+            Nbe::MachineIdMismatch,
+            Nbe::EmptyEntries,
+            Nbe::DuplicateSourceId,
+            Nbe::DuplicateEndpoint,
+            Nbe::ListenerConflict,
+            Nbe::InvalidSourceId,
+            Nbe::InvalidEndpoint,
+            Nbe::AddressEnumerationFailed,
+            Nbe::AddressNotLocal,
+            Nbe::UnauthorizedSource,
+            Nbe::EndpointMismatch,
+        ] {
+            assert_no_endpoint_literals(&variant.to_string(), "NetworkBindingError Display");
+        }
+
+        // (6) event log sweep over the lifecycle: no endpoint literal in any
+        // serialized canonical event (includes the redacted identity hash).
+        let events = event_log.drain();
+        assert!(!events.is_empty(), "the lifecycle must have emitted events");
+        for event in events {
+            let json = serde_json::to_string(&event).unwrap();
+            assert_no_endpoint_literals(&json, "RuntimeEvent");
+        }
     }
 
     #[test]

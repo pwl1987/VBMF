@@ -902,15 +902,27 @@ Status: **TG-4 COMPLETE / SOFTWARE VERIFIED；TG-5 NEXT**
 - 边界：`report_signal_verified()` 生产调用方（网络信号探测面，signal.rs 现为 DeckLink 探测）随 TG-6 消费入口落位，本轮交付 API + 全语义测试；BMD 实机路径 = TG-6 Tier 1/Tier 2。
 - 报告：`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-tg4-recovery-decisions.md`。
 
+### 3.57 RF-SRC-RTMP-02 TG-5 收口（2026-09-19）— redaction helper + 统一负向套件
+
+Status: **TG-5 COMPLETE / SOFTWARE VERIFIED；TG-6 NEXT（BMD exact-commit）**
+
+- 实现（仅 `pipeline.rs` + `session.rs`）：
+  - `PipelinePlan::redacted_debug()`：确定性无 endpoint 文本渲染（Network endpoint 与输出 target——HLS 路径/rtmp URL——结构性 marker 化；保留 canonical 语义）。
+  - **D9 点名路径修复**：session.rs `SourceMaterialized` 身份哈希输入由派生 Debug（endpoint 文本进哈希 = 端点依赖身份泄漏）改为 `redacted_debug()`；仅 endpoint 不同的计划哈希输入相同。
+  - 统一负向套件（mock 全生命周期）：特征字面量（host/port/path/`rtmp://`）在 runtime_state JSON、canonical 强类型 Debug、redacted 渲染（含端点无关性）、PreflightReport JSON、SessionError Display、NetworkBindingError 全 23 变体、事件日志逐事件 JSON 全部缺席；default 域另附 redacted_debug 单测。D10 负向套件（TG-2）复核无缺口、矩阵保持全绿。
+- 软件：focused tg5 default **1** + mock **2**；default **318/318**；simulation **318/318**；ffmpeg-backend **350 passed/1 ignored**；mock **509/509 + 9/9 + 12/12**；clippy 三档、fmt、`check --all-targets`、architecture lint、remove-adapters proof、diff-check 全 PASS。
+- 边界：证据命令行 redact 随 TG-6 证据归档执行；wire 入站例外由既有兼容测试锚定。
+- 报告：`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-tg5-redaction-suite.md`。
+
 ## 4. Current Task
 
-**RF-SRC-RTMP-02-IMPLEMENTATION — IN PROGRESS（TG-0…TG-4 PASS·§3.52–§3.56）**
+**RF-SRC-RTMP-02-IMPLEMENTATION — IN PROGRESS（TG-0…TG-5 PASS·§3.52–§3.57；软件面全部完成）**
 
-TG-0 探针、TG-1（含 reconciliation `a29da14`）、TG-2（`ae8a93d`）、TG-3（`131aa52`）与 TG-4（D7/D8 决策接线：Waiting 非故障、INV-1 归因、D8 预算/双验证、INV-2 代际隔离）已完成。下一步执行 TG-5：redaction helper + 统一负向套件（全 canonical 面 endpoint 字面量缺席断言：PipelinePlan 序列化、session.rs Debug-hash 路径、事件/错误/health/evidence）+ D10 负向复核，随后 TG-6 BMD Tier 1/Tier 2 exact-commit 验收。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
+TG-0 探针、TG-1（含 reconciliation `a29da14`）、TG-2（`ae8a93d`）、TG-3（`131aa52`）、TG-4（`11af233`）与 TG-5（redaction helper + 统一负向套件 + D9 身份哈希路径修复）已完成。剩余 TG-6：BMD exact-commit Tier 1（Tier 2 如可用）硬件验收——network-only 组合 + Production 五元组准入 + listener bind/断连恢复/手动路径实机证据、deferred risks 逐项标注、证据归档与 STATE/CI 收口。SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW、RH-IDEM 与 24h stability 均保持边界。
 
 ## 5. Next Task
 
-执行 `RF-SRC-RTMP-02-IMPLEMENTATION` TG-5（TG-0…TG-4 已 PASS·§3.52–§3.56）：redaction 统一负向测试（Display/Debug/serde/panic/JSON/health/evidence 全面无 endpoint host/port/URL/path 字面量；wire 兼容入站例外保留）；随后 TG-6 BMD exact-commit Tier 1（Tier 2 如可用）+ CI/evidence 收口；严格按 §3.51 authority 与 stop conditions 推进；实现包完成前不得打开其它 Runtime Features packet。
+执行 `RF-SRC-RTMP-02-IMPLEMENTATION` TG-6（TG-0…TG-5 已 PASS·§3.52–§3.57）：BMD 盒 exact-commit（待 TG-5 提交 CI 绿后的 HEAD）Tier 1 LAN listener 验收（Tier 2 若独立主机/namespace 可用）：`git archive` 源与二进制 sha256、network binding manifest 0600/machine-pin、Production 准入正/负矩阵、Waiting/SignalVerified/断连预算恢复/BindFailure/UnknownExit 手动路径、D10 零 DeckLink 副作用、deferred risks 逐项标注、证据入 `evidence/bmd-10.30.15.10/` + EVIDENCE-INDEX、STATE 收口为 COMPLETE；输出 device-number 2 PID 992634 不得触碰；严格按 §3.51 evidence levels 措辞（Tier 1 ≠ 跨主机声明）。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -959,7 +971,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-SRC-01** | **BLOCKED（§3.45·2026-09-18）** | SRT source boundary + FFmpeg runtime；BMD FFmpeg 无 SRT protocol，保持 blocker 记录，不替换协议冒充完成 | RF-FF-01A–01F + capability | 无代码；需有 SRT-capable runtime 才能继续；不以 RTMP 证据继承 |
 | **RF-SRC-RTMP-01** | **COMPLETE（§3.49·2026-09-19；ffd8889）** | 单协议单输入 RTMP source boundary + FFmpeg runtime/lifecycle；typed ownership/session、CI 与 BMD source recovery/teardown 已验收 | RF-FF slices + §3.47 | DeckLink wire compatibility；typed ownership；BMD loopback A/V；recovery/teardown；security redaction；7/7 CI；不得扩展其他协议/Network umbrella |
 | **RF-SRC-RTMP-01-IMPLEMENTATION** | **COMPLETE（§3.49·2026-09-19）** | typed source/resource/lease/session + materialize/preflight + FFmpeg RTMP argv + BMD source recovery/teardown 已完成 | RF-SRC-RTMP-01 design | exact commit `ffd8889`；software matrix PASS；BMD source evidence；CI `35407985671` 7/7；STATE/GitHub sync |
-| **RF-SRC-RTMP-02-IMPLEMENTATION** | **IN PROGRESS（TG-0…TG-4 PASS·§3.52–§3.56·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；不改 `SourceIntent::Rtmp` wire | RF-SRC-RTMP-02 design | TG-0–TG-3 已过（§3.52–§3.55）；TG-4 已过（D7/D8 决策：manual 三类零预算、INV-1 归因恢复、D8 双验证、SignalVerified 唯一重置、INV-2 代际隔离，default 317/mock 507/ffmpeg 349+1 ignored、clippy×3、arch lint、remove-adapters 全绿）；后续：TG-5 redaction 负向套件；TG-6 BMD Tier 1/Tier 2 exact-commit；STATE/GitHub sync |
+| **RF-SRC-RTMP-02-IMPLEMENTATION** | **IN PROGRESS（TG-0…TG-5 PASS·§3.52–§3.57·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；不改 `SourceIntent::Rtmp` wire | RF-SRC-RTMP-02 design | TG-0–TG-4 已过（§3.52–§3.56）；TG-5 已过（redacted_debug + 身份哈希路径修复 + 统一负向套件，default 318/mock 509/ffmpeg 350+1 ignored、clippy×3、arch lint、remove-adapters 全绿）；剩余 TG-6 BMD exact-commit Tier 1/Tier 2 + 证据/STATE 收口 |
 | **RUNTIME-FEATURES-NEXT** | **SUPERSEDED BY RF-SRC-RTMP-02（§3.51·2026-09-19）** | 从 live evidence 重新冻结下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 已由 RF-SRC-RTMP-02 design authority、scope、touch-gates、acceptance、verification 接替；不从 BACKLOG 越级 |
 | **STANDALONE** | **BACKLOG** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |

@@ -183,13 +183,51 @@ pub enum TimelinePolicy {
 pub struct PipelinePlan {
     pub source: SourcePlan,
     /// C-TIMELINE-01: 时间线声明策略（IMP-1——原裸 `normalize: bool` 删除,
-    /// 语义迁移见 `TimelinePolicy` 文档; A2-7-01 Gap 登记同步移交）。
+    /// 语义迁移见 TimelinePolicy 文档; A2-7-01 Gap 登记同步移交）。
     pub timeline_policy: TimelinePolicy,
     /// A2-1: 类型化 SwitchPolicy（V0.2 §1.17 词表; 默认 FRAME_SWITCH = 旧占位值,
     /// wire 序列化值不变——兼容锚见 tests）。
     pub switch_mode: crate::program::SwitchPolicy,
-    /// P1a: 物化输出段（空 = 纯分析, 行为与 P1a 前逐字节一致）。
+    /// P1a: 物化输出段（空 = 纯分析, 行为与逐字节一致）。
     pub outputs: Vec<OutputPlan>,
+}
+
+impl PipelinePlan {
+    /// RF-SRC-RTMP-02 TG-5 (plan D9): deterministic, endpoint-free rendering
+    /// for canonical identity hashing and any canonical debug surface.
+    /// Network endpoints and output targets (HLS paths / `rtmp://` URLs) are
+    /// structurally replaced by fixed markers: stable per canonical semantics
+    /// (source kind + canonical ids + policies + output kinds) while carrying
+    /// no host/port/path/URL text — two plans differing only in endpoint
+    /// content render identically.
+    pub fn redacted_debug(&self) -> String {
+        let source = match &self.source {
+            SourcePlan::Device {
+                device_id,
+                connector,
+                binding_class,
+            } => format!("Device({device_id}, {connector:?}, {binding_class:?})"),
+            SourcePlan::Network { source_id, .. } => {
+                format!("Network({source_id}, endpoint=redacted)")
+            }
+            SourcePlan::SelfTest => "SelfTest".into(),
+        };
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|o| {
+                format!(
+                    "Output({:?}, v={}kbps, a={}bps, target=redacted)",
+                    o.kind, o.video_bitrate_kbps, o.audio_bitrate_bps
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "PipelinePlan {{ source: {source}, timeline: {:?}, switch: {:?}, outputs: [{outputs}] }}",
+            self.timeline_policy, self.switch_mode
+        )
+    }
 }
 
 impl PipelinePlan {
@@ -2001,6 +2039,58 @@ mod tests {
                 "non-canonical endpoint must reject in {mode:?}"
             );
         }
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_tg5_redacted_debug_is_endpoint_free_and_stable() {
+        // D9: identity-hash input rendering carries no host/port/path/URL
+        // text and does not depend on endpoint content.
+        let source_id = crate::source::NetworkSourceId(Uuid::new_v4());
+        let endpoint = |port: u16| crate::source::NetworkEndpoint {
+            protocol: crate::source::NetworkProtocol::Rtmp,
+            host: "10.30.15.10".into(),
+            port,
+            path: "/live/source".into(),
+        };
+        let plan = PipelinePlan {
+            source: SourcePlan::Network {
+                source_id,
+                endpoint: endpoint(19350),
+            },
+            timeline_policy: TimelinePolicy::ProgramTimelineMapped,
+            switch_mode: crate::program::SwitchPolicy::FrameSwitch,
+            outputs: vec![OutputPlan {
+                kind: OutputKind::Rtmp,
+                video_bitrate_kbps: 6000,
+                audio_bitrate_bps: 128_000,
+                target: "rtmp://10.30.15.10:19351/live/out".into(),
+            }],
+        };
+        let rendered = plan.redacted_debug();
+        for literal in [
+            "10.30.15.10",
+            "19350",
+            "/live/source",
+            "rtmp://",
+            "/live/out",
+        ] {
+            assert!(!rendered.contains(literal), "leak {literal}: {rendered}");
+        }
+        // endpoint/output-target independence
+        let same_canonical_semantics = PipelinePlan {
+            source: SourcePlan::Network {
+                source_id,
+                endpoint: endpoint(19351),
+            },
+            outputs: vec![OutputPlan {
+                kind: OutputKind::Rtmp,
+                video_bitrate_kbps: 6000,
+                audio_bitrate_bps: 128_000,
+                target: "/tmp/other-dir".into(),
+            }],
+            ..plan.clone()
+        };
+        assert_eq!(rendered, same_canonical_semantics.redacted_debug());
     }
 
     #[test]
