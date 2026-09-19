@@ -416,11 +416,10 @@ fn main() {
                             device_id: id.clone(),
                             role: "CAPTURE".into(),
                             pipeline: media_agent::graph_intent::PipelineIntent {
-                                source: media_agent::graph_intent::SourceIntent {
-                                    kind: "decklink".into(),
-                                    device_id: id.clone(),
-                                    port_id: None,
-                                },
+                                source: media_agent::graph_intent::SourceIntent::decklink(
+                                    id.clone(),
+                                    None,
+                                ),
                                 sink: media_agent::graph_intent::SinkIntent {
                                     kind: diag_sink_kind.clone(),
                                 },

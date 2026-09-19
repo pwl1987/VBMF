@@ -127,11 +127,7 @@ pub fn run(
                 device_id: first_id.clone(),
                 role: "CAPTURE".into(),
                 pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: first_id.clone(),
-                        port_id: None,
-                    },
+                    source: crate::graph_intent::SourceIntent::decklink(first_id.clone(), None),
                     sink: crate::graph_intent::SinkIntent {
                         kind: diag_sink_kind,
                     },
@@ -237,11 +233,10 @@ pub fn run(
                         device_id: first_id.clone(),
                         role: "CAPTURE".into(),
                         pipeline: crate::graph_intent::PipelineIntent {
-                            source: crate::graph_intent::SourceIntent {
-                                kind: "decklink".into(),
-                                device_id: first_id.clone(),
-                                port_id: None,
-                            },
+                            source: crate::graph_intent::SourceIntent::decklink(
+                                first_id.clone(),
+                                None,
+                            ),
                             sink: crate::graph_intent::SinkIntent {
                                 kind: "appsink".into(),
                             },
@@ -477,11 +472,7 @@ pub fn run(
                 device_id: first_id.clone(),
                 role: "CAPTURE".into(),
                 pipeline: crate::graph_intent::PipelineIntent {
-                    source: crate::graph_intent::SourceIntent {
-                        kind: "decklink".into(),
-                        device_id: first_id.clone(),
-                        port_id: None,
-                    },
+                    source: crate::graph_intent::SourceIntent::decklink(first_id.clone(), None),
                     sink: crate::graph_intent::SinkIntent {
                         kind: "appsink".into(),
                     },
@@ -496,11 +487,10 @@ pub fn run(
                         device_id: first_id.clone(),
                         role: "CAPTURE".into(),
                         pipeline: crate::graph_intent::PipelineIntent {
-                            source: crate::graph_intent::SourceIntent {
-                                kind: "decklink".into(),
-                                device_id: first_id.clone(),
-                                port_id: None,
-                            },
+                            source: crate::graph_intent::SourceIntent::decklink(
+                                first_id.clone(),
+                                None,
+                            ),
                             sink: crate::graph_intent::SinkIntent {
                                 kind: "appsink".into(),
                             },
