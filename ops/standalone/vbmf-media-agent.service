@@ -6,6 +6,12 @@ Wants=network-online.target
 # 语义权威: docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md（SE-01C）
 #   readiness = /health state ∈ {Ready, Capturing}（非 HTTP 200）
 #   exit 0 = 优雅停止（SIGTERM/SIGINT drain 完成）; exit 2 = fail-closed 启动拒绝
+# SE-01B-FIX: StartLimit* 属 [Unit] section（systemd ≥ 230；放 [Service] 为 unknown
+# key 被忽略——BMD systemd 259 se01b-unit.log 实证），rate limit 因此此前实际未生效。
+# 语义 = 30s 窗口内最多 3 次启动尝试的 rate limit（非指数 backoff）；命中后 unit
+# 进入 failed，需修因 + `systemctl reset-failed` 后方可再启动。
+StartLimitIntervalSec=30
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -15,10 +21,10 @@ User=lytv
 EnvironmentFile=-/etc/vbmf/media-agent.env
 ExecStart=/opt/vbmf/current/bin/media-agent
 # 退出码契约（语义页 §3）: 2 = 配置/构造拒绝——重试无意义直至 env/manifest 修复；
-# Restart=on-failure 覆盖运行期崩溃; StartLimitBurst 提供受控退避。
+# Restart=on-failure 覆盖运行期崩溃（exit 0 优雅停止绝不 restart）；重试节奏由
+# [Unit] StartLimit* rate limit 约束。重启间隔如需显式化用 RestartSec=（合法
+# [Service] 键），不把 rate limit 误称为退避。
 Restart=on-failure
-StartLimitBurst=3
-StartLimitIntervalSec=30
 # SIGTERM → 有序 drain（SessionManager 唯一 owner 逆序停会话）→ exit 0;
 # 第二次信号 = 运维逃生门（OS 默认处置，unit 记 signal death）。
 KillSignal=SIGTERM
