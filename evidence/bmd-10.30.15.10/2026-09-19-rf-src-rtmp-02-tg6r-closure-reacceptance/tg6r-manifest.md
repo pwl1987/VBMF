@@ -88,3 +88,16 @@ Build: `DECKLINK_SDK_INCLUDE=/home/lytv/decklink-sdk-include cargo build --featu
 
 - 触发：会话收尾时 Mimosa L2 复查在本轮 diff 中标记 `ffmpeg_recovery.rs:370/587` 路径穿越。处置：产出点收口——`write_gate_manifest_file` 写入后 canonicalize + temp-dir 前缀校验再返回（流向 `set_var`/production loader 的 binding path 一律为规范化限定值）；`read_gate_binding_manifest` 保持纵深再校验；HLS fixture 目录增加**创建前**词法 temp-dir 限定（fail-closed 前不得在 temp 外建目录）。
 - 复验（`06e272c`，CI 后补记录于 STATE；archive `7ae0cd87…`；binary `38af7706…`；native `bmd,ffmpeg-backend` build PASS）：loopback gate leg rc=0，D10 startup/teardown PASS（`manifest_bytes=159` + `manifest_bytes_unchanged=true`——规范化路径读写链路实证），归因恢复（3481014→3481211），零设备行为行，零 ffmpeg/listener 残留，device-2 PID 992634 未触碰。日志 `l2r-gate.log`（md5 `7c9c92cb…`）。
+
+## Addendum 2（2026-09-20）：symlink side-effect 窗口彻底关闭 @ `777319f`
+
+- 触发：用户对 `06e272c` 的边界复查——`fs::write` 先写后 canonicalize 仍可能在预存在 symlink 上产生越界写副作用；HLS 的 `create_dir_all` 亦可能在拒绝前经 symlink 中间件创建目录。
+- 修复（gate fixture path handling 专项，无 Runtime/wire/D10/TG-6 判据变化）：
+  - manifest：canonical temp root 先解析；单 fd `create_new(true)` + `O_NOFOLLOW` + 创建时 mode 0600（无"先写后 chmod"窗口）；创建后校验实际 mode（umask 干扰显式失败）；canonical direct-child 再校验；**不存在** plain `fs::write` fallback。
+  - HLS fixture：仅允许 canonical temp root 的**直接子目录**（parent == canonical root——`/tmp/a` 为 symlink 指向外部时等式校验在任何文件系统变更前失败）；leaf 预存在（含 symlink）即 fail-closed（`symlink_metadata` 不跟随）；非递归 `create_dir`（竞态 EEXIST 仍 fail-closed）；创建后 canonical parent/root 纵深再校验。
+- 验证（`777319f`·CI run `35492035651` **7/7 required PASS**；archive `84d58532…`；binary `47ba78a7…`；native `bmd,ffmpeg-backend` build PASS）：
+  - **focused path tests 7/7 PASS**（BMD native：预存在普通文件拒绝·预存在 symlink 拒绝且 target 字节不变·新建 0600 直接子目录·HLS 新建直接子目录·HLS symlink leaf 拒绝·嵌套路径拒绝且零中间目录·temp root 外拒绝且零创建）。
+  - loopback gate leg rc=0（`pa2-gate.log` md5 `956ab9f4…`）：D10 startup PASS（`manifest_bytes=159`）+ D10 teardown PASS（`manifest_bytes_unchanged=true`）——新单 fd 创建/读回链路实证；source/recovery（3484545→3484742，attributed=PublisherDisconnected）/teardown/marker 全绿。
+  - 本轮 manifest 落盘复核：`/tmp/vbmf-ffmpeg-recovery-network-binding-3484544-643827b2….json` mode `600`、159 B、owner `lytv`（source_id 与 gate 日志一致）。
+  - 零设备行为行（`device discovery`/`lease acquired` = 0）；零 ffmpeg/listener 残留；device-2 PID 992634 未触碰（15-22:42:29→15-22:42:55）。
+- 范围声明：按授权仅复跑 loopback gate leg（diff 未越过 gate-only path handling，不重跑 Tier 1/Tier 2）；RF-SRC-RTMP-02 维持 COMPLETE，本节为 §3.60 历史增补。

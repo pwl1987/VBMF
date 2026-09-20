@@ -59,3 +59,9 @@
 - 复查标记 `ffmpeg_recovery.rs:370/587` 路径穿越。评估：实质风险低（manifest 路径 = temp_dir + pid + uuid，endpoint 只进 JSON body；读回 helper 已 canonicalize+限定），但复查建议（规范化 + 校验 + 限定目录）可在**产出点**真实落地，故按修复处理而非仅申辩误报。
 - 修复：`write_gate_manifest_file` 返回前 canonicalize + temp-dir 前缀校验（流向 `set_var`/production loader 的 binding path 一律为规范化限定值）；`read_gate_binding_manifest` 保留纵深再校验；HLS fixture 目录补**创建前**词法 temp-dir 限定（fail-closed 前不得在 temp 外创建目录）。`SourceIntent::Rtmp` wire、gate 流程、D10 断言零变化。
 - 验证：本地 `cargo check --features ffmpeg-backend --all-targets` + fmt PASS（该模块 cfg=bmd+ffmpeg，type-check 权威 = CI media-runner no-run 编译 + BMD native build，沿用 TG-2/TG-4 口径）；BMD @ `06e272c`（archive `7ae0cd87…`·binary `38af7706…`）native `bmd,ffmpeg-backend` build PASS + loopback gate leg rc=0：D10 startup/teardown PASS、`manifest_bytes_unchanged=true`（规范化读写链路实证）、归因恢复 3481014→3481211、零设备行为行、零 ffmpeg/listener 残留、device-2 PID 992634 未触碰。日志归档于 tg6r evidence 目录 `l2r-gate.log`（md5 `7c9c92cb…`）；CI 结论与最终对齐见 STATE §3.60 增补行。
+
+## 6. Addendum 2（2026-09-20）：symlink side-effect 窗口彻底关闭（`777319f`）
+
+- 触发：用户对 `06e272c` 的同根因边界复查——"写入后 canonicalize"不阻断预存在 symlink 上的越界写副作用（filename 含 pid+deterministic uuid，不构成不可预测边界）；HLS `create_dir_all` 在词法前缀通过后仍可能经 symlink 中间件在拒绝前创建目录。
+- 修复（gate-only，无 Runtime/wire/D10/TG-6 判据变化）：manifest 改单 fd `create_new`+`O_NOFOLLOW`+创建时 0600（无先写后 chmod 窗口、无 `fs::write` fallback、umask 干扰显式失败）；canonical temp root 先解析 + direct-child 等式校验；HLS fixture 仅允许 canonical temp root 直接子目录、leaf 预存在（含 symlink）即拒、非递归 `create_dir`。新增 7 个 focused path-only negative tests（cfg=acceptance 特性对）。
+- 验证：CI `35492035651` **7/7 required PASS**；BMD @ `777319f`（archive `84d58532…`·binary `47ba78a7…`）native build PASS + **path tests 7/7 PASS** + loopback gate leg rc=0（D10 startup/teardown + `manifest_bytes_unchanged=true` + 本轮 manifest 落盘 mode 600/159B 复核 + 零残留 + device-2 未触碰）。日志 `pa2-gate.log`（md5 `956ab9f4…`）。按授权仅复跑 loopback leg，不重跑 Tier 1/2；RF-SRC-RTMP-02 维持 COMPLETE（§3.60 历史增补，不重开）。
