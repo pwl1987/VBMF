@@ -1,0 +1,33 @@
+Sep 20 14:11:15 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:11:15 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:11:15 lytv systemd[1]: Started vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 20 14:11:15 lytv media-agent[3493377]: 2026-09-20T06:11:15.824671Z  INFO media_agent: network-only production composition ready: NetworkSourceBinding → Network Resources → SessionManager → FFmpeg MediaBackend (no device discovery, no device binding manifest, no device leases, no DeckLink, zero media started) authorized_sources=1
+Sep 20 14:11:15 lytv media-agent[3493377]: 2026-09-20T06:11:15.824958Z  INFO media_agent: media-agent network-only runtime loaded; media lifecycle remains Session/MediaBackend owned
+Sep 20 14:11:15 lytv media-agent[3493377]: 2026-09-20T06:11:15.825230Z  INFO media_agent: health+api endpoints listening (network-only; internal-only; 经反向代理/认证暴露, 见用户 §二十二) bind=127.0.0.1:8080
+Sep 20 14:11:43 lytv media-agent[3493377]: 2026-09-20T06:11:43.351352Z  INFO media_agent: graceful shutdown signal received; draining network sessions cause=Terminated
+Sep 20 14:11:43 lytv media-agent[3493377]: 2026-09-20T06:11:43.351405Z  INFO media_agent: graceful shutdown: network sessions drained count=0
+Sep 20 14:11:43 lytv media-agent[3493377]: 2026-09-20T06:11:43.351413Z  INFO media_agent: graceful shutdown complete (exit 0)
+Sep 20 14:11:43 lytv systemd[1]: Stopping vbmf-media-agent.service - VBMF Media Agent (standalone lane)...
+Sep 20 14:11:43 lytv systemd[1]: vbmf-media-agent.service: Deactivated successfully.
+Sep 20 14:11:43 lytv systemd[1]: Stopped vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 20 14:11:43 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:11:43 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:18:12 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:18:12 lytv systemd[1]: Started vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 20 14:18:12 lytv media-agent[3498760]: 2026-09-20T06:18:12.940401Z  INFO media_agent: network-only production composition ready: NetworkSourceBinding → Network Resources → SessionManager → FFmpeg MediaBackend (no device discovery, no device binding manifest, no device leases, no DeckLink, zero media started) authorized_sources=1
+Sep 20 14:18:12 lytv media-agent[3498760]: 2026-09-20T06:18:12.940558Z  INFO media_agent: media-agent network-only runtime loaded; media lifecycle remains Session/MediaBackend owned
+Sep 20 14:18:12 lytv media-agent[3498760]: 2026-09-20T06:18:12.940713Z  INFO media_agent: health+api endpoints listening (network-only; internal-only; 经反向代理/认证暴露, 见用户 §二十二) bind=127.0.0.1:8080
+Sep 20 14:18:15 lytv media-agent[3498760]: 2026-09-20T06:18:15.961264Z  INFO media_agent: graceful shutdown signal received; draining network sessions cause=Terminated
+Sep 20 14:18:15 lytv media-agent[3498760]: 2026-09-20T06:18:15.961310Z  INFO media_agent: graceful shutdown: network sessions drained count=0
+Sep 20 14:18:15 lytv media-agent[3498760]: 2026-09-20T06:18:15.961322Z  INFO media_agent: graceful shutdown complete (exit 0)
+Sep 20 14:18:15 lytv systemd[1]: Stopping vbmf-media-agent.service - VBMF Media Agent (standalone lane)...
+Sep 20 14:18:15 lytv systemd[1]: vbmf-media-agent.service: Deactivated successfully.
+Sep 20 14:18:15 lytv systemd[1]: Stopped vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 20 14:18:15 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:18:15 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:18:15 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:18:16 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Sep 20 14:18:16 lytv systemd[1]: /etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+ActiveState=inactive
+Result=success
+ExecMainStatus=0

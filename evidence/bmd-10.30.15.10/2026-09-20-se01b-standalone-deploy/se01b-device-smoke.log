@@ -1,0 +1,16 @@
+[2m2026-09-20T06:17:57.894207Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"ffmpeg" [3mmode[0m[2m=[0m"production"
+[2m2026-09-20T06:17:57.898022Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-20T06:17:57.898072Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-20T06:17:57.898078Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-20T06:17:57.898081Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-20T06:17:57.898084Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-20T06:17:57.898103Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-20T06:17:57.898113Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+[2m2026-09-20T06:17:57.898228Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0me43d8f5a-94f5-5c67-8ed3-cddee15df04a [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (1) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (1)
+[2m2026-09-20T06:17:57.898238Z[0m [33m WARN[0m [2mmedia_agent::port[0m[2m:[0m PortId 碰撞 (derive 键不含 direction/Analog 位折叠): 证据面不拒绝, registry 装配层将 fail-closed; 专门 collision closure 待后续 change [3mport_id[0m[2m=[0mf0f53b80-eefd-58f7-ac92-356e8a1bbe89 [3mfirst[0m[2m=[0mInput/Sdi/Known(1)@DeckLink SDI (2) [3msecond[0m[2m=[0mOutput/Sdi/Known(1)@DeckLink SDI (2)
+[2m2026-09-20T06:17:57.898292Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m RF-FF-01E production FFmpeg composition ready: authorized PortRegistry→ResourceRegistry→SessionManager→FFmpeg MediaBackend (零媒体启动) [3mauthorized_devices[0m[2m=[0m2 [3mauthorized_ports[0m[2m=[0m2
+[2m2026-09-20T06:17:57.898340Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m production runtime ready: manifest 已校验, 不自动启动任何媒体管线
+[2m2026-09-20T06:17:57.898388Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m media-agent canonical runtime loaded; media lifecycle remains Session/MediaBackend owned
+[2m2026-09-20T06:17:57.898590Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m health+api endpoints listening (internal-only; 经反向代理/认证暴露, 见用户 §二十二) [3mbind[0m[2m=[0m127.0.0.1:8080
+[2m2026-09-20T06:18:03.905633Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m graceful shutdown signal received; draining sessions [3mcause[0m[2m=[0mTerminated
+[2m2026-09-20T06:18:03.905657Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m graceful shutdown complete
