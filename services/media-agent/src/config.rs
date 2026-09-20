@@ -14,10 +14,11 @@ use std::time::Duration;
 /// Top-level agent configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// RPC 绑定地址 (UNWIRED: transport 尚未实现, 见 rpc.rs "No transport yet").
-    /// 安全约束 (用户 §二十二 P1-2): Rust 不负责 API Gateway / Auth (Fastify 是控制面唯一入口),
-    /// 因此 RPC 一旦启用, 必须绑定 `127.0.0.1` 或 Unix socket, **绝不** `0.0.0.0`/`::` 暴露公网.
-    /// 默认已改为 `127.0.0.1:50051`; `MEDIA_AGENT_RPC_BIND` 仅可覆盖为 localhost / UDS.
+    /// RPC 绑定地址 (RCE-01A 起已接线: internal Runtime Control `/internal/v1/agent`
+    /// JSON-RPC 监听). 安全约束 (用户 §二十二 P1-2): Rust 不负责 API Gateway / Auth
+    /// (Fastify 是控制面唯一入口), 因此该面必须绑定 `127.0.0.1` 或 Unix socket,
+    /// **绝不** `0.0.0.0`/`::` 暴露公网 (`rpc_bind_security_warnings` 告警面维持).
+    /// 默认 `127.0.0.1:50051`; `MEDIA_AGENT_RPC_BIND` 仅可覆盖为 localhost / UDS.
     pub rpc_bind: String,
     /// DeckLink device allowlist (e.g. `/dev/blackmagic`). Empty = SDK default.
     pub device_allowlist: Vec<String>,

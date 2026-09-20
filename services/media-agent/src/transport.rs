@@ -228,16 +228,7 @@ pub fn map_dispatch(d: &IdempotentDispatch) -> ApiCommandResponse {
 pub fn route(method: &str, path: &str, body: &[u8], ctx: &TransportContext) -> (u16, String) {
     match (method, path) {
         ("GET", "/health") => {
-            let st = *ctx.agent_state.lock().unwrap();
-            let active = crate::pipeline_events::HEALTH_ARCS.lock().unwrap().len();
-            let dropped = crate::pipeline::dropped_bus_events();
-            let json = serde_json::json!({
-                "state": st,
-                "devices": ctx.device_count,
-                "active_pipelines": active,
-                "dropped_bus_events": dropped,
-                "clock_lost_events": crate::pipeline::clock_lost_events(),
-            });
+            let json = health_snapshot_json(&ctx.agent_state, ctx.device_count);
             (200, json.to_string())
         }
         ("GET", "/api/v1/runtime") => {
@@ -293,10 +284,29 @@ fn not_available(endpoint: &str) -> (u16, String) {
     )
 }
 
+/// /health 载荷单源（RCE-01A: prototype `/health` 与 internal control
+/// `agent.health` 共用, 防两处漂移; 字段逐项不变——wire 回归锚点锁定）。
+pub(crate) fn health_snapshot_json(
+    agent_state: &Arc<Mutex<crate::health::AgentState>>,
+    device_count: usize,
+) -> serde_json::Value {
+    let st = *agent_state.lock().unwrap();
+    let active = crate::pipeline_events::HEALTH_ARCS.lock().unwrap().len();
+    let dropped = crate::pipeline::dropped_bus_events();
+    serde_json::json!({
+        "state": st,
+        "devices": device_count,
+        "active_pipelines": active,
+        "dropped_bus_events": dropped,
+        "clock_lost_events": crate::pipeline::clock_lost_events(),
+    })
+}
+
 /// v0.2（R60 裁决③）: `program_switch` 投影合并——Query Plane 事实回读
 /// （只读 observe_execution; canonical 状态面不携带）。平面缺席/已
 /// teardown（observe None）⇒ 块保持 null（诚实缺席, 非 false）。
-fn apply_program_switch(
+/// pub(crate)（RCE-01A）: internal control `runtime.query` 复用同一合并逻辑。
+pub(crate) fn apply_program_switch(
     snap: &mut ApiQuerySnapshot,
     plane: Option<&dyn crate::switch_dispatch_plane::SwitchReadbackPlane>,
 ) {

@@ -80,7 +80,7 @@
 | `MEDIA_AGENT_NETWORK_BINDING` | `bootstrap.rs` 模式选择 + `build_ffmpeg_network_only_composition` | NetworkSourceBinding manifest 路径；显式选择 Network-only 组合根（先于一切 Device 构造） | 无 | **是（Network-only 必需）** | 缺失→Device 模式；与 DEVICE_BINDING/diagnostic/selftest 组合→exit 2；manifest 无效（权限/owner/machine-pin/大小）→exit 2 | **是**（startup-only，无 watch/reload） |
 | `MEDIA_AGENT_DEVICE_BINDING` | `bootstrap.rs`/`resolver.rs` | DeviceBindingManifest 路径；Device 生产绑定唯一权威 | 无 | **是（Device 生产必需；缺失即 fail-closed，无盲猜回退）** | 生产缺失/无效→构造拒绝 exit 2；仅 `MEDIA_AGENT_MODE=diagnostic` 允许回退 legacy auto-resolver | 是 |
 | `MEDIA_AGENT_HEALTH_BIND` | bin health 线程 | `/health` 监听地址 | `127.0.0.1:8080` | 是（限内网/UDS；公网暴露禁止） | 缺失→默认；bind 失败→error 日志、进程继续（§1 披露） | 是 |
-| `MEDIA_AGENT_RPC_BIND` | `config.rs`（UNWIRED：rpc transport 未实现） | 未来 RPC 绑定（须 localhost/UDS） | `127.0.0.1:50051` | 是（当前无效果） | `0.0.0.0`/`::` → 启动告警（P1-2 校验） | 是 |
+| `MEDIA_AGENT_RPC_BIND` | `config.rs` → bin internal control 线程（RCE-01A 起已接线） | internal Runtime Control `/internal/v1/agent` JSON-RPC 监听（§6；须 localhost/UDS） | `127.0.0.1:50051` | 是（仅生产组合根启动该面；诊断路径不启动） | bind 失败→error 日志、进程继续（与 health bind 同语义）；`0.0.0.0`/`::` → 启动告警（P1-2 校验） | 是 |
 | `MEDIA_AGENT_DEVICE_ALLOWLIST` | `config.rs` | 设备节点 allowlist（逗号分隔） | `["/dev/blackmagic"]` | 是 | 缺失→默认；空串过滤后为空列表 | 是 |
 | `MEDIA_AGENT_LEASE_TTL_SECS` | `config.rs`→LeaseManager | 默认租约 TTL | 300 | 是 | 非法→回退默认（fail-soft） | 是 |
 | `MEDIA_AGENT_LEASE_RENEW_SECS` | `config.rs` | 续约窗口 | 30 | 是 | 非法→回退默认 | 是 |
@@ -141,3 +141,27 @@
 - readiness = 轮询 `/health` 至 `state ∈ {Ready, Capturing}`；超时窗口按 Starting 上界设定。
 - `exit 2` = 启动拒绝：不自动重试直到 env/manifest 修复（`Restart=on-failure` + `StartLimitBurst` 受控退避的判别输入）。
 - 第二终止信号 = 逃生门（signal death）；常规停止预期 exit 0。
+
+## 6. Internal Runtime Control 面（RCE-01A，2026-09-20 起）
+
+> Authority: `docs/superpowers/plans/2026-09-20-runtime-control-entry-01-planning.md`（D1–D8/R1–R5）。
+> 本节为 as-is 实现记录；`EXTERNAL_API_CONTRACT.md` / `TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md` 零修改。
+
+- **面与命名空间**: `POST /internal/v1/agent`，JSON-RPC 2.0 envelope（`jsonrpc/method/params/id`）。
+  生产组合根（Device / Network-only）启动时经 `MEDIA_AGENT_RPC_BIND` 监听（默认 `127.0.0.1:50051` 回环；
+  localhost/UDS 纪律，见 §4.1 行与用户 §二十二 P1-2）。诊断路径不启动本面。
+- **四方法封闭词表**: `runtime.query` / `command.dispatch` / `events.projection` / `agent.health`。
+  未知 method → JSON-RPC error `-32601`（附词表）；缺 method/参数形状错 → `-32602`；`jsonrpc` 版本错 → `-32600`；
+  非 JSON → HTTP 400；组合根未装配 → HTTP 503（诚实契约延续）。
+- **两平面语义（红线）**: `command.dispatch` 响应 = 幂等裁决（Executed/Replayed/Conflict/Rejected 四出口，
+  失败经 `classification` 传达，不暴露 failed——0.7C-7 冻结）；**actual state 唯一来源 = `runtime.query`**
+  （SessionPhase/state 投影）+ `agent.health`。JSON-RPC 成功 ≠ SignalVerified ≠ Runtime healthy。
+  能力级诚实拒绝（如 SwitchProgram 无双输入执行平面）= 裁决 executed + `classification=rejected` + detail 说明；
+  形状拒绝 = Rejected（未触 Runtime、未占 command_id）。
+- **幂等**: 进程内 `CommandIdempotency`（D9-A..E；重放/conflict/并发恰一次）。跨重启 durable idempotency
+  = RH-IDEM-01，维持 DEFER-UNTIL-CONTROL-PLANE（解冻点 = external Fastify command entry）。
+- **prototype `/api/v1/*` 五端点**: 维持 0.7C-8/R60 冻结行为；生产 query/idem 缺席 → 503 不变。
+  Product External API `/api/v1/*` 归 Fastify（CONTROL-PLANE 阶段）；两个可写控制面不并存。
+- **已知 wire 缝隙（如实登记，非本面包修）**: `runtime.query` 返回的 session id 为显示形态
+  `session-<hex>`；`command.dispatch` 的 `session_by_id` 目标要求 canonical UUID——消费方自行映射；
+  Product API 资源形状（`/sessions/{id}` URL 形态）归 Fastify 阶段裁定。

@@ -99,6 +99,14 @@ fn main() {
     #[allow(unused_mut)]
     let mut api_mgr: Option<std::sync::Arc<media_agent::session::SessionManager>> = None;
 
+    // RCE-01A (RUNTIME-CONTROL-ENTRY-01 D4): 生产组合根的 SessionManager——
+    // Device-gstreamer / Device-ffmpeg 生产分支赋值, 供 internal Runtime Control
+    // 面构造（/internal/v1/agent）。prototype `/api/v1/*` 的 api_mgr 语义不变:
+    // 生产保持 None → 503 契约。非 gstreamer/ffmpeg 构建赋值被 cfg 移除 →
+    // unused_mut 属预期（同 api_mgr 显式 allow）。
+    #[allow(unused_mut)]
+    let mut internal_mgr: Option<std::sync::Arc<media_agent::session::SessionManager>> = None;
+
     // v0.2 Control Plane（R60 六点裁决）: SwitchProgram 执行/回读平面——同一
     // `RuntimeSwitchPlane` Arc 分别进 CommandIdempotency（命令通道·dispatch
     // trait）与 TransportContext（查询通道·readback trait）, 类型级隔离。
@@ -662,13 +670,15 @@ fn main() {
                 // Production: manifest 已在上校验 (缺失/无效 → 失败闭合已记录), 不自动启动任何媒体管线.
                 #[cfg(feature = "gstreamer-backend")]
                 {
-                    // 02-I P0-1: 生产组合根就绪——SessionManager 已构造（PortRegistry
-                    // 一等消费: registry→ResourceRegistry→preflight）; mgr 常驻（tick
-                    // 线程持有——lease 房务, 零媒体启动）; 查询/命令面仍不暴露
-                    // （0.7C-8 生产 503 契约保持, 待 Control Plane transport 接线）。
+                    // 02-I P0-1 + RCE-01A: 生产组合根就绪——SessionManager 已构造
+                    // （PortRegistry 一等消费: registry→ResourceRegistry→preflight）;
+                    // mgr 常驻（tick 线程持有——lease 房务, 零媒体启动）; 查询/命令
+                    // 面经 internal Runtime Control (/internal/v1/agent) 暴露;
+                    // prototype /api/v1/* 维持生产 503 契约。
                     let (mgr, _ctrl, _media_tap_port, _bridge_observation) = composition;
+                    internal_mgr = Some(mgr.clone());
                     tracing::info!(
-                        "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 等待 Control Plane 显式 StartPipeline Intent (RPC transport 待接, 见 rpc.rs)"
+                        "production composition root ready: PortRegistry→ResourceRegistry→bundle→SessionManager 已构造 (零媒体启动), 会话命令经 internal Runtime Control (/internal/v1/agent) 显式触发"
                     );
                     std::thread::spawn(move || loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
@@ -678,10 +688,11 @@ fn main() {
                 #[cfg(feature = "ffmpeg-backend")]
                 {
                     let mgr = ffmpeg_composition.manager.clone();
+                    internal_mgr = Some(ffmpeg_composition.manager.clone());
                     tracing::info!(
                         authorized_devices = ffmpeg_composition.authorizations.len(),
                         authorized_ports = ffmpeg_composition.registry.input_ports().len(),
-                        "RF-FF-01E production FFmpeg composition ready: authorized PortRegistry→ResourceRegistry→SessionManager→FFmpeg MediaBackend (零媒体启动)"
+                        "RF-FF-01E production FFmpeg composition ready: authorized PortRegistry→ResourceRegistry→SessionManager→FFmpeg MediaBackend (零媒体启动; 会话命令经 internal Runtime Control /internal/v1/agent)"
                     );
                     std::thread::spawn(move || loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
@@ -702,6 +713,37 @@ fn main() {
         media_agent::health::AgentState::Starting
     ) {
         *agent_state.lock().unwrap() = media_agent::health::AgentState::Ready;
+    }
+
+    // RCE-01A (D3/D4): Internal Runtime Control 面 —— 生产组合根唯一可写控制入口
+    // （/internal/v1/agent JSON-RPC 四方法; 默认 rpc_bind=127.0.0.1:50051 回环）。
+    // 放在 transport_ctx 构造之前（switch_plane 随后被 move; agent_state 仅借用）。
+    // 诊断路径 internal_mgr=None ⇒ 本面不启动（prototype /api/v1/* 已在诊断面服务）。
+    if let Some(mgr) = internal_mgr.as_ref() {
+        let query = std::sync::Arc::new(media_agent::runtime_query::RuntimeQuery::new(mgr.clone()));
+        let idem = media_agent::idempotency::CommandIdempotency::new(mgr.clone());
+        let idem = match &switch_plane {
+            Some(plane) => std::sync::Arc::new(idem.with_switch_plane(plane.clone())),
+            None => std::sync::Arc::new(idem),
+        };
+        let control_ctx = media_agent::internal_control::InternalControlContext {
+            events: projection_log.clone(),
+            agent_state: agent_state.clone(),
+            device_count,
+            query: Some(query),
+            idem: Some(idem),
+            switch_readback: switch_plane.clone().map(|p| {
+                p as std::sync::Arc<dyn media_agent::switch_dispatch_plane::SwitchReadbackPlane>
+            }),
+        };
+        let rpc_bind = _cfg.rpc_bind.clone();
+        std::thread::spawn(move || match std::net::TcpListener::bind(&rpc_bind) {
+            Ok(listener) => {
+                tracing::info!(bind = %rpc_bind, "internal runtime control listening (/internal/v1/agent; localhost-only 纪律, 见用户 §二十二)");
+                media_agent::internal_control::serve_forever_internal(listener, control_ctx);
+            }
+            Err(e) => tracing::error!(error = %e, "internal control bind failed"),
+        });
     }
 
     // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径 mgr 仅组合不暴露
@@ -810,6 +852,33 @@ fn run_network_only_runtime(shutdown: media_agent::shutdown::GracefulShutdown) -
         std::thread::spawn(move || loop {
             std::thread::sleep(std::time::Duration::from_secs(5));
             mgr.tick();
+        });
+    }
+
+    // RCE-01A (D3/D4): internal Runtime Control（与 Device production 对称——
+    // /internal/v1/agent JSON-RPC; 默认 rpc_bind=127.0.0.1:50051 回环）。
+    // 放在 transport_ctx 构造之前（agent_state 随后被 move）。switch plane
+    // 在 network-only 单输入形态保持 None（SwitchProgram 命令面诚实 Rejected）。
+    {
+        let control_ctx = media_agent::internal_control::InternalControlContext {
+            events: composition.projection_log.clone(),
+            agent_state: agent_state.clone(),
+            device_count: 0,
+            query: Some(std::sync::Arc::new(
+                media_agent::runtime_query::RuntimeQuery::new(composition.manager.clone()),
+            )),
+            idem: Some(std::sync::Arc::new(
+                media_agent::idempotency::CommandIdempotency::new(composition.manager.clone()),
+            )),
+            switch_readback: None,
+        };
+        let rpc_bind = media_agent::config::Config::from_env().rpc_bind;
+        std::thread::spawn(move || match std::net::TcpListener::bind(&rpc_bind) {
+            Ok(listener) => {
+                tracing::info!(bind = %rpc_bind, "internal runtime control listening (network-only; /internal/v1/agent; localhost-only 纪律, 见用户 §二十二)");
+                media_agent::internal_control::serve_forever_internal(listener, control_ctx);
+            }
+            Err(e) => tracing::error!(error = %e, "internal control bind failed"),
         });
     }
 
