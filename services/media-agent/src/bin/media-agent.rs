@@ -1,10 +1,12 @@
 //! VBMF Media Agent — Production Composition Root（A2-0 归位后形态）。
 //!
-//! 只承担: bootstrap::build()（唯一构造源）→ production diagnostic wiring
-//! （SDK FFI probe——标记: production diagnostic wiring, 移除与否属后续独立变更）
-//! → runtime wiring（诊断 auto-start / transport）→ process lifetime。
-//! **对全部 VBMF_* 验收 env 零 dispatch 责任**——真机 gate 入口统一在
-//! `media-agent-gates` bin（src/bin/gates.rs）; Gate 逻辑见 lib `gates/` 模块族。
+//! 只承担: startup composition mode 选择（RF-SRC-RTMP-02 closure——先于一切
+//! bootstrap 构造）→ bootstrap::build()（Device 平面唯一构造源）→ production
+//! diagnostic wiring（SDK FFI probe——标记: production diagnostic wiring, 移除
+//! 与否属后续独立变更）→ runtime wiring（诊断 auto-start / transport）→
+//! process lifetime。**对全部 VBMF_* 验收 env 零 dispatch 责任**——真机 gate
+//! 入口统一在 `media-agent-gates` bin（src/bin/gates.rs）; Gate 逻辑见 lib
+//! `gates/` 模块族。
 
 use media_agent::bootstrap;
 #[cfg(all(feature = "bmd-provider", feature = "gstreamer-backend"))]
@@ -21,6 +23,19 @@ use uuid::Uuid;
 
 fn main() {
     tracing_subscriber::fmt::init();
+
+    // RF-SRC-RTMP-02 closure（frozen D10/D11）: 生产组合模式选择必须先于
+    // bootstrap::build()——`MEDIA_AGENT_NETWORK_BINDING` 显式选择 Network-only
+    // 平面时，进程绝不进入 Device provider discovery / bootstrap 占位
+    // DeviceLease / DeckLink 路径；两个 binding 同时出现 = 歧义 fail-closed。
+    match bootstrap::select_startup_composition_mode() {
+        Ok(bootstrap::StartupCompositionMode::Device) => {}
+        Ok(bootstrap::StartupCompositionMode::NetworkOnly { .. }) => run_network_only_runtime(),
+        Err(e) => {
+            eprintln!("startup composition mode selection failed closed: {e}");
+            std::process::exit(2);
+        }
+    }
 
     // A20-03: 唯一构造源（config/provider/discovery/双日志/lease/supervisor/agent_state;
     // 硬边界: 只构造不运行——见 bootstrap.rs）。
@@ -715,4 +730,84 @@ fn main() {
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
     }
+}
+
+/// RF-SRC-RTMP-02 closure: Network-only production runtime（frozen D10/D11）。
+///
+/// 本函数是 Network-only 平面的**唯一**组合入口——直接消费 production
+/// builder（`MEDIA_AGENT_NETWORK_BINDING` → `NetworkSourceBinding::load()` →
+/// `build_ffmpeg_network_only_composition()`），不调用 Device provider
+/// discovery、不读 DeviceBindingManifest、不获取任何 bootstrap DeviceLease /
+/// `LeaseKey::Device`、不打开 DeckLink input/output、不执行 DeckLink SDK
+/// probe。进程内只存在该 network composition 的单一 SessionManager /
+/// LeaseManager / Supervisor truth（Device 平面从未构造，无第二 owner）。
+///
+/// 保持 Production 既有语义：零媒体自动启动，等待显式 Runtime command；
+/// exposure 与 Device production 一致（query/command/idempotency/switch 面
+/// 保持 None ⇒ 503 契约诚实，Control Plane 接线属后续独立 packet）。
+#[cfg(feature = "ffmpeg-backend")]
+fn run_network_only_runtime() -> ! {
+    use std::sync::{Arc, Mutex};
+
+    let composition = media_agent::bootstrap::build_ffmpeg_network_only_composition()
+        .unwrap_or_else(|e| {
+            eprintln!("network-only production composition failed closed: {e}");
+            std::process::exit(2);
+        });
+    let authorized_sources = composition.binding.authorized_sources().len();
+    let agent_state = Arc::new(Mutex::new(media_agent::health::AgentState::Ready));
+    tracing::info!(
+        authorized_sources,
+        "network-only production composition ready: NetworkSourceBinding → Network Resources → SessionManager → FFmpeg MediaBackend (no device discovery, no device binding manifest, no device leases, no DeckLink, zero media started)"
+    );
+
+    // 与 Device production 一致的常驻语义: tick 线程只做 lease 房务
+    // （续期/预留过期），零媒体启动——等待显式 Runtime command。
+    {
+        let mgr = composition.manager.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            mgr.tick();
+        });
+    }
+
+    // P0.7C-8 exposure 语义与 Device production 一致: /health 只携带
+    // events/agent_state/device_count（Network-only 恒 0）; manager 的
+    // query/command/idempotency/switch 面保持缺席（503 契约诚实）。
+    let transport_ctx = media_agent::transport::TransportContext {
+        events: composition.projection_log.clone(),
+        agent_state,
+        device_count: 0,
+        query: None,
+        idem: None,
+        hls_dir: None,
+        switch_readback: None,
+    };
+    let health_bind = media_agent::config::Config::from_env().health_bind;
+    std::thread::spawn(move || match std::net::TcpListener::bind(&health_bind) {
+        Ok(listener) => {
+            tracing::info!(
+                bind = %health_bind,
+                "health+api endpoints listening (network-only; internal-only; 经反向代理/认证暴露, 见用户 §二十二)"
+            );
+            media_agent::transport::serve_forever(listener, transport_ctx);
+        }
+        Err(e) => tracing::error!(error = %e, "health bind failed"),
+    });
+
+    tracing::info!(
+        "media-agent network-only runtime loaded; media lifecycle remains Session/MediaBackend owned"
+    );
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
+}
+
+#[cfg(not(feature = "ffmpeg-backend"))]
+fn run_network_only_runtime() -> ! {
+    eprintln!(
+        "network-only startup requires an ffmpeg-backend build (fail-closed); \
+         unset MEDIA_AGENT_NETWORK_BINDING or build with --features ffmpeg-backend"
+    );
+    std::process::exit(2);
 }

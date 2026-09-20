@@ -14,14 +14,26 @@
 //!   VBMF_REGISTRY_ONLY
 //! Gate 逻辑在 lib `gates/` 模块族（逐字节迁自 main.rs, 行为零变）。
 //!
-//! **A20-03（用户裁定）: Gate 是 Consumer 不是 Bootstrapper**——本 bin 的全部
-//! 生产依赖构造来自唯一的 `bootstrap::build()`（与生产 Composition Root 同源,
-//! 消灭"两套初始化语义"）; 本文件**不再拥有任何**构造代码
-//! （A20-03-BS-01 Single Bootstrap Source 静态验收锁定）。
+//! **A20-03（用户裁定）: Gate 是 Consumer 不是 Bootstrapper**——除下方特例外,
+//! 本 bin 的全部生产依赖构造来自唯一的 `bootstrap::build()`（与生产
+//! Composition Root 同源, 消灭"两套初始化语义"）; 本文件**不拥有任何**构造
+//! 代码（A20-03-BS-01 Single Bootstrap Source 静态验收锁定）。
+//! **D10 特例（RF-SRC-RTMP-02 closure, frozen 后续裁决）**: `VBMF_FFMPEG_RTMP_SOURCE`
+//! 命中时必须**先于** common bootstrap 进入 Network-only gate——该路径消费
+//! `bootstrap::build_ffmpeg_network_only_composition()`（同一 bootstrap.rs 内的
+//! 受限 production composition path, 非第二套 Runtime truth）, 且不得执行
+//! Device discovery / bootstrap 占位 DeviceLease / DeviceBindingManifest /
+//! DeckLink SDK probe, 否则 TG-6 的严格 D10 硬件证据不成立。
 //! SDK FFI probe 属诊断行为（非依赖构造）, 留在本入口——与 bootstrap.rs 硬边界一致。
 
 fn main() {
     tracing_subscriber::fmt::init();
+
+    // RF-SRC-RTMP-02 closure: Network-only gate 必须先于 common bootstrap
+    // dispatch——命中即运行并在 gate 内 exit; 未命中则零副作用返回, 后续
+    // gates 走唯一 `bootstrap::build()`（A20-03 不变）。
+    #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+    media_agent::gates::ffmpeg_recovery::run_network_only_gate();
 
     // 唯一构造源（config/provider/discovery/双日志/lease+占位租约/supervisor/agent_state）。
     let _world = media_agent::bootstrap::build();

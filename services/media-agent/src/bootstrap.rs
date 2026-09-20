@@ -161,6 +161,57 @@ pub struct FfmpegSessionComposition {
         Arc<std::collections::HashMap<uuid::Uuid, crate::resolver::BindingAuthorization>>,
 }
 
+/// RF-SRC-RTMP-02 closure: startup composition mode (frozen D10/D11).
+///
+/// Selected from configuration BEFORE [`build`] runs — a Network-only
+/// selection must never enter the device bootstrap path (provider discovery,
+/// `DeviceBindingManifest` loading, bootstrap placeholder device leases).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartupCompositionMode {
+    /// Legacy device plane: [`build`] + device composition roots.
+    Device,
+    /// Network-only plane (D10): consumes `MEDIA_AGENT_NETWORK_BINDING`
+    /// through [`build_ffmpeg_network_only_composition`]; zero device side
+    /// effects by construction.
+    NetworkOnly { binding_path: String },
+}
+
+/// RF-SRC-RTMP-02 closure: production startup mode selection.
+///
+/// `MEDIA_AGENT_NETWORK_BINDING` is the explicit Network-only selector:
+/// when present the process must run the network-only composition root and
+/// must NOT run device discovery or acquire placeholder device leases.
+/// Combining it with `MEDIA_AGENT_DEVICE_BINDING` (or a device-plane
+/// diagnostic/self-test selector) is ambiguous and fails closed.
+pub fn select_startup_composition_mode() -> Result<StartupCompositionMode, String> {
+    let config = Config::from_env();
+    match (config.network_binding_path, config.device_binding_path) {
+        (None, _) => Ok(StartupCompositionMode::Device),
+        (Some(binding_path), None) => {
+            if std::env::var("MEDIA_AGENT_MODE").as_deref() == Ok("diagnostic") {
+                return Err(
+                    "MEDIA_AGENT_NETWORK_BINDING cannot start in MEDIA_AGENT_MODE=diagnostic \
+                     (network-only has no diagnostic auto-start; fail-closed)"
+                        .to_string(),
+                );
+            }
+            if std::env::var_os("MEDIA_AGENT_SELFTEST").is_some() {
+                return Err(
+                    "MEDIA_AGENT_NETWORK_BINDING cannot combine with MEDIA_AGENT_SELFTEST \
+                     (device-plane self-test; fail-closed)"
+                        .to_string(),
+                );
+            }
+            Ok(StartupCompositionMode::NetworkOnly { binding_path })
+        }
+        (Some(_), Some(_)) => Err(
+            "MEDIA_AGENT_NETWORK_BINDING and MEDIA_AGENT_DEVICE_BINDING are mutually \
+             exclusive startup composition selections (fail-closed)"
+                .to_string(),
+        ),
+    }
+}
+
 /// RF-FF-01E: construct the production FFmpeg Session path without starting media.
 ///
 /// This is dependency construction only: manifest + live Provider identity are
@@ -244,6 +295,10 @@ pub struct FfmpegNetworkComposition {
     /// Same resource registry wired into the manager (TG-4 recovery claim
     /// revalidation input; read-only observation, not a second truth).
     pub resources: Arc<crate::resource::SharedResourceRegistry>,
+    /// Projection (transport-facing) half of the composition's FanoutSink —
+    /// read-only observation view for /health events; the manager keeps the
+    /// sole lifecycle/consumption path via `event_sink`.
+    pub projection_log: Arc<RuntimeEventLog>,
     /// Startup-loaded, D5-verified binding — the sole Network authorization
     /// truth for this manager (plan D3/D11).
     pub binding: Arc<crate::network_binding::NetworkSourceBinding>,
@@ -340,6 +395,7 @@ pub fn build_ffmpeg_network_only_composition_with(
         supervisor,
         lease_manager,
         resources: Arc::new(resources),
+        projection_log,
         binding,
     })
 }
@@ -447,6 +503,9 @@ mod rf_ff_01e_tests {
 
     #[test]
     fn rf_ff_01e_valid_manifest_builds_production_session_composition() {
+        // Shares STARTUP_ENV_MUTEX: reads process-global machine identity env,
+        // which closure tests may set while holding the same lock.
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
         let handle = "46:test:01e";
         let runtime_machine_id = crate::resolver::current_machine_id();
         let manifest_machine_id = if runtime_machine_id.is_empty() {
@@ -690,11 +749,204 @@ mod rf_src_rtmp_02_tg2_tests {
     #[test]
     fn rf_src_rtmp_02_network_only_composition_requires_binding_config() {
         // fail-closed startup wiring: no MEDIA_AGENT_NETWORK_BINDING → refuse
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
         std::env::remove_var("MEDIA_AGENT_NETWORK_BINDING");
         let err = match build_ffmpeg_network_only_composition() {
             Ok(_) => panic!("missing network binding config must fail closed"),
             Err(e) => e,
         };
         assert!(err.contains("MEDIA_AGENT_NETWORK_BINDING"), "{err}");
+    }
+}
+
+/// Shared lock for tests that mutate startup-selection environment variables
+/// (env is process-global; cargo runs lib tests multi-threaded).
+#[cfg(test)]
+pub(crate) static STARTUP_ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+mod rf_src_rtmp_02_mode_tests {
+    use super::*;
+
+    fn clear_startup_env() {
+        std::env::remove_var("MEDIA_AGENT_NETWORK_BINDING");
+        std::env::remove_var("MEDIA_AGENT_DEVICE_BINDING");
+        std::env::remove_var("MEDIA_AGENT_MODE");
+        std::env::remove_var("MEDIA_AGENT_SELFTEST");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_mode_defaults_to_device_plane() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        clear_startup_env();
+        assert_eq!(
+            select_startup_composition_mode().expect("default mode"),
+            StartupCompositionMode::Device
+        );
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_device_binding_alone_selects_device_plane() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        clear_startup_env();
+        std::env::set_var("MEDIA_AGENT_DEVICE_BINDING", "/tmp/device-binding.json");
+        assert_eq!(
+            select_startup_composition_mode().expect("device mode"),
+            StartupCompositionMode::Device
+        );
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_binding_selects_network_only_plane() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        clear_startup_env();
+        std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
+        assert_eq!(
+            select_startup_composition_mode().expect("network-only mode"),
+            StartupCompositionMode::NetworkOnly {
+                binding_path: "/tmp/network-binding.json".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_plus_device_binding_fails_closed() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        clear_startup_env();
+        std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
+        std::env::set_var("MEDIA_AGENT_DEVICE_BINDING", "/tmp/device-binding.json");
+        let err = select_startup_composition_mode()
+            .expect_err("ambiguous composition selection must fail closed");
+        assert!(err.contains("mutually exclusive"), "{err}");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_binding_rejects_diagnostic_mode() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        clear_startup_env();
+        std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
+        std::env::set_var("MEDIA_AGENT_MODE", "diagnostic");
+        let err = select_startup_composition_mode()
+            .expect_err("diagnostic network-only must fail closed");
+        assert!(err.contains("diagnostic"), "{err}");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_network_binding_rejects_selftest() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        clear_startup_env();
+        std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
+        std::env::set_var("MEDIA_AGENT_SELFTEST", "1");
+        let err =
+            select_startup_composition_mode().expect_err("selftest network-only must fail closed");
+        assert!(err.contains("SELFTEST"), "{err}");
+    }
+}
+
+#[cfg(all(test, feature = "ffmpeg-backend"))]
+mod rf_src_rtmp_02_closure_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    struct TempDir(std::path::PathBuf);
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "vbmf-closure-{}-{}-{}",
+                tag,
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_real_loadable_binding(dir: &TempDir, machine_id: &str) -> std::path::PathBuf {
+        let source_id = uuid::Uuid::new_v4();
+        let body = format!(
+            r#"{{"version":1,"machine_id":"{machine_id}","entries":[{{"source_id":"{source_id}","endpoint":"rtmp://127.0.0.1:19350/live/closure"}}]}}"#
+        );
+        let path = dir.0.join("network-binding.json");
+        std::fs::write(&path, body).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        path
+    }
+
+    /// Production-root closure: the real production entry (mode selection →
+    /// `build_ffmpeg_network_only_composition`) constructs a zero-device
+    /// composition — no device plane, only Network Resources, zero Device
+    /// leases. The device bootstrap path is never entered (structural: this
+    /// entry performs no discovery at all).
+    #[test]
+    fn rf_src_rtmp_02_production_entry_network_only_is_zero_device() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let dir = TempDir::new("prod-entry");
+        let machine_id = "closure-test-host";
+        std::env::set_var("VBMF_MACHINE_ID", machine_id);
+        let path = write_real_loadable_binding(&dir, machine_id);
+        std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", &path);
+        std::env::remove_var("MEDIA_AGENT_DEVICE_BINDING");
+
+        let mode = select_startup_composition_mode().expect("network-only selection");
+        assert_eq!(
+            mode,
+            StartupCompositionMode::NetworkOnly {
+                binding_path: path.to_string_lossy().into_owned()
+            }
+        );
+        let composition =
+            build_ffmpeg_network_only_composition().expect("production network-only composition");
+
+        let state = composition.manager.runtime_state();
+        assert!(state.devices.is_empty(), "no discovery, no device plane");
+        assert_eq!(state.resources.len(), 1, "one Network Resource");
+        assert!(state.resources.iter().all(|r| r.capability == "rtmp-input"));
+        assert_eq!(
+            state.resources[0].device_id,
+            uuid::Uuid::nil(),
+            "no Device Resource registered"
+        );
+        assert!(state.sessions.is_empty());
+        assert!(
+            composition.lease_manager.list_active().is_empty(),
+            "zero DeviceLease (no bootstrap placeholder leases)"
+        );
+        std::env::remove_var("VBMF_MACHINE_ID");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_production_entry_rejects_missing_manifest_file() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        std::env::set_var(
+            "MEDIA_AGENT_NETWORK_BINDING",
+            "/tmp/vbmf-closure-definitely-missing.json",
+        );
+        let err = build_ffmpeg_network_only_composition()
+            .err()
+            .expect("missing manifest file must fail closed");
+        assert!(err.contains("network binding manifest rejected"), "{err}");
+    }
+
+    #[test]
+    fn rf_src_rtmp_02_production_entry_rejects_invalid_manifest() {
+        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let dir = TempDir::new("invalid-manifest");
+        let path = dir.0.join("network-binding.json");
+        std::fs::write(&path, b"{not-json").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", &path);
+        let err = build_ffmpeg_network_only_composition()
+            .err()
+            .expect("invalid manifest must fail closed");
+        assert!(err.contains("network binding manifest rejected"), "{err}");
     }
 }

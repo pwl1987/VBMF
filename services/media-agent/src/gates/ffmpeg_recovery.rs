@@ -21,7 +21,9 @@ use std::time::Duration;
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn fail(message: impl std::fmt::Display) -> ! {
-    let marker = if std::env::var_os("VBMF_FFMPEG_RTMP_OUTPUT").is_some() {
+    let marker = if std::env::var_os("VBMF_FFMPEG_RTMP_SOURCE").is_some() {
+        "RF-SRC-RTMP-02"
+    } else if std::env::var_os("VBMF_FFMPEG_RTMP_OUTPUT").is_some() {
         "RF-FF-03"
     } else {
         "RF-FF-02"
@@ -246,11 +248,14 @@ fn spawn_rtmp_source_publisher(url: &str) -> Result<Child, String> {
         .map_err(|e| format!("spawn RTMP source publisher: {e}"))
 }
 
+/// Pure manifest body for the gate-owned NetworkSourceBinding fixture: the
+/// (env-URL-derived) endpoint only ever reaches this JSON body, never a
+/// filesystem path.
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
-fn write_network_binding_manifest(
+fn network_binding_manifest_body(
     source_id: uuid::Uuid,
     endpoint: &crate::source::NetworkEndpoint,
-) -> PathBuf {
+) -> Vec<u8> {
     let machine_id = crate::resolver::current_machine_id();
     if machine_id.is_empty() {
         fail("machine identity unresolved; cannot pin network binding manifest");
@@ -259,9 +264,17 @@ fn write_network_binding_manifest(
         "rtmp://{}:{}{}",
         endpoint.host, endpoint.port, endpoint.path
     );
-    let body = format!(
+    format!(
         "{{\"version\":1,\"machine_id\":\"{machine_id}\",\"entries\":[{{\"source_id\":\"{source_id}\",\"endpoint\":\"{url}\"}}]}}"
-    );
+    )
+    .into_bytes()
+}
+
+/// Write the gate manifest into the process temp directory. The path is
+/// derived ONLY from the temp dir + process id + source id (no URL-derived
+/// component), written 0600 as the production loader requires.
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn write_gate_manifest_file(body: &[u8], source_id: uuid::Uuid) -> PathBuf {
     let path = std::env::temp_dir().join(format!(
         "vbmf-ffmpeg-recovery-network-binding-{}-{}.json",
         std::process::id(),
@@ -274,6 +287,35 @@ fn write_network_binding_manifest(
     )
     .unwrap_or_else(|e| fail(format!("chmod 0600 network binding manifest: {e}")));
     path
+}
+
+/// Read the gate-owned binding manifest back with explicit confinement: the
+/// path is canonicalized and must stay inside the process temp directory
+/// (defense-in-depth on a gate-generated path; any escape fails closed).
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn read_gate_binding_manifest(path: &Path) -> Vec<u8> {
+    let canonical = path
+        .canonicalize()
+        .unwrap_or_else(|e| fail(format!("resolve network binding manifest: {e}")));
+    if !canonical.starts_with(std::env::temp_dir()) {
+        fail("network binding manifest must stay inside the process temp directory");
+    }
+    fs::read(&canonical).unwrap_or_else(|e| fail(format!("read network binding manifest: {e}")))
+}
+
+/// RF-SRC-RTMP-02 closure: Network-only gate dispatch entry.
+///
+/// Must be invoked BEFORE the common `bootstrap::build()` (see
+/// `bin/gates.rs`): when `VBMF_FFMPEG_RTMP_SOURCE` is set the whole gate
+/// process stays on the network-only composition path — no Device provider
+/// discovery, no bootstrap placeholder DeviceLease, no DeviceBindingManifest,
+/// no DeckLink SDK probe — so the TG-6 hardware log constitutes strict D10
+/// evidence. Returns with zero side effects when the env is unset.
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+pub fn run_network_only_gate() {
+    if std::env::var("VBMF_FFMPEG_RTMP_SOURCE").is_ok() {
+        run_rtmp_source();
+    }
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
@@ -291,8 +333,23 @@ fn run_rtmp_source() {
     if !hls_dir.is_absolute() {
         fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must be absolute");
     }
+    if hls_dir
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must not contain '..' path components");
+    }
     fs::create_dir_all(&hls_dir)
         .unwrap_or_else(|e| fail(format!("create RTMP source HLS directory: {e}")));
+    // Confinement (defense-in-depth on the gate-owned fixture directory):
+    // canonicalize after creation and require the process temp-dir prefix,
+    // so the fixture cannot be steered elsewhere by a path variant.
+    let hls_dir = hls_dir
+        .canonicalize()
+        .unwrap_or_else(|e| fail(format!("resolve RTMP source HLS directory: {e}")));
+    if !hls_dir.starts_with(std::env::temp_dir()) {
+        fail("RTMP source HLS directory must stay inside the process temp directory");
+    }
     if fs::read_dir(&hls_dir)
         .unwrap_or_else(|e| fail(format!("inspect RTMP source HLS directory: {e}")))
         .next()
@@ -309,10 +366,40 @@ fn run_rtmp_source() {
     // admission path — a 0600/machine-pinned NetworkSourceBinding loaded by
     // the network-only composition (no DeviceBindingManifest, no device
     // leases, zero DeckLink side effects by construction).
-    let binding_path = write_network_binding_manifest(source_id.0, &endpoint);
+    let manifest_bytes_before = network_binding_manifest_body(source_id.0, &endpoint);
+    let binding_path = write_gate_manifest_file(&manifest_bytes_before, source_id.0);
     std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", &binding_path);
     let composition = crate::bootstrap::build_ffmpeg_network_only_composition()
         .unwrap_or_else(|e| fail(format!("network-only composition: {e}")));
+
+    // RF-SRC-RTMP-02 closure (frozen D10): mechanical zero-device assertions —
+    // this gate dispatched BEFORE the common bootstrap, so the composition
+    // must hold no device plane, no Device Resource and no DeviceLease. These
+    // checks put direct (not merely log-absence) evidence into the run.
+    let d10_state = composition.manager.runtime_state();
+    if !d10_state.devices.is_empty() {
+        fail("D10 violation: network gate composition must not contain any device plane");
+    }
+    if d10_state
+        .resources
+        .iter()
+        .any(|r| r.capability != "rtmp-input")
+    {
+        fail("D10 violation: only Network rtmp-input Resources may be registered");
+    }
+    let network_resources = d10_state.resources.len();
+    if network_resources != 1 {
+        fail(format!(
+            "D10 violation: expected exactly one Network Resource, got {network_resources}"
+        ));
+    }
+    if !composition.lease_manager.list_active().is_empty() {
+        fail("D10 violation: no DeviceLease (bootstrap placeholder included) may exist");
+    }
+    println!(
+        "RF-SRC-RTMP-02 D10 startup PASS device_discovery=0 bootstrap_device_leases=0 device_resources=0 network_resources={network_resources} manifest_bytes={}",
+        manifest_bytes_before.len()
+    );
     let intent = crate::graph_intent::GraphRuntimeIntent {
         version: "1.0".into(),
         devices: vec![crate::graph_intent::DeviceIntent {
@@ -454,6 +541,15 @@ fn run_rtmp_source() {
         fail("RTMP source recovery monitor did not exit during stop");
     }
     drop(replacement);
+    // D10 teardown: the FFmpeg listener child (and its stderr reader, joined
+    // by the adapter reaper with the child) must be fully gone after stop.
+    if composition
+        .process_inspector
+        .running_child_pid(&handle)
+        .is_some()
+    {
+        fail("RTMP source FFmpeg listener child remains after Session stop");
+    }
     let released = composition
         .manager
         .status(&sid)
@@ -486,15 +582,21 @@ fn run_rtmp_source() {
     println!(
         "RF-SRC-RTMP-01 teardown PASS phase=Released resource=Available          lease=NONE monitor=exited publisher_orphan=NONE"
     );
+    // D10 manifest-integrity evidence: the gate-written NetworkSourceBinding
+    // must be byte-identical across the whole run (load/start/recover/stop).
+    let manifest_bytes_after = read_gate_binding_manifest(&binding_path);
+    if manifest_bytes_after != manifest_bytes_before {
+        fail("network binding manifest bytes changed during the gate run");
+    }
+    println!(
+        "RF-SRC-RTMP-02 D10 teardown PASS ffmpeg_child=none listener=released-with-child stderr_reader=joined-by-reaper monitor=exited network_lease=none network_resource=available manifest_bytes_unchanged=true"
+    );
     println!("RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS");
     std::process::exit(0);
 }
 
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 pub fn run(world: &crate::bootstrap::BootstrapContext) {
-    if std::env::var("VBMF_FFMPEG_RTMP_SOURCE").is_ok() {
-        run_rtmp_source();
-    }
     let output_mode = std::env::var("VBMF_FFMPEG_OUTPUT").is_ok();
     let rtmp_mode = std::env::var("VBMF_FFMPEG_RTMP_OUTPUT").is_ok();
     if output_mode && rtmp_mode {
