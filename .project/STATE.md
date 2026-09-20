@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；STANDALONE-ENTRY-01 全链 COMPLETE（SE-01A/SE-01C/SE-01D/SE-01B·§3.62–§3.65）；当前无 READY Work Packet（待协调者裁度）**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；STANDALONE-ENTRY-01 主体四子包完成但 **SE-01B RECONCILIATION REQUIRED — deployment provenance / atomic install / systemd rate-limit（§3.66）**；当前 READY Work Packet = **SE-01B-FIX**；其后已裁定 **RUNTIME-CONTROL-ENTRY-01（PLAN / RECONCILIATION ONLY）**（§4/§5）**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -1006,15 +1006,35 @@ Status: **COMPLETE / CI + BMD DEPLOYMENT VERIFIED（部署工件 + 实机对账�
 - Evidence：`evidence/bmd-10.30.15.10/2026-09-20-se01b-standalone-deploy/` + EVIDENCE-INDEX 行；报告：`docs/superpowers/reports/2026-09-20-se01b-standalone-deploy.md`。
 - **STANDALONE-ENTRY-01 收口**：SE-01A（graceful shutdown）→ SE-01C（运维语义文档）→ SE-01D（machine identity）→ SE-01B（部署对账）四子包全 COMPLETE；STANDALONE umbrella 其余项维持 BACKLOG。硬化建议登记（不阻塞）：专用服务用户替代 `User=lytv`。
 
+### 3.66 SE-01B reconciliation-required entry（2026-09-20）
+
+Status: **SE-01B RECONCILIATION REQUIRED — deployment provenance / atomic install / systemd rate-limit（本节保留缺陷记录；修复包 = SE-01B-FIX）**
+
+- 触发：用户独立复核（live `main = 261d819`、CI `35494022684` 7/7、SE-01B BMD evidence 逐项核对）接受主体成果（SE-01A/C/D 主体接受；SE-01B 真实 install/Ready/stop/restart/第三方推流/recovery/Device smoke/rollback 证据有效），但发现 **3 个 closure defect**，开 bounded packet **`SE-01B-FIX`**（不回退已完成的 Runtime/RTMP/SE-01A/C/D）：
+  1. **Git working tree 口径**：`?? .zcodeignore` 未提交文件存在的同时报告 clean——harness 本地文件经 checkout-local `.git/info/exclude` 处理（不改 repo `.gitignore`，不提交该文件）。
+  2. **systemd unit 真实失效**：BMD `se01b-unit.log` 出现 `Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.`——`StartLimitIntervalSec`/`StartLimitBurst` 必须移入 `[Unit]`；原报告 `StartLimitBurst=3/30s` 结论不能维持；修正后 `systemd-analyze verify` 必须零 warning/零 unknown key；旧 warning 日志保留为历史证据。
+  3. **install provenance 不满足 frozen S6 "exact SHA"**：现实现只有 caller 提供的 `version_tag = 0.1.0-<shortsha>`，未证明 archive 真属于该 commit——改 fail-closed：`git get-tar-commit-id` 从 archive 读取 embedded full 40-hex SHA；short SHA 必须为 full SHA 前缀否则拒装；manifest 新增 `git_commit_sha`；`switch-current.sh` 切换时验证 full SHA 格式 / tag 前缀一致 / binary digest。
+  4. **install failure atomicity（RCA-1 已实证）**：现实现先建正式 `<tag>` 目录再解包/构建/写 manifest——中途失败留下占用正式版本名的半安装目录，只能人工删除。改 staging 协议：同文件系统 `.staging-<tag>-<pid>` 完成全部步骤（验证→extract→build→manifest→self-check），trap 自动清理，全部成功后同 FS `mv -T` 原子落成，最终目录已存在则 fail-closed；补 failure-injection matrix。
+  5. **S7 权限再核（不扩权）**：`/var/lib/vbmf`（root 属主）owner/mode 写入 install manifest/report；未来 Runtime 写入该目录必须另过 Authority；`/etc/vbmf` manifests 继续 0600 + service-user 属主。
+- 验收（SE-01B-FIX DoD）：shell/static + `systemd-analyze verify` 零 warning + installer focused failure matrix + Dev VM regression + CI 7/7 + BMD（新 exact commit 安装 / exact-SHA provenance 链 / failed install 不污染正式目录与 current / valid install Ready / systemd bad-config StartLimit 命中后 reset-failed 恢复 / SIGTERM exit 0 不 restart / rollback / device-2 不受扰 / `/opt/vbmf-dev` 不触碰）+ SE-01B report/evidence/STATE 更新。修复完成前 STANDALONE-ENTRY-01 不写"无遗留 COMPLETE"。
+- 同轮登记（本包不修）：BMD Device smoke 两条真实 `PortId 碰撞` warning（`se01b-device-smoke.log` L9/L10；`port.rs` derive 键不含 direction/Analog 位折叠，代码注释已预告专门 closure）→ §8 Active risks + §5.1 BACKLOG `PORT-COLLISION-01`，防跨窗口丢失；registry 现 fail-closed，非本包 blocker。`scripts/check_docs.py` 本 VM hang + 旧孤儿进程继续登记 Verification Debt，不为绿灯杀未知归属进程。
+
 ## 4. Current Task
 
-**（无 READY Work Packet）** — STANDALONE-ENTRY-01 全链已收口（§3.61–§3.65）。Task Queue 中无 READY 项；下一 Work Packet 需协调者按 Authority 裁度后再置 READY（候选方向见 §5.1 BACKLOG：STANDALONE umbrella 其余项 / CONTROL-PLANE / VBMF-SDK / WEB-CONSOLE / MOTHER-ADAPTERS——均需先拆 bounded packet）。维持既有边界：RH-FLOW-01（DEFER-UNTIL-TOUCH）、RH-IDEM-01（DEFER-UNTIL-CONTROL-PLANE）、RF-SRC-01（SRT BLOCKED）、24h RSS stability（Verification Debt）。
+**SE-01B-FIX — standalone deployment provenance + failure atomicity + systemd correctness（READY·用户 2026-09-20 裁定）**
+
+- **Task ID**: `SE-01B-FIX`（bounded packet；缺陷记录见 §3.66）
+- **Authority**: 用户 2026-09-20 指令（最高）> frozen `docs/superpowers/plans/2026-09-19-standalone-entry-01-planning.md` S6/S7/S8 > `docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md` > 本 STATE。
+- **Allowed files/scope**: `ops/standalone/`（install.sh / switch-current.sh / vbmf-media-agent.service / README / 新增 tests）、`.project/STATE.md`（仅本 packet 状态迁移）、`evidence/bmd-10.30.15.10/`（新 evidence 目录，不覆盖旧 `se01b-unit.log`）、`docs/superpowers/reports/`（SE-01B-FIX 报告）、checkout-local `.git/info/exclude`（`.zcodeignore` 处置，不入库）。
+- **Forbidden scope**: Runtime/RTMP 源码回退、frozen Architecture/Contract 修改、`ops/` 全栈占位、Web Console/Fastify/SoR/SDK、`/opt/vbmf-dev` 与 device-2、repo `.gitignore`（除非证明 repo policy）、PortId collision 本体修复（仅登记）。
+- **Acceptance**: §3.66 验收清单全项（provenance 链 `GitHub exact main SHA → git archive embedded SHA → archive sha256 → manifest.git_commit_sha → binary sha256 → current symlink` 机械可核验；staging 原子性 failure matrix ≥6 项；`systemd-analyze verify` 零 warning；BMD bad-config StartLimit 命中 + reset-failed 恢复 + SIGTERM exit 0 不 restart；重装同 tag 拒绝）。
+- **Verification environment**: Dev VM（shell/static/failure matrix/regression）+ CI（7/7 required）+ BMD `lytv@10.30.15.10`（真实 systemd 259 / git 2.53）。
 
 ## 5. Next Task
 
-**待协调者裁度**——无 READY 项。冷启动顺序回到"读 STATE → 验证 Git/CI/evidence 一致 → 若无 READY 项则停在权威核对结论，不自行从 BACKLOG 挑任务"。
+**RUNTIME-CONTROL-ENTRY-01 — PLAN / RECONCILIATION ONLY（用户 2026-09-20 已裁定为 SE-01B-FIX 之后的下一 Work Packet）**：只读 live-tree audit + Authority reconciliation（EXTERNAL_API_CONTRACT `/api/v1/*` vs `/internal/v1/*` 漂移裁定、internal Runtime Control transport 裁定、CommandStatus requested→actual-state 语义核对、RH-IDEM-01 触发条件裁定、owner 边界图），产出 owner map / boundary / failure-first matrix / bounded 子包分解与 acceptance matrix；禁止在 planning 中建设 Fastify/PostgreSQL/BullMQ/Web Console/SDK/SRS/新 Runtime owner/新 wire shape。若 reconciliation 证明可在不改 frozen Contract 前提下把 production SessionManager 接入正确的 internal Runtime Control surface，设计冻结后直接进入第一个 bounded implementation sub-packet（不再等普通确认）。
 
-其余边界保持：RH-FLOW-01（DEFER-UNTIL-TOUCH）、RH-IDEM-01（DEFER-UNTIL-CONTROL-PLANE）、RF-SRC-01（SRT BLOCKED）、24h RSS stability（Verification Debt）。
+其余边界保持：RH-FLOW-01（DEFER-UNTIL-TOUCH）、RH-IDEM-01（DEFER-UNTIL-CONTROL-PLANE·RUNTIME-CONTROL-ENTRY-01 须裁定触发条件）、RF-SRC-01（SRT BLOCKED）、24h RSS stability（Verification Debt）。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -1069,7 +1089,10 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **SE-01A** | **COMPLETE（§3.62·2026-09-19·`e3e7fe4` CI 7/7 + BMD smoke）** | Standalone graceful shutdown：SIGTERM/SIGINT 有序 drain（SessionManager 唯一 owner·created_at 降序）+ SIGHUP warn 无操作 + Starting→Ready + 二次信号逃生门 | STANDALONE-ENTRY-01 plan（S3/S4） | 真 signal 单测 + mock drain 套件 + 3 项 failure-first RCA；BMD 真实 binary smoke（/health Ready·SIGHUP 存活·SIGTERM exit 0·零残留·device-2 未触碰）；证据+EVIDENCE-INDEX |
 | **SE-01C** | **COMPLETE（§3.63·2026-09-20·docs-only + CI）** | readiness/liveness 语义页 + 配置权威清单（env→语义→默认→fail 条件；gate envs 标注不进生产）+ 退出码契约（production 0/2 与 gates 0/1/2 分立）+ Deployment SoT §17 standalone lane；/health wire 零变化；S4 reconciliation：ready ⟺ Ready\|Capturing | SE-01A COMPLETE | docs review；无新 wire/无代码面扩大 |
 | **SE-01D** | **COMPLETE（§3.64·2026-09-20·`6932d5e` CI 7/7 + BMD 重 pin 实证）** | machine identity 收敛：`VBMF_MACHINE_ID` > `/etc/machine-id` > 空串；HOSTNAME fallback 移除；6 项解析回归 + 两类 manifest pin 锚定；production binary network/device 正负 pin BMD 实证（正=Ready+exit 0·负=exit 2 mismatch） | SE-01C COMPLETE | focused/full/CI/BMD 独立验收（已满足） |
-| **SE-01B** | **COMPLETE（§3.65·2026-09-20·`0228849` CI 7/7 + BMD 部署对账 6/6）** | 版本化目录 + `current` symlink + install-manifest.json；`/etc/vbmf`（0600）/`/var/lib/vbmf`；`vbmf-media-agent.service`；外部推流/rollback/device 零回归 BMD 实证 | SE-01D COMPLETE | 已满足（含 failure-first ×2 与 P1-3 reconciliation 登记） |
+| **SE-01B** | **COMPLETE→RECONCILIATION REQUIRED（§3.65→§3.66·2026-09-20·用户复核裁定 3 closure defects）** | 版本化目录 + `current` symlink + install-manifest.json；`/etc/vbmf`（0600）/`/var/lib/vbmf`；`vbmf-media-agent.service`；外部推流/rollback/device 零回归 BMD 实证 | SE-01D COMPLETE | 主体证据有效；closure defects（provenance/atomicity/StartLimit）由 SE-01B-FIX 清偿后恢复无遗留 COMPLETE |
+| **SE-01B-FIX** | **READY（§3.66·2026-09-20·用户指令）** | standalone deployment provenance（exact-SHA fail-closed）+ installer staging 原子性 + systemd unit StartLimit 修正 + S7 owner/mode 入 manifest + `.zcodeignore` working-tree 口径 | SE-01B 主体 + §3.66 | §3.66 验收清单全项；CI 7/7；BMD provenance 链/StartLimit 故障注入/原子性矩阵；STATE 恢复全链 COMPLETE |
+| **RUNTIME-CONTROL-ENTRY-01** | **QUEUED（用户 2026-09-20 裁定·SE-01B-FIX 后）— PLAN / RECONCILIATION ONLY** | 只读审计 + Authority reconciliation：`/api/v1/*` vs `/internal/v1/*` 漂移、internal Runtime Control transport、CommandStatus requested→actual 语义、RH-IDEM-01 触发裁定、owner 边界；产出 bounded 子包 + acceptance matrix | SE-01B-FIX COMPLETE | 禁止 planning 期间建设 Fastify/DB/Web Console/SDK/新 Runtime owner/新 wire；若无须改 frozen Contract 即可接线则设计冻结后直接进首个 implementation 子包 |
+| **PORT-COLLISION-01** | **BACKLOG（§3.66 登记·2026-09-20）** | PortId derive 键不含 direction/Analog 位折叠——BMD Device smoke 实证 Input/Sdi 与 Output/Sdi 同卡碰撞 ×2；专门 collision closure（port_id 稳定性 + registry fail-closed 语义复核） | 需协调者裁度（非 SE-01B-FIX 范围） | 不以 SE-01B-FIX 顺手修；证据已留 `se01b-device-smoke.log` L9/L10 |
 | **STANDALONE** | **BACKLOG（umbrella；首个 bounded packet = STANDALONE-ENTRY-01）** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -1092,7 +1115,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.65/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker；RF-SRC-RTMP-01 两份 boundary plan；RF-SRC-RTMP-02 production boundary plan（含 §8 live-tree audit appendix + Implementation Invariants）+ closure reconciliation 报告；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / RUNTIME_BINDING_MODEL / MEDIA_BACKEND_CONTRACT §§1/1.1 P0-8/3/4；STANDALONE-ENTRY-01 planning（S1–S10 + 子包 + matrix）+ `STANDALONE_MEDIA_AGENT_OPERATIONS.md`（SE-01C 语义权威页·§4.3 已随 SE-01D 回改）+ SE 系列四份收口报告。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01、RF-SRC-RTMP-02（含 closure）、STANDALONE-ENTRY-01 全链（SE-01A/SE-01C/SE-01D/SE-01B·§3.62–§3.65）已完成；当前**无 READY Work Packet**——不自行从 BACKLOG 挑任务，不得建设 Web Console/Fastify SoR/SDK/新 Runtime owner。
+Current Task 专项 Authority：用户 2026-09-20 指令（SE-01B-FIX bounded packet + RUNTIME-CONTROL-ENTRY-01 裁定）；`.project/STATE.md` §3.31–§3.66/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker；RF-SRC-RTMP-01 两份 boundary plan；RF-SRC-RTMP-02 production boundary plan（含 §8 live-tree audit appendix + Implementation Invariants）+ closure reconciliation 报告；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / RUNTIME_BINDING_MODEL / MEDIA_BACKEND_CONTRACT §§1/1.1 P0-8/3/4；STANDALONE-ENTRY-01 planning（S1–S10 + 子包 + matrix）+ `STANDALONE_MEDIA_AGENT_OPERATIONS.md`（SE-01C 语义权威页·§4.3 已随 SE-01D 回改）+ SE 系列四份收口报告。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01、RF-SRC-RTMP-02（含 closure）已完成；STANDALONE-ENTRY-01 主体四子包完成但 **SE-01B 处于 RECONCILIATION REQUIRED（§3.66）——当前只执行 SE-01B-FIX**；修复收口后进入 RUNTIME-CONTROL-ENTRY-01（PLAN ONLY），不得建设 Web Console/Fastify SoR/SDK/新 Runtime owner。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -1193,6 +1216,8 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.65/§4–§5；
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 8. **runner 出网抖动 / codeload — MITIGATED + VERIFIED（2026-09-18）**：历史故障窗与失败证据继续保留；RH-BUS-02 收口期再次确定性复现 `codeload.github.com` Action archive HttpClient 100s×3 timeout，证明“失败后 rerun”不足。已升级为两层缓解：git checkout/fetch 继续使用 host system git proxy；Action setup 主路径改用 GitHub Runner 官方 `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE`，workflow external Actions 全 pin immutable SHA。三台 runner maintenance + probe 均通过：media `35247466755/35247550654`，general `vbmf-ci-01` probe `35248095276`、`vbmf-ci-02` probe `35248099277`（后者 direct mode 亦 cache 4/4 PASS）；current-tree required run `35248227420` **7/7 PASS**。loopback HTTP proxy 仅保留 cache maintenance/miss fallback；继续观察但不再是 Current Task blocker。
 9. **RF-SRC-RTMP-02 closure gaps — CLOSED（2026-09-19·§3.60）**：production bin Network-only 模式选择 + gate 先于 common bootstrap dispatch 已落地（`d13f1fd`）；BMD TG-6R 以严格 D10 进程级证据（4 次 gate 运行 device 行=0 + gate 内机械断言）重验通过。
+10. **SE-01B closure defects — OPEN（2026-09-20·§3.66）**：systemd `StartLimitIntervalSec` 落错 section（BMD 实证 Unknown key·rate limit 实际未生效）；install provenance 只有 caller 提供 shortsha（不满足 frozen S6 exact SHA）；installer 无 staging 原子性（半安装目录已实证）。SE-01B-FIX 清偿前 STANDALONE-ENTRY-01 不写无遗留 COMPLETE。
+11. **PortId derive 键碰撞（direction/Analog 位折叠缺失）— OPEN（2026-09-20 登记·非当前 blocker）**：BMD Device smoke 实证同卡 `Input/Sdi/Known(1)` 与 `Output/Sdi/Known(1)` 碰撞 ×2（`port.rs` warn；证据 `se01b-device-smoke.log` L9/L10）。registry 装配层现 fail-closed；专门 closure = `PORT-COLLISION-01` BACKLOG，防证据发现问题跨窗口丢失。
 
 ### Current blockers
 
@@ -1227,6 +1252,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.65/§4–§5；
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
 - RF-SRC-RTMP-02 deferred ingress risks（2026-09-19 冻结时登记，plan §3；TG-0 探针观察已并入·§3.52）：RTMP 握手超时（空闲/恶意半连接可长期占用唯一 listener slot）——TG-0 实证 RTMP `-timeout`（等待来连上限）存在，但 post-accept 握手/空闲连接超时选项**未观察到**、非法 publisher 占用唯一 `(protocol, ip, port)` listener、高流速 FFmpeg stderr 排空成本、进程退出顺序（kill/wait/reader join/socket 释放不得泄漏）。BMD FFmpeg 若无法提供对应控制**不阻塞**实现包，但 BMD 验收报告必须逐项标注（含"未观察到限制"也要显式记录）并留档于本节；主机防火墙仅为部署建议，绝不替代 VBMF 内部授权、不得如此上报。
 - RF-SRC-RTMP-02 D10 strict evidence — **CLOSED（2026-09-19·§3.60）**：`d13f1fd` 上 4 次 gate 运行进程级零设备行为（0 行 discovery/lease/adapter/SDK probe）+ gate 内 D10 机械断言 + BMD TG-6R Tier 1/Tier 2 同 SHA 重验全 PASS。
+- `scripts/check_docs.py` 本 VM 病态挂起（Sep14/17 起即有孤儿进程；SE-01C/§3.63 起登记）：不作为门禁执行、不为绿灯杀未知归属进程、不冒充该门禁已运行；修复该脚本执行环境属独立 debt，非 SE-01B-FIX 范围。
 
 ## 10. Cold-Start Handoff
 
@@ -1237,9 +1263,9 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.65/§4–§5；
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task =（无 READY Work Packet）**——STANDALONE-ENTRY-01 已全链收口（§3.61–§3.65）。历史 Authority 链备查：`docs/superpowers/plans/2026-09-19-standalone-entry-01-planning.md`（S1–S10）+ `docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md` + SE 系列四份收口报告（`2026-09-19-se01a-graceful-shutdown.md`、`2026-09-20-se01c-standalone-operations-docs.md`、`2026-09-20-se01d-machine-id.md`、`2026-09-20-se01b-standalone-deploy.md`）+ RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md`；
+6. 读取 **Current Task = SE-01B-FIX（§4）**——STANDALONE-ENTRY-01 主体收口但 SE-01B 处于 RECONCILIATION REQUIRED（§3.66）。历史 Authority 链备查：`docs/superpowers/plans/2026-09-19-standalone-entry-01-planning.md`（S1–S10）+ `docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md` + SE 系列四份收口报告（`2026-09-19-se01a-graceful-shutdown.md`、`2026-09-20-se01c-standalone-operations-docs.md`、`2026-09-20-se01d-machine-id.md`、`2026-09-20-se01b-standalone-deploy.md`）+ RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·严格 D10 进程级 BMD 重验）**；STANDALONE-ENTRY-01 planning 已冻结（§3.61）、**SE-01A 已完成（§3.62）**、**SE-01C 已完成（§3.63）**、**SE-01D 已完成（§3.64·CI + BMD 重 pin 实证）**、**SE-01B 已完成（§3.65·CI + BMD 部署对账 6/6）**；**当前无 READY Work Packet（STANDALONE-ENTRY-01 全链收口，待协调者裁度）**；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·严格 D10 进程级 BMD 重验）**；STANDALONE-ENTRY-01 planning 已冻结（§3.61）、SE-01A 已完成（§3.62）、SE-01C 已完成（§3.63）、SE-01D 已完成（§3.64·CI + BMD 重 pin 实证）、SE-01B 主体完成但 **RECONCILIATION REQUIRED（§3.66）**；**当前 READY = SE-01B-FIX（§4）**；其后已裁定 RUNTIME-CONTROL-ENTRY-01（PLAN / RECONCILIATION ONLY）；PORT-COLLISION-01 登记 BACKLOG 不越级；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -1256,6 +1282,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.65/§4–§5；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·含严格 D10 进程级 BMD 重验 @ `d13f1fd`）**；STANDALONE-ENTRY-01 planning 冻结（§3.61）、SE-01A（§3.62）、SE-01C（§3.63）、SE-01D（§3.64）、SE-01B（§3.65）全链完成；当前无 READY Work Packet（待协调者裁度）；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·含严格 D10 进程级 BMD 重验 @ `d13f1fd`）**；STANDALONE-ENTRY-01 主体四子包完成但 **SE-01B RECONCILIATION REQUIRED（§3.66）——当前 READY = SE-01B-FIX，其后 RUNTIME-CONTROL-ENTRY-01（PLAN ONLY）**；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
