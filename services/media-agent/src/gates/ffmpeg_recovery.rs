@@ -270,47 +270,134 @@ fn network_binding_manifest_body(
     .into_bytes()
 }
 
-/// Write the gate manifest into the process temp directory. The path is
-/// derived ONLY from the temp dir + process id + source id (no URL-derived
-/// component), written 0600 as the production loader requires. The returned
-/// path is canonicalized and confinement-checked against the process temp
-/// dir BEFORE any consumer sees it (normalize + validate at the source).
+/// Create-and-write the gate manifest with a race-free single-fd protocol
+/// (Mimosa L2 follow-up): the canonical process temp root is resolved
+/// FIRST, the leaf name is derived ONLY from pid + source id, and the file
+/// is created via `create_new` (+`O_NOFOLLOW`) with mode 0600 at creation
+/// time. A pre-existing path of any kind (regular file, directory, or
+/// symlink) is rejected by the kernel BEFORE any byte is written, so a
+/// planted symlink can never steer the write outside the temp dir. There is
+/// deliberately NO fallback to plain `fs::write`.
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
-fn write_gate_manifest_file(body: &[u8], source_id: uuid::Uuid) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
+fn write_gate_manifest_file_checked(
+    body: &[u8],
+    source_id: uuid::Uuid,
+    temp_root: &Path,
+) -> Result<PathBuf, String> {
+    use std::io::Write as _;
+    use std::os::unix::fs::MetadataExt as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
+
+    let canonical_root = temp_root
+        .canonicalize()
+        .map_err(|e| format!("resolve process temp root: {e}"))?;
+    let path = canonical_root.join(format!(
         "vbmf-ffmpeg-recovery-network-binding-{}-{}.json",
         std::process::id(),
         source_id
     ));
-    fs::write(&path, body).unwrap_or_else(|e| fail(format!("write network binding manifest: {e}")));
-    fs::set_permissions(
-        &path,
-        <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o600),
-    )
-    .unwrap_or_else(|e| fail(format!("chmod 0600 network binding manifest: {e}")));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(&path)
+        .map_err(|e| format!("create network binding manifest {}: {e}", path.display()))?;
+    file.write_all(body)
+        .map_err(|e| format!("write network binding manifest {}: {e}", path.display()))?;
+    // Creation-time mode is authoritative (no post-hoc chmod window); a
+    // umask that strips owner bits must surface as a failure, not be
+    // silently repaired.
+    let created_mode = file
+        .metadata()
+        .map(|meta| meta.mode() & 0o777)
+        .map_err(|e| format!("stat network binding manifest: {e}"))?;
+    if created_mode != 0o600 {
+        return Err(format!(
+            "network binding manifest created with mode {created_mode:o}, expected 0600"
+        ));
+    }
+    // Defense-in-depth: re-resolve the final path and require it to remain a
+    // direct child of the canonical temp root.
     let canonical = path
         .canonicalize()
-        .unwrap_or_else(|e| fail(format!("resolve network binding manifest: {e}")));
-    if !canonical.starts_with(std::env::temp_dir()) {
-        fail("network binding manifest must stay inside the process temp directory");
+        .map_err(|e| format!("resolve network binding manifest: {e}"))?;
+    if canonical.parent() != Some(canonical_root.as_path()) {
+        return Err("network binding manifest must stay inside the process temp directory".into());
     }
-    canonical
+    Ok(canonical)
+}
+
+/// Thin fail-closed wrapper over [`write_gate_manifest_file_checked`] bound
+/// to the process temp dir. The returned path is canonicalized and
+/// confinement-checked against the canonical temp root BEFORE any consumer
+/// sees it (normalize + validate at the source).
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn write_gate_manifest_file(body: &[u8], source_id: uuid::Uuid) -> PathBuf {
+    write_gate_manifest_file_checked(body, source_id, &std::env::temp_dir())
+        .unwrap_or_else(|e| fail(e))
 }
 
 /// Read the gate-owned binding manifest back with explicit confinement. The
 /// only producer is [`write_gate_manifest_file`], which already returns a
 /// canonicalized, temp-dir-confined path; this helper re-validates anyway
-/// (defense in depth for any future caller): canonicalize + temp-dir prefix,
-/// any escape fails closed.
+/// (defense in depth for any future caller): canonicalize + direct-child
+/// check against the canonical temp root, any escape fails closed.
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn read_gate_binding_manifest(path: &Path) -> Vec<u8> {
+    let canonical_root = std::env::temp_dir()
+        .canonicalize()
+        .unwrap_or_else(|e| fail(format!("resolve process temp root: {e}")));
     let canonical = path
         .canonicalize()
         .unwrap_or_else(|e| fail(format!("resolve network binding manifest: {e}")));
-    if !canonical.starts_with(std::env::temp_dir()) {
+    if canonical.parent() != Some(canonical_root.as_path()) {
         fail("network binding manifest must stay inside the process temp directory");
     }
     fs::read(&canonical).unwrap_or_else(|e| fail(format!("read network binding manifest: {e}")))
+}
+
+/// Gate-owned HLS fixture directory preparation with a provable rule (Mimosa
+/// L2 follow-up): the canonical process temp root is resolved FIRST; the
+/// fixture may ONLY be a direct child of that root (`parent == canonical
+/// root` — a symlinked intermediate such as `/tmp/a` pointing elsewhere
+/// fails the equality check BEFORE any filesystem mutation happens); the
+/// leaf must not pre-exist in any form (`symlink_metadata` never follows
+/// symlinks); and creation uses non-recursive `create_dir`, so a
+/// race-created entry still fails closed with EEXIST instead of being
+/// absorbed by `create_dir_all`. A canonical re-check of parent/root runs
+/// after creation as defense-in-depth.
+#[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
+fn prepare_gate_hls_dir_checked(raw: &str, temp_root: &Path) -> Result<PathBuf, String> {
+    let dir = PathBuf::from(raw);
+    if !dir.is_absolute() {
+        return Err("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must be absolute".into());
+    }
+    if dir
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must not contain '..' path components".into());
+    }
+    let canonical_root = temp_root
+        .canonicalize()
+        .map_err(|e| format!("resolve process temp root: {e}"))?;
+    if dir.parent() != Some(canonical_root.as_path()) {
+        return Err(
+            "RTMP source HLS directory must be a direct child of the process temp directory".into(),
+        );
+    }
+    if fs::symlink_metadata(&dir).is_ok() {
+        return Err("RTMP source HLS directory must not already exist".into());
+    }
+    fs::create_dir(&dir).map_err(|e| format!("create RTMP source HLS directory: {e}"))?;
+    let canonical = dir
+        .canonicalize()
+        .map_err(|e| format!("resolve RTMP source HLS directory: {e}"))?;
+    if canonical.parent() != Some(canonical_root.as_path()) {
+        return Err("RTMP source HLS directory must stay inside the process temp directory".into());
+    }
+    Ok(canonical)
 }
 
 /// RF-SRC-RTMP-02 closure: Network-only gate dispatch entry.
@@ -337,35 +424,13 @@ fn run_rtmp_source() {
     let lan_ok = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_LAN").is_ok();
     let endpoint =
         parse_source_url(&raw_url, lan_ok).unwrap_or_else(|e| fail(format!("RTMP source: {e}")));
-    let hls_dir = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR")
+    let hls_dir_raw = std::env::var("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR")
         .unwrap_or_else(|_| fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR is required"));
-    let hls_dir = PathBuf::from(hls_dir);
-    if !hls_dir.is_absolute() {
-        fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must be absolute");
-    }
-    if hls_dir
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must not contain '..' path components");
-    }
-    // Lexical confinement BEFORE creation: an absolute, '..'-free path must
-    // already sit inside the process temp dir — the fixture cannot create
-    // directories anywhere else even before the canonical re-check runs.
-    if !hls_dir.starts_with(std::env::temp_dir()) {
-        fail("RTMP source HLS directory must stay inside the process temp directory");
-    }
-    fs::create_dir_all(&hls_dir)
-        .unwrap_or_else(|e| fail(format!("create RTMP source HLS directory: {e}")));
-    // Confinement (defense-in-depth on the gate-owned fixture directory):
-    // canonicalize after creation and require the process temp-dir prefix,
-    // so a symlinked path variant cannot steer the fixture outside.
-    let hls_dir = hls_dir
-        .canonicalize()
-        .unwrap_or_else(|e| fail(format!("resolve RTMP source HLS directory: {e}")));
-    if !hls_dir.starts_with(std::env::temp_dir()) {
-        fail("RTMP source HLS directory must stay inside the process temp directory");
-    }
+    // Direct-child rule (see prepare_gate_hls_dir_checked): confinement is
+    // decided against the canonical temp root BEFORE any directory is
+    // created; a pre-existing leaf (including a symlink) fails closed.
+    let hls_dir = prepare_gate_hls_dir_checked(&hls_dir_raw, &std::env::temp_dir())
+        .unwrap_or_else(|e| fail(e));
     if fs::read_dir(&hls_dir)
         .unwrap_or_else(|e| fail(format!("inspect RTMP source HLS directory: {e}")))
         .next()
@@ -925,4 +990,134 @@ pub fn run(world: &crate::bootstrap::BootstrapContext) {
         println!("RF_FF_01F_BMD_RECOVERY_PASS");
     }
     std::process::exit(0);
+}
+
+/// Focused negative tests for the gate-owned fixture path protocol (Mimosa
+/// L2 follow-up): manifest creation must fail closed on ANY pre-existing
+/// leaf (regular file or symlink) before a single byte is written, and the
+/// HLS fixture must be a fresh direct child of the canonical temp root.
+/// These tests are path-only (no hardware, no DeckLink, no FFmpeg); they
+/// compile under the acceptance feature pair and run wherever that pair can
+/// build (BMD native / any host with the SDK).
+#[cfg(all(test, feature = "bmd-provider", feature = "ffmpeg-backend"))]
+mod gate_path_tests {
+    use super::*;
+
+    struct TempRootGuard(PathBuf);
+
+    impl TempRootGuard {
+        fn new(tag: &str) -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "vbmf-gate-path-test-{}-{}-{tag}",
+                std::process::id(),
+                uuid::Uuid::new_v4()
+            ));
+            fs::create_dir(&root).expect("create test temp root");
+            Self(root)
+        }
+
+        fn root(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempRootGuard {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn manifest_leaf(root: &Path, source_id: uuid::Uuid) -> PathBuf {
+        root.join(format!(
+            "vbmf-ffmpeg-recovery-network-binding-{}-{source_id}.json",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn manifest_creates_single_fd_0600_direct_child() {
+        let guard = TempRootGuard::new("mf-ok");
+        let sid = uuid::Uuid::new_v4();
+        let path = write_gate_manifest_file_checked(b"{\"version\":1}", sid, guard.root())
+            .expect("fresh manifest creation must succeed");
+        assert_eq!(path.parent(), Some(guard.root()));
+        assert_eq!(fs::read(&path).unwrap(), b"{\"version\":1}");
+        let mode = std::os::unix::fs::MetadataExt::mode(&fs::metadata(&path).unwrap()) & 0o777;
+        assert_eq!(mode, 0o600, "manifest must be created 0600, not chmod'ed");
+    }
+
+    #[test]
+    fn manifest_rejects_preexisting_regular_file() {
+        let guard = TempRootGuard::new("mf-reg");
+        let sid = uuid::Uuid::new_v4();
+        let leaf = manifest_leaf(guard.root(), sid);
+        fs::write(&leaf, b"occupied").unwrap();
+        let error = write_gate_manifest_file_checked(b"{}", sid, guard.root())
+            .expect_err("pre-existing regular file must be rejected");
+        assert!(error.contains("create network binding manifest"), "{error}");
+        // The occupied content must be untouched (create_new never truncates).
+        assert_eq!(fs::read(&leaf).unwrap(), b"occupied");
+    }
+
+    #[test]
+    fn manifest_rejects_symlink_and_leaves_target_untouched() {
+        let guard = TempRootGuard::new("mf-link");
+        let sid = uuid::Uuid::new_v4();
+        let outside = guard.root().join("outside-target.json");
+        fs::write(&outside, b"SENSITIVE").unwrap();
+        let leaf = manifest_leaf(guard.root(), sid);
+        std::os::unix::fs::symlink(&outside, &leaf).unwrap();
+        let error = write_gate_manifest_file_checked(b"{}", sid, guard.root())
+            .expect_err("pre-existing symlink must be rejected before any write");
+        assert!(error.contains("create network binding manifest"), "{error}");
+        // The symlink itself survives and the target bytes are unchanged:
+        // the write side-effect window through a symlink is closed.
+        assert!(leaf.is_symlink());
+        assert_eq!(fs::read(&outside).unwrap(), b"SENSITIVE");
+    }
+
+    #[test]
+    fn hls_accepts_fresh_direct_child_of_canonical_temp_root() {
+        let guard = TempRootGuard::new("hls-ok");
+        let fixture = guard.root().join("fixture-hls");
+        let dir = prepare_gate_hls_dir_checked(&fixture.to_string_lossy(), guard.root())
+            .expect("fresh direct child must be accepted");
+        assert!(dir.is_dir());
+        assert_eq!(dir.parent(), Some(guard.root()));
+    }
+
+    #[test]
+    fn hls_rejects_preexisting_symlink_leaf() {
+        let guard = TempRootGuard::new("hls-link");
+        let target = guard.root().join("hls-symlink-target");
+        fs::create_dir(&target).unwrap();
+        let fixture = guard.root().join("fixture-hls");
+        std::os::unix::fs::symlink(&target, &fixture).unwrap();
+        let error = prepare_gate_hls_dir_checked(&fixture.to_string_lossy(), guard.root())
+            .expect_err("pre-existing symlink leaf must be rejected");
+        assert!(error.contains("must not already exist"), "{error}");
+        assert!(fixture.is_symlink());
+    }
+
+    #[test]
+    fn hls_rejects_nested_path_before_any_directory_creation() {
+        let guard = TempRootGuard::new("hls-nested");
+        let nested = guard.root().join("a").join("b");
+        let error = prepare_gate_hls_dir_checked(&nested.to_string_lossy(), guard.root())
+            .expect_err("nested fixture path must be rejected");
+        assert!(error.contains("direct child"), "{error}");
+        // Rejection must happen BEFORE any side effect: no intermediate
+        // directory may have been created.
+        assert!(!guard.root().join("a").exists());
+    }
+
+    #[test]
+    fn hls_rejects_path_outside_temp_root() {
+        let guard = TempRootGuard::new("hls-outside");
+        let outside = PathBuf::from("/var/vbmf-gate-path-reject-probe");
+        let error = prepare_gate_hls_dir_checked(&outside.to_string_lossy(), guard.root())
+            .expect_err("path outside the temp root must be rejected");
+        assert!(error.contains("direct child"), "{error}");
+        assert!(!outside.exists(), "nothing may be created outside the root");
+    }
 }
