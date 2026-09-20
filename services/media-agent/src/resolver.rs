@@ -669,11 +669,34 @@ pub fn resolve_strict(
 /// C1 最大探测设备数 (防无限枚举; 真机通常 1-3 块卡).
 pub const MAX_PROBE_DEVICES: usize = 8;
 
-/// 当前主机标识: 优先 `VBMF_MACHINE_ID`, 否则 `HOSTNAME`; 均空则空串
-/// (调用方据此跳过 machine_id 校验, 而非误报).
+/// 当前主机标识 (STANDALONE-ENTRY-01 S5 / SE-01D 收敛):
+/// `VBMF_MACHINE_ID` (显式覆盖, 测试/容器用) > `/etc/machine-id` (生产权威) >
+/// 空串。空串由各 pin 消费点按既有 fail-closed 语义处置——NetworkSourceBinding
+/// 拒绝 (`MachineIdUnresolved`), DeviceBindingManifest `check_machine_identity`
+/// 跳过而非误报; 空串永远不可能"匹配"任何清单 pin。
+/// HOSTNAME fallback 已移除 (行为变化: 原缺失 env 时回退 HOSTNAME)。
+/// 两级来源均 trim; 空白视为未提供。
 pub fn current_machine_id() -> String {
-    std::env::var("VBMF_MACHINE_ID")
-        .or_else(|_| std::env::var("HOSTNAME"))
+    current_machine_id_from(
+        |k| std::env::var(k).ok(),
+        || std::fs::read_to_string("/etc/machine-id").ok(),
+    )
+}
+
+/// 可测解析缝隙: 注入 env 查找与 /etc/machine-id 读取 (并行测试不碰进程 env/真实文件)。
+fn current_machine_id_from(
+    env: impl Fn(&str) -> Option<String>,
+    etc_machine_id: impl Fn() -> Option<String>,
+) -> String {
+    if let Some(explicit) = env("VBMF_MACHINE_ID")
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        return explicit;
+    }
+    etc_machine_id()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
         .unwrap_or_default()
 }
 
@@ -844,7 +867,7 @@ impl DeviceBindingManifest {
 
     /// 主机身份校验 (用户 §五): 运行时主机标识非空且与声明 machine_id 不符 → 失败闭合
     /// (拒绝, 非 warning). machine_id 不一致 = 误投/串机器, 绝不能只是警告.
-    /// 运行环境无法判定主机 (未设 VBMF_MACHINE_ID/HOSTNAME) → 跳过校验而非误报.
+    /// 运行环境无法判定主机 (VBMF_MACHINE_ID 与 /etc/machine-id 均未解析出) → 跳过校验而非误报.
     pub fn check_machine_identity(&self, runtime_machine_id: &str) -> Result<(), String> {
         if runtime_machine_id.is_empty() {
             return Ok(());
@@ -1399,6 +1422,61 @@ mod tests {
         assert!(m.check_machine_identity("box-b").is_err());
         // 运行环境无法判定主机 (空) → 跳过而非误报
         assert!(m.check_machine_identity("").is_ok());
+    }
+
+    // ---- SE-01D (STANDALONE-ENTRY-01 S5): machine identity 解析收敛回归 ----
+
+    #[test]
+    fn se01d_machine_id_prefers_explicit_env_over_etc_machine_id() {
+        let id = current_machine_id_from(
+            |k| (k == "VBMF_MACHINE_ID").then(|| "  explicit-box  ".to_string()),
+            || Some("etc-machine-id-value\n".to_string()),
+        );
+        assert_eq!(id, "explicit-box", "显式 env 覆盖必须生效且 trim");
+    }
+
+    #[test]
+    fn se01d_machine_id_falls_back_to_etc_machine_id() {
+        let id = current_machine_id_from(|_| None, || Some(" etc-machine-id-value \n".to_string()));
+        assert_eq!(
+            id, "etc-machine-id-value",
+            "/etc/machine-id 为生产权威且 trim"
+        );
+    }
+
+    #[test]
+    fn se01d_machine_id_blank_env_falls_through_to_etc_machine_id() {
+        let id = current_machine_id_from(
+            |k| (k == "VBMF_MACHINE_ID").then(|| "   ".to_string()),
+            || Some("etc-machine-id-value".to_string()),
+        );
+        assert_eq!(id, "etc-machine-id-value", "空白 env 视为未提供");
+    }
+
+    #[test]
+    fn se01d_machine_id_unresolved_when_both_tiers_absent() {
+        let id = current_machine_id_from(|_| None, || None);
+        assert_eq!(
+            id, "",
+            "两级均缺 → 空串 (NetworkSourceBinding 拒绝 / DeviceBindingManifest 跳过, 既有语义)"
+        );
+    }
+
+    #[test]
+    fn se01d_machine_id_blank_etc_content_is_unresolved() {
+        let id = current_machine_id_from(|_| None, || Some(" \n".to_string()));
+        assert_eq!(id, "", "纯空白 /etc/machine-id 内容视为未解析出");
+    }
+
+    #[test]
+    fn se01d_machine_id_hostname_is_no_longer_consulted() {
+        // HOSTNAME fallback 移除的回归证明: 即便 env 查找可返回 HOSTNAME,
+        // 解析结果也不再受它影响 (旧行为会返回 "some-hostname")。
+        let id = current_machine_id_from(
+            |k| (k == "HOSTNAME").then(|| "some-hostname".to_string()),
+            || None,
+        );
+        assert_eq!(id, "", "HOSTNAME 不得再作为 machine-id 来源");
     }
 
     // ---- STEP 4: Manifest v2 版本化 + 端口级绑定 fail-closed ----

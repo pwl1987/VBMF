@@ -103,8 +103,8 @@
 
 | 变量 | 消费位置 | 语义 | 默认 | production 允许 | 缺失/非法行为 | startup-only |
 |---|---|---|---|---|---|---|
-| `VBMF_MACHINE_ID` | `resolver.rs::current_machine_id` | 主机身份（两类 binding manifest 的 machine-pin 校验值） | 无 | **是（standalone 部署应显式设置）** | 缺失→回退 `HOSTNAME`；两者均缺→空串=**跳过 pin 校验**（现实现如实；SE-01D 将收紧为 `VBMF_MACHINE_ID` > `/etc/machine-id` > 拒绝） | 是 |
-| `HOSTNAME` | `resolver.rs`（fallback） | machine-id 回退源 | 容器/系统注入 | 谨慎（易漂移；SE-01D 将移除该 fallback） | 同上 | 是 |
+| `VBMF_MACHINE_ID` | `resolver.rs::current_machine_id` | 主机身份（两类 binding manifest 的 machine-pin 校验值）；**显式覆盖** `/etc/machine-id`（测试/容器用） | 无（回落 `/etc/machine-id`） | 是（standalone 可显式设置，否则用系统权威） | 缺失/空白→`/etc/machine-id`；两级均缺→空串：NetworkSourceBinding 拒绝（`MachineIdUnresolved`）、DeviceBindingManifest 跳过 pin 校验（空串永不匹配清单 pin） | 是 |
+| `/etc/machine-id`（文件，非 env） | `resolver.rs::current_machine_id_from` | 生产权威主机身份（内容 trim；纯空白视为未解析出） | 系统文件 | **是（生产默认来源）** | 缺失/空白→空串（消费点按上行列既有语义处置） | 是 |
 | `LD_LIBRARY_PATH` | `resolver.rs::resolve_decklink_lib` | libDeckLinkAPI.so 候选路径（诊断解析，best-effort） | 系统 | 是 | 缺失→固定候选列表 | 否（诊断面） |
 | `VBMF_ALLOW_MOCK` | `registry.rs::test_mode_allows_mock` | 显式允许 mock+真实适配共存 | 未设 | **否**（放宽适配冲突防线） | 未设+冲突→fail-closed 拒启 | 是 |
 
@@ -133,7 +133,7 @@
 2. `MEDIA_AGENT_NETWORK_BINDING` 存在时进程**永不**进入 Device discovery / bootstrap 占位 DeviceLease / DeckLink 路径（选择先于 `bootstrap::build()`）。
 3. `MEDIA_AGENT_NETWORK_BINDING` × `MEDIA_AGENT_MODE=diagnostic` → exit 2；× `MEDIA_AGENT_SELFTEST` → exit 2。
 4. NetworkSourceBinding **startup-only**：启动加载一次（0600/owner/machine-pin/D5 地址归属校验 fail-closed），无热加载、无 watch、**SIGHUP 不 reload**；变更 = 重启服务。
-5. machine identity 现状按 §4.3 如实；SE-01D 将收紧（届时本文随实现回改）。
+5. machine identity（SE-01D 已实施）：`VBMF_MACHINE_ID`（显式覆盖，trim，空白视为未提供）> `/etc/machine-id`（生产权威，trim）> 空串。空串处置按消费点既有 fail-closed 语义：NetworkSourceBinding 拒绝；DeviceBindingManifest `check_machine_identity` 跳过且永不匹配。**`HOSTNAME` 不再被读取**（fallback 已移除，行为变化——既有以 HOSTNAME 值 pin 的清单必须重 pin 或改设 `VBMF_MACHINE_ID`）。
 
 ## 5. systemd / readiness consumer 参考（语义层；unit 实现属 SE-01B）
 

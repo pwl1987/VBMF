@@ -103,7 +103,7 @@ impl fmt::Display for NetworkBindingError {
             }
             Self::UnknownVersion => "network binding manifest version is unknown",
             Self::MachineIdUnresolved => {
-                "machine identity unresolved (VBMF_MACHINE_ID/HOSTNAME); cannot pin manifest"
+                "machine identity unresolved (VBMF_MACHINE_ID//etc/machine-id); cannot pin manifest"
             }
             Self::MachineIdMismatch => "network binding manifest machine_id mismatch",
             Self::EmptyEntries => "network binding manifest has no entries",
