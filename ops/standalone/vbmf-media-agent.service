@@ -1,0 +1,29 @@
+[Unit]
+Description=VBMF Media Agent (standalone lane)
+Documentation=file:/opt/vbmf/current/install-manifest.json
+After=network-online.target
+Wants=network-online.target
+# 语义权威: docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md（SE-01C）
+#   readiness = /health state ∈ {Ready, Capturing}（非 HTTP 200）
+#   exit 0 = 优雅停止（SIGTERM/SIGINT drain 完成）; exit 2 = fail-closed 启动拒绝
+
+[Service]
+Type=simple
+# BMD 现实: 设备访问经 lytv 的用户组（DeckLink）；专用服务用户 + 最小组为
+# 硬化建议（见 ops/standalone/README.md），不阻塞本 lane。
+User=lytv
+EnvironmentFile=-/etc/vbmf/media-agent.env
+ExecStart=/opt/vbmf/current/bin/media-agent
+# 退出码契约（语义页 §3）: 2 = 配置/构造拒绝——重试无意义直至 env/manifest 修复；
+# Restart=on-failure 覆盖运行期崩溃; StartLimitBurst 提供受控退避。
+Restart=on-failure
+StartLimitBurst=3
+StartLimitIntervalSec=30
+# SIGTERM → 有序 drain（SessionManager 唯一 owner 逆序停会话）→ exit 0;
+# 第二次信号 = 运维逃生门（OS 默认处置，unit 记 signal death）。
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# 无 socket activation; 日志 = stdout/stderr → journald（RUST_LOG 经 env file 透传）
+
+[Install]
+WantedBy=multi-user.target
