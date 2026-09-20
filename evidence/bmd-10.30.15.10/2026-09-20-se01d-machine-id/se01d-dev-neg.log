@@ -1,0 +1,9 @@
+[2m2026-09-20T05:57:12.365658Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m adapter selection (P0-4 运维可见) [3mprovider[0m[2m=[0m"blackmagic" [3mbackend[0m[2m=[0m"ffmpeg" [3mmode[0m[2m=[0m"production"
+[2m2026-09-20T05:57:12.370202Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m device discovery complete [3mcount[0m[2m=[0m3
+[2m2026-09-20T05:57:12.370350Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m4fa33dcb-5f76-5f76-aea8-330df7ada03e
+[2m2026-09-20T05:57:12.370388Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m6ede00d0-baf4-573f-a0dd-4a503bf7f766
+[2m2026-09-20T05:57:12.370412Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease acquired [3mdevice[0m[2m=[0m1afe2dcc-6d85-5b46-b7d6-e14102501c77
+[2m2026-09-20T05:57:12.370436Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m lease re-acquire correctly rejected [3merror[0m[2m=[0mdevice 4fa33dcb-5f76-5f76-aea8-330df7ada03e already leased
+[2m2026-09-20T05:57:12.370472Z[0m [32m INFO[0m [2mmedia_agent::bootstrap[0m[2m:[0m supervisor initialized [3mwatched[0m[2m=[0m3
+[2m2026-09-20T05:57:12.370514Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m SDK libDeckLinkAPI.so reachable, entry symbols present
+FFmpeg production composition failed closed: ManifestEnvironmentMismatch: 清单 machine_id='wrong-host' 与当前主机 '709ceacda35847a6b61350397eef8a39' 不符 (误投/串机器, 生产拒绝)
