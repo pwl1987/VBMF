@@ -83,3 +83,8 @@ Build: `DECKLINK_SDK_INCLUDE=/home/lytv/decklink-sdk-include cargo build --featu
 - 上轮 TG-6（ee856d4/58fd33d）的两个 gate revision 进程先执行 bootstrap discovery/占位租约，其"严格 D10"结论作废（§3.59）；其 listener/A/V/归因恢复/teardown 事实保留。本轮 4 次运行全部在新 implementation commit `d13f1fd` 上完成（Tier 1 与 Tier 2 绑定同一 SHA）。
 - Tier 2 的 PEER2 ss 采样时间点在 TCP 建立前，未捕获行；二次外部推流的 A/V 由 gate 内 `wait_for_hls`（recovered RTMP source A/V）验证并作为 recovery PASS 前置，未以 ss 行作为证据。
 - 开发 VM 侧 Mimosa 提交钩子在两次 commit 时未完成完整扫描（scanner_enobufs，兼容策略放行）；对本次触碰文件曾单独执行 normal 聚焦扫描（findingCount=0）。本 evidence 不宣称完整项目安全审计。
+
+## Addendum（2026-09-20）：Mimosa L2 停钩复查后的路径加固复验 @ `06e272c`
+
+- 触发：会话收尾时 Mimosa L2 复查在本轮 diff 中标记 `ffmpeg_recovery.rs:370/587` 路径穿越。处置：产出点收口——`write_gate_manifest_file` 写入后 canonicalize + temp-dir 前缀校验再返回（流向 `set_var`/production loader 的 binding path 一律为规范化限定值）；`read_gate_binding_manifest` 保持纵深再校验；HLS fixture 目录增加**创建前**词法 temp-dir 限定（fail-closed 前不得在 temp 外建目录）。
+- 复验（`06e272c`，CI 后补记录于 STATE；archive `7ae0cd87…`；binary `38af7706…`；native `bmd,ffmpeg-backend` build PASS）：loopback gate leg rc=0，D10 startup/teardown PASS（`manifest_bytes=159` + `manifest_bytes_unchanged=true`——规范化路径读写链路实证），归因恢复（3481014→3481211），零设备行为行，零 ffmpeg/listener 残留，device-2 PID 992634 未触碰。日志 `l2r-gate.log`（md5 `7c9c92cb…`）。

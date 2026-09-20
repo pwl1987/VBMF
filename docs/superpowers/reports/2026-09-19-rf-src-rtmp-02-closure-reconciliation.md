@@ -53,3 +53,9 @@
 - RF-SRC-RTMP-02 自 §3.59 的 RECONCILIATION REQUIRED 恢复 **COMPLETE**：production root 真实可达（Network-only 模式选择先于一切 device 构造）+ TG-6 gate 严格 D10 进程级证据成立（同一 implementation commit `d13f1fd`：CI 7/7 + 三段 BMD 验收）。
 - 未触发 frozen stop condition（单 Runtime owner 保持；无第二套 Session/Resource/Lease truth）。
 - 未扩大边界：`SourceIntent::Rtmp` wire 未变；无 Control Plane/API 扩展；SRT、multi-input/Program/Switch、SRS/Output、Recording/Replay、RH-FLOW/RH-IDEM、24h stability 维持原状。
+
+## 5. Addendum（2026-09-20）：Mimosa L2 停钩复查 — gate 路径产出点收口（`06e272c`）
+
+- 复查标记 `ffmpeg_recovery.rs:370/587` 路径穿越。评估：实质风险低（manifest 路径 = temp_dir + pid + uuid，endpoint 只进 JSON body；读回 helper 已 canonicalize+限定），但复查建议（规范化 + 校验 + 限定目录）可在**产出点**真实落地，故按修复处理而非仅申辩误报。
+- 修复：`write_gate_manifest_file` 返回前 canonicalize + temp-dir 前缀校验（流向 `set_var`/production loader 的 binding path 一律为规范化限定值）；`read_gate_binding_manifest` 保留纵深再校验；HLS fixture 目录补**创建前**词法 temp-dir 限定（fail-closed 前不得在 temp 外创建目录）。`SourceIntent::Rtmp` wire、gate 流程、D10 断言零变化。
+- 验证：本地 `cargo check --features ffmpeg-backend --all-targets` + fmt PASS（该模块 cfg=bmd+ffmpeg，type-check 权威 = CI media-runner no-run 编译 + BMD native build，沿用 TG-2/TG-4 口径）；BMD @ `06e272c`（archive `7ae0cd87…`·binary `38af7706…`）native `bmd,ffmpeg-backend` build PASS + loopback gate leg rc=0：D10 startup/teardown PASS、`manifest_bytes_unchanged=true`（规范化读写链路实证）、归因恢复 3481014→3481211、零设备行为行、零 ffmpeg/listener 残留、device-2 PID 992634 未触碰。日志归档于 tg6r evidence 目录 `l2r-gate.log`（md5 `7c9c92cb…`）；CI 结论与最终对齐见 STATE §3.60 增补行。
