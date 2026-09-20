@@ -506,9 +506,9 @@ mod rf_ff_01e_tests {
 
     #[test]
     fn rf_ff_01e_valid_manifest_builds_production_session_composition() {
-        // Shares STARTUP_ENV_MUTEX: reads process-global machine identity env,
-        // which closure tests may set while holding the same lock.
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        // Shares the startup-env lock: reads process-global machine identity
+        // env, which closure tests may set while holding the same lock.
+        let _env = lock_startup_env();
         let handle = "46:test:01e";
         let runtime_machine_id = crate::resolver::current_machine_id();
         let manifest_machine_id = if runtime_machine_id.is_empty() {
@@ -752,7 +752,7 @@ mod rf_src_rtmp_02_tg2_tests {
     #[test]
     fn rf_src_rtmp_02_network_only_composition_requires_binding_config() {
         // fail-closed startup wiring: no MEDIA_AGENT_NETWORK_BINDING → refuse
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
         std::env::remove_var("MEDIA_AGENT_NETWORK_BINDING");
         let err = match build_ffmpeg_network_only_composition() {
             Ok(_) => panic!("missing network binding config must fail closed"),
@@ -763,9 +763,34 @@ mod rf_src_rtmp_02_tg2_tests {
 }
 
 /// Shared lock for tests that mutate startup-selection environment variables
-/// (env is process-global; cargo runs lib tests multi-threaded).
+/// (env is process-global; cargo runs lib tests multi-threaded). Poison-tolerant
+/// acquisition: a failed test must not cascade-fail every other env test.
 #[cfg(test)]
 pub(crate) static STARTUP_ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+pub(crate) fn lock_startup_env() -> std::sync::MutexGuard<'static, ()> {
+    STARTUP_ENV_MUTEX
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Restores the startup-selection env at test end (Drop runs even on panic —
+/// a set-but-uncleaned `MEDIA_AGENT_MODE=diagnostic` leaks into later tests
+/// and flips their mode selection; observed as CI failure at 9067989).
+#[cfg(test)]
+pub(crate) struct StartupEnvGuard;
+
+#[cfg(test)]
+impl Drop for StartupEnvGuard {
+    fn drop(&mut self) {
+        std::env::remove_var("MEDIA_AGENT_NETWORK_BINDING");
+        std::env::remove_var("MEDIA_AGENT_DEVICE_BINDING");
+        std::env::remove_var("MEDIA_AGENT_MODE");
+        std::env::remove_var("MEDIA_AGENT_SELFTEST");
+        std::env::remove_var("VBMF_MACHINE_ID");
+    }
+}
 
 #[cfg(test)]
 mod rf_src_rtmp_02_mode_tests {
@@ -780,7 +805,8 @@ mod rf_src_rtmp_02_mode_tests {
 
     #[test]
     fn rf_src_rtmp_02_mode_defaults_to_device_plane() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         clear_startup_env();
         assert_eq!(
             select_startup_composition_mode().expect("default mode"),
@@ -790,7 +816,8 @@ mod rf_src_rtmp_02_mode_tests {
 
     #[test]
     fn rf_src_rtmp_02_device_binding_alone_selects_device_plane() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         clear_startup_env();
         std::env::set_var("MEDIA_AGENT_DEVICE_BINDING", "/tmp/device-binding.json");
         assert_eq!(
@@ -801,7 +828,8 @@ mod rf_src_rtmp_02_mode_tests {
 
     #[test]
     fn rf_src_rtmp_02_network_binding_selects_network_only_plane() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         clear_startup_env();
         std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
         assert_eq!(
@@ -814,7 +842,8 @@ mod rf_src_rtmp_02_mode_tests {
 
     #[test]
     fn rf_src_rtmp_02_network_plus_device_binding_fails_closed() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         clear_startup_env();
         std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
         std::env::set_var("MEDIA_AGENT_DEVICE_BINDING", "/tmp/device-binding.json");
@@ -825,7 +854,8 @@ mod rf_src_rtmp_02_mode_tests {
 
     #[test]
     fn rf_src_rtmp_02_network_binding_rejects_diagnostic_mode() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         clear_startup_env();
         std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
         std::env::set_var("MEDIA_AGENT_MODE", "diagnostic");
@@ -836,7 +866,8 @@ mod rf_src_rtmp_02_mode_tests {
 
     #[test]
     fn rf_src_rtmp_02_network_binding_rejects_selftest() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         clear_startup_env();
         std::env::set_var("MEDIA_AGENT_NETWORK_BINDING", "/tmp/network-binding.json");
         std::env::set_var("MEDIA_AGENT_SELFTEST", "1");
@@ -891,7 +922,8 @@ mod rf_src_rtmp_02_closure_tests {
     /// entry performs no discovery at all).
     #[test]
     fn rf_src_rtmp_02_production_entry_network_only_is_zero_device() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         let dir = TempDir::new("prod-entry");
         let machine_id = "closure-test-host";
         std::env::set_var("VBMF_MACHINE_ID", machine_id);
@@ -923,12 +955,12 @@ mod rf_src_rtmp_02_closure_tests {
             composition.lease_manager.list_active().is_empty(),
             "zero DeviceLease (no bootstrap placeholder leases)"
         );
-        std::env::remove_var("VBMF_MACHINE_ID");
     }
 
     #[test]
     fn rf_src_rtmp_02_production_entry_rejects_missing_manifest_file() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         std::env::set_var(
             "MEDIA_AGENT_NETWORK_BINDING",
             "/tmp/vbmf-closure-definitely-missing.json",
@@ -941,7 +973,8 @@ mod rf_src_rtmp_02_closure_tests {
 
     #[test]
     fn rf_src_rtmp_02_production_entry_rejects_invalid_manifest() {
-        let _env = STARTUP_ENV_MUTEX.lock().unwrap();
+        let _env = lock_startup_env();
+        let _cleanup = StartupEnvGuard;
         let dir = TempDir::new("invalid-manifest");
         let path = dir.0.join("network-binding.json");
         std::fs::write(&path, b"{not-json").unwrap();
