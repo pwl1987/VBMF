@@ -1,0 +1,7 @@
+[2m2026-09-20T04:46:39.868252Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m network-only production composition ready: NetworkSourceBinding → Network Resources → SessionManager → FFmpeg MediaBackend (no device discovery, no device binding manifest, no device leases, no DeckLink, zero media started) [3mauthorized_sources[0m[2m=[0m1
+[2m2026-09-20T04:46:39.868487Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m media-agent network-only runtime loaded; media lifecycle remains Session/MediaBackend owned
+[2m2026-09-20T04:46:39.868723Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m health+api endpoints listening (network-only; internal-only; 经反向代理/认证暴露, 见用户 §二十二) [3mbind[0m[2m=[0m127.0.0.1:18080
+[2m2026-09-20T04:46:42.884100Z[0m [33m WARN[0m [2mmedia_agent::shutdown[0m[2m:[0m SIGHUP received: manifests/config are startup-only (frozen D3); no reload performed — use SIGTERM for graceful stop or restart the unit
+[2m2026-09-20T04:46:43.890382Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m graceful shutdown signal received; draining network sessions [3mcause[0m[2m=[0mTerminated
+[2m2026-09-20T04:46:43.890445Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m graceful shutdown: network sessions drained [3mcount[0m[2m=[0m0
+[2m2026-09-20T04:46:43.890463Z[0m [32m INFO[0m [2mmedia_agent[0m[2m:[0m graceful shutdown complete (exit 0)
