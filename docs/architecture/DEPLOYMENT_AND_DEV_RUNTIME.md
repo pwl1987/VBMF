@@ -412,4 +412,24 @@ Ingress
 ```
 Health Tree 须暴露 Nginx 自身 health（已加 `/health/nginx`）。
 
+---
+
+## 17. Standalone Lane（STANDALONE-ENTRY-01；2026-09-20 SE-01C 增补）
+
+> 本节只**增补** standalone lane，不重写/否定上文 full-stack lane（§1–§16 与 `ops/` 全栈占位不动）。
+> 语义权威页：[`STANDALONE_MEDIA_AGENT_OPERATIONS.md`](./STANDALONE_MEDIA_AGENT_OPERATIONS.md)（readiness/liveness 八态矩阵、
+> 配置权威清单、production 退出码契约——全部逐条来自 live 代码）。
+
+- **形态**：单一 `media-agent` 进程（Rust 组合根）+ systemd supervision + `/etc/vbmf` environment file +
+  `/health`（默认 `127.0.0.1:8080`，readiness 按 `state ∈ {Ready, Capturing}` 判定，非 HTTP 200）。
+- **两种生产启动模式**（互斥，fail-closed）：Device 生产（`MEDIA_AGENT_DEVICE_BINDING`）与
+  Network-only 生产（`MEDIA_AGENT_NETWORK_BINDING`，先于一切 Device 构造；零 DeckLink 副作用）。
+- **边界**：`compatible, not dependent`——standalone 运行不依赖 DB / Fastify / Web Console / SRS / Node 层；
+  Runtime owns truth 不变；不新建第二 Runtime owner；不触碰 Control Plane/API scope。
+- **退出码**（production binary）：`0` = 优雅停止（SIGTERM/SIGINT drain 完成）；`2` = fail-closed 启动拒绝
+  （env/manifest/组合非法）；第二次终止信号 = 运维逃生门（OS 默认处置，非 exit 0）。gate binary 的 `0/1/2`
+  是 acceptance tooling 语义，不属本契约。
+- **部署工件**（版本化目录 + symlink、systemd unit、目录权限、BMD exact-commit 部署对账、
+  install/upgrade/rollback 演练）属 SE-01B 执行，本节不预建。
+
 
