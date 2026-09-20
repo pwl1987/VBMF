@@ -1,0 +1,21 @@
+++ ls /opt/vbmf/
++ BEFORE=$'0.1.0-0228849\n0.1.0-6932d5e\ncurrent'
++ mkdir -p /tmp/se01bfix/junk
++ echo x
++ tar czf /tmp/se01bfix/bad.tar.gz -C /tmp/se01bfix junk
++ bash /tmp/se01bfix/ops/standalone/install.sh /tmp/se01bfix/bad.tar.gz 0.1.0-a238558 ci-test
+BAD_ARCHIVE_RC=2
+archive does not embed a git commit id (not a git-archive product): /tmp/se01bfix/bad.tar.gz
++ echo BAD_ARCHIVE_RC=2
++ bash /tmp/se01bfix/ops/standalone/install.sh /tmp/vbmf-a238558.tar.gz 0.1.0-0000bee ci-test
+version-tag short SHA '0000bee' is not a prefix of archive embedded commit 'a238558ac0e27fc8017a2255e0d5ce5afdea8db2'; refusing install
+WRONG_SHA_RC=2
++ echo WRONG_SHA_RC=2
+++ ls /opt/vbmf/
++ AFTER=$'0.1.0-0228849\n0.1.0-6932d5e\ncurrent'
+OPT_VBMF_UNCHANGED=yes
++ '[' $'0.1.0-0228849\n0.1.0-6932d5e\ncurrent' = $'0.1.0-0228849\n0.1.0-6932d5e\ncurrent' ']'
++ echo OPT_VBMF_UNCHANGED=yes
++ ls -d '/opt/vbmf/.staging-*'
+NO_STAGING_RESIDUE
++ echo NO_STAGING_RESIDUE

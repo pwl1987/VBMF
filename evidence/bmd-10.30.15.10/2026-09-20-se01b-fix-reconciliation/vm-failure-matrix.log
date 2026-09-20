@@ -1,0 +1,39 @@
+PASS: tool sanity: git get-tar-commit-id == rev-parse HEAD
+PASS: bad archive (no embedded commit id) refused
+PASS: bad archive: final dir absent
+PASS: bad archive: no staging residue
+PASS: bad archive: no current created
+PASS: shortsha/prefix mismatch refused
+PASS: mismatch: final dir absent
+PASS: mismatch: no staging residue
+PASS: build failure refused
+PASS: build failure: final dir absent
+PASS: build failure: no staging residue
+PASS: valid install succeeds
+PASS: manifest git_commit_sha == archive embedded FULL
+PASS: manifest archive_sha256 == recomputed
+PASS: manifest media_agent_sha256 == recomputed
+PASS: manifest var_lib owner/mode recorded
+PASS: success: current -> tag
+PASS: success: no staging residue
+PASS: reinstall same tag refused
+PASS: reinstall refusal: manifest bytes unchanged
+PASS: reinstall refusal: binary bytes unchanged
+PASS: reinstall refusal: current unchanged
+PASS: second valid install (0.2.0) succeeds
+PASS: switch to 0.2.0
+PASS: current -> 0.2.0
+PASS: switch refused: binary digest tampered
+PASS: digest refusal: current unchanged
+PASS: switch refused: git_commit_sha not prefix of tag
+PASS: sha refusal: current unchanged
+PASS: switch refused: legacy manifest without git_commit_sha
+PASS: legacy refusal: current unchanged
+PASS: switch refused: manifest version_tag mismatch
+PASS: tag refusal: current unchanged
+PASS: switch refused: nonexistent version
+PASS: rollback switch to 0.1.0
+PASS: current -> 0.1.0 after rollback
+PASS: switch forward to 0.2.0 again
+
+=== SE-01B-FIX failure matrix: PASS=37 FAIL=0 (HEAD=a238558ac0e27fc8017a2255e0d5ce5afdea8db2 tag=0.1.0-a238558) ===

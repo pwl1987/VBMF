@@ -1,0 +1,9 @@
+/dev/mapper/ubuntu--vg-ubuntu--lv  546G   32G  487G   7% /
+411M	/opt/vbmf/0.1.0-0228849
+410M	/opt/vbmf/0.1.0-6932d5e
+01ec24d97efb687259bedfbaa2ea6bac420220a88d58ea3b4efc99db58ca1864  /opt/vbmf/0.1.0-0228849/install-manifest.json
+fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81  /opt/vbmf/0.1.0-0228849/bin/media-agent
+0.1.0-6932d5e
+current
+legacy-se01b-0.1.0-0228849
+/opt/vbmf/0.1.0-0228849

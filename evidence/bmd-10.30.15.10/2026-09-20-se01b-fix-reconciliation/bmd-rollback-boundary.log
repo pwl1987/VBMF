@@ -1,0 +1,15 @@
+--- rollback to 0.1.0-0228849 (provenance-verified switcher):
+current -> 0.1.0-0228849 (provenance verified: commit=0228849b82965008a7176fe0c317fa25c6c87e71 digest=ok)
+SW_RC=0
+/opt/vbmf/0.1.0-0228849
+ROLLBACK_HEALTH={"active_pipelines":0,"clock_lost_events":0,"devices":0,"dropped_bus_events":0,"state":"Ready"}
+Result=success ExecMainStatus=0 
+--- switch forward again:
+current -> 0.1.0-a238558 (provenance verified: commit=a238558ac0e27fc8017a2255e0d5ce5afdea8db2 digest=ok)
+SW_RC=0
+/opt/vbmf/0.1.0-a238558
+--- boundaries:
+992634
+artifacts evidence logs repo runtime 
+NO_LISTENER_RESIDUE
+NO_STAGING_RESIDUE

@@ -1,0 +1,14 @@
+ActiveState=inactive
+Result=success
+NRestarts=0
+ExecMainStatus=0
+NO_RESPAWN_AFTER_EXIT0=yes (pid 3515344 -> 0)
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Scheduled restart job, restart counter is at 2.
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Scheduled restart job, restart counter is at 3.
+Sep 21 06:34:25 lytv systemd[1]: Stopping vbmf-media-agent.service - VBMF Media Agent (standalone lane)...
+Sep 21 06:34:25 lytv systemd[1]: vbmf-media-agent.service: Deactivated successfully.
+--- restart again:
+HEALTH2={"active_pipelines":0,"clock_lost_events":0,"devices":0,"dropped_bus_events":0,"state":"Ready"}
+inactive
+disabled

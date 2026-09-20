@@ -1,0 +1,9 @@
+--- NEW unit (from a238558 archive):
+/usr/lib/systemd/system/xfs_scrub_all.service:26: Support for option CPUAccounting= has been removed and it is ignored
+/usr/lib/systemd/system/system-xfs_scrub.slice:15: Support for option CPUAccounting= has been removed and it is ignored
+NEW_RC=0
+--- OLD installed unit (defective, historical):
+/etc/systemd/system/vbmf-media-agent.service:21: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+/usr/lib/systemd/system/xfs_scrub_all.service:26: Support for option CPUAccounting= has been removed and it is ignored
+/usr/lib/systemd/system/system-xfs_scrub.slice:15: Support for option CPUAccounting= has been removed and it is ignored
+OLD_RC=0

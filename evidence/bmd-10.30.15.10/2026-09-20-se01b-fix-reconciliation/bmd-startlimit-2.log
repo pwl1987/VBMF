@@ -1,0 +1,24 @@
+ActiveState=failed
+SubState=failed
+Result=exit-code
+NRestarts=3
+ExecMainStatus=2
+--- journal (StartLimit window):
+Sep 21 06:34:00 lytv systemd[1]: Started vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Failed with result 'exit-code'.
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Scheduled restart job, restart counter is at 1.
+Sep 21 06:34:00 lytv systemd[1]: Started vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Failed with result 'exit-code'.
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Scheduled restart job, restart counter is at 2.
+Sep 21 06:34:00 lytv systemd[1]: Started vbmf-media-agent.service - VBMF Media Agent (standalone lane).
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Failed with result 'exit-code'.
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Scheduled restart job, restart counter is at 3.
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Start request repeated too quickly.
+Sep 21 06:34:00 lytv systemd[1]: vbmf-media-agent.service: Failed with result 'exit-code'.
+--- exit-2 count: 3
+--- machine mismatch line:
+Sep 21 06:34:00 lytv media-agent[3515190]: network-only production composition failed closed: network binding manifest rejected (fail-closed): network binding manifest machine_id mismatch
+Sep 21 06:34:00 lytv media-agent[3515194]: network-only production composition failed closed: network binding manifest rejected (fail-closed): network binding manifest machine_id mismatch

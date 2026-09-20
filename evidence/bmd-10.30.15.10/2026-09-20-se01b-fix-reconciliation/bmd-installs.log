@@ -1,0 +1,43 @@
+    Finished `release` profile [optimized] target(s) in 38.39s
+installed 0.1.0-0228849
+  git_commit_sha=0228849b82965008a7176fe0c317fa25c6c87e71
+  archive_sha256=6008f804cbec28c75996c11e0616ba7da566f8713d2833bad23badc5b3280587
+  media_agent_sha256=fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81
+  var_lib=root:root 755
+  current -> /opt/vbmf/current
+    Finished `release` profile [optimized] target(s) in 38.24s
+installed 0.1.0-a238558
+  git_commit_sha=a238558ac0e27fc8017a2255e0d5ce5afdea8db2
+  archive_sha256=341f0822d0e54fc111d33395b786bfa3a7bd17fa564ded4123a4db1b5796401d
+  media_agent_sha256=fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81
+  var_lib=root:root 755
+  current -> /opt/vbmf/current
+===MANIFESTS===
+{
+  "lane": "standalone",
+  "version_tag": "0.1.0-0228849",
+  "git_commit_sha": "0228849b82965008a7176fe0c317fa25c6c87e71",
+  "archive_sha256": "6008f804cbec28c75996c11e0616ba7da566f8713d2833bad23badc5b3280587",
+  "media_agent_sha256": "fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81",
+  "media_agent_gates_sha256": "d7ccdd774001d1f4ec5ee8c74ee07516c1b4ff09591c4fb0bd445c7665104acf",
+  "features": "bmd,ffmpeg-backend",
+  "ci_run_id": "35493444527",
+  "var_lib_path": "/var/lib/vbmf",
+  "var_lib_owner_mode": "root:root 755",
+  "installed_at_utc": "2026-09-20T22:29:54Z"
+}
+{
+  "lane": "standalone",
+  "version_tag": "0.1.0-a238558",
+  "git_commit_sha": "a238558ac0e27fc8017a2255e0d5ce5afdea8db2",
+  "archive_sha256": "341f0822d0e54fc111d33395b786bfa3a7bd17fa564ded4123a4db1b5796401d",
+  "media_agent_sha256": "fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81",
+  "media_agent_gates_sha256": "d7ccdd774001d1f4ec5ee8c74ee07516c1b4ff09591c4fb0bd445c7665104acf",
+  "features": "bmd,ffmpeg-backend",
+  "ci_run_id": "35541709917",
+  "var_lib_path": "/var/lib/vbmf",
+  "var_lib_owner_mode": "root:root 755",
+  "installed_at_utc": "2026-09-20T22:30:33Z"
+}
+===CURRENT===
+/opt/vbmf/0.1.0-a238558

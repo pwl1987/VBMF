@@ -1,0 +1,15 @@
+--- provenance chain (independent re-verification):
+fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81  /opt/vbmf/0.1.0-a238558/bin/media-agent
+fd2412d270bd4488334df0b9533aac928cd312ab4f1b9c5d39198c6aedf1ad81  /opt/vbmf/0.1.0-0228849/bin/media-agent
+a238558ac0e27fc8017a2255e0d5ce5afdea8db2
+--- reinstall same tag (must refuse, dir untouched):
+refusing to overwrite existing version dir (no in-place mutation): /opt/vbmf/0.1.0-a238558
+REINSTALL_RC=2
+MANIFEST_UNCHANGED=yes
+--- legacy manifest switch (must refuse):
+install-manifest has no valid full git_commit_sha (legacy/tampered manifest: 'missing'); refusing to switch
+LEGACY_RC=2
+--- quarantine dir switch (must refuse, renamed dir + legacy manifest):
+manifest version_tag '0.1.0-0228849' != requested tag 'legacy-se01b-0.1.0-0228849'; refusing to switch
+QUARANTINE_RC=2
+/opt/vbmf/0.1.0-a238558
