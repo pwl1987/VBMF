@@ -1,0 +1,7 @@
+RF-SRC-RTMP-02 D10 startup PASS device_discovery=0 bootstrap_device_leases=0 device_resources=0 network_resources=1 manifest_bytes=158
+RF-SRC-RTMP-01 source PASS session=session-1e6b0024d0ef426f91b8112c88b8ad48 source_id=293a9db2-b17c-5d7b-843c-44afeeedcd84          codecs=h264,aac listener=lan signal_verified=true
+RF-SRC-RTMP-01 external-leg A/V verified; awaiting external publisher disconnect
+RF-SRC-RTMP-01 recovery PASS old_consumer_pid=3474624          new_consumer_pid=3475042 attributed=PublisherDisconnected          supervisor=Running codecs=h264,aac
+RF-SRC-RTMP-01 teardown PASS phase=Released resource=Available          lease=NONE monitor=exited publisher_orphan=NONE
+RF-SRC-RTMP-02 D10 teardown PASS ffmpeg_child=none listener=released-with-child stderr_reader=joined-by-reaper monitor=exited network_lease=none network_resource=available manifest_bytes_unchanged=true
+RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS

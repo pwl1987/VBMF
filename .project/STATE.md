@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 RECONCILIATION REQUIRED / TG-6 D10 + production-root closure（§3.59）**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；当前 Work Packet = STANDALONE-ENTRY-01（PLAN / RECONCILIATION ONLY·用户 2026-09-19 授权）**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -924,11 +924,11 @@ Status: **TG-6 COMPLETE / HARDWARE VERIFIED（Tier 1 + Tier 2）；RF-SRC-RTMP-0
 - 边界完整性：device-2 PID 992634 全程存活（15-07:09:51→15-07:46:40）；零 ffmpeg 残留；deferred risks 逐项标注（tg6-manifest §Deferred risks）。
 - 证据：`evidence/bmd-10.30.15.10/2026-09-19-rf-src-rtmp-02-tg6-lan-acceptance/` + EVIDENCE-INDEX 行；报告=`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-tg6-bmd-acceptance.md`。
 - **收口**：RF-SRC-RTMP-02 全部 touch-gate（TG-0 探针/TG-1 canonical+manifest（含 reconciliation）/TG-2 组合+五元组/TG-3 listener+stderr/TG-4 D7/D8/TG-5 redaction/TG-6 硬件）通过；无 frozen stop condition 触发；`SourceIntent::Rtmp` wire 未变；未扩大任何边界（SRT/Program/Switch/SRS/Recording/Replay/24h stability 维持）。
-- **Reconciliation 注记（2026-09-19，§3.59）**：本节 Tier 1/Tier 2 的 listener/A/V/归因恢复/teardown 事实对其 exact gate revisions（`ee856d4`/`58fd33d`）继续成立；但两 gate revision 的进程均在进入 RTMP source gate 前无条件执行了 `bootstrap::build()`（`device discovery complete count=3` + 3 条 bootstrap 占位 DeviceLease），因此**不构成严格 D10"进程级零 DeviceLease/零 Device side effect"硬件证据**。RF-SRC-RTMP-02 整体已转入 RECONCILIATION REQUIRED（§3.59），本节 COMPLETE 结论被降级，历史证据保留。
+- **Reconciliation 注记（2026-09-19，§3.59）**：本节 Tier 1/Tier 2 的 listener/A/V/归因恢复/teardown 事实对其 exact gate revisions（`ee856d4`/`58fd33d`）继续成立；但两 gate revision 的进程均在进入 RTMP source gate 前无条件执行了 `bootstrap::build()`（`device discovery complete count=3` + 3 条 bootstrap 占位 DeviceLease），因此**不构成严格 D10"进程级零 DeviceLease/零 Device side effect"硬件证据**。该缺口已由 RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 修复并在 `d13f1fd` 上重验（§3.60）；本节历史证据保留。
 
 ### 3.59 RF-SRC-RTMP-02 closure reconciliation entry（2026-09-19）
 
-Status: **RECONCILIATION REQUIRED / TG-6 D10 + production-root closure；RF-SRC-RTMP-02-IMPLEMENTATION 由 COMPLETE 降级**
+Status: **COMPLETE（§3.60 收口；本节保留触发与修复面记录）**
 
 - 触发：用户独立复核（live `main = d257250`、CI `35449818448` 7/7、TG-1~TG-5 软件面接受、Tier 2 netns 符合 frozen §3）发现两个真实闭环缺口，开 bounded packet **`RF-SRC-RTMP-02-CLOSURE-RECONCILIATION`**（不推倒既有实现）：
   1. **production-root gap**：`MEDIA_AGENT_NETWORK_BINDING` 与 `build_ffmpeg_network_only_composition()` 只被 tests / `media-agent-gates` 消费；真实 `src/bin/media-agent.rs` 没有 Network-only 模式选择或构造分支——TG-2 report §4 预留的"随 TG-3/TG-6 BMD 验收一并落位"承诺至 `d257250` 未实现（frozen D10/D11 的 production composition root 缺口）。
@@ -936,23 +936,31 @@ Status: **RECONCILIATION REQUIRED / TG-6 D10 + production-root closure；RF-SRC-
 - 修复范围（frozen D3/D10/D11 对齐）：production root 在进入 `bootstrap::build()` 的 Device discovery / 占位 DeviceLease 路径**之前**完成 mode selection；Network-only 直接消费 `MEDIA_AGENT_NETWORK_BINDING` → `NetworkSourceBinding::load()` → `build_ffmpeg_network_only_composition()`；不 discovery / 不读 DeviceBindingManifest / 不取 `LeaseKey::Device` / 不开 DeckLink input/output；单 Runtime owner；零媒体自动启动；不扩大 Control Plane/API exposure。gate 侧：`VBMF_FFMPEG_RTMP_SOURCE` 在通用 bootstrap 之前进入 Network-only gate 并复用同一 production builder；旧 Device/GStreamer gates 保持 common bootstrap 不变。
 - 重验：新 implementation commit 上重跑 Development VM 全矩阵 + CI 7/7 + 同一 exact commit 的 BMD TG-6（loopback 回归、Tier 1 LAN、Tier 2 independent netns、D7/D8 disconnect→attribution→recovery、D10 before/after、clean teardown）。
 - 历史证据保留：§3.52–§3.58 不删除；Tier 1/Tier 2 listener/A/V/归因恢复事实对其 exact gate revisions 继续成立，仅"进程级严格 D10"结论待重验。
+- **收口（§3.60）**：修复 = implementation commit `d13f1fd`（CI 7/7）+ 同 commit BMD TG-6R 重验全 PASS；RF-SRC-RTMP-02 恢复 COMPLETE。
+
+### 3.60 RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 收口（2026-09-19）
+
+Status: **COMPLETE / SOFTWARE + CI + BMD HARDWARE VERIFIED（严格 D10 进程级）**
+
+- Commit 链：STATE 降级 `3eff73a`（CI 35486389929 7/7）→ **implementation `d13f1fd`**（CI `35487255383` **7/7 required PASS**）→ 本 STATE/evidence 收口提交。
+- 修复① production root：`bootstrap::select_startup_composition_mode()`（`StartupCompositionMode::{Device, NetworkOnly}`）在 `bootstrap::build()` 之前完成模式选择——`MEDIA_AGENT_NETWORK_BINDING` 为显式 Network-only 选择器，与 `MEDIA_AGENT_DEVICE_BINDING`/diagnostic/selftest 叠加均 fail-closed；`bin/media-agent.rs` `run_network_only_runtime() -> !` 直消费 production builder（无 discovery / 无 DeviceBindingManifest / 无 `LeaseKey::Device` / 无 DeckLink open / 无 SDK probe），单 Runtime owner，零媒体自动启动，exposure 与 Device production 一致（query/command/idem/switch = None ⇒ 503 契约）。`FfmpegNetworkComposition` 增 `projection_log` 只读观测面。
+- 修复② gate：`bin/gates.rs` 的 `VBMF_FFMPEG_RTMP_SOURCE` dispatch 先于 common `bootstrap::build()`（`run_network_only_gate()`）；旧 gates 走唯一 bootstrap 不变；gates.rs A20-03 注释最小 reconciliation（Network-only = 冻结受限 composition path，非第二 Runtime truth）；gate 内新增 D10 机械断言（startup：无 device plane/仅 rtmp-input/恰 1 Resource/DeviceLease=0；teardown：FFmpeg child 无残留/manifest 字节不变），各打印 `RF-SRC-RTMP-02 D10 … PASS` 行；source gate 失败 marker 修正为 RF-SRC-RTMP-02。Mimosa 钩子触发的真实加固：gate manifest 写入拆纯 body + temp-dir-only 路径（endpoint 只进 JSON body）、读回 canonicalize+前缀校验、HLS fixture 目录拒绝 `..` 并限 temp dir。
+- 软件（Dev VM，最终态）：focused mode **6/6** + closure **3/3**（真实 production 入口 zero-device）+ tg2 **4/4** + rf_ff_01e **3/3**；default **324/324**；simulation **324/324**；mock **536/536**；ffmpeg-backend **359+1 ignored**；clippy×3 `-D warnings`、fmt、check --all-targets、architecture lint（含 A20-03-BS-01）、remove-adapters、diff-check 全 PASS。
+- BMD exact `d13f1fd`（archive `7f242a25…`=盒一致；binary `3d784e2a…`；cargo 1.98.0）：**4 次 gate 运行日志中 device discovery/lease acquired/adapter selection/DeckLinkAPI = 0 行**；loopback 回归 PASS（recovery 3473648→3473845）；Tier 1 PASS（`LISTEN 10.30.15.10:19350` 显式 LAN 绑定·recovery 3474113→3474312·manifest MD5 `29570aa7…` 字节不变）；Tier 2 PASS（`ESTAB ← 172.17.0.2:52228` 独立 netns 第三方推流·recovery 3474624→3475042·二次外部推流）；全部含 D10 startup/teardown PASS + `RF_SRC_RTMP_01_BMD_SOURCE_RECOVERY_PASS`；device-2 PID 992634 全程存活；零 ffmpeg/listener/docker 残留；UFW 临时规则已删除复核。
+- Evidence：`evidence/bmd-10.30.15.10/2026-09-19-rf-src-rtmp-02-tg6r-closure-reacceptance/` + EVIDENCE-INDEX 行；报告：`docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-closure-reconciliation.md`。
+- 边界：`SourceIntent::Rtmp` wire 未变；无 Control Plane/API 扩展；未触发 frozen stop condition；SRT/Program/Switch/SRS/Recording/Replay/RH-FLOW/RH-IDEM/24h 维持。如实披露：Dev VM 侧 Mimosa 完整扫描两次 commit 均 scanner_enobufs（聚焦 normal 扫描 0 findings，不宣称完整审计）；Tier 2 PEER2 ss 行未捕获（gate 内 recovered-A/V 为证）。
 
 ## 4. Current Task
 
-**RF-SRC-RTMP-02-CLOSURE-RECONCILIATION — ACTIVE（§3.59·2026-09-19）**
+**STANDALONE-ENTRY-01 — ACTIVE / PLAN + RECONCILIATION ONLY（用户 2026-09-19 授权；RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 已于 §3.60 收口）**
 
-修复两个真实闭环缺口后自动重新收口 TG-6 并恢复 RF-SRC-RTMP-02 COMPLETE：
-1. production 入口 mode selection（`src/bin/media-agent.rs` 在 `bootstrap::build()` 前选择 Network-only，直消费 production builder，单 Runtime owner，零设备副作用，零媒体自动启动，exposure 语义与 device production 一致）；
-2. TG-6 gate dispatch 重构（`src/bin/gates.rs` 的 `VBMF_FFMPEG_RTMP_SOURCE` 先于 common bootstrap 进入 Network-only gate，复用同一 builder；gate 内新增 D10 机械断言与 manifest 字节不变检查）；
-3. 同一新 implementation commit：Dev VM 矩阵 + CI 7/7 + BMD TG-6 全量重验（Tier 1 与 Tier 2 绑定同一 implementation SHA）；
-4. STATE 收口恢复 COMPLETE 并同步修正全部动态字段（Current Phase 头、cold-start 步 6/8、§4/§5/§5.1、handoff、verification level、Risks/Verification Debt）。
-Authority：frozen plan `docs/superpowers/plans/2026-09-19-rf-src-rtmp-02-production-rtmp-input-boundary.md`（D3/D10/D11 + INV-1/2/3）+ 本节。完成后进入 STANDALONE-ENTRY-01（用户 2026-09-19 授权的下一个 bounded planning/reconciliation packet）。
+先只读审计并冻结设计，不立即大规模实现。覆盖面（至少）：production startup mode/composition selection；Network-only / Device runtime 的 Authority 边界；service/process lifecycle；config + manifests；readiness / liveness；graceful shutdown；restart/recovery；BMD deployment exact-commit reconciliation；install / upgrade / rollback；persistent runtime directories / permissions；logs/evidence；startup failure behavior；Runtime truth 与 Web/Control Plane 后续接线边界。流程：live-tree audit → Authority reconciliation → bounded design → acceptance matrix → STATE 转 READY。保持 `compatible, not dependent` 与 `Runtime owns truth`；不建设 Web Console、Fastify SoR、SDK 或新 Runtime owner。设计冻结后若无 frozen Authority 冲突，直接实施第一个 bounded Standalone 子包，不再等待普通确认。
 
 ## 5. Next Task
 
-**Current = RF-SRC-RTMP-02-CLOSURE-RECONCILIATION（§3.59，ACTIVE）**：修复 production-root network-only 可达性 + TG-6 gate D10，随后在同一新 implementation commit 上重跑 CI 与 BMD TG-6（loopback 回归 + Tier 1 + Tier 2 + D7/D8 + D10 + teardown），再恢复 RF-SRC-RTMP-02 COMPLETE 并同步修正全部动态状态字段。
+**STANDALONE-ENTRY-01（见 §4）**：当前唯一授权 Work Packet（PLAN / RECONCILIATION ONLY）。完成 planning 并转 READY 后，按冻结的 acceptance matrix 依次实施 bounded Standalone 子包。
 
-Reconciliation 完成后（用户 2026-09-19 明确授权，不再另行确认）：进入 **STANDALONE-ENTRY-01 — PLAN / RECONCILIATION ONLY**（bounded planning packet：standalone 安装/配置/启动/运行/恢复/部署的 live-tree audit → Authority reconciliation → bounded design → acceptance matrix → STATE 转 READY；先只读审计冻结设计，不立即大规模实现；保持 `compatible, not dependent` 与 `Runtime owns truth`；不建设 Web Console/Fastify SoR/SDK/新 Runtime owner）。
+其余边界保持：RH-FLOW-01（DEFER-UNTIL-TOUCH）、RH-IDEM-01（DEFER-UNTIL-CONTROL-PLANE）、RF-SRC-01（SRT BLOCKED）、24h RSS stability（Verification Debt）。
 
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
@@ -1001,9 +1009,9 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RF-SRC-01** | **BLOCKED（§3.45·2026-09-18）** | SRT source boundary + FFmpeg runtime；BMD FFmpeg 无 SRT protocol，保持 blocker 记录，不替换协议冒充完成 | RF-FF-01A–01F + capability | 无代码；需有 SRT-capable runtime 才能继续；不以 RTMP 证据继承 |
 | **RF-SRC-RTMP-01** | **COMPLETE（§3.49·2026-09-19；ffd8889）** | 单协议单输入 RTMP source boundary + FFmpeg runtime/lifecycle；typed ownership/session、CI 与 BMD source recovery/teardown 已验收 | RF-FF slices + §3.47 | DeckLink wire compatibility；typed ownership；BMD loopback A/V；recovery/teardown；security redaction；7/7 CI；不得扩展其他协议/Network umbrella |
 | **RF-SRC-RTMP-01-IMPLEMENTATION** | **COMPLETE（§3.49·2026-09-19）** | typed source/resource/lease/session + materialize/preflight + FFmpeg RTMP argv + BMD source recovery/teardown 已完成 | RF-SRC-RTMP-01 design | exact commit `ffd8889`；software matrix PASS；BMD source evidence；CI `35407985671` 7/7；STATE/GitHub sync |
-| **RF-SRC-RTMP-02-IMPLEMENTATION** | **RECONCILIATION REQUIRED（§3.59·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition；`SourceIntent::Rtmp` wire 未变。TG-0~TG-5 接受；两个闭环缺口由 **RF-SRC-RTMP-02-CLOSURE-RECONCILIATION**（当前 ACTIVE Work Packet）修复：① production bin Network-only mode selection（先于 bootstrap::build()）② gate dispatch 先于 common bootstrap + D10 机械断言，随后同 commit 重验 TG-6 | RF-SRC-RTMP-02 design | TG-0 探针①②③；TG-1+reconciliation（`a29da14`）；TG-2 组合/五元组（`ae8a93d`）；TG-3 listener/stderr（`131aa52`）；TG-4 D7/D8（`11af233`）；TG-5 redaction（`b605284`）；TG-6 历史 Tier 1 + Tier 2 事实成立（`ee856d4`/`58fd33d`）但**严格 D10 进程级证据待重做**；收口条件 = 新 implementation commit CI 7/7 + BMD TG-6 重验（Tier1/Tier2 同 SHA）+ STATE 恢复 COMPLETE |
+| **RF-SRC-RTMP-02-IMPLEMENTATION** | **COMPLETE（TG-0…TG-6 + CLOSURE-RECONCILIATION 全 PASS·§3.52–§3.58 + §3.60·2026-09-19）** | Production RTMP listener admission：strict endpoint/manifest/machine-pin/local-address validation、bind authority、D7/D8 recovery、D9 redaction、D10 network-only composition（production root 可达 + gate 先于 bootstrap dispatch）；`SourceIntent::Rtmp` wire 未变 | RF-SRC-RTMP-02 design | TG-0 探针①②③；TG-1+reconciliation（`a29da14`）；TG-2 组合/五元组（`ae8a93d`）；TG-3 listener/stderr（`131aa52`）；TG-4 D7/D8（`11af233`）；TG-5 redaction（`b605284`）；TG-6 历史 Tier 1 + Tier 2（`ee856d4`/`58fd33d`·事实保留）；closure reconciliation `d13f1fd`（CI 7/7 + BMD TG-6R 严格 D10 进程级重验·Tier1/Tier2 同 SHA·证据+EVIDENCE-INDEX·device-2 未触碰） |
 | **RUNTIME-FEATURES-NEXT** | **SUPERSEDED BY RF-SRC-RTMP-02（§3.51·2026-09-19）** | 从 live evidence 重新冻结下一个 bounded Runtime Features packet | RF-SRC-RTMP-01 | 已由 RF-SRC-RTMP-02 design authority、scope、touch-gates、acceptance、verification 接替；不从 BACKLOG 越级 |
-| **STANDALONE-ENTRY-01** | **NEXT（用户 2026-09-19 授权；RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 完成后进入；PLAN / RECONCILIATION ONLY）** | Standalone 定位收敛：production startup mode/composition selection、Network-only/Device Authority 边界、service/process lifecycle、config+manifests、readiness/liveness、graceful shutdown、restart/recovery、BMD exact-commit 部署对账、install/upgrade/rollback、持久目录/权限、logs/evidence、启动失败行为、Runtime truth 与后续 Control Plane 接线边界——先只读 live-tree audit → Authority reconciliation → bounded design → acceptance matrix → STATE 转 READY | RF-SRC-RTMP-02 closure 完成 | 设计冻结不扩实现；保持 `compatible, not dependent` 与 `Runtime owns truth`；不建 Web Console/Fastify SoR/SDK/新 Runtime owner |
+| **STANDALONE-ENTRY-01** | **READY / CURRENT（用户 2026-09-19 授权；PLAN / RECONCILIATION ONLY）** | Standalone 定位收敛：production startup mode/composition selection、Network-only/Device Authority 边界、service/process lifecycle、config+manifests、readiness/liveness、graceful shutdown、restart/recovery、BMD exact-commit 部署对账、install/upgrade/rollback、持久目录/权限、logs/evidence、启动失败行为、Runtime truth 与后续 Control Plane 接线边界——先只读 live-tree audit → Authority reconciliation → bounded design → acceptance matrix → STATE 转实施 READY | RF-SRC-RTMP-02 closure 完成（§3.60） | 设计冻结不扩实现；保持 `compatible, not dependent` 与 `Runtime owns truth`；不建 Web Console/Fastify SoR/SDK/新 Runtime owner；设计冻结后无 frozen Authority 冲突即实施首个 bounded 子包 |
 | **STANDALONE** | **BACKLOG（umbrella；首个 bounded packet = STANDALONE-ENTRY-01）** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -1026,7 +1034,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker；RF-SRC-RTMP-01 两份 boundary plan；RF-SRC-RTMP-02 production boundary plan（含 §8 live-tree audit appendix + Implementation Invariants）；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / RUNTIME_BINDING_MODEL / MEDIA_BACKEND_CONTRACT §§1/1.1 P0-8/3/4。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 已完成；当前只允许进入 RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 的 bounded 修复面（production composition root mode selection + gate dispatch + TG-6 重验），不直接扩 Session/Resource/Lease owner、wire/GraphRuntimeIntent、其它 Network protocol、Program/Output 或 Network umbrella。
+Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.60/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker；RF-SRC-RTMP-01 两份 boundary plan；RF-SRC-RTMP-02 production boundary plan（含 §8 live-tree audit appendix + Implementation Invariants）+ closure reconciliation 报告；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / RUNTIME_BINDING_MODEL / MEDIA_BACKEND_CONTRACT §§1/1.1 P0-8/3/4。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01、RF-SRC-RTMP-02（含 closure）已完成；当前只允许进入 STANDALONE-ENTRY-01 的 planning/reconciliation 面（只读审计 + 设计冻结 + acceptance matrix），不得在 planning 阶段大规模实现或建设 Web Console/Fastify SoR/SDK/新 Runtime owner。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -1080,7 +1088,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；
 - RF-FF-01F exact `f868420…`：**BMD HARDWARE VERIFIED**；archive sha256 `3ae7c8a…cf63e`；manifest MD5 `7521d17e…43dd`；target `46:00000000:002e4500`；real child SIGTERM→canonical failure→Supervisor Recovered→new child→stop/close teardown，Released/Available/Lease NONE/monitor exited/orphan NONE；output device-number 2 untouched；evidence `evidence/bmd-10.30.15.10/2026-09-18-rf-ff-01f-recovery/`。
 - RF-FF-02 exact `a2715b3…`：**BMD HARDWARE VERIFIED**；archive sha256 `fd36c119…dab25`；manifest MD5 `7521d17e…43dd`；target `46:00000000:002e4500` / manifest device-number 0；HLS `index.m3u8` + `seg00000.ts` with h264/aac；old child `3400656` → new child `3400805`；Released/Available/Lease NONE/monitor exited/orphan NONE；output device-number 2 untouched；evidence `evidence/bmd-10.30.15.10/2026-09-18-rf-ff-02-ffmpeg-egress/`。
 - RF-FF-03 exact `c03976d61a2166b6bcd4260c17801567a9f90354`：**BMD HARDWARE VERIFIED**；archive sha256 `24e4b5abc7000e4ab962e2e68ba0f54275c56c00da2cae01d339a24426073007`；binary sha256 `2b8beacb…c7ecaa`；manifest MD5 `7521d17e…43dd`；target `46:00000000:002e4500` / device-number 0；loopback sender/receiver initial + recovery h264/aac；PID `3403465→3403611`；Released/Available/Lease NONE/monitor exited/orphan NONE；output device-number 2 untouched；evidence `evidence/bmd-10.30.15.10/2026-09-18-rf-ff-03-ffmpeg-rtmp-egress/`。
-- RF-SRC-RTMP-02 TG-6 Tier 1 + Tier 2（§3.58）：listener/A/V/归因恢复/teardown 事实对其 exact gate revisions（`ee856d4`/`58fd33d`）**HARDWARE VERIFIED**；但严格 D10"进程级零 DeviceLease/零 Device side effect"未满足（gate 先经 `bootstrap::build()`：discovery count=3 + 3 条占位租约）——D10 结论随 RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 在新 implementation commit 上重验（§3.59）。
+- RF-SRC-RTMP-02 closure reconciliation exact `d13f1fd…`：**COMPLETE / SOFTWARE + CI + BMD HARDWARE VERIFIED（严格 D10 进程级·§3.60）**；focused mode 6/6 + closure 3/3 + tg2 4/4 + rf_ff_01e 3/3；default 324/324；simulation 324/324；mock 536/536；ffmpeg-backend 359+1 ignored；clippy×3/fmt/check/architecture/remove-adapters/diff-check PASS；CI `35487255383` 7/7。BMD：archive `7f242a25…`；binary `3d784e2a…`；4 次 gate 运行 device 行=0；loopback/Tier 1（`LISTEN 10.30.15.10:19350` 显式 LAN）/Tier 2（`ESTAB ← 172.17.0.2` 独立 netns）全 PASS，含 D10 startup/teardown 机械断言与 manifest 字节不变；device-2 PID 992634 全程存活；零残留；UFW 已回收。
 - 后续涉及 DeckLink/GStreamer/FFmpeg/SRT/switch/timing/failover 的 Runtime 变更仍必须按任务范围重新做 BMD exact-commit verification。
 
 ### Stability
@@ -1120,7 +1128,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；
 6. **closed PR #31 / branch convergence**：PR #31 已随 2026-09-15 分支收敛关闭（head 分支已删）；它从来不是 canonical development Authority；未来若吸收 standalone product baseline，按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复任何分支。
 7. **historical local edit provenance**：旧 STATE 记录的另一 checkout 未提交 `DEPLOYMENT_AND_DEV_RUNTIME.md` 修改未出现在当前新 checkout；原工作区未重新取得前不可判定其去留。
 8. **runner 出网抖动 / codeload — MITIGATED + VERIFIED（2026-09-18）**：历史故障窗与失败证据继续保留；RH-BUS-02 收口期再次确定性复现 `codeload.github.com` Action archive HttpClient 100s×3 timeout，证明“失败后 rerun”不足。已升级为两层缓解：git checkout/fetch 继续使用 host system git proxy；Action setup 主路径改用 GitHub Runner 官方 `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE`，workflow external Actions 全 pin immutable SHA。三台 runner maintenance + probe 均通过：media `35247466755/35247550654`，general `vbmf-ci-01` probe `35248095276`、`vbmf-ci-02` probe `35248099277`（后者 direct mode 亦 cache 4/4 PASS）；current-tree required run `35248227420` **7/7 PASS**。loopback HTTP proxy 仅保留 cache maintenance/miss fallback；继续观察但不再是 Current Task blocker。
-9. **RF-SRC-RTMP-02 closure gaps（2026-09-19 登记，§3.59，修复进行中）**：① production bin 无 Network-only 启动模式选择（`MEDIA_AGENT_NETWORK_BINDING`/`build_ffmpeg_network_only_composition()` 仅 gate/tests 消费）② gate 根无条件 `bootstrap::build()` 使 TG-6 不得作为严格 D10 进程级证据。由 RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 修复；完成后本条关闭。
+9. **RF-SRC-RTMP-02 closure gaps — CLOSED（2026-09-19·§3.60）**：production bin Network-only 模式选择 + gate 先于 common bootstrap dispatch 已落地（`d13f1fd`）；BMD TG-6R 以严格 D10 进程级证据（4 次 gate 运行 device 行=0 + gate 内机械断言）重验通过。
 
 ### Current blockers
 
@@ -1141,7 +1149,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；
 - RF-FF-01E: **NONE / COMPLETE（§3.30）**。
 - RF-FF-01F: **NONE / COMPLETE（§3.31）**；post-01F adjudication **COMPLETE / single-input slice accepted（§3.32）**。
 - RF-FF-02: **NONE / COMPLETE（§3.34）**；当前无 implementation blocker，下一步回到 bounded packet selection。
-- RF-SRC-RTMP-02: **RECONCILIATION REQUIRED（§3.59）**——RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 修复中（production-root mode selection + gate dispatch + TG-6 重验）。
+- RF-SRC-RTMP-02: **NONE / COMPLETE（含 closure reconciliation·§3.60）**。
 
 ## 9. Verification Debt
 
@@ -1154,7 +1162,7 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；
 - RF-FF-01B BMD runtime smoke 已在 exact `4ad8135` 真实 FFmpeg 上验证但未触碰 DeckLink；RF-FF-01C exact `ffee3a0` 已完成 adapter-level DeckLink parity；RF-FF-01D exact `dd0eb8c` 已完成 GStreamer dual-input 10/10 regression；RF-FF-01E exact `96f8055` 已完成 production SessionManager→FFmpeg lifecycle hardware acceptance；RF-FF-01F exact `f868420` 已独立完成 real child termination→canonical failure→Supervisor recovery→new child→teardown evidence。
 - PR #31：已随分支收敛 CLOSED；若未来吸收 standalone product baseline，必须先按 closed PR #31 做 main-relative scope audit/reconciliation，不恢复 feature 分支 Authority。
 - RF-SRC-RTMP-02 deferred ingress risks（2026-09-19 冻结时登记，plan §3；TG-0 探针观察已并入·§3.52）：RTMP 握手超时（空闲/恶意半连接可长期占用唯一 listener slot）——TG-0 实证 RTMP `-timeout`（等待来连上限）存在，但 post-accept 握手/空闲连接超时选项**未观察到**、非法 publisher 占用唯一 `(protocol, ip, port)` listener、高流速 FFmpeg stderr 排空成本、进程退出顺序（kill/wait/reader join/socket 释放不得泄漏）。BMD FFmpeg 若无法提供对应控制**不阻塞**实现包，但 BMD 验收报告必须逐项标注（含"未观察到限制"也要显式记录）并留档于本节；主机防火墙仅为部署建议，绝不替代 VBMF 内部授权、不得如此上报。
-- RF-SRC-RTMP-02 D10 strict evidence（2026-09-19·§3.59）：TG-6 Tier 1/Tier 2 gate revisions（`ee856d4`/`58fd33d`）进程先执行 bootstrap Device discovery（count=3）+ 3 条占位 DeviceLease，"进程级零 DeviceLease/零 Device side effect"硬件证据必须在修复后的新 implementation commit 上重做；production-root network-only 可达性同批修复。
+- RF-SRC-RTMP-02 D10 strict evidence — **CLOSED（2026-09-19·§3.60）**：`d13f1fd` 上 4 次 gate 运行进程级零设备行为（0 行 discovery/lease/adapter/SDK probe）+ gate 内 D10 机械断言 + BMD TG-6R Tier 1/Tier 2 同 SHA 重验全 PASS。
 
 ## 10. Cold-Start Handoff
 
@@ -1165,9 +1173,9 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = RF-SRC-RTMP-02-CLOSURE-RECONCILIATION — ACTIVE（§3.59）** 对应 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5 + `docs/superpowers/plans/2026-09-19-rf-src-rtmp-02-production-rtmp-input-boundary.md`（含 Implementation Invariants）+ `docs/superpowers/plans/2026-09-19-runtime-features-next-candidate-review.md` + RF-SRC-RTMP-01 两份 plan/evidence + A2-1 SwitchPolicy design/verify + RF-FF-02/RF-FF-03 evidence + RH-CLOCK-01 report + RF-NORM-01 spec/Phase A/Phase B report + RF-MASTER-01 plan/report + RF-SRC-01 SRT blocker + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md §1–§4`；
+6. 读取 **Current Task = STANDALONE-ENTRY-01 — ACTIVE / PLAN + RECONCILIATION ONLY（§4·用户 2026-09-19 授权）** 对应 Authority：`.project/STATE.md` §3.31–§3.60/§4–§5 + `docs/superpowers/reports/2026-09-19-rf-src-rtmp-02-closure-reconciliation.md` + `docs/superpowers/plans/2026-09-19-rf-src-rtmp-02-production-rtmp-input-boundary.md` + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md` + 既有 deployment/ops 相关 Authority（审计对象）；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；RF-SRC-RTMP-02 因 closure 缺口 **RECONCILIATION REQUIRED（§3.59）**——当前唯一 ACTIVE Work Packet = RF-SRC-RTMP-02-CLOSURE-RECONCILIATION（production-root mode selection + TG-6 gate D10 + 同 commit 重验）；完成后按 §5 进入 STANDALONE-ENTRY-01（planning only）；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·严格 D10 进程级 BMD 重验）**；当前唯一 READY/CURRENT Work Packet = **STANDALONE-ENTRY-01（PLAN / RECONCILIATION ONLY）**；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -1184,6 +1192,6 @@ Current Task 专项 Authority：`.project/STATE.md` §3.31–§3.59/§4–§5；
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；RF-SRC-RTMP-02 **RECONCILIATION REQUIRED（§3.59）**——RF-SRC-RTMP-02-CLOSURE-RECONCILIATION 是当前唯一 ACTIVE Work Packet（production-root Network-only mode selection + TG-6 gate D10 修复 + 同 commit BMD 重验），完成后进入 STANDALONE-ENTRY-01（planning only）；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·含严格 D10 进程级 BMD 重验 @ `d13f1fd`）**；当前唯一 READY/CURRENT Work Packet = STANDALONE-ENTRY-01（PLAN / RECONCILIATION ONLY·§4/§5.1）；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。
