@@ -272,7 +272,9 @@ fn network_binding_manifest_body(
 
 /// Write the gate manifest into the process temp directory. The path is
 /// derived ONLY from the temp dir + process id + source id (no URL-derived
-/// component), written 0600 as the production loader requires.
+/// component), written 0600 as the production loader requires. The returned
+/// path is canonicalized and confinement-checked against the process temp
+/// dir BEFORE any consumer sees it (normalize + validate at the source).
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn write_gate_manifest_file(body: &[u8], source_id: uuid::Uuid) -> PathBuf {
     let path = std::env::temp_dir().join(format!(
@@ -286,12 +288,20 @@ fn write_gate_manifest_file(body: &[u8], source_id: uuid::Uuid) -> PathBuf {
         <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o600),
     )
     .unwrap_or_else(|e| fail(format!("chmod 0600 network binding manifest: {e}")));
-    path
+    let canonical = path
+        .canonicalize()
+        .unwrap_or_else(|e| fail(format!("resolve network binding manifest: {e}")));
+    if !canonical.starts_with(std::env::temp_dir()) {
+        fail("network binding manifest must stay inside the process temp directory");
+    }
+    canonical
 }
 
-/// Read the gate-owned binding manifest back with explicit confinement: the
-/// path is canonicalized and must stay inside the process temp directory
-/// (defense-in-depth on a gate-generated path; any escape fails closed).
+/// Read the gate-owned binding manifest back with explicit confinement. The
+/// only producer is [`write_gate_manifest_file`], which already returns a
+/// canonicalized, temp-dir-confined path; this helper re-validates anyway
+/// (defense in depth for any future caller): canonicalize + temp-dir prefix,
+/// any escape fails closed.
 #[cfg(all(feature = "bmd-provider", feature = "ffmpeg-backend"))]
 fn read_gate_binding_manifest(path: &Path) -> Vec<u8> {
     let canonical = path
@@ -339,11 +349,17 @@ fn run_rtmp_source() {
     {
         fail("VBMF_FFMPEG_RTMP_SOURCE_HLS_DIR must not contain '..' path components");
     }
+    // Lexical confinement BEFORE creation: an absolute, '..'-free path must
+    // already sit inside the process temp dir — the fixture cannot create
+    // directories anywhere else even before the canonical re-check runs.
+    if !hls_dir.starts_with(std::env::temp_dir()) {
+        fail("RTMP source HLS directory must stay inside the process temp directory");
+    }
     fs::create_dir_all(&hls_dir)
         .unwrap_or_else(|e| fail(format!("create RTMP source HLS directory: {e}")));
     // Confinement (defense-in-depth on the gate-owned fixture directory):
     // canonicalize after creation and require the process temp-dir prefix,
-    // so the fixture cannot be steered elsewhere by a path variant.
+    // so a symlinked path variant cannot steer the fixture outside.
     let hls_dir = hls_dir
         .canonicalize()
         .unwrap_or_else(|e| fail(format!("resolve RTMP source HLS directory: {e}")));
