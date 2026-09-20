@@ -62,8 +62,9 @@ cat > "$DEST/install-manifest.json" <<EOF
 EOF
 
 # 预留运行时目录（S7: 当前 Runtime 无持久状态；只建立并保持属主，不伪造用途）
+# /var/lib 归 root —— 经 sudo 建立（目标主机现实：BMD 免密 sudo；无 sudo 主机可预建目录）
 if [ ! -d /var/lib/vbmf ]; then
-  mkdir -p /var/lib/vbmf
+  sudo mkdir -p /var/lib/vbmf
 fi
 
 # 原子切换 current（tmp symlink + rename；读侧任一时刻看到完整旧或新版本）
