@@ -1,0 +1,16 @@
+{"id":30,"jsonrpc":"2.0","result":{"classification":null,"command_id":"3f8f24d6-6fd9-5eb2-bf2f-4e5bfaea2b3a","detail":null,"kind":"start_session","status":{"sta
+SID=28584e51fced4b41aae980a945406c0d
+=== explicit stop_session:
+{"id":32,"jsonrpc":"2.0","result":{"classification":null,"command_id":"de235caa-1b98-53dc-9174-69feb7563f30","detail":null,"kind":"stop_session","status":{"status":"executed"}}}
+=== actual state after command stop:
+sessions= [('released', 'released')] resource= available
+LISTENER_RELEASED_AFTER_COMMAND_STOP
+=== re-start after release:
+{"id":34,"jsonrpc":"2.0","result":{"classification":null,"command_id":"c24f82c7-679d-51fa-ae8a-74e994475054","detail":null,"kind":"start_session","status":{"sta
+sessions= [('running', 'running'), ('released', 'released')] resource= allocated
+=== release_session (full teardown):
+{"id":37,"jsonrpc":"2.0","result":{"classification":"permanent","command_id":"30037dc1-f0dd-5f66-8df4-7f68c9c53590","detail":"invalid transition: close 仅接受 Released/Terminated/失败终态, 实际 Running (活动会话请先 stop, 防 pipeline 孤儿)","kind":"release_session","status":{"status":"executed"}}}
+sessions= [('running', 'running'), ('released', 'released')] resource= allocated
+graceful_complete_lines=3
+NO_LISTENER_RESIDUE_FINAL
+992634

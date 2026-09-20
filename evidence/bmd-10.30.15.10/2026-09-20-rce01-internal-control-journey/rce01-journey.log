@@ -1,0 +1,13 @@
+=== 1. baseline runtime.query:
+{"id":1,"jsonrpc":"2.0","result":{"capabilities":[],"devices":[],"generated_at_ms":1789945287601,"observation_lineage":"6219d857-32b6-4e55-99cf-12a8b28619ad","observation_revision":1,"ports":[],"program_switch":null,"resources":[{"device_id":"00000000-0000-0000-0000-000000000000","id":"8c66fc16-f59d-5d2d-810d-30c9be0365b8","state":"available"}],"sessions":[]}}
+
+=== 2. command.dispatch start_session (authorized rtmp source):
+{"id":2,"jsonrpc":"2.0","result":{"classification":null,"command_id":"fc8449d9-1efc-5b04-a36a-d352621eb345","detail":null,"kind":"start_session","status":{"status":"executed"}}}
+=== 3. runtime.query after start (actual state):
+{"sessions": [{"id": "session-cf7535d5aa674fb09be1a797bde065b6", "inputs": [{"handle": 1, "id": "00000000-0000-0000-0000-000000000000"}], "outputs": [], "phase": "running", "state": "running"}], "resources": [{"device_id": "00000000-0000-0000-0000-000000000000", "id": "8c66fc16-f59d-5d2d-810d-30c9be0365b8", "state": "allocated"}]}
+=== 4. listener evidence:
+LISTEN 0      1          127.0.0.1:19351      0.0.0.0:*    users:(("ffmpeg",pid=3517788,fd=3))          
+=== 5. agent.health (two-plane red line):
+{"id":4,"jsonrpc":"2.0","result":{"active_pipelines":0,"clock_lost_events":0,"devices":0,"dropped_bus_events":0,"state":"Ready"}}
+=== 6. replay same command (idempotent):
+{"id":5,"jsonrpc":"2.0","result":{"classification":null,"command_id":"fc8449d9-1efc-5b04-a36a-d352621eb345","detail":null,"kind":"start_session","status":{"status":"replayed"}}}

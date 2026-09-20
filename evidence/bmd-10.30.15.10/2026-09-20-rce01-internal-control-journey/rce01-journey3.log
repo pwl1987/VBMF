@@ -1,0 +1,18 @@
+=== A. start session:
+{"id":20,"jsonrpc":"2.0","result":{"classification":null,"command_id":"463039e3-7c7d-5bdc-a07c-1a937cbb875b","detail":null,"kind":"start_session","status":{"status":"executed"}}}
+
+SID=
+=== B. explicit stop_session command:
+{"error":{"code":-32602,"message":"invalid params: invalid_session_id:  (须 canonical UUID)"},"id":22,"jsonrpc":"2.0"}
+=== C. actual state after command stop:
+sessions= [('running', 'running')] resource= allocated
+LISTEN 0      1          127.0.0.1:19351      0.0.0.0:*   
+=== D. re-start after release (must succeed now):
+{"id":24,"jsonrpc":"2.0","result":{"classification":"retryable","command_id":"21f9f055-b016-562e-bca1-2ea37a86e809","detail":"preflight FAIL: PreflightReport { stages: [StageOutcome { stage: Graph, le
+sessions= [('running', 'running')] resource= allocated
+=== E. final service stop (drain) + state:
+Sep 21 07:01:57 lytv media-agent[3517970]: 2026-09-20T23:01:57.556143Z  INFO media_agent: graceful shutdown: network sessions drained count=1
+Sep 21 07:01:57 lytv media-agent[3517970]: 2026-09-20T23:01:57.556151Z  INFO media_agent: graceful shutdown complete (exit 0)
+Result=success ExecMainStatus=0 
+NO_LISTENER_RESIDUE_FINAL
+992634

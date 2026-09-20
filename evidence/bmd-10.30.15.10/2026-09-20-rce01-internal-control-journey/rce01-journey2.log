@@ -1,0 +1,24 @@
+  File "<string>", line 1
+    import json,sys; d=json.load(sys.stdin); ss=d[''result''][''sessions'']; print(ss[0][''id''].replace(''session-'','''') if ss else '''')
+                                                                                                                                          ^
+SyntaxError: unterminated string literal (detected at line 1)
+SID=
+=== 7. stop_session:
+{"error":{"code":-32602,"message":"invalid params: invalid_session_id:  (须 canonical UUID)"},"id":11,"jsonrpc":"2.0"}
+=== 8. runtime.query after stop:
+{"sessions": [{"id": "session-cf7535d5aa674fb09be1a797bde065b6", "inputs": [{"handle": 1, "id": "00000000-0000-0000-0000-000000000000"}], "outputs": [], "phase": "running", "state": "running"}], "resource": "allocated"}
+LISTEN 0      1          127.0.0.1:19351      0.0.0.0:*    users:(("ffmpeg",pid=3517788,fd=3))          
+=== 9. restart session for SIGTERM-drain leg:
+{"id":13,"jsonrpc":"2.0","result":{"classification":"retryable","command_id":"89aef441-df70-5237-9df6-291c5268d12c","detail":"preflight FAIL: PreflightReport { stages: [StageOutcome { stage: Graph, level: Pass, detail: \"1 source reference(s) are structurally resolvable\" }, StageOutcome { stage: PortAvailability, level: Warn, detail: \"无 PortRegistry (无 manifest 路径); 端口可用性延后到运行期判定\" }, StageOutcome { stage: ResourceCapacity, level: Fail, detail: \"8c66fc16-f59d-5d2d-810d-30c9be0365b8: resource not acquirable: resource rtmp-input-643827b2-d89a-524b-a47a-370e2911217c is Allocated\" }, StageOutcome { stage: LeaseConflict, level: Fail, detail: \"source key 已被租约持有: [\\\"network source 643827b2-d89a-524b-a47a-370e2911217c\\\"]\" }, StageOutcome { stage: IdentityBinding, level: Pass, detail: \"1 network source(s) authorized by exact five-tuple admission\" }, StageOutcome { stage: BackendCapability, level: Pass, detail: \"目标设备输入能力全部 Supported\" }, StageOutcome { stage: Topology, level: Warn, detail: \"拓扑影响判定 0.7B+ 提供 (report-only 占位)\" }, StageOutcome { stage: Risk, level: Warn, detail: \"风险/影响面判定 0.7B+ 提供 (report-only 占位)\" }], verdict: Fail }","kind":"start_session","status":{"status":"executed"}}}
+sessions_running= 1
+=== 10. SIGTERM with live session:
+Result=success NRestarts=0 ExecMainStatus=0 
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.399830Z  INFO media_agent::shutdown: graceful shutdown: session stopped session=cf7535d5-aa67-4fb0-9be1-a797bde065b6
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.399849Z  INFO media_agent: graceful shutdown: network sessions drained count=1
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.399856Z  INFO media_agent: graceful shutdown complete (exit 0)
+=== 11. residue + boundaries:
+NO_LISTENER_RESIDUE
+992634
+artifacts evidence logs repo runtime 
+NO_STAGING_RESIDUE
+inactive

@@ -1,0 +1,25 @@
+{
+  "lane": "standalone",
+  "version_tag": "0.1.0-06bc01a",
+  "git_commit_sha": "06bc01afaf45808dc1b4d72e40c306ae08f8c351",
+  "archive_sha256": "0cdfa946aaac2d8633a2289838dc633a885c261cc57ef5a368cfc11e2dc6f3cc",
+  "media_agent_sha256": "172f46ace42a85070af96a91a9a788141cae643d8a4e74f923a4a5c02549f571",
+  "media_agent_gates_sha256": "490463b89744a576547eb061137c56133753c098f0f7bcd0d59f0eb495a3b6e5",
+  "features": "bmd,ffmpeg-backend",
+  "ci_run_id": "35543068464",
+  "var_lib_path": "/var/lib/vbmf",
+  "var_lib_owner_mode": "root:root 755",
+  "installed_at_utc": "2026-09-20T23:00:33Z"
+}
+Sep 21 07:01:18 lytv media-agent[3517711]: 2026-09-20T23:01:18.318890Z  INFO media_agent: internal runtime control listening (network-only; /internal/v1/agent; localhost-only 纪律, 见用户 §二十二) bind=127.0.0.1:50051
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.397874Z  INFO media_agent: graceful shutdown signal received; draining network sessions cause=Terminated
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.399830Z  INFO media_agent::shutdown: graceful shutdown: session stopped session=cf7535d5-aa67-4fb0-9be1-a797bde065b6
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.399849Z  INFO media_agent: graceful shutdown: network sessions drained count=1
+Sep 21 07:01:39 lytv media-agent[3517711]: 2026-09-20T23:01:39.399856Z  INFO media_agent: graceful shutdown complete (exit 0)
+Sep 21 07:01:56 lytv media-agent[3517970]: 2026-09-20T23:01:56.388785Z  INFO media_agent: internal runtime control listening (network-only; /internal/v1/agent; localhost-only 纪律, 见用户 §二十二) bind=127.0.0.1:50051
+Sep 21 07:01:57 lytv media-agent[3517970]: 2026-09-20T23:01:57.554397Z  INFO media_agent: graceful shutdown signal received; draining network sessions cause=Terminated
+Sep 21 07:01:57 lytv media-agent[3517970]: 2026-09-20T23:01:57.556121Z  INFO media_agent::shutdown: graceful shutdown: session stopped session=a34b9da4-9710-411d-a5a3-f4a79e949b54
+Sep 21 07:01:57 lytv media-agent[3517970]: 2026-09-20T23:01:57.556143Z  INFO media_agent: graceful shutdown: network sessions drained count=1
+Sep 21 07:01:57 lytv media-agent[3517970]: 2026-09-20T23:01:57.556151Z  INFO media_agent: graceful shutdown complete (exit 0)
+Sep 21 07:02:10 lytv media-agent[3518082]: 2026-09-20T23:02:10.680045Z  INFO media_agent: internal runtime control listening (network-only; /internal/v1/agent; localhost-only 纪律, 见用户 §二十二) bind=127.0.0.1:50051
+Sep 21 07:02:11 lytv media-agent[3518082]: 2026-09-20T23:02:11.896152Z  INFO media_agent: graceful shutdown signal received; draining network sessions cause=Terminated
