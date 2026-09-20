@@ -69,6 +69,7 @@ pub mod rpc;
 pub mod runtime_query; // P0.7C-2: Runtime Query Model (Pure Read / Snapshot Semantics)
 pub mod runtime_state; // 0.7C-1: Canonical Runtime State 聚合 (组合非展开; D14 观察信封)
 pub mod session; // P0-7A: MediaSession + SessionManager (RUNTIME_SESSION_MODEL 唯一 owner; D10 多输入)
+pub mod shutdown; // SE-01A (STANDALONE-ENTRY-01 S3/S4): standalone graceful shutdown (self-pipe 信号 + 有序 drain)
 pub mod signal; // 信号探测 + 亮度黑场检测
 pub mod source; // RF-SRC-RTMP-01: typed Device/Network source identity boundary
 pub mod supervisor; // Gate 6/7: Runtime Supervisor — 恢复决策引擎（只决策, 不碰 GStreamer）

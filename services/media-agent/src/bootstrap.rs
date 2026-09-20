@@ -130,7 +130,10 @@ pub fn build() -> BootstrapContext {
     }
     tracing::info!(watched = devices.len(), "supervisor initialized");
 
-    let agent_state = Arc::new(std::sync::Mutex::new(AgentState::Ready));
+    // SE-01A (S4 readiness): 进程自构造起为 Starting；消费方（组合根装配完成）
+    // 置 Ready——/health 不再在装配完成前虚报 Ready。诊断路径在会话启动后
+    // 进一步置 Capturing（既有语义不变）。
+    let agent_state = Arc::new(std::sync::Mutex::new(AgentState::Starting));
 
     BootstrapContext {
         config,

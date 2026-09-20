@@ -24,13 +24,26 @@ use uuid::Uuid;
 fn main() {
     tracing_subscriber::fmt::init();
 
+    // SE-01A (STANDALONE-ENTRY-01 S3): 优雅关闭信号安装——SIGTERM/SIGINT 有序
+    // 停止（SessionManager 唯一 owner 逆序 drain），SIGHUP 捕获但无操作 warn
+    // （manifests startup-only, frozen D3），第一个终止信号后恢复默认处置
+    // （第二次信号 = 运维逃生门）。安装失败 fail-closed 拒启：无信号保护的
+    // 常驻进程不满足 standalone 语义。安装先于模式选择——任何启动路径都
+    // 不允许以无信号保护的形态常驻。
+    let shutdown = media_agent::shutdown::GracefulShutdown::install().unwrap_or_else(|e| {
+        eprintln!("graceful shutdown signal installation failed closed: {e}");
+        std::process::exit(2);
+    });
+
     // RF-SRC-RTMP-02 closure（frozen D10/D11）: 生产组合模式选择必须先于
     // bootstrap::build()——`MEDIA_AGENT_NETWORK_BINDING` 显式选择 Network-only
     // 平面时，进程绝不进入 Device provider discovery / bootstrap 占位
     // DeviceLease / DeckLink 路径；两个 binding 同时出现 = 歧义 fail-closed。
     match bootstrap::select_startup_composition_mode() {
         Ok(bootstrap::StartupCompositionMode::Device) => {}
-        Ok(bootstrap::StartupCompositionMode::NetworkOnly { .. }) => run_network_only_runtime(),
+        Ok(bootstrap::StartupCompositionMode::NetworkOnly { .. }) => {
+            run_network_only_runtime(shutdown)
+        }
         Err(e) => {
             eprintln!("startup composition mode selection failed closed: {e}");
             std::process::exit(2);
@@ -681,6 +694,16 @@ fn main() {
         }
     }
 
+    // SE-01A (S4 readiness): bmd-provider 装配块结束后，仍是 Starting 的路径
+    // （Production/default——组合根构造完毕、transport 即将上线）在此转 Ready；
+    // 诊断路径已在会话启动后置 Capturing，不受影响。
+    if matches!(
+        *agent_state.lock().unwrap(),
+        media_agent::health::AgentState::Starting
+    ) {
+        *agent_state.lock().unwrap() = media_agent::health::AgentState::Ready;
+    }
+
     // P0.7C-8: Transport 上下文 (Query/Command 持 Option: 生产路径 mgr 仅组合不暴露
     // 查询面 → 503 契约保持诚实——0.7C-8 语义不变, 02-I P0-1 只补组合根构造);
     // events/agent_state/device_count 全路径可用)。/health 响应体经 transport::route 保持
@@ -726,10 +749,23 @@ fn main() {
     tracing::info!(
         "media-agent canonical runtime loaded; media lifecycle remains Session/MediaBackend owned"
     );
-    // 常驻以便 health 探测 (Gate 2.4 演示); 生产由 supervisor 管理生命周期.
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(3600));
+
+    // SE-01A (S3): 常驻等待终止信号（替代裸 sleep 循环）——SIGTERM/SIGINT 到达
+    // 即经 SessionManager 唯一 owner 逆序 drain 活跃会话后 exit 0；SIGHUP 仅
+    // warn（startup-only，无热加载）；第二次终止信号已恢复默认处置（逃生门）。
+    // 注意：信号在装配期到达同样安全——handler 只写 self-pipe，main 抵达
+    // wait() 时消费积压字节后照常走 drain 路径。
+    let cause = shutdown.wait();
+    tracing::info!(
+        ?cause,
+        "graceful shutdown signal received; draining sessions"
+    );
+    if let Some(manager) = api_mgr.as_ref() {
+        let stopped = media_agent::shutdown::stop_all_sessions(manager);
+        tracing::info!(count = stopped.len(), "graceful shutdown: sessions drained");
     }
+    tracing::info!("graceful shutdown complete");
+    std::process::exit(0);
 }
 
 /// RF-SRC-RTMP-02 closure: Network-only production runtime（frozen D10/D11）。
@@ -745,21 +781,27 @@ fn main() {
 /// 保持 Production 既有语义：零媒体自动启动，等待显式 Runtime command；
 /// exposure 与 Device production 一致（query/command/idempotency/switch 面
 /// 保持 None ⇒ 503 契约诚实，Control Plane 接线属后续独立 packet）。
+///
+/// SE-01A (S3/S4)：`Starting` 在组合构造前置位、构造完成后转 `Ready`
+/// （readiness 语义）；常驻等待终止信号，SIGTERM/SIGINT 经 SessionManager
+/// 逆序 drain 网络会话（RecoveryMonitor join / FFmpeg listener 回收随既有
+/// stop 链执行）后 exit 0。
 #[cfg(feature = "ffmpeg-backend")]
-fn run_network_only_runtime() -> ! {
+fn run_network_only_runtime(shutdown: media_agent::shutdown::GracefulShutdown) -> ! {
     use std::sync::{Arc, Mutex};
 
+    let agent_state = Arc::new(Mutex::new(media_agent::health::AgentState::Starting));
     let composition = media_agent::bootstrap::build_ffmpeg_network_only_composition()
         .unwrap_or_else(|e| {
             eprintln!("network-only production composition failed closed: {e}");
             std::process::exit(2);
         });
     let authorized_sources = composition.binding.authorized_sources().len();
-    let agent_state = Arc::new(Mutex::new(media_agent::health::AgentState::Ready));
     tracing::info!(
         authorized_sources,
         "network-only production composition ready: NetworkSourceBinding → Network Resources → SessionManager → FFmpeg MediaBackend (no device discovery, no device binding manifest, no device leases, no DeckLink, zero media started)"
     );
+    *agent_state.lock().unwrap() = media_agent::health::AgentState::Ready;
 
     // 与 Device production 一致的常驻语义: tick 线程只做 lease 房务
     // （续期/预留过期），零媒体启动——等待显式 Runtime command。
@@ -798,13 +840,27 @@ fn run_network_only_runtime() -> ! {
     tracing::info!(
         "media-agent network-only runtime loaded; media lifecycle remains Session/MediaBackend owned"
     );
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(3600));
-    }
+
+    // SE-01A (S3): 阻塞等待终止信号（SIGHUP 仅 warn）；收到后经唯一 owner
+    // 逆序 drain 网络会话（RecoveryMonitor join / FFmpeg listener 随 stop 链
+    // 回收）再 exit 0——SIGTERM 不再孤儿化 listener 子进程。
+    let cause = shutdown.wait();
+    tracing::info!(
+        ?cause,
+        "graceful shutdown signal received; draining network sessions"
+    );
+    let stopped = media_agent::shutdown::stop_all_sessions(&composition.manager);
+    tracing::info!(
+        count = stopped.len(),
+        "graceful shutdown: network sessions drained"
+    );
+    tracing::info!("graceful shutdown complete (exit 0)");
+    std::process::exit(0);
 }
 
 #[cfg(not(feature = "ffmpeg-backend"))]
-fn run_network_only_runtime() -> ! {
+fn run_network_only_runtime(shutdown: media_agent::shutdown::GracefulShutdown) -> ! {
+    drop(shutdown);
     eprintln!(
         "network-only startup requires an ffmpeg-backend build (fail-closed); \
          unset MEDIA_AGENT_NETWORK_BINDING or build with --features ffmpeg-backend"
