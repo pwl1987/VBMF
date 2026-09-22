@@ -80,7 +80,7 @@
 | `MEDIA_AGENT_NETWORK_BINDING` | `bootstrap.rs` 模式选择 + `build_ffmpeg_network_only_composition` | NetworkSourceBinding manifest 路径；显式选择 Network-only 组合根（先于一切 Device 构造） | 无 | **是（Network-only 必需）** | 缺失→Device 模式；与 DEVICE_BINDING/diagnostic/selftest 组合→exit 2；manifest 无效（权限/owner/machine-pin/大小）→exit 2 | **是**（startup-only，无 watch/reload） |
 | `MEDIA_AGENT_DEVICE_BINDING` | `bootstrap.rs`/`resolver.rs` | DeviceBindingManifest 路径；Device 生产绑定唯一权威 | 无 | **是（Device 生产必需；缺失即 fail-closed，无盲猜回退）** | 生产缺失/无效→构造拒绝 exit 2；仅 `MEDIA_AGENT_MODE=diagnostic` 允许回退 legacy auto-resolver | 是 |
 | `MEDIA_AGENT_HEALTH_BIND` | bin health 线程 | `/health` 监听地址 | `127.0.0.1:8080` | 是（限内网/UDS；公网暴露禁止） | 缺失→默认；bind 失败→error 日志、进程继续（§1 披露） | 是 |
-| `MEDIA_AGENT_RPC_BIND` | `config.rs` → bin internal control 线程（RCE-01A 起已接线） | internal Runtime Control `/internal/v1/agent` JSON-RPC 监听（§6；须 localhost/UDS） | `127.0.0.1:50051` | 是（仅生产组合根启动该面；诊断路径不启动） | bind 失败→error 日志、进程继续（与 health bind 同语义）；`0.0.0.0`/`::` → 启动告警（P1-2 校验） | 是 |
+| `MEDIA_AGENT_RPC_BIND` | `config.rs` → bin internal control 线程（RCE-01A 起已接线；canonical 名经 RCE plan D3-R 裁定） | internal Runtime Control `/internal/v1/agent` JSON-RPC 监听（§6；exposure 政策 = §6 R-a..R-d 四规则） | `127.0.0.1:50051` | 是（仅生产组合根启动该面；诊断路径不启动） | bind 失败→error 日志、进程继续（与 health bind 同语义）；宿主进程 `0.0.0.0`/`::` → 启动告警（禁止暴露公网；fail-closed 升级 = CP 阶段 hardening 候选） | 是 |
 | `MEDIA_AGENT_DEVICE_ALLOWLIST` | `config.rs` | 设备节点 allowlist（逗号分隔） | `["/dev/blackmagic"]` | 是 | 缺失→默认；空串过滤后为空列表 | 是 |
 | `MEDIA_AGENT_LEASE_TTL_SECS` | `config.rs`→LeaseManager | 默认租约 TTL | 300 | 是 | 非法→回退默认（fail-soft） | 是 |
 | `MEDIA_AGENT_LEASE_RENEW_SECS` | `config.rs` | 续约窗口 | 30 | 是 | 非法→回退默认 | 是 |
@@ -148,8 +148,13 @@
 > 本节为 as-is 实现记录；`EXTERNAL_API_CONTRACT.md` / `TECHNOLOGY_STACK_AND_RUNTIME_OWNERSHIP.md` 零修改。
 
 - **面与命名空间**: `POST /internal/v1/agent`，JSON-RPC 2.0 envelope（`jsonrpc/method/params/id`）。
-  生产组合根（Device / Network-only）启动时经 `MEDIA_AGENT_RPC_BIND` 监听（默认 `127.0.0.1:50051` 回环；
-  localhost/UDS 纪律，见 §4.1 行与用户 §二十二 P1-2）。诊断路径不启动本面。
+  生产组合根（Device / Network-only）启动时经 `MEDIA_AGENT_RPC_BIND` 监听（默认 `127.0.0.1:50051` 回环）。
+  诊断路径不启动本面。**exposure policy（RCE plan D3-R·2026-09-21，替代模糊"localhost-only"）**：
+  R-a 默认回环 = canonical standalone 形态；R-b 显式私有地址 bind = 允许的显式运维动作（该面无认证，
+  网络隔离归运维：host firewall/VPN/内网分段）；R-c 宿主进程 `0.0.0.0`/`::` 禁止暴露公网（现 = 启动告警，
+  fail-closed 升级为 CP 阶段 hardening 候选）；R-d 本面绝不直接公网、不经 Nginx 对普通客户端路由、
+  不是 Product API。full-stack 容器形态规则（R-e/R-f：私网 service network / 禁 host port publish /
+  禁 Nginx internal 路由 / 跨主机须私网+mTLS）见 RCE plan D3-R 与 Deployment SoT §11。
 - **四方法封闭词表**: `runtime.query` / `command.dispatch` / `events.projection` / `agent.health`。
   未知 method → JSON-RPC error `-32601`（附词表）；缺 method/参数形状错 → `-32602`；`jsonrpc` 版本错 → `-32600`；
   非 JSON → HTTP 400；组合根未装配 → HTTP 503（诚实契约延续）。

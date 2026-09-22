@@ -86,12 +86,30 @@
 
 - **D1 命名空间/面隔离**：internal control = `/internal/v1/agent`（HTTP POST，JSON-RPC 2.0 envelope：`jsonrpc/"2.0"`、`method`、`params`、`id`）；prototype `/api/v1/*` 五端点与 `/health` 行为零变化；未知 method ⇒ JSON-RPC error `-32601`；形状错误 ⇒ `-32602`；面未装配（生产前）⇒ HTTP 503（诚实契约延续）。
 - **D2 方法集（封闭）**：`runtime.query` / `command.dispatch` / `events.projection` / `agent.health`（四方法；词表快照测试锁定，新方法须过架构评审）。
-- **D3 绑定与暴露**：新 listener `MEDIA_AGENT_CONTROL_BIND`，默认 `127.0.0.1:8081`（回环；与 health_bind 同纪律——不裸露公网，生产内网暴露经反向代理+认证，用户 §二十二 P1）。**写入口默认仅回环**；`MEDIA_AGENT_RPC_BIND` UNWIRED 登记维持（不同键，不复活）。
+- **D3 绑定与暴露**：~~新 listener `MEDIA_AGENT_CONTROL_BIND`，默认 `127.0.0.1:8081`；`MEDIA_AGENT_RPC_BIND` UNWIRED 登记维持~~ **→ 已由 D3-R reconciliation amendment 修正（见 §3 末），canonical = `MEDIA_AGENT_RPC_BIND` / `127.0.0.1:50051`**。原 D3 文本保留于此作为漂移记录：新 listener `MEDIA_AGENT_CONTROL_BIND`，默认 `127.0.0.1:8081`（回环；与 health_bind 同纪律——不裸露公网，生产内网暴露经反向代理+认证，用户 §二十二 P1）。写入口默认仅回环；`MEDIA_AGENT_RPC_BIND` UNWIRED 登记维持（不同键，不复活）。
 - **D4 生产接线**：Device production 与 Network-only production 两组合根均构造 internal 面（mgr 常驻 tick 循环保留；P1-3 "等待显式 Intent" 由本面承接——session 的创建/启动仅经 `command.dispatch`）；`api_mgr` 仍不设（prototype `/api/v1/*` 生产 503 不变）。零媒体自动启动红线不变。
 - **D5 幂等/错误模型**：`command.dispatch` 参数 = `ApiCommandRequest`（复用）；响应 = `ApiCommandResponse`（Executed/Replayed/Conflict/Rejected 四出口 + classification）；错误体走 api_boundary 既有映射，无 `ApiResponse<T>` 万能包装（0.7C-7 禁项维持）。
 - **D6 事件面**：`events.projection` = drain+project（内存），语义同现行 `GET /api/v1/events/projection`；不建 External 投递（Fastify 职责）。
 - **D7 关停语义**：internal listener 线程为 daemon 性质（不 join 阻塞退出）；SIGTERM drain 顺序不变（SessionManager 唯一 owner；SE-01A 契约零变化）。
 - **D8 文档面**：`STANDALONE_MEDIA_AGENT_OPERATIONS.md` 增补 internal control 面一节（endpoints/绑定/退出码语义引用）；EXTERNAL_API_CONTRACT / TECHNOLOGY_STACK **零修改**（IMPLEMENTATION_STATUS 状态词按 DOCUMENT_STATUS_MODEL 属各文档自身维护策略，不在本包擅动）。
+
+### D3-R — D3 Reconciliation Amendment（RCE-D3-BIND-RECONCILIATION·2026-09-21）
+
+**性质**：planning→implementation 之间**未记录的命名漂移**修正（非设计变更）。RCE-01A 实施（`06bc01a`）与 RCE-01B BMD 12/12 验证实际采用下述形态；原 D3 的 `MEDIA_AGENT_CONTROL_BIND`/`8081` 从未进入任何代码。按"不回退已验证实现、不做双配置 Authority"裁定如下（经核对 EXTERNAL_API_CONTRACT / TECHNOLOGY_STACK / DEPLOYMENT_AND_DEV_RUNTIME / STANDALONE_MEDIA_AGENT_OPERATIONS / config.rs / internal_control.rs / bin/media-agent.rs / RCE focused tests / RCE-01B evidence——**零 frozen Architecture/Contract 修改，无 stop condition**）：
+
+1. **canonical bind 配置名 = `MEDIA_AGENT_RPC_BIND`**（`config.rs` 既有字段；单一配置 Authority；`MEDIA_AGENT_CONTROL_BIND` 永不创建）。
+2. **canonical default = `127.0.0.1:50051`**（standalone lane 本机 control entry；BMD 实证）。
+3. **standalone lane exposure policy（显式四规则，替代模糊"localhost-only"）**：
+   - R-a 默认回环 `127.0.0.1:50051` = canonical standalone 形态（operator/control client 同机）。
+   - R-b **显式私有地址 bind（LAN/内网）= 允许的显式运维动作**（同网段控制面/排障；该面**无认证**——Rust 不拥有 Auth，运维须自担网络隔离：host firewall / VPN / 内网分段）。
+   - R-c 通配 `0.0.0.0`/`::` 于**宿主机进程形态 = 禁止暴露公网**（现实现 = 启动告警 `rpc_bind_security_warnings`；升级 fail-closed 登记为 CONTROL-PLANE 阶段 hardening 候选，本包零行为变化）；UDS 为允许形态但 TCP-only 实现下未支持（§3.69 已登记缝隙）。
+   - R-d 该面绝不直接公网；不经 Nginx 对普通客户端路由；`/internal/v1/agent` 不是 Product API。
+4. **full-stack lane Fastify ↔ Media-Agent transport policy**：
+   - 唯一通道 = JSON-RPC `/internal/v1/agent` over **dedicated compose private service network**（frozen Deployment SoT "React → Fastify → JSON-RPC → Media Agent"；两容器不同 netns，宿主 127.0.0.1-only 政策不适用于容器间）。
+   - media-agent 容器**容器内**绑定 service-network 可达地址（容器 netns 内 `0.0.0.0:50051` 为可接受形态——仅私网可达，受 R-e 约束）。
+   - R-e **host port publish 50051 = 禁止**（frozen compose 现状即无 media-agent ports 映射，维持）；**Nginx 禁止新增 `/internal/*` 公网路由**（frozen 路由表 /api /ops /admin /ws /events 无 internal，维持）。
+   - R-f 跨主机（Agent 与 Fastify 不同机）：明文公网禁止；须经私有网络（VPN/专线）+ mTLS（EXTERNAL_API_CONTRACT §6 #110 既有冻结允许的加密通道形态）；具体部署 Authority 属 CONTROL-PLANE 阶段，不在本包实现。
+   - Runtime 唯一 truth 不变：Fastify 只 command + observe（F1–F12 / 本 plan R6）。
 
 ## 4. Failure-first matrix（首个实现子包必须覆盖）
 

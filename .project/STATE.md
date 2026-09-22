@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；STANDALONE-ENTRY-01 全链 COMPLETE（SE-01A/SE-01C/SE-01D/SE-01B·§3.62–§3.65 + SE-01B-FIX reconciliation 收口·§3.66–§3.67）；RUNTIME-CONTROL-ENTRY-01 全链 COMPLETE（§3.68–§3.70·internal `/internal/v1/agent` JSON-RPC + BMD 真实命令旅程）；当前无 READY Work Packet（待协调者按依赖序裁度 CONTROL-PLANE 拆包）**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；STANDALONE-ENTRY-01 全链 COMPLETE（SE-01A/SE-01C/SE-01D/SE-01B·§3.62–§3.65 + SE-01B-FIX reconciliation 收口·§3.66–§3.67）；RUNTIME-CONTROL-ENTRY-01 全链 COMPLETE（§3.68–§3.70）+ RCE-D3 bind reconciliation COMPLETE（§3.71）；当前 READY Work Packet = **CONTROL-PLANE-ENTRY-01 — PLAN / RECONCILIATION ONLY**（§4）**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -1065,6 +1065,19 @@ Status: **COMPLETE / CI + BMD HARDWARE VERIFIED（真实命令旅程 12/12）**
 - Evidence：`evidence/bmd-10.30.15.10/2026-09-20-rce01-internal-control-journey/`（7 文件）+ EVIDENCE-INDEX 行；报告：`docs/superpowers/reports/2026-09-20-rce01-internal-control-journey.md`。如实披露：session id wire 缝隙（显示形态 vs UUID，消费方映射，语义页 §6 登记）；journey2/3 编排引号缺陷（journey4 修正，产品代码零改动）；A/V 内容验证不宣称（属 gates/信号面）。
 - **收口**：RUNTIME-CONTROL-ENTRY-01（planning §3.68 + RCE-01A §3.69 + RCE-01B）全链 COMPLETE——"真实 standalone `media-agent` 可被 canonical Runtime Control 创建 Session、启动、观察 actual state、停止、恢复，Runtime 唯一 truth" 已实机落地；frozen Contract 零修改。下一按依赖序评估 CONTROL-PLANE（Fastify Product `/api/v1/*` + RH-IDEM-01 外部解冻入口）→ VBMF-SDK → WEB-CONSOLE。
 
+### 3.71 RCE-D3-BIND-RECONCILIATION 收口（2026-09-21）— bind 命名漂移修正 + exposure 政策显式化
+
+Status: **COMPLETE / DOCS+COMMENTS-ONLY + STATIC VERIFIED（零行为变化·零 frozen Architecture 修改·无 stop condition）**
+
+- 触发：用户复核发现 frozen RCE plan D3（`MEDIA_AGENT_CONTROL_BIND`/`127.0.0.1:8081`/RPC_BIND 保持 UNWIRED）与已验证实现 `06bc01a`（`MEDIA_AGENT_RPC_BIND`/`127.0.0.1:50051`/已接线，BMD 12/12）之间存在**未记录命名漂移**，且多处文档/注释用模糊 "localhost-only" 而代码只对 `0.0.0.0`/`::` 告警、full-stack 冻结拓扑（React→Fastify→JSON-RPC→Media Agent 跨容器）与严格 127.0.0.1-only 政策冲突。
+- 四裁定（经只读核对 plan D3 / EXTERNAL_API_CONTRACT / TECHNOLOGY_STACK / DEPLOYMENT_AND_DEV_RUNTIME / STANDALONE_MEDIA_AGENT_OPERATIONS / config.rs / internal_control.rs / bin/media-agent.rs / RCE focused tests / RCE-01B evidence）：
+  1. canonical 配置名 = **`MEDIA_AGENT_RPC_BIND`**（单一配置 Authority；`MEDIA_AGENT_CONTROL_BIND` 永不创建）；
+  2. canonical default = **`127.0.0.1:50051`**（standalone 本机 control entry，BMD 实证）；
+  3. standalone exposure = 四规则 R-a..R-d（默认回环 canonical / 显式私有 bind 允许且为运维责任（面无认证）/ 宿主 0.0.0.0/:: 禁止公网（现告警，fail-closed 升级 = CP 阶段 hardening 候选）/ 绝不直接公网不经 Nginx 非 Product API）；
+  4. full-stack Fastify↔Agent = R-e/R-f（唯一通道 `/internal/v1/agent` over compose dedicated private service network；容器内 netns 绑定可达地址可接受；**host port publish 50051 禁止**（frozen compose 现状维持）；**Nginx 禁止新增 `/internal/*` 路由**（frozen 路由表维持）；跨主机明文禁止、须私网+mTLS（#110 形态），部署 Authority 属 CP 阶段）。Runtime 唯一 truth 不变（Fastify 只 command+observe）。
+- 修正面：RCE plan 追加 **D3-R amendment**（原文保留为漂移记录）；语义页 §4.1 行 + §6 exposure 四规则细化；`bin/media-agent.rs` 两处 log 文案 + `internal_control.rs`/`config.rs` 注释去 "localhost-only" 模糊语（零行为变化）。clippy（mock 全目标）/check（ffmpeg）/architecture lint PASS。
+- 如实登记：compose 未设 media-agent 容器的 RPC bind env（full-stack 容器接线 = CONTROL-PLANE 阶段实现项）；UDS bind 形态未实现（TCP-only，§3.69 缝隙维持）。
+
 ## 4. Current Task
 
 **（无 READY Work Packet）** — RUNTIME-CONTROL-ENTRY-01 已全链收口（§3.68–§3.70）。候选方向（用户已定依赖序）：CONTROL-PLANE（Fastify Product `/api/v1/*` + PostgreSQL/Drizzle + Auth/RBAC + durable idempotency 解冻 RH-IDEM-01）→ VBMF-SDK → WEB-CONSOLE；均需先拆 bounded planning packet（对齐 §3.68 裁定：internal 面已冻结、Product API 归 Fastify、两可写面不并存）再实施。维持边界：RH-FLOW-01（DEFER-UNTIL-TOUCH）、RH-IDEM-01（DEFER-UNTIL-CONTROL-PLANE）、RF-SRC-01（SRT BLOCKED）、24h RSS stability（Verification Debt）、PORT-COLLISION-01（BACKLOG）。
@@ -1130,6 +1143,8 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **RUNTIME-CONTROL-ENTRY-01** | **COMPLETE — PLAN FROZEN（§3.68·2026-09-20）** | 只读审计 + Authority reconciliation：`/api/v1/*`=prototype 裁定、internal=JSON-RPC@`/internal/v1/*`、CommandStatus 两平面映射、RH-IDEM 维持 DEFER、owner map；冻结 D1–D8 + F1–F10 + 子包 RCE-01A/B | SE-01B-FIX COMPLETE（§3.67） | planning 文档已冻结；frozen Contract 零修改（无 stop condition） |
 | **RCE-01A** | **COMPLETE（§3.69·2026-09-20·`06bc01a` CI `35543068464` 7/7 + VM production smoke）** | internal Runtime Control surface：JSON-RPC `/internal/v1/agent` 四方法 + `MEDIA_AGENT_RPC_BIND`（127.0.0.1:50051·UNWIRED 债关闭）+ 三生产根接线 + prototype 503 契约保持 + 11 focused tests | RCE planning（§3.68） | 已满足（BMD = RCE-01B） |
 | **RCE-01B** | **COMPLETE（§3.70·2026-09-20·`06bc01a` BMD 真实命令旅程 12/12）** | BMD 真机命令旅程（systemd service 经 internal 面 create/start/query actual state/stop/SIGTERM 活会话 drain + 边界） | RCE-01A COMPLETE（§3.69） | 已满足（含独占资源 preflight 拒绝 + lifecycle 守卫 + replay 幂等实证） |
+| **RCE-D3-BIND-RECONCILIATION** | **COMPLETE（§3.71·2026-09-21·docs+comments-only）** | bind 命名漂移修正（canonical=`MEDIA_AGENT_RPC_BIND`/50051）+ standalone/full-stack exposure 政策显式化（R-a..R-f） | 用户 2026-09-21 指令 | 零 frozen 修改、零行为变化、静态检查绿；CI 随收口提交 |
+| **CONTROL-PLANE-ENTRY-01** | **READY（用户 2026-09-21 裁定）— PLAN / RECONCILIATION ONLY** | Fastify Product `/api/v1/*` planning：与 Rust prototype `/api/v1/*` 隔离、Fastify↔`/internal/v1/agent` adapter 边界、durable idempotency boundary-of-record、四类 API 责任、session id 映射、PostgreSQL 记录边界、failure semantics、bounded 子包分解 | RCE 全链 + §3.71 | 禁止 planning 期间铺开 Fastify/PostgreSQL/BullMQ/Auth/Web Console 实现 |
 | **PORT-COLLISION-01** | **BACKLOG（§3.66 登记·2026-09-20）** | PortId derive 键不含 direction/Analog 位折叠——BMD Device smoke 实证 Input/Sdi 与 Output/Sdi 同卡碰撞 ×2；专门 collision closure（port_id 稳定性 + registry fail-closed 语义复核） | 需协调者裁度（非 SE-01B-FIX 范围） | 不以 SE-01B-FIX 顺手修；证据已留 `se01b-device-smoke.log` L9/L10 |
 | **STANDALONE** | **BACKLOG（umbrella；首个 bounded packet = STANDALONE-ENTRY-01）** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |

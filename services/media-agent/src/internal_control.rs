@@ -17,7 +17,8 @@
 //! - **std-only 纪律延续**（无新依赖; per-connection thread + socket 超时, 同
 //!   transport R62/R63 加固形态）; `Connection: close` 协议模型。
 //! - **暴露边界（D3/用户 §二十二 P1-2）**: 经 `MEDIA_AGENT_RPC_BIND` 绑定
-//!   （默认 `127.0.0.1:50051`; 仅 localhost/UDS, 由 Config 安全告警面约束）。
+//!   （默认 `127.0.0.1:50051`; exposure 四规则 = RCE plan D3-R: 默认回环 canonical / 私有 bind 为
+//!   显式运维动作（面无认证，隔离归运维）/ 宿主 0.0.0.0/:: 禁止公网（现为告警）/ 绝不直接公网。）
 //!   Rust 不做 API Gateway/Auth（Fastify 职责）。
 //! - **RH-IDEM-01 不触发（R5）**: 进程内 CommandIdempotency = 内部传输重试守卫;
 //!   durable idempotency 解冻点 = external Fastify command entry。

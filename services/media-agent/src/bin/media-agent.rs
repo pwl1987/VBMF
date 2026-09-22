@@ -739,7 +739,7 @@ fn main() {
         let rpc_bind = _cfg.rpc_bind.clone();
         std::thread::spawn(move || match std::net::TcpListener::bind(&rpc_bind) {
             Ok(listener) => {
-                tracing::info!(bind = %rpc_bind, "internal runtime control listening (/internal/v1/agent; localhost-only 纪律, 见用户 §二十二)");
+                tracing::info!(bind = %rpc_bind, "internal runtime control listening (/internal/v1/agent; 默认回环·私有 bind 为显式运维动作·该面无认证不公网, RCE-D3-R)");
                 media_agent::internal_control::serve_forever_internal(listener, control_ctx);
             }
             Err(e) => tracing::error!(error = %e, "internal control bind failed"),
@@ -875,7 +875,7 @@ fn run_network_only_runtime(shutdown: media_agent::shutdown::GracefulShutdown) -
         let rpc_bind = media_agent::config::Config::from_env().rpc_bind;
         std::thread::spawn(move || match std::net::TcpListener::bind(&rpc_bind) {
             Ok(listener) => {
-                tracing::info!(bind = %rpc_bind, "internal runtime control listening (network-only; /internal/v1/agent; localhost-only 纪律, 见用户 §二十二)");
+                tracing::info!(bind = %rpc_bind, "internal runtime control listening (network-only; /internal/v1/agent; 默认回环·私有 bind 为显式运维动作·该面无认证不公网, RCE-D3-R)");
                 media_agent::internal_control::serve_forever_internal(listener, control_ctx);
             }
             Err(e) => tracing::error!(error = %e, "internal control bind failed"),
