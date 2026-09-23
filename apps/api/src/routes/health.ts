@@ -5,13 +5,20 @@
  * - `GET /health/live`：liveness——只证明进程服务能力，不探测依赖
  *   （compose healthcheck 契约；agent 重启不得引发 fastify 容器 flap）。
  * - `GET /healthz`：分层依赖健康快照——api 层恒 up（端点自身可应答即真），
- *   runtime 层 live 观测 `agent.health`（unreachable 如实呈现）。
+ *   runtime 层 live 观测 `agent.health`，db 层（CP-01B 持久记录载体，
+ *   非 Runtime truth）SELECT 1 探测或诚实 not_configured。
  */
 import type { FastifyInstance } from "fastify";
 import { AgentTransportFailure, type AgentControlClient } from "../agent/agentControlClient.ts";
 import type { RouteDeps } from "./runtime.ts";
+import type { Db } from "../db/index.ts";
 
-export async function healthRoutes(app: FastifyInstance, deps: RouteDeps): Promise<void> {
+export interface HealthRouteDeps {
+  agent: AgentControlClient;
+  db?: Db | null;
+}
+
+export async function healthRoutes(app: FastifyInstance, deps: HealthRouteDeps): Promise<void> {
   app.get("/health/live", async () => ({ status: "live" }));
 
   app.get("/healthz", async (req) => {
@@ -34,6 +41,18 @@ export async function healthRoutes(app: FastifyInstance, deps: RouteDeps): Promi
         throw err;
       }
     }
-    return { checked_at_ms: checkedAtMs, layers: { api: { status: "up" }, runtime } };
+    let db: Record<string, unknown>;
+    if (deps.db === null || deps.db === undefined) {
+      db = { status: "not_configured", observed_at_ms: checkedAtMs };
+    } else {
+      try {
+        await deps.db.execute("select 1");
+        db = { status: "up", observed_at_ms: checkedAtMs };
+      } catch (err) {
+        req.log.warn({ err: (err as Error).message }, "db probe failed");
+        db = { status: "unreachable", observed_at_ms: checkedAtMs };
+      }
+    }
+    return { checked_at_ms: checkedAtMs, layers: { api: { status: "up" }, runtime, db } };
   });
 }

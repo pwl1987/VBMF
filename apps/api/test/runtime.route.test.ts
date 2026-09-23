@@ -43,7 +43,10 @@ function fetchJson(payload: unknown, status = 200): typeof fetch {
 const rpcOk = (result: unknown) => ({ jsonrpc: "2.0", result, id: 1 });
 
 function appWithAgent(agent: AgentControlClient) {
-  return buildApp(loadConfig({ ...process.env, LOG_LEVEL: "silent" }), { agent });
+  return buildApp(loadConfig({ ...process.env, LOG_LEVEL: "silent" }), {
+    agent,
+    withoutDb: true,
+  });
 }
 
 test("GET /api/v1/runtime: 200 + session id 规范化 UUID + label + freshness 透传", async () => {

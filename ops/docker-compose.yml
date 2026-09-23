@@ -110,6 +110,9 @@ services:
       # 8080 is the agent health/diagnostic listener, NOT the control plane.
       MEDIA_AGENT_RPC_URL: http://media-agent:50051
       TRUST_PROXY: "true"   # Nginx upstream
+      # CP-01B: durable command plane (commands/audit_entries migrations on
+      # boot; db is a compose dependency below).
+      MIGRATE_ON_BOOT: "true"
     expose:
       - "3000"
     depends_on:

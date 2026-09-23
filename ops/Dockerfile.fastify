@@ -19,6 +19,8 @@ ENV NODE_ENV=production
 COPY apps/api/package.json apps/api/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
+# drizzle migrations（CP-01B：MIGRATE_ON_BOOT 时运行时应用）
+COPY apps/api/drizzle ./drizzle
 # curl for the compose healthcheck (alpine base ships busybox wget only; the
 # frozen compose healthcheck command uses curl).
 RUN apk add --no-cache curl
