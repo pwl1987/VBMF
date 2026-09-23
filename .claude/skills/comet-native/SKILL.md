@@ -9,20 +9,22 @@ Native 将完整需求、进度和验收结论保存在项目中。Agent 只处�
 
 ## 必须遵守的规则
 
-- 以磁盘上的 `.comet/config.yaml`、当前 change、`comet-state.yaml` 和正式文件为准，聊天记忆只作辅助。工作流保存的正式文件中，Agent 只编辑 brief、完整目标 Spec 和 `children.yaml`；状态、检查结果、报告、锁和事务由 Runtime 管理。
+- 以磁盘上的 `.comet/config.yaml`、当前 change、`comet-state.yaml` 和正式文件为准，聊天记忆只作辅助。工作流保存的正式文件中，Agent 只编辑 brief、完整目标 Spec、关联时的 `delta.yaml` 和 `children.yaml`；状态、检查结果、报告、锁和事务由 Runtime 管理。
 - 通过 PATH 中公开的 `comet native` 命令推进，用户不手工执行命令。命令不可用时报告安装不完整并停止；参数以 `comet native <command> --help` 为准。
-- Builder 提交本轮待验收的代码和相关文件，称为“候选实现”。每轮都由新的只读 Verifier 独立判断全部验收项。失败、阻塞、未执行和超时不能算通过。
+- 新建 change 走 CLI 并使用响应路径；拒绝后按信息中的命令或目标修正并重试；自定义 Hook、非 Comet 工作和普通同名文件保持中立。
+- Builder 提交本轮待验收的代码和相关文件，称为“候选实现”。每轮都由新的只读 Verifier 独立判断全部验收项。判断全部验收项不等于重跑全部命令：仍与当前候选实现匹配的 Runtime 检查记录可以复用，只补充缺失或失效的检查。失败、阻塞、未执行和超时不能算通过。
 - 只有用户明确确认完整 Shape、接受最终结果或选择相应交付方式后，才执行对应的确认命令。沿用已确认的需求范围和 Runtime 保存的用户选择。归档、merge、push、PR 和工作区清理各自需要的授权不能互相代替。
 - Native 主流程由本 Skill 和 Runtime 完成，不依赖外部 Skill；不改变已确认的需求和约束时，实现方法由 Agent 自行选择。
 
 ## 开始或恢复
 
-1. 已知名称时运行 `comet native status <change-name> --json`；未知时先运行 `comet native status --json` 确定目标。
-2. active change 已存在时，进入返回的 `workspace.projectRoot` 并执行 `select`。由 Runtime 查找工作区；只有多个工作区同样匹配时，才让用户选择。
-3. 没有对应 active change 时，按[工作区选择参考](reference/workspace.md#创建-change)确定隔离方式并创建，再进入 `preparation.projectRoot`。准备失败时，保留已创建的分支和目录，按返回的原因处理。
-4. 进入工作区并取得 `phase` 后，按[记忆接入](reference/commands.md#记忆接入)检索一次上下文。需要详情时再展开；实际使用后记录使用结果，任务结束时调用 `comet task --complete`。具体操作见该节。
+1. 已知名称时运行 `comet native select <change-name> --json`。active change 已存在时，进入返回的 `workspace.projectRoot`；未知时先运行 `comet native status --json`。由 Runtime 查找工作区；多个工作区同样匹配时才让用户选择。
+2. 没有对应 active change 时，按[工作区选择参考](reference/workspace.md#创建-change)确定隔离方式并创建，再进入 `preparation.projectRoot`。准备失败时，保留已创建的分支和目录，按返回的原因处理。
+3. 进入工作区并取得 `phase` 后，按[记忆接入](reference/commands.md#记忆接入)检索一次上下文。需要详情时再展开；实际使用后记录使用结果，任务结束时按该节分别处理项目记忆和个人记忆，再调用 `comet task --complete`。
 
 记忆学习只提交可复用的用户信息；任务摘要、进展、命令输出和测试结果不写入个人记忆。任务结束前按记忆接入章节完成学习检查，并记录 `submitted`、`no-observation` 或 `not-run`。
+
+项目经验与个人偏好分开保存：可由当前项目验证、且未来任务仍可复用的经验在任务结束前执行 `comet knowledge remember` 写入项目记忆；用户偏好和稳定协作习惯才进入个人记忆。两者的命令和完成条件见[记忆接入](reference/commands.md#记忆接入)。
 
 ## 按需读取
 
@@ -40,7 +42,9 @@ Native 将完整需求、进度和验收结论保存在项目中。Agent 只处�
 
 Agent 先调查能够查明的事实，只询问会改变用户可见结果、又无法可靠推断的决定。简单问题列出未决项及其依赖关系；多个决定相互影响时才建立决策树。按 `native.clarification_mode` 提问前，先把本轮尚未解决的问题写入 brief。用户确认的结论立即同步到 Decisions、brief 和完整目标规格；未明确回答的部分保持 `[blocking]`。
 
-完成标准：需求来源已按用途完整覆盖，所有影响结果的决定和假设已处理，没有 `[blocking]`，用户明确确认目标、范围、关键决定、全部验收项和非目标，并且 Runtime 已进入 Build。
+完成标准：需求来源已在用户指定的覆盖边界内完整处理并按用途分类，所有影响结果的决定和假设已处理，没有 `[blocking]`，用户明确确认目标、范围、关键决定、全部验收项和非目标，并且 Runtime 已进入 Build。
+
+新建需求或重新确认 Shape 时，Runtime 检查 brief 八个章节、完整目标 Spec 或明确的无产品行为变更理由及正式路径。失败会给出文件和修复动作；补齐后重跑 continuation。后续阶段的旧需求保留进度，回到 Shape 时再检查。
 
 ## Build ↔ Verify Loop
 
@@ -51,6 +55,10 @@ Builder 提交候选实现后，由 Runtime 执行必要检查，再交给新的
 ## Build
 
 首次实现前，读取当前 brief、完整目标规格和全部验收项，在已确认的需求范围内修改项目代码和测试。修复时优先处理 Verifier 指出的未通过项、无法验证的原因和失败检查；提交前仍要核对其他已确认行为。`previous_unresolved_ids` 只提示本轮修复重点，下一次正式验收仍覆盖全部验收项。
+
+Build、Verify 和 Archive 会复查文档绑定。文档漂移或报告过期时保留工作并返回修复动作；Hook 未触发仍检查，普通 Markdown 不受影响。Shape、Verify 和 Archive 阶段的普通文档写入（仓库根目录及 `docs/`、`doc/`、`documentation/`、`.github/` 下的 Markdown/text 和 LICENSE 类文件，且位于 Native 产物根目录之外）按中性处理：不会把 change 打回 Build，也不作废当前候选实现。在 `.comet/config.yaml` 设置 `native.document_writes: revert` 可恢复严格行为。
+
+用户 Hook 的共享输出目录可通过 `.comet/config.yaml` 的 `hook.allow_paths` 放行；该配置对 Native 和 Classic 共用，工作流产物目录不在白名单范围。详见[用户 Hook 写入](reference/commands.md#用户-hook-写入)。
 
 需求变化时，先判断变化属于哪种情况，再执行当前 `continuation` 允许的动作：
 
@@ -66,9 +74,9 @@ Builder 提交候选实现后，由 Runtime 执行必要检查，再交给新的
 
 ## Verify
 
-按 Verify 协议立即启动独立的只读 Verifier。Verifier 核对检查记录是否对应当前实现版本、工作区和输入，只补充缺失或失效的检查，并独立判断全部验收项。Builder 交接时，只传本轮实现的位置、验收项的编号与引用、检查记录位置、已知限制和相关文件位置；日志正文按需读取。
+按 Verify 协议立即启动独立的只读 Verifier。派发记录只代表登记：平台工具确认接受这次启动、且 Verifier 回报 `verifier-started` 前，不把“已派发”当作“已在运行”，也不向用户这样断言；启动调用本身失败或被拒绝时，立即按异常流程处理。Verifier 核对检查记录是否对应当前实现版本、工作区和输入，只补充缺失或失效的检查，并独立判断全部验收项。Builder 交接时，只传本轮实现的位置、验收项的编号与引用、检查记录位置、已知限制和相关文件位置；日志正文按需读取。
 
-等待工具超时后，继续等待同一个 Verifier。只有平台确认执行失败、执行超时、任务丢失或结束后没有可用结果时，才登记错误。Runtime 接受完整结果后，按最新状态继续。需要用户接受最终结果时，只有用户明确接受，才执行 `--accept-result`；仅完成自动检查、没有独立验收的结果也须由用户明确接受。
+等待结果期间，可用 `status` 区分“已登记未启动”与“Verifier 已确认启动”；未确认启动且子代理无响应时，先核实派发是否成功，再决定继续等待或按异常处理。等待工具超时后，继续等待同一个 Verifier。只有平台确认执行失败、执行超时、任务丢失或结束后没有可用结果时，才登记错误。Runtime 接受完整结果后，按最新状态继续。需要用户接受最终结果时，只有用户明确接受，才执行 `--accept-result`；仅完成自动检查、没有独立验收的结果也须由用户明确接受。
 
 完成标准：Runtime 接受每项验收结论并给出下一步；返回 Build 就继续修复，返回等待或阻塞就处理对应条件，不把阶段结束当任务完成。
 
@@ -87,6 +95,6 @@ Builder 提交候选实现后，由 Runtime 执行必要检查，再交给新的
 - `blocked`：处理列出的阻塞或恢复动作；仅暂停依赖该条件的工作。
 - `done`：核对 Archive 完成标准后结束。
 
-命令成功且响应包含 `agent` 时，直接使用其中的阶段、状态版本、`workspace.cwd` 和 `continuation` 继续。只在字段缺失、命令被拒绝或需要额外正文时读取详情；恢复会话、响应缺失或有外部变化迹象时，才重新查询 `status`。不因等待工具超时重复派发已有的 Verifier 或子任务。
+命令成功且响应包含 `agent` 时，直接复用共用 workflow guard 的轻量所有权读取结果和 `continuation` 继续。只在字段缺失、命令因版本或所有权被拒绝，或需要额外正文时读取详情；新会话或上下文压缩恢复缺少响应状态、仓库/分支/change 切换或有明确外部变化迹象时，才重新查询 `status`。不因等待工具超时重复派发已有的 Verifier 或子任务。
 
 当前动作需要验收文字、交接摘要或历史详情时，才加 `--details`，并按 `nextPageArgs` 读取 `scopeIds` 涉及的全部页面。需要正式文件的正文时，才运行 `show`。阅读 CLI 文本时，先看 `summary`、唯一的 `NEXT:` 和可选转述消息；程序解析使用 `--json`，排查本机执行状态时才用 `--verbose`。
