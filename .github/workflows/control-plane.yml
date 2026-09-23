@@ -37,7 +37,7 @@ jobs:
       run:
         working-directory: apps/api
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff27f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Boundary gate — F11 deployment wiring + F12 Gate A lexical
         working-directory: ${{ github.workspace }}
         run: python3 scripts/check_control_plane_gate.py
