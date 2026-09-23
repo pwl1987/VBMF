@@ -41,23 +41,10 @@ jobs:
       - name: Boundary gate — F11 deployment wiring + F12 Gate A lexical
         working-directory: ${{ github.workspace }}
         run: python3 scripts/check_control_plane_gate.py
-      # DEPLOY-BASELINE: Node 24 Active LTS. Self-hosted runners use the
-      # host system pin (fail closed on drift); fork path uses setup-node
-      # v7 pinned by commit SHA.
-      - name: Node 24 (self-hosted system pin, fail-closed)
-        if: runner.environment == 'self-hosted'
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -e
-          NODE_BIN=/opt/nodejs/node-v24.21.0-linux-x64/bin
-          [ -x "$NODE_BIN/node" ] || { echo "system node pin missing: $NODE_BIN" >&2; exit 1; }
-          ver="$("$NODE_BIN/node" -v)"
-          case "$ver" in
-            v24.*) echo "$NODE_BIN" >> "$GITHUB_PATH"; echo "node $ver" ;;
-            *) echo "system node pin drifted: $ver" >&2; exit 1 ;;
-          esac
-      - name: Node 24 (GitHub-hosted fork path)
-        if: runner.environment == 'github-hosted'
+      # DEPLOY-BASELINE: Node 24 Active LTS. setup-node v7 pinned by commit
+      # SHA on both runner paths (the vbmf runners are Rust/Python-provisioned
+      # and carry no system Node install).
+      - name: Node 24
         uses: actions/setup-node@680d1e489b82f1243de15bc7665c0007e3c9a860 # v7.0.0
         with:
           node-version: 24
