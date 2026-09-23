@@ -7,6 +7,12 @@ name: control-plane CI
 # NOT a required context yet: required-ization is a deliberate branch-
 # protection change to be adjudicated at CP-01A closure per the frozen
 # planning doc §8 (灰度纪律); media-agent 7/7 required contexts are unaffected.
+#
+# No job-level `container:` on purpose: container jobs resolve actions online
+# through the runner proxy (the SHA-pinned checkout resolves from the local
+# action cache only for non-container jobs on this pool), which fails closed
+# on vbmf-ci-01. Node 24 comes from the host system pin on self-hosted
+# runners and from setup-node on the GitHub-hosted fork path.
 
 on:
   push:
@@ -27,9 +33,6 @@ jobs:
     # the pinned self-hosted vbmf-general pool; fork PRs stay GitHub-hosted.
     runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
-    # node:24 (DEPLOY-BASELINE Node 24 Active LTS) + python3 (bookworm images
-    # ship python3 for node-gyp) — the boundary gate needs a host interpreter.
-    container: node:24-bookworm
     defaults:
       run:
         working-directory: apps/api
@@ -38,6 +41,26 @@ jobs:
       - name: Boundary gate — F11 deployment wiring + F12 Gate A lexical
         working-directory: ${{ github.workspace }}
         run: python3 scripts/check_control_plane_gate.py
+      # DEPLOY-BASELINE: Node 24 Active LTS. Self-hosted runners use the
+      # host system pin (fail closed on drift); fork path uses setup-node
+      # v7 pinned by commit SHA.
+      - name: Node 24 (self-hosted system pin, fail-closed)
+        if: runner.environment == 'self-hosted'
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -e
+          NODE_BIN=/opt/nodejs/node-v24.21.0-linux-x64/bin
+          [ -x "$NODE_BIN/node" ] || { echo "system node pin missing: $NODE_BIN" >&2; exit 1; }
+          ver="$("$NODE_BIN/node" -v)"
+          case "$ver" in
+            v24.*) echo "$NODE_BIN" >> "$GITHUB_PATH"; echo "node $ver" ;;
+            *) echo "system node pin drifted: $ver" >&2; exit 1 ;;
+          esac
+      - name: Node 24 (GitHub-hosted fork path)
+        if: runner.environment == 'github-hosted'
+        uses: actions/setup-node@680d1e489b82f1243de15bc7665c0007e3c9a860 # v7.0.0
+        with:
+          node-version: 24
       - name: Install dependencies (npm ci, lockfile-pinned)
         run: npm ci
       - name: Typecheck
