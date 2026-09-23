@@ -130,6 +130,8 @@ client POST /api/v1/... (Idempotency-Key/command_id)
 
 ## 4. Failure-first matrix（实现包必须逐项覆盖）
 
+> **2026-09-23 correction（用户指令·最小修正，不重开设计）**：F13 原文"非法形态 4xx"未区分错误方向。修正为双向责任归属——客户端输入非法 UUID 是客户端错误（4xx `VALIDATION_ERROR`）；agent 返回非法 session-id wire 是 Fastify↔agent 内部契约违例，绝不能返回客户端 4xx，映射为既有 taxonomy 的 `INTERNAL_ERROR`（5xx、`retryable` 显式、诊断只进 server log、响应不泄漏内部细节）。
+
 | # | 注入 | 期望行为 |
 |---|---|---|
 | F1 | agent 停机/503 | Product 返回 `DEPENDENCY_UNAVAILABLE`(retryable)；已 claim 命令 → `timeout(retryable)`；绝不假成功 |
@@ -144,7 +146,7 @@ client POST /api/v1/... (Idempotency-Key/command_id)
 | F10 | 事件乱序 | 投影聚合以事件内容为准（计数/状态集）；SSE 带 cursor（无全局序时标注弱序，如实） |
 | F11 | Nginx 误配 `/internal` 路由 | 部署断言/文档红线测试（compose 断言无该路由、无 50051 publish） |
 | F12 | Fastify 试图 spawn ffmpeg / 直连设备 | 静态 Gate A repo-check FAIL（C3） |
-| F13 | Resource 读映射 session id | `session-<hex>`→UUID 规范化（非法形态 4xx，不猜测） |
+| F13 | Resource 读映射 session id | **责任归属双向（2026-09-23 用户指令修正）**：**客户端输入**非法 UUID → 4xx `VALIDATION_ERROR`；**agent `runtime.query` 返回非法 session-id wire** = Fastify↔agent 内部契约违例 → 5xx `INTERNAL_ERROR`（明确 `retryable=false`；server log 保留内部诊断且 Product 响应不泄漏内部实现细节；不猜测、不生成伪 UUID、不把 malformed upstream 当成"没有 session"） |
 
 ## 5. Persistence / durable idempotency contract（CP-01B 落地基线）
 

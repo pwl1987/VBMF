@@ -1,0 +1,48 @@
+name: control-plane CI
+
+# CONTROL-PLANE-ENTRY-01 / CP-01A: Fastify Control Plane (apps/api) lane.
+# Validates typecheck + focused contract tests + build and the machine-checked
+# boundary gates (F11 deployment wiring / F12 Gate A lexical).
+#
+# NOT a required context yet: required-ization is a deliberate branch-
+# protection change to be adjudicated at CP-01A closure per the frozen
+# planning doc §8 (灰度纪律); media-agent 7/7 required contexts are unaffected.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  control-plane:
+    name: control-plane
+    # Same trusted/fork boundary as media-agent CI (§15.6): trusted events use
+    # the pinned self-hosted vbmf-general pool; fork PRs stay GitHub-hosted.
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && fromJSON('["self-hosted","Linux","X64","vbmf","vbmf-general"]') || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    # node:24 (DEPLOY-BASELINE Node 24 Active LTS) + python3 (bookworm images
+    # ship python3 for node-gyp) — the boundary gate needs a host interpreter.
+    container: node:24-bookworm
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff27f7fcc4a7b6c09 # v5
+      - name: Boundary gate — F11 deployment wiring + F12 Gate A lexical
+        working-directory: ${{ github.workspace }}
+        run: python3 scripts/check_control_plane_gate.py
+      - name: Install dependencies (npm ci, lockfile-pinned)
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Focused contract tests (adapter vs mock JSON-RPC server)
+        run: npm test
+      - name: Build
+        run: npm run build

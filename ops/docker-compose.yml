@@ -105,7 +105,10 @@ services:
       RUSTFS_ACCESS: ${RUSTFS_ACCESS:-vbmf}
       RUSTFS_SECRET: ${RUSTFS_SECRET:?set RUSTFS_SECRET in .env}
       SRS_API: http://srs:1985
-      MEDIA_AGENT_RPC: http://media-agent:8080
+      # CP-01A (RCE-D3 canonical): internal JSON-RPC Runtime Control at
+      # media-agent:50051 /internal/v1/agent (compose private network only).
+      # 8080 is the agent health/diagnostic listener, NOT the control plane.
+      MEDIA_AGENT_RPC_URL: http://media-agent:50051
       TRUST_PROXY: "true"   # Nginx upstream
     expose:
       - "3000"
@@ -196,8 +199,15 @@ services:
     environment:
       RUST_LOG: info
       DECKLINK_DEVICE_PATH: /dev/blackmagic
+      # CP-01A (D3-R R-e): container-netns private bind for the internal
+      # JSON-RPC Runtime Control surface — the compose private network is the
+      # security boundary (no auth on this plane). NEVER host-publish 50051
+      # and NEVER route /internal via Nginx. Default outside compose stays
+      # loopback 127.0.0.1:50051.
+      MEDIA_AGENT_RPC_BIND: 0.0.0.0:50051
     expose:
-      - "8080"               # JSON-RPC control plane (internal; Fastify reaches it)
+      - "8080"               # health/diagnostic listener (loopback in-container)
+      - "50051"              # internal JSON-RPC Runtime Control (compose private net only)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s

@@ -35,6 +35,11 @@ evidence/**/*.json
 .codegraph/
 .vscode/
 
+# Node control-plane (apps/api) local artifacts — never commit
+node_modules/
+apps/api/dist/
+npm-debug.log*
+
 # Mimosa 安全扫描 hook 本地状态 (同 .codegraph: 本机文件不入库)。
 .mimosa/
 # >>> Comet managed project state >>>

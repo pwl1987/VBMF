@@ -1,9 +1,26 @@
-# Fastify (Node.js) - VBMF Public/Ops/Admin API
-# TODO(Phase 1): wire real build context once backend/src exists.
-# Build contract (Deployment SoT §4 hot-reload): tsx/node --watch, bind-mount in dev.
-FROM node:24-alpine   # DEPLOY-BASELINE: Node 24 Active LTS
+# Fastify Control Plane (apps/api) — Product/Ops/Admin API.
+# DEPLOY-BASELINE: Node 24 Active LTS (pinned minor tag; NEVER latest).
+# CP-01A: real build replacing the V0.2 placeholder template. This image never
+# spawns media processes (F9/Gate A) — it serves the Fastify Product API and
+# talks to media-agent only over /internal/v1/agent (service-to-service).
+# Dev-overlay hot-reload (Deployment SoT §4 tsx/node --watch + bind mount) is
+# a dev overlay concern and stays out of this production image.
+FROM node:24-alpine AS build
 WORKDIR /app
-# COPY package*.json ./
-# RUN npm ci
-# COPY . .
-# CMD ["npm", "run", "dev"]
+COPY apps/api/package.json apps/api/package-lock.json ./
+RUN npm ci
+COPY apps/api/tsconfig.json apps/api/tsconfig.build.json ./
+COPY apps/api/src ./src
+RUN npm run build
+
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY apps/api/package.json apps/api/package-lock.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+# curl for the compose healthcheck (alpine base ships busybox wget only; the
+# frozen compose healthcheck command uses curl).
+RUN apk add --no-cache curl
+EXPOSE 3000
+CMD ["node", "dist/server.js"]

@@ -1,0 +1,23 @@
+{
+  "name": "@vbmf/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VBMF Control Plane (Fastify) — Product API /api/v1/* over the media-agent internal JSON-RPC Runtime Control surface",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"test/*.test.ts\"",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "typescript": "^5.9.3"
+  }
+}
