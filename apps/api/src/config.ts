@@ -35,12 +35,24 @@ export interface AppConfig {
   rateLimitReadMax: number;
   /** 写类路由（session start/stop/release）每 principal 窗口限额。 */
   rateLimitWriteMax: number;
+  /** events.projection drain 轮询间隔（毫秒；0 = 禁用事件面·CP-01D）。 */
+  eventsPollMs: number;
+  /** SSE tail 轮询间隔（毫秒；CP-01D）。 */
+  eventsSsePollMs: number;
+  /** event_outbox 保留窗（毫秒；0 = 不清理；CP-01D）。 */
+  eventsRetentionMs: number;
 }
 
 function intEnv(value: string | undefined, fallback: number): number {
   if (value === undefined || value === "") return fallback;
   const n = Number.parseInt(value, 10);
   return Number.isInteger(n) && n > 0 && n <= 3_600_000 ? n : fallback;
+}
+
+/** intEnv 变体：显式 "0" 合法（禁用语义），其余非法值回退默认。 */
+function intEnvAllowZero(value: string | undefined, fallback: number): number {
+  if (value === "0") return 0;
+  return intEnv(value, fallback);
 }
 
 function databaseUrlFrom(env: NodeJS.ProcessEnv): string | null {
@@ -71,5 +83,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     rateLimitWindowMs: intEnv(env.RATE_LIMIT_WINDOW_MS, 60_000),
     rateLimitReadMax: intEnv(env.RATE_LIMIT_READ_MAX, 240),
     rateLimitWriteMax: intEnv(env.RATE_LIMIT_WRITE_MAX, 60),
+    eventsPollMs: intEnvAllowZero(env.EVENTS_POLL_MS, 1_000),
+    eventsSsePollMs: intEnv(env.EVENTS_SSE_POLL_MS, 1_000),
+    eventsRetentionMs: intEnv(env.EVENTS_RETENTION_MS, 86_400_000),
   };
 }

@@ -17,12 +17,15 @@ import { AgentTransportFailure, type AgentControlClient } from "../agent/agentCo
 import type { RouteDeps } from "./runtime.ts";
 import type { Db } from "../db/index.ts";
 import type { Authenticator } from "../security/auth.ts";
+import type { ProjectionDrainLoop } from "../events/eventPlane.ts";
 
 export interface HealthRouteDeps {
   agent: AgentControlClient;
   db?: Db | null;
   /** CP-01C：auth 层实例（null = not_configured）。 */
   authenticator?: Authenticator | null;
+  /** CP-01D：事件面 drain loop（null = not_configured）。 */
+  drainLoop?: ProjectionDrainLoop | null;
 }
 
 export async function healthRoutes(app: FastifyInstance, deps: HealthRouteDeps): Promise<void> {
@@ -66,6 +69,14 @@ export async function healthRoutes(app: FastifyInstance, deps: HealthRouteDeps):
       deps.authenticator === null || deps.authenticator === undefined
         ? { status: "not_configured", observed_at_ms: checkedAtMs }
         : { status: "up", observed_at_ms: checkedAtMs };
-    return { checked_at_ms: checkedAtMs, layers: { api: { status: "up" }, runtime, db, auth } };
+    // 事件面（CP-01D）：drain 消费者身份如实区分——多实例抢锁失败不冒充正常。
+    const events: Record<string, unknown> =
+      deps.drainLoop === null || deps.drainLoop === undefined
+        ? { status: "not_configured", observed_at_ms: checkedAtMs }
+        : { status: deps.drainLoop.status(), observed_at_ms: checkedAtMs };
+    return {
+      checked_at_ms: checkedAtMs,
+      layers: { api: { status: "up" }, runtime, db, auth, events },
+    };
   });
 }

@@ -7,6 +7,8 @@
  * - `audit_entries` = 安全/命令审计（who/what/when/command_id/verdict/
  *   authorization decision；CP-01C 扩展为通用安全审计面，与 V0.2 §5 通用
  *   `audit_logs` 家族的 CP 专属 reconciliation——收口报告记录命名裁定）；
+ * - `event_outbox` = CP-01D External Event 投影投递缓冲（planning §5/C7；
+ *   sequence = SSE cursor；outbox 是投递事实，**绝不**是 Runtime truth）；
  * - Better Auth identity 族（auth_user/auth_session/auth_account/
  *   auth_verification）+ `api_keys`（Better Auth api-key plugin 官方模型，
  *   表名对齐 V0.2 §5 `api_keys` 家族——收口报告记录该命名裁定）。
@@ -101,6 +103,27 @@ export const auditEntries = pgTable(
     index("audit_entries_at_idx").on(t.at),
     index("audit_entries_principal_at_idx").on(t.principal, t.at),
   ],
+);
+
+/**
+ * CP-01D Event plane 持久投递缓冲（planning §5 `event_outbox`）。每行 =
+ * 一次 `events.projection` drain 的聚合投影快照（RuntimeEvent 原文不出
+ * agent——wire 只给聚合，F10 弱序如实标注）。`sequence`（bigserial 单调）
+ * = SSE cursor 与 consumer 幂等键（F9：重放 at-least-once，consumer 以
+ * sequence 去重）。投递边界诚实披露：agent drain 是破坏性读、无 ack，
+ * drain 与 outbox 插入非跨进程原子——Fastify 崩溃窗口内的投影样本会丢失
+ * （bounded packet 如实登记，不冒充 exactly-once）。
+ */
+export const eventOutbox = pgTable(
+  "event_outbox",
+  {
+    sequence: bigserial("sequence", { mode: "number" }).primaryKey(),
+    /** 投影观测时间（drain 完成时刻）。 */
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+    /** agent `events.projection` 聚合投影快照原样（守门字段在传输层已校验）。 */
+    snapshot: jsonb("snapshot").notNull(),
+  },
+  (t) => [index("event_outbox_observed_at_idx").on(t.observedAt)],
 );
 
 // ---------------------------------------------------------------------------

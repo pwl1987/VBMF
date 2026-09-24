@@ -78,9 +78,10 @@ export function registerSecurity(app: FastifyInstance, deps: SecurityDeps): void
     const url = req.routeOptions.url ?? "";
 
     if (config.security === undefined) {
-      // 未声明 security 的 /api/v1/* 路由 = 配置缺陷 → fail-closed 500。
-      if (url.startsWith("/api/v1/")) {
-        throw new Error(`security misconfiguration: /api/v1 route without security config: ${url}`);
+      // 未声明 security 的产品面路由（/api/v1/*、/events/*）= 配置缺陷 →
+      // fail-closed 500。
+      if (url.startsWith("/api/v1/") || url.startsWith("/events/")) {
+        throw new Error(`security misconfiguration: product route without security config: ${url}`);
       }
       // 非产品面（/health/*、/healthz）——显式登记的无认证例外。
       return;

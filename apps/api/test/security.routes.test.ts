@@ -299,18 +299,28 @@ test("结构断言：Product API 五路由存在；缺 security config 的 /api/
       ["POST", "/api/v1/sessions/:id/stop"],
       ["POST", "/api/v1/sessions/:id/release"],
       ["GET", "/api/v1/commands/:id"],
+      ["GET", "/events/v1/stream"],
     ] as const) {
       assert.ok(handle.app.hasRoute({ method, url }), `${method} ${url} 必须存在`);
     }
 
-    // 2) fail-closed：漏配 security 的 /api/v1 路由请求时 500（绝不隐式放行）。
+    // 2) fail-closed：漏配 security 的产品面（/api/v1 与 /events 前缀）路由
+    //    请求时 500（绝不隐式放行）。注意：先注册全部 rogue 路由再注入
+    //    （fastify 在首次请求后进入 listening 状态，禁止再添加路由）。
     handle.app.route({
       method: "GET",
       url: "/api/v1/rogue-unsecured",
       handler: async () => ({ ok: true }),
     });
+    handle.app.route({
+      method: "GET",
+      url: "/events/rogue-unsecured",
+      handler: async () => ({ ok: true }),
+    });
     const rogue = await handle.app.inject({ method: "GET", url: "/api/v1/rogue-unsecured" });
     assert.equal(rogue.statusCode, 500, "缺 security config 的 /api/v1 路由必须 fail-closed");
+    const rogueEvents = await handle.app.inject({ method: "GET", url: "/events/rogue-unsecured" });
+    assert.equal(rogueEvents.statusCode, 500, "缺 security config 的 /events 路由必须 fail-closed");
   } finally {
     await handle.app.close();
   }

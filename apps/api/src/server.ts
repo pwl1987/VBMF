@@ -20,6 +20,8 @@ import { ApiError, errorEnvelope, internalError, notFound } from "./lib/errors.t
 import { AgentWireSessionIdError } from "./lib/sessionIds.ts";
 import { CommandService, type CommandPlane } from "./command/commandService.ts";
 import { createDb, runMigrations, type Db } from "./db/index.ts";
+import { ProjectionDrainLoop } from "./events/eventPlane.ts";
+import { eventsRoutes } from "./routes/events.ts";
 import { BetterAuthAuthenticator, createAuth, type Authenticator } from "./security/auth.ts";
 import { SlidingWindowRateLimiter } from "./security/rateLimit.ts";
 import { SecurityAudit } from "./security/audit.ts";
@@ -56,6 +58,8 @@ export interface AppHandle {
   pool: pg.Pool | null;
   /** CP-01C：auth 层实例；null = not_configured（/api/v1 fail-closed 503）。 */
   authenticator: Authenticator | null;
+  /** CP-01D：单消费者 drain loop（null = 事件面 not_configured）。 */
+  drainLoop: ProjectionDrainLoop | null;
 }
 
 export async function buildApp(config: AppConfig, opts: BuildOptions = {}): Promise<FastifyInstance> {
@@ -137,6 +141,20 @@ export async function buildAppHandle(config: AppConfig, opts: BuildOptions = {})
     return reply.code(mapped.status).send(errorEnvelope(mapped));
   });
 
+  // CP-01D：单消费者 drain loop（B9——advisory lock 抢锁失败如实降级）；
+  // EVENTS_POLL_MS=0 显式禁用事件面（outbox/SSE 只读路径不受影响）。
+  const drainLoop =
+    db !== null && pool !== null && config.eventsPollMs > 0
+      ? new ProjectionDrainLoop({
+          db,
+          pool,
+          agent,
+          pollMs: config.eventsPollMs,
+          retentionMs: config.eventsRetentionMs,
+          log: app.log,
+        })
+      : null;
+
   // CP-01C enforcement 链必须先注册（preHandler 全局钩子；路由随后声明
   // config.security）。
   registerSecurity(app, {
@@ -146,8 +164,18 @@ export async function buildAppHandle(config: AppConfig, opts: BuildOptions = {})
   });
 
   await app.register(runtimeRoutes, { agent });
-  await app.register(healthRoutes, { agent, db, authenticator });
+  await app.register(healthRoutes, { agent, db, authenticator, drainLoop });
   await app.register(commandRoutes, { commandService });
+  await app.register(eventsRoutes, { db, ssePollMs: config.eventsSsePollMs });
+
+  app.addHook("onClose", async () => {
+    if (drainLoop !== null) await drainLoop.stop();
+  });
+
+  // CP-01D：抢锁启动单消费者 drain（失败 = 多实例降级，事件面只读仍可用）。
+  if (drainLoop !== null) {
+    await drainLoop.start();
+  }
 
   // F6：启动时回收上次运行遗留的超龄 pending（租约回收，不猜成功）。
   if (commandService !== null) {
@@ -160,7 +188,7 @@ export async function buildAppHandle(config: AppConfig, opts: BuildOptions = {})
     }
   }
 
-  return { app, db, pool, authenticator };
+  return { app, db, pool, authenticator, drainLoop };
 }
 
 async function start(): Promise<void> {

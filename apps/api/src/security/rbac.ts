@@ -11,7 +11,7 @@
 import { Ability, AbilityBuilder } from "@casl/ability";
 
 export type ProductAction = "read" | "start" | "stop" | "release";
-export type ProductResource = "runtime" | "command" | "session";
+export type ProductResource = "runtime" | "command" | "session" | "events";
 
 export interface PermissionSpec {
   readonly action: ProductAction;
@@ -25,6 +25,7 @@ export const ROUTE_PERMISSIONS = {
   sessionStart: { action: "start", resource: "session" },
   sessionStop: { action: "stop", resource: "session" },
   sessionRelease: { action: "release", resource: "session" },
+  eventsRead: { action: "read", resource: "events" },
 } as const satisfies Record<string, PermissionSpec>;
 
 type ProductAbility = Ability<[ProductAction, ProductResource]>;
@@ -34,10 +35,12 @@ function rulesFor(builder: AbilityBuilder<ProductAbility>, role: string): void {
     case "viewer":
       builder.can("read", "runtime");
       builder.can("read", "command");
+      builder.can("read", "events");
       return;
     case "operator":
       builder.can("read", "runtime");
       builder.can("read", "command");
+      builder.can("read", "events");
       builder.can("start", "session");
       builder.can("stop", "session");
       builder.can("release", "session");
