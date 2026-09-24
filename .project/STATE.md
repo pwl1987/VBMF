@@ -1227,18 +1227,57 @@ BMD 真机证据（10.30.15.10, 2026-09-24 `VBMF_CONFIG_PROBE` on `06bc01a`/旧 
 - 本包完成后无即时可推 READY packet——§4/§5 维持原"无 READY"状态。
 - 下一项进入需按用户指令"PRODUCT-SURFACE-ENTRY-01"（SDK vs Web Console 实施顺序裁决）首肯；现 §5.1 Task Queue 中 PORT-COLLISION-01 行已从 BACKLOG 关闭。
 
+## 3.79 PRODUCT-SURFACE-ENTRY-01 closure（2026-09-25）—— VBMF-SDK vs WEB-CONSOLE 实施顺序裁决
+
+Status: **PLANNING COMPLETE / first bounded implementation packet marked READY**
+
+### 决策（frozen, 不可越级）
+
+**WEB-CONSOLE-ENTRY-01 先行**。SDK 仍属 deferred，待 Web Console 形成稳定 wire 语义后再启 `SDK-ENTRY-01`。
+
+### 裁决依据（live API + frozen Contract + dependency evidence）
+
+| 维度 | 证据 | 结论 |
+|---|---|---|
+| Web Console 真实存在 | `prototype-p1b-web-console` 已 live `services/media-agent/src/transport.rs`（INDEX_HTML + `/hls/*`），agent 原生服务；设计见 `docs/superpowers/specs/2026-09-02-prototype-p1b-web-console-design.md` | 既存 prototype 拓扑错位：① 绕过 Fastify authn/authz/rate-limit/audit；② 不符 PRD §60-67 UI Provider-neutral + C13 边界（UI 不得直连 agent）。**必须迁移到 Fastify 后** |
+| Fastify 路由稳定度 | `apps/api/src/routes/` = `commands / events / health / runtime` 四文件，CP-01A→01E 全链 + BMD 真机 + CI 8/8 验证；JSON Schema 类型可通过 `fastify-type-provider-zod`/route schema 直接导出 | SDK 可后置生成：Fastify 路由定义已稳定，无需 SDK 先行 |
+| PRD §61 SDK | "第一阶段**不强制**维护所有语言 SDK" | SDK 非硬前置 |
+| PRD §174 SDK Generation | "第一阶段优先：TypeScript / Python 自动生成" | SDK 必然为 TS 首语言；可由 Web Console 真实消费证据驱动 schema |
+| Web Console 真实 TS consumer 价值 | PRD §60-67 明确 UI 必须四状态分离 + Provider-neutral；既无现状实现 = 大量 unverified UX 假设 | Web Console 作为首个真实 TS consumer 可反向验证 Product API 消费者可用性 |
+| SDK 反向价值 | 第三方集成由 PRD §61 推迟到后续阶段；当前无外部 consumer 触发 SDK 紧急需求 | SDK 可作为 Web Console 验证通过后的下一包 |
+| Web Console 是否依赖 SDK | 否——直接 `fetch` + 类型定义（来自 Fastify JSON Schema）即可 | 解耦可独立实施 |
+
+### 关键约束（WEB-CONSOLE-ENTRY-01 必须遵守）
+
+1. **零直连 agent**（C13 边界显式）；仅消费 `/api/v1/*` + `/events/v1/stream`。
+2. **零乐观假成功**——HTTP 4xx/5xx 必须如实显示；HTTP 200 ≠ Runtime success 必须保留（C2 判据：HTTP success ≠ Runtime success）。
+3. **类型单一源**：TS 类型从 Fastify route JSON Schema 派生；不得发明 parallel schema（CP-01A 起已固化）。
+4. **reconnect 按 Event Contract 弱序**：`weak_ordering=true` 必须重放；Cursor tri-state（undefined=tail / number=replay strictly after）严格遵守。
+5. **四状态分离**：Desired ≠ Requested ≠ Executing ≠ Observed（PRD §1784）—— UI 显式 4-state machine 而非简化两态。
+6. **frozen Authority/Contract 零修改**（EXTERNAL_API_CONTRACT / EVENT_CONTRACT / IMPLEMENTATION_BOUNDARIES / CANONICAL_IDENTITY）。
+
+### SDK-ENTRY-01 后续计划
+
+- Web Console 形成稳定 wire 语义（≥3 个命令旅程 PASS + SSE reconnect/replay 实证）后，启 SDK-ENTRY-01 作为 `vbmf-sdk` (TS) 包。
+- SDK 必须复用 Web Console 已验证的 JSON Schema 派生类型，禁止重新发明类型源。
+- SDK 第一语言 TS（PRD §174）；Python/Go 推后。
+
+### 其他 deferred 项（不变）
+
+`vbmf-sdk`（在 SDK-ENTRY-01 后）、BullMQ/Worker 异步面、跨主机 mTLS、agent UUID wire 增补、agent 侧 durable 事件面、Resource PUT/ChangeSet 流、webhook 签名投递、多实例事件分发、`rustfs/srs` docker.io pinned tags 修复。
+
 ## 4. Current Task
 
-**无 READY Work Packet**——CONTROL-PLANE-ENTRY-01 全链 COMPLETE（CP-01A/01B/01C/01D/01E·§3.73–§3.77）+ PORT-COLLISION-01 COMPLETE（§3.78）。
+**WEB-CONSOLE-ENTRY-01（§3.79 裁决后首包, READY）**——独立 TS Web Console app 经 Fastify 反代消费 Product API + SSE Event API；零直连 agent；四状态分离；命令旅程全链；frozen Authority/Contract 零修改。
 
-- 2026-09-24/25 用户指令"接管主线开发 + AUTONOMOUS CONTINUOUS DELIVERY"已执行至 planning §7 子包分解的自然终点（CP-01A→01B→01C∥01D→01E 全收口）+ 已知 correctness debt 闭环（PORT-COLLISION-01 物理 jack 槽位忠实枚举）。
-- 下一步按用户指令"PRODUCT-SURFACE-ENTRY-01"（SDK vs Web Console 实施顺序裁决）展开——需重新读取 External API Contract / Event Contract / Control Plane frozen plan / SDK backlog contract / Web Console backlog contract / live Fastify Product API / live SSE/Event API / 当前 prototype Web artifacts，以"dependency evidence"裁决而非 Roadmap。
-- 其它 deferred 项维持原状：Web Console、SDK、BullMQ/Worker 异步面、跨主机 mTLS、agent UUID wire 增补、agent 侧 durable 事件面、Resource PUT/ChangeSet 流、webhook 签名投递、多实例事件分发。
+- 上一阶段（CONTROL-PLANE-ENTRY-01 全链 + PORT-COLLISION-01 + PRODUCT-SURFACE-ENTRY-01 裁决）已收口。
+- 详见 §5.1 Task Queue `WEB-CONSOLE-ENTRY-01` 行。
+- 其它 deferred 项维持原状：`vbmf-sdk`（待 Web Console wire 稳定后启 SDK-ENTRY-01）、BullMQ/Worker 异步面、跨主机 mTLS、agent UUID wire 增补、agent 侧 durable 事件面、Resource PUT/ChangeSet 流、webhook 签名投递、多实例事件分发。
 - 登记发现（非阻塞）：`rustfs/rustfs:2026.8.1` 与 `ossrs/srs:6.0.42` docker.io pinned tags 已失效（§3.77 诚实披露）——storage/SRS 相关 packet 入场前需先裁决镜像基线。
 
 ## 5. Next Task
 
-进入 **PRODUCT-SURFACE-ENTRY-01** planning：以 live API + frozen Contract + dependency evidence 裁决 VBMF-SDK 与 WEB-CONSOLE 真实实施顺序；产出第一个 bounded implementation packet（SDK-ENTRY-01 或 WEB-CONSOLE-ENTRY-01）并直接执行，不等用户再次确认。
+进入 **WEB-CONSOLE-ENTRY-01** 实施：独立 TS app（Vite + 原生 fetch + JSON Schema 派生类型），消费 Fastify `/api/v1/*` + `/events/v1/stream`；零直连 agent；四状态分离 + 命令旅程 + SSE 实时 + reconnect/replay；frozen Authority/Contract 零修改。§5.1 Task Queue 已标 READY。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -1304,6 +1343,8 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **CP-01C** | **COMPLETE — SOFTWARE + CI + VM PG 注入 + 容器级安全 smoke（§3.75·2026-09-24·BMD DEFERRED to CP-01E）** | Better Auth + CASL + 应用层 rate limit + 审计硬化（dev principal 桩删除；api_keys 家族对齐） | CP-01B COMPLETE（§3.74） | hermetic 49/49 + DB 层 22/22（F1–F8 真实身份回归）+ provision/revoke 实跑 + compose config ×4 + 容器 smoke + gate 扩展 PASS |
 | **CP-01D** | **COMPLETE — SOFTWARE + CI + VM PG 注入 + 真实 HTTP SSE（§3.76·2026-09-24·BMD DEFERRED to CP-01E）** | Event plane：drain→outbox→SSE（单实例约束·B9）+ cursor | CP-01B（§3.74）+ CP-01C（§3.75） | hermetic 49/49 + DB 29/29（B9 双实例抢锁/cursor/retention/真实 HTTP SSE）+ CI 双 lane |
 | **PORT-COLLISION-01** | **COMPLETE（§3.78，2026-09-25）** | PortId derive 键不含 direction/Analog 位折叠——BMD Device smoke 实证 Input/Sdi 与 Output/Sdi 同卡碰撞 ×2；专门 collision closure（port_id 稳定性 + registry fail-closed 语义复核）→ 物理 jack 槽位忠实枚举 + PortId invariant guard | 无 | 双工卡 out jack 表达需后续 Resolver 端口级 binding 演进（独立 packet） |
+| **PRODUCT-SURFACE-ENTRY-01** | **COMPLETE（§3.79，2026-09-25）—— planning 裁决** | VBMF-SDK vs WEB-CONSOLE 实施顺序裁决：以 live API + frozen Contract + dependency evidence 为依据；结论 = **WEB-CONSOLE-ENTRY-01 先行**（首个真实 TS consumer；可反向验证 Product API 消费者可用性；为后续 SDK 生成提供 real consumer evidence）；SDK 仍属 planning deferred，待 Web Console 形成稳定 wire 语义后再启 SDK-ENTRY-01 | 无 | Web Console 与 SDK 都不改 frozen Contract；仅消费 Product API |
+| **WEB-CONSOLE-ENTRY-01** | **READY（§3.79 裁决后·2026-09-25）** | 独立 TS Web Console app（Vite + 原生 fetch + zod/JSON Schema 类型），经 Fastify 反代消费 `/api/v1/*` + `/events/v1/stream`；零直连 media-agent；四状态分离（Desired/Requested/Executing/Observed）+ 命令旅程（Start/Stop/Release）+ SSE 实时 + failure/recovery 反映 + reconnect/reload 收敛；agent 原生 INDEX_HTML 路由（transport.rs）保留作 D10 离线诊断面，不删除 | §3.79（PRODUCT-SURFACE-ENTRY-01 裁决） | （1）UI 不得乐观假成功——必须 4xx/5xx 全如实显示，HTTP 200 ≠ Runtime success 必须保留 §C2 判据；（2）零直连 agent（C13 边界）；（3）类型来自 Fastify route JSON Schema 单一源（不发明 parallel schema）；（4）reconnect 必须按 Event Contract §弱序约束 `weak_ordering` 重放；（5）frozen Authority/Contract 零修改 |
 | **STANDALONE** | **BACKLOG（umbrella；首个 bounded packet = STANDALONE-ENTRY-01）** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
