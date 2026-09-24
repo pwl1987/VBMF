@@ -1,9 +1,38 @@
-# Rust Media Agent - DeckLink/GStreamer/Live FFmpeg sole owner
-# gVisor (runsc) + cap_sys_admin + /dev/blackmagic passthrough (Deployment SoT §2/F11).
-# TODO(Phase 1): wire real build context once media-agent/ (Rust) exists.
-# DeckLink SDK must be available at build/runtime for GStreamer decklink plugin.
-FROM rust:1.83-alpine   # DEPLOY-BASELINE: pin Rust minor; NEVER rust:latest
-WORKDIR /app
-# COPY . .
-# RUN cargo build --release
-# CMD ["./target/release/media-agent"]
+# Rust Media Agent container image — NETWORK-ONLY media plane.
+#
+# Composition boundary (deliberate, RF-SRC-RTMP-02/D10): this image runs the
+# Network-only ffmpeg-backend runtime (MEDIA_AGENT_NETWORK_BINDING selector).
+# It performs no device discovery and cannot touch DeckLink — the
+# bmd-provider (DeckLink SDK + libclang) and gstreamer-backend (system
+# GStreamer stack) device planes stay on the BMD systemd lane; containerized
+# device passthrough is NOT provided by this image and must not be pretended.
+#
+# ffmpeg/ffprobe: static builds from the pinned mwader/static-ffmpeg tag —
+# the FFmpeg MediaBackend spawns the binary by argv (RF-FF-01B/02/03 forms;
+# no shell). curl: compose healthcheck (curl -f localhost:8080/health).
+#
+# DEPLOY-BASELINE: Rust pinned to the repo toolchain line 1.98.1; never
+# rust:latest. Base image tags are digest-pinned at DEPLOY-BASELINE review.
+FROM rust:1.98.1-slim AS build
+WORKDIR /build
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends pkg-config ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY services/media-agent/Cargo.toml services/media-agent/Cargo.lock ./services/media-agent/
+COPY services/media-agent/build.rs ./services/media-agent/
+COPY services/media-agent/src ./services/media-agent/src
+WORKDIR /build/services/media-agent
+RUN cargo build --release --bin media-agent --features ffmpeg-backend
+
+# Runtime distro must match the build stage glibc (rust:1.98.1-slim is
+# trixie-based; bookworm's glibc 2.36 < binary requirement 2.39).
+FROM debian:trixie-slim
+COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/ffmpeg
+COPY --from=mwader/static-ffmpeg:7.1 /ffprobe /usr/local/bin/ffprobe
+COPY --from=build /build/services/media-agent/target/release/media-agent /usr/local/bin/media-agent
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+ENV RUST_LOG=info
+EXPOSE 8080 50051
+CMD ["media-agent"]

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "machine_id": "software-acceptance-vm",
+  "entries": [
+    {
+      "source_id": "11111111-1111-1111-1111-111111111111",
+      "endpoint": "rtmp://127.0.0.1:19350/live/acceptance"
+    }
+  ]
+}

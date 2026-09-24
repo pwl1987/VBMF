@@ -1,0 +1,56 @@
+# VBMF SOFTWARE-ACCEPTANCE overlay (CONTROL-PLANE-ENTRY-01 CP-01E / §11).
+# Usage:
+#   docker compose --env-file .env \
+#     -f ops/docker-compose.yml -f ops/compose.software-acceptance.yml \
+#     up -d --build db cache rustfs srs media-agent fastify nginx
+#
+# VM software verification of the full chain (Nginx→Fastify→internal→agent)
+# WITHOUT DeckLink hardware: the media-agent container runs the NETWORK-ONLY
+# ffmpeg-backend composition (RF-SRC-RTMP-02/D10; no device discovery, no
+# DeckLink — device planes stay on the BMD systemd lane). The base compose
+# /dev/blackmagic passthrough is intentionally replaced with no devices here;
+# the binding manifest is supplied read-only by the operator.
+# /health/nginx + the /events//api chains are exercised through the published
+# host port (8081) exactly as Nginx routes them (frozen B8 route table).
+#
+# RED LINES unchanged: no host publish of 50051; no /internal route in Nginx;
+# web console stays out of the acceptance chain (explicit service list).
+
+services:
+  nginx:
+    ports:
+      - "8081:80"      # host drills only (software acceptance); prod keeps 80/443
+
+  web:
+    # Console placeholder (deferred packet): satisfies the frozen Nginx
+    # upstream without implementing any console functionality.
+    image: nginx:1.27-alpine
+    volumes:
+      - ./acceptance/web-placeholder.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  db:
+    ports:
+      - "15433:5432"   # identity provisioning (npm run provision) from the
+                       # acceptance operator host; software-acceptance only
+
+  media-agent:
+    runtime: runc
+    # Run as the host-side owner of the read-only binding manifest: the agent
+    # fail-closes unless the manifest owner is the service user (D3 hardening).
+    user: "1000:1000"
+    devices: !override []   # VM software acceptance: no DeckLink passthrough (sequence reset)
+    environment:
+      RUST_LOG: info
+      MEDIA_AGENT_RPC_BIND: 0.0.0.0:50051
+      # Network-only composition selector (fail-closed manifest at startup).
+      MEDIA_AGENT_NETWORK_BINDING: /run/vbmf/network-binding.json
+      # Containers have no /etc/machine-id; the machine pin is supplied
+      # explicitly and must match the manifest machine_id (fail-closed).
+      VBMF_MACHINE_ID: software-acceptance-vm
+    volumes:
+      - ./acceptance/network-binding.json:/run/vbmf/network-binding.json:ro

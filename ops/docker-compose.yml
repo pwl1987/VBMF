@@ -91,7 +91,7 @@ services:
   # ---------- App (internal only, behind Nginx) ----------
   fastify:
     build:
-      context: .
+      context: ..
       dockerfile: ops/Dockerfile.fastify
     environment:
       DATABASE_HOST: db
@@ -200,7 +200,7 @@ services:
   # ---------- Media Runtime (Sole DeckLink/GStreamer/Live FFmpeg owner) ----------
   media-agent:
     build:
-      context: .
+      context: ..
       dockerfile: ops/Dockerfile.media-agent
     # DEPLOY-04: runtime NOT pinned in BASE. DEV defaults runc (no runsc needed);
     # ACCEPTANCE/PROD overlays set the MEDIA-SEC-01-validated runtime (runsc or runc+seccomp).
