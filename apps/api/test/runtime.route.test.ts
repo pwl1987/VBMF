@@ -156,8 +156,12 @@ test("F13 agent 方向：agent 返回非法 session id wire → 500 INTERNAL_ERR
     assert.equal(err.code, "INTERNAL_ERROR");
     assert.equal(err.retryable, false);
     // 不泄漏内部实现细节：响应体不回显原始 wire 值/内部诊断
-    const raw = res.body;
-    assert.ok(!raw.includes(String(badWire)), "raw wire value must not leak");
+    const raw = res.body as string;
+    const wireStr = String(badWire);
+    assert.ok(
+      !raw.includes(wireStr),
+      `raw wire value must not leak (badWire=${wireStr}, body=${raw.slice(0, 240)})`,
+    );
     assert.ok(!raw.includes("AgentWire"), "internal class names must not leak");
   }
 });
