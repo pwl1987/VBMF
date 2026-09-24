@@ -1168,17 +1168,77 @@ Status: **COMPLETE / VM 全链 SOFTWARE + BMD 真机（DeckLink 采集旅程 × 
 - **CONTROL-PLANE-ENTRY-01 全链收口**：CP-01A(§3.73) + CP-01B(§3.74·RH-IDEM-01 清偿) + CP-01C(§3.75) + CP-01D(§3.76) + CP-01E(本节) 全部 COMPLETE；frozen Architecture/Contract 零修改；Runtime owns truth 红线全程保持。
 - 下一：无 READY packet——Task Queue 后续（Web Console、`vbmf-sdk`、BullMQ/Worker、跨主机 mTLS、agent UUID wire 增补、agent 侧 durable 事件面、storage/SRS image pin 修复）均需新 bounded packet 与用户裁决后入场。
 
+## 3.78 PORT-COLLISION-01 closure（2026-09-25）—— 物理 jack 槽位忠实枚举 + PortId invariant guard
+
+Status: **COMPLETE / VM 软件 + BMD 真机 + CI 7/7+control-plane VERIFIED**
+
+### RCA（无 HARD BLOCKER，frozen Contract 充分）
+
+BMD 真机证据（10.30.15.10, 2026-09-24 `VBMF_CONFIG_PROBE` on `06bc01a`/旧 binary）：
+- "DeckLink SDI" ×2 sub-device 各 `cap_video_in=1` **且** `cap_video_out=1`、`cfg_video_in=1` **同时** `cfg_video_out=1`，无 profile/ConnectorMode 切换 → **固定全双工卡**（SDI-IN 与 SDI-OUT 是两个独立 BNC jack，非同一 jack 的双向视图）。
+- 旧 `discover_ports` 按"每 connector 类型 × 每方向"伪造端口且序号恒 `Known(1)` → 同卡 `Input/Sdi/Known(1)` 与 `Output/Sdi/Known(1)` 共享 port_id（`se01b-device-smoke.log` L9/L10 实证 ×2）。
+- frozen Contract（`CANONICAL_IDENTITY.md §5.1` Provider Port Ref 分层 + `§7` PortId 派生）**充分**表达正确身份：物理 jack = 设备内同 connector 类型的**物理槽位**（与运行时方向声明无关）；方向属性可漂移，不得入键。**HARD BLOCKER 未触发**——无需改 frozen Authority。
+
+### Identity 决策
+
+- PortId 键不变：`uuid5(PORT_NAMESPACE, "<device_id>:<connector>:<ordinal>")`；`ordinal` = "SDK 掩码按方向位序分配的物理槽位"；`direction` 与 `RuntimeBinding` 均为属性不入键。
+- **槽位空间正交**：in-jack 占用 1..N（按 `video_input_connections` 位序），out-jack 占用 N+1..N+M（按 `video_output_connections` 位序）。两方向槽位空间不相交 → 同 connector 永远不会碰撞；完全派生自 SDK 掩码，跨进程/跨重启稳定。
+- `Analog` 位折叠（Component 0x8 + Composite 0x10）按位序分槽为 `Analog/1 + Analog/2`，各占独立物理 jack（实证固定）。
+- jack 级 capability 证据：in-jack 仅在 in-mask 含此 connector 时 `input=Supported`；out-jack 仅在 out-mask 含此 connector 时 `output=Supported`；设备级另一方向掩码**绝不**摊平到当前 jack（消除 Resource 别名根因）。
+- Input jack 的 `output = Unsupported`，Output jack 的 `input = Unsupported`（方向语义决定该能力确定不支持，区别于 `Unknown`/未探测）。
+- `warn_duplicate_discovery_port_ids` 升级为 **invariant guard**：test/debug panic、release log+continue——此前为已知缺口告警，现为真正 invariant violation 检测。
+- manifest `PortBinding.ordinal` 表达 jack 槽位语义（in 1..N, out N+1..N+M）；现有 fixture `bmd-sdi-loopback.manifest.json`（Mini Monitor in_mask=0 → out jack slot=1）与现有 hw-ident manifest 无需变更；新形态下"双工卡"需额外声明 SDI-OUT-2（不在本包修复范围，Resolver 设备身份 dedup 仍以单 handle 为单位，本包修 PortId 槽位）。
+
+### Software verification（VM）
+
+- 9 个 failure-first `pc01_*` 测试（`port.rs`）+ 既有 35 个 port 测试 → **44/44 PASS**（547 lib + 21 integration 全绿，mock feature）。
+- `cargo clippy --features mock --tests -- -D warnings` PASS；`cargo fmt --check` PASS；`connector_from_mask` 重构不破坏既有测试。
+- `discovery 层 PortId 不变量` 五种 fixture（fixed-duplex、output-only、Analog、in-multi、full-mask）全不重复。
+- jack capability 验证：in-jack `input=Supported(true) & output=Unsupported`、out-jack `output=Supported(true) & input=Unsupported`，设备级聚合按物理 jack 计数。
+
+### CI（exact commit `a0d6fa9`）
+
+- media-agent required 7/7 SUCCESS：hardware-test-compile（含 bindgen/FFI compile）、gstreamer-build（bmd+gstreamer feature 真编译）、rust-clippy（default + mock+ffmpeg-backend）、rust-format、rust-test-matrix、architecture-portability、session-lifecycle。
+- control-plane CI SUCCESS（GitHub-hosted fastify lane）。
+- Required contexts 无变化；frozen Authority/Contract 零修改。
+
+### BMD 真机验收（exact commit `a0d6fa9`, binary sha256=`2c5c5ff16795e9c819467fdadece3977`, from artifact `media-agent-linux-hwtest-bin`）
+
+- 复制到 BMD `/tmp/port-rca-bin/media-agent-gates`；manifest 临时 pin `/etc/machine-id`（与 SE-01B 同等语义）。
+- **device-smoke RUN #1/RUN #2/RUN #3**：3 次重复 discovery → `device discovery complete count=3`、`lease acquired` 三个 device_id 跨重启完全一致（`4fa33dcb-…/6ede00d0-…/1afe2dcc-…`）→ **`authorized_devices=2, authorized_ports=2`** → **零 PortId 碰撞 warning**（旧 `se01b-device-smoke.log` L9/L10 两条 WARN 已消失）→ SIGTERM 优雅停机 exit 0。
+- `VBMF_SESSION_LIFECYCLE=1 VBMF_SELFTEST=1` 设备模式成功起 ready（设备面 ready=2 ports=2）；无 SDI 信号源，故未触发真实采集会话（与 SE-01B 一致——v2 binary 接受 VBMF_REGISTRY_ONLY=1 链路零回归）。
+- **device-2 边界**：全程 PID 992634 `gst-launch-1.0` 前后无变化；`/opt/vbmf-dev` 未触碰；ufw 规则未改（无新增）；`/tmp/port-rca-*` 验收后清理。
+
+### Migration / 兼容性
+
+- 现有持久 consumer：**无**。PortId 仅作资源命名空间 + ResourceId 派生 + preflight 寻址的输入；当前仓库**无** PortId 持久化（未入 PG、未入 Session 记录、未入 Event payload、未入 External API）。
+- 现有 fixture `bmd-sdi-loopback.manifest.json`（Mini Monitor 4K out jack，in_mask=0 → slot=1）与 `a2-8-02i-v5.manifest.json`（双卡 SDI/1/input ×2，in_mask 各 1 位 → slot=1 各占独立 jack）无需变更——双工卡新增 out jack 表达超出本包修复范围（Resolver 设备身份 dedup 单 handle 形态需后续单独 bounded packet 决议）。
+- SDK 掩码位序表 `CONNECTOR_MASK_TABLE` 与 BMD SDK 16.0 头文件 `BMDVideoConnection` 一致（低→高位），跨硬件/跨 SDK 升级稳定（待多设备复验，已登记后续 packet）。
+- 全部 9 个 deferred BACKLOG 项仍维持原状（Web Console、SDK、storage/SRS image pin、跨主机 mTLS、agent UUID wire、agent-side durable event plane 等）。
+
+### Remaining debt / Future packet 前置
+
+- **双工卡 out jack 声明形态**：当前 Resolver `validate_manifest` 拒绝同 `bmd_device_handle` 多 entry（设备身份冲突 fail-closed）→ 双工卡新增 out jack 需要 Resolver 端口级 binding 演进（与 PORT-COLLISION-01 是不同维度，独立 packet）。
+- **多设备多 jack 端到端回归**：仅在 10.30.15.10 盒上验证；多台不同型号 DeckLink 复验（特别是 AJA/混合拓扑）作为后续 HW-IDENT 类 packet 验收项。
+- `rustfs/rustfs:2026.8.1` 与 `ossrs/srs:6.0.42` docker.io pinned tags 失效（§3.77 登记）继续生效，与本包无关。
+
+### 推进
+
+- 本包完成后无即时可推 READY packet——§4/§5 维持原"无 READY"状态。
+- 下一项进入需按用户指令"PRODUCT-SURFACE-ENTRY-01"（SDK vs Web Console 实施顺序裁决）首肯；现 §5.1 Task Queue 中 PORT-COLLISION-01 行已从 BACKLOG 关闭。
+
 ## 4. Current Task
 
-**无 READY Work Packet**——CONTROL-PLANE-ENTRY-01 全链 COMPLETE（CP-01A/01B/01C/01D/01E·§3.73–§3.77）。
+**无 READY Work Packet**——CONTROL-PLANE-ENTRY-01 全链 COMPLETE（CP-01A/01B/01C/01D/01E·§3.73–§3.77）+ PORT-COLLISION-01 COMPLETE（§3.78）。
 
-- 2026-09-24/25 用户指令"接管主线开发 + AUTONOMOUS CONTINUOUS DELIVERY"已执行至 planning §7 子包分解的自然终点（CP-01A→01B→01C∥01D→01E 全收口）。
-- 下一步为**新能力面**，全部属于 planning 显式 deferred 或需新 bounded packet + 用户裁决：Web Console（C13 边界）、`vbmf-sdk`、BullMQ/Worker 异步面、跨主机 mTLS（R-f）、agent UUID wire 增补（C9 后续）、agent 侧 durable 事件面、Resource PUT/ChangeSet 流、webhook 签名投递、多实例事件分发（outbox safety）。
+- 2026-09-24/25 用户指令"接管主线开发 + AUTONOMOUS CONTINUOUS DELIVERY"已执行至 planning §7 子包分解的自然终点（CP-01A→01B→01C∥01D→01E 全收口）+ 已知 correctness debt 闭环（PORT-COLLISION-01 物理 jack 槽位忠实枚举）。
+- 下一步按用户指令"PRODUCT-SURFACE-ENTRY-01"（SDK vs Web Console 实施顺序裁决）展开——需重新读取 External API Contract / Event Contract / Control Plane frozen plan / SDK backlog contract / Web Console backlog contract / live Fastify Product API / live SSE/Event API / 当前 prototype Web artifacts，以"dependency evidence"裁决而非 Roadmap。
+- 其它 deferred 项维持原状：Web Console、SDK、BullMQ/Worker 异步面、跨主机 mTLS、agent UUID wire 增补、agent 侧 durable 事件面、Resource PUT/ChangeSet 流、webhook 签名投递、多实例事件分发。
 - 登记发现（非阻塞）：`rustfs/rustfs:2026.8.1` 与 `ossrs/srs:6.0.42` docker.io pinned tags 已失效（§3.77 诚实披露）——storage/SRS 相关 packet 入场前需先裁决镜像基线。
 
 ## 5. Next Task
 
-等待用户新指令或新 Work Packet 裁决。不得未经裁决擅入 deferred 面。
+进入 **PRODUCT-SURFACE-ENTRY-01** planning：以 live API + frozen Contract + dependency evidence 裁决 VBMF-SDK 与 WEB-CONSOLE 真实实施顺序；产出第一个 bounded implementation packet（SDK-ENTRY-01 或 WEB-CONSOLE-ENTRY-01）并直接执行，不等用户再次确认。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -1243,7 +1303,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 | **CP-01B** | **COMPLETE — SOFTWARE + CI + VM PG 注入 + 真实 agent E2E（§3.74·2026-09-23·BMD DEFERRED to CP-01E）** | durable command entry（commands/audit_entries·C4/C6 全语义·F1–F8 全 PASS）；**RH-IDEM-01 清偿** | CP-01A COMPLETE（§3.73） | ephemeral PG 12/12 + 真实 agent E2E + CI 双 lane SUCCESS |
 | **CP-01C** | **COMPLETE — SOFTWARE + CI + VM PG 注入 + 容器级安全 smoke（§3.75·2026-09-24·BMD DEFERRED to CP-01E）** | Better Auth + CASL + 应用层 rate limit + 审计硬化（dev principal 桩删除；api_keys 家族对齐） | CP-01B COMPLETE（§3.74） | hermetic 49/49 + DB 层 22/22（F1–F8 真实身份回归）+ provision/revoke 实跑 + compose config ×4 + 容器 smoke + gate 扩展 PASS |
 | **CP-01D** | **COMPLETE — SOFTWARE + CI + VM PG 注入 + 真实 HTTP SSE（§3.76·2026-09-24·BMD DEFERRED to CP-01E）** | Event plane：drain→outbox→SSE（单实例约束·B9）+ cursor | CP-01B（§3.74）+ CP-01C（§3.75） | hermetic 49/49 + DB 29/29（B9 双实例抢锁/cursor/retention/真实 HTTP SSE）+ CI 双 lane |
-| **PORT-COLLISION-01** | **BACKLOG（§3.66 登记·2026-09-20）** | PortId derive 键不含 direction/Analog 位折叠——BMD Device smoke 实证 Input/Sdi 与 Output/Sdi 同卡碰撞 ×2；专门 collision closure（port_id 稳定性 + registry fail-closed 语义复核） | 需协调者裁度（非 SE-01B-FIX 范围） | 不以 SE-01B-FIX 顺手修；证据已留 `se01b-device-smoke.log` L9/L10 |
+| **PORT-COLLISION-01** | **COMPLETE（§3.78，2026-09-25）** | PortId derive 键不含 direction/Analog 位折叠——BMD Device smoke 实证 Input/Sdi 与 Output/Sdi 同卡碰撞 ×2；专门 collision closure（port_id 稳定性 + registry fail-closed 语义复核）→ 物理 jack 槽位忠实枚举 + PortId invariant guard | 无 | 双工卡 out jack 表达需后续 Resolver 端口级 binding 演进（独立 packet） |
 | **STANDALONE** | **BACKLOG（umbrella；首个 bounded packet = STANDALONE-ENTRY-01）** | production images/compose、readiness、shutdown/restart/upgrade/rollback、current-main BMD deployment reconciliation | Runtime feature slice | standalone install/run/restore；BMD exact commit acceptance |
 | **CONTROL-PLANE** | **BACKLOG** | Fastify + PostgreSQL/Drizzle + Worker/BullMQ + Auth/RBAC | Standalone/runtime APIs stable | Rust Runtime remains truth；Fastify 不拥有媒体生命周期 |
 | **VBMF-SDK** | **BACKLOG** | 契约测试 + 真实消费者证据后实现 Rust/TS/Python `vbmf-sdk` | stable API consumers | 不暴露 Rust/GStreamer/FFmpeg/vendor/DB internals |
@@ -1368,7 +1428,7 @@ Current Task 专项 Authority：用户 2026-09-20 指令（SE-01B-FIX bounded pa
 8. **runner 出网抖动 / codeload — MITIGATED + VERIFIED（2026-09-18）**：历史故障窗与失败证据继续保留；RH-BUS-02 收口期再次确定性复现 `codeload.github.com` Action archive HttpClient 100s×3 timeout，证明“失败后 rerun”不足。已升级为两层缓解：git checkout/fetch 继续使用 host system git proxy；Action setup 主路径改用 GitHub Runner 官方 `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE`，workflow external Actions 全 pin immutable SHA。三台 runner maintenance + probe 均通过：media `35247466755/35247550654`，general `vbmf-ci-01` probe `35248095276`、`vbmf-ci-02` probe `35248099277`（后者 direct mode 亦 cache 4/4 PASS）；current-tree required run `35248227420` **7/7 PASS**。loopback HTTP proxy 仅保留 cache maintenance/miss fallback；继续观察但不再是 Current Task blocker。
 9. **RF-SRC-RTMP-02 closure gaps — CLOSED（2026-09-19·§3.60）**：production bin Network-only 模式选择 + gate 先于 common bootstrap dispatch 已落地（`d13f1fd`）；BMD TG-6R 以严格 D10 进程级证据（4 次 gate 运行 device 行=0 + gate 内机械断言）重验通过。
 10. **SE-01B closure defects — CLOSED（2026-09-20·§3.67）**：StartLimit 移 `[Unit]`（BMD verify 零 warning + 3 次 exit 2 → start-limit 实证）；exact-SHA provenance 六环链核验；staging 原子性（VM matrix 37/37 + BMD 拒绝矩阵）。STANDALONE-ENTRY-01 恢复全链 COMPLETE。
-11. **PortId derive 键碰撞（direction/Analog 位折叠缺失）— OPEN（2026-09-20 登记·非当前 blocker）**：BMD Device smoke 实证同卡 `Input/Sdi/Known(1)` 与 `Output/Sdi/Known(1)` 碰撞 ×2（`port.rs` warn；证据 `se01b-device-smoke.log` L9/L10）。registry 装配层现 fail-closed；专门 closure = `PORT-COLLISION-01` BACKLOG，防证据发现问题跨窗口丢失。
+11. **PortId derive 键碰撞（direction/Analog 位折叠缺失）— CLOSED（2026-09-25 关闭）**：BMD Device smoke 实证同卡 `Input/Sdi/Known(1)` 与 `Output/Sdi/Known(1)` 碰撞 ×2（`port.rs` warn；证据 `se01b-device-smoke.log` L9/L10）→ §3.78 closure：物理 jack 槽位忠实枚举（in 1..N, out N+1..N+M）+ jack 级 capability 证据 + PortId invariant guard（test/debug panic, release log+continue）；BMD 双重启验收零碰撞 warning，`authorized_ports=2` 唯一；CI 8/8 SUCCESS @ `a0d6fa9`。剩余：双工卡 out jack 显式声明需 Resolver 端口级 binding 演进（独立 packet）。
 
 ### Current blockers
 
