@@ -41,7 +41,7 @@ Agent foundation（2026-09-15 复核）：`/home/ubuntu/dev/_shared/bin/agent-pr
 
 ## 2. Current Phase
 
-**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；STANDALONE-ENTRY-01 全链 COMPLETE（SE-01A/SE-01C/SE-01D/SE-01B·§3.62–§3.65 + SE-01B-FIX reconciliation 收口·§3.66–§3.67）；RUNTIME-CONTROL-ENTRY-01 全链 COMPLETE（§3.68–§3.70）+ RCE-D3 COMPLETE（§3.71）+ CONTROL-PLANE-ENTRY-01 PLAN FROZEN（§3.72·C1–C14）+ **CP-01A COMPLETE（§3.73·2026-09-23）+ CP-01B COMPLETE（§3.74·2026-09-23·RH-IDEM-01 清偿）+ CP-01C COMPLETE（§3.75·2026-09-24·Auth/RBAC/限流/审计硬化）+ CP-01D COMPLETE（§3.76·2026-09-24·Event plane）**；当前 READY Work Packet = **CP-01E — 全栈/BMD 集成验收**（§4）**
+**Runtime Features ACTIVE；RF-FF-02/RF-FF-03 + RH-CLOCK-01 + RF-NORM-01 + RF-MASTER-01 + RF-SRC-RTMP-01 COMPLETE；RF-SRC-01 BLOCKED；RF-SRC-RTMP-02 COMPLETE（closure reconciliation 已收口·§3.60）；STANDALONE-ENTRY-01 全链 COMPLETE（SE-01A/SE-01C/SE-01D/SE-01B·§3.62–§3.65 + SE-01B-FIX reconciliation 收口·§3.66–§3.67）；RUNTIME-CONTROL-ENTRY-01 全链 COMPLETE（§3.68–§3.70）+ RCE-D3 COMPLETE（§3.71）+ CONTROL-PLANE-ENTRY-01 PLAN FROZEN（§3.72·C1–C14）+ **CP-01A COMPLETE（§3.73·2026-09-23）+ CP-01B COMPLETE（§3.74·2026-09-23·RH-IDEM-01 清偿）+ CP-01C COMPLETE（§3.75·2026-09-24·Auth/RBAC/限流/审计硬化）+ CP-01D COMPLETE（§3.76·2026-09-24·Event plane）+ CP-01E COMPLETE（§3.77·2026-09-25·全栈/BMD 集成验收）→ **CONTROL-PLANE-ENTRY-01 全链 COMPLETE**；当前无 READY packet（后续 deferred 项需新 packet 裁决）（§4）**
 
 Phase 2 与 STAB-O3.1/O4 均已收口；本阶段只处理进入 Runtime Features 前会扩大故障面的关键 hardening。采用“按依赖按需清偿”而非一次清空全部历史债务：已被 BMD 实证的多输入 Bus/故障观测缺陷最高优先，随后是会被新 Source/Output 生命周期放大的 D1/D3/D7；D11+D13 在 Clock/Timecode 下一触碰点前清偿，D15 在多流 Audio/Metadata 前清偿，durable idempotency 在外部持久控制面前清偿。
 
@@ -1145,18 +1145,40 @@ Status: **COMPLETE / SOFTWARE + CI + VM PG 注入 + 真实 HTTP SSE VERIFIED（B
 - 边界遵守：零 Rust 改动；Web Console/BullMQ/多实例事件分发/webhook 投递未触碰；required contexts 未变更；Nginx 零改动；Runtime truth 仍只来自 agent；Product 命令/读面零行为变化（CP-01A/01B/01C 回归 PASS）。
 - 下一：**CP-01E — 全栈/BMD 集成验收**（compose prod overlay 全链 + failure drill 矩阵重放 + standalone 零回归 + BMD 真机一轮；承接 CP-01A/01B/01C/01D 的 BMD DEFERRED）。
 
+### 3.77 CP-01E 收口（2026-09-25）— 全栈/BMD 集成验收；CONTROL-PLANE-ENTRY-01 全链 COMPLETE
+
+Status: **COMPLETE / VM 全链 SOFTWARE + BMD 真机（DeckLink 采集旅程 × Product API）+ CI VERIFIED**
+
+- Implementation `70ff46a`（CI：control-plane lane + media-agent **7/7 required** 双 lane SUCCESS·零 Rust 行为改动）——交付 = 真实 media-agent 容器镜像 + 双验收 overlay + VM/BMD 全链验收。
+  - **ops/Dockerfile.media-agent**：占位模板 → 真实多阶段构建（rust:1.98.1-slim build + debian:trixie-slim runtime——GLIBC 对齐 RCA：bookworm 2.36 < 二进制要求 2.39；network-only ffmpeg-backend 面；静态 ffmpeg/ffprobe pin `mwader/static-ffmpeg:7.1`；**设备面边界明确**：bmd-provider（SDK+libclang）与 gstreamer-backend（系统 GStreamer）留在 BMD systemd lane，容器不假装设备能力）。
+  - **ops/compose.software-acceptance.yml**（VM）与 **ops/compose.bmd-acceptance.yml**（BMD）：验收 overlay——agent 容器 NETWORK_BINDING 清单（0600+属主+机器 pin fail-closed 语义保留，`user: 1000` 匹配属主）、无设备直通（`!override devices`）、web 静态占位（console packet 未启动，仅满足 B8 冻结路由 upstream）、nginx/db 验收 host 端口、BMD fastify 经 bridge gateway 地址指向原生宿主 agent（D3-R 显式私有 bind 运维动作，事后 ufw 规则即撤）。
+  - **ops/docker-compose.yml 修复**：build context `.` → `..`（compose 项目目录=ops/，原路径从不可构建——既有缺陷修复）；gate 扫描列表纳入两个新 overlay（F11 红线全数续 PASS）。
+  - **诚实披露**：`rustfs/rustfs:2026.8.1` 与 `ossrs/srs:6.0.42` pinned tags 在 docker.io 已不存在（DEPLOY-BASELINE drift 发现，登记为后续 storage/SRS packet 前置问题）；本验收以显式服务清单 + `--no-deps` 序列覆盖控制面链（db/fastify/agent/nginx/web），不拉取失效镜像。
+- **VM 全链验收**（compose 软件验收栈；本机 ephemeral PG + node:24 宿主 provisioning）：
+  - 命令旅程（全链 nginx→fastify→internal→agent）：`start_session`（rtmp listen 源 + hls sink，真实容器 agent 实际 spawn ffmpeg `-rtmp_listen`）→ `completed`；live 读显示 session `running`（两平面：Operation 记录 ≠ Runtime 现状分开呈现）；`stop_session` → `completed` → Released；teardown 零 ffmpeg 孤儿。
+  - 两平面诚实性：未知设备 intent → 真实 agent 裁决 `failed(retryable)`"设备未注册"（HTTP 200 ≠ Runtime success 实证）；agent `-32602 invalid_intent` → CP-01B 冻结保守语义 timeout(retryable)（不猜成功）。
+  - 安全矩阵：401（无凭证）/403（viewer start）/429（write bucket 限流，55 过+6 限，Retry-After）/400（F13 客户端方向）；replay 同键同响应、异 target 409；F1 agent 停机 → 503 + PG `timeout|retryable` 终态 + 审计同事务；SSE 事件面 `?cursor=0` 重放出 journey 聚合投影帧（id/event/data、weak_ordering）；standalone 零回归探针（无 CP 依赖：internal RPC + 8080 health 独立应答）。
+- **BMD 真机验收**（exact commit `70ff46a`，archive sha256 `c27f2c4495c2ad7e2a53a2f42a4c7f80a3730110eeecc10a0f15006ec5209c5a`；原生 bmd,gstreamer release build；`DECKLINK_SDK_INCLUDE` + `VBMF_MACHINE_ID=10.30.15.10` + `MEDIA_AGENT_DEVICE_BINDING=a2-8-02i-v5.manifest.json`；`MEDIA_AGENT_RPC_BIND=172.18.0.1:50051` bridge 网关）：
+  - **命令旅程 × Product API（真机 DeckLink）**：live 读 = 3 台 DeckLink（2 输入 + Mini Monitor 4K）+ 2 input ports available；`start_session`（decklink 源，设备 `4fa33dcb-…`）→ `completed` → live 读 session `running`（handle 1、resource `allocated`）→ `stop_session` → `completed` → session `released` + resources `available`。
+  - 安全矩阵：401/403/400；同键异 target → 409 RESOURCE_CONFLICT；同键同 target 重放 200；F1 native agent SIGTERM → 503 → PG `timeout|retryable` → 重启 → live 读 200（F7 恢复）。
+  - SSE 事件面：真实 journey 聚合投影帧（lease_granted/session_created/identity_resolved/source_materialized/session_state_changed×4）。
+  - **边界**：历史 device-number 2 输出进程 PID `992634` before/after 完全不变；`/opt/vbmf-dev/repo` 未触碰；验收后 agent 优雅停止、compose down -v、ufw 规则即撤、/tmp 清理（盒上零残留）。
+  - BMD 侧 provisioning 经 `npm run provision`（VM node 24 → BMD db 15433 端口）复用同一官方路径。
+- 边界遵守：零 Rust 行为改动（agent 源码零修改——镜像/overlay/compose 修复均为部署面）；Web Console 未实现（静态占位如实验记）；BullMQ/Worker/multi-instance event dispatch/webhook 签名投递维持 planning 显式 deferred；required contexts 未变更。
+- **CONTROL-PLANE-ENTRY-01 全链收口**：CP-01A(§3.73) + CP-01B(§3.74·RH-IDEM-01 清偿) + CP-01C(§3.75) + CP-01D(§3.76) + CP-01E(本节) 全部 COMPLETE；frozen Architecture/Contract 零修改；Runtime owns truth 红线全程保持。
+- 下一：无 READY packet——Task Queue 后续（Web Console、`vbmf-sdk`、BullMQ/Worker、跨主机 mTLS、agent UUID wire 增补、agent 侧 durable 事件面、storage/SRS image pin 修复）均需新 bounded packet 与用户裁决后入场。
+
 ## 4. Current Task
 
-**CP-01E — 全栈/BMD 集成验收（READY·CP-01D §3.76 收口后）**
+**无 READY Work Packet**——CONTROL-PLANE-ENTRY-01 全链 COMPLETE（CP-01A/01B/01C/01D/01E·§3.73–§3.77）。
 
-- **Task ID**: `CP-01E`；**Authority**: 用户 2026-09-24 指令 + `docs/superpowers/plans/2026-09-21-control-plane-entry-01-planning.md`（§7 CP-01E 行 + §8 BMD 口径）> frozen 契约族 > 本 STATE。
-- **Scope**: compose prod overlay 全链（Nginx→Fastify→internal→agent）+ failure drill 矩阵重放（F1–F13 中可注入项）+ standalone 零回归（agent 无 CP 照常全功能）+ BMD 真机一轮（承接 CP-01A/01B/01C/01D 的 BMD DEFERRED）。
-- **Forbidden**: 新功能面；Rust 行为修改（架构评审外）；required context 擅自变更；DB/Runtime truth 边界变化。
-- **Verification**: BMD + VM + CI；BMD 授权访问路径不可用时 hardware/runtime verification = DEFERRED / HARD EXTERNAL BLOCKER 如实入 STATE，软件面工作先行完成。
+- 2026-09-24/25 用户指令"接管主线开发 + AUTONOMOUS CONTINUOUS DELIVERY"已执行至 planning §7 子包分解的自然终点（CP-01A→01B→01C∥01D→01E 全收口）。
+- 下一步为**新能力面**，全部属于 planning 显式 deferred 或需新 bounded packet + 用户裁决：Web Console（C13 边界）、`vbmf-sdk`、BullMQ/Worker 异步面、跨主机 mTLS（R-f）、agent UUID wire 增补（C9 后续）、agent 侧 durable 事件面、Resource PUT/ChangeSet 流、webhook 签名投递、多实例事件分发（outbox safety）。
+- 登记发现（非阻塞）：`rustfs/rustfs:2026.8.1` 与 `ossrs/srs:6.0.42` docker.io pinned tags 已失效（§3.77 诚实披露）——storage/SRS 相关 packet 入场前需先裁决镜像基线。
 
 ## 5. Next Task
 
-CP-01E 完成后 CONTROL-PLANE-ENTRY-01 全链收口；后续按 §5.1 Task Queue 与 Roadmap 推进（Web Console/SDK/BullMQ/agent UUID wire 增补等 planning 显式 deferred 项需新 packet 裁决）。
+等待用户新指令或新 Work Packet 裁决。不得未经裁决擅入 deferred 面。
 
 P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance 人工线，不进入
 普通 PR CI。
@@ -1244,7 +1266,7 @@ P2 系列全部收口（§3.4–§3.16）。BMD 实机永走 hardware acceptance
 5. 真实 code / tests / Runtime / hardware evidence；
 6. `ROADMAP.md`、`PHASE_IMPLEMENTATION_MAP.md`、README、历史任务记录、旧聊天、Memory、历史分支 / PR。
 
-Current Task 专项 Authority：用户 2026-09-20 指令（SE-01B-FIX bounded packet + RUNTIME-CONTROL-ENTRY-01 裁定）；`.project/STATE.md` §3.31–§3.67/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker；RF-SRC-RTMP-01 两份 boundary plan；RF-SRC-RTMP-02 production boundary plan（含 §8 live-tree audit appendix + Implementation Invariants）+ closure reconciliation 报告；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / RUNTIME_BINDING_MODEL / MEDIA_BACKEND_CONTRACT §§1/1.1 P0-8/3/4；STANDALONE-ENTRY-01 planning（S1–S10 + 子包 + matrix）+ `STANDALONE_MEDIA_AGENT_OPERATIONS.md`（SE-01C 语义权威页·§4.3 已随 SE-01D 回改）+ SE 系列四份收口报告 + SE-01B-FIX reconciliation 报告。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01、RF-SRC-RTMP-02（含 closure）已完成；**STANDALONE-ENTRY-01 全链 + RCE 全链（§3.68–§3.70）+ RCE-D3（§3.71）+ CONTROL-PLANE-ENTRY-01 planning（§3.72）+ CP-01A（§3.73）+ CP-01B（§3.74·RH-IDEM-01 已清偿）+ CP-01C（§3.75·Auth/RBAC/限流/审计硬化）+ CP-01D（§3.76·Event plane）均 COMPLETE——当前执行 CP-01E（全栈/BMD 集成验收）**；Product `/api/v1/*` 归 Fastify·经 internal `/internal/v1/agent`；不得擅自建设 Web Console/SDK/新 Runtime owner 或越过 §3.72 子包边界。
+Current Task 专项 Authority：用户 2026-09-20 指令（SE-01B-FIX bounded packet + RUNTIME-CONTROL-ENTRY-01 裁定）；`.project/STATE.md` §3.31–§3.67/§4–§5；A2-1 SwitchPolicy design/verify；RF-MASTER-01 plan/report；RF-NORM-01 spec、Phase A/Phase B report；RF-SRC-01 SRT blocker；RF-SRC-RTMP-01 两份 boundary plan；RF-SRC-RTMP-02 production boundary plan（含 §8 live-tree audit appendix + Implementation Invariants）+ closure reconciliation 报告；RUNTIME_RESOURCE_MODEL / RUNTIME_SESSION_MODEL / RUNTIME_BINDING_MODEL / MEDIA_BACKEND_CONTRACT §§1/1.1 P0-8/3/4；STANDALONE-ENTRY-01 planning（S1–S10 + 子包 + matrix）+ `STANDALONE_MEDIA_AGENT_OPERATIONS.md`（SE-01C 语义权威页·§4.3 已随 SE-01D 回改）+ SE 系列四份收口报告 + SE-01B-FIX reconciliation 报告。RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01、RF-SRC-RTMP-02（含 closure）已完成；**STANDALONE-ENTRY-01 全链 + RCE 全链（§3.68–§3.70）+ RCE-D3（§3.71）+ CONTROL-PLANE-ENTRY-01 planning（§3.72）+ CP-01A（§3.73）+ CP-01B（§3.74·RH-IDEM-01 已清偿）+ CP-01C（§3.75·Auth/RBAC/限流/审计硬化）+ CP-01D（§3.76·Event plane）+ CP-01E（§3.77·全栈/BMD 集成验收）均 COMPLETE——**CONTROL-PLANE-ENTRY-01 全链收口，无 READY packet**（deferred 项需新裁决）**；Product `/api/v1/*` 归 Fastify·经 internal `/internal/v1/agent`；不得擅自建设 Web Console/SDK/新 Runtime owner 或越过 §3.72 子包边界。
 
 注意：该 Strategy 中形成于分支迁移前的 `master` baseline 描述属于历史证据；操作性命令中的 `--ref master` 等字面量已经因 Git Authority rename 产生迁移债务，P2-B 开工时必须先按 `main` reconciliation，不能把历史分支名重新解释成开发 Authority。
 
@@ -1392,9 +1414,9 @@ Current Task 专项 Authority：用户 2026-09-20 指令（SE-01B-FIX bounded pa
 3. 读取 live `main` HEAD；
 4. 读取本 `.project/STATE.md`；
 5. 找到“包含当前 STATE 版本的 commit”，比较 live HEAD 是否有更新；若有，只 reconcile STATE 之后的新 commits；
-6. 读取 **Current Task = CP-01E（§4）**——RCE 全链 + RCE-D3（§3.71）+ CONTROL-PLANE-ENTRY-01 planning（§3.72·C1–C14）+ CP-01A（§3.73）+ CP-01B（§3.74·durable command entry·RH-IDEM-01 清偿）+ CP-01C（§3.75·Auth/RBAC/限流/审计硬化）+ CP-01D（§3.76·Event plane）已收口（历史 Authority 链含：`/api/v1/*`=prototype 裁定、internal=JSON-RPC@`/internal/v1/*`、两平面语义映射、RH-IDEM 维持 DEFER；frozen Contract 零修改）。历史 Authority 链备查：`docs/superpowers/plans/2026-09-19-standalone-entry-01-planning.md` + `docs/superpowers/plans/2026-09-20-runtime-control-entry-01-planning.md`（D1–D8/F1–F10）+ `docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md` + SE 系列四份收口报告 + SE-01B-FIX reconciliation 报告 + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md`；
+6. 读取 **Current Task = 无 READY packet（§4）**——RCE 全链 + RCE-D3（§3.71）+ CONTROL-PLANE-ENTRY-01 planning（§3.72·C1–C14）+ CP-01A（§3.73）+ CP-01B（§3.74·RH-IDEM-01 清偿）+ CP-01C（§3.75）+ CP-01D（§3.76）+ CP-01E（§3.77）已全链收口；deferred 项未经新裁决不得擅入（历史 Authority 链含：`/api/v1/*`=prototype 裁定、internal=JSON-RPC@`/internal/v1/*`、两平面语义映射、RH-IDEM 维持 DEFER；frozen Contract 零修改）。历史 Authority 链备查：`docs/superpowers/plans/2026-09-19-standalone-entry-01-planning.md` + `docs/superpowers/plans/2026-09-20-runtime-control-entry-01-planning.md`（D1–D8/F1–F10）+ `docs/architecture/STANDALONE_MEDIA_AGENT_OPERATIONS.md` + SE 系列四份收口报告 + SE-01B-FIX reconciliation 报告 + RUNTIME_RESOURCE_MODEL/RUNTIME_SESSION_MODEL/RUNTIME_BINDING_MODEL + `MEDIA_BACKEND_CONTRACT.md`；
 7. 核对 P2-C implementation chain through `0f375c8…`、maintenance failure `34921727757`、encrypted route probes 与最新 `media-agent CI`（P2-M2 后 `gstreamer-build` 应 @vbmf-media 且 artifact 非空）；
-8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·严格 D10 进程级 BMD 重验）**；STANDALONE-ENTRY-01 planning 已冻结（§3.61）、SE-01A（§3.62）、SE-01C（§3.63）、SE-01D（§3.64）、SE-01B（§3.65 + reconciliation §3.66–§3.67）全链完成；**当前 READY = CP-01E（全栈/BMD 集成验收·§4；CP-01A/01B/01C/01D 已收口 §3.73–§3.76）**；PORT-COLLISION-01 登记 BACKLOG 不越级；
+8. 读取 §5.1 Task Queue，只执行当前 Phase 第一个 `READY` Work Packet；RF-ENTRY-01、RF-FF-01A、RF-FF-01B、RF-FF-01C、RF-FF-01D、RF-FF-01E、RF-FF-01F、RF-FF-02、RF-FF-03、RH-CLOCK-01、RF-NORM-01、RF-MASTER-01、RF-SRC-RTMP-01 与对应 adjudication 已 COMPLETE；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·严格 D10 进程级 BMD 重验）**；STANDALONE-ENTRY-01 planning 已冻结（§3.61）、SE-01A（§3.62）、SE-01C（§3.63）、SE-01D（§3.64）、SE-01B（§3.65 + reconciliation §3.66–§3.67）全链完成；**当前无 READY packet——CP-01A..01E 全链 COMPLETE（§3.73–§3.77）**；PORT-COLLISION-01 登记 BACKLOG 不越级；
 9. 不回退到已经 COMPLETE 的 0.6 / 0.7 / A2-8 / P2-A；
 10. 不从历史 feature/fix/实验 branch 恢复开发；所有验证通过的改动直接推进 `main`；
 11. 完成独立任务后，同一轮更新本 STATE 的 Last Completed / Current Task / Next Task / verification / risks / debt / handoff；
@@ -1411,6 +1433,6 @@ Current Task 专项 Authority：用户 2026-09-20 指令（SE-01B-FIX bounded pa
 - **Phase 2 全链完成**：P2-C–P2-E、P2-M0–P2-M2 收口（§3.6–§3.16）；7 required job 全部 self-hosted 条件灰度（5 general + 2 media），GitHub-hosted 仅余 fork 回退；
 - **STAB-O3.1 已收口**（E2/E3A 恢复登记 + INCONCLUSIVE-at-allocation-path + 候选空间收敛·§3.17）；
 - **STAB-O4/FIX 已收口**（§3.18：E4-1 观测完成 + NO-FIX-IN-REPO·ladder 不触发·24h FAIL 立档）；
-- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·含严格 D10 进程级 BMD 重验 @ `d13f1fd`）**；STANDALONE-ENTRY-01 全链完成（含 SE-01B-FIX reconciliation·§3.66–§3.67）；**RUNTIME-CONTROL-ENTRY-01 全链完成 + RCE-D3 reconciliation（§3.71）+ CONTROL-PLANE-ENTRY-01 planning 冻结（§3.72）+ CP-01A/01B/01C/01D 收口（§3.73–§3.76）——当前 READY = CP-01E**；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
+- **RUNTIME-HARDEN immediate gates 已完成（§3.20–§3.24）；Runtime Features entry review + RF-FF-01A/B/C/D/E/F、post-01F adjudication、RF-FF-02 HLS、RF-FF-03 RTMP 单输入 egress/recovery、RH-CLOCK-01、RF-NORM-01 Phase A/B、RF-MASTER-01、RF-SRC-RTMP-01 已完成（§3.25–§3.49）；RF-SRC-01 因 SRT capability 缺失 BLOCKED；**RF-SRC-RTMP-02 COMPLETE（TG-0…TG-6 + closure reconciliation 全 PASS·§3.52–§3.58 + §3.60·含严格 D10 进程级 BMD 重验 @ `d13f1fd`）**；STANDALONE-ENTRY-01 全链完成（含 SE-01B-FIX reconciliation·§3.66–§3.67）；**RUNTIME-CONTROL-ENTRY-01 全链完成 + RCE-D3 reconciliation（§3.71）+ CONTROL-PLANE-ENTRY-01 planning 冻结（§3.72）+ CP-01A/01B/01C/01D/01E 收口（§3.73–§3.77）——全链 COMPLETE，无 READY packet**；当前仍不能扩展 Network umbrella/Program multi-input/Output expansion 或 24h stability**；
 - Runtime / Web 新业务功能当前不应越过 §5.1 queue 推进；
 - 24h RSS stability 仍是明确 verification debt，不能宣称 stability verified。

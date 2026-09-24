@@ -1,0 +1,43 @@
+# VBMF BMD-ACCEPTANCE overlay (CONTROL-PLANE-ENTRY-01 CP-01E / planning §8:
+# "BMD：真实 systemd(agent) + compose Fastify").
+#
+# On the BMD host the media-agent runs NATIVELY (device lane: bmd-provider +
+# gstreamer-backend, device binding manifest v5; the historical standalone
+# lane). The compose stack brings the CONTROL PLANE only: db + fastify + web
+# placeholder + nginx. The Fastify container reaches the native host agent's
+# internal JSON-RPC plane through the compose bridge gateway address — the
+# agent's MEDIA_AGENT_RPC_BIND is bound to that bridge IP as an explicit
+# acceptance ops action (D3-R: 私有 bind 为显式运维动作; never 0.0.0.0/::,
+# never host-published, never routed via Nginx).
+#
+# Usage (on BMD, inside the extracted exact-commit archive):
+#   docker compose --env-file .env \
+#     -f ops/docker-compose.yml -f ops/compose.bmd-acceptance.yml \
+#     up -d --no-deps fastify web nginx   (db first, without --no-deps)
+#   MEDIA_AGENT_RPC_HOST=<bridge ip> must be set in .env.
+
+services:
+  fastify:
+    environment:
+      # Native host agent (device lane) internal control plane.
+      MEDIA_AGENT_RPC_URL: http://${MEDIA_AGENT_RPC_HOST:?set MEDIA_AGENT_RPC_HOST in .env}:50051
+
+  web:
+    # Console placeholder (deferred packet): satisfies the frozen Nginx
+    # upstream without implementing any console functionality.
+    image: nginx:1.27-alpine
+    volumes:
+      - ./acceptance/web-placeholder.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  nginx:
+    ports:
+      - "8081:80"
+
+  db:
+    ports:
+      - "15433:5432"

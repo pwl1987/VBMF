@@ -37,6 +37,7 @@ COMPOSE_FILES = [
     "ops/compose.acceptance.yml",
     "ops/compose.prod.yml",
     "ops/compose.software-acceptance.yml",
+    "ops/compose.bmd-acceptance.yml",
 ]
 BASE_COMPOSE = "ops/docker-compose.yml"
 NGINX_DIR = "ops/nginx"
