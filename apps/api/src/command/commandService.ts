@@ -22,19 +22,42 @@ import { errorEnvelope, internalError } from "../lib/errors.ts";
 
 export type CommandKind = "start_session" | "stop_session" | "release_session";
 
+const KIND_ACTION: Record<CommandKind, string> = {
+  start_session: "session.start",
+  stop_session: "session.stop",
+  release_session: "session.release",
+};
+
+function kindToAction(kind: string): string {
+  return KIND_ACTION[kind as CommandKind] ?? kind;
+}
+
 type CommandRow = typeof commandsTable.$inferSelect;
 
 export interface SubmitInput {
   rawCommandId: string | undefined;
+  /** 认证主体 id（Better Auth user id；fingerprint 组成部分·C6）。 */
   principal: string;
+  /** 决策时角色（审计 who 上下文）。 */
+  role: string;
+  /** Product API 审计语义动作（session.start…）。 */
+  action: string;
   kind: CommandKind;
   target: Record<string, unknown>;
+  /** 恒等于认证主体 id（CP-01C 硬化：不接受客户端自报）。 */
   requestedBy: string;
 }
 
 export interface ServiceResponse {
   status: number;
   body: unknown;
+}
+
+/** 路由层消费的 command plane 最小接口（hermetic 测试注入显式 stub）。 */
+export interface CommandPlane {
+  submit(input: SubmitInput): Promise<ServiceResponse>;
+  getOperation(commandId: string): Promise<ServiceResponse | undefined>;
+  recoverStalePending(): Promise<number>;
 }
 
 export interface CommandServiceDeps {
@@ -72,7 +95,7 @@ const conflictEnvelope = {
   },
 };
 
-export class CommandService {
+export class CommandService implements CommandPlane {
   private readonly db: Db;
   private readonly agent: AgentControlClient;
   private readonly leaseMs: number;
@@ -137,7 +160,8 @@ export class CommandService {
         responseStatus: mapping.responseStatus,
         responseBody: body,
         principal: input.principal,
-        kind: input.kind,
+        role: input.role,
+        action: input.action,
       });
       return { status: mapping.responseStatus, body };
     } catch (err) {
@@ -152,7 +176,8 @@ export class CommandService {
           responseStatus: tr.responseStatus,
           responseBody: tr.body,
           principal: input.principal,
-          kind: input.kind,
+          role: input.role,
+          action: input.action,
         });
         return { status: tr.responseStatus, body: tr.body };
       }
@@ -167,7 +192,8 @@ export class CommandService {
           responseStatus: 500,
           responseBody: body,
           principal: input.principal,
-          kind: input.kind,
+          role: input.role,
+          action: input.action,
         });
         return { status: 500, body };
       }
@@ -231,7 +257,8 @@ export class CommandService {
       responseStatus: number;
       responseBody: unknown;
       principal: string;
-      kind: string;
+      role: string;
+      action: string;
     },
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
@@ -255,8 +282,11 @@ export class CommandService {
           .values({
             commandId,
             principal: terminal.principal,
-            kind: terminal.kind,
+            role: terminal.role,
+            action: terminal.action,
+            decision: "allowed",
             state: terminal.state,
+            classification: terminal.classification,
           })
           .onConflictDoNothing({ target: auditEntries.commandId });
       }
@@ -284,7 +314,10 @@ export class CommandService {
         responseStatus: tr.responseStatus,
         responseBody: tr.body,
         principal: row.principal,
-        kind: row.kind,
+        // 租约回收时角色不可得（commands 表不存角色）——诚实记 unknown，
+        // 决策时角色以命令提交时审计行为准。
+        role: "unknown",
+        action: kindToAction(row.kind),
       });
     }
     return stale.length;

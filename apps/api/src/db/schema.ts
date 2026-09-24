@@ -1,18 +1,24 @@
 /**
- * CP-01B durable command boundary（RH-IDEM-01 清偿）。
+ * CP-01B durable command boundary（RH-IDEM-01 清偿）+ CP-01C authn/authz/audit
+ * hardening。
  *
- * 表族对齐 CONTROL-PLANE-ENTRY-01 planning §5：`commands` = 外部
- * boundary-of-record（durable idempotency + 命令旅程）；`audit_entries` =
- * 每外部命令的 who/what/when/command_id/verdict（C10：CP 持久记录，
- * 与 V0.2 §5 通用 `audit_logs` 家族的 CP 专属 reconciliation——收口报告
- * 记录该命名裁定）。
+ * 表族对齐 CONTROL-PLANE-ENTRY-01 planning §5 与 V0.2 §5 命名族：
+ * - `commands` = 外部 boundary-of-record（durable idempotency + 命令旅程）；
+ * - `audit_entries` = 安全/命令审计（who/what/when/command_id/verdict/
+ *   authorization decision；CP-01C 扩展为通用安全审计面，与 V0.2 §5 通用
+ *   `audit_logs` 家族的 CP 专属 reconciliation——收口报告记录命名裁定）；
+ * - Better Auth identity 族（auth_user/auth_session/auth_account/
+ *   auth_verification）+ `api_keys`（Better Auth api-key plugin 官方模型，
+ *   表名对齐 V0.2 §5 `api_keys` 家族——收口报告记录该命名裁定）。
  *
  * 红线（C6/C8/C10）：state 单向迁移（claimed→终态，条件 UPDATE）；
- * 终态不可变、无覆写路径；Fastify 从不读 agent 幂等表；这些表是命令旅程
- * 事实，**绝不**成为 session/resource/health 的 Runtime truth。
+ * 终态不可变、无覆写路径；Fastify 从不读 agent 幂等表；这些表是命令旅程/
+ * 安全审计事实，**绝不**成为 session/resource/health 的 Runtime truth。
+ * API key secret 只以库内 SHA-256 摘要形态持久化，明文永不落库/落日志/落审计。
  */
 import {
   bigserial,
+  boolean,
   index,
   integer,
   jsonb,
@@ -38,7 +44,7 @@ export const commands = pgTable(
   "commands",
   {
     commandId: uuid("command_id").primaryKey(),
-    /** 开发态鉴权桩主体（CP-01C 换真实 authn；fingerprint 组成部分·C6）。 */
+    /** 认证主体（CP-01C = Better Auth user id；fingerprint 组成部分·C6）。 */
     principal: text("principal").notNull(),
     kind: text("kind").notNull(),
     /** canonical target JSON（fingerprint 输入，排除 issued_at/requested_by·D9-A）。 */
@@ -62,19 +68,150 @@ export const commands = pgTable(
   ],
 );
 
+/**
+ * 安全/命令审计（C10/C11）。CP-01C 扩展：每条记录覆盖
+ * who（principal/role）/ what（action）/ when（at）/ command_id（贯穿链）/
+ * verdict（state/classification）/ authorization decision（decision/reason）。
+ * 命令审计与命令终态同事务写入；拒绝路径（authn/authz/rate-limit）审计
+ * command_id 为 NULL（拒绝不占幂等·C4）。detail 永不含 credential/secret。
+ */
 export const auditEntries = pgTable(
   "audit_entries",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
-    commandId: uuid("command_id").notNull(),
-    principal: text("principal").notNull(),
-    kind: text("kind").notNull(),
-    /** 终态（与 commands.state 同事务写入）。 */
-    state: commandState("state").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** who：认证主体 id；未认证尝试记 "anonymous"。 */
+    principal: text("principal").notNull(),
+    /** 决策时主体角色（未知/缺失为 NULL——fail-closed 语义由 authz 层保证）。 */
+    role: text("role"),
+    /** what：Product API 语义动作（session.start…）或安全事件（auth.reject…）。 */
+    action: text("action").notNull(),
+    /** authorization decision：allowed | denied。 */
+    decision: text("decision").notNull(),
+    /** 拒绝原因机读码（auth.missing_credentials / authz.denied / ratelimit…）。 */
+    reason: text("reason"),
+    commandId: uuid("command_id"),
+    /** 命令审计的终态（与 commands.state 同事务写入）；非命令事件为 NULL。 */
+    state: commandState("state"),
+    classification: text("classification"),
+    detail: jsonb("detail"),
   },
   (t) => [
     uniqueIndex("audit_entries_command_id_key").on(t.commandId),
     index("audit_entries_at_idx").on(t.at),
+    index("audit_entries_principal_at_idx").on(t.principal, t.at),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Better Auth identity 族（CP-01C）。字段名（TS 侧）必须与 Better Auth 官方
+// schema 一致（drizzle adapter 按 model name 映射）；DB 列名按本仓 snake_case
+// 惯例。Better Auth 是 AuthN identity owner；这些表不是 Runtime truth（C10）。
+// ---------------------------------------------------------------------------
+
+/** Better Auth core `user` 模型 + CP-01C `role` additional field（RBAC 输入）。 */
+export const authUser = pgTable(
+  "auth_user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull(),
+    image: text("image"),
+    /** CP-01C RBAC 角色（viewer|operator）；NULL/未知角色 fail-closed 全拒绝。 */
+    role: text("role"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("auth_user_role_idx").on(t.role)],
+);
+
+export const authSession = pgTable(
+  "auth_session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("auth_session_user_id_idx").on(t.userId)],
+);
+
+export const authAccount = pgTable(
+  "auth_account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("auth_account_user_id_idx").on(t.userId)],
+);
+
+export const authVerification = pgTable("auth_verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+/**
+ * Better Auth api-key plugin 官方模型（model `apikey`），表名对齐 V0.2 §5
+ * `api_keys` 家族。`key` 列 = 库内 SHA-256 摘要（base64url，无盐）——明文
+ * secret 永不持久化；`start` 列是官方设计的前缀标识（非 secret，供运营
+ * 识别）。revoke = `enabled=false`；expire = `expires_at`（过期行由插件
+ * 验证路径删除并拒绝）。
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: text("id").primaryKey(),
+    /** Better Auth api-key plugin 配置组 id（本仓单配置组 = "default"）。 */
+    configId: text("config_id").notNull().default("default"),
+    name: text("name"),
+    start: text("start"),
+    /** key 属主（references="user" 语义）= auth_user.id。 */
+    referenceId: text("reference_id").notNull(),
+    prefix: text("prefix"),
+    key: text("key").notNull(),
+    refillInterval: integer("refill_interval"),
+    refillAmount: integer("refill_amount"),
+    lastRefillAt: timestamp("last_refill_at", { withTimezone: true }),
+    enabled: boolean("enabled").default(true),
+    rateLimitEnabled: boolean("rate_limit_enabled").default(true),
+    rateLimitTimeWindow: integer("rate_limit_time_window"),
+    rateLimitMax: integer("rate_limit_max"),
+    requestCount: integer("request_count").default(0),
+    remaining: integer("remaining"),
+    lastRequest: timestamp("last_request", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    permissions: text("permissions"),
+    metadata: text("metadata"),
+  },
+  (t) => [
+    index("api_keys_key_idx").on(t.key),
+    index("api_keys_reference_id_idx").on(t.referenceId),
+    index("api_keys_config_id_idx").on(t.configId),
   ],
 );

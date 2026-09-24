@@ -6,16 +6,23 @@
  *   （compose healthcheck 契约；agent 重启不得引发 fastify 容器 flap）。
  * - `GET /healthz`：分层依赖健康快照——api 层恒 up（端点自身可应答即真），
  *   runtime 层 live 观测 `agent.health`，db 层（CP-01B 持久记录载体，
- *   非 Runtime truth）SELECT 1 探测或诚实 not_configured。
+ *   非 Runtime truth）SELECT 1 探测或诚实 not_configured，auth 层（CP-01C
+ *   Better Auth；依赖 db + secret）如实区分 up / not_configured。
+ *
+ * 本面是显式登记的无认证运维探针例外（基础设施 liveness/readiness）；
+ * Product `/api/v1/*` 全部走 security 链。
  */
 import type { FastifyInstance } from "fastify";
 import { AgentTransportFailure, type AgentControlClient } from "../agent/agentControlClient.ts";
 import type { RouteDeps } from "./runtime.ts";
 import type { Db } from "../db/index.ts";
+import type { Authenticator } from "../security/auth.ts";
 
 export interface HealthRouteDeps {
   agent: AgentControlClient;
   db?: Db | null;
+  /** CP-01C：auth 层实例（null = not_configured）。 */
+  authenticator?: Authenticator | null;
 }
 
 export async function healthRoutes(app: FastifyInstance, deps: HealthRouteDeps): Promise<void> {
@@ -53,6 +60,12 @@ export async function healthRoutes(app: FastifyInstance, deps: HealthRouteDeps):
         db = { status: "unreachable", observed_at_ms: checkedAtMs };
       }
     }
-    return { checked_at_ms: checkedAtMs, layers: { api: { status: "up" }, runtime, db } };
+    // auth 层依赖 db + secret；其 DB 故障面在 db 层如实呈现，本层只表达
+    // 配置存在性（up = Better Auth 实例已构建）。
+    const auth: Record<string, unknown> =
+      deps.authenticator === null || deps.authenticator === undefined
+        ? { status: "not_configured", observed_at_ms: checkedAtMs }
+        : { status: "up", observed_at_ms: checkedAtMs };
+    return { checked_at_ms: checkedAtMs, layers: { api: { status: "up" }, runtime, db, auth } };
   });
 }

@@ -113,6 +113,14 @@ services:
       # CP-01B: durable command plane (commands/audit_entries migrations on
       # boot; db is a compose dependency below).
       MIGRATE_ON_BOOT: "true"
+      # CP-01C: Better Auth authn (fail-closed — the auth layer refuses to
+      # boot unconfigured; /api/v1/* returns 503 instead of anonymous access).
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      # CP-01C: application-layer rate limiting (principal x action bucket,
+      # in-memory sliding window; defaults 240 read / 60 write per minute).
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_READ_MAX: ${RATE_LIMIT_READ_MAX:-240}
+      RATE_LIMIT_WRITE_MAX: ${RATE_LIMIT_WRITE_MAX:-60}
     expose:
       - "3000"
     depends_on:

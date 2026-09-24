@@ -138,6 +138,42 @@ def gate_f11_compose(violations: list[str]) -> None:
         )
 
 
+def gate_cp01c_security(violations: list[str]) -> None:
+    """CP-01C security red lines (planning C11):
+
+    - the CP-01B dev principal stub header must not exist anywhere in
+      apps/api/src code (comments stripped, same heuristic as F12) — the
+      production path is Better Auth API-key authn only, no dev bypass;
+    - the base compose fastify service must require BETTER_AUTH_SECRET
+      (fail-closed: the auth layer cannot silently boot unconfigured).
+    """
+    root = REPO / CONTROL_PLANE_DIR / "src"
+    if not root.is_dir():
+        violations.append(f"CP01C: {CONTROL_PLANE_DIR}/src/ does not exist")
+        return
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
+            continue
+        if "node_modules" in path.parts or "dist" in path.parts:
+            continue
+        rel = path.relative_to(REPO)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        code = strip_js_comments(text)
+        if "x-dev-principal" in code:
+            violations.append(
+                f"CP01C: {rel}: dev principal stub header must not appear in "
+                "production source (CP-01C removed the dev bypass)"
+            )
+    base = REPO / BASE_COMPOSE
+    text = base.read_text(encoding="utf-8", errors="replace")
+    fastify_block = text.split("fastify:", 1)
+    if len(fastify_block) == 1 or "BETTER_AUTH_SECRET" not in fastify_block[-1]:
+        violations.append(
+            "CP01C: ops/docker-compose.yml: fastify service must require "
+            "BETTER_AUTH_SECRET (fail-closed auth layer)"
+        )
+
+
 def gate_f11_nginx(violations: list[str]) -> None:
     root = REPO / NGINX_DIR
     if not root.is_dir():
@@ -160,12 +196,13 @@ def main() -> int:
     gate_f12(violations)
     gate_f11_compose(violations)
     gate_f11_nginx(violations)
+    gate_cp01c_security(violations)
     if violations:
         print("control-plane gate: FAIL")
         for v in violations:
             print(f"  - {v}")
         return 1
-    print("control-plane gate: PASS (F11 deployment wiring + F12 Gate A lexical)")
+    print("control-plane gate: PASS (F11 deployment wiring + F12 Gate A lexical + CP01C security)")
     return 0
 
 

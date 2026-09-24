@@ -9,6 +9,7 @@ import { buildApp } from "../src/server.ts";
 import { loadConfig } from "../src/config.ts";
 import { AgentControlClient, AgentTransportFailure } from "../src/agent/agentControlClient.ts";
 import type { AgentQuerySnapshotWire } from "../src/agent/types.ts";
+import { FixtureAuthenticator, fixturePrincipal } from "./helpers/fixtureAuth.ts";
 
 function snapshotWith(sessionId: unknown): AgentQuerySnapshotWire {
   return {
@@ -42,10 +43,34 @@ function fetchJson(payload: unknown, status = 200): typeof fetch {
 
 const rpcOk = (result: unknown) => ({ jsonrpc: "2.0", result, id: 1 });
 
+// CP-01C：/api/v1/* 默认 authenticated/authorized/audited/rate-limited——
+// 本文件用显式 fixture authenticator（测试注入，非生产 dev bypass）提供
+// operator 身份，聚焦 Product 读 API 语义本身。
+const FIXTURE_KEY = "vbmf_fixture_operator_key";
+
 function appWithAgent(agent: AgentControlClient) {
+  const auth = new FixtureAuthenticator();
+  auth.register(FIXTURE_KEY, fixturePrincipal("user-operator-1", "operator"));
   return buildApp(loadConfig({ ...process.env, LOG_LEVEL: "silent" }), {
     agent,
     withoutDb: true,
+    authenticator: auth,
+  });
+}
+
+interface InjectOpts {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  url: string;
+  payload?: object;
+  headers?: Record<string, string>;
+}
+
+async function injectWithKey(app: Awaited<ReturnType<typeof buildApp>>, opts: InjectOpts) {
+  return app.inject({
+    method: opts.method,
+    url: opts.url,
+    ...(opts.payload !== undefined ? { payload: opts.payload } : {}),
+    headers: { ...opts.headers, "x-api-key": FIXTURE_KEY },
   });
 }
 
@@ -55,7 +80,7 @@ test("GET /api/v1/runtime: 200 + session id 规范化 UUID + label + freshness �
     fetchImpl: fetchJson(rpcOk(snapshotWith("session-11111111222233334444555566667777"))),
   });
   const app = await appWithAgent(agent);
-  const res = await app.inject({ method: "GET", url: "/api/v1/runtime" });
+  const res = await injectWithKey(app, { method: "GET", url: "/api/v1/runtime" });
   assert.equal(res.statusCode, 200);
   const body = res.json() as Record<string, unknown>;
   assert.equal(body.generated_at_ms, 1_700_000_000_999);
@@ -73,7 +98,7 @@ test("?session_id=<canonical uuid> 过滤命中", async () => {
     fetchImpl: fetchJson(rpcOk(snapshotWith("session-11111111222233334444555566667777"))),
   });
   const app = await appWithAgent(agent);
-  const res = await app.inject({
+  const res = await injectWithKey(app, {
     method: "GET",
     url: "/api/v1/runtime?session_id=11111111-2222-3333-4444-555566667777",
   });
@@ -88,7 +113,7 @@ test("?session_id=<合法但不存在> → 404 RESOURCE_NOT_FOUND", async () => 
     fetchImpl: fetchJson(rpcOk(snapshotWith("session-11111111222233334444555566667777"))),
   });
   const app = await appWithAgent(agent);
-  const res = await app.inject({
+  const res = await injectWithKey(app, {
     method: "GET",
     url: "/api/v1/runtime?session_id=99999999-9999-9999-9999-999999999999",
   });
@@ -110,7 +135,7 @@ test("F13 客户端方向：非法 session_id（含 display 形态）→ 400 VAL
     "not-a-uuid",
     "11111111222233334444555566667777",
   ]) {
-    const res = await app.inject({ method: "GET", url: `/api/v1/runtime?session_id=${bad}` });
+    const res = await injectWithKey(app, { method: "GET", url: `/api/v1/runtime?session_id=${bad}` });
     assert.equal(res.statusCode, 400, bad);
     const err = (res.json() as { error: Record<string, unknown> }).error;
     assert.equal(err.code, "VALIDATION_ERROR");
@@ -125,7 +150,7 @@ test("F13 agent 方向：agent 返回非法 session id wire → 500 INTERNAL_ERR
       fetchImpl: fetchJson(rpcOk(snapshotWith(badWire))),
     });
     const app = await appWithAgent(agent);
-    const res = await app.inject({ method: "GET", url: "/api/v1/runtime" });
+    const res = await injectWithKey(app, { method: "GET", url: "/api/v1/runtime" });
     assert.equal(res.statusCode, 500, `wire=${String(badWire)}`);
     const err = (res.json() as { error: Record<string, unknown> }).error;
     assert.equal(err.code, "INTERNAL_ERROR");
@@ -143,7 +168,7 @@ test("依赖不可达 → 503 DEPENDENCY_UNAVAILABLE retryable=true（绝不假�
   }) as unknown as typeof fetch;
   const agent = new AgentControlClient({ baseUrl: "http://agent.invalid", fetchImpl: failing });
   const app = await appWithAgent(agent);
-  const res = await app.inject({ method: "GET", url: "/api/v1/runtime" });
+  const res = await injectWithKey(app, { method: "GET", url: "/api/v1/runtime" });
   assert.equal(res.statusCode, 503);
   const err = (res.json() as { error: Record<string, unknown> }).error;
   assert.equal(err.code, "DEPENDENCY_UNAVAILABLE");
@@ -157,7 +182,7 @@ test("agent HTTP 503（unconfigured 诚实契约）→ 503 DEPENDENCY_UNAVAILABL
     fetchImpl: fetchJson({ error: "service_unavailable: runtime.query" }, 503),
   });
   const app = await appWithAgent(agent);
-  const res = await app.inject({ method: "GET", url: "/api/v1/runtime" });
+  const res = await injectWithKey(app, { method: "GET", url: "/api/v1/runtime" });
   assert.equal(res.statusCode, 503);
   assert.equal((res.json() as { error: { code: string } }).error.code, "DEPENDENCY_UNAVAILABLE");
 });
@@ -213,7 +238,7 @@ test("未知路由 → 404 RESOURCE_NOT_FOUND envelope", async () => {
   }) as unknown as typeof fetch;
   const agent = new AgentControlClient({ baseUrl: "http://agent.invalid", fetchImpl: failing });
   const app = await appWithAgent(agent);
-  const res = await app.inject({ method: "GET", url: "/api/v1/nope" });
+  const res = await injectWithKey(app, { method: "GET", url: "/api/v1/nope" });
   assert.equal(res.statusCode, 404);
   assert.equal((res.json() as { error: { code: string } }).error.code, "RESOURCE_NOT_FOUND");
 });
@@ -229,7 +254,7 @@ test("Product API 不代理 agent prototype /api/v1/*：唯一出站是 /interna
   }) as typeof fetch;
   const agent = new AgentControlClient({ baseUrl: "http://agent.invalid", fetchImpl: recording });
   const app = await appWithAgent(agent);
-  await app.inject({ method: "GET", url: "/api/v1/runtime" });
+  await injectWithKey(app, { method: "GET", url: "/api/v1/runtime" });
   await app.inject({ method: "GET", url: "/healthz" });
   for (const { url } of captured) {
     assert.ok(

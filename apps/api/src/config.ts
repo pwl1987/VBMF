@@ -1,5 +1,5 @@
 /**
- * CP-01A/CP-01B 环境配置（显式默认值；未知键不猜测）。
+ * CP-01A/CP-01B/CP-01C 环境配置（显式默认值；未知键不猜测）。
  *
  * - `MEDIA_AGENT_RPC_URL`：media-agent internal Runtime Control 基址
  *   （canonical env 形态见 D3-R；standalone 默认 `http://127.0.0.1:50051`，
@@ -8,6 +8,9 @@
  *   命名空间；不提供覆盖——命名空间是契约不是配置）。
  * - CP-01B：`DATABASE_URL`（或 DATABASE_HOST 族拼接）启用 durable command
  *   plane；缺省 = 读 API 形态（command 面 503 RESOURCE_UNAVAILABLE）。
+ * - CP-01C：`BETTER_AUTH_SECRET` 启用 Better Auth AuthN；缺失时 auth 层
+ *   not_configured，全部 `/api/v1/*` fail-closed 503（绝不回到匿名放行）。
+ *   应用层限流为单实例内存滑动窗（principal × action bucket）。
  */
 export const AGENT_RPC_PATH = "/internal/v1/agent";
 
@@ -17,13 +20,21 @@ export interface AppConfig {
   mediaAgentRpcUrl: string;
   trustProxy: boolean;
   logLevel: string;
-  /** null = 未配置持久层（command plane 诚实禁用）。 */
+  /** null = 未配置持久层（command plane 诚实禁用；auth 层同样 not_configured）。 */
   databaseUrl: string | null;
   migrateOnBoot: boolean;
   /** pending 租约（毫秒）——超龄回收 timeout(retryable)（C6/F6）。 */
   commandLeaseMs: number;
   /** in-flight 重复提交短窗口等待（毫秒·C6）。 */
   commandReplayWaitMs: number;
+  /** null = auth 层未配置（/api/v1 fail-closed 503；CP-01C）。 */
+  authSecret: string | null;
+  /** 应用层限流滑动窗（毫秒）。 */
+  rateLimitWindowMs: number;
+  /** 读类路由（runtime.read / command.read）每 principal 窗口限额。 */
+  rateLimitReadMax: number;
+  /** 写类路由（session start/stop/release）每 principal 窗口限额。 */
+  rateLimitWriteMax: number;
 }
 
 function intEnv(value: string | undefined, fallback: number): number {
@@ -56,5 +67,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     migrateOnBoot: env.MIGRATE_ON_BOOT === "true",
     commandLeaseMs: intEnv(env.COMMAND_LEASE_MS, 30_000),
     commandReplayWaitMs: intEnv(env.COMMAND_REPLAY_WAIT_MS, 1_500),
+    authSecret: env.BETTER_AUTH_SECRET !== undefined && env.BETTER_AUTH_SECRET !== "" ? env.BETTER_AUTH_SECRET : null,
+    rateLimitWindowMs: intEnv(env.RATE_LIMIT_WINDOW_MS, 60_000),
+    rateLimitReadMax: intEnv(env.RATE_LIMIT_READ_MAX, 240),
+    rateLimitWriteMax: intEnv(env.RATE_LIMIT_WRITE_MAX, 60),
   };
 }

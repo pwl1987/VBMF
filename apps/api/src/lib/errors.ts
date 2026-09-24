@@ -73,6 +73,21 @@ export function notFound(message: string): ApiError {
   return new ApiError("RESOURCE_NOT_FOUND", 404, message, false);
 }
 
+/** §6 默认安全模型：认证失败 401（retryable=false）。message 保持通用，不回显 credential 语境细节。 */
+export function authenticationFailed(message = "authentication required"): ApiError {
+  return new ApiError("AUTHENTICATION_FAILED", 401, message, false);
+}
+
+/** §6 默认安全模型：已认证但未授权 403（fail-closed，retryable=false）。 */
+export function authorizationDenied(message = "principal is not authorized for this operation"): ApiError {
+  return new ApiError("AUTHORIZATION_DENIED", 403, message, false);
+}
+
+/** §5 RATE_LIMITED：retryable=true；调用方需同时设置 Retry-After 响应头。 */
+export function rateLimited(message = "rate limit exceeded for this principal and action"): ApiError {
+  return new ApiError("RATE_LIMITED", 429, message, true);
+}
+
 export function dependencyUnavailable(message: string): ApiError {
   return new ApiError("DEPENDENCY_UNAVAILABLE", 503, message, true);
 }

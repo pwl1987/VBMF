@@ -8,6 +8,7 @@ import {
   type AgentControlClient,
 } from "../agent/agentControlClient.ts";
 import { toProductRuntime } from "../agent/normalize.ts";
+import { ROUTE_PERMISSIONS } from "../security/fastifySecurity.ts";
 import {
   dependencyUnavailable,
   internalError,
@@ -38,7 +39,13 @@ export interface RouteDeps {
 }
 
 export async function runtimeRoutes(app: FastifyInstance, deps: RouteDeps): Promise<void> {
-  app.get("/api/v1/runtime", async (req, reply) => {
+  app.get(
+    "/api/v1/runtime",
+    {
+      // CP-01C：runtime read = CASL (read, runtime) + principal×read 限流。
+      config: { security: { permission: ROUTE_PERMISSIONS.runtimeRead, bucket: "read" } },
+    },
+    async (req, reply) => {
     const raw = (req.query as Record<string, unknown>).session_id;
     let filter: string | undefined;
     if (raw !== undefined) {
@@ -83,5 +90,6 @@ export async function runtimeRoutes(app: FastifyInstance, deps: RouteDeps): Prom
       }
     }
     return reply.send(snapshot);
-  });
+    },
+  );
 }
